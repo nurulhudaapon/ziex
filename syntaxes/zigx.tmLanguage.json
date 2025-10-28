@@ -1,0 +1,196 @@
+{
+	"$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+	"name": "zigx",
+	"scopeName": "source.zigx",
+	"fileTypes": ["zigx", "zx"],
+	"patterns": [
+	  {
+		"include": "#zigx"
+	  },
+	  {
+		"include": "source.zig"
+	  }
+	],
+	"repository": {
+	  "zigx": {
+		"patterns": [
+		  {
+			"include": "#zigx-tag-self-closing"
+		  },
+		  {
+			"include": "#zigx-tag-open"
+		  },
+		  {
+			"include": "#zigx-tag-close"
+		  },
+		  {
+			"include": "#zigx-text"
+		  },
+		  {
+			"include": "#zigx-expression"
+		  }
+		]
+	  },
+	  "zigx-text": {
+		"patterns": [
+		  {
+			"name": "text.html.zigx",
+			"match": "(?<=>)[^<{]+"
+		  }
+		]
+	  },
+	  "zigx-tag-self-closing": {
+		"name": "meta.tag.self-closing.zigx",
+		"begin": "(<)([a-zA-Z_][a-zA-Z0-9_-]*)(?=[^>]*/>)",
+		"end": "(/>)",
+		"beginCaptures": {
+		  "1": {
+			"name": "punctuation.definition.tag.begin.zigx"
+		  },
+		  "2": {
+			"name": "entity.name.tag.zigx"
+		  }
+		},
+		"endCaptures": {
+		  "1": {
+			"name": "punctuation.definition.tag.end.zigx"
+		  }
+		},
+		"patterns": [
+		  {
+			"include": "#zigx-attribute"
+		  }
+		]
+	  },
+	  "zigx-tag-open": {
+		"name": "meta.tag.open.zigx",
+		"begin": "(<)([a-zA-Z_][a-zA-Z0-9_-]*)",
+		"end": "(>)",
+		"beginCaptures": {
+		  "1": {
+			"name": "punctuation.definition.tag.begin.zigx"
+		  },
+		  "2": {
+			"name": "entity.name.tag.zigx"
+		  }
+		},
+		"endCaptures": {
+		  "1": {
+			"name": "punctuation.definition.tag.end.zigx"
+		  }
+		},
+		"patterns": [
+		  {
+			"include": "#zigx-attribute"
+		  }
+		]
+	  },
+	  "zigx-tag-close": {
+		"name": "meta.tag.close.zigx",
+		"match": "(</)([a-zA-Z_][a-zA-Z0-9_-]*)(>)",
+		"captures": {
+		  "1": {
+			"name": "punctuation.definition.tag.begin.zigx"
+		  },
+		  "2": {
+			"name": "entity.name.tag.zigx"
+		  },
+		  "3": {
+			"name": "punctuation.definition.tag.end.zigx"
+		  }
+		}
+	  },
+	  "zigx-attribute": {
+		"patterns": [
+		  {
+			"name": "meta.attribute.with-value.zigx",
+			"begin": "\\s+([a-zA-Z_:][a-zA-Z0-9_:-]*)\\s*(=)",
+			"end": "(?=[\\s/>])|(?<=[\"'}])",
+			"beginCaptures": {
+			  "1": {
+				"name": "entity.other.attribute-name.zigx"
+			  },
+			  "2": {
+				"name": "keyword.operator.assignment.zigx"
+			  }
+			},
+			"patterns": [
+			  {
+				"name": "string.quoted.double.zigx",
+				"begin": "\"",
+				"end": "\"",
+				"patterns": [
+				  {
+					"include": "source.zig#stringcontent"
+				  }
+				]
+			  },
+			  {
+				"name": "string.quoted.single.zigx",
+				"begin": "'",
+				"end": "'",
+				"patterns": [
+				  {
+					"include": "source.zig#stringcontent"
+				  }
+				]
+			  },
+			  {
+				"include": "#zigx-expression"
+			  }
+			]
+		  },
+		  {
+			"name": "entity.other.attribute-name.zigx",
+			"match": "\\s+([a-zA-Z_:][a-zA-Z0-9_:-]*)(?=[\\s/>])",
+			"captures": {
+			  "1": {
+				"name": "entity.other.attribute-name.zigx"
+			  }
+			}
+		  }
+		]
+	  },
+	  "zigx-children": {
+		"patterns": [
+		  {
+			"include": "#zigx-expression"
+		  },
+		  {
+			"include": "#zigx"
+		  },
+		  {
+			"name": "text.zigx.zigx",
+			"match": "[^<\\{\\}]+"
+		  }
+		]
+	  },
+	  "zigx-expression": {
+		"patterns": [
+		  {
+			"name": "meta.embedded.expression.zigx",
+			"begin": "\\{",
+			"end": "\\}",
+			"beginCaptures": {
+			  "0": {
+				"name": "punctuation.section.embedded.begin.zigx"
+			  }
+			},
+			"endCaptures": {
+			  "0": {
+				"name": "punctuation.section.embedded.end.zigx"
+			  }
+			},
+			"patterns": [
+			  {
+				"include": "#zigx"
+			  },
+			  {
+				"include": "source.zig"
+			  }
+			]
+		  }
+		]
+	  }
+	}
+  }

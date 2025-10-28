@@ -1,0 +1,61 @@
+{
+  "name": "zigx",
+  "displayName": "ZigX",
+  "description": "ZigX let's you write html within your Zig code.",
+  "version": "0.0.0",
+  "publisher": "nurulhudaapon",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nurulhudaapon/zigx"
+  },
+  "engines": {
+    "vscode": "^1.105.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "zig",
+    "zigx",
+    "syntax",
+    "highlighting"
+  ],
+  "extensionDependencies": [
+    "ziglang.vscode-zig"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "zigx",
+        "aliases": [
+          "ZigX",
+          "zigx"
+        ],
+        "extensions": [
+          ".zigx",
+          ".zx"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "zigx",
+        "scopeName": "source.zigx",
+        "path": "./syntaxes/zigx.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.tag.zigx": "zigx-tags",
+          "meta.tag.attributes.zigx": "zigx",
+          "meta.embedded.expression.zigx": "zigx"
+        }
+      },
+      {
+        "scopeName": "zigx.injection",
+        "path": "./syntaxes/zigx-injection.tmLanguage.json",
+        "injectTo": [
+          "source.zig"
+        ]
+      }
+    ]
+  }
+}
