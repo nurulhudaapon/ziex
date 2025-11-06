@@ -1,15 +1,16 @@
 {
   "name": "zigx",
-  "displayName": "ZigX",
-  "description": "ZigX let's you write html within your Zig code.",
-  "version": "0.0.0",
+  "displayName": "ZX",
+  "description": "ZX let's you write HTML within your Zig code.",
+  "version": "0.0.2",
   "publisher": "nurulhudaapon",
+  "icon": "images/zx-icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/nurulhudaapon/zigx"
+    "url": "https://github.com/nurulhudaapon/zx"
   },
   "engines": {
-    "vscode": "^1.105.0"
+    "vscode": "^1.99.0"
   },
   "categories": [
     "Programming Languages"
@@ -23,17 +24,28 @@
   "extensionDependencies": [
     "ziglang.vscode-zig"
   ],
+  "activationEvents": [
+    "workspaceContains:build.zig",
+    "workspaceContains:build.zig.zon",
+    "workspaceContains:./.zigversion"
+  ],
+  "main": "./out/extension",
   "contributes": {
+    "configurationDefaults": {
+      "explorer.autoRevealExclude": {
+        "**/.zig-cache": true,
+        "**/zig-cache": true
+      }
+    },
     "languages": [
       {
         "id": "zigx",
-        "aliases": [
-          "ZigX",
-          "zigx"
-        ],
         "extensions": [
-          ".zigx",
           ".zx"
+        ],
+        "aliases": [
+          "ZX",
+          "Zig"
         ],
         "configuration": "./language-configuration.json"
       }
@@ -50,5 +62,38 @@
         }
       }
     ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build-base -- --minify",
+    "build-base": "esbuild --bundle --external:vscode src/extension.ts --outdir=out --platform=node --target=node20 --format=cjs",
+    "build": "npm run build-base -- --sourcemap",
+    "watch": "npm run build-base -- --sourcemap --watch",
+    "test": "npm run compile && node ./node_modules/vscode/bin/test",
+    "typecheck": "tsc --noEmit",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint"
+  },
+  "devDependencies": {
+    "@types/libsodium-wrappers": "^0.7.14",
+    "@types/lodash-es": "^4.17.12",
+    "@types/node": "^20.0.0",
+    "@types/semver": "^7.5.8",
+    "@types/vscode": "^1.80.0",
+    "@types/which": "^2.0.1",
+    "@vscode/vsce": "^2.24.0",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.0.0",
+    "eslint-config-prettier": "^9.1.0",
+    "prettier": "3.2.5",
+    "typescript": "^5.4.3",
+    "typescript-eslint": "^8.0.0"
+  },
+  "dependencies": {
+    "libsodium-wrappers": "^0.7.15",
+    "lodash-es": "^4.17.21",
+    "semver": "^7.5.2",
+    "vscode-languageclient": "10.0.0-next.15",
+    "which": "^3.0.0"
   }
 }

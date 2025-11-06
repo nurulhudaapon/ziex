@@ -1,3 +1,11 @@
-.vscode/**
-.vscode-test/**
-.gitignore
+**
+!images/zx-icon.png
+!images/example.png
+!syntaxes/zigx.tmLanguage.json
+!syntaxes/zigx-injection.tmLanguage.json
+!language-configuration.json
+!out/extension.js
+!package.json
+!LICENSE
+!README.md
+!CHANGELOG.md
