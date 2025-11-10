@@ -116,7 +116,6 @@ const zx = @import("zx");
 
 
 const outSwitchBlock =`pub fn Page(allocator: zx.Allocator) zx.Component {
-
     return (
         <main @allocator={allocator}>
             <section>
@@ -136,6 +135,26 @@ const outSwitchBlock =`pub fn Page(allocator: zx.Allocator) zx.Component {
 }
 `;
 
+const inSwitchBlock1 = `pub fn Page(allocator: zx.Allocator) zx.Component {
+
+    return (
+        <main @allocator={allocator}>
+            <section>
+                {switch (user_swtc.user_type) {
+                    .admin => ("Admin"),
+                    .member => ("Member"),
+                }}
+            </section>
+            <section>
+                {switch (user_swtc.user_type) {
+                    .admin => (<p>Powerful</p>),
+                    .member => (<p>Powerless</p>),
+                }}
+            </section>
+        </main>
+    );
+}`;
+
 export const fmtCases = [
   {
     ins: [inIfBlock1],
@@ -144,5 +163,9 @@ export const fmtCases = [
   {
     ins: [inIfLiner1, inIfLiner2],
     outIfLiner,
+  },
+  {
+    ins: [inSwitchBlock1],
+    outSwitchBlock,
   },
 ];
