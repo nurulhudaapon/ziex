@@ -9,6 +9,6 @@
     "sourceMap": true,
     "incremental": true
   },
-  "include": ["src", "test/util.test.ts"],
+  "include": ["src", "test/fmt/util.test.ts"],
   "exclude": ["node_modules", ".vscode-test", "**/*.test.ts"]
 }

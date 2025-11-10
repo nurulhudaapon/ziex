@@ -9,7 +9,7 @@ import {
 
 import { getZLSPath } from "./util";
 
-import { formatZx, preCompileZigFmt } from "./fmt";
+import { formatZx, preCompileZigFmt } from "./fmt/fmt";
 
 let client: LanguageClient;
 

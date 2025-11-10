@@ -604,6 +604,94 @@ const inSwitchBlock7 = `pub fn Page(allocator: zx.Allocator) zx.Component {
     );
 }`;
 
+// =============== For Loop ===============
+const inForLoopLiner1 = `pub fn Page(allocator: zx.Allocator) zx.Component {
+    const chars = "ABC";
+    const user_names = [_][]const u8{ "John", "Jane", "Jim", "Jill" };
+
+    return (
+        <main @allocator={allocator}>
+            <section>
+                         <p>chars:</p>
+                {for        (chars) |char| (<i>{[char:c]}</i>)}
+                    </section>
+        
+            <section>
+                <p>user_names:</p>
+                        {for (user_names) |name| (<i>{name}</i>)}
+            </section>
+        </main>
+    );
+}
+
+const zx = @import("zx");`;
+
+const outForLoopLiner = `pub fn Page(allocator: zx.Allocator) zx.Component {
+    const chars = "ABC";
+    const user_names = [_][]const u8{ "John", "Jane", "Jim", "Jill" };
+
+    return (
+        <main @allocator={allocator}>
+            <section>
+                <p>chars:</p>
+                {for (chars) |char| (<i>{[char:c]}</i>)}
+            </section>
+        
+            <section>
+                <p>user_names:</p>
+                {for (user_names) |name| (<i>{name}</i>)}
+            </section>
+        </main>
+    );
+}
+
+const zx = @import("zx");
+`;
+
+const outForLoopBlock = `pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main>
+            <h1>Blog</h1>
+            <ol>
+                {for (posts) |post| {
+                    (        <li>
+                        <div>
+                            <a href={post.url}>
+                                <h3>{post.title}</h3>
+                            </a>
+                            <p>{post.brief}</p>
+                        </div>
+                    </li>)
+                }}
+            </ol>
+        </main>
+    );
+}
+
+const zx = @import("zx");
+`;
+
+const inForLoopBlock1 = `pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main>
+        <h1>Blog</h1>
+            <ol>
+    {for (posts)          |post| {(
+                <li>
+            <div>
+                        <a href={post.url}><h3>{post.title}</h3></a>
+       <p>{post.brief}</p>
+                    </div>
+                </li>
+            )}}
+            </ol>
+        </main>
+    );
+}
+
+const zx = @import("zx");`
+
+
 const inLargeMixexdContent = `pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
 <html @allocator={allocator}>
@@ -1039,5 +1127,13 @@ export const fmtCases = [
     {
         ins: [inLargeMixexdContent],
         outLargeMixedContent,
+    },
+    {
+        ins: [inForLoopLiner1],
+        outForLoopLiner,
+    },
+    {
+        ins: [inForLoopBlock1],
+        outForLoopBlock,
     },
 ];

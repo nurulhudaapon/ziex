@@ -1,0 +1,1 @@
+test {for (posts)          |post| {(                @html(0)            )}}

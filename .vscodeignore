@@ -2,7 +2,7 @@
 !images/**
 !syntaxes/**
 !language-configuration.json
-!out/*.js
+!out/**/**/*.js
 
 !node_modules/**/**
 

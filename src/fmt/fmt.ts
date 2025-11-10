@@ -6,7 +6,13 @@ import {
   TextDocument,
 } from "vscode-html-languageservice";
 const htmlLanguageService = getLanguageService();
-import * as fmtUtil from "./fmt/util";
+import * as fmtUtil from "./util";
+const {
+  findBalancedParens,
+  indentNegate,
+  removeSemicolonsFromHtmlPlaceholders,
+  removeSemicolonsFromCompleteExpressions,
+} = fmtUtil;
 
 const execFile = util.promisify(childProcess.execFile);
 
@@ -622,58 +628,13 @@ export function cleanupZigExprs(
   return zigLines.join("\n").replace(/\n+$/, "");
 }
 
-/**
- * Finds the end of a balanced parentheses expression starting at a given position.
- * Returns the position after the closing parenthesis, or -1 if not found.
- */
-function findBalancedParens(text: string, startPos: number): number {
-  let depth = 0;
-  let pos = startPos;
-  let inString = false;
-  let stringChar = '';
-
-  while (pos < text.length) {
-    const char = text[pos];
-    const prevChar = pos > 0 ? text[pos - 1] : '';
-
-    // Handle string literals
-    if (!inString && (char === '"' || char === "'")) {
-      inString = true;
-      stringChar = char;
-      pos++;
-      continue;
-    }
-
-    if (inString) {
-      if (char === stringChar && prevChar !== '\\') {
-        inString = false;
-      }
-      pos++;
-      continue;
-    }
-
-    // Handle parentheses
-    if (char === '(') {
-      depth++;
-    } else if (char === ')') {
-      depth--;
-      if (depth === 0) {
-        return pos + 1;
-      }
-    }
-
-    pos++;
-  }
-
-  return -1;
-}
 
 /**
  * Adds semicolons after complete expression statements (if/for/switch/while) to make valid Zig syntax.
  * This handles expressions like: if (condition) (value) else (value)
  * and converts them to: if (condition) (value) else (value);
  */
-function addSemicolonsToCompleteExpressions(text: string): string {
+export function addSemicolonsToCompleteExpressions(text: string): string {
   type ExpressionType = "if" | "for" | "switch" | "while";
   
   const expressionKeywords: ExpressionType[] = ["if", "for", "switch", "while"];
@@ -710,9 +671,19 @@ function addSemicolonsToCompleteExpressions(text: string): string {
         }
       }
 
+      // Handle body that may start with { then ( (e.g., {(\n ... \n)})
+      let bodyStartPos = pos;
+      if (text[pos] === '{') {
+        // Skip opening brace and whitespace
+        bodyStartPos = pos + 1;
+        while (bodyStartPos < text.length && /\s/.test(text[bodyStartPos])) {
+          bodyStartPos++;
+        }
+      }
+
       // Find the body which is wrapped in parentheses
-      if (text[pos] === '(') {
-        const bodyEnd = findBalancedParens(text, pos);
+      if (text[bodyStartPos] === '(') {
+        const bodyEnd = findBalancedParens(text, bodyStartPos);
         if (bodyEnd === -1) continue;
 
         let end = bodyEnd;
@@ -816,7 +787,7 @@ function addSemicolonsToCompleteExpressions(text: string): string {
  * This is needed because inside if/else/for/while blocks, expressions need semicolons.
  * Note: switch statements do NOT require semicolons, so they are excluded.
  */
-function addSemicolonsToHtmlPlaceholders(text: string): string {
+export function addSemicolonsToHtmlPlaceholders(text: string): string {
   // Match @html(n) or (@html(n)) patterns
   const htmlPattern = /(@html\(\d+\)|\(@html\(\d+\)\))/g;
   const matches: Array<{ match: string; index: number }> = [];
@@ -917,8 +888,39 @@ function addSemicolonsToHtmlPlaceholders(text: string): string {
       }
     }
 
-    // If we're still inside the opening brace (braceCount > 0), add semicolon
+    // If we're still inside the opening brace (braceCount > 0), check if we're inside parentheses
+    // If we're inside parentheses that are part of a control flow body, skip adding semicolon here
+    // because addSemicolonsToCompleteExpressions will add it after the closing paren
     if (braceCount > 0) {
+      // Check if we're inside parentheses by looking backwards from the @html position
+      // Convert openingBracePos to absolute position in result string
+      const absoluteOpeningBracePos = lastControlFlowPos + openingBracePos;
+      let parenCount = 0;
+      let foundOpeningParen = false;
+      let parenStartPos = -1;
+      
+      // Look backwards from the @html position to find if we're inside parentheses
+      for (let k = index - 1; k >= absoluteOpeningBracePos; k--) {
+        const char = result[k];
+        if (char === ")") {
+          parenCount++;
+        } else if (char === "(") {
+          if (parenCount === 0) {
+            // Found the opening paren that contains us
+            foundOpeningParen = true;
+            parenStartPos = k;
+            break;
+          }
+          parenCount--;
+        }
+      }
+      
+      // If we're inside parentheses that start after the opening brace, skip adding semicolon
+      // The semicolon will be added by addSemicolonsToCompleteExpressions after the closing paren
+      if (foundOpeningParen && parenStartPos > absoluteOpeningBracePos) {
+        continue;
+      }
+      
       result =
         result.slice(0, index + htmlMatch.length) +
         ";" +
@@ -929,108 +931,6 @@ function addSemicolonsToHtmlPlaceholders(text: string): string {
   return result;
 }
 
-/**
- * Removes semicolons that were added after @html(n) patterns.
- * This reverses the effect of addSemicolonsToHtmlPlaceholders.
- */
-function removeSemicolonsFromHtmlPlaceholders(text: string): string {
-  // Remove semicolons that immediately follow @html(n) or (@html(n))
-  return text.replace(/(@html\(\d+\)|\(@html\(\d+\)\));/g, "$1");
-}
-
-/**
- * Removes semicolons that were added after complete expression statements.
- * This reverses the effect of addSemicolonsToCompleteExpressions.
- */
-function removeSemicolonsFromCompleteExpressions(text: string): string {
-  type ExpressionType = "if" | "for" | "switch" | "while";
-  
-  const expressionKeywords: ExpressionType[] = ["if", "for", "switch", "while"];
-  const matches: Array<{ start: number; end: number; type: ExpressionType }> = [];
-
-  // Find all expression keywords (same logic as addSemicolonsToCompleteExpressions)
-  for (const keyword of expressionKeywords) {
-    const regex = new RegExp(`\\b${keyword}\\s*\\(`, "g");
-    let match;
-    while ((match = regex.exec(text)) !== null) {
-      const start = match.index;
-      const afterKeyword = match.index + match[0].length - 1;
-      
-      const conditionEnd = findBalancedParens(text, afterKeyword);
-      if (conditionEnd === -1) continue;
-
-      let pos = conditionEnd;
-      while (pos < text.length && /\s/.test(text[pos])) {
-        pos++;
-      }
-
-      if (text[pos] === '|') {
-        pos++;
-        const captureEnd = text.indexOf('|', pos);
-        if (captureEnd !== -1) {
-          pos = captureEnd + 1;
-          while (pos < text.length && /\s/.test(text[pos])) {
-            pos++;
-          }
-        }
-      }
-
-      if (text[pos] === '(') {
-        const bodyEnd = findBalancedParens(text, pos);
-        if (bodyEnd === -1) continue;
-
-        let end = bodyEnd;
-
-        if (keyword === "if") {
-          let elsePos = bodyEnd;
-          while (elsePos < text.length && /\s/.test(text[elsePos])) {
-            elsePos++;
-          }
-
-          if (text.substring(elsePos, elsePos + 4) === "else") {
-            elsePos += 4;
-            while (elsePos < text.length && /\s/.test(text[elsePos])) {
-              elsePos++;
-            }
-
-            if (text[elsePos] === '(') {
-              const elseBodyEnd = findBalancedParens(text, elsePos);
-              if (elseBodyEnd !== -1) {
-                end = elseBodyEnd;
-              }
-            }
-          }
-        }
-
-        matches.push({ start, end, type: keyword });
-      }
-    }
-  }
-
-  // Remove semicolons from matches (process from end to start)
-  let result = text;
-  for (let i = matches.length - 1; i >= 0; i--) {
-    const { end, type } = matches[i];
-    
-    // Skip switch statements (they don't have semicolons)
-    if (type === "switch") {
-      continue;
-    }
-
-    // Check if there's a semicolon after the expression (with optional whitespace)
-    const afterMatch = result.slice(end);
-    const trimmedAfter = afterMatch.trimStart();
-    
-    if (trimmedAfter.startsWith(";")) {
-      // Find the actual position of the semicolon (accounting for whitespace)
-      const semicolonPos = end + (afterMatch.length - trimmedAfter.length);
-      // Remove the semicolon
-      result = result.slice(0, semicolonPos) + result.slice(semicolonPos + 1);
-    }
-  }
-
-  return result;
-}
 
 /**
  * Formats multiple prepared Zig text segments at once (which may still contain @html(...) placeholders).
@@ -1128,50 +1028,21 @@ export async function runZigFmt(
     });
     promise.child.stdin?.end(text);
 
-    const { stdout } = await promise;
+    const zigFmtResult = await promise;
 
-    if (stdout.length === 0) return text;
-    return stdout;
+    if (zigFmtResult.stdout.length === 0) return text;
+    return zigFmtResult.stdout;
   } catch (err) {
+    console.error("runZigFmt error:", err.stderr);
     if (token.isCancellationRequested) {
       return text;
     }
-    console.error("runZigFmt error:", err);
     return text;
   } finally {
     fmtStats.increment("zig", Date.now() - timestamp);
   }
 }
 
-/**
- * Removes indentation from specific lines in an array of lines.
- * Used to adjust indentation after merging braces in Zig expressions.
- */
-function indentNegate(
-  lines: string[],
-  startLine: number,
-  endLine: number,
-  negateLevel: number,
-  tabSize: number,
-  insertSpaces: boolean,
-): string[] {
-  const indentSize = insertSpaces ? tabSize : 1;
-  const indentToRemove = " ".repeat(indentSize * negateLevel);
-
-  return lines.map((line, index) => {
-    if (index >= startLine && index <= endLine) {
-      // Remove the specified level of indentation
-      if (line.startsWith(indentToRemove)) {
-        return line.slice(indentToRemove.length);
-      }
-      // If using tabs, try removing tabs
-      if (!insertSpaces && line.startsWith("\t")) {
-        return line.slice(negateLevel);
-      }
-    }
-    return line;
-  });
-}
 
 export interface CancellationToken {
   /**

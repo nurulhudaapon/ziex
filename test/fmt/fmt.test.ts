@@ -1,6 +1,6 @@
 import { test, expect, describe, afterAll } from "bun:test";
-import { formatZx, fmtStats, preCompileZigFmt } from "../src/fmt";
-import { fmtCases } from "./data.test";
+import { formatZx, fmtStats, preCompileZigFmt } from "../../src/fmt/fmt";
+import { fmtCases } from "../data.test";
 import Bun from "bun";
 
 const virtualHtmlDocumentContents = new Map<string, string>();
