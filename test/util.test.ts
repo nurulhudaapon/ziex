@@ -1,29 +1,54 @@
-import { test, expect } from "bun:test";
+import { test, expect, describe } from "bun:test";
 import {
   extractHtmls,
   cleanupZigExprs,
   extractZigExprs as prepareFmtSegment,
 } from "../src/fmt";
+import * as fmtUtil from "../src/fmt/util";
+import { outLargeMixedContent } from "./data.test";
 
 test("prefareFmtDoc", () => {
   const testableHtmls = documentHtmls.slice(0, 2);
   const preparedDoc = extractHtmls(documentText);
-
-  // Log the prepared document for inspection
-  // console.log(
-  //   "prepareFmtDoc.preparedDocumentText:\n",
-  //   preparedDoc.preparedDocumentText,
-  // );
-  // console.log(
-  //   "prepareFmtDoc.htmlContents keys:",
-  //   Array.from(preparedDoc.htmlContents.keys()),
-  // );
 
   expect(preparedDoc.preparedDocumentText).toEqual(expectedDocumentText);
   expect(preparedDoc.htmlContents.size).toEqual(testableHtmls.length);
   testableHtmls.forEach((html, index) => {
     expect(preparedDoc.htmlContents.get(`@html(${index})`)).toEqual(html);
   });
+});
+
+
+describe("extractHtmls", () => {
+  test("make sure large mixed content correctly extracted", () => {
+    const html = fmtUtil.extractHtmls(outLargeMixedContent);
+    expect(html.htmls.length).toEqual(2);
+  })
+
+  test("html inside string should be ignored", () => {
+    const doc = `
+    pub fn Page(allocator: zx.Allocator) zx.Component {
+    const user_name = "Alice & Bob";
+    const html_content = "<script>alert('XSS')</script>";
+    const unsafe_html = "<span>Test</span>";
+
+    return (
+        <main @allocator={allocator}>
+            <section>
+                <p>User: {user_name}</p>
+                <p>Safe HTML: {html_content}</p>
+                <p>Unsafe HTML: {[unsafe_html:s]}</p>
+            </section>
+        </main>
+    );
+}
+
+const zx = @import("zx");
+
+    `;
+    const html = fmtUtil.extractHtmls(doc);
+    expect(html.htmls.length).toEqual(1);
+  })
 });
 
 const documentHtmls = [
@@ -78,11 +103,15 @@ const zx = @import("zx");
 
 const expectedDocumentText = `
 pub fn Navbar(allocator: zx.Allocator) zx.Component {
-    return (@html(0));
+    return (
+        @html(0)
+    );
 }
 
 pub fn NavItem(allocator: zx.Allocator, href: string, text: string) zx.Component {
-    return (@html(1));
+    return (
+        @html(1)
+    );
 }
 
 const zx = @import("zx");

@@ -21,9 +21,21 @@ describe("fmt", () => {
                         virtualHtmlDocumentContents,
                     );
 
+                    await log(inputText, outputText);
                     // @ts-ignore
                     expect(outputText).toEqual(fmtCase[key]);
-                    await log(inputText, outputText);
+
+
+                    // reformat the output text
+                    const reformattedOutputText = await formatZx(
+                        outputText,
+                        cancellationTokenSource.token,
+                        "test.zx",
+                        virtualHtmlDocumentContents,
+                    );
+                    expect(reformattedOutputText).toEqual(outputText);
+
+                    await log(inputText, reformattedOutputText);
                 });
             }
         });
