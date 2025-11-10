@@ -58,6 +58,176 @@ const inIfLiner2 = `pub fn Page(ctx: zx.PageContext) zx.Component {
 
 const zx = @import("zx");`;
 
+const inIfLiner3 = `pub fn Page(ctx: zx.PageContext) zx.Component {
+    const is_admin = true;
+
+    return (
+        <main @allocator={ctx.arena}>
+            <section>
+                {if(is_admin)(<p>Admin</p>)else(<p>User</p>)}
+            </section>
+            <section>
+                {if(is_admin)("Powerful")else("Powerless")}
+            </section>
+        </main>
+    );
+}
+
+const zx = @import("zx");`;
+
+const inIfLiner4 = `pub fn Page(ctx: zx.PageContext) zx.Component {
+    const is_admin = true;
+
+    return (
+        <main @allocator={ctx.arena}>
+            <section>
+{if (is_admin) (<p>Admin</p>) else (<p>User</p>)}
+            </section>
+            <section>
+                {if (is_admin) ("Powerful") else ("Powerless")}
+            </section>
+        </main>
+    );
+}
+
+const zx = @import("zx");`;
+
+const inIfLiner5 = `pub fn Page(ctx: zx.PageContext) zx.Component {
+    const is_admin = true;
+
+    return (
+        <main @allocator={ctx.arena}>
+            <section>
+                {if (is_admin) (<p>Admin</p>) else (<p>User</p>)}
+            </section>
+<section>
+{if (is_admin) ("Powerful") else ("Powerless")}
+</section>
+        </main>
+    );
+}
+
+const zx = @import("zx");`;
+
+const inIfLiner6 = `pub fn Page(ctx: zx.PageContext) zx.Component {
+    const is_admin = true;
+
+    return (
+        <main @allocator={ctx.arena}>
+            <section>
+                {if(is_admin)(<p>Admin</p>)else(<p>User</p>)}
+            </section>
+            <section>
+                {if(is_admin)("Powerful")else("Powerless")}
+            </section>
+        </main>
+    );
+}
+
+const zx = @import("zx");`;
+
+const inIfLiner7 = `pub fn Page(ctx: zx.PageContext) zx.Component {
+    const is_admin = true;
+
+    return (
+        <main @allocator={ctx.arena}>
+            <section>
+                {if (is_admin) (<p>Admin</p>) else (<p>User</p>)}
+            </section>
+            <section>
+                {if (is_admin) ("Powerful") else ("Powerless")}
+            </section>
+        </main>
+    );
+}
+
+const zx = @import("zx");`;
+
+const inIfLiner8 = `pub fn Page(ctx: zx.PageContext) zx.Component {
+    const is_admin = true;
+
+    return (
+        <main @allocator={ctx.arena}>
+            <section>
+                {if (is_admin) (       <p>Admin</p>)  else (<p>User</p>)}
+            </section>
+            <section>
+                {if (is_admin) ("Powerful") else ("Powerless")}
+            </section>
+        </main>
+    );
+}
+
+const zx = @import("zx");`;
+
+const inIfLiner9 = `pub fn Page(ctx: zx.PageContext) zx.Component {
+    const is_admin = true;
+
+    return (
+        <main @allocator={ctx.arena}>
+            <section>
+                {             if             (is_admin) (          <p>Admin</p>) else     (<p>User</p>       )}
+            </section>
+            <section>
+                {         if (           is_admin) (             "Powerful")             else ("Powerless")              }
+            </section>
+        </main>
+    );
+}
+
+const zx = @import("zx");`;
+
+const inIfLiner10 = `pub fn Page(ctx: zx.PageContext) zx.Component {
+    const is_admin = true;
+
+    return (
+        <main @allocator={ctx.arena}>
+            <section>
+                {if (is_admin) (<p>Admin</p>) else (<p>User</p>)}
+            </section>
+            <section>
+                {if (is_admin) ("Powerful") else ("Powerless")}
+            </section>
+        </main>
+    );
+}
+
+const zx = @import("zx");`;
+
+const inIfLiner11 = `pub fn Page(ctx: zx.PageContext) zx.Component {
+    const is_admin = true;
+
+    return (
+        <main @allocator={ctx.arena}>
+            <section>
+                {if (is_admin) (<p>Admin</p>) else (<p>User</p>)}
+            </section>
+            <section>
+                {if (is_admin) ("Powerful") else ("Powerless")}
+            </section>
+        </main>
+    );
+}
+
+const zx = @import("zx");`;
+
+const inIfLiner12 = `pub fn Page(ctx: zx.PageContext) zx.Component {
+    const is_admin = true;
+
+    return (
+        <main @allocator={ctx.arena}>
+            <section>
+                {if (is_admin) (<p>Admin</p>) else (<p>User</p>)}
+            </section>
+            <section>
+                {if (is_admin) ("Powerful") else ("Powerless")}
+            </section>
+        </main>
+    );
+}
+
+const zx = @import("zx");`;
+
 const outIfLiner = `pub fn Page(ctx: zx.PageContext) zx.Component {
     const is_admin = true;
 
@@ -440,7 +610,7 @@ export const fmtCases = [
     outIfBlock,
   },
   {
-    ins: [inIfLiner1, inIfLiner2],
+    ins: [inIfLiner1, inIfLiner2, inIfLiner3, inIfLiner4, inIfLiner5, inIfLiner6, inIfLiner7, inIfLiner8, inIfLiner9, inIfLiner10, inIfLiner11, inIfLiner12],
     outIfLiner,
   },
   {

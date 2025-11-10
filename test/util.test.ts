@@ -10,14 +10,14 @@ test("prefareFmtDoc", () => {
   const preparedDoc = extractHtmls(documentText);
 
   // Log the prepared document for inspection
-  console.log(
-    "prepareFmtDoc.preparedDocumentText:\n",
-    preparedDoc.preparedDocumentText,
-  );
-  console.log(
-    "prepareFmtDoc.htmlContents keys:",
-    Array.from(preparedDoc.htmlContents.keys()),
-  );
+  // console.log(
+  //   "prepareFmtDoc.preparedDocumentText:\n",
+  //   preparedDoc.preparedDocumentText,
+  // );
+  // console.log(
+  //   "prepareFmtDoc.htmlContents keys:",
+  //   Array.from(preparedDoc.htmlContents.keys()),
+  // );
 
   expect(preparedDoc.preparedDocumentText).toEqual(expectedDocumentText);
   expect(preparedDoc.htmlContents.size).toEqual(testableHtmls.length);
@@ -93,20 +93,20 @@ test("prepareFmtSegment", () => {
   documentHtmls.forEach((html, index) => {
     const preparedDoc = prepareFmtSegment(html);
     // Log for debugging
-    console.log(
-      `prepareFmtSegment for index=${index} htmlExprCount=${documentHtmlsExprCount[index]}`,
-    );
-    console.log("zigSegments keys:", Array.from(preparedDoc.exprss.keys()));
+    // console.log(
+    //   `prepareFmtSegment for index=${index} htmlExprCount=${documentHtmlsExprCount[index]}`,
+    // );
+    // console.log("zigSegments keys:", Array.from(preparedDoc.exprss.keys()));
     expect(preparedDoc.exprss.size).toEqual(documentHtmlsExprCount[index]);
 
     preparedDoc.exprss.forEach((zigSegment, key) => {
-      console.log("--- zigSegment key:", key);
-      console.log(zigSegment);
+      // console.log("--- zigSegment key:", key);
+      // console.log(zigSegment);
       const preparedSubSeg = extractHtmls(zigSegment);
-      console.log(
-        "preparedSubSeg.htmlContents keys:",
-        Array.from(preparedSubSeg.htmlContents.keys()),
-      );
+      // console.log(
+      //   "preparedSubSeg.htmlContents keys:",
+      //   Array.from(preparedSubSeg.htmlContents.keys()),
+      // );
       // expect(preparedSubSeg.htmlContents.size).toEqual(expectedZigSegments[index]);
       // expect(preparedSubSeg.htmlContents.get(`@html(0)`)).toEqual("<a href={nav.href}>{nav.text}</a>");
     });
@@ -196,7 +196,7 @@ test("transformZigExpression handles indented closing braces", () => {
 }`;
 
   const output = cleanupZigExprs(input, 4, true);
-  console.log("Output:", JSON.stringify(output));
+  // console.log("Output:", JSON.stringify(output));
   // Should merge the closing braces
   expect(output).toContain("}}");
   // Should not have } on a separate line
