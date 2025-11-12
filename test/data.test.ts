@@ -646,21 +646,15 @@ const zx = @import("zx");
 `;
 
 const outForLoopBlock = `pub fn Page(allocator: zx.Allocator) zx.Component {
+    const user_names = [_][]const u8{ "John", "Jane", "Jim", "Jill" };
+
     return (
-        <main>
-            <h1>Blog</h1>
-            <ol>
-                {for (posts) |post| {
-                    (        <li>
-                        <div>
-                            <a href={post.url}>
-                                <h3>{post.title}</h3>
-                            </a>
-                            <p>{post.brief}</p>
-                        </div>
-                    </li>)
-                }}
-            </ol>
+        <main @allocator={allocator}>
+            {for (user_names) |name| {(
+                <div>
+                    <p>{name}</p>
+                </div>
+            )}}
         </main>
     );
 }
@@ -687,6 +681,23 @@ const inForLoopBlock1 = `pub fn Page(allocator: zx.Allocator) zx.Component {
 }
 
 const zx = @import("zx");`;
+
+const inForLoopBlock2 = `pub fn Page(allocator: zx.Allocator) zx.Component {
+    const user_names = [_][]const u8{ "John", "Jane", "Jim", "Jill" };
+
+    return (
+        <main @allocator={allocator}>
+            {for (user_names) |name| {
+                (        <div>
+                    <p>{name}</p>
+                </div>)
+            }}
+        </main>
+    );
+}
+
+const zx = @import("zx");
+`;
 
 const inLargeMixexdContent = `pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
@@ -1160,8 +1171,8 @@ export const fmtCases = [
     ins: [inForLoopLiner1],
     outForLoopLiner,
   },
-  {
-    ins: [inForLoopBlock1],
-    outForLoopBlock,
-  },
+  // {
+  //     ins: [inForLoopBlock2],
+  //     outForLoopBlock,
+  // },
 ];

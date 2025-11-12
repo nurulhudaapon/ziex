@@ -4,7 +4,7 @@ import {
   TokenType,
 } from "vscode-html-languageservice";
 
-export function extractHtmls(doc: string) {
+export function extractHtml(doc: string) {
   const htmlLanguageService = getLanguageService();
   const htmls: string[] = [];
   const errors: string[] = [];
@@ -277,10 +277,113 @@ export function extractHtmls(doc: string) {
 }
 
 /**
- * Finds the end of a balanced parentheses expression starting at a given position.
- * Returns the position after the closing parenthesis, or -1 if not found.
+ * Expression type definitions with regex patterns for detection.
+ * Includes both expression patterns (if/for/while/switch/else) and block patterns (if_block/for_block/etc).
  */
-export function findBalancedParens(text: string, startPos: number): number {
+export const expressionTypes: Array<{ keyword: string; regex: RegExp }> = [
+  { keyword: "if", regex: /\bif\s*\(/g },
+  { keyword: "for", regex: /\bfor\s*\(/g },
+  { keyword: "while", regex: /\bwhile\s*\(/g },
+  { keyword: "else", regex: /\belse\s*{/g },
+  { keyword: "switch", regex: /\bswitch\s*\(/g },
+  { keyword: "if_block", regex: /\bif\s*\(/g },
+  { keyword: "else_block", regex: /\belse\s*{/g },
+  { keyword: "for_block", regex: /\bfor\s*\(/g },
+  { keyword: "while_block", regex: /\bwhile\s*\(/g },
+  { keyword: "switch_block", regex: /\bswitch\s*\(/g },
+];
+
+/**
+ * Detects the expression type at a given position in text by looking backwards.
+ * Returns the closest expression type and whether it's a block (has opening brace after condition).
+ * @param text The text to search in
+ * @param position The position to check from
+ * @returns The expression type keyword or null if not found
+ */
+export function detectExprType(
+  text: string,
+  position: number,
+): { keyword: string; isBlock: boolean } | null {
+  const beforeText = text.slice(0, position);
+  const matches: Array<{ keyword: string; index: number; isBlock: boolean }> =
+    [];
+
+  // Check for block patterns first (more specific)
+  for (const { keyword } of expressionTypes) {
+    if (!keyword.endsWith("_block")) continue;
+
+    const baseKeyword = keyword.replace("_block", "");
+    // For block patterns, we need to find the keyword, then check if there's a brace after the condition
+    const regex = new RegExp(`\\b${baseKeyword}\\s*\\(`, "g");
+    let m;
+    while ((m = regex.exec(beforeText)) !== null) {
+      // Find the closing paren of the condition
+      const afterKeyword = m.index + m[0].length - 1; // Position of opening '('
+      const conditionEnd = findParen(beforeText, afterKeyword);
+      if (conditionEnd === -1) continue;
+
+      // Skip whitespace after condition
+      let pos = conditionEnd + 1;
+      while (pos < beforeText.length && /\s/.test(beforeText[pos])) {
+        pos++;
+      }
+
+      // Check if there's an opening brace after the condition (indicating a block)
+      if (pos < beforeText.length && beforeText[pos] === "{") {
+        matches.push({ keyword, index: m.index, isBlock: true });
+      }
+    }
+  }
+
+  // Check for expression patterns (less specific, but catch all)
+  for (const { keyword } of expressionTypes) {
+    if (keyword.endsWith("_block")) continue;
+
+    const regex = new RegExp(
+      `\\b${keyword}\\s*${keyword === "else" ? "{" : "\\("}`,
+      "g",
+    );
+    let m;
+    while ((m = regex.exec(beforeText)) !== null) {
+      // For else, it's always a block pattern
+      const isBlock = keyword === "else";
+      matches.push({ keyword, index: m.index, isBlock });
+    }
+  }
+
+  if (matches.length === 0) {
+    return null;
+  }
+
+  // Sort by index descending to get the closest (last) one
+  matches.sort((a, b) => b.index - a.index);
+  const closest = matches[0];
+
+  // Determine if it's actually a block by checking the pattern
+  if (!closest.isBlock && closest.keyword !== "else") {
+    // Check if there's a brace after the condition
+    const regex = new RegExp(`\\b${closest.keyword}\\s*\\(`, "g");
+    const m = regex.exec(beforeText.slice(closest.index));
+    if (m) {
+      const afterKeyword = closest.index + m.index + m[0].length - 1;
+      const conditionEnd = findParen(beforeText, afterKeyword);
+      if (conditionEnd !== -1) {
+        let pos = conditionEnd + 1;
+        while (pos < beforeText.length && /\s/.test(beforeText[pos])) {
+          pos++;
+        }
+        if (pos < beforeText.length && beforeText[pos] === "{") {
+          closest.isBlock = true;
+          closest.keyword = `${closest.keyword}_block`;
+        }
+      }
+    }
+  }
+
+  return { keyword: closest.keyword, isBlock: closest.isBlock };
+}
+
+export function findParen(text: string, startPos: number): number {
   let depth = 0;
   let pos = startPos;
   let inString = false;
@@ -356,7 +459,7 @@ export function indentNegate(
  * Removes semicolons that were added after @html(n) patterns.
  * This reverses the effect of addSemicolonsToHtmlPlaceholders.
  */
-export function removeSemicolonsFromHtmlPlaceholders(text: string): string {
+export function removeSemiFromHtml(text: string): string {
   // Remove semicolons that immediately follow @html(n) or (@html(n))
   return text.replace(/(@html\(\d+\)|\(@html\(\d+\)\));/g, "$1");
 }
@@ -365,7 +468,7 @@ export function removeSemicolonsFromHtmlPlaceholders(text: string): string {
  * Removes semicolons that were added after complete expression statements.
  * This reverses the effect of addSemicolonsToCompleteExpressions.
  */
-export function removeSemicolonsFromCompleteExpressions(text: string): string {
+export function removeSemiFromExpr(text: string): string {
   type ExpressionType = "if" | "for" | "switch" | "while";
 
   const expressionKeywords: ExpressionType[] = ["if", "for", "switch", "while"];
@@ -380,7 +483,7 @@ export function removeSemicolonsFromCompleteExpressions(text: string): string {
       const start = match.index;
       const afterKeyword = match.index + match[0].length - 1;
 
-      const conditionEnd = findBalancedParens(text, afterKeyword);
+      const conditionEnd = findParen(text, afterKeyword);
       if (conditionEnd === -1) continue;
 
       let pos = conditionEnd;
@@ -400,7 +503,7 @@ export function removeSemicolonsFromCompleteExpressions(text: string): string {
       }
 
       if (text[pos] === "(") {
-        const bodyEnd = findBalancedParens(text, pos);
+        const bodyEnd = findParen(text, pos);
         if (bodyEnd === -1) continue;
 
         let end = bodyEnd;
@@ -418,7 +521,7 @@ export function removeSemicolonsFromCompleteExpressions(text: string): string {
             }
 
             if (text[elsePos] === "(") {
-              const elseBodyEnd = findBalancedParens(text, elsePos);
+              const elseBodyEnd = findParen(text, elsePos);
               if (elseBodyEnd !== -1) {
                 end = elseBodyEnd;
               }

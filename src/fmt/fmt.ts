@@ -8,10 +8,12 @@ import {
 const htmlLanguageService = getLanguageService();
 import * as fmtUtil from "./util";
 const {
-  findBalancedParens,
+  findParen,
   indentNegate,
-  removeSemicolonsFromHtmlPlaceholders,
-  removeSemicolonsFromCompleteExpressions,
+  removeSemiFromHtml,
+  removeSemiFromExpr,
+  expressionTypes,
+  detectExprType,
 } = fmtUtil;
 
 const execFile = util.promisify(childProcess.execFile);
@@ -303,7 +305,7 @@ type PreparedFmtDoc = {
 export function extractHtmls(documentText: string): PreparedFmtDoc {
   const htmlContents = new Map<string, string>();
   let preparedDocumentText = documentText;
-  const result = fmtUtil.extractHtmls(documentText);
+  const result = fmtUtil.extractHtml(documentText);
 
   result.htmls.forEach((html, index) => {
     htmlContents.set(`@html(${index})`, html);
@@ -334,64 +336,96 @@ export function patchInFormattedHtml(
       const keyLine = keyLineIndex >= 0 ? lines[keyLineIndex] : "";
       const currentKeyIndentation = keyLine.match(/^\s*/)?.[0] || "";
 
-      // Check if the key is inside a for loop by looking backwards from the key line
-      let isInsideForLoop = false;
+      // Detect the expression type at the key position
+      let expressionType: { keyword: string; isBlock: boolean } | null = null;
+      let isInsideBlock = false;
       if (keyLineIndex >= 0) {
-        // Look backwards from the key line to find if we're inside a for loop
-        for (let i = keyLineIndex; i >= 0; i--) {
-          const line = lines[i];
-          // Check if this line contains a for loop opening
-          if (/\bfor\s*\(/.test(line)) {
-            // Find the opening brace after the for statement
-            let openingBraceLine = -1;
-            let openingBracePos = -1;
-            for (let j = i; j <= keyLineIndex; j++) {
-              const currentLine = lines[j];
-              const braceIndex = currentLine.indexOf("{");
-              if (braceIndex !== -1) {
-                openingBraceLine = j;
-                openingBracePos = braceIndex;
-                break;
-              }
-            }
+        // Calculate the position of the key in the full text
+        let keyPosition = 0;
+        for (let i = 0; i < keyLineIndex; i++) {
+          keyPosition += lines[i].length + 1; // +1 for newline
+        }
+        const keyLine = lines[keyLineIndex];
+        const keyIndexInLine = keyLine.indexOf(key);
+        if (keyIndexInLine >= 0) {
+          keyPosition += keyIndexInLine;
+        }
 
-            if (openingBraceLine === -1) {
-              // No opening brace found, not inside for loop
-              break;
-            }
+        // Detect expression type at this position
+        expressionType = detectExprType(result, keyPosition);
 
-            // Count braces from the opening brace to the key line
-            let braceCount = 1; // We start with the opening brace
-            for (let j = openingBraceLine; j <= keyLineIndex; j++) {
-              const currentLine = lines[j];
-              const startPos = j === openingBraceLine ? openingBracePos + 1 : 0;
-              for (let k = startPos; k < currentLine.length; k++) {
-                const char = currentLine[k];
-                if (char === "{") {
-                  braceCount++;
-                } else if (char === "}") {
-                  braceCount--;
-                  if (braceCount === 0) {
-                    // We've closed the opening brace before reaching the key
-                    break;
-                  }
+        if (expressionType) {
+          // Use the detected expression type result directly
+          // Check if we're actually inside the block by counting braces
+          // Look backwards from the key line to find the expression
+          const baseKeyword = expressionType.keyword.replace("_block", "");
+          for (let i = keyLineIndex; i >= 0; i--) {
+            const line = lines[i];
+            // Check if this line contains the expression keyword using the detected type
+            const keywordPattern =
+              baseKeyword === "else"
+                ? `\\b${baseKeyword}\\s*{`
+                : `\\b${baseKeyword}\\s*\\(`;
+            const keywordRegex = new RegExp(keywordPattern);
+            if (keywordRegex.test(line)) {
+              // Find the opening brace after the expression
+              let openingBraceLine = -1;
+              let openingBracePos = -1;
+              for (let j = i; j <= keyLineIndex; j++) {
+                const currentLine = lines[j];
+                const braceIndex = currentLine.indexOf("{");
+                if (braceIndex !== -1) {
+                  openingBraceLine = j;
+                  openingBracePos = braceIndex;
+                  break;
                 }
               }
-              if (braceCount === 0) {
+
+              if (openingBraceLine === -1) {
+                // No opening brace found, not inside block
                 break;
               }
-            }
 
-            // If we're still inside braces (braceCount > 0), we're in a for loop
-            if (braceCount > 0) {
-              isInsideForLoop = true;
+              // Count braces from the opening brace to the key line
+              let braceCount = 1; // We start with the opening brace
+              for (let j = openingBraceLine; j <= keyLineIndex; j++) {
+                const currentLine = lines[j];
+                const startPos =
+                  j === openingBraceLine ? openingBracePos + 1 : 0;
+                for (let k = startPos; k < currentLine.length; k++) {
+                  const char = currentLine[k];
+                  if (char === "{") {
+                    braceCount++;
+                  } else if (char === "}") {
+                    braceCount--;
+                    if (braceCount === 0) {
+                      // We've closed the opening brace before reaching the key
+                      break;
+                    }
+                  }
+                }
+                if (braceCount === 0) {
+                  break;
+                }
+              }
+
+              // If we're still inside braces (braceCount > 0), we're in a block
+              if (braceCount > 0) {
+                isInsideBlock = true;
+              }
+              break;
             }
-            break;
           }
         }
       }
 
-      if (isInsideForLoop) {
+      // For for loops and for blocks, use single indentation level and no extra newlines
+      if (
+        expressionType &&
+        (expressionType.keyword === "for" ||
+          expressionType.keyword === "for_block") &&
+        isInsideBlock
+      ) {
         // For for loops, use single indentation level and no extra newlines
         const indentedHtmlContent = htmlContent
           .split("\n")
@@ -402,7 +436,7 @@ export function patchInFormattedHtml(
 
         replacement = indentedHtmlContent;
       } else {
-        // For other cases (if/else), use double indentation and add newlines
+        // For other cases (if/else/while/switch blocks), use double indentation and add newlines
         const indentedHtmlContent = htmlContent
           .split("\n")
           .map((line) => {
@@ -435,85 +469,139 @@ export function extractZigExprs(documentText: string): PreparedFmtSegment {
   // Find all zig expressions: { for (...) } or { if (...) } or { switch (...) }
   // Allow optional whitespace/newlines right after the opening '{'.
   // These can include capture variables like { for (items) |item| (...) }
-  const zigExpressionRegex = /{\s*(for|if|switch)\s*\(/g;
-  let match;
-  const matches: Array<{ start: number; end: number; fullMatch: string }> = [];
+  const matches: Array<{
+    start: number;
+    end: number;
+    fullMatch: string;
+    expressionType: string;
+    keyword: string;
+  }> = [];
 
-  // First, collect all opening expressions with their positions
-  while ((match = zigExpressionRegex.exec(documentText)) !== null) {
-    const keyword = match[1];
-    const start = match.index;
-    let pos = match.index + match[0].length; // Position after "{for (" or "{if (" or "{switch ("
-
-    // Find the matching closing parenthesis for the condition
-    let parenDepth = 1;
-    while (pos < documentText.length && parenDepth > 0) {
-      if (documentText[pos] === "(") parenDepth++;
-      else if (documentText[pos] === ")") parenDepth--;
-      pos++;
-    }
-
-    if (parenDepth !== 0) continue; // No matching closing paren found
-
-    // Skip whitespace after the closing paren
-    while (pos < documentText.length && /\s/.test(documentText[pos])) {
+  /**
+   * Helper function to detect expression type using the regex table.
+   * Checks if the expression is a block (has opening brace after condition) or just an expression.
+   */
+  const detectExprType = (
+    text: string,
+    keyword: string,
+    conditionEndPos: number,
+  ): string => {
+    // Skip whitespace after condition
+    let pos = conditionEndPos + 1;
+    while (pos < text.length && /\s/.test(text[pos])) {
       pos++;
     }
 
     // Check for optional capture variable |variable|
-    if (documentText[pos] === "|") {
+    if (text[pos] === "|") {
       pos++; // Skip opening |
-      // Find closing |
-      const captureEnd = documentText.indexOf("|", pos);
+      const captureEnd = text.indexOf("|", pos);
       if (captureEnd !== -1) {
         pos = captureEnd + 1;
         // Skip whitespace after capture variable
-        while (pos < documentText.length && /\s/.test(documentText[pos])) {
+        while (pos < text.length && /\s/.test(text[pos])) {
           pos++;
         }
       }
     }
 
-    // Now find the body and matching closing brace
-    // The body is wrapped in parentheses, then the whole expression ends with }
-    let braceDepth = 1; // We're already inside one opening brace
+    // Check if there's an opening brace after the condition (indicating a block)
+    if (pos < text.length && text[pos] === "{") {
+      return `${keyword}_block`;
+    }
+    return keyword;
+  };
 
-    // Find the body which is wrapped in parentheses
-    if (documentText[pos] === "(") {
-      // Find matching closing paren for the body
-      let bodyParenDepth = 1;
-      pos++; // Skip opening paren
-      while (pos < documentText.length && bodyParenDepth > 0) {
+  // Use expressionTypes table to find all expression patterns
+  // We're looking for patterns like { keyword ( where keyword is for/if/switch
+  const relevantKeywords = ["for", "if", "switch"]; // Only these appear in HTML expressions
+  for (const keyword of relevantKeywords) {
+    // Build regex to match { keyword ( pattern with optional whitespace
+    const regex = new RegExp(`{\\s*${keyword}\\s*\\(`, "g");
+    let match;
+    while ((match = regex.exec(documentText)) !== null) {
+      const start = match.index;
+      let pos = match.index + match[0].length; // Position after "{for (" or "{if (" or "{switch ("
+
+      // Find the matching closing parenthesis for the condition
+      let parenDepth = 1;
+      while (pos < documentText.length && parenDepth > 0) {
+        if (documentText[pos] === "(") parenDepth++;
+        else if (documentText[pos] === ")") parenDepth--;
+        pos++;
+      }
+
+      if (parenDepth !== 0) continue; // No matching closing paren found
+
+      const conditionEndPos = pos - 1; // Position of closing paren
+
+      // Detect expression type using the helper function
+      const expressionType = detectExprType(
+        documentText,
+        keyword,
+        conditionEndPos,
+      );
+
+      // Skip whitespace after the closing paren
+      while (pos < documentText.length && /\s/.test(documentText[pos])) {
+        pos++;
+      }
+
+      // Check for optional capture variable |variable|
+      if (documentText[pos] === "|") {
+        pos++; // Skip opening |
+        // Find closing |
+        const captureEnd = documentText.indexOf("|", pos);
+        if (captureEnd !== -1) {
+          pos = captureEnd + 1;
+          // Skip whitespace after capture variable
+          while (pos < documentText.length && /\s/.test(documentText[pos])) {
+            pos++;
+          }
+        }
+      }
+
+      // Now find the body and matching closing brace
+      // The body is wrapped in parentheses, then the whole expression ends with }
+      let braceDepth = 1; // We're already inside one opening brace
+
+      // Find the body which is wrapped in parentheses
+      if (documentText[pos] === "(") {
+        // Find matching closing paren for the body
+        let bodyParenDepth = 1;
+        pos++; // Skip opening paren
+        while (pos < documentText.length && bodyParenDepth > 0) {
+          const char = documentText[pos];
+          if (char === "(") {
+            bodyParenDepth++;
+          } else if (char === ")") {
+            bodyParenDepth--;
+          } else if (char === "{") {
+            braceDepth++; // Track nested braces inside body
+          } else if (char === "}") {
+            braceDepth--; // Track nested braces inside body
+          }
+          pos++;
+        }
+      }
+
+      // Now find the closing brace for the entire expression
+      while (pos < documentText.length && braceDepth > 0) {
         const char = documentText[pos];
-        if (char === "(") {
-          bodyParenDepth++;
-        } else if (char === ")") {
-          bodyParenDepth--;
-        } else if (char === "{") {
-          braceDepth++; // Track nested braces inside body
+        if (char === "{") {
+          braceDepth++;
         } else if (char === "}") {
-          braceDepth--; // Track nested braces inside body
+          braceDepth--;
         }
         pos++;
       }
-    }
 
-    // Now find the closing brace for the entire expression
-    while (pos < documentText.length && braceDepth > 0) {
-      const char = documentText[pos];
-      if (char === "{") {
-        braceDepth++;
-      } else if (char === "}") {
-        braceDepth--;
+      if (braceDepth === 0) {
+        // Found the matching closing brace
+        const end = pos;
+        const fullMatch = documentText.substring(start, end);
+        matches.push({ start, end, fullMatch, expressionType, keyword });
       }
-      pos++;
-    }
-
-    if (braceDepth === 0) {
-      // Found the matching closing brace
-      const end = pos;
-      const fullMatch = documentText.substring(start, end);
-      matches.push({ start, end, fullMatch });
     }
   }
 
@@ -555,9 +643,10 @@ export function cleanupZigExprs(
     if (!trimmed.startsWith("{") || !trimmed.endsWith("}")) {
       return false;
     }
-    // Check if it's an if expression
-    const ifMatch = trimmed.match(/^\{if\s*\(/);
-    if (!ifMatch) {
+    // Check if it's an if expression using detectExprType
+    // Check at position 1 (after the opening {)
+    const detectedType = detectExprType(trimmed, 1);
+    if (!detectedType || detectedType.keyword !== "if") {
       return false;
     }
     // Check if there are no block braces (only the outer ones)
@@ -644,20 +733,25 @@ export function cleanupZigExprs(
 export function addSemicolonsToCompleteExpressions(text: string): string {
   type ExpressionType = "if" | "for" | "switch" | "while";
 
-  const expressionKeywords: ExpressionType[] = ["if", "for", "switch", "while"];
   const matches: Array<{ start: number; end: number; type: ExpressionType }> =
     [];
 
-  // Find all expression keywords
-  for (const keyword of expressionKeywords) {
-    const regex = new RegExp(`\\b${keyword}\\s*\\(`, "g");
+  // Find all expression keywords using expressionTypes table
+  // Only use non-block patterns (if, for, switch, while) - exclude else and _block variants
+  const relevantExpressionTypes = expressionTypes.filter(
+    (et) => !et.keyword.endsWith("_block") && et.keyword !== "else",
+  );
+  for (const { keyword, regex } of relevantExpressionTypes) {
+    const expressionType = keyword as ExpressionType;
+    // Reset regex lastIndex before use
+    regex.lastIndex = 0;
     let match;
     while ((match = regex.exec(text)) !== null) {
       const start = match.index;
       const afterKeyword = match.index + match[0].length - 1; // Position of opening '('
 
       // Find the end of the condition parentheses
-      const conditionEnd = findBalancedParens(text, afterKeyword);
+      const conditionEnd = findParen(text, afterKeyword);
       if (conditionEnd === -1) continue;
 
       // Skip whitespace after condition
@@ -691,13 +785,13 @@ export function addSemicolonsToCompleteExpressions(text: string): string {
 
       // Find the body which is wrapped in parentheses
       if (text[bodyStartPos] === "(") {
-        const bodyEnd = findBalancedParens(text, bodyStartPos);
+        const bodyEnd = findParen(text, bodyStartPos);
         if (bodyEnd === -1) continue;
 
         let end = bodyEnd;
 
         // For if expressions, check for else clause
-        if (keyword === "if") {
+        if (expressionType === "if") {
           // Skip whitespace after body
           let elsePos = bodyEnd;
           while (elsePos < text.length && /\s/.test(text[elsePos])) {
@@ -714,7 +808,7 @@ export function addSemicolonsToCompleteExpressions(text: string): string {
 
             // Find else body
             if (text[elsePos] === "(") {
-              const elseBodyEnd = findBalancedParens(text, elsePos);
+              const elseBodyEnd = findParen(text, elsePos);
               if (elseBodyEnd !== -1) {
                 end = elseBodyEnd;
               }
@@ -722,7 +816,7 @@ export function addSemicolonsToCompleteExpressions(text: string): string {
           }
         }
 
-        matches.push({ start, end, type: keyword });
+        matches.push({ start, end, type: expressionType });
       }
     }
   }
@@ -746,8 +840,17 @@ export function addSemicolonsToCompleteExpressions(text: string): string {
       continue;
     }
 
-    // Skip if followed by another expression keyword
-    if (/^\s*(if|for|while|switch)\s*\(/.test(trimmedAfter)) {
+    // Skip if followed by another expression keyword using expressionTypes
+    let isFollowedByExpression = false;
+    for (const { keyword, regex: exprRegex } of expressionTypes) {
+      if (keyword.endsWith("_block") || keyword === "else") continue;
+      exprRegex.lastIndex = 0;
+      if (exprRegex.test(trimmedAfter)) {
+        isFollowedByExpression = true;
+        break;
+      }
+    }
+    if (isFollowedByExpression) {
       continue;
     }
 
@@ -828,15 +931,7 @@ export function addSemicolonsToHtmlPlaceholders(text: string): string {
     // Find all control flow keywords before this position
     const controlFlowMatches: Array<{ keyword: string; index: number }> = [];
 
-    // Use switch case for different expression types
-    const expressionTypes: Array<{ keyword: string; regex: RegExp }> = [
-      { keyword: "if", regex: /\bif\s*\(/g },
-      { keyword: "for", regex: /\bfor\s*\(/g },
-      { keyword: "while", regex: /\bwhile\s*\(/g },
-      { keyword: "else", regex: /\belse\s*{/g },
-      { keyword: "switch", regex: /\bswitch\s*\(/g },
-    ];
-
+    // Use the shared expression types table
     for (const { keyword, regex } of expressionTypes) {
       let m;
       while ((m = regex.exec(beforeMatch)) !== null) {
@@ -986,9 +1081,7 @@ async function formatZigExprsBatch(
     }
 
     // Remove semicolons we added before formatting
-    const cleaned = removeSemicolonsFromCompleteExpressions(
-      removeSemicolonsFromHtmlPlaceholders(trimmed),
-    );
+    const cleaned = removeSemiFromExpr(removeSemiFromHtml(trimmed));
 
     formattedExpressions.push(cleaned);
   }
