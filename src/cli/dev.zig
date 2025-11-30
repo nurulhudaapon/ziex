@@ -31,10 +31,12 @@ fn dev(ctx: zli.CommandContext) !void {
     }
 
     jsutil.buildjs(ctx, binpath, true, false) catch |err| {
-        log.debug("Error building TS! {any}", .{err});
+        log.debug("Error building JavaScript! {any}", .{err});
     };
 
-    log.debug("First time building, we will run `{s}`", .{try std.mem.join(allocator, " ", build_args_array.items)});
+    const build_cmd_str = try std.mem.join(allocator, " ", build_args_array.items);
+    defer allocator.free(build_cmd_str);
+    log.debug("First time building, we will run `{s}`", .{build_cmd_str});
     var build_builder = std.process.Child.init(build_args_array.items, allocator);
     try build_builder.spawn();
     _ = try build_builder.wait();
@@ -45,7 +47,9 @@ fn dev(ctx: zli.CommandContext) !void {
     var builder = std.process.Child.init(build_args_array.items, allocator);
     try builder.spawn();
     defer _ = builder.kill() catch unreachable;
-    log.debug("Building with watch mode `{s}`", .{try std.mem.join(allocator, " ", build_args_array.items)});
+    const watch_cmd_str = try std.mem.join(allocator, " ", build_args_array.items);
+    defer allocator.free(watch_cmd_str);
+    log.debug("Building with watch mode `{s}`", .{watch_cmd_str});
 
     var program_meta = util.findprogram(allocator, binpath) catch |err| {
         try ctx.writer.print("Error finding ZX executable! {any}\n", .{err});
@@ -59,7 +63,7 @@ fn dev(ctx: zli.CommandContext) !void {
     };
 
     jsutil.buildjs(ctx, binpath, true, true) catch |err| {
-        log.debug("Error building TS! {any}", .{err});
+        log.debug("Error building JavaScript! {any}", .{err});
     };
 
     var runner = std.process.Child.init(&.{ program_path, "--cli-command", "dev" }, allocator);

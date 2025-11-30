@@ -1,0 +1,13 @@
+{
+  "main": "site/main.ts",
+  "devDependencies": {
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "esbuild": "^0.27.0"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "ziex": "^0.0.1-dev.5"
+  }
+}

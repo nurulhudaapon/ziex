@@ -1,4 +1,5 @@
-const PackageJson = struct {
+const pkg_find_paths = [_][]const u8{ "package.json", "site" ++ std.fs.path.sep_str ++ "package.json" };
+pub const PackageJson = struct {
     name: ?[]const u8 = null,
     version: ?[]const u8 = null,
     dependencies: ?std.json.Value = null,
@@ -6,6 +7,7 @@ const PackageJson = struct {
     scripts: ?std.json.Value = null,
     packageManager: ?PM = null,
     main: ?[]const u8 = null,
+    pkg_path: ?[]const u8 = null,
 
     const PM = enum {
         npm,
@@ -14,32 +16,37 @@ const PackageJson = struct {
         bun,
     };
 
-    fn parse(allocator: std.mem.Allocator) !std.json.Parsed(PackageJson) {
-        log.debug("Parsing package.json", .{});
-        const package_json_str = std.fs.cwd().readFileAlloc(allocator, "package.json", std.math.maxInt(usize)) catch |err| switch (err) {
-            error.FileNotFound => {
-                log.debug("Package.json not found", .{});
-                return error.PackageJsonNotFound;
-            },
-            else => return err,
-        };
-        // Don't free package_json_str here - std.json.parseFromSlice may reuse the buffer
-        // The Parsed struct will manage the memory through its deinit() method
+    pub fn parse(allocator: std.mem.Allocator) !std.json.Parsed(PackageJson) {
+        const cwd = std.fs.cwd();
+        var pkg_final_path: ?[]const u8 = null;
+        const package_json_str = blk: {
+            for (pkg_find_paths) |pkg_find_path| {
+                const package_json_str = cwd.readFileAlloc(allocator, pkg_find_path, std.math.maxInt(usize)) catch |err| switch (err) {
+                    error.FileNotFound => continue,
+                    else => return err,
+                };
 
-        log.debug("Found package.json: {s}", .{package_json_str});
-        const package_json_parsed: std.json.Parsed(PackageJson) = std.json.parseFromSlice(
+                pkg_final_path = try std.fs.path.join(allocator, &.{pkg_find_path});
+                break :blk package_json_str;
+            }
+            return error.PackageJsonNotFound;
+        };
+
+        var package_json_parsed: std.json.Parsed(PackageJson) = std.json.parseFromSlice(
             PackageJson,
             allocator,
             package_json_str,
-            .{},
+            .{
+                .allocate = .alloc_always,
+            },
         ) catch |err| switch (err) {
             else => {
                 allocator.free(package_json_str);
                 return error.InvalidPackageJson;
             },
         };
-
-        log.debug("Parsed package.json: {any}", .{package_json_parsed.value});
+        package_json_parsed.value.pkg_path = pkg_final_path;
+        allocator.free(package_json_str);
 
         return package_json_parsed;
     }
@@ -57,21 +64,27 @@ const PackageJson = struct {
                 else => {},
             }
         }
+        if (self.pkg_path) |pkg_path| {
+            const dir_from_pkg_path = std.fs.path.dirname(pkg_path) orelse return .npm;
+            const cwd = std.fs.cwd().openDir(dir_from_pkg_path, .{}) catch return .npm;
 
-        // Check for lockfiles
-        if (std.fs.cwd().statFile("package-lock.json") catch null) |_| return .npm;
-        if (std.fs.cwd().statFile("pnpm-lock.yaml") catch null) |_| return .pnpm;
-        if (std.fs.cwd().statFile("yarn.lock") catch null) |_| return .yarn;
-        if (std.fs.cwd().statFile("bun.lock") catch null) |_| return .bun;
-        if (std.fs.cwd().statFile("bun.lockb") catch null) |_| return .bun;
-
+            // Check for lockfiles
+            if (cwd.statFile("package-lock.json") catch null) |_| return .npm;
+            if (cwd.statFile("pnpm-lock.yaml") catch null) |_| return .pnpm;
+            if (cwd.statFile("yarn.lock") catch null) |_| return .yarn;
+            if (cwd.statFile("bun.lock") catch null) |_| return .bun;
+            if (cwd.statFile("bun.lockb") catch null) |_| return .bun;
+        }
         // Check for binary in path
         return .npm;
     }
 };
 
-pub fn checkEsbuildBin() bool {
-    return if (std.fs.cwd().statFile("node_modules/.bin/esbuild") catch null) |_| true else false;
+pub fn checkEsbuildBin(allocator: std.mem.Allocator, pkg_rootdir: []const u8) bool {
+    const esbuild_bin_path = std.fs.path.join(allocator, &.{ pkg_rootdir, "node_modules", ".bin", "esbuild" }) catch return false;
+    defer allocator.free(esbuild_bin_path);
+
+    return if (std.fs.cwd().statFile(esbuild_bin_path) catch null) |_| true else false;
 }
 
 pub fn buildjs(ctx: zli.CommandContext, binpath: []const u8, is_dev: bool, verbose: bool) !void {
@@ -80,29 +93,36 @@ pub fn buildjs(ctx: zli.CommandContext, binpath: []const u8, is_dev: bool, verbo
 
     const rootdir = program_meta.rootdir orelse return error.RootdirNotFound;
 
+    log.debug("Parsing package.json", .{});
     var package_json_parsed = try PackageJson.parse(ctx.allocator);
     defer package_json_parsed.deinit();
-
     var package_json = package_json_parsed.value;
+    log.debug("Found and parsed package.json in ./{s}", .{package_json.pkg_path orelse "na"});
+
+    const pkg_path = package_json.pkg_path orelse return error.PkgPathNotFound;
+    const pkg_rootdir = std.fs.path.dirname(pkg_path) orelse ".";
 
     const pm = package_json.getPackageManager();
     log.debug("Package manager: {s}", .{@tagName(pm)});
 
-    if (!checkEsbuildBin()) {
+    if (!checkEsbuildBin(ctx.allocator, pkg_rootdir)) {
         log.debug("Installing dependencies for JavaScript", .{});
         log.debug("We try bun first", .{});
         var bun_installer = std.process.Child.init(&.{ "bun", "install" }, ctx.allocator);
+        bun_installer.cwd = pkg_rootdir;
+
         try bun_installer.spawn();
         const status = try bun_installer.wait();
 
         log.debug("Bun installer status: {s}", .{@tagName(status)});
 
-        if (!checkEsbuildBin()) {
+        if (!checkEsbuildBin(ctx.allocator, pkg_rootdir)) {
             var installer = std.process.Child.init(&.{ @tagName(pm), "install" }, ctx.allocator);
+            installer.cwd = pkg_rootdir;
             try installer.spawn();
             _ = try installer.wait();
         }
-        if (!checkEsbuildBin()) {
+        if (!checkEsbuildBin(ctx.allocator, pkg_rootdir)) {
             std.debug.print(
                 \\
                 \\Could not find a Node.js package manager on your system. 
@@ -129,8 +149,10 @@ pub fn buildjs(ctx: zli.CommandContext, binpath: []const u8, is_dev: bool, verbo
     log.debug("Building main.tsx: in package.json: {s}", .{package_json.main orelse "na"});
     log.debug("Outfile: {s}", .{outfile_arg});
 
+    const esbuild_bin_path = std.fs.path.join(ctx.allocator, &.{ pkg_rootdir, "node_modules", ".bin", "esbuild" }) catch return error.EsbuildBinNotFound;
+    defer ctx.allocator.free(esbuild_bin_path);
     var esbuild_args = std.ArrayList([]const u8).empty;
-    try esbuild_args.append(ctx.allocator, "node_modules/.bin/esbuild");
+    try esbuild_args.append(ctx.allocator, esbuild_bin_path);
     try esbuild_args.append(ctx.allocator, main_tsx_argz);
     try esbuild_args.append(ctx.allocator, "--bundle");
     if (!is_dev) try esbuild_args.append(ctx.allocator, "--minify");

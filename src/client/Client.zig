@@ -7,6 +7,7 @@ pub const ComponentMeta = struct {
     id: []const u8,
     name: []const u8,
     path: []const u8,
+    route: ?[]const u8,
     import: *const fn (allocator: std.mem.Allocator) zx.Component,
 };
 

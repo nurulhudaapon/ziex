@@ -2,6 +2,8 @@ const std = @import("std");
 const zli = @import("zli");
 const zx = @import("zx");
 const log = std.log.scoped(.cli);
+const util = @import("shared/util.zig");
+const jsutil = @import("shared/js.zig");
 
 // ============================================================================
 // Command Registration
@@ -92,6 +94,77 @@ fn transpile(ctx: zli.CommandContext) !void {
 // ============================================================================
 // Path Utilities
 // ============================================================================
+
+/// Extract route from source path based on filesystem routing
+/// If the file is in a pages directory, returns the route (e.g., "/about", "/")
+/// Otherwise returns empty string
+fn extractRouteFromPath(allocator: std.mem.Allocator, source_path: []const u8) ![]const u8 {
+    const sep = std.fs.path.sep_str;
+    const pages_sep = "pages" ++ sep;
+
+    // Check if source_path contains "pages" directory
+    if (std.mem.indexOf(u8, source_path, pages_sep)) |pages_index| {
+        // Get the path after "pages/"
+        const after_pages = source_path[pages_index + pages_sep.len ..];
+
+        // Find the directory containing the file (remove filename)
+        const dir_path = std.fs.path.dirname(after_pages) orelse "";
+
+        // Convert directory path to route
+        if (dir_path.len == 0) {
+            return try allocator.dupe(u8, "/");
+        }
+
+        // Normalize the route: convert [id] to :id and path separators to /
+        var normalized_route = std.array_list.Managed(u8).init(allocator);
+        defer normalized_route.deinit();
+        try normalized_route.append('/');
+
+        for (dir_path) |c| {
+            if (c == std.fs.path.sep) {
+                try normalized_route.append('/');
+            } else if (c == '[') {
+                try normalized_route.append(':');
+            } else if (c != ']') {
+                try normalized_route.append(c);
+            }
+        }
+
+        return try normalized_route.toOwnedSlice();
+    }
+
+    // Not in pages directory, return empty string
+    return try allocator.dupe(u8, "");
+}
+
+/// Get the package root directory (where node_modules is located)
+/// This function finds package.json and returns its directory
+fn getPackageRootDir(allocator: std.mem.Allocator) ![]const u8 {
+    const package_json_parsed = try jsutil.PackageJson.parse(allocator);
+    errdefer package_json_parsed.deinit();
+
+    // Extract pkg_path before deinit since it's manually allocated
+    const pkg_path = package_json_parsed.value.pkg_path orelse {
+        package_json_parsed.deinit();
+        return error.PkgPathNotFound;
+    };
+
+    const pkg_rootdir = std.fs.path.dirname(pkg_path) orelse {
+        allocator.free(pkg_path);
+        package_json_parsed.deinit();
+        // When package.json is in root, return empty string (current directory)
+        return try allocator.dupe(u8, "");
+    };
+
+    const result = try allocator.dupe(u8, pkg_rootdir);
+
+    // Free pkg_path manually since it's not part of the JSON structure
+    // and won't be freed by package_json_parsed.deinit()
+    allocator.free(pkg_path);
+    package_json_parsed.deinit();
+
+    return result;
+}
 
 fn getBasename(path: []const u8) []const u8 {
     const sep = std.fs.path.sep;
@@ -340,6 +413,7 @@ const ClientComponentSerializable = struct {
     name: []const u8,
     path: []const u8,
     import: []const u8,
+    route: []const u8,
 };
 
 fn genClientMainWasm(allocator: std.mem.Allocator, components: []const ClientComponentSerializable, output_dir: []const u8, verbose: bool) !void {
@@ -466,7 +540,12 @@ fn genClientMain(allocator: std.mem.Allocator, components: []const ClientCompone
     }
 
     // Create the node_modules/ziex/ if it doesn't exist
-    const ziex_dir = try std.fs.path.join(allocator, &.{ "node_modules", "@ziex/components" });
+    // Disable std.log.debug for this block
+
+    const pkg_rootdir = try getPackageRootDir(allocator);
+    defer allocator.free(pkg_rootdir);
+
+    const ziex_dir = try std.fs.path.join(allocator, &.{ pkg_rootdir, "node_modules", "@ziex/components" });
     defer allocator.free(ziex_dir);
     std.fs.cwd().makePath(ziex_dir) catch |err| switch (err) {
         error.PathAlreadyExists => {},
@@ -779,6 +858,10 @@ fn transpileFile(
     var result = try zx.Ast.parse(allocator, source_z);
     defer result.deinit(allocator);
 
+    // Extract route from source path
+    const component_route = try extractRouteFromPath(allocator, source_path);
+    defer allocator.free(component_route);
+
     // Append components from this file to the global list
     for (result.client_components.items) |component| {
         const cloned_id = try allocator.dupe(u8, component.id);
@@ -786,6 +869,7 @@ fn transpileFile(
 
         var cloned_path: []const u8 = undefined;
         var cloned_import: []const u8 = undefined;
+        var cloned_route: []const u8 = undefined;
 
         if (component.type == .csz) {
             // For .csz components, use the output .zig file path (relative to output_dir)
@@ -814,8 +898,23 @@ fn transpileFile(
             const component_rel_to_input = try relativePath(allocator, input_root, resolved_component_path);
             defer allocator.free(component_rel_to_input);
 
-            // copmonent.ts is inside node_modules/@ziex/components/index.ts so we are moving up to the root directory
-            const import_path = try std.fmt.allocPrint(allocator, "./../../../site/{s}", .{component_rel_to_input});
+            // Get package root directory to determine node_modules location
+            const pkg_rootdir = try getPackageRootDir(allocator);
+            defer allocator.free(pkg_rootdir);
+
+            // component.ts is inside node_modules/@ziex/components/index.ts
+            // Calculate relative path from that directory to the component file
+            const ziex_components_dir_rel = if (pkg_rootdir.len == 0)
+                try std.fs.path.join(allocator, &.{ "node_modules", "@ziex", "components" })
+            else
+                try std.fs.path.join(allocator, &.{ pkg_rootdir, "node_modules", "@ziex", "components" });
+            defer allocator.free(ziex_components_dir_rel);
+
+            // Resolve to absolute path for accurate relative path calculation
+            const ziex_components_dir = try std.fs.path.resolve(allocator, &.{ziex_components_dir_rel});
+            defer allocator.free(ziex_components_dir);
+
+            const import_path = try relativePath(allocator, ziex_components_dir, resolved_component_path);
             defer allocator.free(import_path);
 
             const import_str = try std.fmt.allocPrint(allocator, "@async () => (await import('{s}')).default@", .{import_path});
@@ -823,12 +922,16 @@ fn transpileFile(
             cloned_import = import_str;
         }
 
+        // Clone the route for this component
+        cloned_route = try allocator.dupe(u8, component_route);
+
         try global_components.append(.{
             .type = component.type,
             .id = cloned_id,
             .name = cloned_name,
             .path = cloned_path,
             .import = cloned_import,
+            .route = cloned_route,
         });
     }
 
@@ -948,6 +1051,7 @@ fn transpileCommand(
             allocator.free(component.name);
             allocator.free(component.path);
             allocator.free(component.import);
+            allocator.free(component.route);
         }
         client_components.deinit();
     }
