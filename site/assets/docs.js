@@ -26,7 +26,7 @@ document.addEventListener("DOMContentLoaded", async () => {
           Prism.highlightElement(codeElement);
         }
       } catch (error) {
-        console.error("Error formatting HTML:", error);
+        // console.error("Error formatting HTML:", error);
       }
     }
   }

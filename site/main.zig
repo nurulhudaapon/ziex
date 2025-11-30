@@ -15,3 +15,5 @@ pub fn main() !void {
     std.debug.print("{s} | http://localhost:{d}\n", .{ zx.App.info, app.server.config.port.? });
     try app.start();
 }
+
+pub fn renderAll() void {}

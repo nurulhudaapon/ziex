@@ -1,13 +1,29 @@
+var server_count: u64 = 0;
 pub fn Page(allocator: zx.Allocator) zx.Component {
+    server_count += 1;
+
     return (
         <main @allocator={allocator}>
-            <CounterComponent @rendering={.csz}/>
+            <CounterComponent @rendering={.csz} count={server_count} />
         </main>
     );
 }
 
+export var count: u64 = 0;
 pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
-    return (<button @allocator={allocator}>Counter</button>);
+    return (
+        <div @allocator={allocator}>
+            <button onclick="_zx.exports.incrementCount()">Increment</button>
+            <p>Count: {[count:d]}</p>
+        </div>
+    );
 }
 
+export fn incrementCount() void {
+    count += 1;
+
+    root.renderAll();
+}
+
+const root = @import("root");
 const zx = @import("zx");

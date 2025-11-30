@@ -114,5 +114,4 @@ pub const Event = struct {
 };
 
 const std = @import("std");
-const zx = @import("zx");
 const js = @import("js");

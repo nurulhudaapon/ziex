@@ -387,28 +387,36 @@ fn genClientMainWasm(allocator: std.mem.Allocator, components: []const ClientCom
         allocator.free(old_zon_str);
     }
 
-    const main_csz = @embedFile("./transpile/template/main_csz.zig");
+    const cmps_csz = @embedFile("./transpile/template/components_csz.zig");
     const placeholder = "    // PLACEHOLDER_ZX_COMPONENTS\n";
-    const placeholder_index = std.mem.indexOf(u8, main_csz, placeholder) orelse {
-        @panic("Placeholder PLACEHOLDER_ZX_COMPONENTS not found in main_csz.zig");
+    const placeholder_index = std.mem.indexOf(u8, cmps_csz, placeholder) orelse {
+        @panic("Placeholder PLACEHOLDER_ZX_COMPONENTS not found in components_csz.zig");
     };
 
-    const before = main_csz[0..placeholder_index];
-    const after = main_csz[placeholder_index + placeholder.len ..];
+    const before = cmps_csz[0..placeholder_index];
+    const after = cmps_csz[placeholder_index + placeholder.len ..];
 
-    const main_csz_z = try std.mem.concat(allocator, u8, &.{ before, zon_str[2..(zon_str.len - 1)], after });
-    defer allocator.free(main_csz_z);
+    const cmps_csz_z = try std.mem.concat(allocator, u8, &.{ before, zon_str[2..(zon_str.len - 1)], after });
+    defer allocator.free(cmps_csz_z);
 
-    const main_csz_path = try std.fs.path.join(allocator, &.{ output_dir, "main_wasm.zig" });
+    const cmps_csz_path = try std.fs.path.join(allocator, &.{ output_dir, "components.zig" });
+    defer allocator.free(cmps_csz_path);
+
+    try std.fs.cwd().writeFile(.{
+        .sub_path = cmps_csz_path,
+        .data = cmps_csz_z,
+    });
+
+    const main_csz_path = try std.fs.path.join(allocator, &.{ output_dir, "main.wasm.zig" });
     defer allocator.free(main_csz_path);
 
     try std.fs.cwd().writeFile(.{
         .sub_path = main_csz_path,
-        .data = main_csz_z,
+        .data = @embedFile("./transpile/template/main_csz.zig"),
     });
 
     if (verbose) {
-        std.debug.print("Generated main_wasm.zig at: {s}\n", .{main_csz_path});
+        std.debug.print("Generated components.zig at: {s}\n", .{main_csz_path});
     }
 }
 

@@ -12,13 +12,13 @@ pub fn GettingStarted(allocator: zx.Allocator) zx.Component {
             <p>
                 Create a new folder for your project, navigate into it, and run <code>zx init</code>:
             </p>
-            <pre><code class="language-bash">mkdir my-project
+            <pre class="language-bash"><code>mkdir my-project
 cd my-project
 zx init</code></pre>
             <p>
                 Make sure to run <code>zx init</code> inside a clean project folder. After running the command, you'll see:
             </p>
-            <pre><code class="language-bash">○ Initializing ZX project!  Template: default
+            <pre class="language-bash"><code>○ Initializing ZX project!  Template: default
 
   + .vscode/extensions.json
   + build.zig.zon
@@ -38,11 +38,11 @@ zig build serve</code></pre>
             <p>
                 Then run the development server:
             </p>
-            <pre><code class="language-bash">zig build serve</code></pre>
+            <pre class="language-bash"><code>zig build serve</code></pre>
             <p>
                 You'll see the server start:
             </p>
-            <pre><code class="language-bash">ZX · 0.0.1-dev.90
+            <pre class="language-bash"><code>ZX · 0.0.1-dev.90
   - Local: http://localhost:3000</code></pre>
 
             <h3 id="editor-setup">Editor Setup</h3>

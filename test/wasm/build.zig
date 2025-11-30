@@ -16,6 +16,7 @@ pub fn build(b: *std.Build) void {
     });
 
     const jsz_dep = b.dependency("zig_js", .{ .target = wasm_target, .optimize = optimize });
+    zx_mod.addImport("js", jsz_dep.module("zig-js"));
     const exe = b.addExecutable(.{
         .name = "zx_wasm",
         .root_module = b.createModule(.{

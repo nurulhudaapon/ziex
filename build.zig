@@ -14,8 +14,10 @@ pub fn build(b: *std.Build) void {
     const mod = b.addModule("zx", .{
         .root_source_file = b.path("src/root.zig"),
         .target = target,
+        .optimize = optimize,
     });
     const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });
+    const jsz_dep = b.dependency("zig_js", .{ .target = target, .optimize = optimize });
     mod.addImport("httpz", httpz_dep.module("httpz"));
 
     const options = b.addOptions();
@@ -23,6 +25,14 @@ pub fn build(b: *std.Build) void {
     options.addOption([]const u8, "description", build_zon.description);
     options.addOption([]const u8, "repository", build_zon.repository);
     mod.addOptions("zx_info", options);
+
+    const zx_wasm_mod = b.addModule("zx_wasm", .{
+        .root_source_file = b.path("src/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    zx_wasm_mod.addImport("js", jsz_dep.module("zig-js"));
+    zx_wasm_mod.addOptions("zx_info", options);
 
     // --- ZX CLI (Transpiler, Exporter, Dev Server) --- //
     // const rustlib_step = buildlib.rustlib.build(b, target, optimize);
@@ -35,7 +45,6 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "zx", .module = mod },
-                .{ .name = "httpz", .module = httpz_dep.module("httpz") },
                 .{ .name = "zli", .module = zli_dep.module("zli") },
             },
         }),
@@ -54,7 +63,7 @@ pub fn build(b: *std.Build) void {
     // --- ZX Site (Docs, Example, sample) --- //
     {
         const is_zx_docsite = b.option(bool, "zx-docsite", "Build the ZX docsite") orelse false;
-        if (is_zx_docsite) buildlib.docsite.setup(b, exe, mod, .{
+        if (is_zx_docsite) buildlib.docsite.setup(b, exe, mod, zx_wasm_mod, .{
             .name = "zx_site",
             .root_module = b.createModule(.{
                 .root_source_file = b.path("site/main.zig"),

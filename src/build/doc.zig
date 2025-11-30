@@ -1,6 +1,6 @@
 const std = @import("std");
 
-pub fn setup(b: *std.Build, zx_exe: *std.Build.Step.Compile, zx_mod: *std.Build.Module, options: std.Build.ExecutableOptions) void {
+pub fn setup(b: *std.Build, zx_exe: *std.Build.Step.Compile, zx_mod: *std.Build.Module, zx_wasm_mod: *std.Build.Module, options: std.Build.ExecutableOptions) void {
     var site_outdir = std.fs.cwd().openDir("site/.zx", .{}) catch null;
     if (site_outdir == null) return;
     site_outdir.?.close();
@@ -46,6 +46,32 @@ pub fn setup(b: *std.Build, zx_exe: *std.Build.Step.Compile, zx_mod: *std.Build.
 
     exe.step.dependOn(&transpile_cmd.step);
     b.installArtifact(exe);
+
+    // --- ZX WASM Main Executable ---
+    const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding, .abi = .none });
+    const wasm_exe = b.addExecutable(.{
+        .name = "zx_wasm",
+        .root_module = b.createModule(.{
+            .root_source_file = outdir.path(b, "main.wasm.zig"),
+            .target = wasm_target,
+            .optimize = options.root_module.optimize,
+            .imports = &.{
+                .{ .name = "zx", .module = zx_wasm_mod },
+            },
+        }),
+    });
+    wasm_exe.entry = .disabled;
+    wasm_exe.export_memory = true;
+    wasm_exe.rdynamic = true;
+
+    const wasm_install = b.addInstallFileWithDir(
+        wasm_exe.getEmittedBin(),
+        .{ .custom = "../site/.zx/assets" },
+        "main.wasm",
+    );
+    b.default_step.dependOn(&wasm_install.step);
+    wasm_exe.step.dependOn(&transpile_cmd.step);
+    b.installArtifact(wasm_exe);
 
     // --- Steps: Run Docs ---
     const run_docs_step = b.step("serve", "Run the site (docs, example, sample)");
