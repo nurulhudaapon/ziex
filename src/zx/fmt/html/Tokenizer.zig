@@ -5455,7 +5455,7 @@ test "script single/double escape weirdness" {
     const case =
         \\<script>
         \\<!--script data escaped-->
-        \\</script>    
+        \\</script>
         \\
         \\<script>
         \\<!--<script>script data double escaped</script>-->

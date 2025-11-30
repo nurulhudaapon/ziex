@@ -103,9 +103,62 @@ fn extractAndFormatJsxSegment(
     defer allocator.free(html_segment_z);
 
     const formatted_html = formatHtml(arena, stderr, null, html_segment_z, true) catch {
-        // If HTML formatting fails, use the original JSX segment
-        const html_copy = try allocator.dupe(u8, html_segment);
-        try html_segments.append(allocator, html_copy);
+        // If HTML formatting fails, normalize the original JSX segment
+        const fh = html_segment;
+
+        // original unformatted HTML segment (debug removed)
+
+        // Normalize child indentation to one indent step
+        const INDENT_STEP: usize = 4;
+        var min_indent_after_first: usize = std.math.maxInt(usize);
+        var line_iter2 = std.mem.splitScalar(u8, fh, '\n');
+        var seen_first_non_empty2 = false;
+        while (line_iter2.next()) |line| {
+            const trimmed = std.mem.trimLeft(u8, line, &std.ascii.whitespace);
+            if (trimmed.len == 0) continue;
+            if (!seen_first_non_empty2) {
+                seen_first_non_empty2 = true;
+                continue;
+            }
+            var lead: usize = 0;
+            for (line) |c| {
+                if (std.ascii.isWhitespace(c)) {
+                    lead += 1;
+                } else break;
+            }
+            if (lead < min_indent_after_first) min_indent_after_first = lead;
+        }
+        if (min_indent_after_first == std.math.maxInt(usize)) min_indent_after_first = 0;
+        var remove2: usize = 0;
+        if (min_indent_after_first > INDENT_STEP) remove2 = min_indent_after_first - INDENT_STEP;
+
+        if (remove2 == 0) {
+            const html_copy = try allocator.dupe(u8, fh);
+            try html_segments.append(allocator, html_copy);
+        } else {
+            var buf2 = try allocator.alloc(u8, fh.len);
+            defer allocator.free(buf2);
+            var oi2: usize = 0;
+            var ii: usize = 0;
+            var line_start3 = true;
+            while (ii < fh.len) {
+                if (line_start3) {
+                    var skip3 = remove2;
+                    while (ii < fh.len and skip3 > 0 and std.ascii.isWhitespace(fh[ii])) {
+                        ii += 1;
+                        skip3 -= 1;
+                    }
+                    line_start3 = false;
+                }
+                buf2[oi2] = fh[ii];
+                oi2 += 1;
+                if (fh[ii] == '\n') line_start3 = true;
+                ii += 1;
+            }
+            const html_copy = try allocator.dupe(u8, buf2[0..oi2]);
+            try html_segments.append(allocator, html_copy);
+        }
+
         // Remove leading whitespace that was added to cleaned_source
         if (html_start < jsx_start) {
             const chars_to_remove = jsx_start - html_start;
@@ -119,9 +172,67 @@ fn extractAndFormatJsxSegment(
         return html_end_extended;
     };
 
+    // formatted_html debug output removed
+
     // If formatted_html is null (syntax errors), use original JSX
-    const html_copy = try allocator.dupe(u8, formatted_html orelse html_segment);
-    try html_segments.append(allocator, html_copy);
+    if (formatted_html) |fh| {
+        // Normalize child indentation so that the first child line
+        // is exactly one indent step deeper than the opening tag.
+        const INDENT_STEP: usize = 4;
+        var min_indent_after_first: usize = std.math.maxInt(usize);
+        var line_iter = std.mem.splitScalar(u8, fh, '\n');
+        var seen_first_non_empty = false;
+        while (line_iter.next()) |line| {
+            const trimmed = std.mem.trimLeft(u8, line, &std.ascii.whitespace);
+            if (trimmed.len == 0) continue;
+            if (!seen_first_non_empty) {
+                seen_first_non_empty = true;
+                continue; // anchor opening tag
+            }
+            var lead: usize = 0;
+            for (line) |c| {
+                if (std.ascii.isWhitespace(c)) {
+                    lead += 1;
+                } else break;
+            }
+            if (lead < min_indent_after_first) min_indent_after_first = lead;
+        }
+        if (min_indent_after_first == std.math.maxInt(usize)) min_indent_after_first = 0;
+
+        // Determine how much to remove so that child lines end up at INDENT_STEP
+        var remove: usize = 0;
+        if (min_indent_after_first > INDENT_STEP) remove = min_indent_after_first - INDENT_STEP;
+
+        if (remove == 0) {
+            const html_copy = try allocator.dupe(u8, fh);
+            try html_segments.append(allocator, html_copy);
+        } else {
+            var buf = try allocator.alloc(u8, fh.len);
+            defer allocator.free(buf);
+            var oi: usize = 0;
+            var i: usize = 0;
+            var line_start = true;
+            while (i < fh.len) {
+                if (line_start) {
+                    var skip = remove;
+                    while (i < fh.len and skip > 0 and std.ascii.isWhitespace(fh[i])) {
+                        i += 1;
+                        skip -= 1;
+                    }
+                    line_start = false;
+                }
+                buf[oi] = fh[i];
+                oi += 1;
+                if (fh[i] == '\n') line_start = true;
+                i += 1;
+            }
+            const html_copy = try allocator.dupe(u8, buf[0..oi]);
+            try html_segments.append(allocator, html_copy);
+        }
+    } else {
+        const html_copy = try allocator.dupe(u8, html_segment);
+        try html_segments.append(allocator, html_copy);
+    }
 
     // Remove leading whitespace that was added to cleaned_source
     if (html_start < jsx_start) {
@@ -624,7 +735,40 @@ pub fn patchInHtml(allocator: std.mem.Allocator, extract_html: ExtractHtmlResult
                 const trimmed_html = try trimLeadingTrailingNewlines(allocator, html);
                 defer allocator.free(trimmed_html);
 
+                // Normalize indentation inside the trimmed HTML segment so
+                // that child lines are anchored relative to the opening
+                // tag. We compute the minimum leading whitespace across
+                // all non-empty lines after the first non-empty line
+                // (which is the opening tag) and remove that prefix.
+                var min_indent: usize = std.math.maxInt(usize);
+                var line_it = std.mem.splitScalar(u8, trimmed_html, '\n');
+                var seen_first = false;
+                while (line_it.next()) |line| {
+                    const tl = std.mem.trimLeft(u8, line, &std.ascii.whitespace);
+                    if (tl.len == 0) continue;
+                    if (!seen_first) {
+                        // first non-empty line is the opening tag - keep as anchor
+                        seen_first = true;
+                        continue;
+                    }
+                    var lead: usize = 0;
+                    for (line) |c| {
+                        if (std.ascii.isWhitespace(c)) {
+                            lead += 1;
+                        } else break;
+                    }
+                    if (lead < min_indent) min_indent = lead;
+                }
+                if (min_indent == std.math.maxInt(usize)) min_indent = 0;
+
+                // We will avoid allocating a dedented copy. Keep trimmed_html and
+                // remember min_indent so we can skip leading whitespace per line
+                // when writing into the result. This avoids temporary buffers
+                // and potential memory corruption.
                 const is_multiline = containsNewline(trimmed_html);
+
+                // debug prints removed
+                // (dedented copy removed; using trimmed_html + min_indent when writing)
 
                 // Find opening parenthesis before @html(n)
                 const open_paren_pos = findOpeningParenBefore(extract_html.zig_source, i);
@@ -632,93 +776,84 @@ pub fn patchInHtml(allocator: std.mem.Allocator, extract_html: ExtractHtmlResult
                 // Find closing parenthesis after @html(n)
                 const close_paren_pos = findClosingParenAfter(extract_html.zig_source, parsed.end);
 
-                if (is_multiline) {
-                    if (open_paren_pos) |open_pos| {
-                        // Get indentation level of opening parenthesis
-                        const open_paren_indent = getIndentationLevel(extract_html.zig_source, open_pos);
-                        // HTML block should be indented one level more (assuming 4 spaces per level)
-                        const html_indent = open_paren_indent + 4;
-                        // Closing paren should match opening paren indentation
-                        const close_paren_indent = open_paren_indent;
+                // Debugging: show whether we found parentheses around the placeholder
+                // parentheses detection debug removed
 
-                        // Copy everything from last_copied up to (but not including) the opening paren
-                        try result.appendSlice(allocator, extract_html.zig_source[last_copied..open_pos]);
+                if (open_paren_pos) |open_pos| {
+                    // Get indentation level of opening parenthesis
+                    const open_paren_indent = getIndentationLevel(extract_html.zig_source, open_pos);
+                    // HTML block should be indented one level more (assuming 4 spaces per level)
+                    const html_indent = open_paren_indent + 4;
+                    // Closing paren should match opening paren indentation
+                    const close_paren_indent = open_paren_indent;
 
-                        // Copy the opening paren
-                        try result.append(allocator, '(');
-
-                        // Add newline after opening paren
-                        try result.append(allocator, '\n');
-
-                        // Indent and add the trimmed HTML
-                        const indented_html = try indentMultilineText(allocator, trimmed_html, html_indent);
-                        defer allocator.free(indented_html);
-                        try result.appendSlice(allocator, indented_html);
-
-                        // Skip the @html(n) placeholder in source
-                        last_copied = parsed.end;
-                        i = parsed.end;
-
-                        // Look for closing paren after the placeholder
-                        if (close_paren_pos) |close_pos| {
-                            // Skip any whitespace between placeholder and closing paren
-                            var j = parsed.end;
-                            while (j < close_pos and std.ascii.isWhitespace(extract_html.zig_source[j])) {
-                                j += 1;
-                            }
-
-                            // Add newline before closing paren (for multiline HTML)
-                            try result.append(allocator, '\n');
-
-                            // Add indentation for closing paren
-                            var indent_idx: usize = 0;
-                            while (indent_idx < close_paren_indent) {
-                                try result.append(allocator, ' ');
-                                indent_idx += 1;
-                            }
-
-                            // Copy the closing paren
-                            try result.append(allocator, ')');
-
-                            last_copied = close_pos + 1;
-                            i = close_pos + 1;
-                        } else {
-                            // No closing paren found immediately, but for multiline HTML
-                            // we should still look ahead for a closing paren
-                            var j = parsed.end;
-                            while (j < extract_html.zig_source.len and std.ascii.isWhitespace(extract_html.zig_source[j])) {
-                                j += 1;
-                            }
-                            if (j < extract_html.zig_source.len and extract_html.zig_source[j] == ')') {
-                                // Found closing paren after whitespace, add newline and indentation before it
-                                try result.append(allocator, '\n');
-
-                                // Add indentation for closing paren
-                                var indent_idx: usize = 0;
-                                while (indent_idx < close_paren_indent) {
-                                    try result.append(allocator, ' ');
-                                    indent_idx += 1;
-                                }
-
-                                try result.append(allocator, ')');
-                                last_copied = j + 1;
-                                i = j + 1;
-                            } else {
-                                // No closing paren found, continue normally
-                                i = parsed.end;
-                            }
-                        }
-                        continue;
+                    // Determine the end position to skip in the original source
+                    var end_to_skip: usize = parsed.end;
+                    if (close_paren_pos) |close_pos| {
+                        end_to_skip = close_pos + 1;
                     } else {
-                        // Multiline but no opening paren, just insert trimmed HTML
-                        try result.appendSlice(allocator, extract_html.zig_source[last_copied..i]);
-                        try result.appendSlice(allocator, trimmed_html);
-                        last_copied = parsed.end;
-                        i = parsed.end;
-                        continue;
+                        // If no explicit closing paren found, attempt to skip
+                        // trailing whitespace after the placeholder only.
+                        var j = parsed.end;
+                        while (j < extract_html.zig_source.len and std.ascii.isWhitespace(extract_html.zig_source[j])) j += 1;
+                        if (j < extract_html.zig_source.len and extract_html.zig_source[j] == ')') {
+                            end_to_skip = j + 1;
+                        } else {
+                            end_to_skip = parsed.end;
+                        }
                     }
+
+                    // Build the replacement deterministically: copy before '(', then replace entire ( ... ) with our block
+                    try result.appendSlice(allocator, extract_html.zig_source[last_copied..open_pos]);
+                    // opening paren and newline — append explicitly as bytes to avoid surprises
+                    try result.append(allocator, '(');
+                    try result.append(allocator, '\n');
+                    // internal debug removed
+                    // Debug: preview start of trimmed_html
+                    // trimmed_html preview debug removed
+
+                    // append each line with html_indent spaces; skip `min_indent`
+                    // leading whitespace from each non-empty line after the
+                    // first (opening tag) so children are indented correctly.
+                    var lit = std.mem.splitScalar(u8, trimmed_html, '\n');
+                    var seen_first_line = false;
+                    while (lit.next()) |ln2| {
+                        // write indentation for the entire block
+                        for (0..html_indent) |_| try result.append(allocator, ' ');
+                        if (!seen_first_line) {
+                            // first non-empty line is the opening tag; write as-is
+                            try result.appendSlice(allocator, ln2);
+                            seen_first_line = true;
+                        } else {
+                            // for child lines, skip up to min_indent leading whitespace
+                            var skip_left = min_indent;
+                            var idx: usize = 0;
+                            while (idx < ln2.len and skip_left > 0 and std.ascii.isWhitespace(ln2[idx])) {
+                                idx += 1;
+                                skip_left -= 1;
+                            }
+                            try result.appendSlice(allocator, ln2[idx..]);
+                        }
+                        // always append newline after each line
+                        try result.append(allocator, '\n');
+                    }
+
+                    // write closing paren indented
+                    for (0..close_paren_indent) |_| try result.append(allocator, ' ');
+                    try result.appendSlice(allocator, ")");
+
+                    last_copied = end_to_skip;
+                    i = end_to_skip;
+                    continue;
+                } else if (is_multiline) {
+                    // Multiline but no surrounding parens: just insert trimmed HTML as-is
+                    try result.appendSlice(allocator, extract_html.zig_source[last_copied..i]);
+                    try result.appendSlice(allocator, trimmed_html);
+                    last_copied = parsed.end;
+                    i = parsed.end;
+                    continue;
                 } else {
-                    // Single line or no parens found, copy everything up to @html(n) and insert trimmed HTML
+                    // Single line and no surrounding parens: insert trimmed HTML inline
                     try result.appendSlice(allocator, extract_html.zig_source[last_copied..i]);
                     try result.appendSlice(allocator, trimmed_html);
                     last_copied = parsed.end;
@@ -736,6 +871,9 @@ pub fn patchInHtml(allocator: std.mem.Allocator, extract_html: ExtractHtmlResult
 
     try result.append(allocator, 0);
     const result_slice = result.items[0 .. result.items.len - 1 :0];
+
+    // temporary debug prints removed
+
     return try allocator.dupeZ(u8, result_slice);
 }
 
@@ -757,12 +895,6 @@ pub fn format(allocator: std.mem.Allocator, zx_source: [:0]const u8) !FormatResu
     defer ast.deinit(allocator);
 
     if (ast.errors.len > 0) {
-        for (ast.errors) |err| {
-            var w: std.io.Writer.Allocating = .init(allocator);
-            defer w.deinit();
-            try ast.renderError(err, &w.writer);
-            std.debug.print("{s}\n", .{w.written()});
-        }
         return error.ParseError;
     }
 
@@ -771,6 +903,7 @@ pub fn format(allocator: std.mem.Allocator, zx_source: [:0]const u8) !FormatResu
     // Free old zig_source before reassigning
     allocator.free(extract_html.zig_source);
     extract_html.zig_source = try allocator.dupeZ(u8, rendered_zig_source);
+    // cleaned zx source debug removed
     const patched_in_html = try patchInHtml(allocator, extract_html);
     // Note: patched_in_html is owned by FormatResult, don't free it here
 

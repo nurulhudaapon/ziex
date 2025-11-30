@@ -34,9 +34,9 @@ pub const Kind = enum {
 
     // superhtml
     extend, super, ctx,
-    
+
     ___, // invalid or web component (or superhtml if not in shtml mode)
-    
+
     // Begin of html tags
     a, abbr, address, area, article, aside, audio, b, base, bdi, bdo,
     blockquote, body, br, button, canvas, caption, cite, code, col, colgroup,
@@ -234,7 +234,8 @@ pub const Node = struct {
     }
 
     pub fn debug(n: Node, src: []const u8) void {
-        std.debug.print("{s}", .{n.open.slice(src)});
+        _ = n;
+        _ = src;
     }
 };
 
@@ -1539,10 +1540,8 @@ pub fn render(ast: Ast, arena: Allocator, src: []const u8, w: *Writer) !void {
                             }
                         }
 
-                        // Write indentation (convert tabs to spaces for consistency)
-                        for (0..indentation * 4) |_| {
-                            try w.writeAll(" ");
-                        }
+                        // Write indentation as spaces (4 spaces per indent level)
+                        for (0..indentation) |_| try w.writeAll("    ");
                     } else if ((last_was_text or current.kind == .text) and maybe_ws.len > 0) {
                         if (is_expression and is_all_whitespace) {
                             // Normalize whitespace for expression nodes (convert tabs to spaces)
@@ -1553,17 +1552,8 @@ pub fn render(ast: Ast, arena: Allocator, src: []const u8, w: *Writer) !void {
                     }
                 }
 
-                const child_is_vertical = if (ast.child(current)) |c|
-                    (c.kind == .text or c.open.start - current.open.end > 0)
-                else
-                    false;
-                if (!current.self_closing and
-                    current.kind.isElement() and
-                    !current.kind.isVoid() and
-                    child_is_vertical)
-                {
-                    indentation += 1;
-                }
+                // child_is_vertical is computed later where the tag is printed
+                // so we don't compute it here and risk an unused binding.
             },
             .exit => {
                 // const zone = tracy.trace(@src());
@@ -1616,9 +1606,7 @@ pub fn render(ast: Ast, arena: Allocator, src: []const u8, w: *Writer) !void {
                         std.ascii.isWhitespace(src[current.open.end]);
                     if (open_was_vertical) {
                         try w.writeAll("\n");
-                        for (0..indentation) |_| {
-                            try w.writeAll("\t");
-                        }
+                        for (0..indentation) |_| try w.writeAll("    ");
                     }
                 }
             },
@@ -1661,11 +1649,11 @@ pub fn render(ast: Ast, arena: Allocator, src: []const u8, w: *Writer) !void {
                             if (line.len == 0) {
                                 if (empty_line) continue;
                                 empty_line = true;
-                                if (!first) for (0..indentation) |_| try w.print("\t", .{});
+                                if (!first) for (0..indentation) |_| try w.writeAll("    ");
                                 try w.print("\n", .{});
                                 continue;
                             } else empty_line = false;
-                            if (!first) for (0..indentation) |_| try w.print("\t", .{});
+                            if (!first) for (0..indentation) |_| try w.writeAll("    ");
                             try w.print("{s}", .{line});
                             if (it.peek() != null) try w.print("\n", .{});
                             first = false;
@@ -1685,20 +1673,20 @@ pub fn render(ast: Ast, arena: Allocator, src: []const u8, w: *Writer) !void {
                             if (line.len == 0) {
                                 if (empty_line) continue;
                                 empty_line = true;
-                                if (!first) for (0..css_indent) |_| try w.print("\t", .{});
+                                if (!first) for (0..css_indent) |_| try w.writeAll("    ");
                                 try w.print("\n", .{});
                                 continue;
                             } else empty_line = false;
                             if (std.mem.endsWith(u8, line, "{")) {
-                                if (!first) for (0..css_indent) |_| try w.print("\t", .{});
+                                if (!first) for (0..css_indent) |_| try w.writeAll("    ");
                                 try w.print("{s}", .{line});
                                 css_indent += 1;
                             } else if (std.mem.eql(u8, line, "}")) {
                                 css_indent -|= 1;
-                                if (!first) for (0..css_indent) |_| try w.print("\t", .{});
+                                if (!first) for (0..css_indent) |_| try w.writeAll("    ");
                                 try w.print("{s}", .{line});
                             } else {
-                                if (!first) for (0..css_indent) |_| try w.print("\t", .{});
+                                if (!first) for (0..css_indent) |_| try w.writeAll("    ");
                                 try w.print("{s}", .{line});
                             }
 
@@ -1868,7 +1856,8 @@ pub fn render(ast: Ast, arena: Allocator, src: []const u8, w: *Writer) !void {
                         (c.kind == .text or c.open.start - current.open.end > 0)
                     else
                         false;
-                    const attr_indent = indentation - @intFromBool(!current.kind.isVoid() and !current.self_closing and child_is_vertical);
+                    const attr_delta: u32 = @intFromBool(!current.kind.isVoid() and !current.self_closing and child_is_vertical);
+                    const attr_indent = if (indentation >= attr_delta) indentation - attr_delta else 0;
                     const extra = blk: {
                         if (current.kind == .doctype) break :blk 1;
                         assert(current.kind.isElement());
@@ -1883,9 +1872,7 @@ pub fn render(ast: Ast, arena: Allocator, src: []const u8, w: *Writer) !void {
                                 try w.print(" ", .{});
                             } else {
                                 try w.print("\n", .{});
-                                for (0..attr_indent) |_| {
-                                    try w.print("\t", .{});
-                                }
+                                for (0..attr_indent) |_| try w.writeAll("    ");
                                 for (0..extra) |_| {
                                     try w.print(" ", .{});
                                 }
@@ -1911,9 +1898,7 @@ pub fn render(ast: Ast, arena: Allocator, src: []const u8, w: *Writer) !void {
                     }
                     if (vertical) {
                         try w.print("\n", .{});
-                        for (0..attr_indent) |_| {
-                            try w.print("\t", .{});
-                        }
+                        for (0..attr_indent) |_| try w.writeAll("    ");
                     }
 
                     if (current.self_closing and !current.kind.isVoid()) {
@@ -1934,6 +1919,13 @@ pub fn render(ast: Ast, arena: Allocator, src: []const u8, w: *Writer) !void {
                         if (current.first_child_idx == 0) {
                             direction = .exit;
                         } else {
+                            // Only increase indentation when we actually descend
+                            // into the first child. This anchors child indentation
+                            // to the opening tag's indentation and prevents
+                            // cumulative drift from previous writes.
+                            if (child_is_vertical) {
+                                indentation += 1;
+                            }
                             current = ast.nodes[current.first_child_idx];
                         }
                     }
@@ -2136,44 +2128,8 @@ const Formatter = struct {
 };
 
 pub fn debug(ast: Ast, src: []const u8) void {
-    var c = ast.cursor(0);
-    var last_depth: u32 = 0;
-    std.debug.print(" \n node count: {}\n", .{ast.nodes.len});
-    while (c.next()) |n| {
-        if (c.dir == .out) {
-            std.debug.print("\n", .{});
-            while (last_depth > c.depth) : (last_depth -= 1) {
-                for (0..last_depth - 2) |_| std.debug.print("    ", .{});
-                std.debug.print(")", .{});
-                if (last_depth - c.depth > 1) {
-                    std.debug.print("\n", .{});
-                }
-            }
-            last_depth = c.depth;
-            continue;
-        }
-        std.debug.print("\n", .{});
-        for (0..c.depth - 1) |_| std.debug.print("    ", .{});
-        const range = n.open.range(src);
-        std.debug.print("({s} #{} @{} [{}, {}] - [{}, {}]", .{
-            @tagName(n.kind),
-            c.idx,
-            c.depth,
-            range.start.row,
-            range.start.col,
-            range.end.row,
-            range.end.col,
-        });
-        if (n.first_child_idx == 0) {
-            std.debug.print(")", .{});
-        }
-        last_depth = c.depth;
-    }
-    std.debug.print("\n", .{});
-    while (last_depth > 1) : (last_depth -= 1) {
-        for (0..last_depth - 2) |_| std.debug.print("    ", .{});
-        std.debug.print(")\n", .{});
-    }
+    _ = ast;
+    _ = src;
 }
 
 fn debugNodes(nodes: []const Node, src: []const u8) void {

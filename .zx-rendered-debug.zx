@@ -1,11 +1,7 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     const max_count = 10;
 
-    return (
-        <main @allocator={allocator}>
-            <CounterComponent araf={max_count}/>
-        </main>
-    );
+    return (@html(0));
 }
 
 const zx = @import("zx");
