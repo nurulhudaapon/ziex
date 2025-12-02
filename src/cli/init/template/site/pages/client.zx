@@ -2,7 +2,7 @@ var count: i32 = 0;
 pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
     return (
         <div @allocator={allocator}>
-            <button style="visibility: hidden;" onClick={"_zx.exports.updateCount(0)"}>Reset</button>
+            <button onClick={"_zx.exports.updateCount(0)"}>Reset</button>
             <h5>{[count:d]}</h5>
             <button onClick={"_zx.exports.updateCount(-1)"}>Decrement</button>
             <button onClick={"_zx.exports.updateCount(1)"}>Increment</button>
