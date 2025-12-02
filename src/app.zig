@@ -37,12 +37,10 @@ pub const App = struct {
 
         app.allocator = allocator;
         app.meta = config.meta;
-        app.handler = Handler{
-            .meta = &app.meta,
-            .allocator = allocator,
-        };
+        app.handler = Handler{ .meta = &app.meta, .allocator = allocator };
         app.server = try httpz.Server(*Handler).init(allocator, config.server, &app.handler);
 
+        // -- Routing -- //
         var router = try app.server.router(.{});
 
         // Static assets
@@ -50,12 +48,8 @@ pub const App = struct {
         router.get("/*", Handler.public, .{});
 
         // Routes
-        for (config.meta.routes) |route| {
-            const route_data = try allocator.create(App.Meta.Route);
-            route_data.* = route;
-
-            router.get(route.path, Handler.page, .{ .data = route_data });
-        }
+        for (config.meta.routes) |*route|
+            router.get(route.path, Handler.page, .{ .data = route });
 
         // Introspect the app, this will exit the program in some cases like --introspect flag
         try app.introspect();
@@ -89,8 +83,9 @@ pub const App = struct {
 
                     if (is_dev) while (max_retries > 0) : (max_retries -= 1) {
                         const new_port = port + 1;
-                        std.debug.print("\x1b[1m\x1b[33mPort {d} is already in use, trying with port {d}...\x1b[0m\n\n", .{ port, new_port });
-                        std.debug.print("To kill the port, run:\n  \x1b[2mkill -9 $(lsof -t -i:{d})\x1b[0m\n\n", .{port});
+                        self.infoWithCrossedOutPort(port);
+                        std.debug.print("{s}Port {d} is already in use, {s}trying with port {d}...{s}\n\n", .{ colors.yellow, port, colors.reset_all, new_port, colors.reset_all });
+                        std.debug.print("To kill the port, run:\n  {s}kill -9 $(lsof -t -i:{d}){s}\n\n", .{ colors.dim, port, colors.reset_all });
                         self.server.config.port = new_port;
 
                         self.server.deinit();
@@ -100,12 +95,15 @@ pub const App = struct {
                         retry_app.info();
                         return retry_app.start();
                     } else {
-                        std.debug.print("\x1b[1m\x1b[31mFailed to find available port after {d} retries\x1b[0m\n", .{max_retries});
+                        std.debug.print("{s}Failed to find available port after {d} retries{s}\n", .{ colors.bold, max_retries, colors.reset_all });
                     };
 
-                    if (!is_dev) std.debug.print("\x1b[1m\x1b[31mPort {d} is already in use\x1b[0m\n", .{port});
+                    if (!is_dev) {
+                        self.infoWithCrossedOutPort(port);
+                        std.debug.print("{s}Port {d} is already in use{s}\n", .{ colors.red, port, colors.reset_all });
+                    }
 
-                    std.debug.print("To kill the port, run:\n  \x1b[2mkill -9 $(lsof -t -i:{d})\x1b[0m\n\n", .{port});
+                    std.debug.print("\nTo kill the port, run:\n  {s}kill -9 $(lsof -t -i:{d}){s}\n\n", .{ colors.dim, port, colors.reset_all });
                 },
                 else => return err,
             }
@@ -115,7 +113,27 @@ pub const App = struct {
     /// Print the app info to the console
     /// ZX - v{version} | http://localhost:{port}
     pub fn info(self: *App) void {
-        std.debug.print("\x1b[1mZX\x1b[0m \x1b[2m- v{s}\x1b[0m | http://localhost:{d}\n", .{ App.version, self.server.config.port.? });
+        std.debug.print("{s}ZX{s} {s}- v{s}{s} | http://localhost:{d}\n", .{ colors.bold, colors.reset_all, colors.dim, App.version, colors.reset_all, self.server.config.port.? });
+    }
+
+    /// Print the info line with the address/port part crossed out
+    fn infoWithCrossedOutPort(_: *App, port: u16) void {
+        std.debug.print(
+            "{s}{s}{s}ZX{s} {s}- v{s}{s} {s} | {s}http://localhost:{d}{s}\n",
+            .{
+                colors.move_up,
+                colors.reset,
+                colors.bold,
+                colors.reset_all,
+                colors.dim,
+                App.version,
+                colors.reset_all,
+                colors.dim,
+                colors.strikethrough,
+                port,
+                colors.reset_all,
+            },
+        );
     }
 
     fn introspect(self: *App) !void {
@@ -249,3 +267,15 @@ const Handler = @import("./app/handler.zig").Handler;
 const Allocator = std.mem.Allocator;
 const Component = zx.Component;
 const log = std.log.scoped(.app);
+
+const colors = struct {
+    const move_up = "\x1b[1A";
+    const reset = "\r";
+    const bold = "\x1b[1m";
+    const dim = "\x1b[2m";
+    const strikethrough = "\x1b[9m";
+    const reset_all = "\x1b[0m";
+    const yellow = "\x1b[33m";
+    const red = "\x1b[31m";
+    const blink = "\x1b[5m";
+};
