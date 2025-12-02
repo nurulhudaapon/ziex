@@ -1,7 +1,7 @@
 import { ZigJS } from "jsz/js/src";
 
 const DEFAULT_URL = "/assets/main.wasm";
-const MAX_EVENTS = 1000;
+const MAX_EVENTS = 100;
 
 const jsz = new ZigJS();
 const importObject = {
@@ -53,8 +53,8 @@ export async function init(options: InitOptions = {}) {
     jsz.memory = instance.exports.memory as WebAssembly.Memory;
     window._zx = new ZXInstance({ exports: instance.exports  });
 
-    const main = instance.exports.main as () => void;
-    main();
+    const main = instance.exports.mainClient;
+    if (typeof main === 'function') main();
 
 }
 

@@ -23,7 +23,6 @@ pub const App = struct {
     };
 
     pub const version = module_config.version_string;
-    pub const info = std.fmt.comptimePrint("\x1b[1mZX\x1b[0m \x1b[2m- v{s}\x1b[0m", .{version});
 
     allocator: std.mem.Allocator,
     meta: Meta,
@@ -82,6 +81,12 @@ pub const App = struct {
             self._is_listening = false;
             return err;
         };
+    }
+
+    /// Print the app info to the console
+    /// ZX - v{version} | http://localhost:{port}
+    pub fn info(self: *App) void {
+        std.debug.print("\x1b[1mZX\x1b[0m \x1b[2m- v{s}\x1b[0m | http://localhost:{d}\n", .{ App.version, self.server.config.port.? });
     }
 
     fn introspect(self: *App) !void {

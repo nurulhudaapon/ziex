@@ -21,6 +21,6 @@ pub fn main() !void {
     const app = try zx.App.init(allocator, config);
     defer app.deinit();
 
-    std.debug.print("{s}\n  - Local: http://localhost:{d}\n", .{ zx.App.info, config.server.port.? });
+    app.info();
     try app.start();
 }

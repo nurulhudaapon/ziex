@@ -69,19 +69,40 @@ fn init(ctx: zli.CommandContext) !void {
 
         printer.filepath(template.path);
         defer file.close();
-        try file.writeAll(template.content);
+
+        if (template.lines) |lines| {
+            var line_iter = std.mem.splitScalar(u8, template.content, '\n');
+            var line_n: usize = 1;
+
+            while (line_iter.next()) |line| {
+                for (lines) |line_range| {
+                    const start, const end = line_range;
+                    if (line_n < start or line_n > end) continue;
+                    try file.writeAll(line);
+                    try file.writeAll("\n");
+                }
+
+                line_n += 1;
+            }
+        } else {
+            try file.writeAll(template.content);
+        }
     }
 
     printer.footer("Now run {s}\n\n{s}zig build serve{s}", .{ tui.Printer.emoji("→"), tui.Colors.cyan, tui.Colors.reset });
 }
 
 const TemplateFile = struct {
-    const Name = enum { default, react, wasm };
+    const Name = enum { default, react, wasm, react_wasm };
 
     name: ?Name = null,
     path: []const u8,
     content: []const u8,
     description: ?[]const u8 = "",
+
+    /// Lines to include from the template file
+    /// Range of lines to include
+    lines: ?[]const struct { u32, u32 } = null,
 };
 
 const template_dir = "init/template";
@@ -94,21 +115,39 @@ const templates = [_]TemplateFile{
     .{ .path = "README.md", .content = @embedFile(template_dir ++ "/README.md") },
     .{ .path = "site/public/style.css", .content = @embedFile(template_dir ++ "/site/public/style.css") },
     .{ .path = "site/public/favicon.ico", .content = @embedFile(template_dir ++ "/site/public/favicon.ico") },
-    .{ .path = "site/main.zig", .content = @embedFile(template_dir ++ "/site/main.zig") },
     .{ .path = "site/pages/about/page.zx", .content = @embedFile(template_dir ++ "/site/pages/about/page.zx") },
     .{ .path = "site/pages/layout.zx", .content = @embedFile(template_dir ++ "/site/pages/layout.zx") },
     .{ .path = "src/root.zig", .content = @embedFile(template_dir ++ "/src/root.zig") },
     .{ .path = ".gitignore", .content = @embedFile(template_dir ++ "/.gitignore") },
 
-    // Default
+    // Default (SSR)
+    .{ .name = .default, .path = "site/main.zig", .content = @embedFile(template_dir ++ "/site/main.zig"), .lines = &.{ .{ 1, 3 }, .{ 5, 8 }, .{ 11, 21 } } },
     .{ .name = .default, .path = "site/pages/page.zx", .content = @embedFile(template_dir ++ "/site/pages/page.zx") },
 
-    // React
-    .{ .name = .react, .path = "site/main.ts", .content = @embedFile(template_dir ++ "/site/main.ts") },
+    // React (CSR)
+    .{ .name = .react, .path = "site/main.zig", .content = @embedFile(template_dir ++ "/site/main.zig"), .lines = &.{ .{ 1, 3 }, .{ 5, 8 }, .{ 11, 21 } } },
+    .{ .name = .react, .path = "site/main.ts", .content = @embedFile(template_dir ++ "/site/main.ts"), .lines = &.{ .{ 1, 4 }, .{ 7, 7 }, .{ 11, 18 } } },
     .{ .name = .react, .path = "site/pages/page.zx", .content = @embedFile(template_dir ++ "/site/pages/page+react.zx") },
     .{ .name = .react, .path = "site/pages/client.tsx", .content = @embedFile(template_dir ++ "/site/pages/client.tsx") },
     .{ .name = .react, .path = "package.json", .content = @embedFile(template_dir ++ "/package.json") },
     .{ .name = .react, .path = "tsconfig.json", .content = @embedFile(template_dir ++ "/tsconfig.json") },
+
+    // WASM (CSR)
+    .{ .name = .wasm, .path = "site/main.zig", .content = @embedFile(template_dir ++ "/site/main.zig") },
+    .{ .name = .wasm, .path = "site/main.ts", .content = @embedFile(template_dir ++ "/site/main.ts"), .lines = &.{ .{ 5, 5 }, .{ 8, 10 } } },
+    .{ .name = .wasm, .path = "site/pages/page.zx", .content = @embedFile(template_dir ++ "/site/pages/page+wasm.zx") },
+    .{ .name = .wasm, .path = "site/pages/client.zx", .content = @embedFile(template_dir ++ "/site/pages/client.zx") },
+    .{ .name = .wasm, .path = "package.json", .content = @embedFile(template_dir ++ "/package.json") },
+    .{ .name = .wasm, .path = "tsconfig.json", .content = @embedFile(template_dir ++ "/tsconfig.json") },
+
+    // React + WASM
+    .{ .name = .react_wasm, .path = "site/main.zig", .content = @embedFile(template_dir ++ "/site/main.zig") },
+    .{ .name = .react_wasm, .path = "site/main.ts", .content = @embedFile(template_dir ++ "/site/main.ts") },
+    .{ .name = .react_wasm, .path = "site/pages/page.zx", .content = @embedFile(template_dir ++ "/site/pages/page+react_wasm.zx") },
+    .{ .name = .react_wasm, .path = "site/pages/client.tsx", .content = @embedFile(template_dir ++ "/site/pages/client.tsx") },
+    .{ .name = .react_wasm, .path = "site/pages/client.zx", .content = @embedFile(template_dir ++ "/site/pages/client.zx") },
+    .{ .name = .react_wasm, .path = "package.json", .content = @embedFile(template_dir ++ "/package.json") },
+    .{ .name = .react_wasm, .path = "tsconfig.json", .content = @embedFile(template_dir ++ "/tsconfig.json") },
 };
 
 const std = @import("std");

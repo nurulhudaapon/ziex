@@ -51,6 +51,44 @@ pub fn setup(b: *std.Build, options: std.Build.ExecutableOptions) void {
     exe.step.dependOn(&transpile_cmd.step);
     b.installArtifact(exe);
 
+    // --- ZX WASM Main Executable ---
+    const is_wasm_enabled = b.option(bool, "zx-wasm", "Build the ZX WASM executable") orelse false;
+    if (is_wasm_enabled) {
+        const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding, .abi = .none });
+        const wasm_exe = b.addExecutable(.{
+            .name = "zx_wasm",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("site/main.zig"),
+                .target = wasm_target,
+                .optimize = options.root_module.optimize,
+                .imports = &.{
+                    .{ .name = "zx", .module = zx_dep.module("zx_wasm") },
+                },
+            }),
+        });
+        wasm_exe.entry = .disabled;
+        wasm_exe.export_memory = true;
+        wasm_exe.rdynamic = true;
+
+        const wasm_install = b.addInstallFileWithDir(
+            wasm_exe.getEmittedBin(),
+            .{ .custom = "../site/assets" },
+            "main.wasm",
+        );
+
+        wasm_exe.root_module.addAnonymousImport("zx_components", .{
+            .root_source_file = outdir.path(b, "components.zig"),
+            // .imports = imports.items,
+            .imports = &.{
+                .{ .name = "zx", .module = zx_dep.module("zx_wasm") },
+            },
+        });
+
+        b.default_step.dependOn(&wasm_install.step);
+        wasm_exe.step.dependOn(&transpile_cmd.step);
+        b.installArtifact(wasm_exe);
+    }
+
     // --- Steps: Serve ---
     const serve_step = b.step("serve", "Run the Zx website");
     const serve_cmd = b.addRunArtifact(exe);

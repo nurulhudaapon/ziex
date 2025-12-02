@@ -1,0 +1,29 @@
+var count: i32 = 0;
+pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
+    return (
+        <div @allocator={allocator}>
+            <button style="visibility: hidden;" onClick={"_zx.exports.updateCount(0)"}>Reset</button>
+            <h5>{[count:d]}</h5>
+            <button onClick={"_zx.exports.updateCount(-1)"}>Decrement</button>
+            <button onClick={"_zx.exports.updateCount(1)"}>Increment</button>
+        </div>
+    );
+}
+
+export fn updateCount(n: i32) void {
+    if (n == 0) count = 0;
+    if (n > 0) count += 1;
+    if (n < 0) count -= 1;
+
+    // TODO: These will be implemented in the future
+    // if (n == 0) client.fetch("?reset=true", .{  }) catch {};
+    // if (n > 0) client.fetch("?increment=true", .{  }) catch {};
+    // if (n < 0) client.fetch("?decrement=true", .{  }) catch {};
+
+    root.client.renderAll();
+}
+
+const zx = @import("zx");
+const root = @import("root");
+
+const client = zx.Client.bom;
