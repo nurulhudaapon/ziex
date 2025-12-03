@@ -34,23 +34,26 @@ fn dev(ctx: zli.CommandContext) !void {
         log.debug("Error building JavaScript! {any}", .{err});
     };
 
-    const build_cmd_str = try std.mem.join(allocator, " ", build_args_array.items);
-    defer allocator.free(build_cmd_str);
-    log.debug("First time building, we will run `{s}`", .{build_cmd_str});
-    var build_builder = std.process.Child.init(build_args_array.items, allocator);
-    try build_builder.spawn();
-    _ = try build_builder.wait();
-
-    log.debug("Building complete, finding ZX executable", .{});
+    {
+        const build_cmd_str = try std.mem.join(allocator, " ", build_args_array.items);
+        defer allocator.free(build_cmd_str);
+        log.debug("First time building, we will run `{s}`", .{build_cmd_str});
+        var build_builder = std.process.Child.init(build_args_array.items, allocator);
+        try build_builder.spawn();
+        _ = try build_builder.wait();
+    }
 
     try build_args_array.append(allocator, "--watch");
     var builder = std.process.Child.init(build_args_array.items, allocator);
+
     try builder.spawn();
     defer _ = builder.kill() catch unreachable;
+
     const watch_cmd_str = try std.mem.join(allocator, " ", build_args_array.items);
     defer allocator.free(watch_cmd_str);
     log.debug("Building with watch mode `{s}`", .{watch_cmd_str});
 
+    log.debug("Building complete, finding ZX executable", .{});
     var program_meta = util.findprogram(allocator, binpath) catch |err| {
         try ctx.writer.print("Error finding ZX executable! {any}\n", .{err});
         return err;
@@ -58,14 +61,16 @@ fn dev(ctx: zli.CommandContext) !void {
     defer program_meta.deinit(allocator);
 
     const program_path = program_meta.binpath orelse {
-        try ctx.writer.print("Error finding ZX executable!\n", .{});
+        try ctx.writer.print("Error finding ZX exedcutable!\n", .{});
         return;
     };
 
     const runnable_program_path = try util.getRunnablePath(allocator, program_path);
 
+    var need_js_build = true;
     jsutil.buildjs(ctx, binpath, true, true) catch |err| {
         log.debug("Error building JavaScript! {any}", .{err});
+        if (err == error.PackageJsonNotFound) need_js_build = false;
     };
 
     var runner = std.process.Child.init(&.{ runnable_program_path, "--cli-command", "dev" }, allocator);
@@ -73,16 +78,17 @@ fn dev(ctx: zli.CommandContext) !void {
     runner.stdout_behavior = .Pipe;
 
     try runner.spawn();
-    // Start the output reading thread (non-blocking stream reading)
-    log.debug("Starting runner output", .{});
-    try runnerOutput(ctx, &runner);
-    log.debug("Finished runner output", .{});
+    std.debug.print("{s}Running ZX Dev Server...{s}\n", .{ Colors.cyan, Colors.reset });
 
-    // Spawn the initial process (non-blocking)
+    // Capture first line from stderr, then continue in transparent mode
+    var runner_output = try util.captureChildOutput(ctx.allocator, &runner, .{
+        .stderr = .{ .mode = .first_line_then_transparent, .target = .stderr },
+        .stdout = .{ .mode = .transparent, .target = .stdout },
+    });
 
-    defer _ = runner.kill() catch |err| {
-        log.debug("Error killing runner: {any}", .{err});
-    };
+    // Wait for the first line to be captured, then print it synchronously
+    runner_output.waitForFirstLine();
+    printFirstLine(&runner_output);
 
     var bin_mtime: i128 = 0;
     var current_interval_ns: u64 = MIN_RESTART_INTERVAL_NS;
@@ -93,7 +99,11 @@ fn dev(ctx: zli.CommandContext) !void {
 
         const should_restart = stat.mtime != bin_mtime and bin_mtime != 0;
         if (should_restart) {
-            try ctx.writer.print("{s}Restarting ZX App...{s}", .{ Colors.cyan, Colors.reset });
+            var timer = try std.time.Timer.start();
+
+            if (need_js_build) jsutil.buildjs(ctx, binpath, true, true) catch |err| {
+                log.debug("Error bundling JavaScript! {any}", .{err});
+            };
 
             _ = try runner.kill();
             if (builtin.os.tag == .windows) {
@@ -104,17 +114,26 @@ fn dev(ctx: zli.CommandContext) !void {
                 try builder.spawn();
             }
 
+            // Print restart message right before spawning (after all build/kill operations)
+            // Clear the current line (in case "watching..." text is there) and print without newline so we can overwrite it
+            try ctx.writer.print("\r\x1b[2K{s}Restarting ZX App...{s}", .{ Colors.cyan, Colors.reset });
+
             try runner.spawn();
 
-            log.debug("Starting runner output", .{});
-            try runnerOutput(ctx, &runner);
-            log.debug("Finished runner output", .{});
+            // Capture first line from stderr, then continue in transparent mode
+            var restart_output = try util.captureChildOutput(ctx.allocator, &runner, .{
+                .stderr = .{ .mode = .first_line_then_transparent, .target = .stderr },
+                .stdout = .{ .mode = .transparent, .target = .stdout },
+            });
 
-            std.debug.print("\n", .{});
+            // Wait for the first line to be captured, then print it synchronously
+            restart_output.waitForFirstLine();
 
-            jsutil.buildjs(ctx, binpath, true, true) catch |err| {
-                log.debug("Error watching TS! {any}", .{err});
-            };
+            // Elapsed time - overwrite the restart message with completion message using \r
+            const elapsed_time_ms = timer.lap() / std.time.ns_per_ms;
+            try ctx.writer.print("\r{s}Restarting ZX App... {s}done in {d:.0} ms {s}\x1b[K\n", .{ Colors.cyan, Colors.green, elapsed_time_ms, Colors.reset });
+
+            printFirstLine(&restart_output);
 
             // Reset interval to minimum when changes are detected
             current_interval_ns = MIN_RESTART_INTERVAL_NS;
@@ -131,43 +150,6 @@ fn dev(ctx: zli.CommandContext) !void {
         }
         if (should_restart or bin_mtime == 0) bin_mtime = stat.mtime;
     }
-
-    errdefer {
-        // _ = builder.kill() catch unreachable;
-        // _ = if (runner.id != 0) runner.kill() catch unreachable;
-    }
-}
-
-fn runnerOutput(ctx: zli.CommandContext, runner: *std.process.Child) !void {
-    var stderr_buffer: [8192]u8 = undefined;
-
-    var stderr_line_writer = std.Io.Writer.Allocating.init(ctx.allocator);
-    defer stderr_line_writer.deinit();
-
-    // Wait for process to be spawned
-    while (runner.stderr == null and runner.stdout == null) {
-        std.Thread.sleep(100 * std.time.ns_per_ms);
-        log.debug("Waiting for runner to be spawned", .{});
-    }
-
-    // Read from stderr line by line
-    if (runner.stderr) |stderr_file| {
-        var stderr_reader = stderr_file.readerStreaming(&stderr_buffer);
-        const reader = &stderr_reader.interface;
-
-        while (reader.streamDelimiter(&stderr_line_writer.writer, '\n')) |_| {
-            log.debug("Stderr: {s}", .{stderr_line_writer.written()});
-            stderr_line_writer.clearRetainingCapacity();
-            return;
-        } else |read_err| {
-            if (read_err != error.EndOfStream) {
-                if (read_err == error.BrokenPipe) {} else {
-                    log.debug("Error reading stderr: {any}", .{read_err});
-                }
-            }
-            return;
-        }
-    }
 }
 
 const std = @import("std");
@@ -182,3 +164,16 @@ const tui = @import("../tui/main.zig");
 
 const Colors = tui.Colors;
 const log = std.log.scoped(.cli);
+
+/// Print the first captured line (prefer stderr, fallback to stdout)
+fn printFirstLine(output: *util.ChildOutput) void {
+    if (output.getLastStderrLine()) |first_line| {
+        if (first_line.len > 0) {
+            std.debug.print("{s}\n", .{first_line});
+        }
+    } else if (output.getLastStdoutLine()) |first_line| {
+        if (first_line.len > 0) {
+            std.debug.print("{s}\n", .{first_line});
+        }
+    }
+}

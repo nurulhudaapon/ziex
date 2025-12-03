@@ -42,6 +42,29 @@ pub const Handler = struct {
     meta: *App.Meta,
     allocator: std.mem.Allocator,
 
+    pub fn dispatch(self: *Handler, action: httpz.Action(*Handler), req: *httpz.Request, res: *httpz.Response) !void {
+        if (self.meta.cli_command != .dev)
+            return try action(self, req, res);
+
+        // Dev mode logging
+        var timer = try std.time.Timer.start();
+
+        try action(self, req, res);
+
+        const elapsed_ns = timer.lap();
+        const elapsed_ms = @as(f64, @floatFromInt(elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
+        const color_reset = "\x1b[0m";
+        const color_method = "\x1b[1;34m"; // bold blue
+        const color_path = "\x1b[1;36m"; // bold cyan
+        const color_time = if (elapsed_ms < 10) "\x1b[1;32m" else if (elapsed_ms < 100) "\x1b[1;33m" else "\x1b[1;31m"; // green/yellow/red based on time
+
+        std.log.info("{s}{s}{s} {s}{s}{s} {s}{d:.3}ms{s}\x1b[K", .{
+            color_method, @tagName(req.method), color_reset,
+            color_path,   req.url.path,         color_reset,
+            color_time,   elapsed_ms,           color_reset,
+        });
+    }
+
     pub fn page(self: *Handler, req: *httpz.Request, res: *httpz.Response) !void {
         const allocator = self.allocator;
 

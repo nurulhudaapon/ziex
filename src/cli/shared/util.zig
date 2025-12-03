@@ -167,6 +167,15 @@ pub fn getRunnablePath(allocator: std.mem.Allocator, program_path: []const u8) !
     }
 }
 
+// Re-export stdio capturing functionality for backward compatibility
+pub const stdio = @import("stdio.zig");
+pub const OutputMode = stdio.OutputMode;
+pub const OutputTarget = stdio.OutputTarget;
+pub const StreamOptions = stdio.StreamOptions;
+pub const ChildOutputOptions = stdio.ChildOutputOptions;
+pub const ChildOutput = stdio.ChildOutput;
+pub const captureChildOutput = stdio.captureChildOutput;
+
 const std = @import("std");
 const zx = @import("zx");
 const builtin = @import("builtin");

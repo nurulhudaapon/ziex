@@ -181,18 +181,18 @@ pub fn buildjs(ctx: zli.CommandContext, binpath: []const u8, is_dev: bool, verbo
     if (verbose and esbuild_output.path.len > 0 and esbuild_output.size.len > 0 and esbuild_output.time.len > 0) {
         var printer = tui.Printer.init(ctx.allocator, .{});
         defer printer.deinit();
-        printer.header("{s} Bundled JS to {s}{s}{s} ({s}{s}{s}) in {s}{s}{s}", .{
-            tui.Printer.emoji("📦"),
-            tui.Colors.cyan,
-            esbuild_output.path,
-            tui.Colors.reset,
-            tui.Colors.green,
-            esbuild_output.size,
-            tui.Colors.reset,
-            tui.Colors.yellow,
-            esbuild_output.time,
-            tui.Colors.reset,
-        });
+        // printer.header("{s} Bundled JS to {s}{s}{s} ({s}{s}{s}) in {s}{s}{s}", .{
+        //     tui.Printer.emoji("📦"),
+        //     tui.Colors.cyan,
+        //     esbuild_output.path,
+        //     tui.Colors.reset,
+        //     tui.Colors.green,
+        //     esbuild_output.size,
+        //     tui.Colors.reset,
+        //     tui.Colors.yellow,
+        //     esbuild_output.time,
+        //     tui.Colors.reset,
+        // });
     }
 }
 
