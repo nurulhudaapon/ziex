@@ -14,13 +14,14 @@ COPY site/ ./site
 COPY build.zig.zon ./build.zig.zon
 COPY build.zig ./build.zig
 
-RUN /opt/zig/zig build -Dzx-docsite -Doptimize=ReleaseSmall -Dzx-wasm
+RUN /opt/zig/zig build -Dzx-docsite -Doptimize=ReleaseSmall
 
 # Run the app
 FROM alpine:3.22.2
 COPY --from=build /build/zig-out/bin/zx_site /server
 COPY --from=build /build/site/.zx/public /site/.zx/public
 COPY --from=build /build/site/.zx/assets /site/.zx/assets
+COPY site/.zx/assets/main.js /site/.zx/assets/main.js
 
 ENTRYPOINT ["/server"]
 

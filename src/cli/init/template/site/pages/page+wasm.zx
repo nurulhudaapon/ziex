@@ -18,7 +18,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <hr>
             <a href="/about">Navigate to About Page</a>
 
-            <script src="/assets/main.js" />
+            <script type="module" src="/assets/main.wasm.js" />
         </main>
     );
 }
