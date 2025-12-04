@@ -43,6 +43,9 @@ pub const StreamOptions = struct {
     /// Callback function called for each chunk of bytes (only used in transparent mode)
     /// If provided, bytes will be passed to this function instead of writing to target
     on_bytes: ?*const fn (bytes: []const u8, stream_name: []const u8) void = null,
+
+    /// Initial delay before going to transparent mode
+    transparent_delay_ms: u64 = 0,
 };
 
 /// Options for capturing child process output
@@ -140,7 +143,7 @@ pub const ChildOutput = struct {
             };
 
             if (stderr_captured or stdout_captured) break;
-            std.Thread.sleep(10 * std.time.ns_per_ms);
+            std.Thread.sleep(1 * std.time.ns_per_ms);
         }
     }
 
@@ -351,6 +354,8 @@ fn readChildStream(ctx: *StreamContext) void {
                     log.debug("Error reading {s}: {any}", .{ ctx.stream_name, err });
                     break;
                 };
+
+                std.Thread.sleep(ctx.options.transparent_delay_ms * std.time.ns_per_ms);
 
                 if (bytes_read == 0) break;
 
