@@ -92,6 +92,7 @@ fn dev(ctx: zli.CommandContext) !void {
 
     const runnable_program_path = try util.getRunnablePath(allocator, program_path);
 
+    // TODO: Move logic of building js to the post transpilation process in the build system steps
     var need_js_build = true;
     jsutil.buildjs(ctx, binpath, true, true) catch |err| {
         log.debug("Error building JavaScript! {any}", .{err});
@@ -185,6 +186,7 @@ fn dev(ctx: zli.CommandContext) !void {
 
             var timer = try std.time.Timer.start();
 
+            // TODO: Move logic of building js to the post transpilation process in the build system steps
             if (need_js_build) jsutil.buildjs(ctx, binpath, true, true) catch |err| {
                 log.debug("Error bundling JavaScript! {any}", .{err});
             };

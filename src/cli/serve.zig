@@ -47,11 +47,13 @@ fn serve(ctx: zli.CommandContext) !void {
     try system.spawn();
 
     var program_meta = util.findprogram(ctx.allocator, binpath) catch |err| {
-        try ctx.writer.print("Error finding ZX executable! {any}\n", .{err});
-        return err;
+        log.debug("Error finding ZX executable! {any}\n", .{err});
+        // return err;
+        return;
     };
     defer program_meta.deinit(ctx.allocator);
 
+    // Todo, move logic of building js to the post transpilation process in the build system steps
     jsutil.buildjs(ctx, binpath, false, false) catch |err| {
         log.debug("Error building JS! {any}", .{err});
     };
