@@ -784,7 +784,7 @@ body {
 
 /* Footer */
 .footer {
-    padding: 2rem 2rem 2rem;
+    padding: 1rem;
     text-align: center;
     border-top: 1px solid var(--zx-border);
     margin-top: 0;

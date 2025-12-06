@@ -8,7 +8,8 @@ pub const binpath_flag = zli.Flag{
 
 pub const build_args = zli.Flag{
     .name = "build-args",
-    .description = "Build arguments to use",
+    .shortcut = "a",
+    .description = "Additional build arguments to pass to zig build",
     .type = .String,
     .default_value = .{ .String = "" },
     .hidden = true,

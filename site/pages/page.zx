@@ -90,7 +90,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
             <section class="features">
                 <div class="features-header">
-                    <h2 class="section-title">Why ZX</h2>
+                    <h2 class="section-title">Features</h2>
                     <p class="section-subtitle">
                         Performance-focused web apps built with Zig.
                     </p>
@@ -142,13 +142,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             </section>
 
             <footer class="footer">
-                <div class="footer-links">
-                    <a href="/docs" class="footer-link">Documentation</a>
-                    <a href="/examples" class="footer-link">Examples</a>
-                    <a href="/cli" class="footer-link">CLI Reference</a>
-                    <a href="https://github.com/nurulhudaapon/zx" class="footer-link" target="_blank" rel="noopener noreferrer">GitHub</a>
-                </div>
-                <p>© {[current_year:d]} ZX Web Framework. Built with Zig.</p>
+                <p>© {[current_year:d]} ZX Framework. Built with Zig.</p>
             </footer>
         </div>
     );
