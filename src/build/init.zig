@@ -72,7 +72,9 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions)
     }
 
     if (options.cli) |cli_opts| {
-        opts.steps = cli_opts.steps;
+        if (cli_opts.steps) |cli_steps| {
+            opts.steps = cli_steps;
+        }
     }
 
     return initInner(b, exe, zx_exe, zx_module, zx_wasm_module, opts);
