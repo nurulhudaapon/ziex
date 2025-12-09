@@ -1,6 +1,3 @@
-## Installation
-
-```lua
 -- ~/.config/nvim/lua/plugins/zx.lua
 return {
     "nurulhudaapon/zx",
@@ -15,5 +12,3 @@ return {
         vim.cmd("runtime! plugin/zx.lua")
     end,
 }
-
-```
