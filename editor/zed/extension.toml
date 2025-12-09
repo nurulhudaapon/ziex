@@ -13,6 +13,6 @@ language = "ZX"
 [grammars.zx]
 repository = "https://github.com/nurulhudaapon/zx"
 path = "tree-sitter-zx"
-commit = "01bfafef131303af35df51c4009a716aa46fd362"
+commit = "f3faf77d22ccf730cefd239730f96be7e1905d38"
 
 [debug_locators.zx-locator]
