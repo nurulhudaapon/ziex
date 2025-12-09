@@ -1,3 +1,25 @@
+; ZX
+(zx_tag_name) @tag
+(zx_attribute_name) @attribute
+[
+  "\""
+  "'"
+  (zx_attribute_value)
+] @string
+(comment) @comment
+
+"=" @punctuation.delimiter.html
+
+[
+  "<"
+  ">"
+  "</"
+  "/>"
+] @punctuation.bracket.html
+
+(zx_builtin_name) @function.builtin
+
+
 ; Variables
 
 (identifier) @variable

@@ -6513,6 +6513,26 @@
       "type": "SEQ",
       "members": [
         {
+          "type": "SYMBOL",
+          "name": "zx_start_tag"
+        },
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "SYMBOL",
+            "name": "zx_child"
+          }
+        },
+        {
+          "type": "SYMBOL",
+          "name": "zx_end_tag"
+        }
+      ]
+    },
+    "zx_start_tag": {
+      "type": "SEQ",
+      "members": [
+        {
           "type": "STRING",
           "value": "<"
         },
@@ -6534,21 +6554,19 @@
         {
           "type": "STRING",
           "value": ">"
-        },
-        {
-          "type": "REPEAT",
-          "content": {
-            "type": "SYMBOL",
-            "name": "zx_child"
-          }
-        },
+        }
+      ]
+    },
+    "zx_end_tag": {
+      "type": "SEQ",
+      "members": [
         {
           "type": "STRING",
           "value": "</"
         },
         {
           "type": "FIELD",
-          "name": "close_name",
+          "name": "name",
           "content": {
             "type": "SYMBOL",
             "name": "zx_tag_name"
@@ -6731,49 +6749,46 @@
       ]
     },
     "zx_string_literal": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "SEQ",
-          "members": [
-            {
-              "type": "STRING",
-              "value": "\""
-            },
-            {
-              "type": "REPEAT",
-              "content": {
+      "type": "TOKEN",
+      "content": {
+        "type": "CHOICE",
+        "members": [
+          {
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "STRING",
+                "value": "\""
+              },
+              {
                 "type": "PATTERN",
-                "value": "[^\"]"
+                "value": "[^\"]*"
+              },
+              {
+                "type": "STRING",
+                "value": "\""
               }
-            },
-            {
-              "type": "STRING",
-              "value": "\""
-            }
-          ]
-        },
-        {
-          "type": "SEQ",
-          "members": [
-            {
-              "type": "STRING",
-              "value": "'"
-            },
-            {
-              "type": "REPEAT",
-              "content": {
+            ]
+          },
+          {
+            "type": "SEQ",
+            "members": [
+              {
+                "type": "STRING",
+                "value": "'"
+              },
+              {
                 "type": "PATTERN",
-                "value": "[^']"
+                "value": "[^']*"
+              },
+              {
+                "type": "STRING",
+                "value": "'"
               }
-            },
-            {
-              "type": "STRING",
-              "value": "'"
-            }
-          ]
-        }
-      ]
+            ]
+          }
+        ]
+      }
     },
     "zx_child": {
       "type": "CHOICE",

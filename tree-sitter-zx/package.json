@@ -38,10 +38,11 @@
     "tree-sitter-cli": "^0.25.10"
   },
   "scripts": {
-    "build": "tree-sitter build",
+    "generate": "node_modules/.bin/tree-sitter generate",
+    "build": "node_modules/.bin/tree-sitter build",
     "install": "node-gyp-build",
-    "prestart": "tree-sitter build --wasm",
-    "start": "tree-sitter playground",
+    "prestart": "node_modules/.bin/tree-sitter build --wasm",
+    "start": "node_modules/.bin/tree-sitter playground",
     "test": "node --test bindings/node/*_test.js"
   },
   "trustedDependencies": [

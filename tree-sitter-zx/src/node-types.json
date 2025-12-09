@@ -2704,17 +2704,30 @@
   {
     "type": "zx_element",
     "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "zx_child",
+          "named": true
+        },
+        {
+          "type": "zx_end_tag",
+          "named": true
+        },
+        {
+          "type": "zx_start_tag",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "zx_end_tag",
+    "named": true,
     "fields": {
-      "close_name": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "zx_tag_name",
-            "named": true
-          }
-        ]
-      },
       "name": {
         "multiple": false,
         "required": true,
@@ -2725,20 +2738,6 @@
           }
         ]
       }
-    },
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "zx_attribute",
-          "named": true
-        },
-        {
-          "type": "zx_child",
-          "named": true
-        }
-      ]
     }
   },
   {
@@ -2851,9 +2850,30 @@
     }
   },
   {
-    "type": "zx_string_literal",
+    "type": "zx_start_tag",
     "named": true,
-    "fields": {}
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "zx_tag_name",
+            "named": true
+          }
+        ]
+      }
+    },
+    "children": {
+      "multiple": true,
+      "required": false,
+      "types": [
+        {
+          "type": "zx_attribute",
+          "named": true
+        }
+      ]
+    }
   },
   {
     "type": "!",
@@ -3458,6 +3478,10 @@
   },
   {
     "type": "zx_builtin_name",
+    "named": true
+  },
+  {
+    "type": "zx_string_literal",
     "named": true
   },
   {

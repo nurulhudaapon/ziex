@@ -32,13 +32,23 @@ module.exports = grammar(zig, {
 
     // HTML element: <tag attrs>children</tag>
     zx_element: $ => seq(
+      $.zx_start_tag,
+      repeat($.zx_child),
+      $.zx_end_tag,
+    ),
+
+    // Start tag: <tag attrs>
+    zx_start_tag: $ => seq(
       '<',
       field('name', $.zx_tag_name),
       repeat($.zx_attribute),
       '>',
-      repeat($.zx_child),
+    ),
+
+    // End tag: </tag>
+    zx_end_tag: $ => seq(
       '</',
-      field('close_name', $.zx_tag_name),
+      field('name', $.zx_tag_name),
       '>',
     ),
 
@@ -100,10 +110,10 @@ module.exports = grammar(zig, {
     ),
 
     // String literal for attributes
-    zx_string_literal: _$ => choice(
-      seq('"', repeat(/[^"]/), '"'),
-      seq("'", repeat(/[^']/), "'"),
-    ),
+    zx_string_literal: _$ => token(choice(
+      seq('"', /[^"]*/, '"'),
+      seq("'", /[^']*/, "'"),
+    )),
 
     // Children inside zx elements
     zx_child: $ => choice(

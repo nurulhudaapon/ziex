@@ -1,0 +1,19 @@
+{
+    "$schema": "https://zed.dev/schema/icon_themes/v0.3.0.json",
+    "name": "ZX",
+    "author": "Nurul Huda (Apon)",
+    "themes": [
+      {
+        "name": "ZX",
+        "appearance": "dark",
+        "file_suffixes": {
+          "zx": "zx"
+        },
+        "file_icons": {
+          "zx": { "path": "./icons/zx-icon-dark.svg" },
+          "zx_light": { "path": "./icons/zx-icon-light.svg" }
+        }
+      }
+    ]
+  }
+  
