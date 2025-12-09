@@ -1,0 +1,40 @@
+{
+  "$schema": "https://tree-sitter.github.io/tree-sitter/assets/schemas/config.schema.json",
+  "grammars": [
+    {
+      "name": "zx",
+      "camelcase": "ZX",
+      "title": "ZX",
+      "scope": "source.zx",
+      "file-types": [
+        "zx"
+      ],
+      "injection-regex": "^zx$",
+      "class-name": "TreeSitterZx"
+    }
+  ],
+  "metadata": {
+    "version": "0.0.1-dev.275",
+    "license": "MIT",
+    "description": "ZX is a framework for building web applications with Zig.",
+    "authors": [
+      {
+        "name": "Nurul Huda (Apon)",
+        "email": "me@nurulhudaapon.com",
+        "url": "https://nurulhudaapon.com/"
+      }
+    ],
+    "links": {
+      "repository": "https://github.com/nurulhudaapon/zx"
+    }
+  },
+  "bindings": {
+    "c": true,
+    "go": true,
+    "node": true,
+    "python": true,
+    "rust": true,
+    "swift": true,
+    "zig": false
+  }
+}

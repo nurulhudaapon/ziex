@@ -1,0 +1,59 @@
+{
+  "name": "tree-sitter-zx",
+  "version": "0.0.1-dev.275",
+  "description": "ZX is a framework for building web applications with Zig.",
+  "repository": "https://github.com/nurulhudaapon/zx",
+  "license": "MIT",
+  "author": {
+    "name": "Nurul Huda (Apon)",
+    "email": "me@nurulhudaapon.com",
+    "url": "https://nurulhudaapon.com/"
+  },
+  "main": "bindings/node",
+  "types": "bindings/node",
+  "keywords": [
+    "incremental",
+    "parsing",
+    "tree-sitter",
+    "zx"
+  ],
+  "files": [
+    "grammar.js",
+    "tree-sitter.json",
+    "binding.gyp",
+    "prebuilds/**",
+    "bindings/node/*",
+    "queries/*",
+    "src/**",
+    "*.wasm"
+  ],
+  "dependencies": {
+    "node-addon-api": "^8.5.0",
+    "node-gyp-build": "^4.8.4",
+    "tree-sitter-zig": "github:tree-sitter-grammars/tree-sitter-zig",
+    "tree-sitter-html": "github:tree-sitter/tree-sitter-html"
+  },
+  "devDependencies": {
+    "prebuildify": "^6.0.1",
+    "tree-sitter": "^0.22.4",
+    "tree-sitter-cli": "^0.25.10"
+  },
+  "peerDependencies": {
+    "tree-sitter": "^0.22.4"
+  },
+  "peerDependenciesMeta": {
+    "tree-sitter": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "install": "node-gyp-build",
+    "prestart": "tree-sitter build --wasm",
+    "start": "tree-sitter playground",
+    "test": "node --test bindings/node/*_test.js"
+  },
+  "trustedDependencies": [
+    "tree-sitter-html",
+    "tree-sitter-zig"
+  ]
+}
