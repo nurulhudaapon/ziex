@@ -1014,7 +1014,13 @@ fn transpileDirectory(
     defer walker.deinit();
 
     while (try walker.next()) |entry| {
-        if (entry.kind != .file) continue;
+        var actual_kind = entry.kind;
+        if (entry.kind == .sym_link) {
+            const entry_stat = dir.statFile(entry.path) catch continue;
+            actual_kind = entry_stat.kind;
+        }
+
+        if (actual_kind != .file) continue;
 
         if (output_dir_relative) |rel| {
             if (std.mem.startsWith(u8, entry.path, rel)) {
