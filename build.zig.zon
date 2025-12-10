@@ -26,9 +26,7 @@
             .hash = "zig_js-0.0.0-rjCAV-6GAADxFug7rDmPH-uM_XcnJ5NmuAMJCAscMjhi",
         },
         .tree_sitter_zx = .{
-            .url = "tree-sitter-zx",
-            .hash = "tree_sitter_zx-0.0.1-dev.275-r9SJXoVpXgDTfBlCm3NA5FRMgTK20mT7d2rI9Du_ngGr",
-            .lazy = true,
+            .path = "tree-sitter-zx",
         },
         .tree_sitter = .{
             .url = "git+https://github.com/tree-sitter/zig-tree-sitter#a53dac49d66562006e84dd11211b7ae40db68263",

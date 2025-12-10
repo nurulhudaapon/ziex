@@ -66,7 +66,7 @@ pub fn build(b: *std.Build) !void {
     {
         const is_zx_docsite = b.option(bool, "zx-docsite", "Build the ZX docsite") orelse false;
         if (is_zx_docsite) {
-            const tree_sitter_zx_dep = b.lazyDependency("tree_sitter_zx", .{ .target = target, .optimize = optimize }).?;
+            const tree_sitter_zx_dep = b.dependency("tree_sitter_zx", .{ .target = target, .optimize = optimize, .@"build-shared" = false });
             const tree_sitter_dep = b.lazyDependency("tree_sitter", .{ .target = target, .optimize = optimize }).?;
 
             const zx_docsite_exe = b.addExecutable(.{
