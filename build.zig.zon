@@ -1,6 +1,6 @@
 .{
     .name = .zx,
-    .version = "0.0.1-dev.290",
+    .version = "0.0.1-dev.291",
     .description = "ZX is a framework for building web applications with Zig.",
     .repository = "https://github.com/nurulhudaapon/zx",
     .fingerprint = 0xcad77a8d2a3389f2,
@@ -24,6 +24,16 @@
         .zig_js = .{
             .url = "git+https://github.com/nurulhudaapon/jsz.git#04db83c617da1956ac5adc1cb9ba1e434c1cb6fd",
             .hash = "zig_js-0.0.0-rjCAV-6GAADxFug7rDmPH-uM_XcnJ5NmuAMJCAscMjhi",
+        },
+        .tree_sitter_zx = .{
+            .url = "tree-sitter-zx",
+            .hash = "tree_sitter_zx-0.0.1-dev.275-r9SJXoVpXgDTfBlCm3NA5FRMgTK20mT7d2rI9Du_ngGr",
+            .lazy = true,
+        },
+        .tree_sitter = .{
+            .url = "git+https://github.com/tree-sitter/zig-tree-sitter#a53dac49d66562006e84dd11211b7ae40db68263",
+            .hash = "tree_sitter-0.25.0-8heIf4KZAQB9VQhOgtGaSvAJFbBn1t08wtsrkce4uEnI",
+            .lazy = true,
         },
     },
     .paths = .{

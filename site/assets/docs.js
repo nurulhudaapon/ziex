@@ -31,71 +31,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   }
 
-  // Setup Prism highlighting for expandable code blocks
-  setupCodeHighlighting();
-  
   // Setup copy buttons for code blocks
   setupCopyButtons();
 });
-
-function setupCodeHighlighting() {
-  const codeElements = document.querySelectorAll('code[data-full-content]');
-  
-  codeElements.forEach(codeElement => {
-    const fullContent = codeElement.getAttribute('data-full-content');
-    const truncatedContent = codeElement.getAttribute('data-truncated-content') || '';
-    
-    if (!fullContent) return;
-    
-    // Handle contenteditable code blocks (ZX code) - use focus/blur
-    if (codeElement.hasAttribute('contenteditable')) {
-      codeElement.addEventListener('focus', () => {
-        codeElement.textContent = fullContent;
-        codeElement.setAttribute('data-expanded', 'true');
-        if (typeof Prism !== 'undefined') {
-          Prism.highlightElement(codeElement);
-        }
-      });
-      
-      codeElement.addEventListener('blur', () => {
-        codeElement.textContent = truncatedContent;
-        codeElement.removeAttribute('data-expanded');
-        if (typeof Prism !== 'undefined') {
-          Prism.highlightElement(codeElement);
-        }
-      });
-    } else {
-      // Handle non-contenteditable code blocks (Zig code) - use hover
-      let hoverTimeout = null;
-      
-      codeElement.addEventListener('mouseenter', () => {
-        // Clear any pending timeout
-        if (hoverTimeout) {
-          clearTimeout(hoverTimeout);
-          hoverTimeout = null;
-        }
-        
-        codeElement.textContent = fullContent;
-        codeElement.setAttribute('data-expanded', 'true');
-        if (typeof Prism !== 'undefined') {
-          Prism.highlightElement(codeElement);
-        }
-      });
-      
-      codeElement.addEventListener('mouseleave', () => {
-        // Delay collapsing by 500ms (CSS handles the visual transition)
-        hoverTimeout = setTimeout(() => {
-          codeElement.textContent = truncatedContent;
-          codeElement.removeAttribute('data-expanded');
-          if (typeof Prism !== 'undefined') {
-            Prism.highlightElement(codeElement);
-          }
-          hoverTimeout = null;
-        }, 500);
-      });
-    }
-  });
-}
 
 function setupCopyButtons() {
   // Find all code blocks (both in example blocks and standalone)
@@ -124,37 +62,8 @@ function setupCopyButtons() {
     // Add click handler
     copyButton.addEventListener('click', async () => {
       try {
-        // Get the code content
-        let codeContent = '';
-        
-        // Check if it's an expandable code block with full content
-        const fullContent = codeElement.getAttribute('data-full-content');
-        
-        // For contenteditable blocks, check if they're currently focused/expanded
-        if (codeElement.hasAttribute('contenteditable')) {
-          if (codeElement.hasAttribute('data-expanded') || document.activeElement === codeElement) {
-            // Use current textContent if expanded (it should have full content)
-            codeContent = codeElement.textContent || codeElement.innerText;
-          } else if (fullContent) {
-            // Use full content from attribute if not expanded
-            codeContent = fullContent;
-          } else {
-            // Fallback to current text content
-            codeContent = codeElement.textContent || codeElement.innerText;
-          }
-        } else if (fullContent) {
-          // For non-contenteditable blocks with full content
-          if (codeElement.hasAttribute('data-expanded')) {
-            // Use current textContent if expanded
-            codeContent = codeElement.textContent || codeElement.innerText;
-          } else {
-            // Use full content from attribute
-            codeContent = fullContent;
-          }
-        } else {
-          // Otherwise use the current text content
-          codeContent = codeElement.textContent || codeElement.innerText;
-        }
+        // Get the code content - just use textContent which extracts text from highlighted HTML
+        const codeContent = codeElement.textContent || codeElement.innerText;
         
         // Copy to clipboard
         await navigator.clipboard.writeText(codeContent);

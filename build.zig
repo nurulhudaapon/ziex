@@ -4,9 +4,6 @@ const std = @import("std");
 const buildlib = @import("src/build/main.zig");
 
 // --- Public API (setting up ZX Site) --- //
-/// Deprecated in favor of `zx.init(b, exe, options)`
-pub const setup = buildlib.setup;
-
 /// Initialize a ZX project (sets up ZX, dependencies, executables, wasm executable and `serve` step)
 pub const init = buildlib.initlib.init;
 
@@ -69,6 +66,9 @@ pub fn build(b: *std.Build) !void {
     {
         const is_zx_docsite = b.option(bool, "zx-docsite", "Build the ZX docsite") orelse false;
         if (is_zx_docsite) {
+            const tree_sitter_zx_dep = b.lazyDependency("tree_sitter_zx", .{ .target = target, .optimize = optimize }).?;
+            const tree_sitter_dep = b.lazyDependency("tree_sitter", .{ .target = target, .optimize = optimize }).?;
+
             const zx_docsite_exe = b.addExecutable(.{
                 .name = "zx_site",
                 .root_module = b.createModule(.{
@@ -77,6 +77,8 @@ pub fn build(b: *std.Build) !void {
                     .optimize = optimize,
                 }),
             });
+            zx_docsite_exe.root_module.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
+            zx_docsite_exe.root_module.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
 
             try buildlib.initlib.initInner(b, zx_docsite_exe, exe, mod, zx_wasm_mod, .{
                 .cli_path = null,

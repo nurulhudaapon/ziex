@@ -151,3 +151,168 @@ pub fn extractZigReturnContent(allocator: zx.Allocator, content: []const u8) []c
 
 const zx = @import("zx");
 const std = @import("std");
+const builtin = @import("builtin");
+
+// Syntax highlighting with tree-sitter
+const hl_query = @embedFile("../highlights.scm");
+
+// Cache for tree-sitter objects to avoid recreating them on every call
+const HighlightCache = struct {
+    const ts_import = @import("tree_sitter");
+
+    parser: *ts_import.Parser,
+    language: *const ts_import.Language,
+    query: *ts_import.Query,
+    mutex: std.Thread.Mutex = .{},
+
+    var instance: ?*HighlightCache = null;
+
+    fn getOrInit(allocator: std.mem.Allocator) !*HighlightCache {
+        if (instance) |cache| return cache;
+
+        // Create new cache
+        const tree_sitter_zx = @import("tree_sitter_zx");
+        const ts_local = @import("tree_sitter");
+
+        const parser = ts_local.Parser.create();
+        const lang: *const ts_local.Language = @ptrCast(tree_sitter_zx.language());
+
+        var error_offset: u32 = 0;
+        const query = ts_local.Query.create(@ptrCast(lang), hl_query, &error_offset) catch |err| {
+            std.debug.print("Query error at offset {d}: {}\n", .{ error_offset, err });
+            parser.destroy();
+            lang.destroy();
+            return err;
+        };
+
+        try parser.setLanguage(lang);
+
+        const cache = try allocator.create(HighlightCache);
+        cache.* = .{
+            .parser = parser,
+            .language = lang,
+            .query = query,
+        };
+
+        instance = cache;
+        std.log.info("\x1b[1;32m[HL CACHE] Initialized (this should only happen once)\x1b[0m", .{});
+        return cache;
+    }
+};
+
+pub fn highlightZx(allocator: std.mem.Allocator, source: []const u8) ![]u8 {
+    if (builtin.os.tag == .freestanding) return try allocator.dupe(u8, source);
+
+    var total_timer = try std.time.Timer.start();
+    const ts = @import("tree_sitter");
+
+    // Get cached objects (first call initializes, subsequent calls reuse)
+    var timer = try std.time.Timer.start();
+    const cache = try HighlightCache.getOrInit(std.heap.page_allocator);
+    logTiming("Cache lookup/init", timer.lap());
+
+    // Lock for thread safety (important in concurrent requests)
+    cache.mutex.lock();
+    defer cache.mutex.unlock();
+
+    timer.reset();
+    const tree = cache.parser.parseString(source, null) orelse return error.ParseError;
+    defer tree.destroy();
+    logTimingFmt("Parse source ({d} bytes)", .{source.len}, timer.lap());
+
+    timer.reset();
+    const cursor = ts.QueryCursor.create();
+    defer cursor.destroy();
+    cursor.exec(cache.query, tree.rootNode());
+    logTiming("Query execution", timer.lap());
+
+    timer.reset();
+    var out = std.array_list.Managed(u8).init(allocator);
+    errdefer out.deinit();
+
+    var last: usize = 0;
+    var match_count: usize = 0;
+
+    while (cursor.nextMatch()) |match| {
+        match_count += 1;
+        for (match.captures) |cap| {
+            const start = cap.node.startByte();
+            const end = cap.node.endByte();
+
+            // Skip if this capture overlaps with already processed text
+            if (start < last) continue;
+
+            const capture_name = cache.query.captureNameForId(cap.index) orelse continue;
+
+            // Copy text before this token (HTML escaped, preserving newlines)
+            try appendHtmlEscapedPreserveWhitespace(&out, source[last..start]);
+
+            // Convert dots to spaces for space-separated CSS classes
+            try out.appendSlice("<span class='");
+            for (capture_name) |c| {
+                if (c == '.') {
+                    try out.append(' ');
+                } else {
+                    try out.append(c);
+                }
+            }
+            try out.appendSlice("'>");
+            try appendHtmlEscapedPreserveWhitespace(&out, source[start..end]);
+            try out.appendSlice("</span>");
+
+            last = end;
+        }
+    }
+
+    // Append remaining text (HTML escaped, preserving newlines)
+    try appendHtmlEscapedPreserveWhitespace(&out, source[last..]);
+
+    const result = try out.toOwnedSlice();
+    logTimingFmt("HTML generation ({d} matches, {d} -> {d} bytes)", .{ match_count, source.len, result.len }, timer.lap());
+
+    const total_elapsed = total_timer.read();
+    logTiming("TOTAL highlightZx", total_elapsed);
+
+    return result;
+}
+
+fn appendHtmlEscapedPreserveWhitespace(out: *std.array_list.Managed(u8), text: []const u8) !void {
+    for (text) |c| {
+        switch (c) {
+            '<' => try out.appendSlice("&lt;"),
+            '>' => try out.appendSlice("&gt;"),
+            '&' => try out.appendSlice("&amp;"),
+            '"' => try out.appendSlice("&quot;"),
+            '\'' => try out.appendSlice("&#39;"),
+            // Preserve newlines, spaces, and tabs
+            '\n', '\r', '\t', ' ' => try out.append(c),
+            else => try out.append(c),
+        }
+    }
+}
+
+fn logTiming(comptime label: []const u8, elapsed_ns: u64) void {
+    const elapsed_ms = @as(f64, @floatFromInt(elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
+    const color_reset = "\x1b[0m";
+    const color_label = "\x1b[1;35m"; // magenta
+    const color_time = if (elapsed_ms < 1) "\x1b[1;32m" else if (elapsed_ms < 10) "\x1b[1;33m" else "\x1b[1;31m";
+    std.log.info("  {s}[HL]{s} {s}: {s}{d:.3}ms{s}", .{
+        color_label, color_reset,
+        label,       color_time,
+        elapsed_ms,  color_reset,
+    });
+}
+
+fn logTimingFmt(comptime label: []const u8, args: anytype, elapsed_ns: u64) void {
+    const elapsed_ms = @as(f64, @floatFromInt(elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
+    const color_reset = "\x1b[0m";
+    const color_label = "\x1b[1;35m"; // magenta
+    const color_time = if (elapsed_ms < 1) "\x1b[1;32m" else if (elapsed_ms < 10) "\x1b[1;33m" else "\x1b[1;31m";
+    var buf: [256]u8 = undefined;
+    const formatted_label = std.fmt.bufPrint(&buf, label, args) catch label;
+    std.log.info("  {s}[HL]{s} {s}: {s}{d:.3}ms{s}", .{
+        color_label,     color_reset,
+        formatted_label, color_time,
+        elapsed_ms,      color_reset,
+    });
+}

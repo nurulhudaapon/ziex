@@ -1,5 +1,9 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
+    var page_timer = std.time.Timer.start() catch unreachable;
     const allocator = ctx.arena;
+    
+    std.log.info("\x1b[1;36m[DOCS PAGE] Starting page generation...\x1b[0m", .{});
+    
     // If example
     var aw_if: std.io.Writer.Allocating = .init(allocator);
     const zx_example_if = @embedFile("../../../pages/examples/if.zx");
@@ -85,70 +89,72 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     const txt_expr = "{expression}";
     const fmt_expr = "{[expression:format]}";
 
+    
+    const setup_elapsed_ns = page_timer.read();
+    const setup_elapsed_ms = @as(f64, @floatFromInt(setup_elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
+    std.log.info("\x1b[1;36m[DOCS PAGE] Setup phase completed: {d:.3}ms\x1b[0m", .{setup_elapsed_ms});
 
     return (
         <div @allocator={allocator}>
             <Introduction />
             <GettingStarted />
-        
-        
-        
+
                     <section id="expressions" class="section">
                         <h2>Expressions</h2>
-        
+
                         <p>ZX provides different expression syntaxes for embedding dynamic content. Each syntax serves a
                             specific purpose: rendering components, displaying text safely, or formatting values with custom
                             format specifiers.</p>
-        
-        
+
+
                         <h3>Text Expressions</h3>
-        
+
                         <p>Use <code>{txt_expr}</code> to embed text content. All text is automatically HTML-escaped to prevent
                             XSS attacks. This is the safe way to display user input or dynamic text content.</p>
-        
+
                         <ExampleBlock id="text" zx_code={zx_example_text} zig_code={zig_example_text}
                             html_code={html_example_text} />
-        
+
                         <h3>Format Expressions</h3>
-        
+
                         <p>Use <code>{fmt_expr}</code> to format values with custom format specifiers. The format string follows
                             Zig's standard format specifier syntax (e.g., <code>d</code> for decimal, <code>x</code> for
                             hexadecimal). Unlike text expressions, format expressions are not HTML-escaped, making them suitable
                             for numeric formatting and other non-HTML content.</p>
                         <ExampleBlock id="format" zx_code={zx_example_format} zig_code={zig_example_format}
                             html_code={html_example_format} />
-        
+
                         <h3>Component Expressions</h3>
-        
+
                         <p>Use <code>{cmp_expr}</code> to embed a component directly. The expression must evaluate to a
                             <code>zx.Component</code> type. This is useful when you want to conditionally render or reuse
                             components dynamically.
                         </p>
-        
+
                         <ExampleBlock id="component" zx_code={zx_example_component} zig_code={zig_example_component}
                             html_code={html_example_component} />
                     </section>
-        
-        
+
+
                     <section id="control-flow" class="section">
                         <h2>Control Flow</h2>
                         <p>ZX supports conditional rendering and iteration using familiar Zig control flow constructs. These
                             expressions allow you to conditionally render components or iterate over collections to build
                             dynamic UIs.</p>
-        
+
                         <h3>If Statements</h3>
                         <p>Use <code>if</code> expressions to conditionally render components based on boolean conditions. The
                             <code>else</code> branch is optional and can render alternative content when the condition is false.
                         </p>
                         <ExampleBlock id="if" zx_code={zx_example_if} zig_code={zig_example_if} html_code={html_example_if} />
-        
+
                         <h3>Switch Statements</h3>
                         <p>Use <code>switch</code> expressions to match against enum values or other types. Each case can return
                             either a string literal or a component. Switch expressions are particularly useful for rendering
                             different UI based on state or user roles.</p>
                         <ExampleBlock id="switch" zx_code={zx_example_switch} zig_code={zig_example_switch}
                             html_code={html_example_switch} />
-        
+
                         <h3>For Loops</h3>
                         <p>Use <code>for</code> loops to iterate over arrays, slices, or strings and render a component for each
                             item. The loop variable can be used within the component body to display item-specific content. This
@@ -156,14 +162,14 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         <ExampleBlock id="for" zx_code={zx_example_for} zig_code={zig_example_for}
                             html_code={html_example_for} />
                     </section>
-        
+
                     <section id="components" class="section">
                         <h2>Components</h2>
                         <p>Components are reusable functions that return <code>zx.Component</code>. They allow you to
                             encapsulate UI logic and create modular, maintainable code. Components can accept props (properties)
                             to customize their
                             behavior and appearance.</p>
-        
+
                         <h3>Component Function Signatures</h3>
                         <p>Component functions must follow one of two signatures:</p>
                         <ul>
@@ -174,7 +180,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                                     zx.Allocator,
                                     props: PropsType) zx.Component</code></li>
                         </ul>
-        
+
                         <h3>Defining Components</h3>
                         <p>To create a component, define a function that returns a <code>zx.Component</code>. The function must
                             have an allocator as its first parameter. If your component needs configuration, add a props struct
@@ -182,19 +188,19 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                             second parameter:</p>
                         <ExampleBlock id="components" zx_code={zx_example_components} zig_code={zig_example_components}
                             html_code={html_example_components} />
-        
+
                         <h3>Props Coercion</h3>
                         <p>ZX automatically coerces the attributes you pass to a component into the expected props struct.
                             Missing required fields will result in a compile-time error, while fields with default values are
                             optional. This
                             provides type safety while keeping component usage flexible.</p>
                     </section>
-        
+
                     <section id="routing" class="section">
                         <h2>Routing</h2>
                         <p>ZX provides a file-based routing system that maps URL paths to page components. Routes can be nested,
                             and layouts can be applied hierarchically to wrap pages with common UI elements.</p>
-        
+
                         <h3>Pages</h3>
                         <p>Pages are the main content components for each route. A page function must:</p>
                         <ul>
@@ -204,7 +210,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         </ul>
                         <ExampleBlock id="routing" zx_code={zx_example_routing} zig_code={zig_example_routing}
                             html_code={html_example_routing} />
-        
+
                         <h3>Layouts</h3>
                         <p>Layouts wrap pages with common UI elements like headers, footers, or navigation. A layout function
                             must:</p>
@@ -216,7 +222,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         </ul>
                         <ExampleBlock id="layout" zx_code={zx_example_layout} zig_code={zig_example_layout}
                             html_code={html_example_layout} />
-        
+
                         <h3>PageContext and LayoutContext</h3>
                         <p>Both <code>PageContext</code> and <code>LayoutContext</code> provide access to:</p>
                         <ul>
@@ -230,17 +236,17 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         <p>Use <code>ctx.arena</code> for temporary allocations that only need to persist during request
                             processing. This is the recommended allocator for most page and component code.</p>
                     </section>
-        
+
                     <section id="builtin-attributes" class="section">
                         <h2>Builtin Attributes</h2>
                         <p>ZX provides special builtin attributes that control component behavior and memory management. These
                             attributes are prefixed with <code>@</code> to distinguish them from regular HTML attributes.</p>
-        
+
                         <h3>@allocator</h3>
                         <p>The <code>@allocator</code> attribute is required to be passed to the topmost component. All child
                             components will inherit the allocator from the parent component. It is available to all child
                             components and expressions within that component tree.</p>
-        
+
                         <p><strong>Why is @allocator needed?</strong></p>
                         <p>ZX components can allocate memory for various purposes:</p>
                         <ul>
@@ -249,11 +255,11 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                             <li>Copying attribute arrays</li>
                             <li>Formatting expressions that allocate formatted strings</li>
                         </ul>
-        
+
                         <p><strong>Usage:</strong></p>
                         <ExampleBlock id="allocator" zx_code={zx_example_allocator} zig_code={zig_example_allocator}
                             html_code={html_example_allocator} />
-        
+
                         <p><strong>Best Practices:</strong></p>
                         <ul>
                             <li>Always use <code>ctx.arena</code> in page components (it's automatically freed after the
@@ -266,7 +272,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                                 it explicitly to every nested component</li>
                         </ul>
                     </section>
-        
+
             <ExamplesSection />
         </div>
 
@@ -275,6 +281,9 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
 const zx = @import("zx");
 const std = @import("std");
+const root = @import("root");
+const util = @import("util.zig");
+
 const Introduction = @import("../components/introduction.zig").Introduction;
 const GettingStarted = @import("../components/getting_started.zig").GettingStarted;
 const ExamplesSection = @import("../components/examples_section.zig").ExamplesSection;

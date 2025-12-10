@@ -29,7 +29,6 @@
     --copy-button-border: #e0e0e0;
     --copy-button-hover-bg: #eaeef2;
     --copy-button-hover-border: #d0d7de;
-    --code-overlay: rgba(255, 255, 255, 0.25);
     --preview-bg: #ffffff;
     --link-hover-color: #0052a3;
     --tooltip-icon-bg: #0066cc;
@@ -62,7 +61,6 @@
         --copy-button-border: #3a3a3a;
         --copy-button-hover-bg: #333;
         --copy-button-hover-border: #4a4a4a;
-        --code-overlay: rgba(0, 0, 0, 0.3);
         --preview-bg: #1a1a1a;
         --link-hover-color: #6bb3ff;
         --tooltip-icon-bg: #4a9eff;
@@ -907,223 +905,6 @@ pre code {
     box-sizing: border-box;
 }
 
-/* Code elements with data-full-content */
-.code-wrapper code[data-full-content] {
-    max-height: 60vh;
-}
-
-.code-wrapper code[data-full-content]:hover {
-    overflow-x: auto;
-    overflow-y: auto;
-}
-
-code[contenteditable="true"] {
-    outline: none;
-    display: block;
-    white-space: pre;
-    cursor: pointer;
-    overflow: visible;
-}
-
-code[contenteditable="true"]:focus {
-    background: transparent;
-    outline: none;
-    cursor: text;
-}
-
-/* Overlay on codeblock when tooltip is shown */
-.example-code pre:has(code[contenteditable="true"][data-full-content]:not(:focus))::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: var(--code-overlay);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s;
-    z-index: 999;
-}
-
-.example-code pre:hover:has(code[contenteditable="true"][data-full-content]:not(:focus))::before {
-    opacity: 1;
-}
-
-/* Fallback for browsers without :has() support */
-.example-code pre code[contenteditable="true"][data-full-content]:not(:focus) {
-    position: relative;
-}
-
-.example-code pre code[contenteditable="true"][data-full-content]:not(:focus)::after {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: var(--code-overlay);
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s;
-    z-index: 998;
-}
-
-.example-code pre:hover code[contenteditable="true"][data-full-content]:not(:focus)::after {
-    opacity: 1;
-}
-
-/* CSS-only content toggle - works without JavaScript */
-code[contenteditable="true"][data-full-content] {
-    position: relative;
-    width: 100%;
-    height: 100%;
-    display: block;
-    white-space: pre;
-    max-height: 60vh;
-}
-
-/* Show truncated content when not focused */
-code[contenteditable="true"][data-full-content]:not(:focus) {
-    overflow: hidden;
-}
-
-/* Ensure code element has scrollbars when focused */
-code[contenteditable="true"][data-full-content]:focus {
-    overflow-x: auto;
-    overflow-y: auto;
-}
-
-code[contenteditable="true"][data-full-content]:not(:focus)::before {
-    content: attr(title);
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    padding: 6px 10px;
-    background: rgba(51, 51, 51, 0.5);
-    color: white;
-    font-size: 0.75rem;
-    white-space: nowrap;
-    border-radius: 4px;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s;
-    z-index: 1000;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    font-weight: normal;
-    letter-spacing: normal;
-    text-transform: none;
-}
-
-.example-code pre:hover code[contenteditable="true"][data-full-content]:not(:focus)::before {
-    opacity: 1;
-}
-
-/* Show full content when focused using CSS content property - works without JS */
-code[contenteditable="true"][data-full-content]:focus {
-    overflow-x: auto;
-    overflow-y: auto;
-    position: relative;
-}
-
-/* CSS fallback for when JS is disabled - show full content via ::before */
-code[contenteditable="true"][data-full-content]:focus::before {
-    content: attr(data-full-content);
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    background: var(--code-bg);
-    color: var(--text-color) !important;
-    padding: inherit;
-    white-space: pre;
-    font-family: inherit;
-    font-size: inherit;
-    line-height: inherit;
-    overflow: visible;
-    pointer-events: none;
-    z-index: 1;
-    opacity: 1;
-    border-radius: 0;
-    transform: none;
-    text-align: left;
-    font-weight: inherit;
-    letter-spacing: inherit;
-    text-transform: none;
-}
-
-/* Hide CSS fallback when JS has updated content */
-code[contenteditable="true"][data-full-content][data-expanded]::before {
-    display: none;
-}
-
-/* Ensure textContent is visible and on top when JS has updated it */
-code[contenteditable="true"][data-full-content][data-expanded] {
-    color: inherit;
-    position: relative;
-    z-index: 2;
-}
-
-
-/* For non-editable code blocks (Zig code) - toggle on hover */
-code[data-full-content]:not([contenteditable]) {
-    position: relative;
-    max-height: 60vh;
-}
-
-code[data-full-content]:not([contenteditable]):not(:hover) {
-    overflow: hidden;
-}
-
-code[data-full-content]:not([contenteditable]):hover {
-    overflow-x: auto;
-    overflow-y: auto;
-}
-
-/* CSS fallback for when JS is disabled - show full content via ::before */
-code[data-full-content]:not([contenteditable]):hover::before {
-    content: attr(data-full-content);
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    background: var(--code-bg);
-    color: var(--text-color) !important;
-    padding: inherit;
-    white-space: pre;
-    font-family: inherit;
-    font-size: inherit;
-    line-height: inherit;
-    overflow: visible;
-    pointer-events: none;
-    z-index: 1;
-    opacity: 1;
-    border-radius: 0;
-    transform: none;
-    text-align: left;
-    font-weight: inherit;
-    letter-spacing: inherit;
-    text-transform: none;
-    transition: opacity 0.2s ease-out 0s;
-}
-
-code[data-full-content]:not([contenteditable]):not(:hover)::before {
-    opacity: 0;
-    transition: opacity 0.2s ease-out 0.3s;
-}
-
-/* Hide CSS fallback when JS has updated content */
-code[data-full-content]:not([contenteditable])[data-expanded]::before {
-    display: none;
-}
-
-/* Ensure textContent is visible and on top when JS has updated it */
-code[data-full-content]:not([contenteditable])[data-expanded] {
-    color: inherit;
-    position: relative;
-    z-index: 2;
-}
 
 /* Preview */
 .preview-wrapper {
@@ -1364,16 +1145,122 @@ pre:hover .copy-button,
     box-sizing: border-box;
 }
 
-/* Code elements with data-full-content */
-.example-code pre code[data-full-content] {
-    max-height: 60vh;
-}
 
-.example-code pre code[data-full-content]:focus {
+
+/* Tree-sitter syntax highlighting */
+.hljs {
+    display: block;
+    white-space: pre;
+    font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+    line-height: 1.5;
     overflow-x: auto;
-    overflow-y: auto;
 }
 
+/* Standalone .hljs blocks (not inside code elements) */
+div.hljs {
+    padding: 1em;
+    background: #f6f8fa;
+    border-radius: 4px;
+}
+
+@media (prefers-color-scheme: dark) {
+    div.hljs {
+        background: #282c34;
+    }
+}
+
+/* .hljs inside code blocks shouldn't have extra padding/background */
+code.hljs {
+    padding: 0;
+    background: transparent;
+    border: none;
+}
+
+/* Tree-sitter syntax highlighting - Light theme (GitHub Light) */
+.attribute { color: #953800; }
+.comment { font-style: italic; color: #6e7781; }
+.constant { color: #0550ae; }
+.constant.builtin { color: #0550ae; }
+.constructor { color: #8250df; }
+.function { color: #8250df; }
+.function.builtin { color: #8250df; }
+.keyword { color: #cf222e; }
+.keyword.function { color: #cf222e; }
+.keyword.return { color: #cf222e; }
+.keyword.operator { color: #cf222e; }
+.keyword.modifier { color: #cf222e; }
+.keyword.type { color: #cf222e; }
+.keyword.conditional { color: #cf222e; }
+.keyword.repeat { color: #cf222e; }
+.keyword.import { color: #cf222e; }
+.keyword.exception { color: #cf222e; }
+.keyword.coroutine { color: #cf222e; }
+.module { color: #8250df; }
+.number { color: #0550ae; }
+.number.float { color: #0550ae; }
+.operator { color: #cf222e; }
+.property { color: #953800; }
+.property.builtin { color: #953800; }
+.punctuation { color: #24292f; }
+.punctuation.bracket { color: #24292f; }
+.punctuation.delimiter { color: #24292f; }
+.punctuation.special { color: #0550ae; }
+.string { color: #0a3069; }
+.string.special { color: #0a3069; }
+.string.escape { color: #116329; }
+.tag { color: #116329; }
+.type { color: #953800; }
+.type.builtin { color: #953800; }
+.variable { color: #24292f; }
+.variable.builtin { color: #0550ae; }
+.variable.parameter { color: #953800; }
+.variable.member { color: #24292f; }
+.label { color: #8250df; }
+.boolean { color: #0550ae; }
+
+/* Tree-sitter syntax highlighting - Dark theme (GitHub Dark) */
+@media (prefers-color-scheme: dark) {
+    .attribute { color: #ffa657; }
+    .comment { font-style: italic; color: #8b949e; }
+    .constant { color: #79c0ff; }
+    .constant.builtin { color: #79c0ff; }
+    .constructor { color: #d2a8ff; }
+    .function { color: #d2a8ff; }
+    .function.builtin { color: #d2a8ff; }
+    .keyword { color: #ff7b72; }
+    .keyword.function { color: #ff7b72; }
+    .keyword.return { color: #ff7b72; }
+    .keyword.operator { color: #ff7b72; }
+    .keyword.modifier { color: #ff7b72; }
+    .keyword.type { color: #ff7b72; }
+    .keyword.conditional { color: #ff7b72; }
+    .keyword.repeat { color: #ff7b72; }
+    .keyword.import { color: #ff7b72; }
+    .keyword.exception { color: #ff7b72; }
+    .keyword.coroutine { color: #ff7b72; }
+    .module { color: #d2a8ff; }
+    .number { color: #79c0ff; }
+    .number.float { color: #79c0ff; }
+    .operator { color: #ff7b72; }
+    .property { color: #ffa657; }
+    .property.builtin { color: #ffa657; }
+    .punctuation { color: #c9d1d9; }
+    .punctuation.bracket { color: #c9d1d9; }
+    .punctuation.delimiter { color: #c9d1d9; }
+    .punctuation.special { color: #79c0ff; }
+    .string { color: #a5d6ff; }
+    .string.special { color: #a5d6ff; }
+    .string.escape { color: #7ee787; }
+    .tag { color: #7ee787; }
+    .type { color: #ffa657; }
+    .type.builtin { color: #ffa657; }
+    .variable { color: #c9d1d9; }
+    .variable.builtin { color: #79c0ff; }
+    .variable.parameter { color: #ffa657; }
+    .variable.member { color: #c9d1d9; }
+    .label { color: #d2a8ff; }
+    .boolean { color: #79c0ff; }
+}
 
 /* Prism.js overrides */
 pre[class*="language-"] {

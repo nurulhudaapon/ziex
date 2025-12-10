@@ -6,15 +6,8 @@ pub const ExampleBlockProps = struct {
 };
 
 pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Component {
-    // Extract and truncate ZX code
-    const zx_return_content = util.extractZxReturnContent(allocator, props.zx_code);
-    const truncated_zx_code = util.removeCommonIndentation(allocator, zx_return_content);
-    const escaped_full_zx = props.zx_code;
-
-    // Extract and truncate Zig code
-    const zig_return_content = util.extractZigReturnContent(allocator, props.zig_code);
-    const truncated_zig_code = util.removeCommonIndentation(allocator, zig_return_content);
-    const escaped_full_zig = props.zig_code;
+    // Highlight ZX code with tree-sitter
+    const highlighted_zx = util.highlightZx(allocator, props.zx_code) catch props.zx_code;
 
     // Wrap HTML with dark mode styles for iframe
     const dark_mode_style = 
@@ -42,7 +35,7 @@ pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Compon
         <div class="code-example" @allocator={allocator}>
             <div class="example-code">
                 <span data-no-nav="true">ZX</span>
-                <pre><code id={zx_code_id} class="language-tsx" contenteditable="true" spellcheck="false" data-full-content={escaped_full_zx} data-truncated-content={truncated_zx_code} title="Click to view full code">{truncated_zx_code}</code></pre>
+                <pre><code id={zx_code_id} class="hljs">{[highlighted_zx:s]}</code></pre>
             </div>
             <div class="example-code">
                 <input type="radio" id={preview_id} name={name_id} class="tab-radio" checked>
@@ -52,7 +45,7 @@ pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Compon
                     <div class="tab-buttons">
                         <label for={preview_id} class="tab-btn">Preview</label>
                         <label for={html_id} class="tab-btn">HTML</label>
-                        <label for={zig_id} class="tab-btn">Zig</label>
+                        <label for={zig_id} class="tab-btn" style="display: none;">Zig</label>
                     </div>
                 </div>
                 <div class="tab-content" id={preview_content_id}>
@@ -65,9 +58,9 @@ pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Compon
                         <pre><code class="language-markup">{props.html_code}</code></pre>
                     </div>
                 </div>
-                <div class="tab-content" id={zig_content_id}>
+                <div class="tab-content" id={zig_content_id} style="display: none;">
                     <div class="code-wrapper">
-                        <pre><code class="language-zig" data-full-content={escaped_full_zig} data-truncated-content={truncated_zig_code}>{truncated_zig_code}</code></pre>
+                        <pre><code class="language-zig">{props.zig_code}</code></pre>
                     </div>
                 </div>
             </div>

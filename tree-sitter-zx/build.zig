@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) !void {
     const shared = b.option(bool, "build-shared", "Build a shared library") orelse true;
     const reuse_alloc = b.option(bool, "reuse-allocator", "Reuse the library allocator") orelse false;
 
-    const library_name = "tree-sitter-zx";
+    const library_name = "tree_sitter_zx";
 
     const lib: *std.Build.Step.Compile = b.addLibrary(.{
         .name = library_name,
@@ -75,7 +75,7 @@ pub fn build(b: *std.Build) !void {
         while (args.next()) |a| {
             if (std.mem.eql(u8, a, "test")) {
                 const ts_dep = b.lazyDependency("tree_sitter", .{}) orelse continue;
-                tests.root_module.addImport("tree-sitter", ts_dep.module("tree_sitter"));
+                tests.root_module.addImport("tree_sitter", ts_dep.module("tree_sitter"));
                 break;
             }
         }

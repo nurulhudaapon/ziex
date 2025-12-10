@@ -13,6 +13,9 @@ pub fn main() !void {
     const app = try zx.App.init(allocator, config);
     defer app.deinit();
 
+    var aw = std.Io.Writer.Allocating.init(allocator);
+    defer aw.deinit();
+
     app.info();
     try app.start();
 }
