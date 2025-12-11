@@ -586,6 +586,62 @@ pub fn transpile(allocator: std.mem.Allocator, source: [:0]const u8) !Transpilat
             break;
         }
 
+        // Check if this is @import builtin and convert .zx to .zig
+        if (token.tag == .builtin) {
+            const builtin_text = source[token.loc.start..token.loc.end];
+            if (std.mem.eql(u8, builtin_text, "@import")) {
+                // Save tokenizer state
+                const saved_index = tokenizer.index;
+                var next_token = tokenizer.next();
+
+                // Skip whitespace/comments
+                while (next_token.tag == .invalid or next_token.tag == .doc_comment or next_token.tag == .container_doc_comment) {
+                    next_token = tokenizer.next();
+                }
+
+                // Check for opening paren
+                if (next_token.tag == .l_paren) {
+                    var next_token2 = tokenizer.next();
+
+                    // Skip whitespace/comments
+                    while (next_token2.tag == .invalid or next_token2.tag == .doc_comment or next_token2.tag == .container_doc_comment) {
+                        next_token2 = tokenizer.next();
+                    }
+
+                    // Check for string literal
+                    if (next_token2.tag == .string_literal) {
+                        const string_start = next_token2.loc.start;
+                        const string_end = next_token2.loc.end;
+                        const string_content = source[string_start..string_end];
+
+                        // Check if it contains .zx"
+                        if (std.mem.indexOf(u8, string_content, ".zx\"") != null) {
+                            // Append everything up to this import statement
+                            if (last_pos < token.loc.start) {
+                                try result.appendSlice(allocator, source[last_pos..token.loc.start]);
+                            }
+
+                            // Add @import(
+                            try result.appendSlice(allocator, "@import");
+                            try result.appendSlice(allocator, source[token.loc.end..next_token.loc.end]);
+
+                            // Convert .zx to .zig in the string
+                            const converted_string = try std.mem.replaceOwned(u8, allocator, string_content, ".zx\"", ".zig\"");
+                            defer allocator.free(converted_string);
+                            try result.appendSlice(allocator, converted_string);
+
+                            // Update last_pos to after the string
+                            last_pos = string_end;
+                            continue;
+                        }
+                    }
+                }
+
+                // Restore tokenizer if we didn't process the import
+                tokenizer.index = saved_index;
+            }
+        }
+
         // Check if this is a return statement followed by JSX
         if (token.tag == .keyword_return) {
             // Store the return token

@@ -70,5 +70,5 @@ pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Compon
 
 const zx = @import("zx");
 const std = @import("std");
-const util = @import("../docs/util.zig");
+const util = @import("../docs/util.zx");
 

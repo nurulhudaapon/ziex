@@ -24,6 +24,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 }
 
 const zx = @import("zx");
-const FormExample = @import("../form.zig").FormExample;
+const FormExample = @import("../form.zx").FormExample;
 const std = @import("std");
-const handler = @import("handler.zig");
+const handler = @import("handler.zx");

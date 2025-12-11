@@ -67,6 +67,6 @@ pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
 
 const GitHubIcon = icons.GitHub;
 
-const icons = @import("../components/icons.zig");
+const icons = @import("../components/icons.zx");
 const zx = @import("zx");
 const std = @import("std");

@@ -105,10 +105,10 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 }
 
 const zx = @import("zx");
-const ForExample = @import("for.zig").Page;
-const IfExample = @import("if.zig").Page;
-const SwitchExample = @import("switch.zig").Page;
-const FormExample = @import("form.zig").FormExample;
-const QuickExample = @import("overview.zig").QuickExample;
-const CsrReactExample = @import("csr_react.zig").Page;
-const CsrZigExample = @import("csr_zig.zig").Page;
+const ForExample = @import("for.zx").Page;
+const IfExample = @import("if.zx").Page;
+const SwitchExample = @import("switch.zx").Page;
+const FormExample = @import("form.zx").FormExample;
+const QuickExample = @import("overview.zx").QuickExample;
+const CsrReactExample = @import("csr_react.zx").Page;
+const CsrZigExample = @import("csr_zig.zx").Page;

@@ -9,7 +9,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     );
 }
 
-pub const ClientCounterComponent = @import("./client_counter.zig").CounterComponent;
+pub const ClientCounterComponent = @import("./client_counter.zx").CounterComponent;
 
 var todos = std.ArrayList([]const u8).empty;
 export var count: u64 = 0;

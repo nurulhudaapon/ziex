@@ -185,5 +185,5 @@ fn HeroStatCard(allocator: zx.Allocator, props: HeroStat) zx.Component {
 
 const std = @import("std");
 const zx = @import("zx");
-const icons = @import("./components/icons.zig");
+const icons = @import("./components/icons.zx");
 const GitHubIcon = icons.GitHub;

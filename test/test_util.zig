@@ -34,6 +34,7 @@ pub const TestFileCache = struct {
         "component/multiple",
         "component/csr_react",
         "component/csr_react_multiple",
+        "component/import",
     };
     pub fn init(allocator: std.mem.Allocator) !TestFileCache {
         var cache = TestFileCache{

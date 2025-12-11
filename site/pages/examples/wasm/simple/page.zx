@@ -14,4 +14,4 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 const zx = @import("zx");
 const std = @import("std");
 
-pub const CounterComponent = @import("../../client_counter.zig").CounterComponent;
+pub const CounterComponent = @import("../../client_counter.zx").CounterComponent;

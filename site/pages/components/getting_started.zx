@@ -57,6 +57,6 @@ zig build serve</code></pre>
     );
 }
 
-const Installation = @import("installation.zig").Installation;
+const Installation = @import("installation.zx").Installation;
 const zx = @import("zx");
 

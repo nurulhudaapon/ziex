@@ -276,4 +276,4 @@ zx upgrade --version {zx.info.version_string}</code></pre>
 }
 
 const zx = @import("zx");
-const Installation = @import("../components/installation.zig").Installation;
+const Installation = @import("../components/installation.zx").Installation;

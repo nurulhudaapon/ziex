@@ -268,10 +268,6 @@ fn dev(ctx: zli.CommandContext) !void {
                 try ctx.writer.print("\n{s}{s}Restarting ZX App...{s}", .{ Colors.cyan, restart_underline, Colors.reset });
             }
 
-            runner = std.process.Child.init(&.{ runnable_program_path, "--cli-command", "dev" }, allocator);
-            runner.stderr_behavior = .Pipe;
-            runner.stdout_behavior = .Pipe;
-
             try runner.spawn();
 
             runner_output = try util.captureChildOutput(ctx.allocator, &runner, .{

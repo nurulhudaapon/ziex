@@ -6,8 +6,8 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     );
 }
 
-const Sidebar = @import("../components/sidebar.zig").Sidebar;
-const SidebarProps = @import("../components/sidebar.zig").SidebarProps;
+const Sidebar = @import("../components/sidebar.zx").Sidebar;
+const SidebarProps = @import("../components/sidebar.zx").SidebarProps;
 
 const sidebar_links = [_]SidebarProps.Link{
     .{ .href = "/cli#overview", .text = "Overview" },
