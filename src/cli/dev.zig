@@ -14,7 +14,7 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
         .hidden = true,
     });
     try cmd.addFlag(.{
-        .name = "progress",
+        .name = "tui-progress",
         .description = "Show full build progress output from zig build",
         .type = .Bool,
         .default_value = .{ .Bool = false },
@@ -50,7 +50,7 @@ fn dev(ctx: zli.CommandContext) !void {
     const port_str = try std.fmt.allocPrint(ctx.allocator, "{d}", .{port});
     defer ctx.allocator.free(port_str);
     const build_args_str = ctx.flag("build-args", []const u8);
-    const show_progress = ctx.flag("progress", bool);
+    const show_progress = ctx.flag("tui-progress", bool);
     const show_underline = ctx.flag("tui-underline", bool);
     const use_spinner = ctx.flag("tui-spinner", bool);
     const clear_on_restart = ctx.flag("tui-clear", bool);
@@ -79,7 +79,14 @@ fn dev(ctx: zli.CommandContext) !void {
     }
 
     try build_args_array.appendSlice(allocator, &.{ "--watch", "--summary", "all" });
+
+    // Force color output even when piped (for error display)
+    var env_map = try std.process.getEnvMap(allocator);
+    defer env_map.deinit();
+    try env_map.put("CLICOLOR_FORCE", "1");
+
     var builder = std.process.Child.init(build_args_array.items, allocator);
+    builder.env_map = &env_map;
 
     // Only pipe stderr if we're NOT showing progress (to suppress output)
     if (!show_progress) {
@@ -189,7 +196,10 @@ fn dev(ctx: zli.CommandContext) !void {
         try std.Thread.spawn(.{}, builder_util.watchBuildOutput, .{watcher})
     else
         null;
-    defer if (watcher_thread) |thread| thread.join();
+    defer {
+        if (watcher_thread) |thread| thread.join();
+        if (build_watcher) |*watcher| watcher.deinit();
+    }
 
     // For progress mode: track binary mtime manually
     var last_binary_mtime = initial_stat.mtime;
@@ -197,6 +207,30 @@ fn dev(ctx: zli.CommandContext) !void {
 
     while (true) {
         std.Thread.sleep(std.time.ns_per_ms * 1);
+
+        // Check for errors in non-progress mode and dump output if present
+        if (build_watcher) |*watcher| {
+            if (watcher.checkErrors()) |error_output| {
+                const enhanced_output = try enhanceErrorOutput(allocator, error_output);
+                defer allocator.free(enhanced_output);
+
+                try ctx.writer.print("\n{s}Build errors detected:{s}\n", .{ Colors.red, Colors.reset });
+                try ctx.writer.print("{s}─────────────────────────────────────────{s}\n", .{ Colors.gray, Colors.reset });
+                try ctx.writer.writeAll(enhanced_output);
+                try ctx.writer.print("{s}─────────────────────────────────────────{s}\n", .{ Colors.gray, Colors.reset });
+            }
+
+            // Check if errors were resolved (for cached builds that don't trigger restart)
+            if (watcher.shouldShowResolvedMessage()) {
+                if (show_underline) {
+                    try ctx.writer.print("{s}─────────────────────────────────────────{s}\n", .{ Colors.gray, Colors.reset });
+                }
+                try ctx.writer.print("{s}✓ All build errors have been resolved!{s}\n", .{ Colors.green, Colors.reset });
+                if (show_underline) {
+                    try ctx.writer.print("{s}─────────────────────────────────────────{s}\n", .{ Colors.gray, Colors.reset });
+                }
+            }
+        }
 
         // Check for restart condition
         const should_restart = if (build_watcher) |*watcher|
@@ -247,6 +281,7 @@ fn dev(ctx: zli.CommandContext) !void {
                     builder.stderr_behavior = .Pipe;
                     builder.stdout_behavior = .Pipe;
                 }
+                builder.env_map = &env_map;
                 try builder.spawn();
                 if (build_watcher) |*watcher| {
                     watcher.builder_stderr = builder.stderr.?;
@@ -351,6 +386,101 @@ fn printFirstLine(output: *util.ChildOutput) void {
             std.debug.print("{s}\n", .{first_line});
         }
     }
+}
+
+/// Enhance error output with colors if not already present
+fn enhanceErrorOutput(allocator: std.mem.Allocator, output: []const u8) ![]u8 {
+    // Check if output already has ANSI color codes
+    if (std.mem.indexOf(u8, output, "\x1b[") != null) {
+        // Already has colors, return as-is
+        return try allocator.dupe(u8, output);
+    }
+
+    // Output doesn't have colors, let's add them
+    var result = std.ArrayList(u8).empty;
+    errdefer result.deinit(allocator);
+
+    var lines = std.mem.splitScalar(u8, output, '\n');
+    while (lines.next()) |line| {
+        if (line.len == 0) {
+            try result.append(allocator, '\n');
+            continue;
+        }
+
+        // Colorize based on content
+        if (std.mem.indexOf(u8, line, "error:") != null or
+            std.mem.indexOf(u8, line, "Error:") != null or
+            std.mem.indexOf(u8, line, "ERROR:") != null)
+        {
+            // Red for error lines, try to colorize file paths separately
+            try colorizeErrorLine(allocator, &result, line);
+        } else if (std.mem.indexOf(u8, line, "warning:") != null or
+            std.mem.indexOf(u8, line, "Warning:") != null)
+        {
+            // Yellow for warnings
+            try result.appendSlice(allocator, Colors.yellow);
+            try result.appendSlice(allocator, line);
+            try result.appendSlice(allocator, Colors.reset);
+        } else if (std.mem.indexOf(u8, line, "note:") != null or
+            std.mem.indexOf(u8, line, "Note:") != null)
+        {
+            // Cyan for notes
+            try result.appendSlice(allocator, Colors.cyan);
+            try result.appendSlice(allocator, line);
+            try result.appendSlice(allocator, Colors.reset);
+        } else if (std.mem.indexOf(u8, line, "stderr") != null) {
+            // Gray for stderr notices
+            try result.appendSlice(allocator, Colors.gray);
+            try result.appendSlice(allocator, line);
+            try result.appendSlice(allocator, Colors.reset);
+        } else if (std.mem.startsWith(u8, line, "   ") or
+            std.mem.startsWith(u8, line, "  ") or
+            std.mem.indexOf(u8, line, "^") != null)
+        {
+            // Dim for indented context lines and caret lines
+            try result.appendSlice(allocator, Colors.gray);
+            try result.appendSlice(allocator, line);
+            try result.appendSlice(allocator, Colors.reset);
+        } else if (std.mem.indexOf(u8, line, "+- ") != null) {
+            // Cyan for build tree structure
+            try result.appendSlice(allocator, Colors.cyan);
+            try result.appendSlice(allocator, line);
+            try result.appendSlice(allocator, Colors.reset);
+        } else {
+            // Normal output
+            try result.appendSlice(allocator, line);
+        }
+        try result.append(allocator, '\n');
+    }
+
+    return result.toOwnedSlice(allocator);
+}
+
+/// Colorize an error line, highlighting file paths in cyan and errors in red
+fn colorizeErrorLine(allocator: std.mem.Allocator, result: *std.ArrayList(u8), line: []const u8) !void {
+    // Look for pattern: "filepath:line:col: error: message"
+    if (std.mem.indexOf(u8, line, ":")) |first_colon| {
+        // Check if this looks like a file path (before error:)
+        if (std.mem.indexOf(u8, line, " error:")) |error_pos| {
+            if (first_colon < error_pos) {
+                // File path part (cyan)
+                try result.*.appendSlice(allocator, Colors.cyan);
+                try result.*.appendSlice(allocator, line[0..error_pos]);
+                try result.*.appendSlice(allocator, Colors.reset);
+
+                // Error part (red)
+                try result.*.appendSlice(allocator, Colors.red);
+                try result.*.appendSlice(allocator, line[error_pos..]);
+                try result.*.appendSlice(allocator, Colors.reset);
+                return;
+            }
+        }
+    }
+
+    // Fallback: just make the whole line red
+    try result.*.appendSlice(allocator, Colors.red);
+    try result.*.appendSlice(allocator, line);
+    try result.*.appendSlice(allocator, Colors.reset);
 }
 
 const std = @import("std");
