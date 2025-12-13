@@ -2,55 +2,105 @@ pub fn QuickExample(allocator: zx.Allocator) zx.Component {
     const is_loading = true;
     const chars = "Hello, ZX Dev!";
 
-    return (
-    <main @allocator={allocator}>
-        <section>
-            {if (is_loading) (<h1>Loading...</h1>) else (<h1>Loaded</h1>)}
-        </section>
-        <section>
-            {for (chars) |char| (<span>{[char:c]}</span>)}
-        </section>
-        <section>
-            {for (users) |user| ( <Profile name={user.name} age={user.age} role={user.role}/> )}
-        </section>
-        <section>
+    return (<main @allocator={{allocator}} id="test" class="test" checked>
+    <section>
+        {if (is_loading) (<h1>
+            Loading...
+        </h1>) else (
             <div>
                 <div>
                     <div>
                         <div>
                             <h1 title="Hello, ZX Dev!" class="text-2xl font-bold" style="color: red;">
-                                
+                                Hello, ZX Dev!
                             </h1>
                             <p>
-                                
+                                Hello, ZX Dev!
                             </p>
                             <p>
-                                
+                                Hello, ZX Dev!
                             </p>
                             <p>
-                                
+                                Hello, ZX Dev!
                             </p>
                         </div>
                     </div>
                 </div>
             </div>
-        </section>
-    </main>
-);
+        )}
+    </section>
+    <section>
+        {for (chars) |    char   | (
+            <div>
+                <div>
+                    <div>
+                        <div>
+                            <h1 title="Hello, ZX Dev!" class="text-2xl font-bold" style="color: red;">
+                                Hello, ZX Dev!
+                            </h1>
+                            <p>
+                                Hello, ZX Dev!
+                            </p>
+                            <p>
+                                Hello, ZX Dev!
+                            </p>
+                            <p>
+                                Hello, ZX Dev!
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        )}
+    </section>
+    <section>
+        {for (users) |user| (<Profile name={{user.name}} age={{user.age}} role={{user.role}} />)}
+    </section>
+    <section>
+        <div>
+            <div>
+                <div>
+                    <div>
+                        <h1 title="Hello, ZX Dev!" class="text-2xl font-bold" style="color: red;">
+                            Hello, ZX Dev!
+                        </h1>
+                        <p>
+                            Hello, ZX Dev!
+                        </p>
+                        <p>
+                            Hello, ZX Dev!
+                        </p>
+                        <p>
+                            Hello, ZX Dev!
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+</main>);
 }
 
 fn Profile(allocator: zx.Allocator, user: User) zx.Component {
-    return (
-    <div @allocator={allocator}>
-        <h1>
-            {user.name}
-        </h1>
-        <p>
-            {[user.age:d]}
-        </p>
-        {switch (user.role) { .admin => (<p>Admin</p>), .member => (<p>Member</p>), }}
-    </div>
-);
+    return (<div @allocator={{allocator}}>
+    <h1>
+        {{user.name}}
+    </h1>
+    <p>
+        {{[user.age:d]}}
+    </p>
+    {switch (switch) {
+        .admin => 
+            (<p>
+                Admin
+            </p>),
+        .member => 
+            (<p>
+                Member
+            </p>)
+    }
+    }
+</div>);
 }
 
 const UserRole = enum { admin, member };

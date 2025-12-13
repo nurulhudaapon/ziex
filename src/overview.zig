@@ -7,6 +7,11 @@ return _zx.zx(
     .main,
     .{
         .allocator = allocator,
+        .attributes = &.{
+            .{ .name = "id", .value = "test" },
+            .{ .name = "class", .value = "test" },
+            .{ .name = "checked", .value = "" },
+        },
         .children = &.{
             _zx.zx(
                 .section,
@@ -20,10 +25,67 @@ return _zx.zx(
                                 },
                             },
                         ) else _zx.zx(
-                            .h1,
+                            .div,
                             .{
                                 .children = &.{
-                                    _zx.txt("Loaded"),
+                                    _zx.zx(
+                                        .div,
+                                        .{
+                                            .children = &.{
+                                                _zx.zx(
+                                                    .div,
+                                                    .{
+                                                        .children = &.{
+                                                            _zx.zx(
+                                                                .div,
+                                                                .{
+                                                                    .children = &.{
+                                                                        _zx.zx(
+                                                                            .h1,
+                                                                            .{
+                                                                                .attributes = &.{
+                                                                                    .{ .name = "title", .value = "Hello, ZX Dev!" },
+                                                                                    .{ .name = "class", .value = "text-2xl font-bold" },
+                                                                                    .{ .name = "style", .value = "color: red;" },
+                                                                                },
+                                                                                .children = &.{
+                                                                                    _zx.txt("Hello, ZX Dev!"),
+                                                                                },
+                                                                            },
+                                                                        ),
+                                                                        _zx.zx(
+                                                                            .p,
+                                                                            .{
+                                                                                .children = &.{
+                                                                                    _zx.txt("Hello, ZX Dev!"),
+                                                                                },
+                                                                            },
+                                                                        ),
+                                                                        _zx.zx(
+                                                                            .p,
+                                                                            .{
+                                                                                .children = &.{
+                                                                                    _zx.txt("Hello, ZX Dev!"),
+                                                                                },
+                                                                            },
+                                                                        ),
+                                                                        _zx.zx(
+                                                                            .p,
+                                                                            .{
+                                                                                .children = &.{
+                                                                                    _zx.txt("Hello, ZX Dev!"),
+                                                                                },
+                                                                            },
+                                                                        ),
+                                                                    },
+                                                                },
+                                                            ),
+                                                        },
+                                                    },
+                                                ),
+                                            },
+                                        },
+                                    ),
                                 },
                             },
                         ),
@@ -36,12 +98,69 @@ return _zx.zx(
                     .children = &.{
                         blk: {
                             const __zx_children = _zx.getAllocator().alloc(zx.Component, chars.len) catch unreachable;
-                            for (chars, 0..) |char, _zx_i| {
+                            for (chars, 0..) |    char   , _zx_i| {
                                 __zx_children[_zx_i] = _zx.zx(
-                                    .span,
+                                    .div,
                                     .{
                                         .children = &.{
-                                            _zx.fmt("{c}", .{char}),
+                                            _zx.zx(
+                                                .div,
+                                                .{
+                                                    .children = &.{
+                                                        _zx.zx(
+                                                            .div,
+                                                            .{
+                                                                .children = &.{
+                                                                    _zx.zx(
+                                                                        .div,
+                                                                        .{
+                                                                            .children = &.{
+                                                                                _zx.zx(
+                                                                                    .h1,
+                                                                                    .{
+                                                                                        .attributes = &.{
+                                                                                            .{ .name = "title", .value = "Hello, ZX Dev!" },
+                                                                                            .{ .name = "class", .value = "text-2xl font-bold" },
+                                                                                            .{ .name = "style", .value = "color: red;" },
+                                                                                        },
+                                                                                        .children = &.{
+                                                                                            _zx.txt("Hello, ZX Dev!"),
+                                                                                        },
+                                                                                    },
+                                                                                ),
+                                                                                _zx.zx(
+                                                                                    .p,
+                                                                                    .{
+                                                                                        .children = &.{
+                                                                                            _zx.txt("Hello, ZX Dev!"),
+                                                                                        },
+                                                                                    },
+                                                                                ),
+                                                                                _zx.zx(
+                                                                                    .p,
+                                                                                    .{
+                                                                                        .children = &.{
+                                                                                            _zx.txt("Hello, ZX Dev!"),
+                                                                                        },
+                                                                                    },
+                                                                                ),
+                                                                                _zx.zx(
+                                                                                    .p,
+                                                                                    .{
+                                                                                        .children = &.{
+                                                                                            _zx.txt("Hello, ZX Dev!"),
+                                                                                        },
+                                                                                    },
+                                                                                ),
+                                                                            },
+                                                                        },
+                                                                    ),
+                                                                },
+                                                            },
+                                                        ),
+                                                    },
+                                                },
+                                            ),
                                         },
                                     },
                                 );

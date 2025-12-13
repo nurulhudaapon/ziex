@@ -34,7 +34,7 @@ pub fn main() !void {
     defer rendered_zx.deinit(allocator);
     std.debug.print("Rendered ZX: {s}\n", .{rendered_zx.output});
 
-    const source_map_json = try rendered_zx.source_map.?.toJSON(allocator, "overview.zx");
+    const source_map_json = try rendered_zx.source_map.?.toJSON(allocator, "overview.zig", "overview.zx", code, rendered_zx.output);
     defer allocator.free(source_map_json);
     std.debug.print("Sourcemap: {s}\n", .{source_map_json});
 

@@ -17,15 +17,39 @@ pub const SourceMap = struct {
     }
 
     /// Convert source map to JSON format
-    pub fn toJSON(self: SourceMap, allocator: std.mem.Allocator, source_file: []const u8) ![]const u8 {
+    /// generated_file: name of the generated file (e.g., "output.zig")
+    /// source_file: name of the source file (e.g., "input.zx")
+    /// source_content: original source content
+    /// generated_content: optional generated content (for standalone sourcemaps)
+    pub fn toJSON(
+        self: SourceMap,
+        allocator: std.mem.Allocator,
+        generated_file: []const u8,
+        source_file: []const u8,
+        source_content: []const u8,
+        generated_content: ?[]const u8,
+    ) ![]const u8 {
         var json = std.array_list.Managed(u8).init(allocator);
         errdefer json.deinit();
 
         const writer = json.writer();
-        try writer.writeAll("{\"version\":3,\"sources\":[\"");
-        try writer.writeAll(source_file);
-        try writer.writeAll("\"],\"mappings\":\"");
-        try writer.writeAll(self.mappings);
+        try writer.writeAll("{\"version\":3,\"file\":\"");
+        try escapeJSONString(writer, generated_file);
+        try writer.writeAll("\",\"sources\":[\"");
+        try escapeJSONString(writer, source_file);
+        try writer.writeAll("\"],\"sourcesContent\":[\"");
+        try escapeJSONString(writer, source_content);
+        try writer.writeAll("\"]");
+        
+        // Optionally include generated content (not standard but some tools support it)
+        if (generated_content) |gen_content| {
+            try writer.writeAll(",\"x_generatedContent\":\"");
+            try escapeJSONString(writer, gen_content);
+            try writer.writeAll("\"");
+        }
+        
+        try writer.writeAll(",\"mappings\":\"");
+        try escapeJSONString(writer, self.mappings);
         try writer.writeAll("\"}");
 
         return json.toOwnedSlice();
@@ -92,6 +116,32 @@ pub const Builder = struct {
         };
     }
 };
+
+/// Escape a string for JSON output
+fn escapeJSONString(writer: anytype, s: []const u8) !void {
+    for (s) |byte| {
+        switch (byte) {
+            '"' => try writer.writeAll("\\\""),
+            '\\' => try writer.writeAll("\\\\"),
+            '\n' => try writer.writeAll("\\n"),
+            '\r' => try writer.writeAll("\\r"),
+            '\t' => try writer.writeAll("\\t"),
+            '\x08' => try writer.writeAll("\\b"),
+            '\x0c' => try writer.writeAll("\\f"),
+            else => {
+                // Control characters (0x00-0x1f) that aren't already handled
+                if (byte < 0x20) {
+                    const hex_digits = "0123456789abcdef";
+                    try writer.writeAll("\\u00");
+                    try writer.writeByte(hex_digits[(byte >> 4) & 0xf]);
+                    try writer.writeByte(hex_digits[byte & 0xf]);
+                } else {
+                    try writer.writeByte(byte);
+                }
+            },
+        }
+    }
+}
 
 /// Encode an integer value as VLQ (Variable-Length Quantity) base64
 fn encodeVLQ(list: *std.array_list.Managed(u8), value: i32) !void {

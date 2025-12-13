@@ -3,7 +3,10 @@ pub fn QuickExample(allocator: zx.Allocator) zx.Component {
     const chars = "Hello, ZX Dev!";
 
     return (
-        <main @allocator={allocator}>
+        <main @allocator={allocator} id="test"          class="test" 
+        
+        
+        checked  >
                                     <section>
                         {if        
                         
@@ -20,11 +23,54 @@ pub fn QuickExample(allocator: zx.Allocator) zx.Component {
                           
                           
                           
-                           (<h1>Loading...</h1>) else (<h1>Loaded</h1>)}
+                           (<h1>Loading...</h1>) else (<div>
+                <div>
+                    <div>
+                        <div>
+                            <h1 title="Hello, ZX Dev!" class="text-2xl font-bold" style="color: red;">
+                                Hello, ZX Dev!
+                            </h1>
+                            <p>
+                                Hello, ZX Dev!
+                            </p>
+                            <p>
+                                Hello, ZX Dev!
+                            </p>
+                            <p>
+                                Hello, ZX Dev!
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>)}
                      </section>
         
                       <section>
-                         {for      (chars) |char| (<span>{[char:c]}</span>)}
+                         {for    
+                         
+                         
+                           (
+                            
+                            chars    ) |    char   | (    <div>
+                <div>
+                    <div>
+                        <div>
+                            <h1 title="Hello, ZX Dev!" class="text-2xl font-bold" style="color: red;">
+                                Hello, ZX Dev!
+                            </h1>
+                            <p>
+                                Hello, ZX Dev!
+                            </p>
+                            <p>
+                                Hello, ZX Dev!
+                            </p>
+                            <p>
+                                Hello, ZX Dev!
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>)}
             </section>
         
             <section>
@@ -48,13 +94,13 @@ pub fn QuickExample(allocator: zx.Allocator) zx.Component {
 style="color: red;"
 
 >
-    Hello, ZX Dev!
+Hello, ZX Dev!
 </h1>
 <p>
-    Hello, ZX Dev!
+              Hello, ZX Dev!
 </p>
 <p>
-    Hello, ZX Dev!
+    Hello, ZX Dev!               
 </p>
 <p>
     Hello, ZX Dev!
