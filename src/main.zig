@@ -23,19 +23,30 @@ pub fn main() !void {
     defer root.deinit();
 
     // ----
-    // const parser = zx.Parse;
-    // var tree = try parser.parse(allocator, "pub fn main(    ) !void {}");
-    // defer tree.deinit(allocator);
+    const code = @embedFile("overview.zx");
+    var tree = try zx.Parse.parse(allocator, code);
+    defer tree.deinit(allocator);
 
-    // const root_node = tree.tree.rootNode();
-    // std.debug.print("Root node: {s}\n", .{root_node.kind()});
+    const root_node = tree.tree.rootNode();
+    std.debug.print("Root node: {s}\n", .{root_node.kind()});
 
-    // const rendered_zx = try tree.renderAlloc(allocator, .zx);
-    // defer allocator.free(rendered_zx);
-    // std.debug.print("Rendered ZX: {s}\n", .{rendered_zx});
+    var rendered_zx = try tree.renderAllocWithSourceMap(allocator, .zig, true);
+    defer rendered_zx.deinit(allocator);
+    std.debug.print("Rendered ZX: {s}\n", .{rendered_zx.output});
 
-    // const res = url.URL.parse("https://www.google.com");
-    // std.debug.print("URL: {s}\n", .{res.href});
+    const source_map_json = try rendered_zx.source_map.?.toJSON(allocator, "overview.zx");
+    defer allocator.free(source_map_json);
+    std.debug.print("Sourcemap: {s}\n", .{source_map_json});
+
+    try std.fs.cwd().writeFile(.{
+        .sub_path = "src/overview.zig",
+        .data = rendered_zx.output,
+    });
+
+    try std.fs.cwd().writeFile(.{
+        .sub_path = "src/overview.zx.map.json",
+        .data = source_map_json,
+    });
     // ----
 
     try root.execute(.{});
