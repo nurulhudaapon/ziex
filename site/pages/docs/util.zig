@@ -152,17 +152,15 @@ pub fn extractZigReturnContent(allocator: zx.Allocator, content: []const u8) []c
 const zx = @import("zx");
 const std = @import("std");
 const builtin = @import("builtin");
-
-// Syntax highlighting with tree-sitter
+const ts = @import("tree_sitter");
 const hl_query = @embedFile("../highlights.scm");
+const ts_zx = @import("tree_sitter_zx");
 
 // Cache for tree-sitter objects to avoid recreating them on every call
 const HighlightCache = struct {
-    const ts_import = @import("tree_sitter");
-
-    parser: *ts_import.Parser,
-    language: *const ts_import.Language,
-    query: *ts_import.Query,
+    parser: *ts.Parser,
+    language: *const ts.Language,
+    query: *ts.Query,
     mutex: std.Thread.Mutex = .{},
 
     var instance: ?*HighlightCache = null;
@@ -170,15 +168,11 @@ const HighlightCache = struct {
     fn getOrInit(allocator: std.mem.Allocator) !*HighlightCache {
         if (instance) |cache| return cache;
 
-        // Create new cache
-        const tree_sitter_zx = @import("tree_sitter_zx");
-        const ts_local = @import("tree_sitter");
-
-        const parser = ts_local.Parser.create();
-        const lang: *const ts_local.Language = @ptrCast(tree_sitter_zx.language());
+        const parser = ts.Parser.create();
+        const lang: *const ts.Language = @ptrCast(ts_zx.language());
 
         var error_offset: u32 = 0;
-        const query = ts_local.Query.create(@ptrCast(lang), hl_query, &error_offset) catch |err| {
+        const query = ts.Query.create(@ptrCast(lang), hl_query, &error_offset) catch |err| {
             std.debug.print("Query error at offset {d}: {}\n", .{ error_offset, err });
             parser.destroy();
             lang.destroy();
@@ -204,7 +198,6 @@ pub fn highlightZx(allocator: std.mem.Allocator, source: []const u8) ![]u8 {
     if (builtin.os.tag == .freestanding) return try allocator.dupe(u8, source);
 
     var total_timer = try std.time.Timer.start();
-    const ts = @import("tree_sitter");
 
     // Get cached objects (first call initializes, subsequent calls reuse)
     var timer = try std.time.Timer.start();
@@ -225,7 +218,6 @@ pub fn highlightZx(allocator: std.mem.Allocator, source: []const u8) ![]u8 {
     defer cursor.destroy();
     cursor.exec(cache.query, tree.rootNode());
     logTiming("Query execution", timer.lap());
-
     timer.reset();
     var out = std.array_list.Managed(u8).init(allocator);
     errdefer out.deinit();
@@ -273,6 +265,16 @@ pub fn highlightZx(allocator: std.mem.Allocator, source: []const u8) ![]u8 {
     const total_elapsed = total_timer.read();
     logTiming("TOTAL highlightZx", total_elapsed);
 
+    // var aw = std.Io.Writer.Allocating.init(allocator);
+    // try tree.rootNode().format(&aw.writer);
+    // return aw.written();
+    //
+    // var walker = tree.walk();
+    // while (true) {
+    //     const node = walker.node();
+    //     std.log.info("{s}", .{node.kind()});
+    //     if (node.desce() == null) break;
+    // }
     return result;
 }
 

@@ -22,6 +22,22 @@ pub fn main() !void {
     const root = try cli.build(stdout, stdin, allocator);
     defer root.deinit();
 
+    // ----
+    // const parser = zx.Parse;
+    // var tree = try parser.parse(allocator, "pub fn main(    ) !void {}");
+    // defer tree.deinit(allocator);
+
+    // const root_node = tree.tree.rootNode();
+    // std.debug.print("Root node: {s}\n", .{root_node.kind()});
+
+    // const rendered_zx = try tree.renderAlloc(allocator, .zx);
+    // defer allocator.free(rendered_zx);
+    // std.debug.print("Rendered ZX: {s}\n", .{rendered_zx});
+
+    // const res = url.URL.parse("https://www.google.com");
+    // std.debug.print("URL: {s}\n", .{res.href});
+    // ----
+
     try root.execute(.{});
 
     try stdout.flush();
@@ -30,6 +46,7 @@ pub fn main() !void {
 const std = @import("std");
 const cli = @import("cli/root.zig");
 const builtin = @import("builtin");
+const zx = @import("zx");
 
 pub const std_options = std.Options{
     .log_scope_levels = &[_]std.log.ScopeLevel{

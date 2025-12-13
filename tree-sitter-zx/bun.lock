@@ -5,14 +5,13 @@
     "": {
       "name": "tree-sitter-zx",
       "dependencies": {
-        "node-addon-api": "^8.5.0",
-        "node-gyp-build": "^4.8.4",
-        "tree-sitter-zig": "github:tree-sitter-grammars/tree-sitter-zig",
+        "node-addon-api": "latest",
+        "node-gyp-build": "latest",
       },
       "devDependencies": {
-        "prebuildify": "^6.0.1",
-        "tree-sitter": "^0.25.0",
-        "tree-sitter-cli": "^0.25.10",
+        "prebuildify": "latest",
+        "tree-sitter": "latest",
+        "tree-sitter-zig": "github:tree-sitter-grammars/tree-sitter-zig",
       },
     },
   },
@@ -69,8 +68,6 @@
     "tar-stream": ["tar-stream@2.2.0", "", { "dependencies": { "bl": "^4.0.3", "end-of-stream": "^1.4.1", "fs-constants": "^1.0.0", "inherits": "^2.0.3", "readable-stream": "^3.1.1" } }, "sha512-ujeqbceABgwMZxEJnk2HDY2DlnUZ+9oEcb1KzTVfYHio0UE6dG71n60d8D2I4qNvleWrrXpmjpt7vZeF1LnMZQ=="],
 
     "tree-sitter": ["tree-sitter@0.25.0", "", { "dependencies": { "node-addon-api": "^8.3.0", "node-gyp-build": "^4.8.4" } }, "sha512-PGZZzFW63eElZJDe/b/R/LbsjDDYJa5UEjLZJB59RQsMX+fo0j54fqBPn1MGKav/QNa0JR0zBiVaikYDWCj5KQ=="],
-
-    "tree-sitter-cli": ["tree-sitter-cli@0.25.10", "", { "bin": { "tree-sitter": "cli.js" } }, "sha512-KoebQguKMCIghisEOdA372TIbrUl0kdnfZ9YQIBRAeOvNSKe85XbU4LuFW7hduRUwJj0rAG7pX5wo9sZhbBF1g=="],
 
     "tree-sitter-zig": ["tree-sitter-zig@github:tree-sitter-grammars/tree-sitter-zig#6479aa1", { "dependencies": { "node-addon-api": "^8.5.0", "node-gyp-build": "^4.8.4" }, "peerDependencies": { "tree-sitter": "^0.22.4" }, "optionalPeers": ["tree-sitter"] }, "tree-sitter-grammars-tree-sitter-zig-6479aa1"],
 
