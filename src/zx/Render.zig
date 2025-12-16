@@ -28,7 +28,7 @@ pub const ExtractZxBlockResult = struct {
 };
 
 /// Extract zx_block content and replace with placeholders for Zig formatting
-pub fn extractZxBlocks(allocator: std.mem.Allocator, ast: *Ast) !ExtractZxBlockResult {
+pub fn extractBlocks(allocator: std.mem.Allocator, ast: *Ast) !ExtractZxBlockResult {
     var zx_blocks = std.ArrayList([]const u8){};
     defer zx_blocks.deinit(allocator);
 
@@ -36,7 +36,7 @@ pub fn extractZxBlocks(allocator: std.mem.Allocator, ast: *Ast) !ExtractZxBlockR
     defer cleaned_source.deinit(allocator);
 
     const root = ast.tree.rootNode();
-    try extractZxBlocksRecursive(ast, root, &zx_blocks, &cleaned_source, allocator);
+    try extractBlocksInner(ast, root, &zx_blocks, &cleaned_source, allocator);
 
     try cleaned_source.append(allocator, 0);
     const cleaned = try allocator.dupeZ(u8, cleaned_source.items[0 .. cleaned_source.items.len - 1]);
@@ -47,7 +47,7 @@ pub fn extractZxBlocks(allocator: std.mem.Allocator, ast: *Ast) !ExtractZxBlockR
     };
 }
 
-fn extractZxBlocksRecursive(
+fn extractBlocksInner(
     ast: *Ast,
     node: ts.Node,
     zx_blocks: *std.ArrayList([]const u8),
@@ -95,7 +95,7 @@ fn extractZxBlocksRecursive(
         }
 
         // Process child
-        try extractZxBlocksRecursive(ast, child, zx_blocks, cleaned_source, allocator);
+        try extractBlocksInner(ast, child, zx_blocks, cleaned_source, allocator);
         current_pos = child_end;
     }
 
@@ -105,7 +105,7 @@ fn extractZxBlocksRecursive(
     }
 }
 
-fn parseZxBlockPlaceholder(source: []const u8, start: usize) struct { index: usize, end: usize } {
+fn parseBlockPlaceholder(source: []const u8, start: usize) struct { index: usize, end: usize } {
     var i = start;
     if (i + 11 >= source.len or !std.mem.startsWith(u8, source[i..], "__ZX_BLOCK_")) {
         return .{ .index = 0, .end = start };
@@ -139,7 +139,7 @@ fn parseZxBlockPlaceholder(source: []const u8, start: usize) struct { index: usi
 }
 
 /// Replace __ZX_BLOCK_n__ placeholders with formatted zx_block content
-pub fn patchInZxBlocks(allocator: std.mem.Allocator, extract_result: ExtractZxBlockResult) ![:0]const u8 {
+pub fn patchInBlocks(allocator: std.mem.Allocator, extract_result: ExtractZxBlockResult) ![:0]const u8 {
     var result = std.ArrayList(u8){};
     defer result.deinit(allocator);
 
@@ -148,7 +148,7 @@ pub fn patchInZxBlocks(allocator: std.mem.Allocator, extract_result: ExtractZxBl
         if (i + 12 < extract_result.zig_source.len and
             std.mem.startsWith(u8, extract_result.zig_source[i..], "__ZX_BLOCK_"))
         {
-            const parsed = parseZxBlockPlaceholder(extract_result.zig_source, i);
+            const parsed = parseBlockPlaceholder(extract_result.zig_source, i);
             if (parsed.end > i and parsed.index < extract_result.zx_blocks.len) {
                 const zx_block = extract_result.zx_blocks[parsed.index];
 
@@ -216,7 +216,7 @@ pub fn renderNode(self: *Ast, node: ts.Node, w: *std.io.Writer) !void {
         const allocator = self.allocator;
 
         // First extract zx_blocks and replace with placeholders
-        var extract_result = try extractZxBlocks(allocator, self);
+        var extract_result = try extractBlocks(allocator, self);
         defer extract_result.deinit(allocator);
 
         // Format the Zig code with placeholders
@@ -238,7 +238,7 @@ pub fn renderNode(self: *Ast, node: ts.Node, w: *std.io.Writer) !void {
         extract_result.zig_source = try allocator.dupeZ(u8, formatted_zig);
 
         // Patch in formatted zx_blocks
-        const final_result = try patchInZxBlocks(allocator, extract_result);
+        const final_result = try patchInBlocks(allocator, extract_result);
         defer allocator.free(final_result);
 
         try w.writeAll(final_result);
