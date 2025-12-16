@@ -1,42 +1,5 @@
 const std = @import("std");
-
-/// Options for initializing a ZX project
-pub const ZxInitOptions = struct {
-    const CliOptions = struct {
-        const Steps = struct {
-            serve: []const u8 = "serve",
-            dev: ?[]const u8 = null,
-            @"export": ?[]const u8 = null,
-            bundle: ?[]const u8 = null,
-        };
-        /// Path to the ZX CLI executable, if null then the ZX CLI will be used from source of ZX dependency
-        /// If you want to use the ZX CLI from the system path, you can set the path to `zx`
-        path: ?[]const u8 = null,
-
-        steps: ?Steps = .{
-            .serve = "serve",
-        },
-    };
-
-    const SiteOptions = struct {
-        /// Path to the ZX site, by default it is `site`
-        path: []const u8,
-    };
-
-    const ExperimentalOptions = struct {
-        /// Enabled Client Side Rendering (CSR)
-        enabled_csr: bool = false,
-    };
-
-    // It is recommended to use the default options, but you can override them if you want to
-    site: ?SiteOptions = null,
-
-    /// Options for the ZX CLI
-    cli: ?CliOptions = null,
-
-    /// Experimental options, if null then the experimental options will be used from the source of ZX dependency
-    experimental: ?ExperimentalOptions = null,
-};
+pub const ZxInitOptions = @import("init/ZxInitOptions.zig").ZxInitOptions;
 
 const default_inner_opts: InitInnerOptions = .{
     .site_path = "site",
@@ -87,6 +50,7 @@ const InitInnerOptions = struct {
     steps: ZxInitOptions.CliOptions.Steps = .{
         .serve = "serve",
     },
+    plugins: []const ZxInitOptions.PluginOptions = &.{},
 
     experimental_enabled_csr: bool = false,
 };
@@ -225,5 +189,42 @@ pub fn initInner(
         const bundle_step = b.step(bundle_step_name, "Bundle the Zx website");
         bundle_step.dependOn(&bundle_cmd.step);
         if (b.args) |args| bundle_cmd.addArgs(args);
+    }
+
+    // --- Plugins --- //
+    for (opts.plugins) |plugin| {
+        for (plugin.steps) |step| {
+            switch (step) {
+                .command => |command| {
+                    if (command.args.len == 0) @panic("Command must have at least one argument");
+                    const main_arg = command.args[0];
+                    const args = command.args[1..];
+                    const sys_cmd = b.addSystemCommand(&.{main_arg});
+
+                    for (args) |arg| {
+                        const outdir_placeholder = "{outdir}";
+                        if (std.mem.startsWith(u8, arg, outdir_placeholder)) {
+                            const outdir_path = if (outdir_placeholder.len == arg.len)
+                                ""
+                            else
+                                arg[(outdir_placeholder.len + 1)..];
+
+                            std.debug.print("Outdir path: {s}\n", .{transpile_outdir.path(b, outdir_path).getPath(b)});
+                            sys_cmd.addFileArg(transpile_outdir.path(b, outdir_path));
+                        } else {
+                            sys_cmd.addArg(arg);
+                        }
+                    }
+                    switch (command.type) {
+                        .before_transpile => {
+                            sys_cmd.step.dependOn(&transpile_cmd.step);
+                        },
+                        .after_transpile => {
+                            transpile_cmd.step.dependOn(&sys_cmd.step);
+                        },
+                    }
+                },
+            }
+        }
     }
 }

@@ -7,6 +7,11 @@ const buildlib = @import("src/build/main.zig");
 /// Initialize a ZX project (sets up ZX, dependencies, executables, wasm executable and `serve` step)
 pub const init = buildlib.initlib.init;
 
+/// Default plugins
+/// #### Available plugins
+/// - tailwind: Tailwind CSS plugin
+pub const plugins = buildlib.plugins;
+
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -85,12 +90,8 @@ pub fn build(b: *std.Build) !void {
                 .site_outdir = "site/.zx",
                 .site_path = "site",
                 .experimental_enabled_csr = true,
-                .steps = .{
-                    .serve = "serve",
-                    .dev = "dev",
-                    .@"export" = "export",
-                    .bundle = "bundle",
-                },
+                .steps = .{ .serve = "serve", .dev = "dev", .@"export" = "export", .bundle = "bundle" },
+                .plugins = &.{plugins.tailwind(.{})},
             });
         }
     }
