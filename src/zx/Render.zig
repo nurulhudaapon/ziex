@@ -1,25 +1,251 @@
 const std = @import("std");
 const ts = @import("tree_sitter");
 const Parse = @import("Parse.zig");
-
+const log = std.log.scoped(.@"zx/render");
 const Ast = Parse.Ast;
 const NodeKind = Parse.NodeKind;
 
 pub const FormatContext = struct {
     indent_level: u32 = 0,
     in_zx_block: bool = false,
-    last_was_newline: bool = false,
 
     fn writeIndent(self: *FormatContext, w: *std.io.Writer) !void {
-        const spaces = self.indent_level * 4;
-        var i: u32 = 0;
-        while (i < spaces) : (i += 1) try w.writeAll(" ");
-
-        self.last_was_newline = false;
+        for (0..self.indent_level * 4) |_| try w.writeAll(" ");
     }
 };
 
+pub const ExtractZxBlockResult = struct {
+    zx_blocks: []const []const u8,
+    zig_source: [:0]const u8,
+
+    pub fn deinit(self: *ExtractZxBlockResult, allocator: std.mem.Allocator) void {
+        for (self.zx_blocks) |block| {
+            allocator.free(block);
+        }
+        allocator.free(self.zx_blocks);
+        allocator.free(self.zig_source);
+    }
+};
+
+/// Extract zx_block content and replace with placeholders for Zig formatting
+pub fn extractZxBlocks(allocator: std.mem.Allocator, ast: *Ast) !ExtractZxBlockResult {
+    var zx_blocks = std.ArrayList([]const u8){};
+    defer zx_blocks.deinit(allocator);
+
+    var cleaned_source = std.ArrayList(u8){};
+    defer cleaned_source.deinit(allocator);
+
+    const root = ast.tree.rootNode();
+    try extractZxBlocksRecursive(ast, root, &zx_blocks, &cleaned_source, allocator);
+
+    try cleaned_source.append(allocator, 0);
+    const cleaned = try allocator.dupeZ(u8, cleaned_source.items[0 .. cleaned_source.items.len - 1]);
+
+    return ExtractZxBlockResult{
+        .zx_blocks = try zx_blocks.toOwnedSlice(allocator),
+        .zig_source = cleaned,
+    };
+}
+
+fn extractZxBlocksRecursive(
+    ast: *Ast,
+    node: ts.Node,
+    zx_blocks: *std.ArrayList([]const u8),
+    cleaned_source: *std.ArrayList(u8),
+    allocator: std.mem.Allocator,
+) !void {
+    const start_byte = node.startByte();
+    const end_byte = node.endByte();
+    const node_kind = NodeKind.fromNode(node);
+
+    // If this is a zx_block, extract it and replace with placeholder
+    if (node_kind == .zx_block) {
+        const block_text = ast.source[start_byte..end_byte];
+        const block_copy = try allocator.dupe(u8, block_text);
+        try zx_blocks.append(allocator, block_copy);
+
+        // Use a valid Zig identifier as placeholder
+        const placeholder = try std.fmt.allocPrint(allocator, "__ZX_BLOCK_{d}__", .{zx_blocks.items.len - 1});
+        defer allocator.free(placeholder);
+        try cleaned_source.appendSlice(allocator, placeholder);
+        return;
+    }
+
+    // For other nodes, recursively process children
+    const child_count = node.childCount();
+    if (child_count == 0) {
+        // Leaf node - copy source text
+        if (start_byte < end_byte and end_byte <= ast.source.len) {
+            try cleaned_source.appendSlice(allocator, ast.source[start_byte..end_byte]);
+        }
+        return;
+    }
+
+    // Process children with gaps
+    var current_pos = start_byte;
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        const child_start = child.startByte();
+        const child_end = child.endByte();
+
+        // Copy gap before child
+        if (current_pos < child_start and child_start <= ast.source.len) {
+            try cleaned_source.appendSlice(allocator, ast.source[current_pos..child_start]);
+        }
+
+        // Process child
+        try extractZxBlocksRecursive(ast, child, zx_blocks, cleaned_source, allocator);
+        current_pos = child_end;
+    }
+
+    // Copy remaining gap after last child
+    if (current_pos < end_byte and end_byte <= ast.source.len) {
+        try cleaned_source.appendSlice(allocator, ast.source[current_pos..end_byte]);
+    }
+}
+
+fn parseZxBlockPlaceholder(source: []const u8, start: usize) struct { index: usize, end: usize } {
+    var i = start;
+    if (i + 11 >= source.len or !std.mem.startsWith(u8, source[i..], "__ZX_BLOCK_")) {
+        return .{ .index = 0, .end = start };
+    }
+
+    i += 11; // skip "__ZX_BLOCK_"
+
+    // Parse number
+    const num_start = i;
+    while (i < source.len and std.ascii.isDigit(source[i])) {
+        i += 1;
+    }
+
+    if (i == num_start) {
+        return .{ .index = 0, .end = start };
+    }
+
+    const num_str = source[num_start..i];
+    const block_index = std.fmt.parseInt(usize, num_str, 10) catch {
+        return .{ .index = 0, .end = start };
+    };
+
+    // Expect closing "__"
+    if (i + 2 > source.len or !std.mem.eql(u8, source[i .. i + 2], "__")) {
+        return .{ .index = 0, .end = start };
+    }
+
+    i += 2; // skip "__"
+
+    return .{ .index = block_index, .end = i };
+}
+
+/// Replace __ZX_BLOCK_n__ placeholders with formatted zx_block content
+pub fn patchInZxBlocks(allocator: std.mem.Allocator, extract_result: ExtractZxBlockResult) ![:0]const u8 {
+    var result = std.ArrayList(u8){};
+    defer result.deinit(allocator);
+
+    var i: usize = 0;
+    while (i < extract_result.zig_source.len) {
+        if (i + 12 < extract_result.zig_source.len and
+            std.mem.startsWith(u8, extract_result.zig_source[i..], "__ZX_BLOCK_"))
+        {
+            const parsed = parseZxBlockPlaceholder(extract_result.zig_source, i);
+            if (parsed.end > i and parsed.index < extract_result.zx_blocks.len) {
+                const zx_block = extract_result.zx_blocks[parsed.index];
+
+                // Calculate the indentation level where the placeholder appears
+                const base_indent = getIndentationLevel(extract_result.zig_source, i);
+
+                // Format the zx_block using the tree-sitter renderer
+                var block_ast = try Parse.parse(allocator, zx_block);
+                defer block_ast.deinit(allocator);
+
+                var block_writer = std.io.Writer.Allocating.init(allocator);
+                defer block_writer.deinit();
+                const root = block_ast.tree.rootNode();
+                var ctx = FormatContext{};
+                ctx.indent_level = base_indent;
+                try renderNodeWithContext(&block_ast, root, &block_writer.writer, &ctx);
+                const formatted_block = block_writer.written();
+
+                try result.appendSlice(allocator, formatted_block);
+                i = parsed.end;
+                continue;
+            }
+        }
+
+        try result.append(allocator, extract_result.zig_source[i]);
+        i += 1;
+    }
+
+    try result.append(allocator, 0);
+    const result_slice = result.items[0 .. result.items.len - 1 :0];
+    return try allocator.dupeZ(u8, result_slice);
+}
+
+fn getIndentationLevel(source: []const u8, pos: usize) u32 {
+    // Find the start of the line containing pos
+    var line_start = pos;
+    while (line_start > 0 and source[line_start - 1] != '\n') {
+        line_start -= 1;
+    }
+
+    // Count leading spaces/tabs
+    var spaces: u32 = 0;
+    var idx = line_start;
+    while (idx < pos and idx < source.len) {
+        if (source[idx] == ' ') {
+            spaces += 1;
+        } else if (source[idx] == '\t') {
+            spaces += 4;
+        } else {
+            break;
+        }
+        idx += 1;
+    }
+
+    return spaces / 4;
+}
+
 pub fn renderNode(self: *Ast, node: ts.Node, w: *std.io.Writer) !void {
+    // Check if this is the root node - if so, do extraction/Zig formatting/patching
+    const root = self.tree.rootNode();
+    const is_root = node.startByte() == root.startByte() and
+        node.endByte() == root.endByte();
+
+    if (is_root) {
+        const allocator = self.allocator;
+
+        // First extract zx_blocks and replace with placeholders
+        var extract_result = try extractZxBlocks(allocator, self);
+        defer extract_result.deinit(allocator);
+
+        // Format the Zig code with placeholders
+        var zig_ast = try std.zig.Ast.parse(allocator, extract_result.zig_source, .zig);
+        defer zig_ast.deinit(allocator);
+
+        if (zig_ast.errors.len > 0) {
+            // If Zig parsing fails, fall back to direct rendering
+            var ctx = FormatContext{};
+            try renderNodeWithContext(self, node, w, &ctx);
+            return;
+        }
+
+        const formatted_zig = try zig_ast.renderAlloc(allocator);
+        defer allocator.free(formatted_zig);
+
+        // Free old zig_source and replace with formatted
+        allocator.free(extract_result.zig_source);
+        extract_result.zig_source = try allocator.dupeZ(u8, formatted_zig);
+
+        // Patch in formatted zx_blocks
+        const final_result = try patchInZxBlocks(allocator, extract_result);
+        defer allocator.free(final_result);
+
+        try w.writeAll(final_result);
+        return;
+    }
+
+    // For non-root nodes, render directly
     var ctx = FormatContext{};
     try renderNodeWithContext(self, node, w, &ctx);
 }
@@ -30,9 +256,6 @@ pub fn renderNodeWithContext(
     w: *std.io.Writer,
     ctx: *FormatContext,
 ) anyerror!void {
-    const start_byte = node.startByte();
-    const end_byte = node.endByte();
-    const child_count = node.childCount();
     const node_kind = NodeKind.fromNode(node);
 
     // Track if we're entering a zx_block
@@ -46,31 +269,7 @@ pub fn renderNodeWithContext(
 
     // If not in zx_block, render Zig code as-is
     if (!ctx.in_zx_block) {
-        if (child_count == 0) {
-            if (start_byte < end_byte and end_byte <= self.source.len) {
-                try w.writeAll(self.source[start_byte..end_byte]);
-            }
-            return;
-        }
-
-        var current_pos = start_byte;
-        var i: u32 = 0;
-        while (i < child_count) : (i += 1) {
-            const child = node.child(i) orelse continue;
-            const child_start = child.startByte();
-            const child_end = child.endByte();
-
-            if (current_pos < child_start and child_start <= self.source.len) {
-                try w.writeAll(self.source[current_pos..child_start]);
-            }
-
-            try renderNodeWithContext(self, child, w, ctx);
-            current_pos = child_end;
-        }
-
-        if (current_pos < end_byte and end_byte <= self.source.len) {
-            try w.writeAll(self.source[current_pos..end_byte]);
-        }
+        try renderSourceWithChildren(self, node, w, ctx);
         return;
     }
 
@@ -78,45 +277,49 @@ pub fn renderNodeWithContext(
     if (node_kind) |kind| {
         switch (kind) {
             .zx_block => {
-                try renderBlock(self, node, w, ctx);
-                return;
+                try renderZxBlock(self, node, w, ctx);
             },
             .zx_element => {
                 try renderElement(self, node, w, ctx);
-                return;
             },
             .zx_self_closing_element => {
-                try renderSelfClosing(self, node, w, ctx);
-                return;
+                try renderSelfClosingElement(self, node, w, ctx);
             },
             .zx_start_tag => {
-                try renderStartTag(self, node, w, ctx);
-                return;
+                try renderStartTag(self, node, w);
             },
             .zx_end_tag => {
-                const tag_name = try getTagName(self, node);
-                try w.writeAll("</");
-                try w.writeAll(tag_name);
-                try w.writeAll(">");
-                return;
+                try renderEndTag(self, node, w);
             },
             .zx_text => {
-                try renderText(self, node, w, ctx);
-                return;
+                try renderText(self, node, w);
             },
             .zx_child => {
                 try renderChild(self, node, w, ctx);
-                return;
             },
             .zx_expression_block => {
-                try renderExprBlock(self, node, w, ctx);
-                return;
+                try renderExpressionBlock(self, node, w, ctx);
             },
-            else => {},
+            else => {
+                try renderSourceWithChildren(self, node, w, ctx);
+            },
         }
+    } else {
+        try renderSourceWithChildren(self, node, w, ctx);
     }
+}
 
-    // Default: render children
+/// Render the source text with recursive child handling
+fn renderSourceWithChildren(
+    self: *Ast,
+    node: ts.Node,
+    w: *std.io.Writer,
+    ctx: *FormatContext,
+) !void {
+    const start_byte = node.startByte();
+    const end_byte = node.endByte();
+    const child_count = node.childCount();
+
     if (child_count == 0) {
         if (start_byte < end_byte and end_byte <= self.source.len) {
             try w.writeAll(self.source[start_byte..end_byte]);
@@ -124,417 +327,70 @@ pub fn renderNodeWithContext(
         return;
     }
 
+    var current_pos = start_byte;
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
+        const child_start = child.startByte();
+        const child_end = child.endByte();
+
+        if (current_pos < child_start and child_start <= self.source.len) {
+            try w.writeAll(self.source[current_pos..child_start]);
+        }
+
         try renderNodeWithContext(self, child, w, ctx);
+        current_pos = child_end;
+    }
+
+    if (current_pos < end_byte and end_byte <= self.source.len) {
+        try w.writeAll(self.source[current_pos..end_byte]);
     }
 }
 
-fn renderBlock(
-    self: *Ast,
-    node: ts.Node,
-    w: *std.io.Writer,
-    ctx: *FormatContext,
-) anyerror!void {
-    const child_count = node.childCount();
-    var i: u32 = 0;
-
-    // Process children of zx_block
-    while (i < child_count) : (i += 1) {
-        const child = node.child(i) orelse continue;
-        try renderNodeWithContext(self, child, w, ctx);
+/// Calculate source indentation level at a given byte offset
+fn getSourceIndentLevel(source: []const u8, byte_offset: usize) u32 {
+    // Find the start of the line containing this offset
+    var line_start = byte_offset;
+    while (line_start > 0 and source[line_start - 1] != '\n') {
+        line_start -= 1;
     }
-}
 
-fn renderChild(
-    self: *Ast,
-    node: ts.Node,
-    w: *std.io.Writer,
-    ctx: *FormatContext,
-) anyerror!void {
-    const child_count = node.childCount();
-    if (child_count == 0) return;
-
-    // Check if this child only contains whitespace text - if so, skip it
-    var i: u32 = 0;
-    var has_meaningful_content = false;
-    while (i < child_count) : (i += 1) {
-        const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromNode(child);
-
-        if (child_kind == .zx_text) {
-            const text = try self.getNodeText(child);
-            const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
-            if (trimmed.len > 0) {
-                has_meaningful_content = true;
-                break;
-            }
+    // Count leading spaces
+    var spaces: u32 = 0;
+    var pos = line_start;
+    while (pos < byte_offset and pos < source.len) {
+        if (source[pos] == ' ') {
+            spaces += 1;
+        } else if (source[pos] == '\t') {
+            spaces += 4;
         } else {
-            has_meaningful_content = true;
             break;
         }
+        pos += 1;
     }
 
-    if (!has_meaningful_content) {
-        return;
-    }
-
-    // Check if child should be on new line by looking at preceding whitespace
-    const node_start = node.startByte();
-    var should_newline = false;
-
-    if (node_start > 0 and node_start <= self.source.len) {
-        const check_start = if (node_start > 50) node_start - 50 else 0;
-        const preceding = self.source[check_start..node_start];
-        if (std.mem.indexOf(u8, preceding, "\n") != null) {
-            should_newline = true;
-            // Only add one newline, don't preserve extras from source
-            if (!ctx.last_was_newline) {
-                try w.writeAll("\n");
-                ctx.last_was_newline = true;
-            }
-        }
-    }
-
-    if (should_newline) {
-        try ctx.writeIndent(w);
-        ctx.last_was_newline = false;
-    }
-
-    i = 0;
-    while (i < child_count) : (i += 1) {
-        const child = node.child(i) orelse continue;
-        try renderNodeWithContext(self, child, w, ctx);
-    }
+    return spaces / 4;
 }
 
-fn renderElement(
-    self: *Ast,
-    node: ts.Node,
-    w: *std.io.Writer,
-    ctx: *FormatContext,
-) anyerror!void {
-    const child_count = node.childCount();
-    var i: u32 = 0;
-    var previous_was_expression_block = false;
-
-    // Render all children in order
-    while (i < child_count) : (i += 1) {
-        const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromNode(child);
-
-        if (child_kind == .zx_start_tag) {
-            try renderNodeWithContext(self, child, w, ctx);
-            ctx.indent_level += 1;
-            previous_was_expression_block = false;
-        } else if (child_kind == .zx_end_tag) {
-            if (ctx.indent_level > 0) {
-                ctx.indent_level -= 1;
-            }
-            // Check if end tag should be on new line
-            // Always add newline if previous child was an expression block
-            const child_start = child.startByte();
-            var should_newline = previous_was_expression_block;
-
-            if (!should_newline and child_start > 0 and child_start <= self.source.len) {
-                const check_start = if (child_start > 50) child_start - 50 else 0;
-                const preceding = self.source[check_start..child_start];
-                if (std.mem.indexOf(u8, preceding, "\n") != null) {
-                    should_newline = true;
-                }
-            }
-
-            if (should_newline) {
-                if (!ctx.last_was_newline) {
-                    try w.writeAll("\n");
-                    ctx.last_was_newline = true;
-                }
-                try ctx.writeIndent(w);
-            }
-            try renderNodeWithContext(self, child, w, ctx);
-            previous_was_expression_block = false;
-        } else {
-            // Check if this is an expression block
-            if (child_kind == .zx_expression_block) {
-                previous_was_expression_block = true;
-            } else {
-                previous_was_expression_block = false;
-            }
-            try renderNodeWithContext(self, child, w, ctx);
-        }
-    }
-}
-
-fn renderStartTag(
-    self: *Ast,
-    node: ts.Node,
-    w: *std.io.Writer,
-    ctx: *FormatContext,
-) anyerror!void {
-    // Tag Start: <
-    try w.writeAll("<");
-
-    // Tag Name - <|div|
-    const tag_name_node = node.childByFieldName("name");
-    if (tag_name_node) |name_node| {
-        const tag_name_text = try self.getNodeText(name_node);
-        try w.writeAll(tag_name_text);
-    } else {
-        return error.InvalidNode;
-    }
-
-    // Render all attributes
-    const child_count = node.childCount();
-    var i: u32 = 0;
-    while (i < child_count) : (i += 1) {
-        const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromNode(child);
-
-        if (child_kind == .zx_attribute) {
-            try renderAttr(self, child, w, ctx);
-        }
-    }
-
-    // Tag End: >
-    try w.writeAll(">");
-}
-
-fn renderSelfClosing(
-    self: *Ast,
-    node: ts.Node,
-    w: *std.io.Writer,
-    ctx: *FormatContext,
-) anyerror!void {
-    // Tag Start: <
-    try w.writeAll("<");
-
-    // Tag Name
-    const tag_name_node = node.childByFieldName("name");
-    if (tag_name_node) |name_node| {
-        const tag_name_text = try self.getNodeText(name_node);
-        try w.writeAll(tag_name_text);
-    } else {
-        return error.InvalidNode;
-    }
-
-    // Render all attributes
-    const child_count = node.childCount();
-    var i: u32 = 0;
-    while (i < child_count) : (i += 1) {
-        const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromNode(child);
-
-        if (child_kind == .zx_attribute) {
-            try renderAttr(self, child, w, ctx);
-        }
-    }
-
-    // Tag End: />
-    try w.writeAll(" />");
-}
-
-fn renderAttr(self: *Ast, node: ts.Node, w: *std.io.Writer, ctx: *FormatContext) !void {
-    // zx_attribute wraps either zx_builtin_attribute or zx_regular_attribute
-    // Get the actual attribute node (first child)
-    const child_count = node.childCount();
-    if (child_count == 0) return;
-
-    const attr_node = node.child(0) orelse return;
-    const attr_kind = NodeKind.fromNode(attr_node);
-
-    if (attr_kind) |kind| {
-        switch (kind) {
-            .zx_builtin_attribute => {
-                try renderBuiltinAttr(self, attr_node, w, ctx);
-            },
-            .zx_regular_attribute => {
-                try renderRegularAttr(self, attr_node, w, ctx);
-            },
-            else => {
-                // Fallback: render as-is
-                const start_byte = node.startByte();
-                const end_byte = node.endByte();
-                if (start_byte < end_byte and end_byte <= self.source.len) {
-                    try w.writeAll(self.source[start_byte..end_byte]);
-                }
-            },
-        }
-    }
-}
-
-fn renderBuiltinAttr(
+/// Render zx_block: ( <element> )
+fn renderZxBlock(
     self: *Ast,
     node: ts.Node,
     w: *std.io.Writer,
     ctx: *FormatContext,
 ) !void {
-    // Builtin attributes: @name={value}
-    // Write space before attribute
-    try w.writeAll(" ");
-
-    // Get the name field
-    const name_node = node.childByFieldName("name");
-    if (name_node) |n| {
-        const name_text = try self.getNodeText(n);
-        try w.writeAll(name_text);
-    } else {
-        return error.InvalidNode;
-    }
-
-    // Get the value field
-    const value_node = node.childByFieldName("value");
-    if (value_node) |v| {
-        try w.writeAll("=");
-        try renderAttrValue(self, v, w, ctx);
-    }
-}
-
-fn renderRegularAttr(
-    self: *Ast,
-    node: ts.Node,
-    w: *std.io.Writer,
-    ctx: *FormatContext,
-) !void {
-    // Regular attributes: name="value" or name (boolean attribute)
-    // Write space before attribute
-    try w.writeAll(" ");
-
-    // Get the name field
-    const name_node = node.childByFieldName("name");
-    if (name_node) |n| {
-        const name_text = try self.getNodeText(n);
-        try w.writeAll(name_text);
-    } else {
-        return error.InvalidNode;
-    }
-
-    // Get the value field (optional for boolean attributes)
-    const value_node = node.childByFieldName("value");
-    if (value_node) |v| {
-        try w.writeAll("=");
-        try renderAttrValue(self, v, w, ctx);
-    }
-}
-
-fn renderAttrValue(
-    self: *Ast,
-    node: ts.Node,
-    w: *std.io.Writer,
-    ctx: *FormatContext,
-) !void {
-    // zx_attribute_value is a choice: it IS either zx_expression_block or zx_string_literal
-    const node_kind = NodeKind.fromNode(node);
-
-    if (node_kind) |kind| {
-        switch (kind) {
-            .zx_expression_block => {
-                // Render expression block: {expression}
-                try renderExprBlock(self, node, w, ctx);
-            },
-            .zx_string_literal => {
-                // Render string literal as-is
-                const start_byte = node.startByte();
-                const end_byte = node.endByte();
-                if (start_byte < end_byte and end_byte <= self.source.len) {
-                    try w.writeAll(self.source[start_byte..end_byte]);
-                }
-            },
-            .zx_attribute_value => {
-                // If it's still zx_attribute_value, check children (fallback for edge cases)
-                const child_count = node.childCount();
-                if (child_count > 0) {
-                    var i: u32 = 0;
-                    while (i < child_count) : (i += 1) {
-                        const child = node.child(i) orelse continue;
-                        try renderAttrValue(self, child, w, ctx);
-                    }
-                } else {
-                    // Fallback: render as-is
-                    const start_byte = node.startByte();
-                    const end_byte = node.endByte();
-                    if (start_byte < end_byte and end_byte <= self.source.len) {
-                        try w.writeAll(self.source[start_byte..end_byte]);
-                    }
-                }
-            },
-            else => {
-                // Fallback: render as-is
-                const start_byte = node.startByte();
-                const end_byte = node.endByte();
-                if (start_byte < end_byte and end_byte <= self.source.len) {
-                    try w.writeAll(self.source[start_byte..end_byte]);
-                }
-            },
-        }
-    } else {
-        // Unknown node type, render as-is
-        const start_byte = node.startByte();
-        const end_byte = node.endByte();
-        if (start_byte < end_byte and end_byte <= self.source.len) {
-            try w.writeAll(self.source[start_byte..end_byte]);
-        }
-    }
-}
-
-fn renderText(
-    self: *Ast,
-    node: ts.Node,
-    w: *std.io.Writer,
-    ctx: *FormatContext,
-) anyerror!void {
-    _ = ctx;
-    const start_byte = node.startByte();
-    const end_byte = node.endByte();
-
-    if (start_byte >= end_byte or end_byte > self.source.len) return;
-
-    // Get the text content
-    const text = self.source[start_byte..end_byte];
-    const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
-    if (trimmed.len > 0) {
-        try w.writeAll(trimmed);
-    }
-}
-
-fn renderExprBlock(
-    self: *Ast,
-    node: ts.Node,
-    w: *std.io.Writer,
-    ctx: *FormatContext,
-) anyerror!void {
-    // Write opening brace
-    try w.writeAll("{");
-
     const child_count = node.childCount();
-    var i: u32 = 0;
-    var found_control_flow = false;
-    var is_for_expression = false;
-    var is_if_expression = false;
+    var element_node: ?ts.Node = null;
 
-    // Check for control flow expressions
+    // Find the main element inside the block
+    var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
         const child_kind = NodeKind.fromNode(child);
-
-        // Check for control flow expressions
-        if (child_kind) |kind| {
-            switch (kind) {
-                .if_expression => {
-                    try renderIf(self, child, w, ctx);
-                    found_control_flow = true;
-                    is_if_expression = true;
-                    break;
-                },
-                .for_expression => {
-                    try renderFor(self, child, w, ctx);
-                    found_control_flow = true;
-                    is_for_expression = true;
-                    break;
-                },
-                .switch_expression => {
-                    try renderSwitch(self, child, w, ctx);
-                    found_control_flow = true;
+        if (child_kind) |ck| {
+            switch (ck) {
+                .zx_element, .zx_self_closing_element, .zx_fragment => {
+                    element_node = child;
                     break;
                 },
                 else => {},
@@ -542,75 +398,342 @@ fn renderExprBlock(
         }
     }
 
-    // If no control flow expression found, render as simple expression
-    if (!found_control_flow) {
-        // Render the expression content (skip braces)
-        i = 0;
-        while (i < child_count) : (i += 1) {
-            const child = node.child(i) orelse continue;
+    // Use the context's indent level as the base (set by patchInZxBlocks)
+    const base_indent = ctx.indent_level;
 
-            // Check if it's a zx_block
-            const child_kind = NodeKind.fromNode(child);
-            if (child_kind == .zx_block) {
-                try renderBlock(self, child, w, ctx);
-            } else {
-                // Regular expression - normalize whitespace
-                const expr_text = try self.getNodeText(child);
-                const normalized = try normalizeExpression(self.allocator, expr_text);
-                defer self.allocator.free(normalized);
-                try w.writeAll(normalized);
-            }
+    try w.writeAll("(");
+
+    if (element_node) |elem| {
+        // Check if element is multiline (has newlines in source)
+        const elem_start = elem.startByte();
+        const elem_end = elem.endByte();
+        const is_multiline = if (elem_start < elem_end and elem_end <= self.source.len)
+            std.mem.indexOf(u8, self.source[elem_start..elem_end], "\n") != null
+        else
+            false;
+
+        if (is_multiline) {
+            try w.writeAll("\n");
+            // Set indent to base + 1 for the element
+            ctx.indent_level = base_indent + 1;
+            try ctx.writeIndent(w);
+            try renderNodeWithContext(self, elem, w, ctx);
+            // Closing paren at base indent level
+            ctx.indent_level = base_indent;
+            try w.writeAll("\n");
+            try ctx.writeIndent(w);
+        } else {
+            try renderNodeWithContext(self, elem, w, ctx);
         }
     }
 
-    // Write closing brace
-    // Check if we need to add newline and indentation before closing brace
-    // This happens when the expression block contains a zx_block that was formatted with newlines
-    if (found_control_flow) {
-        // For for and if expressions, the closing paren should be on the same line as the closing brace
-        // So we don't add a newline before the closing brace for these expressions
-        if (!is_for_expression and !is_if_expression) {
-            // For other control flow expressions, check if we need to add newline before closing brace
-            // If the expression block spans multiple lines, add proper formatting
-            const node_start = node.startByte();
-            const node_end = node.endByte();
-            if (node_start < node_end and node_end <= self.source.len) {
-                const block_text = self.source[node_start..node_end];
-                if (std.mem.indexOf(u8, block_text, "\n") != null) {
-                    // Expression block spans multiple lines, add newline before closing brace if needed
-                    if (!ctx.last_was_newline) {
-                        try w.writeAll("\n");
-                        try ctx.writeIndent(w);
-                    }
-                    ctx.last_was_newline = false;
-                }
-            }
-        }
-    }
-    try w.writeAll("}");
-    // After closing brace, we're not on a newline anymore
-    ctx.last_was_newline = false;
+    try w.writeAll(")");
 }
 
-fn renderIf(
+/// Render zx_element: <tag>content</tag>
+fn renderElement(
     self: *Ast,
     node: ts.Node,
     w: *std.io.Writer,
     ctx: *FormatContext,
-) anyerror!void {
-    // if_expression has: condition field, then zx_block nodes
+) !void {
+    const child_count = node.childCount();
+    var start_tag_node: ?ts.Node = null;
+    var end_tag_node: ?ts.Node = null;
+    var content_nodes = std.ArrayList(ts.Node){};
+    defer content_nodes.deinit(self.allocator);
+
+    // Collect all parts
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        const child_kind = NodeKind.fromNode(child);
+        if (child_kind == .zx_start_tag) {
+            start_tag_node = child;
+        } else if (child_kind == .zx_end_tag) {
+            end_tag_node = child;
+        } else {
+            try content_nodes.append(self.allocator, child);
+        }
+    }
+
+    // Render start tag
+    if (start_tag_node) |st| {
+        try renderStartTag(self, st, w);
+    }
+
+    // Check if content should be vertical (multiline) based on superhtml rules:
+    // - If there's whitespace/newline between start tag and first content -> vertical
+    // - Otherwise -> horizontal
+    const has_meaningful_content = blk: {
+        for (content_nodes.items) |child| {
+            const child_kind = NodeKind.fromNode(child);
+            if (child_kind == .zx_child) {
+                // Check if zx_child has meaningful content
+                const cc = child.childCount();
+                var j: u32 = 0;
+                while (j < cc) : (j += 1) {
+                    const gc = child.child(j) orelse continue;
+                    const gck = NodeKind.fromNode(gc);
+                    if (gck == .zx_text) {
+                        const text = self.source[gc.startByte()..gc.endByte()];
+                        if (std.mem.trim(u8, text, &std.ascii.whitespace).len > 0) {
+                            break :blk true;
+                        }
+                    } else {
+                        break :blk true;
+                    }
+                }
+            }
+        }
+        break :blk false;
+    };
+
+    const is_vertical = blk: {
+        if (!has_meaningful_content) break :blk false;
+
+        // Check whitespace between start tag end and first content
+        const start_tag_end = if (start_tag_node) |st| st.endByte() else node.startByte();
+        for (content_nodes.items) |child| {
+            const child_start = child.startByte();
+            if (start_tag_end < child_start and child_start <= self.source.len) {
+                const between = self.source[start_tag_end..child_start];
+                // If there's a newline, it's vertical
+                if (std.mem.indexOf(u8, between, "\n") != null) {
+                    break :blk true;
+                }
+            }
+            break;
+        }
+        break :blk false;
+    };
+
+    if (is_vertical) {
+        ctx.indent_level += 1;
+    }
+
+    // Render content - skip whitespace-only children
+    var rendered_any = false;
+    for (content_nodes.items) |child| {
+        const child_kind = NodeKind.fromNode(child);
+        if (child_kind == .zx_child) {
+            // Check if child has meaningful content
+            if (!hasMeaningfulContent(self, child)) continue;
+
+            // Check if this child should be on a new line
+            if (is_vertical) {
+                try w.writeAll("\n");
+                try ctx.writeIndent(w);
+            }
+            try renderChild(self, child, w, ctx);
+            rendered_any = true;
+        } else {
+            try renderNodeWithContext(self, child, w, ctx);
+            rendered_any = true;
+        }
+    }
+
+    if (is_vertical and rendered_any) {
+        ctx.indent_level -= 1;
+        try w.writeAll("\n");
+        try ctx.writeIndent(w);
+    } else if (is_vertical) {
+        ctx.indent_level -= 1;
+    }
+
+    // Render end tag
+    if (end_tag_node) |et| {
+        try renderEndTag(self, et, w);
+    }
+}
+
+/// Render self-closing element: <Tag attr="value" />
+fn renderSelfClosingElement(
+    self: *Ast,
+    node: ts.Node,
+    w: *std.io.Writer,
+    ctx: *FormatContext,
+) !void {
+    _ = ctx;
+    try w.writeAll("<");
+
+    // Tag name
+    const tag_name_node = node.childByFieldName("name");
+    if (tag_name_node) |name_node| {
+        const tag_name_text = try self.getNodeText(name_node);
+        try w.writeAll(tag_name_text);
+    }
+
+    // Attributes
+    try renderAttributesFromNode(self, node, w);
+
+    try w.writeAll(" />");
+}
+
+/// Render start tag: <tag attrs>
+fn renderStartTag(
+    self: *Ast,
+    node: ts.Node,
+    w: *std.io.Writer,
+) !void {
+    try w.writeAll("<");
+
+    // Tag name
+    const tag_name_node = node.childByFieldName("name");
+    if (tag_name_node) |name_node| {
+        const tag_name_text = try self.getNodeText(name_node);
+        try w.writeAll(tag_name_text);
+    }
+
+    // Attributes
+    try renderAttributesFromNode(self, node, w);
+
+    try w.writeAll(">");
+}
+
+/// Render end tag: </tag>
+fn renderEndTag(
+    self: *Ast,
+    node: ts.Node,
+    w: *std.io.Writer,
+) !void {
+    try w.writeAll("</");
+
+    const child_count = node.childCount();
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        const child_kind = NodeKind.fromNode(child);
+        if (child_kind == .zx_tag_name) {
+            const tag_name = try self.getNodeText(child);
+            try w.writeAll(tag_name);
+            break;
+        }
+    }
+
+    try w.writeAll(">");
+}
+
+/// Render text content
+fn renderText(
+    self: *Ast,
+    node: ts.Node,
+    w: *std.io.Writer,
+) !void {
+    const start_byte = node.startByte();
+    const end_byte = node.endByte();
+    if (start_byte >= end_byte or end_byte > self.source.len) return;
+
+    const text = self.source[start_byte..end_byte];
+    const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
+    if (trimmed.len > 0) {
+        try w.writeAll(trimmed);
+    }
+}
+
+/// Check if a child node has meaningful (non-whitespace) content
+fn hasMeaningfulContent(self: *Ast, node: ts.Node) bool {
+    const child_count = node.childCount();
+    if (child_count == 0) return false;
+
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        const child_kind = NodeKind.fromNode(child);
+        if (child_kind == .zx_text) {
+            const text = self.getNodeText(child) catch continue;
+            if (std.mem.trim(u8, text, &std.ascii.whitespace).len > 0) {
+                return true;
+            }
+        } else {
+            return true;
+        }
+    }
+    return false;
+}
+
+/// Render zx_child node
+fn renderChild(
+    self: *Ast,
+    node: ts.Node,
+    w: *std.io.Writer,
+    ctx: *FormatContext,
+) !void {
+    const child_count = node.childCount();
+    if (child_count == 0) return;
+
+    if (!hasMeaningfulContent(self, node)) return;
+
+    // Render children
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        try renderNodeWithContext(self, child, w, ctx);
+    }
+}
+
+/// Render expression block: {expr} or control flow
+fn renderExpressionBlock(
+    self: *Ast,
+    node: ts.Node,
+    w: *std.io.Writer,
+    ctx: *FormatContext,
+) !void {
+    const child_count = node.childCount();
+
+    // Check for control flow expressions
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        const child_kind = NodeKind.fromNode(child);
+
+        if (child_kind) |ck| {
+            switch (ck) {
+                .if_expression => {
+                    try renderIfExpression(self, child, w, ctx);
+                    return;
+                },
+                .for_expression => {
+                    try renderForExpression(self, child, w, ctx);
+                    return;
+                },
+                .switch_expression => {
+                    try renderSwitchExpression(self, child, w, ctx);
+                    return;
+                },
+                else => {},
+            }
+        }
+    }
+
+    // Simple expression - render source as-is (keeps original braces and format)
+    const start_byte = node.startByte();
+    const end_byte = node.endByte();
+    if (start_byte < end_byte and end_byte <= self.source.len) {
+        const text = self.source[start_byte..end_byte];
+        // Normalize whitespace in simple expressions
+        const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
+        try w.writeAll(trimmed);
+    }
+}
+
+/// Render if expression: {if (cond) (<then>) else (<else>)}
+fn renderIfExpression(
+    self: *Ast,
+    node: ts.Node,
+    w: *std.io.Writer,
+    ctx: *FormatContext,
+) !void {
     var condition_node: ?ts.Node = null;
     var then_node: ?ts.Node = null;
     var else_node: ?ts.Node = null;
 
     const child_count = node.childCount();
-    var i: u32 = 0;
     var zx_block_count: u32 = 0;
 
+    var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-
-        // Check if this is the condition field
         const field_name = node.fieldNameForChild(i);
         if (field_name) |name| {
             if (std.mem.eql(u8, name, "condition")) {
@@ -619,7 +742,6 @@ fn renderIf(
             }
         }
 
-        // Check for zx_block nodes (then and else branches)
         const child_kind = NodeKind.fromNode(child);
         if (child_kind == .zx_block) {
             if (zx_block_count == 0) {
@@ -631,208 +753,56 @@ fn renderIf(
         }
     }
 
-    if (condition_node != null and then_node != null) {
-        // Save the indent level at the start (this matches the opening { of the expression block)
-        const base_indent = ctx.indent_level;
+    try w.writeAll("{if ");
 
-        try w.writeAll("if ");
-
-        // Write condition - get text and wrap in parentheses if needed
-        const condition_text = try self.getNodeText(condition_node.?);
-        const cond_trimmed = std.mem.trim(u8, condition_text, &std.ascii.whitespace);
-        if (cond_trimmed.len > 0 and cond_trimmed[0] == '(' and cond_trimmed[cond_trimmed.len - 1] == ')') {
-            try w.writeAll(cond_trimmed);
-        } else {
+    // Condition
+    if (condition_node) |cond| {
+        const cond_text = try self.getNodeText(cond);
+        const trimmed = std.mem.trim(u8, cond_text, &std.ascii.whitespace);
+        if (trimmed.len > 0 and trimmed[0] != '(') {
             try w.writeAll("(");
-            try w.writeAll(cond_trimmed);
+            try w.writeAll(trimmed);
             try w.writeAll(")");
-        }
-        try w.writeAll(" ");
-
-        // Handle then branch
-        const then_kind = NodeKind.fromNode(then_node.?);
-        var then_was_multiline = false;
-        if (then_kind == .zx_block) {
-            // Extract inner element and write parentheses ourselves
-            const then_block = then_node.?;
-            var then_inner_element: ?ts.Node = null;
-            const then_block_child_count = then_block.childCount();
-            var j: u32 = 0;
-            while (j < then_block_child_count) : (j += 1) {
-                const then_block_child = then_block.child(j) orelse continue;
-                const then_block_child_kind = NodeKind.fromNode(then_block_child);
-                if (then_block_child_kind) |kind| {
-                    switch (kind) {
-                        .zx_element, .zx_self_closing_element, .zx_fragment => {
-                            then_inner_element = then_block_child;
-                            break;
-                        },
-                        else => {},
-                    }
-                }
-            }
-
-            if (then_inner_element) |element| {
-                // Write opening paren (space already written before)
-                try w.writeAll("(");
-
-                // Check if element is multiline
-                const element_start = element.startByte();
-                const element_end = element.endByte();
-                var is_multiline = false;
-                if (element_start < element_end and element_end <= self.source.len) {
-                    const element_text = self.source[element_start..element_end];
-                    if (std.mem.indexOf(u8, element_text, "\n") != null) {
-                        is_multiline = true;
-                        then_was_multiline = true;
-                    }
-                }
-
-                if (is_multiline) {
-                    // Multiline - add newline and indent
-                    try w.writeAll("\n");
-                    ctx.indent_level += 1;
-                    try ctx.writeIndent(w);
-                    ctx.last_was_newline = false;
-                } else {
-                    // Single line - just render inline
-                    ctx.last_was_newline = false;
-                }
-
-                // Render the element itself
-                try renderNodeWithContext(self, element, w, ctx);
-
-                // Write closing paren - should be on a newline
-                // For multiline, the closing paren should be on its own line
-                // Then "else" will come after it on the same line
-                if (is_multiline) {
-                    // Add newline and restore to base indent level
-                    if (!ctx.last_was_newline) {
-                        try w.writeAll("\n");
-                    }
-                    ctx.indent_level = base_indent;
-                    try ctx.writeIndent(w);
-                } else {
-                    // Single line - restore to base indent level
-                    ctx.indent_level = base_indent;
-                }
-                try w.writeAll(")");
-                // After closing paren, we're ready for "else" on the same line (if multiline)
-                ctx.last_was_newline = false;
-            }
         } else {
-            const then_text = try self.getNodeText(then_node.?);
-            const normalized = try normalizeExpression(self.allocator, then_text);
-            defer self.allocator.free(normalized);
-            try w.writeAll(normalized);
-        }
-
-        if (else_node) |else_n| {
-            // If then branch was multiline, "else" should be on the same line as the closing paren
-            // Otherwise, "else" comes after a space
-            if (then_was_multiline) {
-                // "else" comes on the same line as the closing paren of then branch
-                try w.writeAll(" else");
-            } else {
-                try w.writeAll(" else");
-            }
-
-            const else_kind = NodeKind.fromNode(else_n);
-            if (else_kind == .zx_block) {
-                // Extract inner element and write parentheses ourselves
-                const else_block = else_n;
-                var else_inner_element: ?ts.Node = null;
-                const else_block_child_count = else_block.childCount();
-                var j: u32 = 0;
-                while (j < else_block_child_count) : (j += 1) {
-                    const else_block_child = else_block.child(j) orelse continue;
-                    const else_block_child_kind = NodeKind.fromNode(else_block_child);
-                    if (else_block_child_kind) |kind| {
-                        switch (kind) {
-                            .zx_element, .zx_self_closing_element, .zx_fragment => {
-                                else_inner_element = else_block_child;
-                                break;
-                            },
-                            else => {},
-                        }
-                    }
-                }
-
-                if (else_inner_element) |element| {
-                    // Write opening paren with space before it
-                    try w.writeAll(" (");
-
-                    // Check if element is multiline
-                    const element_start = element.startByte();
-                    const element_end = element.endByte();
-                    var is_multiline = false;
-                    if (element_start < element_end and element_end <= self.source.len) {
-                        const element_text = self.source[element_start..element_end];
-                        if (std.mem.indexOf(u8, element_text, "\n") != null) {
-                            is_multiline = true;
-                        }
-                    }
-
-                    if (is_multiline) {
-                        // Multiline - add newline and indent
-                        try w.writeAll("\n");
-                        ctx.indent_level += 1;
-                        try ctx.writeIndent(w);
-                        ctx.last_was_newline = false;
-                    } else {
-                        // Single line - just a space
-                        ctx.last_was_newline = false;
-                    }
-
-                    // Render the element itself
-                    try renderNodeWithContext(self, element, w, ctx);
-
-                    // Write closing paren - should be on a newline with the closing brace
-                    if (is_multiline) {
-                        // Add newline and restore to base indent level
-                        if (!ctx.last_was_newline) {
-                            try w.writeAll("\n");
-                        }
-                        ctx.indent_level = base_indent;
-                        try ctx.writeIndent(w);
-                    } else {
-                        // Single line - restore to base indent level
-                        ctx.indent_level = base_indent;
-                    }
-                    try w.writeAll(")");
-                    ctx.last_was_newline = false;
-                }
-            } else {
-                try w.writeAll(" ");
-                const else_text = try self.getNodeText(else_n);
-                const normalized = try normalizeExpression(self.allocator, else_text);
-                defer self.allocator.free(normalized);
-                try w.writeAll(normalized);
-            }
+            try w.writeAll(trimmed);
         }
     }
+
+    try w.writeAll(" ");
+
+    // Then branch
+    if (then_node) |then_b| {
+        try renderZxBlockInline(self, then_b, w, ctx);
+    }
+
+    // Else branch
+    if (else_node) |else_b| {
+        try w.writeAll(" else ");
+        try renderZxBlockInline(self, else_b, w, ctx);
+    }
+
+    try w.writeAll("}");
 }
 
-fn renderFor(
+/// Render for expression: {for (items) |item| (<body>)}
+fn renderForExpression(
     self: *Ast,
     node: ts.Node,
     w: *std.io.Writer,
     ctx: *FormatContext,
-) anyerror!void {
-    // for_expression has: identifier (iterable), payload, zx_block (body)
+) !void {
     var iterable_node: ?ts.Node = null;
     var payload_node: ?ts.Node = null;
     var body_node: ?ts.Node = null;
 
     const child_count = node.childCount();
     var i: u32 = 0;
-
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
         const child_kind = NodeKind.fromNode(child);
 
-        if (child_kind) |kind| {
-            switch (kind) {
+        if (child_kind) |ck| {
+            switch (ck) {
                 .identifier => {
                     if (iterable_node == null) {
                         iterable_node = child;
@@ -849,112 +819,48 @@ fn renderFor(
         }
     }
 
-    if (iterable_node != null and payload_node != null and body_node != null) {
-        // Save the indent level at the start (this matches the opening { of the expression block)
-        const base_indent = ctx.indent_level;
+    try w.writeAll("{for (");
 
-        const iterable_text = try self.getNodeText(iterable_node.?);
-        const payload_text = try self.getNodeText(payload_node.?);
-
-        try w.writeAll("for (");
-        try w.writeAll(iterable_text);
-        try w.writeAll(") ");
-        try w.writeAll(payload_text);
-
-        // Render body (should be zx_block)
-        // Instead of calling renderBlock, we extract the inner element and write parens ourselves
-        if (body_node) |body| {
-            // Find the zx_element, zx_self_closing_element, or zx_fragment inside the zx_block
-            var inner_element: ?ts.Node = null;
-            const body_child_count = body.childCount();
-            var j: u32 = 0;
-            while (j < body_child_count) : (j += 1) {
-                const body_child = body.child(j) orelse continue;
-                const body_child_kind = NodeKind.fromNode(body_child);
-                if (body_child_kind) |kind| {
-                    switch (kind) {
-                        .zx_element, .zx_self_closing_element, .zx_fragment => {
-                            inner_element = body_child;
-                            break;
-                        },
-                        else => {},
-                    }
-                }
-            }
-
-            if (inner_element) |element| {
-                // Write opening paren with space before it - no newline after it
-                try w.writeAll(" (");
-
-                // Check if element is multiline to decide if we need indentation
-                const element_start = element.startByte();
-                const element_end = element.endByte();
-                var is_multiline = false;
-                if (element_start < element_end and element_end <= self.source.len) {
-                    const element_text = self.source[element_start..element_end];
-                    if (std.mem.indexOf(u8, element_text, "\n") != null) {
-                        is_multiline = true;
-                    }
-                }
-
-                if (is_multiline) {
-                    // Multiline - add newline and indent
-                    try w.writeAll("\n");
-                    ctx.indent_level += 1;
-                    try ctx.writeIndent(w);
-                    ctx.last_was_newline = false;
-                } else {
-                    // Single line - just a space
-                    ctx.last_was_newline = false;
-                }
-
-                // Render the element itself (without the zx_block wrapper)
-                try renderNodeWithContext(self, element, w, ctx);
-
-                // Write closing paren - should be on a newline with the closing brace
-                if (is_multiline) {
-                    // Add newline and restore to base indent level
-                    if (!ctx.last_was_newline) {
-                        try w.writeAll("\n");
-                    }
-                    // Restore to the indent level of the opening { of the expression block
-                    ctx.indent_level = base_indent;
-                    try ctx.writeIndent(w);
-                } else {
-                    // Single line - restore to base indent level
-                    ctx.indent_level = base_indent;
-                }
-                try w.writeAll(")");
-                // Make sure we're not on a newline so the closing brace comes right after
-                ctx.last_was_newline = false;
-            }
-        }
+    if (iterable_node) |it| {
+        const it_text = try self.getNodeText(it);
+        try w.writeAll(it_text);
     }
+
+    try w.writeAll(") ");
+
+    if (payload_node) |pay| {
+        const pay_text = try self.getNodeText(pay);
+        try w.writeAll(pay_text);
+    }
+
+    try w.writeAll(" ");
+
+    if (body_node) |body| {
+        try renderZxBlockInline(self, body, w, ctx);
+    }
+
+    try w.writeAll("}");
 }
 
-fn renderSwitch(
+/// Render switch expression: {switch (val) { .case => (<body>), ... }}
+fn renderSwitchExpression(
     self: *Ast,
     node: ts.Node,
     w: *std.io.Writer,
     ctx: *FormatContext,
-) anyerror!void {
-    // switch_expression structure:
-    //   field_expression (the switch expression)
-    //   switch_case... (the cases)
+) !void {
     var switch_expr_node: ?ts.Node = null;
     var cases = std.ArrayList(struct { pattern: []const u8, value: ts.Node }){};
     defer cases.deinit(self.allocator);
 
     const child_count = node.childCount();
     var i: u32 = 0;
-
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
         const child_kind = NodeKind.fromNode(child);
 
-        if (child_kind) |kind| {
-            if (kind == .switch_case) {
-                // Parse switch case: field_expression (pattern) and zx_block (value)
+        if (child_kind) |ck| {
+            if (ck == .switch_case) {
                 var pattern_node: ?ts.Node = null;
                 var value_node: ?ts.Node = null;
 
@@ -964,15 +870,13 @@ fn renderSwitch(
                     const case_child = child.child(j) orelse continue;
                     const case_child_kind = NodeKind.fromNode(case_child);
 
-                    if (case_child_kind) |ck| {
-                        if (ck == .zx_block) {
+                    if (case_child_kind) |cck| {
+                        if (cck == .zx_block) {
                             value_node = case_child;
-                        } else if (pattern_node == null) {
-                            // First non-zx_block child is the pattern (field_expression)
+                        } else if (pattern_node == null and case_child.childCount() > 0) {
                             pattern_node = case_child;
                         }
-                    } else if (pattern_node == null) {
-                        // Unrecognized node (likely field_expression) - treat as pattern
+                    } else if (pattern_node == null and case_child.childCount() > 0) {
                         pattern_node = case_child;
                     }
                 }
@@ -986,104 +890,143 @@ fn renderSwitch(
                         });
                     }
                 }
-            } else {
-                // Skip leaf nodes (tokens) - real expressions have children
-                if (child.childCount() == 0) {
-                    continue;
-                }
-                if (switch_expr_node == null) {
-                    // First non-switch_case, non-token child is the switch expression
-                    switch_expr_node = child;
-                }
-            }
-        } else {
-            // Skip leaf nodes (tokens) - real expressions have children
-            if (child.childCount() == 0) {
-                continue;
-            }
-            if (switch_expr_node == null) {
-                // First unrecognized, non-token child is likely the switch expression
+            } else if (switch_expr_node == null and child.childCount() > 0) {
                 switch_expr_node = child;
             }
+        } else if (switch_expr_node == null and child.childCount() > 0) {
+            switch_expr_node = child;
         }
     }
 
-    if (switch_expr_node) |expr_node| {
-        const switch_expr = try self.getNodeText(expr_node);
-        try w.writeAll("switch (");
-        try w.writeAll(switch_expr);
-        try w.writeAll(") {");
+    try w.writeAll("{switch (");
 
-        // Render cases
-        const saved_indent = ctx.indent_level;
-        for (cases.items, 0..) |case, idx| {
-            if (idx > 0) {
-                try w.writeAll(",");
-            }
-            try w.writeAll("\n");
-            ctx.indent_level = saved_indent + 1;
-            try ctx.writeIndent(w);
-            try w.writeAll(case.pattern);
-            try w.writeAll(" => ");
+    if (switch_expr_node) |expr| {
+        const expr_text = try self.getNodeText(expr);
+        try w.writeAll(expr_text);
+    }
 
-            const value_kind = NodeKind.fromNode(case.value);
-            if (value_kind == .zx_block) {
-                // Force newline and indentation for zx_block in expression
-                try w.writeAll("\n");
-                const block_indent = ctx.indent_level;
-                ctx.indent_level += 1;
-                try ctx.writeIndent(w);
-                ctx.last_was_newline = false;
-                try renderBlock(self, case.value, w, ctx);
-                // Restore indent level - the zx_block's closing paren should be at the same level as opening
-                ctx.indent_level = block_indent;
-            } else {
-                const value_text = try self.getNodeText(case.value);
-                const normalized = try normalizeExpression(self.allocator, value_text);
-                defer self.allocator.free(normalized);
-                try w.writeAll(normalized);
-            }
-        }
+    try w.writeAll(") {");
 
+    for (cases.items) |case| {
         try w.writeAll("\n");
-        ctx.indent_level = saved_indent;
+        ctx.indent_level += 1;
         try ctx.writeIndent(w);
-        try w.writeAll("}");
-    }
-}
-
-fn normalizeExpression(allocator: std.mem.Allocator, expr: []const u8) ![]const u8 {
-    var result = std.array_list.Managed(u8).init(allocator);
-    defer result.deinit();
-
-    var i: usize = 0;
-    var last_was_space = false;
-
-    while (i < expr.len) : (i += 1) {
-        const c = expr[i];
-        if (std.ascii.isWhitespace(c)) {
-            if (!last_was_space and result.items.len > 0) {
-                try result.append(' ');
-                last_was_space = true;
-            }
-        } else {
-            try result.append(c);
-            last_was_space = false;
-        }
+        ctx.indent_level -= 1;
+        try w.writeAll(std.mem.trim(u8, case.pattern, &std.ascii.whitespace));
+        try w.writeAll(" => ");
+        try renderZxBlockInline(self, case.value, w, ctx);
+        try w.writeAll(",");
     }
 
-    return result.toOwnedSlice();
+    try w.writeAll("\n");
+    try ctx.writeIndent(w);
+    try w.writeAll("}}");
 }
 
-fn getTagName(self: *Ast, end_tag_node: ts.Node) ![]const u8 {
-    const child_count = end_tag_node.childCount();
+/// Render zx_block inline (for use in control flow expressions)
+fn renderZxBlockInline(
+    self: *Ast,
+    node: ts.Node,
+    w: *std.io.Writer,
+    ctx: *FormatContext,
+) !void {
+    const child_count = node.childCount();
+    var element_node: ?ts.Node = null;
+
+    // Find the main element
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
-        const child = end_tag_node.child(i) orelse continue;
+        const child = node.child(i) orelse continue;
         const child_kind = NodeKind.fromNode(child);
-        if (child_kind == .zx_tag_name) {
-            return try self.getNodeText(child);
+        if (child_kind) |ck| {
+            switch (ck) {
+                .zx_element, .zx_self_closing_element, .zx_fragment => {
+                    element_node = child;
+                    break;
+                },
+                else => {},
+            }
         }
     }
-    return "";
+
+    try w.writeAll("(");
+
+    if (element_node) |elem| {
+        // Check if element is multiline
+        const elem_start = elem.startByte();
+        const elem_end = elem.endByte();
+        const is_multiline = if (elem_start < elem_end and elem_end <= self.source.len)
+            std.mem.indexOf(u8, self.source[elem_start..elem_end], "\n") != null
+        else
+            false;
+
+        if (is_multiline) {
+            try w.writeAll("\n");
+            ctx.indent_level += 1;
+            try ctx.writeIndent(w);
+            try renderNodeWithContext(self, elem, w, ctx);
+            ctx.indent_level -= 1;
+            try w.writeAll("\n");
+            try ctx.writeIndent(w);
+        } else {
+            try renderNodeWithContext(self, elem, w, ctx);
+        }
+    }
+
+    try w.writeAll(")");
+}
+
+/// Render attributes from a node (start tag or self-closing element)
+fn renderAttributesFromNode(
+    self: *Ast,
+    node: ts.Node,
+    w: *std.io.Writer,
+) !void {
+    const child_count = node.childCount();
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        const child_kind = NodeKind.fromNode(child);
+
+        if (child_kind == .zx_attribute) {
+            try w.writeAll(" ");
+
+            // Get the actual attribute (first child)
+            const attr_child = child.child(0) orelse continue;
+            const attr_kind = NodeKind.fromNode(attr_child);
+
+            if (attr_kind) |ak| {
+                switch (ak) {
+                    .zx_builtin_attribute, .zx_regular_attribute => {
+                        // Name
+                        const name_node = attr_child.childByFieldName("name");
+                        if (name_node) |n| {
+                            const name_text = try self.getNodeText(n);
+                            try w.writeAll(name_text);
+                        }
+
+                        // Value (optional)
+                        const value_node = attr_child.childByFieldName("value");
+                        if (value_node) |v| {
+                            try w.writeAll("=");
+                            // Write the value as-is from source
+                            const v_start = v.startByte();
+                            const v_end = v.endByte();
+                            if (v_start < v_end and v_end <= self.source.len) {
+                                try w.writeAll(self.source[v_start..v_end]);
+                            }
+                        }
+                    },
+                    else => {
+                        // Fallback - render source
+                        const c_start = child.startByte();
+                        const c_end = child.endByte();
+                        if (c_start < c_end and c_end <= self.source.len) {
+                            try w.writeAll(self.source[c_start..c_end]);
+                        }
+                    },
+                }
+            }
+        }
+    }
 }

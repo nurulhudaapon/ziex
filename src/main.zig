@@ -27,16 +27,16 @@ pub fn main() !void {
     var tree = try zx.Parse.parse(allocator, code);
     defer tree.deinit(allocator);
 
-    const root_node = tree.tree.rootNode();
-    std.debug.print("Root node: {s}\n", .{root_node.kind()});
+    // const root_node = tree.tree.rootNode();
+    // std.debug.print("Root node: {s}\n", .{root_node.kind()});
 
     var rendered_zx = try tree.renderAllocWithSourceMap(allocator, .zig, true);
     defer rendered_zx.deinit(allocator);
-    std.debug.print("Rendered ZX: {s}\n", .{rendered_zx.output});
+    // std.debug.print("Rendered ZX: {s}\n", .{rendered_zx.output});
 
     const source_map_json = try rendered_zx.source_map.?.toJSON(allocator, "overview.zig", "overview.zx", code, rendered_zx.output);
     defer allocator.free(source_map_json);
-    std.debug.print("Sourcemap: {s}\n", .{source_map_json});
+    // std.debug.print("Sourcemap: {s}\n", .{source_map_json});
 
     try std.fs.cwd().writeFile(.{
         .sub_path = "src/overview.zig",
@@ -50,7 +50,7 @@ pub fn main() !void {
 
     const rendered_zx_zx = try tree.renderAlloc(allocator, .zx);
     defer allocator.free(rendered_zx_zx);
-    std.debug.print("Rendered ZX: {s}\n", .{rendered_zx_zx});
+    // std.debug.print("Rendered ZX: {s}\n", .{rendered_zx_zx});
 
     try std.fs.cwd().writeFile(.{
         .sub_path = "src/overview.fmt.zx",

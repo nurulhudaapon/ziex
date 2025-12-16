@@ -107,7 +107,7 @@ fn formatFile(
     const source_z = try allocator.dupeZ(u8, source);
     defer allocator.free(source_z);
 
-    var format_result = try zx.Ast.fmt(allocator, source_z);
+    var format_result = try zx.Ast.fmtTs(allocator, source_z);
     defer format_result.deinit(allocator);
 
     if (use_stdout) {
@@ -164,7 +164,7 @@ fn formatDir(
         const source_z = try allocator.dupeZ(u8, source);
         defer allocator.free(source_z);
 
-        var format_result = zx.Ast.fmt(allocator, source_z) catch |err| switch (err) {
+        var format_result = zx.Ast.fmtTs(allocator, source_z) catch |err| switch (err) {
             error.ParseError => {
                 log.err("Error formatting {s}: {}\n", .{ full_path, err });
                 continue;

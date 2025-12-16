@@ -54,8 +54,9 @@ pub const NodeKind = enum {
         return std.meta.stringToEnum(NodeKind, s);
     }
 
-    pub fn fromNode(node: ts.Node) ?NodeKind {
-        const kind = fromString(node.kind());
+    pub fn fromNode(node: ?ts.Node) ?NodeKind {
+        if (node == null) return null;
+        const kind = fromString(node.?.kind());
         return kind;
     }
 };
