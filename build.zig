@@ -94,7 +94,7 @@ pub fn build(b: *std.Build) !void {
                 .site_path = "site",
                 .experimental_enabled_csr = true,
                 .steps = .{ .serve = "serve", .dev = "dev", .@"export" = "export", .bundle = "bundle" },
-                .plugins = &.{plugins.tailwind(.{})},
+                // .plugins = &.{plugins.tailwind(.{})},
             });
         }
     }

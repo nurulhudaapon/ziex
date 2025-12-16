@@ -134,7 +134,7 @@ fn init(ctx: zli.CommandContext) !void {
 }
 
 pub fn isDirEmpty(path: []const u8) !bool {
-    var dir = std.fs.cwd().openDir(path, .{}) catch |err| switch (err) {
+    var dir = std.fs.cwd().openDir(path, .{ .iterate = true }) catch |err| switch (err) {
         error.FileNotFound => return true,
         else => return err,
     };

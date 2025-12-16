@@ -162,6 +162,8 @@ const zx = @import("zx");
 * [Zine](https://github.com/kristoff-it/zine) - Fast, scalable, flexible static site generator (SSG) written in Zig
 * [Zinc](https://github.com/zon-dev/zinc/) - Web framework written in pure Zig with focus on high performance, usability, security, and extensibility
 * [zUI](https://github.com/thienpow/zui) - UI kit for Jetzig framework with reusable components and styles
+* [zig-pek](https://github.com/nektro/zig-pek) - Comptime HTML/XML parser and renderer in Zig
+* [zigomponent](https://zigomp.prjct.dev/) - HTML compoenents in pure zig
 
 ## Related Projects
 

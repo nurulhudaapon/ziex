@@ -38,6 +38,7 @@ pub const PackageJson = struct {
             package_json_str,
             .{
                 .allocate = .alloc_always,
+                .ignore_unknown_fields = true,
             },
         ) catch |err| switch (err) {
             else => {
