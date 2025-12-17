@@ -693,7 +693,7 @@ fn renderExpressionBlock(
     node: ts.Node,
     w: *std.io.Writer,
     ctx: *FormatContext,
-) !void {
+) anyerror!void {
     const child_count = node.childCount();
 
     // Check for control flow expressions
@@ -822,7 +822,7 @@ fn renderForExpression(
 
         if (child_kind) |ck| {
             switch (ck) {
-                .identifier => {
+                .identifier, .field_expression => {
                     if (iterable_node == null) {
                         iterable_node = child;
                     }
@@ -830,7 +830,7 @@ fn renderForExpression(
                 .payload => {
                     payload_node = child;
                 },
-                .zx_block => {
+                .zx_block, .parenthesized_expression => {
                     body_node = child;
                 },
                 else => {},
@@ -855,7 +855,20 @@ fn renderForExpression(
     try w.writeAll(" ");
 
     if (body_node) |body| {
-        try renderBlockInline(self, body, w, ctx);
+        const body_kind = NodeKind.fromNode(body);
+        if (body_kind) |ck| {
+            ctx.indent_level -= 1;
+            switch (ck) {
+                .zx_block => {
+                    try renderBlockInline(self, body, w, ctx);
+                },
+                .parenthesized_expression => {
+                    try renderExpressionBlock(self, body, w, ctx);
+                },
+                else => {},
+            }
+            ctx.indent_level += 1;
+        }
     }
 
     try w.writeAll("}");
