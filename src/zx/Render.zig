@@ -753,16 +753,10 @@ fn renderIfExpression(
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const field_name = node.fieldNameForChild(i);
-        if (field_name) |name| {
-            if (std.mem.eql(u8, name, "condition")) {
-                condition_node = child;
-                continue;
-            }
-        }
+        condition_node = node.childByFieldName("condition");
 
         const child_kind = NodeKind.fromNode(child);
-        if (child_kind == .zx_block) {
+        if (child_kind == .zx_block or child_kind == .parenthesized_expression) {
             if (zx_block_count == 0) {
                 then_node = child;
             } else if (zx_block_count == 1) {
@@ -792,13 +786,35 @@ fn renderIfExpression(
     ctx.indent_level -= 1;
     // Then branch
     if (then_node) |then_b| {
-        try renderBlockInline(self, then_b, w, ctx);
+        const then_kind = NodeKind.fromNode(then_b);
+        if (then_kind) |ck| {
+            switch (ck) {
+                .zx_block => {
+                    try renderBlockInline(self, then_b, w, ctx);
+                },
+                .parenthesized_expression => {
+                    try w.writeAll(try self.getNodeText(then_b));
+                },
+                else => {},
+            }
+        }
     }
 
     // Else branch
     if (else_node) |else_b| {
         try w.writeAll(" else ");
-        try renderBlockInline(self, else_b, w, ctx);
+        const else_kind = NodeKind.fromNode(else_b);
+        if (else_kind) |ck| {
+            switch (ck) {
+                .zx_block => {
+                    try renderBlockInline(self, else_b, w, ctx);
+                },
+                .parenthesized_expression => {
+                    try w.writeAll(try self.getNodeText(else_b));
+                },
+                else => {},
+            }
+        }
     }
 
     try w.writeAll("}");
