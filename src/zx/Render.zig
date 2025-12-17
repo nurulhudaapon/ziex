@@ -789,6 +789,7 @@ fn renderIfExpression(
 
     try w.writeAll(" ");
 
+    ctx.indent_level -= 1;
     // Then branch
     if (then_node) |then_b| {
         try renderBlockInline(self, then_b, w, ctx);
@@ -801,6 +802,7 @@ fn renderIfExpression(
     }
 
     try w.writeAll("}");
+    ctx.indent_level += 1;
 }
 
 /// Render for expression: {for (items) |item| (<body>)}
