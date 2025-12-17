@@ -175,7 +175,7 @@ fn formatDir(
         defer allocator.free(source);
 
         const source_z = try allocator.dupeZ(u8, source);
-        defer allocator.free(source_z);
+        defer if (!use_ts) allocator.free(source_z);
 
         var format_result = if (use_ts) zx.Ast.fmtTs(allocator, source_z) catch |err| switch (err) {
             error.ParseError => {

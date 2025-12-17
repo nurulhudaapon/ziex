@@ -36,8 +36,10 @@ pub const NodeKind = enum {
     builtin_identifier,
     arguments,
     string_content,
+    parenthesized_expression,
 
     identifier,
+    field_expression,
     string,
     variable_declaration,
     return_expression,
@@ -45,10 +47,12 @@ pub const NodeKind = enum {
     // Control Flow Expressions
     if_expression,
     for_expression,
+    while_expression,
     switch_expression,
     switch_case,
     payload,
     array_type,
+    assignment_expression,
 
     fn fromString(s: []const u8) ?NodeKind {
         return std.meta.stringToEnum(NodeKind, s);

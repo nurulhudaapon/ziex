@@ -721,6 +721,10 @@ pub fn transpileExprBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) !vo
                     try transpileFor(self, child, ctx);
                     continue;
                 },
+                .while_expression => {
+                    try transpileWhile(self, child, ctx);
+                    continue;
+                },
                 .switch_expression => {
                     try transpileSwitch(self, child, ctx);
                     continue;
@@ -927,6 +931,84 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
 
         try ctx.writeIndent();
         try ctx.write("break :blk _zx.zx(.fragment, .{ .children = __zx_children });\n");
+
+        ctx.indent_level -= 1;
+        try ctx.writeIndent();
+        try ctx.write("}");
+    }
+}
+
+pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
+    // while_expression: 'while' '(' condition ')' ':' '(' continue_expr ')' body
+    var condition_text: ?[]const u8 = null;
+    var continue_text: ?[]const u8 = null;
+    var body_node: ?ts.Node = null;
+
+    const child_count = node.childCount();
+    var i: u32 = 0;
+
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        const field_name = node.fieldNameForChild(i);
+
+        // Check for condition field
+        if (field_name) |name| {
+            if (std.mem.eql(u8, name, "condition")) {
+                condition_text = try self.getNodeText(child);
+                i += 1;
+                continue;
+            }
+        }
+
+        const child_kind = NodeKind.fromNode(child);
+        if (child_kind) |kind| {
+            switch (kind) {
+                .assignment_expression => {
+                    continue_text = try self.getNodeText(child);
+                },
+                .zx_block => {
+                    body_node = child;
+                },
+                else => {},
+            }
+        }
+    }
+
+    if (condition_text != null and body_node != null) {
+        // Generate: blk: { var __zx_list = std.ArrayList(zx.Component).init(_zx.getAllocator()); while (cond) : (cont) { __zx_list.append(...); }; break :blk __zx_list.toOwnedSlice(); }
+        try ctx.writeWithMappingFromByte("blk", node.startByte(), self);
+        try ctx.write(": {\n");
+
+        ctx.indent_level += 1;
+        try ctx.writeIndent();
+        try ctx.write("var __zx_list = std.ArrayList(zx.Component).init(_zx.getAllocator());\n");
+
+        try ctx.writeIndent();
+        try ctx.writeWithMappingFromByte("while", node.startByte(), self);
+        try ctx.write(" (");
+        try ctx.write(condition_text.?);
+        try ctx.write(")");
+
+        if (continue_text) |cont| {
+            try ctx.write(" : (");
+            try ctx.write(std.mem.trim(u8, cont, &std.ascii.whitespace));
+            try ctx.write(")");
+        }
+
+        try ctx.write(" {\n");
+
+        ctx.indent_level += 1;
+        try ctx.writeIndent();
+        try ctx.write("__zx_list.append(_zx.getAllocator(), ");
+        try transpileBlock(self, body_node.?, ctx);
+        try ctx.write(") catch unreachable;\n");
+        ctx.indent_level -= 1;
+
+        try ctx.writeIndent();
+        try ctx.write("}\n");
+
+        try ctx.writeIndent();
+        try ctx.write("break :blk _zx.zx(.fragment, .{ .children = __zx_list.toOwnedSlice(_zx.getAllocator()) catch unreachable });\n");
 
         ctx.indent_level -= 1;
         try ctx.writeIndent();
