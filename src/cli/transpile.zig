@@ -24,6 +24,13 @@ const copy_only_flag = zli.Flag{
     .default_value = .{ .Bool = false },
 };
 
+const ts_flag = zli.Flag{
+    .name = "ts",
+    .description = "Use tree-sitter to transpile the code",
+    .type = .Bool,
+    .default_value = .{ .Bool = false },
+};
+
 pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
     const cmd = try zli.Command.init(writer, reader, allocator, .{
         .name = "transpile",
@@ -32,6 +39,7 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
 
     try cmd.addFlag(outdir_flag);
     try cmd.addFlag(copy_only_flag);
+    try cmd.addFlag(ts_flag);
     try cmd.addPositionalArg(.{
         .name = "path",
         .description = "Path to .zx file or directory",
@@ -44,6 +52,7 @@ fn transpile(ctx: zli.CommandContext) !void {
     const outdir = ctx.flag("outdir", []const u8);
     const copy_dirs = [_][]const u8{ "assets", "public" };
     const copy_only = ctx.flag("copy-only", bool);
+    const ts = ctx.flag("ts", bool);
 
     const path = ctx.getArg("path") orelse {
         try ctx.writer.print("Missing path arg\n", .{});
@@ -65,7 +74,7 @@ fn transpile(ctx: zli.CommandContext) !void {
     const stat = std.fs.cwd().statFile(path) catch |err| switch (err) {
         error.IsDir => {
             // It's a directory, proceed with normal transpileCommand
-            try transpileCommand(ctx.allocator, path, outdir, &copy_dirs, false);
+            try transpileCommand(ctx.allocator, path, outdir, &copy_dirs, false, ts);
             return;
         },
         else => {
@@ -104,7 +113,7 @@ fn transpile(ctx: zli.CommandContext) !void {
     }
 
     // Otherwise, proceed with normal transpileCommand
-    try transpileCommand(ctx.allocator, path, outdir, &copy_dirs, false);
+    try transpileCommand(ctx.allocator, path, outdir, &copy_dirs, false, ts);
 }
 
 fn copyOnly(ctx: zli.CommandContext, source_path: []const u8, dest_dir: []const u8) !void {
@@ -883,6 +892,7 @@ fn transpileFile(
     output_dir: []const u8,
     global_components: *std.array_list.Managed(ClientComponentSerializable),
     verbose: bool,
+    ts: bool,
 ) !void {
     const source = try std.fs.cwd().readFileAlloc(
         allocator,
@@ -983,7 +993,7 @@ fn transpileFile(
 
     try std.fs.cwd().writeFile(.{
         .sub_path = output_path,
-        .data = result.zig_source,
+        .data = if (ts) result.new_zig_source else result.zig_source,
     });
 
     if (verbose) {
@@ -998,6 +1008,7 @@ fn transpileDirectory(
     copy_dirs: []const []const u8,
     global_components: *std.array_list.Managed(ClientComponentSerializable),
     verbose: bool,
+    ts: bool,
 ) !void {
     var dir = try std.fs.cwd().openDir(dir_path, .{ .iterate = true });
     defer dir.close();
@@ -1052,7 +1063,7 @@ fn transpileDirectory(
             const output_path = try std.fs.path.join(allocator, &.{ output_dir, output_rel_path });
             defer allocator.free(output_path);
 
-            transpileFile(allocator, input_path, output_path, dir_path, output_dir, global_components, verbose) catch |err| {
+            transpileFile(allocator, input_path, output_path, dir_path, output_dir, global_components, verbose, ts) catch |err| {
                 std.debug.print("Error transpiling {s}: {}\n", .{ input_path, err });
                 continue;
             };
@@ -1088,6 +1099,7 @@ fn transpileCommand(
     output_dir: []const u8,
     copy_dirs: []const []const u8,
     verbose: bool,
+    ts: bool,
 ) !void {
     var client_components = std.array_list.Managed(ClientComponentSerializable).init(allocator);
     defer {
@@ -1113,7 +1125,7 @@ fn transpileCommand(
         if (verbose) {
             std.debug.print("Transpiling directory: {s}\n", .{path});
         }
-        try transpileDirectory(allocator, path, output_dir, copy_dirs, &client_components, verbose);
+        try transpileDirectory(allocator, path, output_dir, copy_dirs, &client_components, verbose, ts);
 
         generateFiles(allocator, output_dir, verbose) catch |err| {
             std.debug.print("Warning: Failed to generate meta.zig: {}\n", .{err});
@@ -1138,7 +1150,7 @@ fn transpileCommand(
         defer allocator.free(output_path);
 
         const input_root = if (std.fs.path.dirname(path)) |dir| dir else ".";
-        try transpileFile(allocator, path, output_path, input_root, output_dir, &client_components, verbose);
+        try transpileFile(allocator, path, output_path, input_root, output_dir, &client_components, verbose, ts);
 
         copySpecifiedDirectories(allocator, path, output_dir, copy_dirs, verbose) catch |err| {
             std.debug.print("Warning: Failed to copy specified directories: {}\n", .{err});
