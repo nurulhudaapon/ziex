@@ -4,7 +4,7 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
         
         <head>
             <title>ZX</title>
-            <link rel="stylesheet" href="/style.css" />
+            <link rel="stylesheet" href="/assets/style.css" />
         </head>
         
         <body>

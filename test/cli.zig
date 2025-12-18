@@ -179,6 +179,14 @@ test "cli > init -t react" {
     for (expected_strings) |expected_string| {
         try std.testing.expect(std.mem.indexOf(u8, stderr.items, expected_string) != null);
     }
+
+    // Overwrite build.zig.zon with local zon so that the latest local zx is used
+    const build_zig_zon_path = try std.fs.path.join(allocator, &.{ test_dir_abs, "build.zig.zon" });
+    defer allocator.free(build_zig_zon_path);
+    var file = try std.fs.createFileAbsolute(build_zig_zon_path, .{ .truncate = true });
+    defer file.close();
+
+    _ = try file.writeAll(local_zon_str);
 }
 
 test "cli > serve" {
@@ -277,9 +285,37 @@ test "cli > export" {
     var dist_dir = try std.fs.openDirAbsolute(dist_dir_abs, .{});
     defer dist_dir.close();
 
-    const file_stat = try dist_dir.statFile("index.html");
-    try std.testing.expectEqual(file_stat.kind, .file);
+    const expected_files = [_][]const u8{
+        "index.html",
+        "about.html",
+        "assets" ++ std.fs.path.sep_str ++ "style.css",
+        "favicon.ico",
+    };
+
+    for (expected_files) |expected_file| {
+        const file_stat = try dist_dir.statFile(expected_file);
+        try std.testing.expectEqual(file_stat.kind, .file);
+    }
 }
+
+const local_zon_str =
+    \\.{
+    \\    .name = .zx_site,
+    \\    .version = "0.0.0",
+    \\    .fingerprint = 0xc04151551dc3c31d,
+    \\    .minimum_zig_version = "0.15.2",
+    \\    .dependencies = .{
+    \\        .zx = .{
+    \\            .path = "../../",
+    \\        },
+    \\    },
+    \\    .paths = .{
+    \\        "build.zig",
+    \\        "build.zig.zon",
+    \\        "src",
+    \\    },
+    \\}
+;
 
 test "tests:beforeAll" {
     std.fs.cwd().deleteTree("test/tmp") catch {};
