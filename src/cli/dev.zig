@@ -17,7 +17,7 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
         .name = "tui-progress",
         .description = "Show full build progress output from zig build",
         .type = .Bool,
-        .default_value = .{ .Bool = false },
+        .default_value = .{ .Bool = true },
     });
     try cmd.addFlag(.{
         .name = "tui-underline",

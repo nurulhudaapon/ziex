@@ -35,6 +35,7 @@ pub fn react(options: ReactPluginOptions) ZxInitOptions.PluginOptions {
                         "--define:process.env.NODE_ENV=\"production\"",
                         "--define:__DEV__=false",
                         "--outfile=site/.zx/assets/main.js",
+                        "--log-level=silent",
                     },
                 },
             },

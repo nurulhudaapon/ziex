@@ -47,7 +47,6 @@ fn killPort(port: []const u8) !void {
 }
 
 test "cli > init" {
-
     // Create test/tmp directory
     const test_dir = "test/tmp";
     try std.fs.cwd().makePath(test_dir);
@@ -182,66 +181,112 @@ test "cli > init -t react" {
     }
 }
 
-// test "cli > serve" {
-//     const zx_bin_abs = try getZxPath();
-//     const test_dir_abs = try getTestDirPath();
-//     defer allocator.free(zx_bin_abs);
-//     defer allocator.free(test_dir_abs);
+test "cli > serve" {
+    if (true) return error.Todo; // Slow test, will enable later, and execute as another steps as e2e before release
 
-//     const port = "3456";
-//     const port_colon = try std.fmt.allocPrint(allocator, ":{s}", .{port});
-//     defer allocator.free(port_colon);
+    const zx_bin_abs = try getZxPath();
+    const test_dir_abs = try getTestDirPath();
+    defer allocator.free(zx_bin_abs);
+    defer allocator.free(test_dir_abs);
 
-//     // Kill anything on that port (cross-platform)
-//     killPort(port) catch {};
+    const port = "3456";
+    const port_colon = try std.fmt.allocPrint(allocator, ":{s}", .{port});
+    defer allocator.free(port_colon);
 
-//     var build_child = std.process.Child.init(&.{ "zig", "build" }, allocator);
-//     build_child.cwd = test_dir_abs;
-//     build_child.stdout_behavior = .Ignore;
-//     build_child.stderr_behavior = .Ignore;
-//     try build_child.spawn();
-//     _ = build_child.wait() catch {};
+    // Kill anything on that port (cross-platform)
+    killPort(port) catch {};
 
-//     var child = std.process.Child.init(&.{ zx_bin_abs, "serve", "--port", port }, allocator);
-//     child.cwd = test_dir_abs;
-//     // child.stdout_behavior = .Ignore;
-//     // child.stderr_behavior = .Ignore;
-//     try child.spawn();
-//     defer _ = child.kill() catch {};
-//     errdefer _ = child.kill() catch {};
+    var build_child = std.process.Child.init(&.{ "zig", "build" }, allocator);
+    build_child.cwd = test_dir_abs;
+    build_child.stdout_behavior = .Ignore;
+    build_child.stderr_behavior = .Ignore;
+    try build_child.spawn();
+    _ = build_child.wait() catch {};
 
-//     var client = std.http.Client{ .allocator = allocator };
-//     defer client.deinit();
+    var child = std.process.Child.init(&.{ zx_bin_abs, "serve", "--port", port }, allocator);
+    child.cwd = test_dir_abs;
+    // child.stdout_behavior = .Ignore;
+    // child.stderr_behavior = .Ignore;
+    try child.spawn();
+    defer _ = child.kill() catch {};
+    errdefer _ = child.kill() catch {};
 
-//     var aw = std.Io.Writer.Allocating.init(allocator);
-//     defer aw.deinit();
+    var client = std.http.Client{ .allocator = allocator };
+    defer client.deinit();
 
-//     const url = try std.fmt.allocPrint(allocator, "http://{s}:{s}", .{ "localhost", port });
-//     defer allocator.free(url);
+    var aw = std.Io.Writer.Allocating.init(allocator);
+    defer aw.deinit();
 
-//     // wait for 2 seconds
-//     std.Thread.sleep(std.time.ns_per_s * 1);
-//     const result = try client.fetch(.{
-//         .method = .GET,
-//         .location = .{ .url = url },
-//         .headers = std.http.Client.Request.Headers{},
-//         .response_writer = &aw.writer,
-//     });
+    const url = try std.fmt.allocPrint(allocator, "http://{s}:{s}", .{ "localhost", port });
+    defer allocator.free(url);
 
-//     // Wait 500ms
-//     std.Thread.sleep(std.time.ns_per_ms * 500);
-//     _ = child.kill() catch {};
-//     errdefer _ = child.kill() catch {};
+    // wait for 2 seconds
+    std.Thread.sleep(std.time.ns_per_s * 1);
+    const result = try client.fetch(.{
+        .method = .GET,
+        .location = .{ .url = url },
+        .headers = std.http.Client.Request.Headers{},
+        .response_writer = &aw.writer,
+    });
 
-//     try std.testing.expectEqual(result.status, std.http.Status.ok);
-// }
+    // Wait 500ms
+    std.Thread.sleep(std.time.ns_per_ms * 500);
+    _ = child.kill() catch {};
+    errdefer _ = child.kill() catch {};
+
+    try std.testing.expectEqual(result.status, std.http.Status.ok);
+}
+
+test "cli > build initialized project" {
+    const test_dir_abs = try getTestDirPath();
+    defer allocator.free(test_dir_abs);
+
+    var build_child = std.process.Child.init(&.{ "zig", "build" }, allocator);
+    build_child.cwd = test_dir_abs;
+    // build_child.stdout_behavior = .Ignore;
+    // build_child.stderr_behavior = .Ignore;
+    try build_child.spawn();
+    const exit_code = try build_child.wait();
+    switch (exit_code) {
+        .Exited => |code| try std.testing.expectEqual(code, 0),
+        else => try std.testing.expect(false),
+    }
+}
+
+test "cli > export" {
+    if (builtin.os.tag == .windows) return error.Todo; // Export doesn't work on Windows yet
+    const test_dir_abs = try getTestDirPath();
+    const zx_bin_abs = try getZxPath();
+    defer allocator.free(test_dir_abs);
+    defer allocator.free(zx_bin_abs);
+
+    var export_child = std.process.Child.init(&.{ zx_bin_abs, "export" }, allocator);
+    export_child.cwd = test_dir_abs;
+    export_child.stdout_behavior = .Ignore;
+    export_child.stderr_behavior = .Ignore;
+    try export_child.spawn();
+    const exit_code = try export_child.wait();
+    switch (exit_code) {
+        .Exited => |code| try std.testing.expectEqual(code, 0),
+        else => try std.testing.expect(false),
+    }
+
+    const dist_dir_abs = try std.fs.path.join(allocator, &.{ test_dir_abs, "dist" });
+    defer allocator.free(dist_dir_abs);
+
+    var dist_dir = try std.fs.openDirAbsolute(dist_dir_abs, .{});
+    defer dist_dir.close();
+
+    const file_stat = try dist_dir.statFile("index.html");
+    try std.testing.expectEqual(file_stat.kind, .file);
+}
 
 test "tests:beforeAll" {
     std.fs.cwd().deleteTree("test/tmp") catch {};
 }
 
 test "tests:afterAll" {
-    std.fs.cwd().deleteTree("test/tmp") catch {};
+    // std.fs.cwd().deleteTree("test/tmp") catch {};
 }
 
 const std = @import("std");
