@@ -38,9 +38,12 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Install Dependencies
+      - name: Install Zig Dependencies
         run: zig fetch --save git+https://github.com/tree-sitter/zig-tree-sitter#a53dac49d66562006e84dd11211b7ae40db68263
 
+      - name: Install Node Dependencies
+        run: cd site && bun install
+        
       - name: Build Site
         run: zig build -Dzx-docsite
 

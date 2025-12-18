@@ -161,7 +161,9 @@ pub fn buildjs(ctx: zli.CommandContext, binpath: []const u8, is_dev: bool, verbo
     if (is_dev) try esbuild_args.append(ctx.allocator, "--define:process.env.NODE_ENV=\"development\"") else try esbuild_args.append(ctx.allocator, "--define:process.env.NODE_ENV=\"production\"");
     if (is_dev) try esbuild_args.append(ctx.allocator, "--define:__DEV__=true") else try esbuild_args.append(ctx.allocator, "--define:__DEV__=false");
 
-    log.debug("Esbuild args: {s}", .{try std.mem.join(ctx.allocator, " ", esbuild_args.items)});
+    const esbuild_args_str = try std.mem.join(ctx.allocator, " ", esbuild_args.items);
+    defer ctx.allocator.free(esbuild_args_str);
+    log.debug("Esbuild args: {s}", .{esbuild_args_str});
     var esbuild_cmd = std.process.Child.init(esbuild_args.items, ctx.allocator);
 
     esbuild_cmd.stderr_behavior = .Pipe;
