@@ -27,11 +27,6 @@ pub const routes = [_]zx.App.Meta.Route{
         .layout = @import(".zx/pages/cli/layout.zig").Layout,
     },
     .{
-        .path = "/cli/:id/command",
-        .page = @import(".zx/pages/cli/page.zig").Page,
-        .layout = @import(".zx/pages/cli/layout.zig").Layout,
-    },
-    .{
         .path = "/time",
         .page = @import(".zx/pages/time/page.zig").Page,
     },

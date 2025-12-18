@@ -157,33 +157,34 @@ pub const Handler = struct {
                     }
                 }
 
-                // Apply layouts in order (root to leaf)
+                // Apply this route's own layout first
+                if (route.layout) |layout_fn| {
+                    page_component = layout_fn(layoutctx, page_component);
+                }
+
+                // Apply parent layouts in reverse order (leaf to root, most parent applied last)
                 var injector: ?ElementInjector = null;
                 if (is_dev_mode) {
-                    // log.debug("Injecting dev script into body element of most parent layout (first one)", .{});
                     injector = ElementInjector{ .allocator = pagectx.arena };
                 }
 
-                for (0..layouts_count) |i| {
+                var i: usize = layouts_count;
+                while (i > 0) {
+                    i -= 1;
                     page_component = layouts_to_apply[i](layoutctx, page_component);
-                    // In dev mode, inject dev script into body element of most parent layout (first one)
+                    // In dev mode, inject dev script into body element of root layout (last one applied, i == 0)
                     if (injector) |*inj| {
                         if (i == 0) {
-                            // log.debug("Injecting dev script into body element of most parent layout (first one)", .{});
                             _ = inj.injectScriptIntoBody(&page_component, "/assets/_zx/devscript.js");
                             injector = null; // Only inject once
                         }
                     }
                 }
 
-                // Apply this route's own layout last
-                if (route.layout) |layout_fn| {
-                    page_component = layout_fn(layoutctx, page_component);
-                    // In dev mode, inject into root route's layout if this is the root route (most parent)
+                // Handle root route's own layout - inject dev script since it's the most parent
+                if (is_root_route) {
                     if (injector) |*inj| {
-                        if (is_root_route) {
-                            _ = inj.injectScriptIntoBody(&page_component, "/assets/_zx/devscript.js");
-                        }
+                        _ = inj.injectScriptIntoBody(&page_component, "/assets/_zx/devscript.js");
                     }
                 }
 
