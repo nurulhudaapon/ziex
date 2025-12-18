@@ -68,8 +68,8 @@ fn getTranspileOutdir(transpile_cmd: *std.Build.Step.Run, opts: InitInnerOptions
     }
 
     // if user didn't provide a path, they don't want to keep transpiled output
-    // put it somewhere in cache folder, name doesn't really matter (??)
-    return transpile_cmd.addOutputDirectoryArg(".transpiled");
+    // this will put the transpiled output in .zig-cache/o/{HASH}/site
+    return transpile_cmd.addOutputDirectoryArg("site");
 }
 
 pub fn initInner(

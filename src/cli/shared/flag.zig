@@ -15,4 +15,12 @@ pub const build_args = zli.Flag{
     .hidden = true,
 };
 
+pub const verbose_flag = zli.Flag{
+    .name = "verbose",
+    .shortcut = "v",
+    .description = "Show verbose output",
+    .type = .Bool,
+    .default_value = .{ .Bool = false },
+};
+
 const zli = @import("zli");
