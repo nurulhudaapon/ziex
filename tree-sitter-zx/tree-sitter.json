@@ -14,7 +14,7 @@
     }
   ],
   "metadata": {
-    "version": "0.1.0-dev.318",
+    "version": "0.1.0-dev.320",
     "license": "MIT",
     "description": "ZX is a framework for building web applications with Zig.",
     "authors": [

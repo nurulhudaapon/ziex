@@ -1,10 +1,11 @@
 const allocator = std.testing.allocator;
+
 test "cli" {
     _ = @import("cli/fmt.zig");
 }
 
 fn getZxPath() ![]const u8 {
-    const zx_bin_rel = "zig-out/bin/zx";
+    const zx_bin_rel = if (builtin.os.tag == .windows) "zig-out/bin/zx.exe" else "zig-out/bin/zx";
     const zx_bin_abs = try std.fs.cwd().realpathAlloc(allocator, zx_bin_rel);
     return zx_bin_abs;
 }
@@ -56,7 +57,7 @@ test "cli > init" {
     defer allocator.free(test_dir_abs);
 
     // Get absolute path for zx binary
-    const zx_bin_rel = "zig-out/bin/zx";
+    const zx_bin_rel = if (builtin.os.tag == .windows) "zig-out/bin/zx.exe" else "zig-out/bin/zx";
     const zx_bin_abs = try std.fs.cwd().realpathAlloc(allocator, zx_bin_rel);
     defer allocator.free(zx_bin_abs);
 
