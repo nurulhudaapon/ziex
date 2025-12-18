@@ -37,6 +37,7 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
         .name = "path",
         .description = "Path to .zx file or directory",
         .required = false,
+        .variadic = true,
     });
     return cmd;
 }
@@ -45,38 +46,39 @@ fn fmt(ctx: zli.CommandContext) !void {
     const use_stdio = ctx.flag("stdio", bool);
     const use_stdout = ctx.flag("stdout", bool);
     const use_ts = ctx.flag("ts", bool);
-    const path = ctx.getArg("path");
 
     if (use_stdio) {
         try formatFromStdin(ctx.allocator, ctx.writer, use_ts);
         return;
     }
 
-    const path_value = path orelse {
-        try ctx.writer.print("Missing path arg\n", .{});
+    const paths = ctx.positional_args;
+    if (paths.len == 0) {
+        try ctx.writer.print("no path was given\n", .{});
         return;
-    };
+    }
 
-    // Check if path is a directory first
-    if (std.fs.cwd().openDir(path_value, .{ .iterate = true })) |dir| {
-        var dir_mut = dir;
-        dir_mut.close();
-        // It's a directory, format it
+    for (paths) |path| {
+        var dir = std.fs.cwd().openDir(path, .{ .iterate = true }) catch {
+            // If openning as directory fails, asume it is a file
+            // FIXME: should probably handle things in a better way (eg: non-existing paths)
+            try formatFile(
+                ctx.allocator,
+                ctx.writer,
+                std.fs.cwd(),
+                path,
+                path,
+                use_stdout,
+                use_ts,
+            );
+            continue;
+        };
+        defer dir.close();
+
         try formatDir(
             ctx.allocator,
             ctx.writer,
-            path_value,
-            use_stdout,
-            use_ts,
-        );
-    } else |_| {
-        // It's a file, format it
-        try formatFile(
-            ctx.allocator,
-            ctx.writer,
-            std.fs.cwd(),
-            path_value,
-            path_value,
+            path,
             use_stdout,
             use_ts,
         );
