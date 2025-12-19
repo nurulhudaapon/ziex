@@ -1,29 +1,34 @@
 #!/bin/bash
 
 # Script to link tree-sitter-zx query files to editor directories
+# Uses relative symlinks so they work on any machine
 
 # Use current working directory (run from project root)
 PROJECT_ROOT="$(pwd)"
 
-# Source and destination directories
+# Source and destination directories (absolute for operations)
 SOURCE_DIR="$PROJECT_ROOT/packages/tree-sitter-zx/queries"
 ZED_DIR="$PROJECT_ROOT/editors/zed/languages/zx"
 NEOVIM_DIR="$PROJECT_ROOT/editors/neovim/queries/zx"
-SITE_PAGES_DIR="$PROJECT_ROOT/site/pages"
+SITE_PAGES_DIR="$PROJECT_ROOT/site/pages/docs"
+
+# Relative paths from destination to source (for portable symlinks)
+REL_PATH_EDITORS="../../../../packages/tree-sitter-zx/queries"
+REL_PATH_SITE="../../../packages/tree-sitter-zx/queries"
 
 # Ensure destination directories exist
 mkdir -p "$ZED_DIR"
 mkdir -p "$NEOVIM_DIR"
 mkdir -p "$SITE_PAGES_DIR"
 
-# Function to create symbolic links
+# Function to create symbolic links with relative paths
 link_files() {
     local dest_dir="$1"
     local editor_name="$2"
+    local rel_path="$3"
     
-    echo "Source directory: $SOURCE_DIR"
     echo "Destination directory: $dest_dir"
-    echo "Linking .scm files to $editor_name..."
+    echo "Linking .scm files to $editor_name (using relative path: $rel_path)..."
     
     for file in "$SOURCE_DIR"/*.scm; do
         if [ -f "$file" ]; then
@@ -36,8 +41,8 @@ link_files() {
                 echo "  Removed existing: $filename"
             fi
             
-            # Create symbolic link
-            ln -s "$file" "$dest_file"
+            # Create symbolic link with relative path
+            ln -s "$rel_path/$filename" "$dest_file"
             echo "  Linked: $filename"
         fi
     done
@@ -46,17 +51,17 @@ link_files() {
 }
 
 # Link files to both editors
-link_files "$ZED_DIR" "Zed"
-link_files "$NEOVIM_DIR" "Neovim"
+link_files "$ZED_DIR" "Zed" "$REL_PATH_EDITORS"
+link_files "$NEOVIM_DIR" "Neovim" "$REL_PATH_EDITORS"
 
 # Link highlights.scm to site/pages
-echo "Linking highlights.scm to site/pages..."
+echo "Linking highlights.scm to site/pages (using relative path: $REL_PATH_SITE)..."
 SITE_HIGHLIGHTS="$SITE_PAGES_DIR/highlights.scm"
 if [ -e "$SITE_HIGHLIGHTS" ] || [ -L "$SITE_HIGHLIGHTS" ]; then
     rm "$SITE_HIGHLIGHTS"
     echo "  Removed existing: highlights.scm"
 fi
-ln -s "$SOURCE_DIR/highlights.scm" "$SITE_HIGHLIGHTS"
+ln -s "$REL_PATH_SITE/highlights.scm" "$SITE_HIGHLIGHTS"
 echo "  Linked: highlights.scm"
 echo ""
 

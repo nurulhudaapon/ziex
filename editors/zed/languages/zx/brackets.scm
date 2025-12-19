@@ -1,1 +1,1 @@
-/Users/nurulhudaapon/Projects/nurulhudaapon/zx/packages/tree-sitter-zx/queries/brackets.scm
+../../../../packages/tree-sitter-zx/queries/brackets.scm
