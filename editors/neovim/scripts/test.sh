@@ -47,7 +47,7 @@ fi
 # Check if grammar exists
 echo ""
 echo "Step 4: Checking grammar..."
-GRAMMAR_DIR="$(cd "$(dirname "$0")/../../../tree-sitter-zx" && pwd)"
+GRAMMAR_DIR="$(cd "$(dirname "$0")/../../../packages/tree-sitter-zx" && pwd)"
 if [ -f "$GRAMMAR_DIR/src/parser.c" ]; then
     echo "  ✓ Grammar found: $GRAMMAR_DIR"
 else

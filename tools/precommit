@@ -89,7 +89,7 @@ git add "$ZED_EXTENSION_TOML" 2>/dev/null || true
 git add "$VSCODE_PACKAGE_JSON" 2>/dev/null || true
 
 # Update tree-sitter-zx version (ignore errors)
-TREE_SITTER_DIR="$PROJECT_ROOT/tree-sitter-zx"
+TREE_SITTER_DIR="$PROJECT_ROOT/packages/tree-sitter-zx"
 if [ -d "$TREE_SITTER_DIR" ]; then
     (cd "$TREE_SITTER_DIR" && tree-sitter version "$NEW_VERSION") 2>/dev/null || true
     git add "$TREE_SITTER_DIR" 2>/dev/null || true

@@ -6,7 +6,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Source and destination directories
-SOURCE_DIR="$SCRIPT_DIR/tree-sitter-zx/queries"
+SOURCE_DIR="$SCRIPT_DIR/packages/tree-sitter-zx/queries"
 ZED_DIR="$SCRIPT_DIR/editors/zed/languages/zx"
 NEOVIM_DIR="$SCRIPT_DIR/editors/neovim/queries/zx"
 
