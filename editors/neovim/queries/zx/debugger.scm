@@ -1,1 +1,1 @@
-/Users/nurulhudaapon/Projects/nurulhudaapon/zx/tree-sitter-zx/queries/debugger.scm
+/Users/nurulhudaapon/Projects/nurulhudaapon/zx/packages/tree-sitter-zx/queries/debugger.scm

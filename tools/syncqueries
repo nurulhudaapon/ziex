@@ -2,23 +2,27 @@
 
 # Script to link tree-sitter-zx query files to editor directories
 
-# Get the script's directory (project root)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# Use current working directory (run from project root)
+PROJECT_ROOT="$(pwd)"
 
 # Source and destination directories
-SOURCE_DIR="$SCRIPT_DIR/packages/tree-sitter-zx/queries"
-ZED_DIR="$SCRIPT_DIR/editors/zed/languages/zx"
-NEOVIM_DIR="$SCRIPT_DIR/editors/neovim/queries/zx"
+SOURCE_DIR="$PROJECT_ROOT/packages/tree-sitter-zx/queries"
+ZED_DIR="$PROJECT_ROOT/editors/zed/languages/zx"
+NEOVIM_DIR="$PROJECT_ROOT/editors/neovim/queries/zx"
+SITE_PAGES_DIR="$PROJECT_ROOT/site/pages"
 
 # Ensure destination directories exist
 mkdir -p "$ZED_DIR"
 mkdir -p "$NEOVIM_DIR"
+mkdir -p "$SITE_PAGES_DIR"
 
 # Function to create symbolic links
 link_files() {
     local dest_dir="$1"
     local editor_name="$2"
     
+    echo "Source directory: $SOURCE_DIR"
+    echo "Destination directory: $dest_dir"
     echo "Linking .scm files to $editor_name..."
     
     for file in "$SOURCE_DIR"/*.scm; do
@@ -45,10 +49,22 @@ link_files() {
 link_files "$ZED_DIR" "Zed"
 link_files "$NEOVIM_DIR" "Neovim"
 
+# Link highlights.scm to site/pages
+echo "Linking highlights.scm to site/pages..."
+SITE_HIGHLIGHTS="$SITE_PAGES_DIR/highlights.scm"
+if [ -e "$SITE_HIGHLIGHTS" ] || [ -L "$SITE_HIGHLIGHTS" ]; then
+    rm "$SITE_HIGHLIGHTS"
+    echo "  Removed existing: highlights.scm"
+fi
+ln -s "$SOURCE_DIR/highlights.scm" "$SITE_HIGHLIGHTS"
+echo "  Linked: highlights.scm"
+echo ""
+
 echo "Done! All .scm files have been linked."
 echo ""
 echo "Source: $SOURCE_DIR"
 echo "Destinations:"
 echo "  - $ZED_DIR"
 echo "  - $NEOVIM_DIR"
+echo "  - $SITE_PAGES_DIR (highlights.scm only)"
 
