@@ -8,9 +8,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     .admin => (<p>Admin</p>),
                     .member => (<p>Member</p>),
                 }
-            ) else (
-                <p>User type hidden</p>
-            )}
+            ) else (<p>User type hidden</p>)}
         </main>
     );
 }

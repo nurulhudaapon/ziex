@@ -166,10 +166,10 @@ fn test_fmt(comptime file_path: []const u8, no_expect: bool) !void {
     // Get pre-loaded source file
     const source = cache.get(source_path) orelse return error.FileNotFound;
     const source_z = try allocator.dupeZ(u8, source);
-    defer allocator.free(source_z);
+    // defer allocator.free(source_z);
 
     // Parse and transpile
-    var result = try zx.Ast.fmt(allocator, source_z);
+    var result = try zx.Ast.fmtTs(allocator, source_z);
     defer result.deinit(allocator);
 
     // Get pre-loaded expected file

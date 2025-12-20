@@ -200,6 +200,7 @@ fn test_transpile(comptime file_path: []const u8) !void {
     defer allocator.free(expected_source_z);
 
     try testing.expectEqualStrings(expected_source_z, result.zig_source);
+    // try testing.expectEqualStrings(expected_source_z, result.new_zig_source);
 }
 
 fn test_render(comptime cmp: fn (allocator: std.mem.Allocator) zx.Component) !void {
