@@ -6,7 +6,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                if ((is_logged_in)) _zx.zx(
+                if (is_logged_in) _zx.zx(
                     .div,
                     .{
                         .children = &.{
@@ -20,10 +20,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             ),
                         },
                     },
-                ) else _zx.zx(
-                    .fragment,
-                    .{},
-                ),
+                ) else _zx.zx(.fragment, .{}),
             },
         },
     );

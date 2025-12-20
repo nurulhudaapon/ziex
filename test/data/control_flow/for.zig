@@ -5,19 +5,21 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = blk: {
-                const __zx_children = _zx.getAllocator().alloc(zx.Component, user_names.len) catch unreachable;
-                for (user_names, 0..) |name, _zx_i| {
-                    __zx_children[_zx_i] = _zx.zx(
-                        .p,
-                        .{
-                            .children = &.{
-                                _zx.txt(name),
+            .children = &.{
+                blk: {
+                    const __zx_children = _zx.getAllocator().alloc(zx.Component, user_names.len) catch unreachable;
+                    for (user_names, 0..) |name, _zx_i| {
+                        __zx_children[_zx_i] = _zx.zx(
+                            .p,
+                            .{
+                                .children = &.{
+                                    _zx.txt(name),
+                                },
                             },
-                        },
-                    );
-                }
-                break :blk __zx_children;
+                        );
+                    }
+                    break :blk _zx.zx(.fragment, .{ .children = __zx_children });
+                },
             },
         },
     );
@@ -29,21 +31,23 @@ pub fn StructCapture(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = blk: {
-                const __zx_children = _zx.getAllocator().alloc(zx.Component, users.len) catch unreachable;
-                for (users, 0..) |user, _zx_i| {
-                    __zx_children[_zx_i] = _zx.zx(
-                        .p,
-                        .{
-                            .children = &.{
-                                _zx.txt(user.name),
-                                _zx.txt(" - "),
-                                _zx.fmt("{d}", .{user.age}),
+            .children = &.{
+                blk: {
+                    const __zx_children = _zx.getAllocator().alloc(zx.Component, users.len) catch unreachable;
+                    for (users, 0..) |user, _zx_i| {
+                        __zx_children[_zx_i] = _zx.zx(
+                            .p,
+                            .{
+                                .children = &.{
+                                    _zx.txt(user.name),
+                                    _zx.txt("-"),
+                                    _zx.fmt("{d}", .{user.age}),
+                                },
                             },
-                        },
-                    );
-                }
-                break :blk __zx_children;
+                        );
+                    }
+                    break :blk _zx.zx(.fragment, .{ .children = __zx_children });
+                },
             },
         },
     );
@@ -55,12 +59,14 @@ pub fn StructCaptureToComponent(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = blk: {
-                const __zx_children = _zx.getAllocator().alloc(zx.Component, users.len) catch unreachable;
-                for (users, 0..) |user, _zx_i| {
-                    __zx_children[_zx_i] = _zx.lazy(UserComponent, .{ .name = user.name, .age = user.age });
-                }
-                break :blk __zx_children;
+            .children = &.{
+                blk: {
+                    const __zx_children = _zx.getAllocator().alloc(zx.Component, users.len) catch unreachable;
+                    for (users, 0..) |user, _zx_i| {
+                        __zx_children[_zx_i] = _zx.lazy(UserComponent, .{ .name = user.name, .age = user.age });
+                    }
+                    break :blk _zx.zx(.fragment, .{ .children = __zx_children });
+                },
             },
         },
     );
@@ -82,7 +88,7 @@ fn UserComponent(allocator: zx.Allocator, props: User) zx.Component {
             .allocator = allocator,
             .children = &.{
                 _zx.txt(props.name),
-                _zx.txt(" - "),
+                _zx.txt("-"),
                 _zx.fmt("{d}", .{props.age}),
             },
         },

@@ -28,7 +28,7 @@ test "if_block" {
 }
 
 test "if_if_only" {
-    return error.Todo;
+    if (true) return error.Todo;
     // try test_transpile("control_flow/if_if_only");
     // try test_render(@import("./../data/control_flow/if_if_only.zig").Page);
 }
@@ -39,122 +39,150 @@ test "if_if_only_block" {
     // try test_render(@import("./../data/control_flow/if_if_only_block.zig").Page);
 }
 test "if_only" {
+    // if (true) return error.Todo;
     try test_transpile("control_flow/if_only");
     try test_render(@import("./../data/control_flow/if_only.zig").Page);
 }
 
 test "if_only_block" {
+    // if (true) return error.Todo;
     try test_transpile("control_flow/if_only_block");
     try test_render(@import("./../data/control_flow/if_only_block.zig").Page);
 }
 // For
 test "for" {
+    // if (true) return error.Todo;
     try test_transpile("control_flow/for");
     try test_render(@import("./../data/control_flow/for.zig").Page);
 }
 test "for_capture" {
+    // if (true) return error.Todo;
     try test_render(@import("./../data/control_flow/for.zig").StructCapture);
 }
 test "for_capture_to_component" {
+    // if (true) return error.Todo;
     try test_render(@import("./../data/control_flow/for.zig").StructCaptureToComponent);
 }
 test "for_block" {
+    // if (true) return error.Todo;
     try test_transpile("control_flow/for_block");
     try test_render(@import("./../data/control_flow/for_block.zig").Page);
 }
 // Switch
 test "switch" {
+    if (true) return error.Todo;
     try test_transpile("control_flow/switch");
     try test_render(@import("./../data/control_flow/switch.zig").Page);
 }
 test "switch_block" {
+    // if (true) return error.Todo;
     try test_transpile("control_flow/switch_block");
     try test_render(@import("./../data/control_flow/switch_block.zig").Page);
 }
 // Nested Control Flow (2-level nesting)
 test "if_if" {
+    if (true) return error.Todo;
     try test_transpile("control_flow/if_if");
     try test_render(@import("./../data/control_flow/if_if.zig").Page);
 }
 test "if_for" {
+    if (true) return error.Todo;
     try test_transpile("control_flow/if_for");
     try test_render(@import("./../data/control_flow/if_for.zig").Page);
 }
 test "if_switch" {
+    if (true) return error.Todo;
     try test_transpile("control_flow/if_switch");
     try test_render(@import("./../data/control_flow/if_switch.zig").Page);
 }
 test "for_if" {
+    if (true) return error.Todo;
     try test_transpile("control_flow/for_if");
     try test_render(@import("./../data/control_flow/for_if.zig").Page);
 }
 test "for_for" {
+    if (true) return error.Todo;
     try test_transpile("control_flow/for_for");
     try test_render(@import("./../data/control_flow/for_for.zig").Page);
 }
 test "for_switch" {
+    if (true) return error.Todo;
     try test_transpile("control_flow/for_switch");
     try test_render(@import("./../data/control_flow/for_switch.zig").Page);
 }
 test "switch_if" {
+    if (true) return error.Todo;
     try test_transpile("control_flow/switch_if");
     try test_render(@import("./../data/control_flow/switch_if.zig").Page);
 }
 test "switch_for" {
+    if (true) return error.Todo;
     try test_transpile("control_flow/switch_for");
     try test_render(@import("./../data/control_flow/switch_for.zig").Page);
 }
 test "switch_switch" {
+    if (true) return error.Todo;
     try test_transpile("control_flow/switch_switch");
     try test_render(@import("./../data/control_flow/switch_switch.zig").Page);
 }
 // While
 test "while" {
+    if (true) return error.Todo;
     try test_transpile("control_flow/while");
     try test_render(@import("./../data/control_flow/while.zig").Page);
 }
 
 test "while_block" {
+    if (true) return error.Todo;
     try test_transpile("control_flow/while_block");
     try test_render(@import("./../data/control_flow/while_block.zig").Page);
 }
 
 test "expression_text" {
+    if (true) return error.Todo;
     try test_transpile("expression/text");
     try test_render(@import("./../data/expression/text.zig").Page);
 }
 test "expression_format" {
+    if (true) return error.Todo;
     try test_transpile("expression/format");
     try test_render(@import("./../data/expression/format.zig").Page);
 }
 test "expression_component" {
+    // if (true) return error.Todo;
     try test_transpile("expression/component");
     try test_render(@import("./../data/expression/component.zig").Page);
 }
 
 test "component_basic" {
+    // if (true) return error.Todo;
     try test_transpile("component/basic");
     try test_render(@import("./../data/component/basic.zig").Page);
 }
 test "component_multiple" {
+    if (true) return error.Todo;
     try test_transpile("component/multiple");
     try test_render(@import("./../data/component/multiple.zig").Page);
 }
 test "component_csr_react" {
+    if (true) return error.Todo;
     try test_transpile("component/csr_react");
     try test_render(@import("./../data/component/csr_react.zig").Page);
 }
 test "component_csr_react_multiple" {
+    if (true) return error.Todo;
     try test_transpile("component/csr_react_multiple");
     try test_render(@import("./../data/component/csr_react_multiple.zig").Page);
 }
 
 test "component_import" {
+    // if (true) return error.Todo;
     try test_transpile("component/import");
     try test_render(@import("./../data/component/import.zig").Page);
 }
 
 test "performance" {
+    if (true) return error.Todo;
     const MAX_TIME_MS = 50.0 * 8; // 50ms is on M1 Pro
     const MAX_TIME_PER_FILE_MS = 8.0 * 10; // 5ms is on M1 Pro
 
@@ -199,8 +227,8 @@ fn test_transpile(comptime file_path: []const u8) !void {
     const expected_source_z = try allocator.dupeZ(u8, expected_source);
     defer allocator.free(expected_source_z);
 
-    try testing.expectEqualStrings(expected_source_z, result.zig_source);
-    // try testing.expectEqualStrings(expected_source_z, result.new_zig_source);
+    // try testing.expectEqualStrings(expected_source_z, result.zig_source);
+    try testing.expectEqualStrings(expected_source_z, result.new_zig_source);
 }
 
 fn test_render(comptime cmp: fn (allocator: std.mem.Allocator) zx.Component) !void {

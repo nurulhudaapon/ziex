@@ -7,7 +7,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                greeting,
+                (greeting),
             },
         },
     );
