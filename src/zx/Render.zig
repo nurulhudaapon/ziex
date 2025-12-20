@@ -274,38 +274,34 @@ pub fn renderNodeWithContext(
     }
 
     // We're in zx_block - apply formatting
-    if (node_kind) |kind| {
-        switch (kind) {
-            .zx_block => {
-                try renderBlock(self, node, w, ctx);
-            },
-            .zx_element => {
-                try renderElement(self, node, w, ctx);
-            },
-            .zx_self_closing_element => {
-                try renderSelfClosingElement(self, node, w, ctx);
-            },
-            .zx_start_tag => {
-                try renderStartTag(self, node, w);
-            },
-            .zx_end_tag => {
-                try renderEndTag(self, node, w);
-            },
-            .zx_text => {
-                try renderText(self, node, w);
-            },
-            .zx_child => {
-                try renderChild(self, node, w, ctx);
-            },
-            .zx_expression_block => {
-                try renderExpressionBlock(self, node, w, ctx);
-            },
-            else => {
-                try renderSourceWithChildren(self, node, w, ctx);
-            },
-        }
-    } else {
-        try renderSourceWithChildren(self, node, w, ctx);
+    switch (node_kind) {
+        .zx_block => {
+            try renderBlock(self, node, w, ctx);
+        },
+        .zx_element => {
+            try renderElement(self, node, w, ctx);
+        },
+        .zx_self_closing_element => {
+            try renderSelfClosingElement(self, node, w, ctx);
+        },
+        .zx_start_tag => {
+            try renderStartTag(self, node, w);
+        },
+        .zx_end_tag => {
+            try renderEndTag(self, node, w);
+        },
+        .zx_text => {
+            try renderText(self, node, w);
+        },
+        .zx_child => {
+            try renderChild(self, node, w, ctx);
+        },
+        .zx_expression_block => {
+            try renderExpressionBlock(self, node, w, ctx);
+        },
+        else => {
+            try renderSourceWithChildren(self, node, w, ctx);
+        },
     }
 }
 
@@ -387,14 +383,12 @@ fn renderBlock(
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
         const child_kind = NodeKind.fromNode(child);
-        if (child_kind) |ck| {
-            switch (ck) {
-                .zx_element, .zx_self_closing_element, .zx_fragment => {
-                    element_node = child;
-                    break;
-                },
-                else => {},
-            }
+        switch (child_kind) {
+            .zx_element, .zx_self_closing_element, .zx_fragment => {
+                element_node = child;
+                break;
+            },
+            else => {},
         }
     }
 
@@ -702,26 +696,24 @@ fn renderExpressionBlock(
         const child = node.child(i) orelse continue;
         const child_kind = NodeKind.fromNode(child);
 
-        if (child_kind) |ck| {
-            switch (ck) {
-                .if_expression => {
-                    try renderIfExpression(self, child, w, ctx);
-                    return;
-                },
-                .for_expression => {
-                    try renderForExpression(self, child, w, ctx);
-                    return;
-                },
-                .while_expression => {
-                    try renderWhileExpression(self, child, w, ctx);
-                    return;
-                },
-                .switch_expression => {
-                    try renderSwitchExpression(self, child, w, ctx);
-                    return;
-                },
-                else => {},
-            }
+        switch (child_kind) {
+            .if_expression => {
+                try renderIfExpression(self, child, w, ctx);
+                return;
+            },
+            .for_expression => {
+                try renderForExpression(self, child, w, ctx);
+                return;
+            },
+            .while_expression => {
+                try renderWhileExpression(self, child, w, ctx);
+                return;
+            },
+            .switch_expression => {
+                try renderSwitchExpression(self, child, w, ctx);
+                return;
+            },
+            else => {},
         }
     }
 
@@ -787,16 +779,14 @@ fn renderIfExpression(
     // Then branch
     if (then_node) |then_b| {
         const then_kind = NodeKind.fromNode(then_b);
-        if (then_kind) |ck| {
-            switch (ck) {
-                .zx_block => {
-                    try renderBlockInline(self, then_b, w, ctx);
-                },
-                .parenthesized_expression => {
-                    try w.writeAll(try self.getNodeText(then_b));
-                },
-                else => {},
-            }
+        switch (then_kind) {
+            .zx_block => {
+                try renderBlockInline(self, then_b, w, ctx);
+            },
+            .parenthesized_expression => {
+                try w.writeAll(try self.getNodeText(then_b));
+            },
+            else => {},
         }
     }
 
@@ -804,16 +794,14 @@ fn renderIfExpression(
     if (else_node) |else_b| {
         try w.writeAll(" else ");
         const else_kind = NodeKind.fromNode(else_b);
-        if (else_kind) |ck| {
-            switch (ck) {
-                .zx_block => {
-                    try renderBlockInline(self, else_b, w, ctx);
-                },
-                .parenthesized_expression => {
-                    try w.writeAll(try self.getNodeText(else_b));
-                },
-                else => {},
-            }
+        switch (else_kind) {
+            .zx_block => {
+                try renderBlockInline(self, else_b, w, ctx);
+            },
+            .parenthesized_expression => {
+                try w.writeAll(try self.getNodeText(else_b));
+            },
+            else => {},
         }
     }
 
@@ -838,21 +826,19 @@ fn renderForExpression(
         const child = node.child(i) orelse continue;
         const child_kind = NodeKind.fromNode(child);
 
-        if (child_kind) |ck| {
-            switch (ck) {
-                .identifier, .field_expression => {
-                    if (iterable_node == null) {
-                        iterable_node = child;
-                    }
-                },
-                .payload => {
-                    payload_node = child;
-                },
-                .zx_block, .parenthesized_expression => {
-                    body_node = child;
-                },
-                else => {},
-            }
+        switch (child_kind) {
+            .identifier, .field_expression => {
+                if (iterable_node == null) {
+                    iterable_node = child;
+                }
+            },
+            .payload => {
+                payload_node = child;
+            },
+            .zx_block, .parenthesized_expression => {
+                body_node = child;
+            },
+            else => {},
         }
     }
 
@@ -874,19 +860,17 @@ fn renderForExpression(
 
     if (body_node) |body| {
         const body_kind = NodeKind.fromNode(body);
-        if (body_kind) |ck| {
-            ctx.indent_level -= 1;
-            switch (ck) {
-                .zx_block => {
-                    try renderBlockInline(self, body, w, ctx);
-                },
-                .parenthesized_expression => {
-                    try renderExpressionBlock(self, body, w, ctx);
-                },
-                else => {},
-            }
-            ctx.indent_level += 1;
+        ctx.indent_level -= 1;
+        switch (body_kind) {
+            .zx_block => {
+                try renderBlockInline(self, body, w, ctx);
+            },
+            .parenthesized_expression => {
+                try renderExpressionBlock(self, body, w, ctx);
+            },
+            else => {},
         }
+        ctx.indent_level += 1;
     }
 
     try w.writeAll("}");
@@ -910,16 +894,14 @@ fn renderWhileExpression(
         condition_node = node.childByFieldName("condition");
 
         const child_kind = NodeKind.fromNode(child);
-        if (child_kind) |ck| {
-            switch (ck) {
-                .assignment_expression => {
-                    continue_node = child;
-                },
-                .zx_block => {
-                    body_node = child;
-                },
-                else => {},
-            }
+        switch (child_kind) {
+            .assignment_expression => {
+                continue_node = child;
+            },
+            .zx_block => {
+                body_node = child;
+            },
+            else => {},
         }
     }
 
@@ -968,7 +950,7 @@ fn renderSwitchExpression(
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromNode(child) orelse continue;
+        const child_kind = NodeKind.fromNode(child);
 
         switch (child_kind) {
             .identifier, .field_expression => {
@@ -984,14 +966,15 @@ fn renderSwitchExpression(
                     const case_child = child.child(j) orelse continue;
                     const case_child_kind = NodeKind.fromNode(case_child);
 
-                    if (case_child_kind) |cck| {
-                        if (cck == .zx_block or cck == .parenthesized_expression or cck == .for_expression or cck == .while_expression or cck == .switch_expression or cck == .if_expression) {
+                    switch (case_child_kind) {
+                        .zx_block, .parenthesized_expression, .for_expression, .while_expression, .switch_expression, .if_expression => {
                             value_node = case_child;
-                        } else if (pattern_node == null and case_child.childCount() > 0) {
-                            pattern_node = case_child;
-                        }
-                    } else if (pattern_node == null and case_child.childCount() > 0) {
-                        pattern_node = case_child;
+                        },
+                        else => {
+                            if (pattern_node == null and case_child.childCount() > 0) {
+                                pattern_node = case_child;
+                            }
+                        },
                     }
                 }
 
@@ -1026,19 +1009,17 @@ fn renderSwitchExpression(
         try w.writeAll(std.mem.trim(u8, case.pattern, &std.ascii.whitespace));
         try w.writeAll(" => ");
         const case_value_kind = NodeKind.fromNode(case.value);
-        if (case_value_kind) |ck| {
-            switch (ck) {
-                .zx_block => {
-                    try renderBlockInline(self, case.value, w, ctx);
-                },
-                .parenthesized_expression => {
-                    try w.writeAll(try self.getNodeText(case.value));
-                },
-                .for_expression, .while_expression, .switch_expression, .if_expression => {
-                    try renderExpressionBlock(self, case.value, w, ctx);
-                },
-                else => {},
-            }
+        switch (case_value_kind) {
+            .zx_block => {
+                try renderBlockInline(self, case.value, w, ctx);
+            },
+            .parenthesized_expression => {
+                try w.writeAll(try self.getNodeText(case.value));
+            },
+            .for_expression, .while_expression, .switch_expression, .if_expression => {
+                try renderExpressionBlock(self, case.value, w, ctx);
+            },
+            else => {},
         }
         try w.writeAll(",");
     }
@@ -1063,14 +1044,12 @@ fn renderBlockInline(
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
         const child_kind = NodeKind.fromNode(child);
-        if (child_kind) |ck| {
-            switch (ck) {
-                .zx_element, .zx_self_closing_element, .zx_fragment => {
-                    element_node = child;
-                    break;
-                },
-                else => {},
-            }
+        switch (child_kind) {
+            .zx_element, .zx_self_closing_element, .zx_fragment => {
+                element_node = child;
+                break;
+            },
+            else => {},
         }
     }
 
@@ -1122,37 +1101,35 @@ fn renderAttributesFromNode(
             const attr_child = child.child(0) orelse continue;
             const attr_kind = NodeKind.fromNode(attr_child);
 
-            if (attr_kind) |ak| {
-                switch (ak) {
-                    .zx_builtin_attribute, .zx_regular_attribute => {
-                        // Name
-                        const name_node = attr_child.childByFieldName("name");
-                        if (name_node) |n| {
-                            const name_text = try self.getNodeText(n);
-                            try w.writeAll(name_text);
-                        }
+            switch (attr_kind) {
+                .zx_builtin_attribute, .zx_regular_attribute => {
+                    // Name
+                    const name_node = attr_child.childByFieldName("name");
+                    if (name_node) |n| {
+                        const name_text = try self.getNodeText(n);
+                        try w.writeAll(name_text);
+                    }
 
-                        // Value (optional)
-                        const value_node = attr_child.childByFieldName("value");
-                        if (value_node) |v| {
-                            try w.writeAll("=");
-                            // Write the value as-is from source
-                            const v_start = v.startByte();
-                            const v_end = v.endByte();
-                            if (v_start < v_end and v_end <= self.source.len) {
-                                try w.writeAll(self.source[v_start..v_end]);
-                            }
+                    // Value (optional)
+                    const value_node = attr_child.childByFieldName("value");
+                    if (value_node) |v| {
+                        try w.writeAll("=");
+                        // Write the value as-is from source
+                        const v_start = v.startByte();
+                        const v_end = v.endByte();
+                        if (v_start < v_end and v_end <= self.source.len) {
+                            try w.writeAll(self.source[v_start..v_end]);
                         }
-                    },
-                    else => {
-                        // Fallback - render source
-                        const c_start = child.startByte();
-                        const c_end = child.endByte();
-                        if (c_start < c_end and c_end <= self.source.len) {
-                            try w.writeAll(self.source[c_start..c_end]);
-                        }
-                    },
-                }
+                    }
+                },
+                else => {
+                    // Fallback - render source
+                    const c_start = child.startByte();
+                    const c_end = child.endByte();
+                    if (c_start < c_end and c_end <= self.source.len) {
+                        try w.writeAll(self.source[c_start..c_end]);
+                    }
+                },
             }
         }
     }

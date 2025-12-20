@@ -81,40 +81,38 @@ pub fn transpileNode(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{Ou
     const node_kind = NodeKind.fromNode(node);
 
     // Check if this is a ZX block or return expression that needs special handling
-    if (node_kind) |kind| {
-        switch (kind) {
-            .zx_block => {
-                // For inline zx_blocks (not in return statements), just transpile the content
-                try transpileBlock(self, node, ctx);
+    switch (node_kind) {
+        .zx_block => {
+            // For inline zx_blocks (not in return statements), just transpile the content
+            try transpileBlock(self, node, ctx);
+            return;
+        },
+        .return_expression => {
+            const child_count = node.childCount();
+            var has_zx_block = false;
+            var i: u32 = 0;
+
+            while (i < child_count) : (i += 1) {
+                const child = node.child(i) orelse continue;
+                const child_kind = NodeKind.fromNode(child);
+                if (child_kind == .zx_block) {
+                    has_zx_block = true;
+                    break;
+                }
+            }
+
+            if (has_zx_block) {
+                // Special handling for return (ZX)
+                try transpileReturn(self, node, ctx);
                 return;
-            },
-            .return_expression => {
-                const child_count = node.childCount();
-                var has_zx_block = false;
-                var i: u32 = 0;
-
-                while (i < child_count) : (i += 1) {
-                    const child = node.child(i) orelse continue;
-                    const child_kind = NodeKind.fromNode(child);
-                    if (child_kind == .zx_block) {
-                        has_zx_block = true;
-                        break;
-                    }
-                }
-
-                if (has_zx_block) {
-                    // Special handling for return (ZX)
-                    try transpileReturn(self, node, ctx);
-                    return;
-                }
-            },
-            .builtin_function => {
-                const had_output = try transpileBuiltin(self, node, ctx);
-                if (had_output)
-                    return;
-            },
-            else => {},
-        }
+            }
+        },
+        .builtin_function => {
+            const had_output = try transpileBuiltin(self, node, ctx);
+            if (had_output)
+                return;
+        },
+        else => {},
     }
 
     // For regular Zig code, copy as-is with source mapping
@@ -163,7 +161,7 @@ pub fn transpileBuiltin(self: *Ast, node: ts.Node, ctx: *TranspileContext) !bool
     // First pass: collect builtin identifier and import string
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromNode(child) orelse continue;
+        const child_kind = NodeKind.fromNode(child);
 
         switch (child_kind) {
             .builtin_identifier => {
@@ -242,11 +240,9 @@ pub fn transpileReturn(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void 
         const child = node.child(i) orelse continue;
         const child_kind = NodeKind.fromNode(child);
 
-        if (child_kind) |kind| {
-            if (kind == .zx_block) {
-                zx_block_node = child;
-                break;
-            }
+        if (child_kind == .zx_block) {
+            zx_block_node = child;
+            break;
         }
     }
 
@@ -256,7 +252,7 @@ pub fn transpileReturn(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void 
         var j: u32 = 0;
         while (j < zx_child_count) : (j += 1) {
             const child = zx_node.child(j) orelse continue;
-            const child_kind = NodeKind.fromNode(child) orelse continue;
+            const child_kind = NodeKind.fromNode(child);
 
             switch (child_kind) {
                 .zx_element, .zx_self_closing_element, .zx_fragment => {
@@ -290,7 +286,7 @@ pub fn transpileBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromNode(child) orelse continue;
+        const child_kind = NodeKind.fromNode(child);
 
         switch (child_kind) {
             .zx_element, .zx_self_closing_element, .zx_fragment => {
@@ -307,7 +303,7 @@ pub fn hasAllocatorAttribute(self: *Ast, node: ts.Node) !bool {
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromNode(child) orelse continue;
+        const child_kind = NodeKind.fromNode(child);
 
         switch (child_kind) {
             .zx_start_tag => {
@@ -316,7 +312,7 @@ pub fn hasAllocatorAttribute(self: *Ast, node: ts.Node) !bool {
                 const tag_children = child.childCount();
                 while (j < tag_children) : (j += 1) {
                     const attr = child.child(j) orelse continue;
-                    const attr_kind = NodeKind.fromNode(attr) orelse continue;
+                    const attr_kind = NodeKind.fromNode(attr);
 
                     switch (attr_kind) {
                         .zx_attribute, .zx_builtin_attribute => {
@@ -337,13 +333,11 @@ pub fn hasAllocatorAttribute(self: *Ast, node: ts.Node) !bool {
 
 pub fn transpileElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, is_root: bool) !void {
     const node_kind = NodeKind.fromNode(node);
-    if (node_kind) |kind| {
-        switch (kind) {
-            .zx_fragment => try transpileFragment(self, node, ctx, is_root),
-            .zx_self_closing_element => try transpileSelfClosing(self, node, ctx, is_root),
-            .zx_element => try transpileFullElement(self, node, ctx, is_root),
-            else => unreachable,
-        }
+    switch (node_kind) {
+        .zx_fragment => try transpileFragment(self, node, ctx, is_root),
+        .zx_self_closing_element => try transpileSelfClosing(self, node, ctx, is_root),
+        .zx_element => try transpileFullElement(self, node, ctx, is_root),
+        else => unreachable,
     }
 }
 
@@ -374,7 +368,7 @@ pub fn transpileSelfClosing(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromNode(child) orelse continue;
+        const child_kind = NodeKind.fromNode(child);
 
         switch (child_kind) {
             .zx_tag_name => {
@@ -496,7 +490,7 @@ pub fn transpileFullElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromNode(child) orelse continue;
+        const child_kind = NodeKind.fromNode(child);
 
         switch (child_kind) {
             .zx_start_tag => {
@@ -505,7 +499,7 @@ pub fn transpileFullElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
                 var j: u32 = 0;
                 while (j < tag_children) : (j += 1) {
                     const tag_child = child.child(j) orelse continue;
-                    const tag_child_kind = NodeKind.fromNode(tag_child) orelse continue;
+                    const tag_child_kind = NodeKind.fromNode(tag_child);
 
                     switch (tag_child_kind) {
                         .zx_tag_name => {
@@ -659,7 +653,7 @@ pub fn transpileChild(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{O
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromNode(child) orelse continue;
+        const child_kind = NodeKind.fromNode(child);
 
         switch (child_kind) {
             .zx_text => {
@@ -711,31 +705,29 @@ pub fn transpileExprBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) !vo
         const child_kind = NodeKind.fromNode(child);
 
         // Check for special expressions like if, for, switch
-        if (child_kind) |kind| {
-            switch (kind) {
-                .if_expression => {
-                    try transpileIf(self, child, ctx);
-                    continue;
-                },
-                .for_expression => {
-                    try transpileFor(self, child, ctx);
-                    continue;
-                },
-                .while_expression => {
-                    try transpileWhile(self, child, ctx);
-                    continue;
-                },
-                .switch_expression => {
-                    try transpileSwitch(self, child, ctx);
-                    continue;
-                },
-                .array_type => {
-                    // This is a format expression: {[expr:format]}
-                    try transpileFormat(self, child, ctx);
-                    continue;
-                },
-                else => {},
-            }
+        switch (child_kind) {
+            .if_expression => {
+                try transpileIf(self, child, ctx);
+                continue;
+            },
+            .for_expression => {
+                try transpileFor(self, child, ctx);
+                continue;
+            },
+            .while_expression => {
+                try transpileWhile(self, child, ctx);
+                continue;
+            },
+            .switch_expression => {
+                try transpileSwitch(self, child, ctx);
+                continue;
+            },
+            .array_type => {
+                // This is a format expression: {[expr:format]}
+                try transpileFormat(self, child, ctx);
+                continue;
+            },
+            else => {},
         }
 
         {
@@ -875,19 +867,17 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
             iterable_text = try self.getNodeText(child);
         } else {
             const child_kind = NodeKind.fromNode(child);
-            if (child_kind) |kind| {
-                switch (kind) {
-                    .payload => {
-                        payload_text = try self.getNodeText(child);
-                        seen_payload = true;
-                    },
-                    .zx_block => {
-                        if (seen_payload and body_node == null) {
-                            body_node = child;
-                        }
-                    },
-                    else => {},
-                }
+            switch (child_kind) {
+                .payload => {
+                    payload_text = try self.getNodeText(child);
+                    seen_payload = true;
+                },
+                .zx_block => {
+                    if (seen_payload and body_node == null) {
+                        body_node = child;
+                    }
+                },
+                else => {},
             }
         }
     }
@@ -961,16 +951,14 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         }
 
         const child_kind = NodeKind.fromNode(child);
-        if (child_kind) |kind| {
-            switch (kind) {
-                .assignment_expression => {
-                    continue_text = try self.getNodeText(child);
-                },
-                .zx_block => {
-                    body_node = child;
-                },
-                else => {},
-            }
+        switch (child_kind) {
+            .assignment_expression => {
+                continue_text = try self.getNodeText(child);
+            },
+            .zx_block => {
+                body_node = child;
+            },
+            else => {},
         }
     }
 
@@ -1051,10 +1039,8 @@ pub fn transpileSwitch(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void 
             const child = node.child(i) orelse continue;
             const child_kind = NodeKind.fromNode(child);
 
-            if (child_kind) |kind| {
-                if (kind == .switch_case) {
-                    try transpileCase(self, child, ctx);
-                }
+            if (child_kind == .switch_case) {
+                try transpileCase(self, child, ctx);
             }
         }
 
@@ -1126,23 +1112,21 @@ pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {
     const node_kind = NodeKind.fromNode(node);
 
     // Handle nested attribute structure: zx_attribute contains zx_builtin_attribute or zx_regular_attribute
-    if (node_kind) |kind| {
-        switch (kind) {
-            .zx_attribute => {
-                // Get the actual attribute child
-                const child_count = node.childCount();
-                if (child_count > 0) {
-                    const actual_attr = node.child(0) orelse return ZxAttribute{
-                        .name = "",
-                        .value = "\"\"",
-                        .value_byte_offset = node.startByte(),
-                        .is_builtin = false,
-                    };
-                    return try parseAttribute(self, actual_attr);
-                }
-            },
-            else => {},
-        }
+    switch (node_kind) {
+        .zx_attribute => {
+            // Get the actual attribute child
+            const child_count = node.childCount();
+            if (child_count > 0) {
+                const actual_attr = node.child(0) orelse return ZxAttribute{
+                    .name = "",
+                    .value = "\"\"",
+                    .value_byte_offset = node.startByte(),
+                    .is_builtin = false,
+                };
+                return try parseAttribute(self, actual_attr);
+            }
+        },
+        else => {},
     }
 
     // Parse builtin or regular attribute directly
@@ -1150,7 +1134,7 @@ pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromNode(child) orelse continue;
+        const child_kind = NodeKind.fromNode(child);
 
         switch (child_kind) {
             .zx_attribute_name, .zx_builtin_name => {
@@ -1178,39 +1162,32 @@ pub fn getAttributeValue(self: *Ast, node: ts.Node) ![]const u8 {
     const child_count = node.childCount();
 
     // Check if it's a zx_expression_block or zx_attribute_value
-    if (node_kind) |kind| {
-        switch (kind) {
-            .zx_expression_block, .zx_attribute_value => {
-                var i: u32 = 0;
-                while (i < child_count) : (i += 1) {
-                    const child = node.child(i) orelse continue;
-                    const child_type = child.kind();
+    switch (node_kind) {
+        .zx_expression_block, .zx_attribute_value => {
+            var i: u32 = 0;
+            while (i < child_count) : (i += 1) {
+                const child = node.child(i) orelse continue;
+                const child_type = child.kind();
 
-                    // Skip braces
-                    if (std.mem.eql(u8, child_type, "{") or std.mem.eql(u8, child_type, "}")) {
-                        continue;
-                    }
+                // Skip braces
+                if (std.mem.eql(u8, child_type, "{") or std.mem.eql(u8, child_type, "}")) {
+                    continue;
+                }
 
-                    const child_kind = NodeKind.fromNode(child);
-                    if (child_kind) |ck| {
-                        switch (ck) {
-                            .zx_expression_block => {
-                                // Recursively get the expression inside
-                                return try getAttributeValue(self, child);
-                            },
-                            else => {
-                                // This is the expression - return just the expression text
-                                return try self.getNodeText(child);
-                            },
-                        }
-                    } else {
+                const child_kind = NodeKind.fromNode(child);
+                switch (child_kind) {
+                    .zx_expression_block => {
+                        // Recursively get the expression inside
+                        return try getAttributeValue(self, child);
+                    },
+                    else => {
                         // This is the expression - return just the expression text
                         return try self.getNodeText(child);
-                    }
+                    },
                 }
-            },
-            else => {},
-        }
+            }
+        },
+        else => {},
     }
 
     // Otherwise it's a string literal

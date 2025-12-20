@@ -54,14 +54,16 @@ pub const NodeKind = enum {
     array_type,
     assignment_expression,
 
-    fn fromString(s: []const u8) ?NodeKind {
-        return std.meta.stringToEnum(NodeKind, s);
+    /// Anonymous/unrecognized node kind
+    anon,
+
+    fn fromString(s: []const u8) NodeKind {
+        return std.meta.stringToEnum(NodeKind, s) orelse .anon;
     }
 
-    pub fn fromNode(node: ?ts.Node) ?NodeKind {
-        if (node == null) return null;
-        const kind = fromString(node.?.kind());
-        return kind;
+    pub fn fromNode(node: ?ts.Node) NodeKind {
+        if (node == null) return .anon;
+        return fromString(node.?.kind());
     }
 };
 
