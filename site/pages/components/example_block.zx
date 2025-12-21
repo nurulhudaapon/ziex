@@ -32,40 +32,40 @@ pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Compon
     const zx_code_id = std.fmt.allocPrint(allocator, "zx-code-{s}", .{props.id}) catch unreachable;
 
     return (
-        <div class="code-example" @allocator={allocator}>
-            <div class="example-code">
-                <span data-no-nav="true">ZX</span>
-                <pre><code id={zx_code_id} class="hljs">{[highlighted_zx:s]}</code></pre>
+    <div class="code-example" @allocator={allocator}>
+        <div class="example-code">
+            <span data-no-nav="true">ZX</span>
+            <pre><code id={zx_code_id} class="hljs">{[highlighted_zx:s]}</code></pre>
+        </div>
+        <div class="example-code">
+            <input type="radio" id={preview_id} name={name_id} class="tab-radio" checked="true" />
+            <input type="radio" id={html_id} name={name_id} class="tab-radio" />
+            <input type="radio" id={zig_id} name={name_id} class="tab-radio" />
+            <div class="pane-header">
+                <div class="tab-buttons">
+                    <label for={preview_id} class="tab-btn">Preview</label>
+                    <label for={html_id} class="tab-btn">HTML</label>
+                    <label for={zig_id} class="tab-btn" style="display: none;">Zig</label>
+                </div>
             </div>
-            <div class="example-code">
-                <input type="radio" id={preview_id} name={name_id} class="tab-radio" checked>
-                <input type="radio" id={html_id} name={name_id} class="tab-radio">
-                <input type="radio" id={zig_id} name={name_id} class="tab-radio">
-                <div class="pane-header">
-                    <div class="tab-buttons">
-                        <label for={preview_id} class="tab-btn">Preview</label>
-                        <label for={html_id} class="tab-btn">HTML</label>
-                        <label for={zig_id} class="tab-btn" style="display: none;">Zig</label>
-                    </div>
+            <div class="tab-content" id={preview_content_id}>
+                <div class="preview-wrapper">
+                    <iframe class="preview-frame" srcdoc={html_with_style}></iframe>
                 </div>
-                <div class="tab-content" id={preview_content_id}>
-                    <div class="preview-wrapper">
-                        <iframe class="preview-frame" srcdoc={html_with_style}></iframe>
-                    </div>
+            </div>
+            <div class="tab-content" id={html_content_id}>
+                <div class="code-wrapper">
+                    <pre><code class="language-markup">{props.html_code}</code></pre>
                 </div>
-                <div class="tab-content" id={html_content_id}>
-                    <div class="code-wrapper">
-                        <pre><code class="language-markup">{props.html_code}</code></pre>
-                    </div>
-                </div>
-                <div class="tab-content" id={zig_content_id} style="display: none;">
-                    <div class="code-wrapper">
-                        <pre><code class="language-zig">{props.zig_code}</code></pre>
-                    </div>
+            </div>
+            <div class="tab-content" id={zig_content_id} style="display: none;">
+                <div class="code-wrapper">
+                    <pre><code class="language-zig">{props.zig_code}</code></pre>
                 </div>
             </div>
         </div>
-    );
+    </div>
+);
 }
 
 const zx = @import("zx");

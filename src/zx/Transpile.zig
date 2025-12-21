@@ -517,15 +517,19 @@ pub fn isCustomComponent(tag: []const u8) bool {
     return tag.len > 0 and std.ascii.isUpper(tag[0]);
 }
 
-/// Check if element should render content as raw (preserve whitespace/formatting)
-fn isRawElement(tag: []const u8, attributes: []const ZxAttribute) bool {
-    if (std.mem.eql(u8, tag, "pre")) return true;
+/// Check if element has @escaping={.raw} attribute (completely raw content, no processing)
+fn hasRawEscaping(attributes: []const ZxAttribute) bool {
     for (attributes) |attr| {
         if (attr.is_builtin and std.mem.eql(u8, attr.name, "@escaping")) {
             if (std.mem.eql(u8, attr.value, ".raw")) return true;
         }
     }
     return false;
+}
+
+/// Check if element is a <pre> tag (preserve whitespace but still process children)
+fn isPreElement(tag: []const u8) bool {
+    return std.mem.eql(u8, tag, "pre");
 }
 
 /// Escape text for use in Zig string literal
@@ -572,7 +576,7 @@ pub fn transpileSelfClosing(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
     if (isCustomComponent(tag)) {
         try writeCustomComponent(self, node, tag, attributes.items, ctx);
     } else {
-        try writeHtmlElement(self, node, tag, attributes.items, &.{}, ctx);
+        try writeHtmlElement(self, node, tag, attributes.items, &.{}, ctx, false);
     }
 }
 
@@ -624,8 +628,8 @@ pub fn transpileFullElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
         return;
     }
 
-    // Check for raw rendering mode (<pre> or @rendering={.raw})
-    if (isRawElement(tag, attributes.items)) {
+    // Check for @escaping={.raw} - completely raw content, no processing
+    if (hasRawEscaping(attributes.items)) {
         // Find raw content between start tag and end tag
         var start_byte: u32 = 0;
         var end_byte: u32 = node.endByte();
@@ -649,8 +653,11 @@ pub fn transpileFullElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
         return;
     }
 
-    // Regular HTML element
-    try writeHtmlElement(self, node, tag, attributes.items, children.items, ctx);
+    // Check for <pre> tag - preserve whitespace but still process children normally
+    const preserve_whitespace = isPreElement(tag);
+
+    // Regular HTML element (with optional whitespace preservation for <pre>)
+    try writeHtmlElement(self, node, tag, attributes.items, children.items, ctx, preserve_whitespace);
 }
 
 /// Write a custom component: _zx.lazy(Component, .{ .prop = value }) or _zx.client(...) for CSR/CSZ
@@ -817,7 +824,8 @@ fn generateComponentId(name: []const u8, path: []const u8) [35]u8 {
 }
 
 /// Write a regular HTML element: _zx.zx(.tag, .{ ... })
-fn writeHtmlElement(self: *Ast, node: ts.Node, tag: []const u8, attributes: []const ZxAttribute, children: []const ts.Node, ctx: *TranspileContext) !void {
+/// When preserve_whitespace is true (e.g. for <pre>), text nodes won't be trimmed
+fn writeHtmlElement(self: *Ast, node: ts.Node, tag: []const u8, attributes: []const ZxAttribute, children: []const ts.Node, ctx: *TranspileContext, preserve_whitespace: bool) !void {
     try ctx.writeWithMappingFromByte("_zx.zx", node.startByte(), self);
     try ctx.write("(\n");
 
@@ -843,7 +851,7 @@ fn writeHtmlElement(self: *Ast, node: ts.Node, tag: []const u8, attributes: []co
         for (children) |child| {
             const saved_len = ctx.output.items.len;
             try ctx.writeIndent();
-            const had_output = try transpileChild(self, child, ctx);
+            const had_output = try transpileChild(self, child, ctx, preserve_whitespace);
 
             if (had_output) {
                 try ctx.write(",\n");
@@ -909,7 +917,9 @@ fn writeHtmlElementRaw(self: *Ast, node: ts.Node, tag: []const u8, attributes: [
     try ctx.write(")");
 }
 
-pub fn transpileChild(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!bool {
+/// Transpile a child node. When preserve_whitespace is true (e.g. inside <pre>),
+/// text nodes are not trimmed and whitespace is preserved exactly.
+pub fn transpileChild(self: *Ast, node: ts.Node, ctx: *TranspileContext, preserve_whitespace: bool) error{OutOfMemory}!bool {
     // Returns true if any output was generated, false otherwise
     // zx_child can be: zx_element, zx_self_closing_element, zx_fragment, zx_expression_block, zx_text
     const child_count = node.childCount();
@@ -924,20 +934,50 @@ pub fn transpileChild(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{O
         switch (NodeKind.fromNode(child)) {
             .zx_text => {
                 const text = try self.getNodeText(child);
-                const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
-                if (trimmed.len == 0) continue;
 
-                // JSX-like whitespace handling: preserve leading/trailing single space
-                // when adjacent to expressions or other inline content
-                const has_leading_ws = text.len > 0 and std.ascii.isWhitespace(text[0]);
-                const has_trailing_ws = text.len > 0 and std.ascii.isWhitespace(text[text.len - 1]);
+                if (preserve_whitespace) {
+                    // For <pre> and similar: preserve whitespace, split by newlines
+                    // Each line becomes a separate _zx.txt() call
+                    if (text.len == 0) continue;
 
-                try ctx.writeWithMappingFromByte("_zx.txt(\"", child.startByte(), self);
-                if (has_leading_ws) try ctx.write(" ");
-                try ctx.write(trimmed);
-                if (has_trailing_ws) try ctx.write(" ");
-                try ctx.write("\")");
-                had_output = true;
+                    var lines = std.mem.splitScalar(u8, text, '\n');
+                    var first_line = true;
+                    while (lines.next()) |line| {
+                        // Skip the first line if it's empty (leading newline after opening tag)
+                        if (first_line and line.len == 0) {
+                            first_line = false;
+                            continue;
+                        }
+                        first_line = false;
+
+                        if (!had_output) {
+                            // First output item, indent already done
+                        } else {
+                            try ctx.write(",\n");
+                            try ctx.writeIndent();
+                        }
+                        try ctx.writeWithMappingFromByte("_zx.txt(\"", child.startByte(), self);
+                        try escapeZigString(line, ctx);
+                        try ctx.write("\")");
+                        had_output = true;
+                    }
+                } else {
+                    // Normal mode: trim and normalize whitespace
+                    const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
+                    if (trimmed.len == 0) continue;
+
+                    // JSX-like whitespace handling: preserve leading/trailing single space
+                    // when adjacent to expressions or other inline content
+                    const has_leading_ws = text.len > 0 and std.ascii.isWhitespace(text[0]);
+                    const has_trailing_ws = text.len > 0 and std.ascii.isWhitespace(text[text.len - 1]);
+
+                    try ctx.writeWithMappingFromByte("_zx.txt(\"", child.startByte(), self);
+                    if (has_leading_ws) try ctx.write(" ");
+                    try escapeZigString(trimmed, ctx);
+                    if (has_trailing_ws) try ctx.write(" ");
+                    try ctx.write("\")");
+                    had_output = true;
+                }
             },
             .zx_expression_block => {
                 try transpileExprBlock(self, child, ctx);

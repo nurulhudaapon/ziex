@@ -146,8 +146,8 @@ test "attribute_builtin" {
 
 test "raw_pre" {
     // if (true) return error.Todo;
-    try test_transpile("raw/pre");
-    try test_render(@import("./../data/raw/pre.zig").Page);
+    try test_transpile("escaping/pre");
+    try test_render(@import("./../data/escaping/pre.zig").Page);
 }
 
 test "expression_text" {

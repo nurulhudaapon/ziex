@@ -50,7 +50,8 @@ pub const TestFileCache = struct {
         "attribute/builtin",
 
         // Raw
-        "raw/pre",
+        "escaping/pre",
+        "escaping/quotes",
     };
     pub fn init(allocator: std.mem.Allocator) !TestFileCache {
         var cache = TestFileCache{

@@ -126,7 +126,7 @@ fn transpile(ctx: zli.CommandContext) !void {
                 defer result.deinit(ctx.allocator);
 
                 // Output to stdout
-                try ctx.writer.writeAll(result.zig_source);
+                try ctx.writer.writeAll(if (ts) result.new_zig_source else result.zig_source);
                 return;
             }
         }

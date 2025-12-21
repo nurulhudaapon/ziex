@@ -69,20 +69,20 @@ pub fn parseWithFilePath(gpa: std.mem.Allocator, zx_source: [:0]const u8, file_p
     var new_ast = try std.zig.Ast.parse(gpa, try allocator.dupeZ(u8, new_zig_source), .zig);
     defer new_ast.deinit(gpa);
 
-    if (ast.errors.len > 0) {
-        for (ast.errors) |err| {
-            var w: std.io.Writer.Allocating = .init(allocator);
-            defer w.deinit();
-            try ast.renderError(err, &w.writer);
-            std.debug.print("{s}\n", .{w.written()});
-        }
-        ast.deinit(gpa);
-        std.debug.print("Processed Zig Source: \n{s}\n", .{processed_zig_source});
-        return error.ParseError;
-    }
+    // if (ast.errors.len > 0) {
+    //     for (ast.errors) |err| {
+    //         var w: std.io.Writer.Allocating = .init(allocator);
+    //         defer w.deinit();
+    //         try ast.renderError(err, &w.writer);
+    //         std.debug.print("{s}\n", .{w.written()});
+    //     }
+    //     ast.deinit(gpa);
+    //     std.debug.print("Processed Zig Source: \n{s}\n", .{processed_zig_source});
+    //     return error.ParseError;
+    // }
 
-    const rendered_zig_source = try ast.renderAlloc(allocator);
-    const rendered_zig_source_z = try allocator.dupeZ(u8, rendered_zig_source);
+    // const rendered_zig_source = try ast.renderAlloc(allocator);
+    const rendered_zig_source_z = try allocator.dupeZ(u8, if (ast.errors.len == 0) try ast.renderAlloc(allocator) else processed_zig_source);
 
     const rendered_new_zig_source = if (new_ast.errors.len == 0) try new_ast.renderAlloc(allocator) else new_zig_source;
     const new_zig_source_z = try allocator.dupeZ(u8, rendered_new_zig_source);
