@@ -144,6 +144,12 @@ test "attribute_builtin" {
     try test_render(@import("./../data/attribute/builtin.zig").Page);
 }
 
+test "raw_pre" {
+    // if (true) return error.Todo;
+    try test_transpile("raw/pre");
+    try test_render(@import("./../data/raw/pre.zig").Page);
+}
+
 test "expression_text" {
     // if (true) return error.Todo;
     try test_transpile("expression/text");

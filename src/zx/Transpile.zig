@@ -517,6 +517,31 @@ pub fn isCustomComponent(tag: []const u8) bool {
     return tag.len > 0 and std.ascii.isUpper(tag[0]);
 }
 
+/// Check if element should render content as raw (preserve whitespace/formatting)
+fn isRawElement(tag: []const u8, attributes: []const ZxAttribute) bool {
+    if (std.mem.eql(u8, tag, "pre")) return true;
+    for (attributes) |attr| {
+        if (attr.is_builtin and std.mem.eql(u8, attr.name, "@escaping")) {
+            if (std.mem.eql(u8, attr.value, ".raw")) return true;
+        }
+    }
+    return false;
+}
+
+/// Escape text for use in Zig string literal
+fn escapeZigString(text: []const u8, ctx: *TranspileContext) !void {
+    for (text) |c| {
+        switch (c) {
+            '\\' => try ctx.write("\\\\"),
+            '"' => try ctx.write("\\\""),
+            '\n' => try ctx.write("\\n"),
+            '\r' => try ctx.write("\\r"),
+            '\t' => try ctx.write("\\t"),
+            else => try ctx.write(&[_]u8{c}),
+        }
+    }
+}
+
 pub fn transpileSelfClosing(self: *Ast, node: ts.Node, ctx: *TranspileContext, is_root: bool) !void {
     _ = is_root;
 
@@ -596,6 +621,31 @@ pub fn transpileFullElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
     // Custom component with children
     if (isCustomComponent(tag)) {
         try writeCustomComponent(self, node, tag, attributes.items, ctx);
+        return;
+    }
+
+    // Check for raw rendering mode (<pre> or @rendering={.raw})
+    if (isRawElement(tag, attributes.items)) {
+        // Find raw content between start tag and end tag
+        var start_byte: u32 = 0;
+        var end_byte: u32 = node.endByte();
+
+        // Find start tag end and end tag start
+        i = 0;
+        while (i < child_count) : (i += 1) {
+            const child = node.child(i) orelse continue;
+            switch (NodeKind.fromNode(child)) {
+                .zx_start_tag => start_byte = child.endByte(),
+                .zx_end_tag => end_byte = child.startByte(),
+                else => {},
+            }
+        }
+
+        const raw_content = if (start_byte < end_byte and end_byte <= self.source.len)
+            self.source[start_byte..end_byte]
+        else
+            "";
+        try writeHtmlElementRaw(self, node, tag, attributes.items, raw_content, ctx);
         return;
     }
 
@@ -801,6 +851,49 @@ fn writeHtmlElement(self: *Ast, node: ts.Node, tag: []const u8, attributes: []co
                 ctx.output.shrinkRetainingCapacity(saved_len);
             }
         }
+
+        ctx.indent_level -= 1;
+        try ctx.writeIndent();
+        try ctx.write("},\n");
+    }
+
+    ctx.indent_level -= 1;
+    try ctx.writeIndent();
+    try ctx.write("},\n");
+    ctx.indent_level -= 1;
+
+    try ctx.writeIndent();
+    try ctx.write(")");
+}
+
+/// Write a regular HTML element with raw (unprocessed) content: _zx.zx(.tag, .{ .children = &.{ _zx.txt("...") } })
+fn writeHtmlElementRaw(self: *Ast, node: ts.Node, tag: []const u8, attributes: []const ZxAttribute, raw_content: []const u8, ctx: *TranspileContext) !void {
+    try ctx.writeWithMappingFromByte("_zx.zx", node.startByte(), self);
+    try ctx.write("(\n");
+
+    ctx.indent_level += 1;
+    try ctx.writeIndent();
+    try ctx.writeWithMappingFromByte(".", node.startByte(), self);
+    try ctx.write(tag);
+    try ctx.write(",\n");
+
+    // Write options struct
+    try ctx.writeIndent();
+    try ctx.write(".{\n");
+    ctx.indent_level += 1;
+
+    try writeAttributes(self, attributes, ctx);
+
+    // Write raw content as single text child (preserve as-is)
+    if (raw_content.len > 0) {
+        try ctx.writeIndent();
+        try ctx.write(".children = &.{\n");
+        ctx.indent_level += 1;
+
+        try ctx.writeIndent();
+        try ctx.write("_zx.txt(\"");
+        try escapeZigString(raw_content, ctx);
+        try ctx.write("\"),\n");
 
         ctx.indent_level -= 1;
         try ctx.writeIndent();
@@ -1308,9 +1401,12 @@ pub const ZxAttribute = struct {
 
 /// Write builtin and regular attributes to the transpile context
 fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileContext) !void {
-    // Write builtin attributes first (like @allocator)
+    // Write builtin attributes first (like @allocator), but skip transpiler directives
     for (attributes) |attr| {
         if (!attr.is_builtin) continue;
+        // Skip transpiler directives - not runtime attributes
+        if (std.mem.eql(u8, attr.name, "@rendering")) continue;
+        if (std.mem.eql(u8, attr.name, "@escaping")) continue;
         try ctx.writeIndent();
         try ctx.write(".");
         try ctx.write(attr.name[1..]); // Skip @ prefix

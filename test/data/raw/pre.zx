@@ -1,0 +1,16 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <section @allocator={allocator}>
+            <pre>
+                const data = 
+                
+                Test   
+                        Test 2
+                
+                 name: "test" ;
+            </pre>
+        </section>
+    );
+}
+
+const zx = @import("zx");

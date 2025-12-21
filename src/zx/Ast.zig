@@ -77,6 +77,7 @@ pub fn parseWithFilePath(gpa: std.mem.Allocator, zx_source: [:0]const u8, file_p
             std.debug.print("{s}\n", .{w.written()});
         }
         ast.deinit(gpa);
+        std.debug.print("Processed Zig Source: \n{s}\n", .{processed_zig_source});
         return error.ParseError;
     }
 
