@@ -28,15 +28,15 @@ test "if_block" {
 }
 
 test "if_if_only" {
-    if (true) return error.Todo;
-    // try test_transpile("control_flow/if_if_only");
-    // try test_render(@import("./../data/control_flow/if_if_only.zig").Page);
+    // if (true) return error.Todo;
+    try test_transpile("control_flow/if_if_only");
+    try test_render(@import("./../data/control_flow/if_if_only.zig").Page);
 }
 
 test "if_if_only_block" {
-    return error.Todo;
-    // try test_transpile("control_flow/if_if_only_block");
-    // try test_render(@import("./../data/control_flow/if_if_only_block.zig").Page);
+    // if (true) return error.Todo;
+    try test_transpile("control_flow/if_if_only_block");
+    try test_render(@import("./../data/control_flow/if_if_only_block.zig").Page);
 }
 test "if_only" {
     // if (true) return error.Todo;
@@ -111,7 +111,7 @@ test "for_switch" {
     try test_render(@import("./../data/control_flow/for_switch.zig").Page);
 }
 test "switch_if" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_transpile("control_flow/switch_if");
     try test_render(@import("./../data/control_flow/switch_if.zig").Page);
 }

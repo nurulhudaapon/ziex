@@ -727,7 +727,7 @@ pub fn transpileIf(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
 }
 
 /// Helper to transpile if/else branches consistently
-fn transpileBranch(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
+fn transpileBranch(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
     switch (NodeKind.fromNode(node)) {
         .zx_block => try transpileBlock(self, node, ctx),
         .parenthesized_expression => {
@@ -907,7 +907,7 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
     }
 }
 
-pub fn transpileSwitch(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
+pub fn transpileSwitch(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
     // switch_expression: 'switch' '(' expr ')' '{' switch_case... '}'
     var switch_expr: ?[]const u8 = null;
 
@@ -957,7 +957,7 @@ pub fn transpileSwitch(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void 
     try ctx.write("}");
 }
 
-pub fn transpileCase(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
+pub fn transpileCase(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
     // switch_case structure: pattern '=>' value
     try ctx.writeIndent();
 
@@ -987,7 +987,11 @@ pub fn transpileCase(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
     if (value_node) |v| {
         switch (NodeKind.fromNode(v)) {
             .zx_block => try transpileBlock(self, v, ctx),
-            // .if_expression, .for_expression, .while_expression, .switch_expression => try transpileExprBlock(self, v, ctx),
+            // Handle nested control flow expressions
+            .if_expression => try transpileIf(self, v, ctx),
+            .for_expression => try transpileFor(self, v, ctx),
+            .while_expression => try transpileWhile(self, v, ctx),
+            .switch_expression => try transpileSwitch(self, v, ctx),
             .parenthesized_expression => {
                 // Value like `("Admin")` renders as _zx.txt("Admin")
                 try ctx.writeWithMappingFromByte("_zx.txt", v.startByte(), self);
