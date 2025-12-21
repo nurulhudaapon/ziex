@@ -671,7 +671,7 @@ pub fn transpileFullElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
 }
 
 /// Write a custom component: _zx.cmp(Component, .{ .prop = value }) or _zx.client(...) for CSR/CSZ
-fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: []const ZxAttribute, ctx: *TranspileContext) !void {
+fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: []const ZxAttribute, ctx: *TranspileContext) error{OutOfMemory}!void {
     // Check if this is a client-side rendered component (@rendering={.csr} or @rendering={.csz})
     var rendering_value: ?[]const u8 = null;
     for (attributes) |attr| {
@@ -785,7 +785,12 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
             try ctx.write(" .");
             try ctx.write(attr.name);
             try ctx.write(" = ");
-            try ctx.writeM(attr.value, attr.value_byte_offset, self);
+            // If value contains a zx_block, transpile it instead of writing raw text
+            if (attr.zx_block_node) |zx_node| {
+                try transpileBlock(self, zx_node, ctx);
+            } else {
+                try ctx.writeM(attr.value, attr.value_byte_offset, self);
+            }
         }
 
         try ctx.write(" })");
@@ -805,7 +810,12 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
             try ctx.write(" .");
             try ctx.write(attr.name);
             try ctx.write(" = ");
-            try ctx.writeM(attr.value, attr.value_byte_offset, self);
+            // If value contains a zx_block, transpile it instead of writing raw text
+            if (attr.zx_block_node) |zx_node| {
+                try transpileBlock(self, zx_node, ctx);
+            } else {
+                try ctx.writeM(attr.value, attr.value_byte_offset, self);
+            }
         }
 
         try ctx.write(" })");
@@ -1454,6 +1464,8 @@ pub const ZxAttribute = struct {
     value: []const u8,
     value_byte_offset: u32,
     is_builtin: bool,
+    /// Optional zx_block node for attribute values that contain ZX elements
+    zx_block_node: ?ts.Node = null,
 
     /// Check if any attributes in the list are regular (non-builtin)
     fn hasRegular(attrs: []const ZxAttribute) bool {
@@ -1465,7 +1477,7 @@ pub const ZxAttribute = struct {
 };
 
 /// Write builtin and regular attributes to the transpile context
-fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileContext) !void {
+fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileContext) error{OutOfMemory}!void {
     // Write builtin attributes first (like @allocator), but skip transpiler directives
     for (attributes) |attr| {
         if (!attr.is_builtin) continue;
@@ -1476,7 +1488,12 @@ fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileC
         try ctx.write(".");
         try ctx.write(attr.name[1..]); // Skip @ prefix
         try ctx.write(" = ");
-        try ctx.writeM(attr.value, attr.value_byte_offset, self);
+        // If value contains a zx_block, transpile it instead of writing raw text
+        if (attr.zx_block_node) |zx_node| {
+            try transpileBlock(self, zx_node, ctx);
+        } else {
+            try ctx.writeM(attr.value, attr.value_byte_offset, self);
+        }
         try ctx.write(",\n");
     }
 
@@ -1493,7 +1510,12 @@ fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileC
         try ctx.write(".{ .name = \"");
         try ctx.write(attr.name);
         try ctx.write("\", .value = ");
-        try ctx.writeM(attr.value, attr.value_byte_offset, self);
+        // If value contains a zx_block, transpile it instead of writing raw text
+        if (attr.zx_block_node) |zx_node| {
+            try transpileBlock(self, zx_node, ctx);
+        } else {
+            try ctx.writeM(attr.value, attr.value_byte_offset, self);
+        }
         try ctx.write(" },\n");
     }
 
@@ -1523,6 +1545,9 @@ pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {
     const name = if (name_node) |n| try self.getNodeText(n) else "";
     const is_builtin = name.len > 0 and name[0] == '@';
 
+    // Check if value contains a zx_block
+    const zx_block_node = if (value_node) |v| findZxBlockInValue(v) else null;
+
     const value = if (value_node) |v| try getAttributeValue(self, v) else "\"\"";
     const value_offset = if (value_node) |v| v.startByte() else node.startByte();
 
@@ -1531,7 +1556,30 @@ pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {
         .value = value,
         .value_byte_offset = value_offset,
         .is_builtin = is_builtin,
+        .zx_block_node = zx_block_node,
     };
+}
+
+/// Find a zx_block node within an attribute value (for values like attr={<div>...</div>})
+fn findZxBlockInValue(node: ts.Node) ?ts.Node {
+    const node_kind = NodeKind.fromNode(node);
+
+    // Direct zx_block
+    if (node_kind == .zx_block) {
+        return node;
+    }
+
+    // Check children for zx_block
+    const child_count = node.childCount();
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        if (findZxBlockInValue(child)) |found| {
+            return found;
+        }
+    }
+
+    return null;
 }
 
 pub fn getAttributeValue(self: *Ast, node: ts.Node) ![]const u8 {

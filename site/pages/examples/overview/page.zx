@@ -1,0 +1,11 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <main @allocator={ctx.arena}>
+            <QuickExample />
+        </main>
+    );
+}
+
+const QuickExample = @import("./../overview.zx").QuickExample;
+const zx = @import("zx");
+

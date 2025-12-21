@@ -38,6 +38,10 @@ pub const routes = [_]zx.App.Meta.Route{
         .path = "/examples/wasm/simple",
         .page = @import(".zx/pages/examples/wasm/simple/page.zig").Page,
     },
+    .{
+        .path = "/examples/overview",
+        .page = @import(".zx/pages/examples/overview/page.zig").Page,
+    },
 };
 
 pub const meta = zx.App.Meta{

@@ -1,0 +1,20 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const hello_child = (<div>Hello!</div>);
+    return (
+        <section @allocator={allocator}>
+            <ChildComponent children={hello_child} />
+            <ChildComponent children={(<div>Hello!</div>)} />
+        </section>
+    );
+}
+
+const Props = struct { children: zx.Component };
+pub fn ChildComponent(allocator: zx.Allocator, props: Props) zx.Component {
+    return (
+        <div @allocator={allocator}>
+            {props.children}
+        </div>
+    );
+}
+
+const zx = @import("zx");

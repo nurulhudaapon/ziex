@@ -739,8 +739,15 @@ const ZxContext = struct {
         if (T == Component) return val;
 
         const Cmp = switch (@typeInfo(T)) {
-            .comptime_int, .int, .comptime_float, .float => self.fmt("{d}", .{val}),
+            .comptime_int, .comptime_float, .float => self.fmt("{d}", .{val}),
+            .int => if (T == u8 and std.ascii.isPrint(val))
+                self.fmt("{c}", .{val})
+            else
+                self.fmt("{d}", .{val}),
             .bool => self.fmt("{s}", .{if (val) "true" else "false"}),
+            .null => .{ .element = null }, // Render nothing for null
+            .optional => if (val) |inner| self.expr(inner) else .{ .element = null },
+            .@"enum", .enum_literal => self.txt(@tagName(val)),
             .pointer => |ptr_info| switch (ptr_info.size) {
                 .one => switch (@typeInfo(ptr_info.child)) {
                     .array => {
@@ -764,11 +771,29 @@ const ZxContext = struct {
                         }
                     }
 
+                    // Handle slices of Components
+                    if (ptr_info.child == Component) {
+                        return .{ .element = .{
+                            .tag = .fragment,
+                            .children = val,
+                        } };
+                    }
+
                     return self.txt(slice);
                 },
-                else => @compileError("Unable to render type '" ++ @typeName(T) ++ "', supported types are: int, float, bool, string"),
+                else => @compileError("Unable to render type '" ++ @typeName(T) ++ "', supported types are: int, float, bool, string, enum, optional"),
             },
-            else => @compileError("Unable to render type '" ++ @typeName(T) ++ "', supported types are: int, float, bool, string"),
+            .array => |arr_info| {
+                // Handle arrays of Components
+                if (arr_info.child == Component) {
+                    return .{ .element = .{
+                        .tag = .fragment,
+                        .children = &val,
+                    } };
+                }
+                @compileError("Unable to render array of type '" ++ @typeName(arr_info.child) ++ "', only Component arrays are supported");
+            },
+            else => @compileError("Unable to render type '" ++ @typeName(T) ++ "', supported types are: int, float, bool, string, enum, optional"),
         };
 
         return Cmp;
