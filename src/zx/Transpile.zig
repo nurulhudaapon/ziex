@@ -1048,15 +1048,10 @@ pub fn transpileExprBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) err
         const trimmed = std.mem.trim(u8, expr_text, &std.ascii.whitespace);
         if (trimmed.len == 0) continue;
 
-        if (trimmed[0] == '(') {
-            // Component expression like {(component)}
-            try ctx.writeM(trimmed, child.startByte(), self);
-        } else {
-            // Regular expression like {user.name}
-            try ctx.writeM("_zx.expr(", child.startByte(), self);
-            try ctx.writeM(trimmed, child.startByte(), self);
-            try ctx.write(")");
-        }
+        // Regular expression like {user.name}
+        try ctx.writeM("_zx.expr(", child.startByte(), self);
+        try ctx.writeM(trimmed, child.startByte(), self);
+        try ctx.write(")");
     }
 }
 

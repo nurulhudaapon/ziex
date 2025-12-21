@@ -9,7 +9,7 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
         
         <body>
             <h1>ZX</h1>
-            {(children)}
+            {children}
         </body>
         
         </html>
