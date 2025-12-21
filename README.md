@@ -1,6 +1,6 @@
 # ZX
 
-A Zig library for building web applications with JSX-like syntax. Write declarative UI components using familiar JSX patterns, transpiled to efficient Zig code.
+A Zig library for building full-stack web applications with JSX-like syntax. Write declarative UI components using familiar JSX patterns, transpiled to efficient Zig code.
 
 ZX combines the power and performance of Zig with the expressiveness of JSX, enabling you to build fast, type-safe web applications. ZX is significantly faster than frameworks like Next.js at SSR.
 
@@ -31,7 +31,7 @@ winget install -e --id zig.zig # Windows
 pub fn QuickExample(allocator: zx.Allocator) zx.Component {
     const is_loading = true;
     const chars = "Hello, ZX Dev!";
-
+    var i: usize = 0;
     return (
         <main @allocator={allocator}>
             <section>
@@ -39,13 +39,17 @@ pub fn QuickExample(allocator: zx.Allocator) zx.Component {
             </section>
         
             <section>
-                {for (chars) |char| (<span>{[char:c]}</span>)}
+                {for (chars) |char| (<span>{char}</span>)}
             </section>
         
             <section>
                 {for (users) |user| (
                     <Profile name={user.name} age={user.age} role={user.role} />
                 )}
+            </section>
+
+            <section>
+                {while (i < 10) : (i += 1) (<p>{i}</p>)}
             </section>
         </main>
     );
@@ -55,7 +59,7 @@ fn Profile(allocator: zx.Allocator, user: User) zx.Component {
     return (
         <div @allocator={allocator}>
             <h1>{user.name}</h1>
-            <p>{[user.age:d]}</p>
+            <p>{user.age}</p>
             {switch (user.role) {
                 .admin => (<p>Admin</p>),
                 .member => (<p>Member</p>),
@@ -77,10 +81,10 @@ const zx = @import("zx");
 ## Feature Checklist
 
 - [x] Server Side Rendering (SSR)
+    - [ ] `getStaticParams`, `getStaticProps`
 - [x] Static Site Generation (SSG)
 - [ ] Client Side Rendering (CSR) via WebAssembly (_WIP_)
 - [x] Client Side Rendering (CSR) via React
-- [x] Type Safety
 - [x] Routing
     - [x] File-system Routing
     - [x] Search Parameters
@@ -88,13 +92,13 @@ const zx = @import("zx");
 - [x] Components
 - [x] Control Flow
     - [x] `if`
-    - [ ] `if` nested
+    - [x] `if` nested
     - [x] `if/else`
     - [x] `if/else` nested
     - [x] `for`
     - [x] `for` nested
     - [x] `switch`
-    - [x] `switch` nested
+    - [ ] `switch` nested
     - [x] `while`
     - [x] `while` nested
 - [x] Assets
@@ -102,12 +106,16 @@ const zx = @import("zx");
     - [x] Serving
 - [ ] Assets Optimization
     - [ ] Image
-    - [ ] CSS
-    - [ ] JS
-    - [ ] HTML
+    - [x] CSS (via plugins such as Tailwind)
+    - [x] JS/TS (via esbuild)
+    - [x] HTML
 - [ ] Middleware
 - [ ] API Endpoints
 - [ ] Server Actions
+- [ ] Plugin System (_WIP_)
+- [ ] Global App Context
+- [ ] `error.zx` for default and per-route error page
+- [ ] `notfound.zx` for default and per-route error page
 - [x] CLI
     - [x] `init` Project Template
     - [x] `transpile` Transpile .zx files to Zig source code
@@ -122,20 +130,9 @@ const zx = @import("zx");
 
 #### Editor Support
 
-* [VSCode](https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx)/[VSCode Forks](https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx) Extension
-    - [x] Syntax Highlighting
-    - [x] LSP Support
-    - [x] Auto Format
-
-* [Neovim](/editors/neovim/)
-    - [x] Syntax Highlighting
-    - [x] LSP Support (Full for Zig, partial for ZX)
-    - [ ] Auto Format
-
-* [Zed](/editors/zed/)
-    - [x] Syntax Highlighting
-    - [x] LSP Support (Full for Zig, partial for ZX)
-    - [ ] Auto Format
+- ##### [VSCode](https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx)/[VSCode Forks](https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx) Extension
+- ##### [Neovim](/editors/neovim/)
+- ##### [Zed](/editors/zed/)
 
 ## Similar Projects
 
