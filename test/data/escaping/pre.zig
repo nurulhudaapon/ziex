@@ -9,12 +9,12 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     .pre,
                     .{
                         .children = &.{
-                            _zx.txt("                const data = "),
-                            _zx.txt("                "),
-                            _zx.txt("                Test   "),
-                            _zx.txt("                        Test 2"),
-                            _zx.txt("                "),
-                            _zx.txt("                 name: \"test\" ;"),
+                            _zx.txt("                const data = \n"),
+                            _zx.txt("                \n"),
+                            _zx.txt("                Test   \n"),
+                            _zx.txt("                        Test 2\n"),
+                            _zx.txt("                \n"),
+                            _zx.txt("                 name: \"test\" ;\n"),
                             _zx.txt("            "),
                         },
                     },
