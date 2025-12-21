@@ -8,6 +8,8 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     );
 }
 
+const hello_child_outside = (<div>Hello!</div>);
+
 const Props = struct { children: zx.Component };
 pub fn ChildComponent(allocator: zx.Allocator, props: Props) zx.Component {
     return (

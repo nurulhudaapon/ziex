@@ -39,6 +39,8 @@ pub const TranspileContext = struct {
     file_path: ?[]const u8 = null,
     /// Counter for generating unique block labels and variable names (for nested loops)
     block_counter: u32 = 0,
+    /// Flag to track if _zx has been initialized in the current scope (e.g., inside a return statement)
+    zx_initialized: bool = false,
 
     pub fn init(allocator: std.mem.Allocator, source: []const u8, track_mappings: bool) TranspileContext {
         return .{
@@ -440,10 +442,14 @@ pub fn transpileReturn(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void 
                         try ctx.write("init()");
                     }
                     try ctx.write(";\n");
+                    // Mark that _zx is now initialized for nested ZX blocks
+                    ctx.zx_initialized = true;
                     try ctx.writeIndent();
                     try ctx.writeM("return", node.startByte(), self);
                     try ctx.write(" ");
                     try transpileElement(self, child, ctx, true);
+                    // Reset the flag after processing the return statement
+                    ctx.zx_initialized = false;
                     return;
                 },
                 else => {},
@@ -454,7 +460,6 @@ pub fn transpileReturn(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void 
 
 pub fn transpileBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
     // This is for zx_block nodes found inside expressions (not top-level)
-    // Extract the element and transpile it without initialization
     const child_count = node.childCount();
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
@@ -463,7 +468,49 @@ pub fn transpileBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
 
         switch (child_kind) {
             .zx_element, .zx_self_closing_element, .zx_fragment => {
+                // If _zx is already initialized (e.g., inside a return statement),
+                // just transpile the element directly without wrapping
+                if (ctx.zx_initialized) {
+                    try transpileElement(self, child, ctx, false);
+                    return;
+                }
+
+                // Otherwise, wrap in a self-contained labeled block with local _zx initialization
+                // Get unique block index for this inline ZX expression
+                const block_idx = ctx.nextBlockIndex();
+                var idx_buf: [16]u8 = undefined;
+                const idx_str = std.fmt.bufPrint(&idx_buf, "{d}", .{block_idx}) catch unreachable;
+
+                // Check if element has @allocator attribute
+                const allocator_value = try getAllocatorAttribute(self, child);
+
+                // Generate: _zx_ele_blk_N: { var _zx = zx.init(); break :_zx_ele_blk_N _zx.ele(...); }
+                try ctx.write("_zx_ele_blk_");
+                try ctx.write(idx_str);
+                try ctx.write(": {\n");
+
+                ctx.indent_level += 1;
+                try ctx.writeIndent();
+                try ctx.write("var _zx = zx.");
+                if (allocator_value) |alloc| {
+                    try ctx.write("allocInit(");
+                    try ctx.write(alloc);
+                    try ctx.write(")");
+                } else {
+                    try ctx.write("init()");
+                }
+                try ctx.write(";\n");
+
+                try ctx.writeIndent();
+                try ctx.write("break :_zx_ele_blk_");
+                try ctx.write(idx_str);
+                try ctx.write(" ");
                 try transpileElement(self, child, ctx, false);
+                try ctx.write(";\n");
+
+                ctx.indent_level -= 1;
+                try ctx.writeIndent();
+                try ctx.write("}");
                 return;
             },
             else => {},
@@ -1214,8 +1261,8 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         var idx_buf: [16]u8 = undefined;
         const idx_str = std.fmt.bufPrint(&idx_buf, "{d}", .{block_idx}) catch unreachable;
 
-        // Generate: blk_N: { const __zx_children_N = _zx.getAlloc().alloc(...); for (...) |item, i| { ... }; break :blk_N ...; }
-        try ctx.writeM("blk_", node.startByte(), self);
+        // Generate: _zx_for_blk_N: { const __zx_children_N = _zx.getAlloc().alloc(...); for (...) |item, i| { ... }; break :_zx_for_blk_N ...; }
+        try ctx.writeM("_zx_for_blk_", node.startByte(), self);
         try ctx.write(idx_str);
         try ctx.write(": {\n");
 
@@ -1260,7 +1307,7 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         try ctx.write("}\n");
 
         try ctx.writeIndent();
-        try ctx.write("break :blk_");
+        try ctx.write("break :_zx_for_blk_");
         try ctx.write(idx_str);
         try ctx.write(" _zx.ele(.fragment, .{ .children = __zx_children_");
         try ctx.write(idx_str);
@@ -1312,8 +1359,8 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         var idx_buf: [16]u8 = undefined;
         const idx_str = std.fmt.bufPrint(&idx_buf, "{d}", .{block_idx}) catch unreachable;
 
-        // Generate: blk_N: { var __zx_list_N = std.ArrayList(zx.Component).init(_zx.getAlloc()); while (cond) : (cont) { __zx_list_N.append(...); }; break :blk_N ...; }
-        try ctx.writeM("blk_", node.startByte(), self);
+        // Generate: _zx_whl_blk_N: { var __zx_list_N = std.ArrayList(zx.Component).init(_zx.getAlloc()); while (cond) : (cont) { __zx_list_N.append(...); }; break :_zx_whl_blk_N ...; }
+        try ctx.writeM("_zx_whl_blk_", node.startByte(), self);
         try ctx.write(idx_str);
         try ctx.write(": {\n");
 
@@ -1350,7 +1397,7 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         try ctx.write("}\n");
 
         try ctx.writeIndent();
-        try ctx.write("break :blk_");
+        try ctx.write("break :_zx_whl_blk_");
         try ctx.write(idx_str);
         try ctx.write(" _zx.ele(.fragment, .{ .children = __zx_list_");
         try ctx.write(idx_str);

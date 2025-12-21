@@ -1,12 +1,15 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    const hello_child = _zx.ele(
-        .div,
-        .{
-            .children = &.{
-                _zx.txt("Hello!"),
+    const hello_child = blk_0: {
+        var _zx = zx.init();
+        break :blk_0 _zx.ele(
+            .div,
+            .{
+                .children = &.{
+                    _zx.txt("Hello!"),
+                },
             },
-        },
-    );
+        );
+    };
     var _zx = zx.allocInit(allocator);
     return _zx.ele(
         .section,
@@ -26,6 +29,18 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         },
     );
 }
+
+const hello_child_outside = blk_1: {
+    var _zx = zx.init();
+    break :blk_1 _zx.ele(
+        .div,
+        .{
+            .children = &.{
+                _zx.txt("Hello!"),
+            },
+        },
+    );
+};
 
 const Props = struct { children: zx.Component };
 pub fn ChildComponent(allocator: zx.Allocator, props: Props) zx.Component {
