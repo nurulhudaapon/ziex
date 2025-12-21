@@ -1,0 +1,19 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    var i: usize = 0;
+
+    return (
+        <main @allocator={allocator}>
+            {while (i < 3) : (i +=1) (
+                <div>
+                    {switch (i) {
+                        0 => <span>Zero</span>,
+                        1 => <span>One</span>,
+                        else => <span>Other</span>,
+                    }}
+                </div>
+            )}
+        </main>
+    );
+}
+
+const zx = @import("zx");

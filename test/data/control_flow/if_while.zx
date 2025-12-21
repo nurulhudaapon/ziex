@@ -1,0 +1,16 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const show_list = true;
+    var i: usize = 0;
+
+    return (
+        <main @allocator={allocator}>
+            {if (show_list) (
+                <div>
+                    {while (i < 3) : (i +=1) (<p>{[i:d]}</p>)}
+                </div>
+            ) else (<p>List hidden</p>)}
+        </main>
+    );
+}
+
+const zx = @import("zx");

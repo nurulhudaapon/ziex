@@ -22,16 +22,24 @@ pub const TestFileCache = struct {
         "control_flow/if_if",
         "control_flow/if_for",
         "control_flow/if_switch",
+        "control_flow/if_while",
         "control_flow/if_if_only",
         "control_flow/if_if_only_block",
 
         "control_flow/for_if",
         "control_flow/for_for",
         "control_flow/for_switch",
+        "control_flow/for_while",
 
         "control_flow/switch_if",
         "control_flow/switch_for",
         "control_flow/switch_switch",
+        "control_flow/switch_while",
+
+        "control_flow/while_if",
+        "control_flow/while_for",
+        "control_flow/while_switch",
+        "control_flow/while_while",
 
         // Expression
         "expression/text",

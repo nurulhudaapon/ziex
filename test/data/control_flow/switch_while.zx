@@ -1,0 +1,17 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const mode: Mode = .repeat;
+    var i: usize = 0;
+
+    return (
+        <main @allocator={allocator}>
+            {switch (mode) {
+                .single => <p>Single</p>,
+                .repeat => {while (i < 3) : (i += 1) (<p>{[i:d]}</p>)},
+            }}
+        </main>
+    );
+}
+
+const zx = @import("zx");
+
+const Mode = enum { single, repeat };

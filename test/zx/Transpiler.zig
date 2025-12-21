@@ -138,6 +138,49 @@ test "while_block" {
     try test_render(@import("./../data/control_flow/while_block.zig").Page);
 }
 
+// Nested while variants
+test "while_while" {
+    // if (true) return error.Todo;
+    try test_transpile("control_flow/while_while");
+    try test_render(@import("./../data/control_flow/while_while.zig").Page);
+}
+
+test "while_if" {
+    // if (true) return error.Todo;
+    try test_transpile("control_flow/while_if");
+    try test_render(@import("./../data/control_flow/while_if.zig").Page);
+}
+
+test "while_for" {
+    // if (true) return error.Todo;
+    try test_transpile("control_flow/while_for");
+    try test_render(@import("./../data/control_flow/while_for.zig").Page);
+}
+
+test "while_switch" {
+    if (true) return error.Todo;
+    try test_transpile("control_flow/while_switch");
+    try test_render(@import("./../data/control_flow/while_switch.zig").Page);
+}
+
+test "if_while" {
+    // if (true) return error.Todo;
+    try test_transpile("control_flow/if_while");
+    try test_render(@import("./../data/control_flow/if_while.zig").Page);
+}
+
+test "for_while" {
+    if (true) return error.Todo;
+    try test_transpile("control_flow/for_while");
+    try test_render(@import("./../data/control_flow/for_while.zig").Page);
+}
+
+test "switch_while" {
+    if (true) return error.Todo;
+    try test_transpile("control_flow/switch_while");
+    try test_render(@import("./../data/control_flow/switch_while.zig").Page);
+}
+
 test "attribute_builtin" {
     // if (true) return error.Todo;
     try test_transpile("attribute/builtin");
