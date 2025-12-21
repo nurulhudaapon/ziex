@@ -8,11 +8,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <style>
                 {[@embedFile("style.css"):s]}
             </style>
-            <script  type="module" @escaping={.raw}>
-                import { init } from "https://cdn.jsdelivr.net/npm/ziex@0.0.1-dev.6/wasm/index.min.js";
-                init(); // Initialize the ZX WASM instance
-            </script>
-
+            <script  type="module" src="/assets/main.js" />
         </div>
     );
 }
@@ -73,9 +69,9 @@ fn TodoItem(allocator: zx.Allocator, props: TodoItemProps) zx.Component {
             class={item_class} key={id} data-completed={if (props.completed) "true" else "false"}
             onclick={std.fmt.allocPrint(allocator, "_zx.exports.example_wasm_toggleTodo({d})", .{props.id}) catch @panic("OOM")}
         >
-            <div class="todo-checkbox">
+            <button class="todo-checkbox">
                 {if (props.completed) "✓" else ""}
-            </div>
+            </button>
             <span class="todo-text">{props.text}</span>
         </li>
     );

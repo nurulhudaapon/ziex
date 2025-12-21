@@ -3,10 +3,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         <div @allocator={ctx.arena}>
             <CounterComponent @rendering={.csz} />
 
-            <script  type="module" @escaping={.raw}>
-                import { init } from "https://cdn.jsdelivr.net/npm/ziex@0.0.1-dev.6/wasm/index.min.js";
-                init(); // Initialize the ZX WASM instance
-            </script>
+            <script  type="module" src="/assets/main.js" />
         </div>
     );
 }

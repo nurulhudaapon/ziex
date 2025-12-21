@@ -44,7 +44,7 @@ pub const VElement = struct {
                 return velement;
             },
             .text => |text| {
-                const text_node = document.createTextNode(text);
+                const text_node = document.createTextNode(if (text.len > 0) text else "");
 
                 const velement = VElement{
                     .dom = .{ .text = text_node },
@@ -287,10 +287,11 @@ pub fn diff(
                     const log_text = std.fmt.allocPrint(allocator, "diffText: Old: {s}, New: {s}", .{ old_text, new_text }) catch @panic("OOM");
                     defer allocator.free(log_text);
                     console.str(log_text);
+
                     if (!std.mem.eql(u8, old_text, new_text)) {
                         switch (old_velement.dom) {
                             .text => |text_node| {
-                                text_node.setNodeValue(new_text);
+                                text_node.setNodeValue(if (new_text.len > 0) new_text else "");
                             },
                             else => {},
                         }

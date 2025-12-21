@@ -63,32 +63,32 @@ pub fn build(b: *std.Build) !void {
 
     // --- ZX Site (Docs, Example, sample) --- //
     {
-        const is_zx_docsite = b.option(bool, "zx-docsite", "Build the ZX docsite") orelse false;
-        if (is_zx_docsite) {
-            const zx_docsite_exe = b.addExecutable(.{
-                .name = "zx_site",
-                .root_module = b.createModule(.{
-                    .root_source_file = b.path("site/main.zig"),
-                    .target = target,
-                    .optimize = optimize,
-                }),
-            });
-            zx_docsite_exe.root_module.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
-            zx_docsite_exe.root_module.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
+        // const is_zx_docsite = b.option(bool, "zx-docsite", "Build the ZX docsite") orelse false;
+        // if (is_zx_docsite) {
+        const zx_docsite_exe = b.addExecutable(.{
+            .name = "zx_site",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("site/main.zig"),
+                .target = target,
+                .optimize = optimize,
+            }),
+        });
+        zx_docsite_exe.root_module.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
+        zx_docsite_exe.root_module.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
 
-            try buildlib.initlib.initInner(b, zx_docsite_exe, exe, mod, zx_wasm_mod, .{
-                .cli_path = null,
-                .site_outdir = b.path("site/.zx"),
-                .site_path = b.path("site"),
-                .experimental_enabled_csr = true,
-                .experimental_ts_based_transpile = true,
-                .steps = .{ .serve = "serve", .dev = "dev", .@"export" = "export", .bundle = "bundle" },
-                .plugins = &.{
-                    plugins.typescript(.{}),
-                    // plugins.tailwind(.{}),
-                },
-            });
-        }
+        try buildlib.initlib.initInner(b, zx_docsite_exe, exe, mod, zx_wasm_mod, .{
+            .cli_path = null,
+            .site_outdir = b.path("site/.zx"),
+            .site_path = b.path("site"),
+            .experimental_enabled_csr = true,
+            .experimental_ts_based_transpile = true,
+            .steps = .{ .serve = "serve", .dev = "dev", .@"export" = "export", .bundle = "bundle" },
+            .plugins = &.{
+                plugins.typescript(.{}),
+                // plugins.tailwind(.{}),
+            },
+        });
+        // }
     }
 
     // --- Steps: Test --- //
