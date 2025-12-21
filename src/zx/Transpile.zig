@@ -104,6 +104,17 @@ pub fn transpileNode(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{Ou
             try transpileBlock(self, node, ctx);
             return;
         },
+        .variable_declaration => {
+            // Check if this variable declaration contains @jsImport
+            if (try containsJsImport(self, node)) {
+                // Comment out the entire declaration
+                try ctx.writeWithMappingFromByte("// ", start_byte, self);
+                if (start_byte < end_byte and end_byte <= self.source.len) {
+                    try ctx.write(self.source[start_byte..end_byte]);
+                }
+                return;
+            }
+        },
         .return_expression => {
             const child_count = node.childCount();
             var has_zx_block = false;
@@ -165,13 +176,42 @@ pub fn transpileNode(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{Ou
     }
 }
 
+/// Check if a node contains @jsImport builtin
+fn containsJsImport(self: *Ast, node: ts.Node) !bool {
+    const child_count = node.childCount();
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        const child_kind = NodeKind.fromNode(child);
+
+        if (child_kind == .builtin_function) {
+            // Check if this builtin is @jsImport
+            const builtin_child_count = child.childCount();
+            var j: u32 = 0;
+            while (j < builtin_child_count) : (j += 1) {
+                const builtin_child = child.child(j) orelse continue;
+                if (NodeKind.fromNode(builtin_child) == .builtin_identifier) {
+                    const ident = try self.getNodeText(builtin_child);
+                    if (std.mem.eql(u8, ident, "@jsImport")) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        // Recursively check children
+        if (try containsJsImport(self, child)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 // @import("component.zx") --> @import("component.zig")
-// @jsImport("component.tsx") --> // @jsImport("component.tsx")
 pub fn transpileBuiltin(self: *Ast, node: ts.Node, ctx: *TranspileContext) !bool {
     var had_output = false;
     var builtin_identifier: ?[]const u8 = null;
     var import_string: ?[]const u8 = null;
-    var import_string_start: u32 = 0;
 
     const child_count = node.childCount();
     var i: u32 = 0;
@@ -194,7 +234,6 @@ pub fn transpileBuiltin(self: *Ast, node: ts.Node, ctx: *TranspileContext) !bool
                     const arg_child_kind = NodeKind.fromNode(arg_child);
 
                     if (arg_child_kind == .string) {
-                        import_string_start = arg_child.startByte();
                         // Get the string with quotes
                         const full_string = try self.getNodeText(arg_child);
 
