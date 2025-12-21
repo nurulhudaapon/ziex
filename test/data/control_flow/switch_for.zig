@@ -7,34 +7,36 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = switch (user_type) {
-                .admin => blk: {
-                    const __zx_children = _zx.getAllocator().alloc(zx.Component, admin_users.len) catch unreachable;
-                    for (admin_users, 0..) |name, _zx_i| {
-                        __zx_children[_zx_i] = _zx.zx(
-                            .p,
-                            .{
-                                .children = &.{
-                                    _zx.txt(name),
+            .children = &.{
+                switch (user_type) {
+                    .admin => blk_0: {
+                        const __zx_children_0 = _zx.getAllocator().alloc(zx.Component, admin_users.len) catch unreachable;
+                        for (admin_users, 0..) |name, _zx_i_0| {
+                            __zx_children_0[_zx_i_0] = _zx.zx(
+                                .p,
+                                .{
+                                    .children = &.{
+                                        _zx.txt(name),
+                                    },
                                 },
-                            },
-                        );
-                    }
-                    break :blk __zx_children;
-                },
-                .member => blk: {
-                    const __zx_children = _zx.getAllocator().alloc(zx.Component, member_users.len) catch unreachable;
-                    for (member_users, 0..) |name, _zx_i| {
-                        __zx_children[_zx_i] = _zx.zx(
-                            .p,
-                            .{
-                                .children = &.{
-                                    _zx.txt(name),
+                            );
+                        }
+                        break :blk_0 _zx.zx(.fragment, .{ .children = __zx_children_0 });
+                    },
+                    .member => blk_1: {
+                        const __zx_children_1 = _zx.getAllocator().alloc(zx.Component, member_users.len) catch unreachable;
+                        for (member_users, 0..) |name, _zx_i_1| {
+                            __zx_children_1[_zx_i_1] = _zx.zx(
+                                .p,
+                                .{
+                                    .children = &.{
+                                        _zx.txt(name),
+                                    },
                                 },
-                            },
-                        );
-                    }
-                    break :blk __zx_children;
+                            );
+                        }
+                        break :blk_1 _zx.zx(.fragment, .{ .children = __zx_children_1 });
+                    },
                 },
             },
         },

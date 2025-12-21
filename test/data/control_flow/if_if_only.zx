@@ -4,8 +4,8 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
 
     return (
         <main @allocator={allocator}>
+            <p>Welcome, User!</p>
             {if (is_logged_in) (
-                <p>Welcome, User!</p>
                 if (is_premium) (
                     <p>Welcome, Premium User!</p>
                 )

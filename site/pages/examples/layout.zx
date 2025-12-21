@@ -4,7 +4,7 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
 
     return (
         <div @allocator={ctx.arena}>
-            <link rel="stylesheet" href={css_version}>
+            <link rel="stylesheet" href={css_version}/>
             <header class="top-bar">
                 <div class="top-bar-content">
                     <div class="top-bar-left">

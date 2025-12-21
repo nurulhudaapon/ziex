@@ -9,52 +9,54 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = blk: {
-                const __zx_children = _zx.getAllocator().alloc(zx.Component, users.len) catch unreachable;
-                for (users, 0..) |user, _zx_i| {
-                    __zx_children[_zx_i] = _zx.zx(
-                        .div,
-                        .{
-                            .children = &.{
-                                _zx.zx(
-                                    .p,
-                                    .{
-                                        .children = &.{
-                                            _zx.txt(user.name),
+            .children = &.{
+                blk_0: {
+                    const __zx_children_0 = _zx.getAllocator().alloc(zx.Component, users.len) catch unreachable;
+                    for (users, 0..) |user, _zx_i_0| {
+                        __zx_children_0[_zx_i_0] = _zx.zx(
+                            .div,
+                            .{
+                                .children = &.{
+                                    _zx.zx(
+                                        .p,
+                                        .{
+                                            .children = &.{
+                                                _zx.txt(user.name),
+                                            },
                                         },
+                                    ),
+                                    switch (user.role) {
+                                        .admin => _zx.zx(
+                                            .span,
+                                            .{
+                                                .children = &.{
+                                                    _zx.txt("Admin"),
+                                                },
+                                            },
+                                        ),
+                                        .member => _zx.zx(
+                                            .span,
+                                            .{
+                                                .children = &.{
+                                                    _zx.txt("Member"),
+                                                },
+                                            },
+                                        ),
+                                        .guest => _zx.zx(
+                                            .span,
+                                            .{
+                                                .children = &.{
+                                                    _zx.txt("Guest"),
+                                                },
+                                            },
+                                        ),
                                     },
-                                ),
-                                switch (user.role) {
-                                    .admin => _zx.zx(
-                                        .span,
-                                        .{
-                                            .children = &.{
-                                                _zx.txt("Admin"),
-                                            },
-                                        },
-                                    ),
-                                    .member => _zx.zx(
-                                        .span,
-                                        .{
-                                            .children = &.{
-                                                _zx.txt("Member"),
-                                            },
-                                        },
-                                    ),
-                                    .guest => _zx.zx(
-                                        .span,
-                                        .{
-                                            .children = &.{
-                                                _zx.txt("Guest"),
-                                            },
-                                        },
-                                    ),
                                 },
                             },
-                        },
-                    );
-                }
-                break :blk __zx_children;
+                        );
+                    }
+                    break :blk_0 _zx.zx(.fragment, .{ .children = __zx_children_0 });
+                },
             },
         },
     );

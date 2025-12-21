@@ -5,7 +5,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                _zx.client(.{ .name = "CounterComponent", .path = "././CounterComponent.tsx", .id = "zx-3badae80b344e955a3048888ed2aae42" }, .{}),
+                _zx.client(.{ .name = "CounterComponent", .path = "test/data/component/csr_zig.zig", .id = "zx-2676a2f99c98f8f91dd890d002af04ba" }, .{}),
             },
         },
     );

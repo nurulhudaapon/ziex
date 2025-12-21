@@ -9,9 +9,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                 ) else (
                     <p>Welcome, User!</p>
                 )
-            ) else (
-                <p>Please log in to continue.</p>
-            )}
+            ) else (<p>Please log in to continue.</p>)}
         </main>
     );
 }

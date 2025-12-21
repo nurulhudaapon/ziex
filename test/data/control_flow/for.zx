@@ -18,9 +18,7 @@ pub fn StructCapture(allocator: zx.Allocator) zx.Component {
 pub fn StructCaptureToComponent(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
-            {for (users) |user| (
-                <UserComponent name={user.name} age={user.age}/>
-            )}
+            {for (users) |user| (<UserComponent name={user.name} age={user.age} />)}
         </main>
     );
 }

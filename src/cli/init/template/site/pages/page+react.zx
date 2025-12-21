@@ -10,12 +10,12 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         <main @allocator={ctx.arena}>
             <p>ZX is a framework for building web applications with Zig.</p>
             <a href="https://ziex.dev" target="_blank">See ZX Docs →</a>
-            <br>
+            <br/>
             <div style="height: 150px; margin: 10px;">
                 <CounterComponent @rendering={.csr} counter={counter} />
             </div>
             <h4>ZX + React</h4>
-            <hr>
+            <hr/>
             <a href="/about">Navigate to About Page</a>
 
             <script src="/assets/main.js" />

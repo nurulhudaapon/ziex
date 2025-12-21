@@ -54,14 +54,16 @@ pub const NodeKind = enum {
     array_type,
     assignment_expression,
 
-    fn fromString(s: []const u8) ?NodeKind {
-        return std.meta.stringToEnum(NodeKind, s);
+    /// Anonymous/unrecognized node kind
+    anon,
+
+    fn fromString(s: []const u8) NodeKind {
+        return std.meta.stringToEnum(NodeKind, s) orelse .anon;
     }
 
-    pub fn fromNode(node: ?ts.Node) ?NodeKind {
-        if (node == null) return null;
-        const kind = fromString(node.?.kind());
-        return kind;
+    pub fn fromNode(node: ?ts.Node) NodeKind {
+        if (node == null) return .anon;
+        return fromString(node.?.kind());
     }
 };
 
@@ -112,6 +114,16 @@ pub fn renderAllocWithSourceMap(
     mode: RenderMode,
     include_source_map: bool,
 ) !RenderResult {
+    return self.renderAllocWithSourceMapAndFilePath(allocator, mode, include_source_map, null);
+}
+
+pub fn renderAllocWithSourceMapAndFilePath(
+    self: *Ast,
+    allocator: std.mem.Allocator,
+    mode: RenderMode,
+    include_source_map: bool,
+    file_path: ?[]const u8,
+) !RenderResult {
     switch (mode) {
         .zx => {
             var aw = std.io.Writer.Allocating.init(allocator);
@@ -120,7 +132,7 @@ pub fn renderAllocWithSourceMap(
             return RenderResult{ .output = try aw.toOwnedSlice() };
         },
         .zig => {
-            var ctx = Transpile.TranspileContext.init(allocator, self.source, include_source_map);
+            var ctx = Transpile.TranspileContext.initWithFilePath(allocator, self.source, include_source_map, file_path);
             defer ctx.deinit();
 
             const root = self.tree.rootNode();

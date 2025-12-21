@@ -1,52 +1,4 @@
-const allocator = std.testing.allocator;
-
-test "cli" {
-    _ = @import("cli/fmt.zig");
-}
-
-fn getZxPath() ![]const u8 {
-    const zx_bin_rel = if (builtin.os.tag == .windows) "zig-out/bin/zx.exe" else "zig-out/bin/zx";
-    const zx_bin_abs = try std.fs.cwd().realpathAlloc(allocator, zx_bin_rel);
-    return zx_bin_abs;
-}
-
-fn getTestDirPath() ![]const u8 {
-    const test_dir = "test/tmp";
-    const test_dir_abs = try std.fs.cwd().realpathAlloc(allocator, test_dir);
-    return test_dir_abs;
-}
-
-fn killPort(port: []const u8) !void {
-    const target_os = builtin.target.os.tag;
-
-    if (target_os == .windows) {
-        // Windows: Use PowerShell to find and kill process on port
-        const ps_command = try std.fmt.allocPrint(
-            allocator,
-            "Get-NetTCPConnection -LocalPort {s} -ErrorAction SilentlyContinue | ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force }}",
-            .{port},
-        );
-        defer allocator.free(ps_command);
-
-        var kill_child = std.process.Child.init(&.{ "powershell", "-Command", ps_command }, allocator);
-        kill_child.stdout_behavior = .Pipe;
-        kill_child.stderr_behavior = .Pipe;
-        _ = kill_child.spawn() catch return;
-        _ = kill_child.wait() catch {};
-    } else {
-        // Unix-like: Use lsof and kill
-        const kill_command = try std.fmt.allocPrint(allocator, "kill -9 $(lsof -t -i:{s})", .{port});
-        defer allocator.free(kill_command);
-
-        var kill_child = std.process.Child.init(&.{ "sh", "-c", kill_command }, allocator);
-        kill_child.stdout_behavior = .Pipe;
-        kill_child.stderr_behavior = .Pipe;
-        _ = kill_child.spawn() catch return;
-        _ = kill_child.wait() catch {};
-    }
-}
-
-test "cli > init" {
+test "init" {
     // Create test/tmp directory
     const test_dir = "test/tmp";
     try std.fs.cwd().makePath(test_dir);
@@ -99,7 +51,7 @@ test "cli > init" {
     }
 }
 
-test "cli > init - already initialized" {
+test "init → init" {
     const zx_bin_abs = try getZxPath();
     const test_dir_abs = try getTestDirPath();
     defer allocator.free(zx_bin_abs);
@@ -123,7 +75,7 @@ test "cli > init - already initialized" {
     try std.testing.expect(std.mem.indexOf(u8, stderr.items, "Directory is not empty") != null);
 }
 
-test "cli > init - force" {
+test "init --force" {
     const zx_bin_abs = try getZxPath();
     const test_dir_abs = try getTestDirPath();
     defer allocator.free(zx_bin_abs);
@@ -144,7 +96,7 @@ test "cli > init - force" {
     try std.testing.expect(std.mem.indexOf(u8, stderr.items, "Initializing ZX project!") != null);
 }
 
-test "cli > init -t react" {
+test "init -t react" {
     const zx_bin_abs = try getZxPath();
     const test_dir_abs = try getTestDirPath();
     defer allocator.free(zx_bin_abs);
@@ -189,8 +141,9 @@ test "cli > init -t react" {
     _ = try file.writeAll(local_zon_str);
 }
 
-test "cli > serve" {
-    if (true) return error.Todo; // Slow test, will enable later, and execute as another steps as e2e before release
+test "serve" {
+    if (!sholdRunSlowTest()) return error.SkipZigTest; // Slow test, will enable later, and execute as another steps as e2e before release
+    if (true) return error.Todo;
 
     const zx_bin_abs = try getZxPath();
     const test_dir_abs = try getTestDirPath();
@@ -245,7 +198,9 @@ test "cli > serve" {
     try std.testing.expectEqual(result.status, std.http.Status.ok);
 }
 
-test "cli > build initialized project" {
+test "init → build" {
+    if (!sholdRunSlowTest()) return error.SkipZigTest; // Slow test, will enable later, and execute as another steps as e2e before release
+
     const test_dir_abs = try getTestDirPath();
     defer allocator.free(test_dir_abs);
 
@@ -261,8 +216,8 @@ test "cli > build initialized project" {
     }
 }
 
-test "cli > export" {
-    if (builtin.os.tag == .windows) return error.Todo; // Export doesn't work on Windows yet
+test "export" {
+    if (builtin.os.tag == .windows or !sholdRunSlowTest()) return error.SkipZigTest; // Export doesn't work on Windows yet
     const test_dir_abs = try getTestDirPath();
     const zx_bin_abs = try getZxPath();
     defer allocator.free(test_dir_abs);
@@ -324,6 +279,60 @@ test "tests:beforeAll" {
 test "tests:afterAll" {
     // std.fs.cwd().deleteTree("test/tmp") catch {};
 }
+
+fn sholdRunSlowTest() bool {
+    // E2E environment variable is set
+    const slow_tests = std.process.getEnvVarOwned(allocator, "E2E") catch {
+        return false;
+    };
+
+    defer allocator.free(slow_tests);
+    return true;
+}
+
+fn getZxPath() ![]const u8 {
+    const zx_bin_rel = if (builtin.os.tag == .windows) "zig-out/bin/zx.exe" else "zig-out/bin/zx";
+    const zx_bin_abs = try std.fs.cwd().realpathAlloc(allocator, zx_bin_rel);
+    return zx_bin_abs;
+}
+
+fn getTestDirPath() ![]const u8 {
+    const test_dir = "test/tmp";
+    const test_dir_abs = try std.fs.cwd().realpathAlloc(allocator, test_dir);
+    return test_dir_abs;
+}
+
+fn killPort(port: []const u8) !void {
+    const target_os = builtin.target.os.tag;
+
+    if (target_os == .windows) {
+        // Windows: Use PowerShell to find and kill process on port
+        const ps_command = try std.fmt.allocPrint(
+            allocator,
+            "Get-NetTCPConnection -LocalPort {s} -ErrorAction SilentlyContinue | ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force }}",
+            .{port},
+        );
+        defer allocator.free(ps_command);
+
+        var kill_child = std.process.Child.init(&.{ "powershell", "-Command", ps_command }, allocator);
+        kill_child.stdout_behavior = .Pipe;
+        kill_child.stderr_behavior = .Pipe;
+        _ = kill_child.spawn() catch return;
+        _ = kill_child.wait() catch {};
+    } else {
+        // Unix-like: Use lsof and kill
+        const kill_command = try std.fmt.allocPrint(allocator, "kill -9 $(lsof -t -i:{s})", .{port});
+        defer allocator.free(kill_command);
+
+        var kill_child = std.process.Child.init(&.{ "sh", "-c", kill_command }, allocator);
+        kill_child.stdout_behavior = .Pipe;
+        kill_child.stderr_behavior = .Pipe;
+        _ = kill_child.spawn() catch return;
+        _ = kill_child.wait() catch {};
+    }
+}
+
+const allocator = std.testing.allocator;
 
 const std = @import("std");
 const builtin = @import("builtin");

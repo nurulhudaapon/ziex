@@ -1,0 +1,21 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const a = allocator;
+    return (
+        <section @allocator={a}>
+            <ArgToBuiltin />
+            <StructToBuiltin />
+        </section>
+    );
+}
+
+fn ArgToBuiltin(arena: zx.Allocator) zx.Component {
+    return (<section @allocator={arena}></section>);
+}
+
+const Props = struct { c: zx.Allocator };
+fn StructToBuiltin(a: zx.Allocator) zx.Component {
+    const props = Props{ .c = a };
+    return (<section @allocator={props.c}></section>);
+}
+
+const zx = @import("zx");

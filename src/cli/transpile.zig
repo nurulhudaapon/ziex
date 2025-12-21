@@ -126,7 +126,7 @@ fn transpile(ctx: zli.CommandContext) !void {
                 defer result.deinit(ctx.allocator);
 
                 // Output to stdout
-                try ctx.writer.writeAll(result.zig_source);
+                try ctx.writer.writeAll(if (ts) result.new_zig_source else result.zig_source);
                 return;
             }
         }
@@ -450,6 +450,7 @@ const ClientComponentSerializable = struct {
 };
 
 fn genClientMainWasm(allocator: std.mem.Allocator, components: []const ClientComponentSerializable, output_dir: []const u8, verbose: bool) !void {
+    _ = verbose;
     // Generate Zig array literal contents (without outer array declaration)
     var aw = std.io.Writer.Allocating.init(allocator);
     defer aw.deinit();
@@ -494,10 +495,10 @@ fn genClientMainWasm(allocator: std.mem.Allocator, components: []const ClientCom
         allocator.free(old_zon_str);
     }
 
-    const cmps_csz = @embedFile("./transpile/template/components_csz.zig");
+    const cmps_csz = @embedFile("./transpile/template/components.zig");
     const placeholder = "    // PLACEHOLDER_ZX_COMPONENTS\n";
     const placeholder_index = std.mem.indexOf(u8, cmps_csz, placeholder) orelse {
-        @panic("Placeholder PLACEHOLDER_ZX_COMPONENTS not found in components_csz.zig");
+        @panic("Placeholder PLACEHOLDER_ZX_COMPONENTS not found in components.zig");
     };
 
     const before = cmps_csz[0..placeholder_index];
@@ -513,18 +514,6 @@ fn genClientMainWasm(allocator: std.mem.Allocator, components: []const ClientCom
         .sub_path = cmps_csz_path,
         .data = cmps_csz_z,
     });
-
-    const main_csz_path = try std.fs.path.join(allocator, &.{ output_dir, "main.wasm.zig" });
-    defer allocator.free(main_csz_path);
-
-    try std.fs.cwd().writeFile(.{
-        .sub_path = main_csz_path,
-        .data = @embedFile("./transpile/template/main_csz.zig"),
-    });
-
-    if (verbose) {
-        std.debug.print("Generated components.zig at: {s}\n", .{main_csz_path});
-    }
 }
 
 fn genClientMain(allocator: std.mem.Allocator, components: []const ClientComponentSerializable, output_dir: []const u8, verbose: bool) !void {
@@ -698,21 +687,8 @@ fn generateFiles(allocator: std.mem.Allocator, output_dir: []const u8, verbose: 
         .data = rendered_zig_source,
     });
 
-    var aa = std.heap.ArenaAllocator.init(allocator);
-    defer aa.deinit();
-    const arena = aa.allocator();
-
-    const main_zig_path = try std.fs.path.join(arena, &.{ output_dir, "main.zig" });
-    const main_export_file_content = @embedFile("./transpile/template/main_controlled.zig");
-
-    try std.fs.cwd().writeFile(.{
-        .sub_path = main_zig_path,
-        .data = main_export_file_content,
-    });
-
     if (verbose) {
         std.debug.print("Generated meta.zig at: {s}\n", .{meta_path});
-        std.debug.print("Generated main.zig at: {s}\n", .{main_zig_path});
     }
 
     // Copy devscript.js to the output assets/_zx/devscript.js

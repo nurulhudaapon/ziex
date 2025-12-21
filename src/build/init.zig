@@ -19,6 +19,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions)
         .steps = .default,
         .plugins = &.{},
         .experimental_enabled_csr = false,
+        .experimental_ts_based_transpile = false,
     };
 
     if (options.site) |site_opts| {
@@ -49,6 +50,7 @@ const InitInnerOptions = struct {
     steps: ZxInitOptions.CliOptions.Steps,
     plugins: []const ZxInitOptions.PluginOptions,
     experimental_enabled_csr: bool,
+    experimental_ts_based_transpile: bool,
 };
 
 fn getZxRun(b: *std.Build, zx_exe: *std.Build.Step.Compile, opts: InitInnerOptions) *std.Build.Step.Run {
@@ -87,6 +89,9 @@ pub fn initInner(
     const transpile_cmd = getZxRun(b, zx_exe, opts);
     transpile_cmd.addArg("transpile");
     transpile_cmd.addDirectoryArg(opts.site_path);
+    if (opts.experimental_ts_based_transpile) {
+        transpile_cmd.addArg("--ts");
+    }
     transpile_cmd.addArg("--outdir");
     const transpile_outdir = getTranspileOutdir(transpile_cmd, opts);
     transpile_cmd.expectExitCode(0);

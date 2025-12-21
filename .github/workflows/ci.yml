@@ -67,3 +67,5 @@ jobs:
 
     - name: Run tests
       run: zig build test
+      env:
+        E2E: 1

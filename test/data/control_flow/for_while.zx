@@ -1,0 +1,16 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const groups = [_][]const u8{ "A", "B" };
+    var j: usize = 0;
+
+    return (
+        <main @allocator={allocator}>
+            {for (groups) |group| (
+                <div>
+                    {while (j < 2) : (j += 1) (<p>{[j:d]} : {group}</p>)}
+                </div>
+            )}
+        </main>
+    );
+}
+
+const zx = @import("zx");

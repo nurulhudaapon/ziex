@@ -8,30 +8,34 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = blk: {
-                const __zx_children = _zx.getAllocator().alloc(zx.Component, groups.len) catch unreachable;
-                for (groups, 0..) |group, _zx_i| {
-                    __zx_children[_zx_i] = _zx.zx(
-                        .div,
-                        .{
-                            .children = blk1: {
-                                const __zx_children1 = _zx.getAllocator().alloc(zx.Component, group.members.len) catch unreachable;
-                                for (group.members, 0..) |member, _zx_i1| {
-                                    __zx_children1[_zx_i1] = _zx.zx(
-                                        .p,
-                                        .{
-                                            .children = &.{
-                                                _zx.txt(member),
-                                            },
-                                        },
-                                    );
-                                }
-                                break :blk1 __zx_children1;
+            .children = &.{
+                blk_0: {
+                    const __zx_children_0 = _zx.getAllocator().alloc(zx.Component, groups.len) catch unreachable;
+                    for (groups, 0..) |group, _zx_i_0| {
+                        __zx_children_0[_zx_i_0] = _zx.zx(
+                            .div,
+                            .{
+                                .children = &.{
+                                    blk_1: {
+                                        const __zx_children_1 = _zx.getAllocator().alloc(zx.Component, group.members.len) catch unreachable;
+                                        for (group.members, 0..) |member, _zx_i_1| {
+                                            __zx_children_1[_zx_i_1] = _zx.zx(
+                                                .p,
+                                                .{
+                                                    .children = &.{
+                                                        _zx.txt(member),
+                                                    },
+                                                },
+                                            );
+                                        }
+                                        break :blk_1 _zx.zx(.fragment, .{ .children = __zx_children_1 });
+                                    },
+                                },
                             },
-                        },
-                    );
-                }
-                break :blk __zx_children;
+                        );
+                    }
+                    break :blk_0 _zx.zx(.fragment, .{ .children = __zx_children_0 });
+                },
             },
         },
     );

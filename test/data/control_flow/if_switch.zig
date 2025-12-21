@@ -7,34 +7,38 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                if ((show_user_type))
-                    switch (user_type) {
-                        .admin => _zx.zx(
-                            .p,
-                            .{
-                                .children = &.{
-                                    _zx.txt("Admin"),
-                                },
-                            },
-                        ),
-                        .member => _zx.zx(
-                            .p,
-                            .{
-                                .children = &.{
-                                    _zx.txt("Member"),
-                                },
-                            },
-                        ),
-                    }
-                else
-                    _zx.zx(
-                        .p,
-                        .{
-                            .children = &.{
-                                _zx.txt("User type hidden"),
-                            },
+                if (show_user_type) _zx.zx(
+                    .fragment,
+                    .{
+                        .children = &.{
+                            (switch (user_type) {
+                                .admin => _zx.zx(
+                                    .p,
+                                    .{
+                                        .children = &.{
+                                            _zx.txt("Admin"),
+                                        },
+                                    },
+                                ),
+                                .member => _zx.zx(
+                                    .p,
+                                    .{
+                                        .children = &.{
+                                            _zx.txt("Member"),
+                                        },
+                                    },
+                                ),
+                            }),
                         },
-                    ),
+                    },
+                ) else _zx.zx(
+                    .p,
+                    .{
+                        .children = &.{
+                            _zx.txt("User type hidden"),
+                        },
+                    },
+                ),
             },
         },
     );

@@ -1,10 +1,12 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
-            <Button title="Custom Button"/>
+            <Button title="Custom Button" />
         </main>
     );
 }
 
 const zx = @import("zx");
 const Button = @import("basic.zx").Button;
+
+const ClientComponent = @jsImport("basic.tsx");

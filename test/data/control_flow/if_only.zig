@@ -6,17 +6,14 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                if ((is_logged_in)) _zx.zx(
+                if (is_logged_in) _zx.zx(
                     .p,
                     .{
                         .children = &.{
                             _zx.txt("Welcome, User!"),
                         },
                     },
-                ) else _zx.zx(
-                    .fragment,
-                    .{},
-                ),
+                ) else _zx.zx(.fragment, .{}),
             },
         },
     );

@@ -7,22 +7,24 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                if ((show_users)) _zx.zx(
+                if (show_users) _zx.zx(
                     .fragment,
                     .{
-                        .children = blk: {
-                            const __zx_children = _zx.getAllocator().alloc(zx.Component, user_names.len) catch unreachable;
-                            for (user_names, 0..) |name, _zx_i| {
-                                __zx_children[_zx_i] = _zx.zx(
-                                    .p,
-                                    .{
-                                        .children = &.{
-                                            _zx.txt(name),
+                        .children = &.{
+                            (blk_0: {
+                                const __zx_children_0 = _zx.getAllocator().alloc(zx.Component, user_names.len) catch unreachable;
+                                for (user_names, 0..) |name, _zx_i_0| {
+                                    __zx_children_0[_zx_i_0] = _zx.zx(
+                                        .p,
+                                        .{
+                                            .children = &.{
+                                                _zx.txt(name),
+                                            },
                                         },
-                                    },
-                                );
-                            }
-                            break :blk __zx_children;
+                                    );
+                                }
+                                break :blk_0 _zx.zx(.fragment, .{ .children = __zx_children_0 });
+                            }),
                         },
                     },
                 ) else _zx.zx(

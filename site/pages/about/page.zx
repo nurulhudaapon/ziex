@@ -10,7 +10,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     
     return (
         <div @allocator={allocator}>
-            <link rel="stylesheet" href="/doc.css">
+            <link rel="stylesheet" href="/doc.css" />
             <div class="content">
                 <section class="section">
                     <div class="section-header">

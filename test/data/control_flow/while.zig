@@ -6,21 +6,21 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = blk: {
-                var __zx_count: usize = 0;
-                const __zx_children = _zx.getAllocator().alloc(zx.Component, 1024) catch unreachable;
-                while (i < 3) : (i += 1) {
-                    __zx_children[__zx_count] = _zx.zx(
-                        .p,
-                        .{
-                            .children = &.{
-                                _zx.fmt("{d}", .{i}),
+            .children = &.{
+                blk_0: {
+                    var __zx_list_0 = @import("std").ArrayList(zx.Component).empty;
+                    while (i < 3) : (i += 1) {
+                        __zx_list_0.append(_zx.getAllocator(), _zx.zx(
+                            .p,
+                            .{
+                                .children = &.{
+                                    _zx.fmt("{d}", .{i}),
+                                },
                             },
-                        },
-                    );
-                    __zx_count += 1;
-                }
-                break :blk __zx_children[0..__zx_count];
+                        )) catch unreachable;
+                    }
+                    break :blk_0 _zx.zx(.fragment, .{ .children = __zx_list_0.items });
+                },
             },
         },
     );

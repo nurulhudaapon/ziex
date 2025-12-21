@@ -1,11 +1,11 @@
 const std = @import("std");
 
 test {
-    _ = @import("zx/Transpiler.zig");
+    _ = @import("zx/ast.zig");
 }
 test "cli" {
     _ = @import("cli/fmt.zig");
-    _ = @import("cli.zig");
+    _ = @import("cli/cli.zig");
 }
 
 pub const std_options = std.Options{
