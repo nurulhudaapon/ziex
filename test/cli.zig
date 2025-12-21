@@ -190,7 +190,8 @@ test "cli > init -t react" {
 }
 
 test "cli > serve" {
-    if (true) return error.Todo; // Slow test, will enable later, and execute as another steps as e2e before release
+    if (!sholdRunSlowTest()) return error.SkipZigTest; // Slow test, will enable later, and execute as another steps as e2e before release
+    if (true) return error.Todo;
 
     const zx_bin_abs = try getZxPath();
     const test_dir_abs = try getTestDirPath();
@@ -246,6 +247,8 @@ test "cli > serve" {
 }
 
 test "cli > build initialized project" {
+    if (!sholdRunSlowTest()) return error.SkipZigTest; // Slow test, will enable later, and execute as another steps as e2e before release
+
     const test_dir_abs = try getTestDirPath();
     defer allocator.free(test_dir_abs);
 
@@ -262,7 +265,7 @@ test "cli > build initialized project" {
 }
 
 test "cli > export" {
-    if (builtin.os.tag == .windows) return error.Todo; // Export doesn't work on Windows yet
+    if (builtin.os.tag == .windows or !sholdRunSlowTest()) return error.SkipZigTest; // Export doesn't work on Windows yet
     const test_dir_abs = try getTestDirPath();
     const zx_bin_abs = try getZxPath();
     defer allocator.free(test_dir_abs);
@@ -323,6 +326,16 @@ test "tests:beforeAll" {
 
 test "tests:afterAll" {
     // std.fs.cwd().deleteTree("test/tmp") catch {};
+}
+
+fn sholdRunSlowTest() bool {
+    // E2E environment variable is set
+    const slow_tests = std.process.getEnvVarOwned(allocator, "E2E") catch {
+        return false;
+    };
+
+    defer allocator.free(slow_tests);
+    return true;
 }
 
 const std = @import("std");

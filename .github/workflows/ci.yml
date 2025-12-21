@@ -66,4 +66,4 @@ jobs:
       run: chmod +x zig-out/bin/zx
 
     - name: Run tests
-      run: zig build test
+      run: E2E=1 zig build test
