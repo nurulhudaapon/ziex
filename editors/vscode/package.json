@@ -2,7 +2,7 @@
   "name": "zx",
   "displayName": "ZX",
   "description": "ZX let's you write HTML within your Zig code.",
-  "version": "0.1.394",
+  "version": "0.1.396",
   "publisher": "nurulhudaapon",
   "icon": "images/zx-icon.png",
   "private": true,

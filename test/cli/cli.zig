@@ -253,6 +253,37 @@ test "export" {
     }
 }
 
+test "fmt" {
+    const zx_bin_abs = try getZxPath();
+    const test_dir_abs = try getTestDirPath();
+    defer allocator.free(zx_bin_abs);
+    defer allocator.free(test_dir_abs);
+
+    var child = std.process.Child.init(&.{ zx_bin_abs, "fmt", "site/pages" }, allocator);
+    child.cwd = test_dir_abs;
+    child.stdout_behavior = .Pipe;
+    child.stderr_behavior = .Pipe;
+    try child.spawn();
+
+    var stdout = std.ArrayList(u8).empty;
+    var stderr = std.ArrayList(u8).empty;
+    defer stdout.deinit(allocator);
+    defer stderr.deinit(allocator);
+    try child.collectOutput(allocator, &stdout, &stderr, 8192);
+
+    // std.debug.print("stderr: {s}\n", .{stderr.items});
+
+    const expected_strings = [_][]const u8{
+        "site/pages/layout.zx",
+        "site/pages/page.zx",
+    };
+
+    for (expected_strings) |expected_string| {
+        try std.testing.expect(std.mem.indexOf(u8, stdout.items, expected_string) != null);
+    }
+    try std.testing.expectEqual(stderr.items.len, 0);
+}
+
 const local_zon_str =
     \\.{
     \\    .name = .zx_site,
