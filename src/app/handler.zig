@@ -60,10 +60,13 @@ pub const Handler = struct {
         const color_method = "\x1b[1;34m"; // bold blue
         const color_path = "\x1b[1;36m"; // bold cyan
         const color_time = if (elapsed_ms < 10) "\x1b[1;32m" else if (elapsed_ms < 100) "\x1b[1;33m" else "\x1b[1;31m"; // green/yellow/red based on time
+        const status_code = res.status;
+        const color_status = if (status_code < 300) "\x1b[1;32m" else if (status_code < 400) "\x1b[1;33m" else "\x1b[1;31m"; // green/yellow/red based on status
 
-        std.log.info("{s}{s}{s} {s}{s}{s} {s}{d:.3}ms{s}\x1b[K", .{
+        std.log.info("{s}{s}{s} {s}{s}{s} {s}{d}{s} {s}{d:.3}ms{s}\x1b[K", .{
             color_method, @tagName(req.method), color_reset,
             color_path,   req.url.path,         color_reset,
+            color_status, status_code,          color_reset,
             color_time,   elapsed_ms,           color_reset,
         });
     }

@@ -1,6 +1,6 @@
 {
   "name": "tree-sitter-zx",
-  "version": "0.1.0-dev.374",
+  "version": "0.1.0-dev.375",
   "description": "ZX is a framework for building web applications with Zig.",
   "repository": "https://github.com/nurulhudaapon/zx",
   "license": "MIT",

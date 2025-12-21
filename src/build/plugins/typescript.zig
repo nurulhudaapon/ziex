@@ -3,6 +3,8 @@
 pub fn typescript(options: ReactPluginOptions) ZxInitOptions.PluginOptions {
     _ = options;
 
+    const is_debug = builtin.mode == .Debug;
+
     return .{
         .name = "typescript",
         .steps = &.{
@@ -22,9 +24,12 @@ pub fn typescript(options: ReactPluginOptions) ZxInitOptions.PluginOptions {
                         "site/node_modules/.bin/esbuild",
                         "site/main.ts",
                         "--bundle",
-                        "--minify",
-                        "--define:process.env.NODE_ENV=\"production\"",
-                        "--define:__DEV__=false",
+                        if (!is_debug) "--minify" else "--sourcemap=inline",
+                        if (!is_debug) "--define:__DEV__=false" else "--define:__DEV__=true",
+                        if (!is_debug)
+                            "--define:process.env.NODE_ENV=\"production\""
+                        else
+                            "--define:process.env.NODE_ENV=\"development\"",
                         "--outfile=site/.zx/assets/main.js",
                         "--log-level=silent",
                     },
@@ -33,6 +38,8 @@ pub fn typescript(options: ReactPluginOptions) ZxInitOptions.PluginOptions {
         },
     };
 }
+
+const builtin = @import("builtin");
 
 const ReactPluginOptions = struct {};
 

@@ -189,7 +189,7 @@ const HighlightCache = struct {
         };
 
         instance = cache;
-        std.log.info("\x1b[1;32m[HL CACHE] Initialized (this should only happen once)\x1b[0m", .{});
+        // std.log.info("\x1b[1;32m[HL CACHE] Initialized (this should only happen once)\x1b[0m", .{});
         return cache;
     }
 };
@@ -294,6 +294,7 @@ fn appendHtmlEscapedPreserveWhitespace(out: *std.array_list.Managed(u8), text: [
 }
 
 fn logTiming(comptime label: []const u8, elapsed_ns: u64) void {
+    if (true) return;
     const elapsed_ms = @as(f64, @floatFromInt(elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
     const color_reset = "\x1b[0m";
     const color_label = "\x1b[1;35m"; // magenta
@@ -306,6 +307,7 @@ fn logTiming(comptime label: []const u8, elapsed_ns: u64) void {
 }
 
 fn logTimingFmt(comptime label: []const u8, args: anytype, elapsed_ns: u64) void {
+    if (true) return;
     const elapsed_ms = @as(f64, @floatFromInt(elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
     const color_reset = "\x1b[0m";
     const color_label = "\x1b[1;35m"; // magenta
