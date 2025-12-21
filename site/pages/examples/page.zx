@@ -1,9 +1,7 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
-    const allocator = ctx.arena;
-    const age: i32 = 10;
 
     return (
-        <div @allocator={allocator}>
+        <div @allocator={ctx.arena}>
             <style>
                 {[@embedFile("style.css"):s]}
             </style>
@@ -16,7 +14,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     <a href="https://github.com/nurulhudaapon/zx/tree/main/site/pages/examples" target="_blank" rel="noopener noreferrer" class="view-source-btn">
                          View All Examples Code on GitHub
                     </a>
-                    <h1>{age}</h1>
                 </div>
                 <div class="featured-grid">
                     <a href="/examples/wasm" class="featured-card">
