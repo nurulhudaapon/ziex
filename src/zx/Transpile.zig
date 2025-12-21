@@ -3,8 +3,62 @@ const ts = @import("tree_sitter");
 const sourcemap = @import("sourcemap.zig");
 const Parse = @import("Parse.zig");
 
-const Ast = Parse.Ast;
+const Ast = Parse.Parse;
 const NodeKind = Parse.NodeKind;
+
+pub const ClientComponentMetadata = struct {
+    pub const Type = enum {
+        csr, // Client-side React.js
+        csz, // Client-side Zig
+        pub fn from(value: []const u8) Type {
+            const v = if (std.mem.startsWith(u8, value, ".")) value[1..value.len] else value;
+
+            return std.meta.stringToEnum(Type, v) orelse {
+                std.debug.print("Invalid rendering type: {s}\n", .{value});
+                return .csz;
+            };
+        }
+    };
+
+    type: Type,
+    name: []const u8,
+    path: []const u8,
+    id: []const u8,
+
+    pub fn init(allocator: std.mem.Allocator, name: []const u8, path: []const u8, component_type: Type) !ClientComponentMetadata {
+        const generated_id = generateComponentId(name, path);
+        const owned_id = try allocator.dupe(u8, &generated_id);
+
+        const owned_path = try allocator.dupe(u8, path);
+        return .{
+            .type = component_type,
+            .name = name,
+            .path = owned_path,
+            .id = owned_id,
+        };
+    }
+
+    /// Generate a unique component ID based on name and path
+    fn generateComponentId(name: []const u8, path: []const u8) [35]u8 {
+        var hasher = std.crypto.hash.Md5.init(.{});
+        hasher.update(name);
+        hasher.update(path);
+        var digest: [16]u8 = undefined;
+        hasher.final(&digest);
+
+        var result: [35]u8 = undefined;
+        const prefix = "zx-";
+        @memcpy(result[0..3], prefix);
+
+        const hex_chars = "0123456789abcdef";
+        for (digest, 0..) |byte, i| {
+            result[3 + i * 2] = hex_chars[byte >> 4];
+            result[3 + i * 2 + 1] = hex_chars[byte & 0x0f];
+        }
+
+        return result;
+    }
+};
 
 /// Token types that should be skipped during expression block processing
 const SkipTokens = enum {
@@ -41,6 +95,9 @@ pub const TranspileContext = struct {
     block_counter: u32 = 0,
     /// Flag to track if _zx has been initialized in the current scope (e.g., inside a return statement)
     zx_initialized: bool = false,
+    /// Track client components (components with @rendering attribute)
+    client_components: std.ArrayList(ClientComponentMetadata),
+    allocator: std.mem.Allocator,
 
     pub const TranspileOptions = struct {
         sourcemap: bool,
@@ -55,6 +112,8 @@ pub const TranspileContext = struct {
             .track_mappings = options.sourcemap,
             .js_imports = std.StringHashMap([]const u8).init(allocator),
             .file_path = options.path,
+            .client_components = std.ArrayList(ClientComponentMetadata){},
+            .allocator = allocator,
         };
     }
 
@@ -62,6 +121,7 @@ pub const TranspileContext = struct {
         self.output.deinit();
         self.sourcemap_builder.deinit();
         self.js_imports.deinit();
+        self.client_components.deinit(self.allocator);
     }
 
     fn write(self: *TranspileContext, bytes: []const u8) !void {
@@ -804,8 +864,10 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
             }
         }
 
-        // Generate unique ID based on component name and full path
-        const id = generateComponentId(tag, full_path);
+        // Add to client components list
+        const rendering_type = ClientComponentMetadata.Type.from(rendering_value orelse "csz");
+        const client_cmp = try ClientComponentMetadata.init(ctx.allocator, tag, full_path, rendering_type);
+        try ctx.client_components.append(ctx.allocator, client_cmp);
 
         // Write _zx.client(.{ .name = "Name", .path = "path", .id = "id" }, .{ props })
         try ctx.writeM("_zx.client", node.startByte(), self);
@@ -814,7 +876,7 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
         try ctx.write("\", .path = \"");
         try ctx.write(full_path);
         try ctx.write("\", .id = \"");
-        try ctx.write(&id);
+        try ctx.write(client_cmp.id);
         try ctx.write("\" }, .{");
 
         // Write props (non-builtin attributes)
@@ -862,27 +924,6 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
 
         try ctx.write(" })");
     }
-}
-
-/// Generate a unique component ID based on name and path
-fn generateComponentId(name: []const u8, path: []const u8) [35]u8 {
-    var hasher = std.crypto.hash.Md5.init(.{});
-    hasher.update(name);
-    hasher.update(path);
-    var digest: [16]u8 = undefined;
-    hasher.final(&digest);
-
-    var result: [35]u8 = undefined;
-    const prefix = "zx-";
-    @memcpy(result[0..3], prefix);
-
-    const hex_chars = "0123456789abcdef";
-    for (digest, 0..) |byte, i| {
-        result[3 + i * 2] = hex_chars[byte >> 4];
-        result[3 + i * 2 + 1] = hex_chars[byte & 0x0f];
-    }
-
-    return result;
 }
 
 /// Write a regular HTML element: _zx.ele(.tag, .{ ... })

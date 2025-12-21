@@ -873,7 +873,7 @@ fn transpileFile(
     defer allocator.free(component_route);
 
     // Append components from this file to the global list
-    for (result.client_components.items) |component| {
+    for (if (ts) result.new_client_components.items else result.client_components.items) |component| {
         const cloned_id = try allocator.dupe(u8, component.id);
         const cloned_name = try allocator.dupe(u8, component.name);
 

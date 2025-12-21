@@ -29,25 +29,24 @@ const ParseOptions = struct {
 pub fn parse(gpa: std.mem.Allocator, zx_source: [:0]const u8, options: ParseOptions) !ParseResult {
     var aa = std.heap.ArenaAllocator.init(gpa);
     defer aa.deinit();
+
     const arena = aa.allocator();
     const allocator = aa.allocator();
 
-    const transpilation_result = try Transpiler.transpile(arena, zx_source);
-    var parser_result = try Parser.parse(arena, zx_source);
-    defer parser_result.deinit(allocator);
-    const new_zig_result = try parser_result.renderAlloc(arena, .{ .mode = .zig, .sourcemap = false, .path = options.path });
-    const new_zig_source = new_zig_result.source;
-    const zig_source = transpilation_result.zig_source;
+    // Legacy Prototyped Transpiler
+    const legacy_parse_result = try Transpiler.transpile(arena, zx_source);
+    const legacy_zig_source = try commentOutJsImports(arena, legacy_parse_result.zig_source);
+    defer arena.free(legacy_zig_source);
+    var legacy_zig_ast = try std.zig.Ast.parse(gpa, legacy_zig_source, .zig);
+    const legacy_zig_sourcez = try allocator.dupeZ(u8, if (legacy_zig_ast.errors.len == 0) try legacy_zig_ast.renderAlloc(allocator) else legacy_zig_source);
 
-    // astlog.warn("Zig Source: \n{s}\n", .{zig_source});
-
-    // Post-process to comment out @jsImport declarations
-    const processed_zig_source = try commentOutJsImports(arena, zig_source);
-    defer arena.free(processed_zig_source);
-
-    var ast = try std.zig.Ast.parse(gpa, processed_zig_source, .zig);
-    var new_ast = try std.zig.Ast.parse(gpa, try allocator.dupeZ(u8, new_zig_source), .zig);
-    defer new_ast.deinit(gpa);
+    // New Tree-Sitter Based Transpiler
+    var parse_result = try Parser.parse(arena, zx_source);
+    defer parse_result.deinit(allocator);
+    const render_result = try parse_result.renderAlloc(arena, .{ .mode = .zig, .sourcemap = false, .path = options.path });
+    var zig_ast = try std.zig.Ast.parse(gpa, try allocator.dupeZ(u8, render_result.source), .zig);
+    defer zig_ast.deinit(gpa);
+    const zig_sourcez = try allocator.dupeZ(u8, if (zig_ast.errors.len == 0) try zig_ast.renderAlloc(allocator) else render_result.source);
 
     // if (ast.errors.len > 0) {
     //     for (ast.errors) |err| {
@@ -61,30 +60,41 @@ pub fn parse(gpa: std.mem.Allocator, zx_source: [:0]const u8, options: ParseOpti
     //     return error.ParseError;
     // }
 
-    // const rendered_zig_source = try ast.renderAlloc(allocator);
-    const rendered_zig_source_z = try allocator.dupeZ(u8, if (ast.errors.len == 0) try ast.renderAlloc(allocator) else processed_zig_source);
+    // var aw = std.io.Writer.Allocating.init(allocator);
+    // defer aw.deinit();
+    // std.zon.stringify.serialize(render_result.client_components, .{
+    //     .whitespace = true,
+    //     .emit_default_optional_fields = false,
+    //     .emit_codepoint_literals = .always,
+    // }, &aw.writer) catch @panic("OOM");
+    // std.debug.print("ClientComponents: \n{s}\n", .{aw.written()});
 
-    const rendered_new_zig_source = if (new_ast.errors.len == 0) try new_ast.renderAlloc(allocator) else new_zig_source;
-    const new_zig_source_z = try allocator.dupeZ(u8, rendered_new_zig_source);
-
-    var aw = std.io.Writer.Allocating.init(allocator);
-    defer aw.deinit();
-    std.zon.stringify.serialize(transpilation_result.client_components.items, .{ .whitespace = true }, &aw.writer) catch @panic("OOM");
-    // astlog.debug("ClientComponents: \n{s}\n", .{aw.written()});
-
-    const components = try transpilation_result.client_components.clone(gpa);
-    for (components.items) |*component| {
+    const legacy_components = try legacy_parse_result.client_components.clone(gpa);
+    for (legacy_components.items) |*component| {
         component.name = try gpa.dupe(u8, component.name);
         component.path = try gpa.dupe(u8, component.path);
         component.id = try gpa.dupe(u8, component.id);
     }
 
+    var new_components = std.ArrayList(Transpiler.ClientComponentMetadata).empty;
+    try new_components.ensureTotalCapacity(gpa, render_result.client_components.len);
+
+    for (render_result.client_components) |component| {
+        try new_components.append(allocator, .{
+            .name = try gpa.dupe(u8, component.name),
+            .path = try gpa.dupe(u8, component.path),
+            .id = try gpa.dupe(u8, component.id),
+            .type = component.type,
+        });
+    }
+
     return ParseResult{
-        .zig_ast = ast,
-        .zx_source = try gpa.dupeZ(u8, zig_source),
-        .zig_source = try gpa.dupeZ(u8, rendered_zig_source_z),
-        .new_zig_source = try gpa.dupeZ(u8, new_zig_source_z),
-        .client_components = components,
+        .zig_ast = legacy_zig_ast,
+        .zx_source = try gpa.dupeZ(u8, legacy_parse_result.zig_source),
+        .zig_source = try gpa.dupeZ(u8, legacy_zig_sourcez),
+        .new_zig_source = try gpa.dupeZ(u8, zig_sourcez),
+        .client_components = legacy_components,
+        .new_client_components = new_components,
     };
 }
 
@@ -94,6 +104,7 @@ pub const ParseResult = struct {
     zig_source: [:0]const u8,
     new_zig_source: [:0]const u8,
     client_components: std.ArrayList(Transpiler.ClientComponentMetadata),
+    new_client_components: std.ArrayList(Transpiler.ClientComponentMetadata),
 
     pub fn deinit(self: *ParseResult, allocator: std.mem.Allocator) void {
         self.zig_ast.deinit(allocator);
@@ -106,6 +117,13 @@ pub const ParseResult = struct {
             allocator.free(component.id);
         }
         self.client_components.deinit(allocator);
+
+        for (self.new_client_components.items) |*component| {
+            allocator.free(component.name);
+            allocator.free(component.path);
+            allocator.free(component.id);
+        }
+        self.new_client_components.deinit(allocator);
     }
 };
 

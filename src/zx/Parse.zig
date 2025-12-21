@@ -1,4 +1,4 @@
-pub const Ast = @This();
+pub const Parse = @This();
 
 pub const NodeKind = enum {
     /// (<..>..</..>)
@@ -71,32 +71,40 @@ tree: *ts.Tree,
 source: []const u8,
 allocator: std.mem.Allocator,
 
-pub fn parse(allocator: std.mem.Allocator, source: []const u8) !Ast {
+pub fn parse(allocator: std.mem.Allocator, source: []const u8) !Parse {
     const parser = ts.Parser.create();
     const lang = ts.Language.fromRaw(ts_zx.language());
     parser.setLanguage(lang) catch return error.LoadingLang;
     const tree = parser.parseString(source, null) orelse return error.ParseError;
 
-    return Ast{
+    return Parse{
         .tree = tree,
         .source = source,
         .allocator = allocator,
     };
 }
 
-pub fn deinit(self: *Ast, _: std.mem.Allocator) void {
+pub fn deinit(self: *Parse, _: std.mem.Allocator) void {
     self.tree.destroy();
 }
 
+pub const ClientComponentMetadata = Transpile.ClientComponentMetadata;
 pub const RenderResult = struct {
     source: []const u8,
     sourcemap: ?sourcemap.SourceMap = null,
+    client_components: []const Transpile.ClientComponentMetadata,
 
     pub fn deinit(self: *RenderResult, allocator: std.mem.Allocator) void {
         allocator.free(self.source);
         if (self.sourcemap) |*sm| {
             sm.deinit(allocator);
         }
+        for (self.client_components.items) |*component| {
+            allocator.free(component.name);
+            allocator.free(component.path);
+            allocator.free(component.id);
+        }
+        self.client_components.deinit(allocator);
     }
 };
 
@@ -108,7 +116,7 @@ pub const RenderOptions = struct {
 };
 
 pub fn renderAlloc(
-    self: *Ast,
+    self: *Parse,
     allocator: std.mem.Allocator,
     options: RenderOptions,
 ) !RenderResult {
@@ -117,7 +125,7 @@ pub fn renderAlloc(
             var aw = std.io.Writer.Allocating.init(allocator);
             const root = self.tree.rootNode();
             try Render.renderNode(self, root, &aw.writer);
-            return RenderResult{ .source = try aw.toOwnedSlice() };
+            return RenderResult{ .source = try aw.toOwnedSlice(), .client_components = &.{} };
         },
         .zig => {
             var ctx = Transpile.TranspileContext.init(allocator, self.source, .{ .sourcemap = options.sourcemap, .path = options.path });
@@ -129,12 +137,13 @@ pub fn renderAlloc(
             return RenderResult{
                 .source = try ctx.output.toOwnedSlice(),
                 .sourcemap = if (options.sourcemap) try ctx.finalizeSourceMap() else null,
+                .client_components = try ctx.client_components.toOwnedSlice(allocator),
             };
         },
     }
 }
 
-pub fn getNodeText(self: *Ast, node: ts.Node) ![]const u8 {
+pub fn getNodeText(self: *Parse, node: ts.Node) ![]const u8 {
     const start = node.startByte();
     const end = node.endByte();
     if (start < end and end <= self.source.len) {
@@ -143,7 +152,7 @@ pub fn getNodeText(self: *Ast, node: ts.Node) ![]const u8 {
     return "";
 }
 
-pub fn getLineColumn(self: *const Ast, byte_offset: u32) struct { line: i32, column: i32 } {
+pub fn getLineColumn(self: *const Parse, byte_offset: u32) struct { line: i32, column: i32 } {
     var line: i32 = 0;
     var column: i32 = 0;
     var i: u32 = 0;

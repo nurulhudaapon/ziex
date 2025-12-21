@@ -184,7 +184,7 @@ fn test_fmt_inner(comptime file_path: []const u8, comptime no_expect: bool) !voi
     // Get pre-loaded source file
     const source = cache.get(source_path) orelse return error.FileNotFound;
     const source_z = try allocator.dupeZ(u8, source);
-    // defer allocator.free(source_z);
+    defer allocator.free(source_z);
 
     // Parse and transpile
     var result = try zx.Ast.fmt(allocator, source_z);
@@ -199,7 +199,7 @@ fn test_fmt_inner(comptime file_path: []const u8, comptime no_expect: bool) !voi
     defer allocator.free(expected_source_z);
 
     if (!no_expect) {
-        try testing.expectEqualStrings(expected_source_z, result.formatted_zx);
+        try testing.expectEqualStrings(expected_source_z, result.source);
     }
 }
 

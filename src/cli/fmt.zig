@@ -94,7 +94,7 @@ fn formatFromStdin(allocator: std.mem.Allocator, writer: *std.Io.Writer) !void {
     var format_result = try zx.Ast.fmt(allocator, input);
     defer format_result.deinit(allocator);
 
-    try writer.writeAll(format_result.formatted_zx);
+    try writer.writeAll(format_result.source);
 }
 
 fn formatFile(
@@ -122,12 +122,12 @@ fn formatFile(
     defer format_result.deinit(allocator);
 
     if (use_stdout) {
-        try writer.writeAll(format_result.formatted_zx);
+        try writer.writeAll(format_result.source);
         return;
     }
 
     // Skip writing if content unchanged
-    if (std.mem.eql(u8, format_result.formatted_zx, source)) {
+    if (std.mem.eql(u8, format_result.source, source)) {
         return;
     }
 
@@ -135,7 +135,7 @@ fn formatFile(
     var atomic_file = try base_dir.atomicFile(sub_path, .{ .write_buffer = &.{} });
     defer atomic_file.deinit();
 
-    try atomic_file.file_writer.interface.writeAll(format_result.formatted_zx);
+    try atomic_file.file_writer.interface.writeAll(format_result.source);
     try atomic_file.finish();
     try writer.print("{s}\n", .{full_path});
 }
@@ -184,12 +184,12 @@ fn formatDir(
         defer format_result.deinit(allocator);
 
         if (use_stdout) {
-            try writer.writeAll(format_result.formatted_zx);
+            try writer.writeAll(format_result.source);
             continue;
         }
 
         // Skip writing if content unchanged
-        if (std.mem.eql(u8, format_result.formatted_zx, source)) {
+        if (std.mem.eql(u8, format_result.source, source)) {
             continue;
         }
 
@@ -197,7 +197,7 @@ fn formatDir(
         var atomic_file = try entry.dir.atomicFile(entry.basename, .{ .write_buffer = &.{} });
         defer atomic_file.deinit();
 
-        try atomic_file.file_writer.interface.writeAll(format_result.formatted_zx);
+        try atomic_file.file_writer.interface.writeAll(format_result.source);
         try atomic_file.finish();
         try writer.print("{s}\n", .{full_path});
     }

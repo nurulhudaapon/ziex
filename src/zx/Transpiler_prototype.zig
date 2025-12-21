@@ -3,67 +3,11 @@ const std = @import("std");
 const Ast = std.zig.Ast;
 const Token = std.zig.Token;
 const Tokenizer = std.zig.Tokenizer;
+const Transpile = @import("Transpile.zig");
 
 const log = std.log.scoped(.ast);
 
-pub const ClientComponentMetadata = struct {
-    pub const Type = enum {
-        csr, // Client-side React.js
-        csz, // Client-side Zig
-    };
-
-    type: Type,
-    name: []const u8,
-    path: []const u8,
-    id: []const u8,
-
-    fn generateClientComponentId(allocator: std.mem.Allocator, path: []const u8, name: []const u8) ![]const u8 {
-        // Generate a valid HTML id: zx-<hash>
-        // Use a hash of full path + name, hex encoded, with 'zx-' prefix.
-        var hash = std.crypto.hash.Md5.init(.{});
-        hash.update(path);
-        hash.update(name);
-        var digest: [16]u8 = undefined;
-        hash.final(&digest);
-
-        // Format as hex string: zx-<32 hex chars>
-        var id_buf: [35]u8 = undefined; // "zx-" + 32 hex chars
-        id_buf[0..3].* = "zx-".*;
-        var i: usize = 3;
-        for (digest) |byte| {
-            _ = try std.fmt.bufPrint(id_buf[i..], "{x:0>2}", .{byte});
-            i += 2;
-        }
-        return try allocator.dupe(u8, id_buf[0..35]);
-    }
-
-    fn init(allocator: std.mem.Allocator, name: []const u8, path: []const u8, component_type: Type) !ClientComponentMetadata {
-        return .{
-            .type = component_type,
-            .name = name,
-            .path = path,
-            .id = try generateClientComponentId(allocator, path, name),
-        };
-    }
-
-    /// Parse rendering expression (e.g., ".csr" or ".csz") to determine type
-    fn parseRenderingType(rendering_expr: []const u8) Type {
-        // Remove leading '.' if present
-        const expr = if (std.mem.startsWith(u8, rendering_expr, "."))
-            rendering_expr[1..]
-        else
-            rendering_expr;
-
-        if (std.mem.eql(u8, expr, "csr")) {
-            return .csr;
-        } else if (std.mem.eql(u8, expr, "csz")) {
-            return .csz;
-        } else {
-            // Default to csr for backward compatibility
-            return .csr;
-        }
-    }
-};
+pub const ClientComponentMetadata = Transpile.ClientComponentMetadata;
 
 /// Escapes text content for use in Zig string literals
 fn escapeTextForStringLiteral(allocator: std.mem.Allocator, text: []const u8) ![]const u8 {
@@ -2796,7 +2740,7 @@ fn renderJsxAsTokensWithLoopContext(allocator: std.mem.Allocator, output: *Token
         // Check if this component has @rendering attribute (client-side rendering)
         if (elem.builtin_rendering) |rendering_expr| {
             // Parse the rendering type from the expression (e.g., ".csr" or ".csz")
-            const component_type = ClientComponentMetadata.parseRenderingType(rendering_expr);
+            const component_type = Transpile.ClientComponentMetadata.Type.from(rendering_expr);
 
             // For client components, use _zx.client()
             // Get the path from js_imports
@@ -4994,7 +4938,7 @@ fn renderJsxAsTokensWithLoopContext(allocator: std.mem.Allocator, output: *Token
                             // Check if this component has @rendering attribute (client-side rendering)
                             if (child_elem.builtin_rendering) |rendering_expr| {
                                 // Parse the rendering type from the expression (e.g., ".csr" or ".csz")
-                                const component_type = ClientComponentMetadata.parseRenderingType(rendering_expr);
+                                const component_type = Transpile.ClientComponentMetadata.Type.from(rendering_expr);
 
                                 // For client components, use _zx.client()
                                 // Get the path from js_imports (or use default)

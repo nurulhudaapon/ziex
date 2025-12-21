@@ -2,7 +2,7 @@ const std = @import("std");
 const ts = @import("tree_sitter");
 const Parse = @import("Parse.zig");
 const log = std.log.scoped(.@"zx/render");
-const Ast = Parse.Ast;
+const Ast = Parse.Parse;
 const NodeKind = Parse.NodeKind;
 
 pub const FormatContext = struct {
