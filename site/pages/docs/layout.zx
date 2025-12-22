@@ -3,6 +3,7 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     return (
         <div  @allocator={ctx.arena}>
            <Sidebar allocator={ctx.arena} categories={&categories} toc={&toc_links} children={children} />
+            <script type="module" src="/assets/docs.js"></script>
         </div>
         
     );
@@ -10,10 +11,9 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
 
 const categories = [_]SidebarProps.Category{
     .{
-        .title = "GETTING STARTED",
+        .title = "REFERENCE",
         .sections = &[_]SidebarProps.Section{
-            .{ .title = "Introduction", .href = "/docs#introduction" },
-            .{ .title = "Installation", .href = "/docs#getting-started" },
+            .{ .title = "Overview", .href = "/docs#overview" },
         },
     },
     .{
@@ -25,7 +25,6 @@ const categories = [_]SidebarProps.Category{
                 .items = &[_]SidebarProps.Link{
                     .{ .href = "/docs#text-expressions", .text = "Text Expressions" },
                     .{ .href = "/docs#format-expressions", .text = "Format Expressions" },
-                    .{ .href = "/docs#component-expressions", .text = "Component Expressions" },
                 },
             },
             .{ 
@@ -35,6 +34,7 @@ const categories = [_]SidebarProps.Category{
                     .{ .href = "/docs#if-statements", .text = "If Statements" },
                     .{ .href = "/docs#switch-statements", .text = "Switch Statements" },
                     .{ .href = "/docs#for-loops", .text = "For Loops" },
+                    .{ .href = "/docs#while-loops", .text = "While Loops" },
                 },
             },
             .{ 
@@ -72,8 +72,7 @@ const categories = [_]SidebarProps.Category{
 };
 
 const toc_links = [_]SidebarProps.Link{
-    .{ .href = "#introduction", .text = "Introduction" },
-    .{ .href = "#getting-started", .text = "Getting Started" },
+    .{ .href = "#overview", .text = "Overview" },
     .{ .href = "#expressions", .text = "Expressions" },
     .{ .href = "#control-flow", .text = "Control Flow" },
     .{ .href = "#components", .text = "Components" },

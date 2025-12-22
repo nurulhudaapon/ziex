@@ -28,13 +28,13 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     html_page_for.render(&aw_for.writer) catch unreachable;
     const html_example_for = allocator.dupe(u8, aw_for.written()) catch unreachable;
 
-    // Component expression example
-    var aw_component: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_component = @embedFile("../../../pages/examples/component.zx");
-    const zig_example_component = @embedFile("../examples/component.zig");
-    const html_page_component = @import("../examples/component.zig").Page(allocator);
-    html_page_component.render(&aw_component.writer) catch unreachable;
-    const html_example_component = allocator.dupe(u8, aw_component.written()) catch unreachable;
+    // While example
+    var aw_while: std.io.Writer.Allocating = .init(allocator);
+    const zx_example_while = @embedFile("../../../pages/examples/while.zx");
+    const zig_example_while = @embedFile("../examples/while.zig");
+    const html_page_while = @import("../examples/while.zig").Page(allocator);
+    html_page_while.render(&aw_while.writer) catch unreachable;
+    const html_example_while = allocator.dupe(u8, aw_while.written()) catch unreachable;
 
     // Text expression example
     var aw_text: std.io.Writer.Allocating = .init(allocator);
@@ -85,7 +85,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     html_page_allocator.render(&aw_allocator.writer) catch unreachable;
     const html_example_allocator = allocator.dupe(u8, aw_allocator.written()) catch unreachable;
 
-    const cmp_expr = "{(expression)}";
     const txt_expr = "{expression}";
     const fmt_expr = "{[expression:format]}";
 
@@ -144,32 +143,31 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
         <div @allocator={allocator}>
             <Introduction />
-            <GettingStarted />
             <section id="expressions" class="section">
                 <h2>Expressions</h2>
                 <p>ZX provides different expression syntaxes for embedding dynamic content. Each syntax serves a specific purpose: rendering components, displaying text safely, or formatting values with custom format specifiers.</p>
-                <h3>Text Expressions</h3>
+                <h3 id="text-expressions">Text Expressions</h3>
                 <p>Use <code>{txt_expr}</code> to embed text content. All text is automatically HTML-escaped to prevent XSS attacks. This is the safe way to display user input or dynamic text content.</p>
                 <ExampleBlock id="text" zx_code={zx_example_text} zig_code={zig_example_text} html_code={html_example_text} />
-                <h3>Format Expressions</h3>
+                <h3 id="format-expressions">Format Expressions</h3>
                 <p>Use <code>{fmt_expr}</code> to format values with custom format specifiers. The format string follows Zig's standard format specifier syntax (e.g., <code>d</code> for decimal, <code>x</code> for hexadecimal). Unlike text expressions, format expressions are not HTML-escaped, making them suitable for numeric formatting and other non-HTML content.</p>
                 <ExampleBlock id="format" zx_code={zx_example_format} zig_code={zig_example_format} html_code={html_example_format} />
-                <h3>Component Expressions</h3>
-                <p>Use <code>{cmp_expr}</code> to embed a component directly. The expression must evaluate to a<code>zx.Component</code> type. This is useful when you want to conditionally render or reuse components dynamically.</p>
-                <ExampleBlock id="component" zx_code={zx_example_component} zig_code={zig_example_component} html_code={html_example_component} />
             </section>
             <section id="control-flow" class="section">
                 <h2>Control Flow</h2>
                 <p>ZX supports conditional rendering and iteration using familiar Zig control flow constructs. These expressions allow you to conditionally render components or iterate over collections to build dynamic UIs.</p>
-                <h3>If Statements</h3>
+                <h3 id="if-statements">If Statements</h3>
                 <p>Use <code>if</code> expressions to conditionally render components based on boolean conditions. The<code>else</code> branch is optional and can render alternative content when the condition is false.</p>
                 <ExampleBlock id="if" zx_code={zx_example_if} zig_code={zig_example_if} html_code={html_example_if} />
-                <h3>Switch Statements</h3>
+                <h3 id="switch-statements">Switch Statements</h3>
                 <p>Use <code>switch</code> expressions to match against enum values or other types. Each case can return either a string literal or a component. Switch expressions are particularly useful for rendering different UI based on state or user roles.</p>
                 <ExampleBlock id="switch" zx_code={zx_example_switch} zig_code={zig_example_switch} html_code={html_example_switch} />
-                <h3>For Loops</h3>
+                <h3 id="for-loops">For Loops</h3>
                 <p>Use <code>for</code> loops to iterate over arrays, slices, or strings and render a component for each item. The loop variable can be used within the component body to display item-specific content. This is ideal for rendering lists, tables, or any repeating UI patterns.</p>
                 <ExampleBlock id="for" zx_code={zx_example_for} zig_code={zig_example_for} html_code={html_example_for} />
+                <h3 id="while-loops">While Loops</h3>
+                <p>Use <code>while</code> loops for conditional iteration with a continuation expression. The syntax follows Zig's while loop pattern: <code>{"while (condition) : (continue_expr) (body)"}</code>. This is useful for generating numbered sequences or iterating until a condition is met.</p>
+                <ExampleBlock id="while" zx_code={zx_example_while} zig_code={zig_example_while} html_code={html_example_while} />
             </section>
             <section id="components" class="section">
                 <h2>Components</h2>
@@ -189,7 +187,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <section id="routing" class="section">
                 <h2>Routing</h2>
                 <p>ZX provides a file-based routing system that maps URL paths to page components. Routes can be nested, and layouts can be applied hierarchically to wrap pages with common UI elements.</p>
-                <h3>Pages</h3>
+                <h3 id="pages">Pages</h3>
                 <p>Pages are the main content components for each route. A page function must:</p>
                 <ul>
                     <li>Accept a <code>zx.PageContext</code> as its only parameter</li>
@@ -197,7 +195,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     <li>Be exported as <code>pub fn Page</code></li>
                 </ul>
                 <ExampleBlock id="routing" zx_code={zx_example_routing} zig_code={zig_example_routing} html_code={html_example_routing} />
-                <h3>Layouts</h3>
+                <h3 id="layouts">Layouts</h3>
                 <p>Layouts wrap pages with common UI elements like headers, footers, or navigation. A layout function must:</p>
                 <ul>
                     <li>Accept a <code>zx.LayoutContext</code> as the first parameter</li>
@@ -219,7 +217,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <section id="builtin-attributes" class="section">
                 <h2>Builtin Attributes</h2>
                 <p>ZX provides special builtin attributes that control component behavior and memory management. These attributes are prefixed with <code>@</code> to distinguish them from regular HTML attributes.</p>
-                <h3>@allocator</h3>
+                <h3 id="allocator">@allocator</h3>
                 <p>The <code>@allocator</code> attribute is required to be passed to the topmost component. All child components will inherit the allocator from the parent component. It is available to all child components and expressions within that component tree.</p>
                 <p><strong>Why is @allocator needed?</strong></p>
                 <p>ZX components can allocate memory for various purposes:</p>
@@ -238,7 +236,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     <li>Set <code>@allocator</code> on the root element of each component that needs memory allocation</li>
                     <li>Child components inherit the allocator from their parent's component, so you don't need to pass it explicitly to every nested component</li>
                 </ul>
-                <h3>@escaping</h3>
+                <h3 id="escaping">@escaping</h3>
                 <p>The <code>@escaping</code> attribute controls how text content is escaped within an element. By default, all text is HTML-escaped to prevent XSS attacks.</p>
                 <p><strong>Values:</strong></p>
                 <ul>
@@ -247,7 +245,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 </ul>
                 <ExampleBlock id="escaping" zx_code={zx_example_escaping} zig_code={zig_example_escaping} html_code={html_example_escaping} />
                 <p><strong>Warning:</strong> Only use <code>@escaping={"{.raw}"}</code> for content you trust completely. User-provided content should always use the default escaping.</p>
-                <h3>@rendering</h3>
+                <h3 id="rendering">@rendering</h3>
                 <p>The <code>@rendering</code> attribute enables client-side rendering for interactive components.</p>
                 <p><strong>Values:</strong></p>
                 <ul>
@@ -287,7 +285,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <h2>Children Props</h2>
                 <p>Components can accept child elements through a <code>children</code> prop, enabling wrapper and container patterns. Any elements between the opening and closing tags are passed as the <code>children</code> prop:</p>
                 <ExampleBlock id="children" zx_code={zx_example_children} zig_code={zig_example_children} html_code={html_example_children} />
-                <p>Multiple children are automatically wrapped in a fragment.</p>
             </section>            
             // <ExamplesSection />
       
@@ -301,6 +298,5 @@ const root = @import("root");
 const util = @import("util.zig");
 
 const Introduction = @import("../components/introduction.zig").Introduction;
-const GettingStarted = @import("../components/getting_started.zig").GettingStarted;
 const ExamplesSection = @import("../components/examples_section.zig").ExamplesSection;
 const ExampleBlock = @import("../components/example_block.zig").ExampleBlock;

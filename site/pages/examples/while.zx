@@ -1,0 +1,14 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    var i: usize = 0;
+
+    return (
+        <ul @allocator={allocator}>
+            {while (i < 3) : (i += 1) (
+                <li>Item {[i:d]}</li>
+            )}
+        </ul>
+    );
+}
+
+const zx = @import("zx");
+

@@ -389,6 +389,8 @@ body {
     font-weight: 500;
     transition: all 0.15s ease;
     border-left: 3px solid transparent;
+    user-select: none;
+    -webkit-user-select: none;
 }
 
 .sidebar-summary:hover {
@@ -408,6 +410,7 @@ body {
     border-left: none;
     flex: 1;
     background: transparent;
+    pointer-events: none;
 }
 
 .sidebar-summary .sidebar-section-link:hover,
@@ -845,6 +848,7 @@ body {
     margin: 0 0 1rem 0;
     color: var(--text-color);
     line-height: 1.3;
+    scroll-margin-top: 5rem;
 }
 
 .section h3 {
@@ -854,6 +858,7 @@ body {
     margin-bottom: 0.75rem;
     color: var(--text-color);
     line-height: 1.4;
+    scroll-margin-top: 5rem;
 }
 
 .section h4 {
@@ -1292,44 +1297,34 @@ pre code {
     position: absolute;
     top: 0.75rem;
     right: 0.75rem;
-    padding: 0.5rem;
-    background: var(--copy-button-bg);
-    border: 1px solid var(--copy-button-border);
+    padding: 0.375rem;
+    background: transparent;
+    border: none;
     border-radius: 4px;
     cursor: pointer;
-    color: var(--text-color);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-    transition: all 0.2s ease;
+    color: var(--subtitle-color);
+    transition: all 0.15s ease;
     z-index: 10;
     display: flex;
     align-items: center;
     justify-content: center;
-    opacity: 0;
-    pointer-events: none;
-    width: 32px;
-    height: 32px;
+    opacity: 0.5;
+    pointer-events: all;
 }
 
 pre:hover .copy-button,
 .code-wrapper:hover .copy-button {
-    opacity: 1;
-    pointer-events: all;
+    opacity: 0.7;
 }
 
 .copy-button:hover {
-    background: var(--copy-button-hover-bg);
-    border-color: var(--copy-button-hover-border);
-    color: var(--link-color);
-}
-
-.copy-button:active {
-    background: var(--copy-button-hover-border);
+    opacity: 1;
+    color: var(--text-color);
 }
 
 .copy-button.copied {
-    background: var(--success-color);
-    border-color: var(--success-color);
-    color: var(--bg-color);
+    opacity: 1;
+    color: var(--link-color);
 }
 
 .copy-button svg {
@@ -1885,6 +1880,151 @@ code[class*="language-"] {
     .callout.tip {
         background: rgba(45, 206, 93, 0.1);
     }
+}
+
+/* Install Box (Bun-style) */
+.install-box {
+    position: relative;
+    margin: 1.5rem 0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+}
+
+.install-box-header {
+    display: flex;
+    align-items: center;
+    padding: 0 1rem;
+    background: var(--hover-bg);
+    border-bottom: 1px solid var(--code-border);
+}
+
+.install-tab-radio {
+    display: none;
+}
+
+.install-tab-labels {
+    display: flex;
+    gap: 0;
+}
+
+.install-tab-label {
+    padding: 0.75rem 1rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--subtitle-color);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: all 0.15s ease;
+    background: transparent;
+}
+
+.install-tab-label:hover {
+    color: var(--text-color);
+}
+
+.install-box-content {
+    padding: 1.25rem 1.5rem;
+}
+
+.install-tab-content {
+    display: none;
+}
+
+.install-code {
+    font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, monospace;
+    font-size: 0.9375rem;
+    line-height: 1.5;
+    color: var(--text-color);
+}
+
+.install-prompt {
+    color: var(--link-color);
+    font-weight: 600;
+    margin-right: 0.25rem;
+}
+
+.install-other {
+    font-size: 0.875rem;
+    color: var(--subtitle-color);
+}
+
+.install-other a {
+    color: var(--link-color);
+}
+
+.install-other a:hover {
+    color: var(--link-hover-color);
+}
+
+/* Copy button for install boxes */
+.install-box .copy-button {
+    position: static;
+    margin-left: auto;
+    opacity: 0.5;
+    pointer-events: all;
+    background: transparent;
+    border: none;
+    color: var(--subtitle-color);
+    padding: 0.375rem;
+    cursor: pointer;
+}
+
+.install-box .copy-button:hover {
+    opacity: 1;
+    background: transparent;
+    color: var(--text-color);
+    border: none;
+}
+
+.install-box .copy-button.copied {
+    opacity: 1;
+    background: transparent;
+    border: none;
+    color: var(--link-color);
+}
+
+/* Simple install box (no tabs) */
+.install-box-simple {
+    position: relative;
+}
+
+.install-box-simple .install-box-content {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.install-box-simple .install-code {
+    flex: 1;
+}
+
+/* Multiline install code */
+.install-code-multiline {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+/* Tab selection logic - header */
+#tab-unix:checked ~ .install-tab-labels label[for="tab-unix"],
+#tab-windows:checked ~ .install-tab-labels label[for="tab-windows"],
+#tab-zig-mac:checked ~ .install-tab-labels label[for="tab-zig-mac"],
+#tab-zig-win:checked ~ .install-tab-labels label[for="tab-zig-win"],
+#tab-zig-other:checked ~ .install-tab-labels label[for="tab-zig-other"] {
+    color: var(--link-color);
+    border-bottom-color: var(--link-color);
+}
+
+/* Tab selection logic - content (using sibling from header to content) */
+.install-box-header:has(#tab-unix:checked) + .install-box-content #content-unix,
+.install-box-header:has(#tab-windows:checked) + .install-box-content #content-windows,
+.install-box-header:has(#tab-zig-mac:checked) + .install-box-content #content-zig-mac,
+.install-box-header:has(#tab-zig-win:checked) + .install-box-content #content-zig-win,
+.install-box-header:has(#tab-zig-other:checked) + .install-box-content #content-zig-other {
+    display: block;
 }
 
 /* Next steps grid */

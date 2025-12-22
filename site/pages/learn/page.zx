@@ -113,8 +113,21 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             .title = "GET STARTED",
             .sections = &[_]SidebarProps.Section{
                 .{ .title = "Quick Start", .href = "/learn" },
-                .{ .title = "Installation", .href = "/learn/installation" },
-                .{ .title = "Editor Setup", .href = "/learn/editor-setup" },
+                .{ 
+                    .title = "Installation",
+                    .items = &[_]SidebarProps.Link{
+                        .{ .href = "#installation", .text = "Install ZX CLI" },
+                        .{ .href = "#create-project", .text = "Create a Project" },
+                    },
+                },
+                .{ 
+                    .title = "Editor Setup",
+                    .items = &[_]SidebarProps.Link{
+                        .{ .href = "#vscode", .text = "VS Code / Cursor" },
+                        .{ .href = "#neovim", .text = "Neovim" },
+                        .{ .href = "#zed", .text = "Zed" },
+                    },
+                },
             },
         },
         .{
@@ -150,6 +163,11 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     };
 
     const toc_links = [_]SidebarProps.Link{
+        .{ .href = "#installation", .text = "Installation" },
+        .{ .href = "#create-project", .text = "Create a Project" },
+        .{ .href = "#vscode", .text = "VS Code / Cursor" },
+        .{ .href = "#neovim", .text = "Neovim" },
+        .{ .href = "#zed", .text = "Zed" },
         .{ .href = "#creating-components", .text = "Creating Components" },
         .{ .href = "#writing-markup", .text = "Writing Markup" },
         .{ .href = "#fragments", .text = "Fragments" },
@@ -167,6 +185,9 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         <Sidebar @allocator={allocator} categories={&categories} toc={&toc_links}>
             <LearnHeader />
             <YouWillLearn />
+            <Installation />
+            <CreateProject />
+            <EditorSetup />
             <CreatingComponents zx_code={zx_greeting} zig_code={zig_greeting} html_code={html_greeting} />
             <WritingMarkup zx_code={zx_markup} zig_code={zig_markup} html_code={html_markup} />
             <Fragments zx_code={zx_fragment} zig_code={zig_fragment} html_code={html_fragment} />
@@ -207,6 +228,7 @@ fn YouWillLearn(allocator: zx.Allocator) zx.Component {
         <div class="callout learn-callout" @allocator={allocator}>
             <h3>You will learn</h3>
             <ul>
+                <li>How to install ZX and set up your environment</li>
                 <li>How to create and nest components</li>
                 <li>How to write markup and use fragments</li>
                 <li>How to display data with expressions</li>
@@ -216,6 +238,170 @@ fn YouWillLearn(allocator: zx.Allocator) zx.Component {
                 <li>How to create pages, layouts, and dynamic routes</li>
             </ul>
         </div>
+    );
+}
+
+fn Installation(_: zx.Allocator) zx.Component {
+    return (
+        <section id="installation" class="section">
+            <h2>Installation</h2>
+            <p>Install the ZX CLI to get started:</p>
+            
+            <div class="install-box">
+                <div class="install-box-header">
+                    <input type="radio" id="tab-unix" name="install-platform" class="install-tab-radio" checked="true" />
+                    <input type="radio" id="tab-windows" name="install-platform" class="install-tab-radio" />
+                    <div class="install-tab-labels">
+                        <label for="tab-unix" class="install-tab-label">Linux / macOS</label>
+                        <label for="tab-windows" class="install-tab-label">Windows</label>
+                    </div>
+                </div>
+                <div class="install-box-content">
+                    <div class="install-tab-content" id="content-unix">
+                        <div class="install-code">
+                            <span class="install-prompt">$</span>
+                            <span class="function">curl</span>
+                            <span class="operator"> -fsSL </span>
+                            <span class="string">https://ziex.dev/install</span>
+                            <span class="operator"> | </span>
+                            <span class="function">bash</span>
+                        </div>
+                    </div>
+                    <div class="install-tab-content" id="content-windows">
+                        <div class="install-code">
+                            <span class="install-prompt">{">"}</span>
+                            <span class="function">powershell</span>
+                            <span class="operator"> -c </span>
+                            <span class="string">"irm ziex.dev/install.ps1 | iex"</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <h3>Install Zig</h3>
+            <p>ZX requires Zig 0.14.0 or later:</p>
+            <div class="install-box">
+                <div class="install-box-header">
+                    <input type="radio" id="tab-zig-mac" name="install-zig" class="install-tab-radio" checked="true" />
+                    <input type="radio" id="tab-zig-win" name="install-zig" class="install-tab-radio" />
+                    <input type="radio" id="tab-zig-other" name="install-zig" class="install-tab-radio" />
+                    <div class="install-tab-labels">
+                        <label for="tab-zig-mac" class="install-tab-label">macOS</label>
+                        <label for="tab-zig-win" class="install-tab-label">Windows</label>
+                        <label for="tab-zig-other" class="install-tab-label">Other</label>
+                    </div>
+                </div>
+                <div class="install-box-content">
+                    <div class="install-tab-content" id="content-zig-mac">
+                        <div class="install-code">
+                            <span class="install-prompt">$</span>
+                            <span class="function">brew</span>
+                            <span class="operator"> install </span>
+                            <span class="variable">zig</span>
+                        </div>
+                    </div>
+                    <div class="install-tab-content" id="content-zig-win">
+                        <div class="install-code">
+                            <span class="install-prompt">{">"}</span>
+                            <span class="function">winget</span>
+                            <span class="operator"> install -e --id </span>
+                            <span class="variable">zig.zig</span>
+                        </div>
+                    </div>
+                    <div class="install-tab-content" id="content-zig-other">
+                        <div class="install-other">
+                            See the <a href="https://ziglang.org/learn/getting-started/" target="_blank" rel="noopener noreferrer">official Zig installation guide</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+    );
+}
+
+fn CreateProject(allocator: zx.Allocator) zx.Component {
+    return (
+        <section id="create-project" class="section" @allocator={allocator}>
+            <h2>Create a Project</h2>
+            <p>Create a new ZX project:</p>
+            <div class="install-box install-box-simple">
+                <div class="install-box-content">
+                    <div class="install-code">
+                        <span class="install-prompt">$</span>
+                        <span class="function">zx</span>
+                        <span class="operator"> init </span>
+                        <span class="variable">my-app</span>
+                    </div>
+                </div>
+            </div>
+            
+            <p>Start the development server:</p>
+            <div class="install-box install-box-simple">
+                <div class="install-box-content">
+                    <div class="install-code install-code-multiline">
+                        <div><span class="install-prompt">$</span> <span class="function">cd </span> <span class="variable">my-app</span></div>
+                        <div><span class="install-prompt">$</span> <span class="function">zig </span> <span class="operator">build </span><span class="variable">serve</span></div>
+                    </div>
+                </div>
+            </div>
+            
+            <p>Open <code>http://localhost:3000</code> in your browser!</p>
+            
+            <h3>Project Structure</h3>
+            <pre class="language-text"><code>my-project/
+├── build.zig           # Zig build config
+├── site/
+│   ├── main.zig        # Entry point
+│   ├── pages/
+│   │   ├── page.zx     # Home page (/)
+│   │   ├── about/
+│   │   │   └── page.zx # About (/about)
+│   │   └── layout.zx   # Root layout
+│   └── public/         # Static assets
+└── src/
+    └── root.zig        # Shared code</code></pre>
+            <div class="callout tip">
+                <strong>Tip:</strong> The <code>site/pages/</code> directory uses file-based routing. Each <code>page.zx</code> file becomes a route.
+            </div>
+        </section>
+    );
+}
+
+fn EditorSetup(allocator: zx.Allocator) zx.Component {
+    return (
+        <>
+            <section id="vscode" class="section" @allocator={allocator}>
+                <h2>VS Code / Cursor</h2>
+                <p>Install the official ZX extension for the best development experience.</p>
+                <p>Install from:</p>
+                <ul>
+                    <li><a href="https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx" target="_blank" rel="noopener noreferrer">VS Code Marketplace</a></li>
+                    <li><a href="https://open-vsx.org/extension/nurulhudaapon/zx" target="_blank" rel="noopener noreferrer">Open VSX Registry</a> (for Cursor and other forks)</li>
+                </ul>
+                <p>Or from command palette: <code>ext install nurulhudaapon.zx</code></p>
+                <p><strong>Features:</strong> Syntax highlighting, IntelliSense, error diagnostics, bracket matching, and code folding.</p>
+            </section>
+            
+            <section id="neovim" class="section">
+                <h2>Neovim</h2>
+                <p>With <a href="https://github.com/folke/lazy.nvim" target="_blank" rel="noopener noreferrer">lazy.nvim</a>, add <code>nurulhudaapon/zx</code> as a plugin with <code>nvim-treesitter</code> as a dependency.</p>
+                <p>See the <a href="https://github.com/nurulhudaapon/zx/tree/main/editors/neovim" target="_blank" rel="noopener noreferrer">Neovim setup guide</a> for the full configuration.</p>
+                <p><strong>Features:</strong> Tree-sitter syntax highlighting, LSP support, and file icons.</p>
+            </section>
+            
+            <section id="zed" class="section">
+                <h2>Zed</h2>
+                <p>Manual installation (pending marketplace approval):</p>
+                <ol>
+                    <li>Clone: <code>git clone https://github.com/nurulhudaapon/zx.git</code></li>
+                    <li>Open Extensions panel (Cmd/Ctrl + Shift + P)</li>
+                    <li>Select "Install Dev Extension"</li>
+                    <li>Navigate to <code>editors/zed</code> in the cloned repo</li>
+                </ol>
+                <p>See the <a href="https://github.com/nurulhudaapon/zx/tree/main/editors/zed" target="_blank" rel="noopener noreferrer">Zed setup guide</a> for details.</p>
+            </section>
+            <script type="module" src="/assets/docs.js"></script>
+        </>
     );
 }
 
@@ -230,7 +416,7 @@ fn CreatingComponents(allocator: zx.Allocator, props: CreatingComponentsProps) z
         <section id="creating-components" class="section" @allocator={allocator}>
             <h2>Creating and nesting components</h2>
             <p>ZX apps are made out of <em>components</em>. A component is a function that returns a <code>zx.Component</code> type. Components can be as small as a button or as large as an entire page.</p>
-            <p>ZX components are Zig functions that return markup. Notice how <code>&lt;Greeting /&gt;</code> starts with a capital letter - that's how ZX distinguishes between custom components and HTML elements:</p>
+            <p>ZX components are Zig functions that return markup. Notice how <code>{"<Greeting />"}</code> starts with a capital letter - that's how ZX distinguishes between custom components and HTML elements:</p>
             <ExampleBlock id="greeting" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} />
             <div class="callout note">
                 <strong>Note:</strong> Every component needs an allocator for memory management. The <code>@allocator</code> attribute must be set on the root element of each component. Child components inherit the allocator from their parent.
@@ -250,7 +436,7 @@ fn WritingMarkup(allocator: zx.Allocator, props: WritingMarkupProps) zx.Componen
         <section id="writing-markup" class="section" @allocator={allocator}>
             <h2>Writing markup with ZX</h2>
             <p>The markup syntax is called <em>ZX</em> - it's similar to JSX but designed for Zig. ZX files use the <code>.zx</code> extension and are transpiled to efficient Zig code.</p>
-            <p>ZX is stricter than HTML. You have to close all tags, including self-closing ones like <code>&lt;br /&gt;</code>:</p>
+            <p>ZX is stricter than HTML. You have to close all tags, including self-closing ones like <code>{"<br />"}</code>:</p>
             <ExampleBlock id="markup" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} />
             <p>CSS classes are specified with the <code>class</code> attribute, same as HTML. Write your CSS in separate files and include them in your layout.</p>
         </section>
@@ -267,7 +453,7 @@ fn Fragments(allocator: zx.Allocator, props: FragmentsProps) zx.Component {
     return (
         <section id="fragments" class="section" @allocator={allocator}>
             <h2>Fragments</h2>
-            <p>Sometimes you want to return multiple elements from a component without adding an extra wrapper. Use the empty tag syntax <code>&lt;&gt;...&lt;/&gt;</code>:</p>
+            <p>Sometimes you want to return multiple elements from a component without adding an extra wrapper. Use the empty tag syntax <code>{"<>"}...{"</>"}</code>:</p>
             <ExampleBlock id="fragment" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} />
             <p>Fragments are useful when you need to group elements but don't want to add extra DOM nodes. The children are rendered directly without any wrapper element.</p>
         </section>
