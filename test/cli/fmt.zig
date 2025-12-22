@@ -51,11 +51,11 @@ test "if_switch" {
     try test_fmt("control_flow/if_switch");
 }
 test "if_else_if" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("control_flow/if_else_if");
 }
 test "if_capture" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("control_flow/if_capture");
 }
 
@@ -101,7 +101,7 @@ test "switch_if" {
     try test_fmt("control_flow/switch_if");
 }
 test "switch_for" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("control_flow/switch_for");
 }
 test "switch_switch" {
@@ -109,7 +109,7 @@ test "switch_switch" {
     try test_fmt("control_flow/switch_switch");
 }
 test "switch_while" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("control_flow/switch_while");
 }
 
@@ -158,19 +158,19 @@ test "expression_mixed" {
     try test_fmt("expression/mixed");
 }
 test "expression_optional" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("expression/optional");
 }
 test "expression_struct_access" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("expression/struct_access");
 }
 test "expression_function_call" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("expression/function_call");
 }
 test "expression_multiline_string" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("expression/multiline_string");
 }
 
@@ -187,33 +187,33 @@ test "component_csr_react_multiple" {
     try test_fmt("component/csr_react_multiple");
 }
 test "component_nested" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("component/nested");
 }
 test "component_children_only" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("component/children_only");
 }
 test "component_csr_zig" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("component/csr_zig");
 }
 test "component_import" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("component/import");
 }
 test "component_root_cmp" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("component/root_cmp");
 }
 
 // === Attribute ===
 test "attribute_builtin" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("attribute/builtin");
 }
 test "attribute_component" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("attribute/component");
 }
 test "attribute_builtin_escaping" {
@@ -225,29 +225,29 @@ test "attribute_dynamic" {
     try test_fmt("attribute/dynamic");
 }
 test "attribute_types" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("attribute/types");
 }
 
 // === Element ===
 test "element_void" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("element/void");
 }
 test "element_empty" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("element/empty");
 }
 test "element_nested" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("element/nested");
 }
 test "element_fragment" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("element/fragment");
 }
 test "element_fragment_root" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("element/fragment_root");
 }
 
@@ -257,7 +257,7 @@ test "escaping_pre" {
     try test_fmt("escaping/pre");
 }
 test "escaping_quotes" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("escaping/quotes");
 }
 

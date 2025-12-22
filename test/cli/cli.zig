@@ -253,6 +253,136 @@ test "export" {
     }
 }
 
+test "bundle" {
+    if (!sholdRunSlowTest()) return error.SkipZigTest; // Export doesn't work on Windows yet
+    const test_dir_abs = try getTestDirPath();
+    const zx_bin_abs = try getZxPath();
+    defer allocator.free(test_dir_abs);
+    defer allocator.free(zx_bin_abs);
+
+    // Delete the bundle directory if it exists
+    const bundle_dir_abs = try std.fs.path.join(allocator, &.{ test_dir_abs, "bundle" });
+    defer allocator.free(bundle_dir_abs);
+    std.fs.cwd().deleteTree(bundle_dir_abs) catch |err| switch (err) {
+        else => {},
+    };
+
+    var export_child = std.process.Child.init(&.{ zx_bin_abs, "bundle" }, allocator);
+    export_child.cwd = test_dir_abs;
+    export_child.stdout_behavior = .Ignore;
+    export_child.stderr_behavior = .Ignore;
+    try export_child.spawn();
+    const exit_code = try export_child.wait();
+    switch (exit_code) {
+        .Exited => |code| try std.testing.expectEqual(code, 0),
+        else => try std.testing.expect(false),
+    }
+
+    const dist_dir_abs = try std.fs.path.join(allocator, &.{ test_dir_abs, "bundle" });
+    defer allocator.free(dist_dir_abs);
+
+    var dist_dir = try std.fs.openDirAbsolute(dist_dir_abs, .{});
+    defer dist_dir.close();
+
+    const expected_files = [_][]const u8{
+        "zx_site",
+        "assets" ++ std.fs.path.sep_str ++ "style.css",
+        "public" ++ std.fs.path.sep_str ++ "favicon.ico",
+    };
+
+    for (expected_files) |expected_file| {
+        const file_stat = try dist_dir.statFile(expected_file);
+        try std.testing.expectEqual(file_stat.kind, .file);
+    }
+}
+
+test "bundle --docker" {
+    if (!sholdRunSlowTest()) return error.SkipZigTest; // Export doesn't work on Windows yet
+    const test_dir_abs = try getTestDirPath();
+    const zx_bin_abs = try getZxPath();
+    defer allocator.free(test_dir_abs);
+    defer allocator.free(zx_bin_abs);
+
+    // Delete the bundle directory if it exists
+    const bundle_dir_abs = try std.fs.path.join(allocator, &.{ test_dir_abs, "bundle" });
+    defer allocator.free(bundle_dir_abs);
+    std.fs.cwd().deleteTree(bundle_dir_abs) catch |err| switch (err) {
+        else => {},
+    };
+
+    var export_child = std.process.Child.init(&.{ zx_bin_abs, "bundle", "--docker" }, allocator);
+    export_child.cwd = test_dir_abs;
+    export_child.stdout_behavior = .Ignore;
+    export_child.stderr_behavior = .Ignore;
+    try export_child.spawn();
+    const exit_code = try export_child.wait();
+    switch (exit_code) {
+        .Exited => |code| try std.testing.expectEqual(code, 0),
+        else => try std.testing.expect(false),
+    }
+
+    const dist_dir_abs = try std.fs.path.join(allocator, &.{ test_dir_abs, "bundle" });
+    defer allocator.free(dist_dir_abs);
+
+    var dist_dir = try std.fs.openDirAbsolute(dist_dir_abs, .{});
+    defer dist_dir.close();
+
+    const expected_files = [_][]const u8{
+        "Dockerfile",
+        "assets" ++ std.fs.path.sep_str ++ "style.css",
+        "public" ++ std.fs.path.sep_str ++ "favicon.ico",
+    };
+
+    for (expected_files) |expected_file| {
+        const file_stat = try dist_dir.statFile(expected_file);
+        try std.testing.expectEqual(file_stat.kind, .file);
+    }
+}
+
+test "bundle --docker-compose" {
+    if (!sholdRunSlowTest()) return error.SkipZigTest; // Export doesn't work on Windows yet
+    const test_dir_abs = try getTestDirPath();
+    const zx_bin_abs = try getZxPath();
+    defer allocator.free(test_dir_abs);
+    defer allocator.free(zx_bin_abs);
+
+    // Delete the bundle directory if it exists
+    const bundle_dir_abs = try std.fs.path.join(allocator, &.{ test_dir_abs, "bundle" });
+    defer allocator.free(bundle_dir_abs);
+    std.fs.cwd().deleteTree(bundle_dir_abs) catch |err| switch (err) {
+        else => {},
+    };
+
+    var export_child = std.process.Child.init(&.{ zx_bin_abs, "bundle", "--docker-compose" }, allocator);
+    export_child.cwd = test_dir_abs;
+    export_child.stdout_behavior = .Ignore;
+    export_child.stderr_behavior = .Ignore;
+    try export_child.spawn();
+    const exit_code = try export_child.wait();
+    switch (exit_code) {
+        .Exited => |code| try std.testing.expectEqual(code, 0),
+        else => try std.testing.expect(false),
+    }
+
+    const dist_dir_abs = try std.fs.path.join(allocator, &.{ test_dir_abs, "bundle" });
+    defer allocator.free(dist_dir_abs);
+
+    var dist_dir = try std.fs.openDirAbsolute(dist_dir_abs, .{});
+    defer dist_dir.close();
+
+    const expected_files = [_][]const u8{
+        "Dockerfile",
+        "compose.yml",
+        "assets" ++ std.fs.path.sep_str ++ "style.css",
+        "public" ++ std.fs.path.sep_str ++ "favicon.ico",
+    };
+
+    for (expected_files) |expected_file| {
+        const file_stat = try dist_dir.statFile(expected_file);
+        try std.testing.expectEqual(file_stat.kind, .file);
+    }
+}
+
 test "fmt" {
     const zx_bin_abs = try getZxPath();
     const test_dir_abs = try getTestDirPath();
