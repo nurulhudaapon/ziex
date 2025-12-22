@@ -19,316 +19,316 @@ test "tests:afterAll" {
 // === If ===
 test "if" {
     try test_transpile("control_flow/if");
-    try test_render(@import("./../data/control_flow/if.zig").Page);
+    try test_render("control_flow/if", @import("./../data/control_flow/if.zig").Page);
 }
 test "if_block" {
     try test_transpile("control_flow/if_block");
-    try test_render(@import("./../data/control_flow/if_block.zig").Page);
+    try test_render("control_flow/if_block", @import("./../data/control_flow/if_block.zig").Page);
 }
 test "if_if_only" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/if_if_only");
-    try test_render(@import("./../data/control_flow/if_if_only.zig").Page);
+    try test_render("control_flow/if_if_only", @import("./../data/control_flow/if_if_only.zig").Page);
 }
 test "if_if_only_block" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/if_if_only_block");
-    try test_render(@import("./../data/control_flow/if_if_only_block.zig").Page);
+    try test_render("control_flow/if_if_only_block", @import("./../data/control_flow/if_if_only_block.zig").Page);
 }
 test "if_only" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/if_only");
-    try test_render(@import("./../data/control_flow/if_only.zig").Page);
+    try test_render("control_flow/if_only", @import("./../data/control_flow/if_only.zig").Page);
 }
 test "if_only_block" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/if_only_block");
-    try test_render(@import("./../data/control_flow/if_only_block.zig").Page);
+    try test_render("control_flow/if_only_block", @import("./../data/control_flow/if_only_block.zig").Page);
 }
 test "if_while" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/if_while");
-    try test_render(@import("./../data/control_flow/if_while.zig").Page);
+    try test_render("control_flow/if_while", @import("./../data/control_flow/if_while.zig").Page);
 }
 test "if_if" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/if_if");
-    try test_render(@import("./../data/control_flow/if_if.zig").Page);
+    try test_render("control_flow/if_if", @import("./../data/control_flow/if_if.zig").Page);
 }
 test "if_for" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/if_for");
-    try test_render(@import("./../data/control_flow/if_for.zig").Page);
+    try test_render("control_flow/if_for", @import("./../data/control_flow/if_for.zig").Page);
 }
 test "if_switch" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/if_switch");
-    try test_render(@import("./../data/control_flow/if_switch.zig").Page);
+    try test_render("control_flow/if_switch", @import("./../data/control_flow/if_switch.zig").Page);
 }
 test "if_else_if" {
     try test_transpile("control_flow/if_else_if");
-    try test_render(@import("./../data/control_flow/if_else_if.zig").Page);
+    try test_render("control_flow/if_else_if", @import("./../data/control_flow/if_else_if.zig").Page);
 }
 test "if_capture" {
     try test_transpile("control_flow/if_capture");
-    try test_render(@import("./../data/control_flow/if_capture.zig").Page);
+    try test_render("control_flow/if_capture", @import("./../data/control_flow/if_capture.zig").Page);
 }
 
 // === For ===
 test "for" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/for");
-    try test_render(@import("./../data/control_flow/for.zig").Page);
+    try test_render("control_flow/for", @import("./../data/control_flow/for.zig").Page);
 }
 test "for_capture" {
     // if (true) return error.Todo;
-    try test_render(@import("./../data/control_flow/for.zig").StructCapture);
+    try test_render("control_flow/for_capture", @import("./../data/control_flow/for.zig").StructCapture);
 }
 test "for_capture_to_component" {
     // if (true) return error.Todo;
-    try test_render(@import("./../data/control_flow/for.zig").StructCaptureToComponent);
+    try test_render("control_flow/for_capture_to_component", @import("./../data/control_flow/for.zig").StructCaptureToComponent);
 }
 test "for_block" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/for_block");
-    try test_render(@import("./../data/control_flow/for_block.zig").Page);
+    try test_render("control_flow/for_block", @import("./../data/control_flow/for_block.zig").Page);
 }
 test "for_if" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/for_if");
-    try test_render(@import("./../data/control_flow/for_if.zig").Page);
+    try test_render("control_flow/for_if", @import("./../data/control_flow/for_if.zig").Page);
 }
 test "for_for" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/for_for");
-    try test_render(@import("./../data/control_flow/for_for.zig").Page);
+    try test_render("control_flow/for_for", @import("./../data/control_flow/for_for.zig").Page);
 }
 test "for_switch" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/for_switch");
-    try test_render(@import("./../data/control_flow/for_switch.zig").Page);
+    try test_render("control_flow/for_switch", @import("./../data/control_flow/for_switch.zig").Page);
 }
 test "for_while" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/for_while");
-    try test_render(@import("./../data/control_flow/for_while.zig").Page);
+    try test_render("control_flow/for_while", @import("./../data/control_flow/for_while.zig").Page);
 }
 
 // === Switch ===
 test "switch" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/switch");
-    try test_render(@import("./../data/control_flow/switch.zig").Page);
+    try test_render("control_flow/switch", @import("./../data/control_flow/switch.zig").Page);
 }
 test "switch_block" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/switch_block");
-    try test_render(@import("./../data/control_flow/switch_block.zig").Page);
+    try test_render("control_flow/switch_block", @import("./../data/control_flow/switch_block.zig").Page);
 }
 test "switch_if" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/switch_if");
-    try test_render(@import("./../data/control_flow/switch_if.zig").Page);
+    try test_render("control_flow/switch_if", @import("./../data/control_flow/switch_if.zig").Page);
 }
 test "switch_for" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/switch_for");
-    try test_render(@import("./../data/control_flow/switch_for.zig").Page);
+    try test_render("control_flow/switch_for", @import("./../data/control_flow/switch_for.zig").Page);
 }
 test "switch_switch" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/switch_switch");
-    try test_render(@import("./../data/control_flow/switch_switch.zig").Page);
+    try test_render("control_flow/switch_switch", @import("./../data/control_flow/switch_switch.zig").Page);
 }
 test "switch_while" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/switch_while");
-    try test_render(@import("./../data/control_flow/switch_while.zig").Page);
+    try test_render("control_flow/switch_while", @import("./../data/control_flow/switch_while.zig").Page);
 }
 
 // === While ===
 test "while" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/while");
-    try test_render(@import("./../data/control_flow/while.zig").Page);
+    try test_render("control_flow/while", @import("./../data/control_flow/while.zig").Page);
 }
 test "while_block" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/while_block");
-    try test_render(@import("./../data/control_flow/while_block.zig").Page);
+    try test_render("control_flow/while_block", @import("./../data/control_flow/while_block.zig").Page);
 }
 test "while_while" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/while_while");
-    try test_render(@import("./../data/control_flow/while_while.zig").Page);
+    try test_render("control_flow/while_while", @import("./../data/control_flow/while_while.zig").Page);
 }
 test "while_if" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/while_if");
-    try test_render(@import("./../data/control_flow/while_if.zig").Page);
+    try test_render("control_flow/while_if", @import("./../data/control_flow/while_if.zig").Page);
 }
 test "while_for" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/while_for");
-    try test_render(@import("./../data/control_flow/while_for.zig").Page);
+    try test_render("control_flow/while_for", @import("./../data/control_flow/while_for.zig").Page);
 }
 test "while_switch" {
     // if (true) return error.Todo;
     try test_transpile("control_flow/while_switch");
-    try test_render(@import("./../data/control_flow/while_switch.zig").Page);
+    try test_render("control_flow/while_switch", @import("./../data/control_flow/while_switch.zig").Page);
 }
 
 // === Deeply Nested Control Flow (3-level) ===
 test "if_for_if" {
     try test_transpile("control_flow/if_for_if");
-    try test_render(@import("./../data/control_flow/if_for_if.zig").Page);
+    try test_render("control_flow/if_for_if", @import("./../data/control_flow/if_for_if.zig").Page);
 }
 
 // === Miscellaneous ===
 test "attribute_builtin" {
     // if (true) return error.Todo;
     try test_transpile("attribute/builtin");
-    try test_render(@import("./../data/attribute/builtin.zig").Page);
+    try test_render("attribute/builtin", @import("./../data/attribute/builtin.zig").Page);
 }
 test "attribute_component" {
     // if (true) return error.Todo;
     try test_transpile("attribute/component");
-    try test_render(@import("./../data/attribute/component.zig").Page);
+    try test_render("attribute/component", @import("./../data/attribute/component.zig").Page);
 }
 test "attribute_builtin_escaping" {
     // if (true) return error.Todo;
     try test_transpile("attribute/builtin_escaping");
-    try test_render(@import("./../data/attribute/builtin_escaping.zig").Page);
+    try test_render("attribute/builtin_escaping", @import("./../data/attribute/builtin_escaping.zig").Page);
 }
 test "attribute_dynamic" {
     try test_transpile("attribute/dynamic");
-    try test_render(@import("./../data/attribute/dynamic.zig").Page);
+    try test_render("attribute/dynamic", @import("./../data/attribute/dynamic.zig").Page);
 }
 test "attribute_types" {
     try test_transpile("attribute/types");
-    try test_render(@import("./../data/attribute/types.zig").Page);
+    try test_render("attribute/types", @import("./../data/attribute/types.zig").Page);
 }
 
 // === Element ===
 test "element_void" {
     try test_transpile("element/void");
-    try test_render(@import("./../data/element/void.zig").Page);
+    try test_render("element/void", @import("./../data/element/void.zig").Page);
 }
 test "element_empty" {
     try test_transpile("element/empty");
-    try test_render(@import("./../data/element/empty.zig").Page);
+    try test_render("element/empty", @import("./../data/element/empty.zig").Page);
 }
 test "element_nested" {
     try test_transpile("element/nested");
-    try test_render(@import("./../data/element/nested.zig").Page);
+    try test_render("element/nested", @import("./../data/element/nested.zig").Page);
 }
 test "element_fragment" {
     // TODO: Fragment transpilation generates invalid Zig code (trailing comma in empty children)
     // if (true) return error.SkipZigTest;
     try test_transpile("element/fragment");
-    try test_render(@import("./../data/element/fragment.zig").Page);
+    try test_render("element/fragment", @import("./../data/element/fragment.zig").Page);
 }
 test "element_fragment_root" {
     try test_transpile("element/fragment_root");
-    try test_render(@import("./../data/element/fragment_root.zig").Page);
+    try test_render("element/fragment_root", @import("./../data/element/fragment_root.zig").Page);
 }
 
 test "escaping_pre" {
     // if (true) return error.Todo;
     try test_transpile("escaping/pre");
-    try test_render(@import("./../data/escaping/pre.zig").Page);
+    try test_render("escaping/pre", @import("./../data/escaping/pre.zig").Page);
 }
 test "escaping_quotes" {
     // if (true) return error.Todo;
     try test_transpile("escaping/quotes");
-    try test_render(@import("./../data/escaping/quotes.zig").Page);
+    try test_render("escaping/quotes", @import("./../data/escaping/quotes.zig").Page);
 }
 
 test "expression_text" {
     // if (true) return error.Todo;
     try test_transpile("expression/text");
-    try test_render(@import("./../data/expression/text.zig").Page);
+    try test_render("expression/text", @import("./../data/expression/text.zig").Page);
 }
 test "expression_format" {
     // if (true) return error.Todo;
     try test_transpile("expression/format");
-    try test_render(@import("./../data/expression/format.zig").Page);
+    try test_render("expression/format", @import("./../data/expression/format.zig").Page);
 }
 test "expression_component" {
     // if (true) return error.Todo;
     try test_transpile("expression/component");
-    try test_render(@import("./../data/expression/component.zig").Page);
+    try test_render("expression/component", @import("./../data/expression/component.zig").Page);
 }
 test "expression_mixed" {
     try test_transpile("expression/mixed");
-    try test_render(@import("./../data/expression/mixed.zig").Page);
+    try test_render("expression/mixed", @import("./../data/expression/mixed.zig").Page);
 }
 test "expression_optional" {
     try test_transpile("expression/optional");
-    try test_render(@import("./../data/expression/optional.zig").Page);
+    try test_render("expression/optional", @import("./../data/expression/optional.zig").Page);
 }
 test "expression_struct_access" {
     try test_transpile("expression/struct_access");
-    try test_render(@import("./../data/expression/struct_access.zig").Page);
+    try test_render("expression/struct_access", @import("./../data/expression/struct_access.zig").Page);
 }
 test "expression_function_call" {
     try test_transpile("expression/function_call");
-    try test_render(@import("./../data/expression/function_call.zig").Page);
+    try test_render("expression/function_call", @import("./../data/expression/function_call.zig").Page);
 }
 
 test "expression_multiline_string" {
     try test_transpile("expression/multiline_string");
-    try test_render(@import("./../data/expression/multiline_string.zig").Page);
+    try test_render("expression/multiline_string", @import("./../data/expression/multiline_string.zig").Page);
 }
 
 test "component_basic" {
     // if (true) return error.Todo;
     try test_transpile("component/basic");
-    try test_render(@import("./../data/component/basic.zig").Page);
+    try test_render("component/basic", @import("./../data/component/basic.zig").Page);
 }
 test "component_multiple" {
     // if (true) return error.Todo;
     try test_transpile("component/multiple");
-    try test_render(@import("./../data/component/multiple.zig").Page);
+    try test_render("component/multiple", @import("./../data/component/multiple.zig").Page);
 }
 test "component_nested" {
     try test_transpile("component/nested");
-    try test_render(@import("./../data/component/nested.zig").Page);
+    try test_render("component/nested", @import("./../data/component/nested.zig").Page);
 }
 test "component_children_only" {
     try test_transpile("component/children_only");
-    try test_render(@import("./../data/component/children_only.zig").Page);
+    try test_render("component/children_only", @import("./../data/component/children_only.zig").Page);
 }
 test "component_csr_react" {
     // if (true) return error.Todo;
     try test_transpile("component/csr_react");
-    try test_render(@import("./../data/component/csr_react.zig").Page);
+    try test_render("component/csr_react", @import("./../data/component/csr_react.zig").Page);
 }
 test "component_csr_react_multiple" {
     // if (true) return error.Todo;
     try test_transpile("component/csr_react_multiple");
-    try test_render(@import("./../data/component/csr_react_multiple.zig").Page);
+    try test_render("component/csr_react_multiple", @import("./../data/component/csr_react_multiple.zig").Page);
 }
 
 test "component_csr_zig" {
     // if (true) return error.Todo;
     try test_transpile("component/csr_zig");
-    try test_render(@import("./../data/component/csr_zig.zig").Page);
+    try test_render("component/csr_zig", @import("./../data/component/csr_zig.zig").Page);
 }
 
 test "component_import" {
     // if (true) return error.Todo;
     try test_transpile("component/import");
-    try test_render(@import("./../data/component/import.zig").Page);
+    try test_render("component/import", @import("./../data/component/import.zig").Page);
 }
 
 test "component_root_cmp" {
     // if (true) return error.Todo;
     try test_transpile("component/root_cmp");
-    try test_render(@import("./../data/component/root_cmp.zig").Page);
+    try test_render("component/root_cmp", @import("./../data/component/root_cmp.zig").Page);
 }
 
-test "performance" {
+test "performance > transpile" {
     // if (true) return error.Todo;
     const MAX_TIME_MS = 50.0 * 8; // 50ms is on M1 Pro
     const MAX_TIME_PER_FILE_MS = 8.0 * 10; // 5ms is on M1 Pro
@@ -352,6 +352,30 @@ test "performance" {
     try expectLessThan(MAX_TIME_PER_FILE_MS, average_time_ms);
 }
 
+test "performance > render" {
+    // if (true) return error.Todo;
+    const MAX_TIME_MS = 5.0 * 8; // 3.5ms is on M1 Pro
+    const MAX_TIME_PER_FILE_MS = 0.10 * 10; // 0.06ms is on M1 Pro
+
+    var total_time_ns: f64 = 0.0;
+    inline for (TestFileCache.test_files) |comptime_path| {
+        const start_time = std.time.nanoTimestamp();
+        try test_render_inner(comptime_path, true);
+        const end_time = std.time.nanoTimestamp();
+        const duration = @as(f64, @floatFromInt(end_time - start_time));
+        total_time_ns += duration;
+        const duration_ms = duration / std.time.ns_per_ms;
+        try expectLessThan(MAX_TIME_PER_FILE_MS, duration_ms);
+    }
+
+    const total_time_ms = total_time_ns / std.time.ns_per_ms;
+    const average_time_ms = total_time_ms / TestFileCache.test_files.len;
+    std.debug.print("\x1b[33m⏲\x1b[0m render \x1b[90m>\x1b[0m {d:.2}ms | Avg: {d:.2}ms\n", .{ total_time_ms, average_time_ms });
+
+    try expectLessThan(MAX_TIME_MS, total_time_ms);
+    try expectLessThan(MAX_TIME_PER_FILE_MS, average_time_ms);
+}
+
 fn test_transpile(comptime file_path: []const u8) !void {
     try test_transpile_inner(file_path, false);
 }
@@ -364,6 +388,7 @@ fn test_transpile_inner(comptime file_path: []const u8, comptime no_expect: bool
     const source_path = file_path ++ ".zx";
     const expected_source_path = file_path ++ ".zig";
     const full_file_path = "test/data/" ++ file_path ++ ".zx";
+    const output_zig_path = "test/data/" ++ file_path ++ ".zig";
 
     // Get pre-loaded source file
     const source = cache.get(source_path) orelse return error.FileNotFound;
@@ -373,6 +398,22 @@ fn test_transpile_inner(comptime file_path: []const u8, comptime no_expect: bool
     // Parse and transpile with file path for CSZ support
     var result = try zx.Ast.parse(allocator, source_z, .{ .path = full_file_path, .version = .new });
     defer result.deinit(allocator);
+
+    // Check for SNAPSHOT=1 environment variable
+    const snapshot_mode = std.posix.getenv("SNAPSHOT") != null;
+    if (snapshot_mode) {
+        // Save the transpiled output to .zig file
+        const file = std.fs.cwd().createFile(output_zig_path, .{}) catch |err| {
+            std.log.err("Failed to create snapshot file {s}: {}\n", .{ output_zig_path, err });
+            return err;
+        };
+        defer file.close();
+        file.writeAll(result.zig_source) catch |err| {
+            std.log.err("Failed to write snapshot file {s}: {}\n", .{ output_zig_path, err });
+            return err;
+        };
+        return; // Skip comparison in snapshot mode
+    }
 
     // Get pre-loaded expected file
     const expected_source = cache.get(expected_source_path) orelse {
@@ -388,7 +429,88 @@ fn test_transpile_inner(comptime file_path: []const u8, comptime no_expect: bool
     }
 }
 
-fn test_render(comptime cmp: fn (allocator: std.mem.Allocator) zx.Component) !void {
+fn test_render(comptime file_path: []const u8, comptime cmp: fn (allocator: std.mem.Allocator) zx.Component) !void {
+    try test_render_inner_with_cmp(file_path, cmp, false);
+}
+
+fn test_render_inner(comptime file_path: []const u8, comptime no_expect: bool) !void {
+    const cmp = comptime getPageFn(file_path) orelse return;
+    try test_render_inner_with_cmp(file_path, cmp, no_expect);
+}
+
+fn getPageFn(comptime path: []const u8) ?fn (std.mem.Allocator) zx.Component {
+    const imports = .{
+        .{ "control_flow/if", @import("./../data/control_flow/if.zig") },
+        .{ "control_flow/if_block", @import("./../data/control_flow/if_block.zig") },
+        .{ "control_flow/if_only", @import("./../data/control_flow/if_only.zig") },
+        .{ "control_flow/if_only_block", @import("./../data/control_flow/if_only_block.zig") },
+        .{ "control_flow/for", @import("./../data/control_flow/for.zig") },
+        .{ "control_flow/for_block", @import("./../data/control_flow/for_block.zig") },
+        .{ "control_flow/switch", @import("./../data/control_flow/switch.zig") },
+        .{ "control_flow/switch_block", @import("./../data/control_flow/switch_block.zig") },
+        .{ "control_flow/while", @import("./../data/control_flow/while.zig") },
+        .{ "control_flow/while_block", @import("./../data/control_flow/while_block.zig") },
+        .{ "control_flow/if_if", @import("./../data/control_flow/if_if.zig") },
+        .{ "control_flow/if_for", @import("./../data/control_flow/if_for.zig") },
+        .{ "control_flow/if_switch", @import("./../data/control_flow/if_switch.zig") },
+        .{ "control_flow/if_while", @import("./../data/control_flow/if_while.zig") },
+        .{ "control_flow/if_if_only", @import("./../data/control_flow/if_if_only.zig") },
+        .{ "control_flow/if_if_only_block", @import("./../data/control_flow/if_if_only_block.zig") },
+        .{ "control_flow/if_else_if", @import("./../data/control_flow/if_else_if.zig") },
+        .{ "control_flow/if_capture", @import("./../data/control_flow/if_capture.zig") },
+        .{ "control_flow/for_if", @import("./../data/control_flow/for_if.zig") },
+        .{ "control_flow/for_for", @import("./../data/control_flow/for_for.zig") },
+        .{ "control_flow/for_switch", @import("./../data/control_flow/for_switch.zig") },
+        .{ "control_flow/for_while", @import("./../data/control_flow/for_while.zig") },
+        .{ "control_flow/switch_if", @import("./../data/control_flow/switch_if.zig") },
+        .{ "control_flow/switch_for", @import("./../data/control_flow/switch_for.zig") },
+        .{ "control_flow/switch_switch", @import("./../data/control_flow/switch_switch.zig") },
+        .{ "control_flow/switch_while", @import("./../data/control_flow/switch_while.zig") },
+        .{ "control_flow/while_if", @import("./../data/control_flow/while_if.zig") },
+        .{ "control_flow/while_for", @import("./../data/control_flow/while_for.zig") },
+        .{ "control_flow/while_switch", @import("./../data/control_flow/while_switch.zig") },
+        .{ "control_flow/while_while", @import("./../data/control_flow/while_while.zig") },
+        .{ "control_flow/if_for_if", @import("./../data/control_flow/if_for_if.zig") },
+        .{ "expression/text", @import("./../data/expression/text.zig") },
+        .{ "expression/format", @import("./../data/expression/format.zig") },
+        .{ "expression/component", @import("./../data/expression/component.zig") },
+        .{ "expression/mixed", @import("./../data/expression/mixed.zig") },
+        .{ "expression/struct_access", @import("./../data/expression/struct_access.zig") },
+        .{ "expression/function_call", @import("./../data/expression/function_call.zig") },
+        .{ "expression/multiline_string", @import("./../data/expression/multiline_string.zig") },
+        .{ "expression/optional", @import("./../data/expression/optional.zig") },
+        .{ "component/basic", @import("./../data/component/basic.zig") },
+        .{ "component/multiple", @import("./../data/component/multiple.zig") },
+        .{ "component/nested", @import("./../data/component/nested.zig") },
+        .{ "component/children_only", @import("./../data/component/children_only.zig") },
+        .{ "component/csr_react", @import("./../data/component/csr_react.zig") },
+        .{ "component/csr_react_multiple", @import("./../data/component/csr_react_multiple.zig") },
+        .{ "component/csr_zig", @import("./../data/component/csr_zig.zig") },
+        .{ "component/import", @import("./../data/component/import.zig") },
+        .{ "component/root_cmp", @import("./../data/component/root_cmp.zig") },
+        .{ "attribute/builtin", @import("./../data/attribute/builtin.zig") },
+        .{ "attribute/component", @import("./../data/attribute/component.zig") },
+        .{ "attribute/builtin_escaping", @import("./../data/attribute/builtin_escaping.zig") },
+        .{ "attribute/dynamic", @import("./../data/attribute/dynamic.zig") },
+        .{ "attribute/types", @import("./../data/attribute/types.zig") },
+        .{ "element/void", @import("./../data/element/void.zig") },
+        .{ "element/empty", @import("./../data/element/empty.zig") },
+        .{ "element/nested", @import("./../data/element/nested.zig") },
+        .{ "element/fragment", @import("./../data/element/fragment.zig") },
+        .{ "element/fragment_root", @import("./../data/element/fragment_root.zig") },
+        .{ "escaping/pre", @import("./../data/escaping/pre.zig") },
+        .{ "escaping/quotes", @import("./../data/escaping/quotes.zig") },
+    };
+
+    inline for (imports) |entry| {
+        if (std.mem.eql(u8, entry[0], path)) {
+            return entry[1].Page;
+        }
+    }
+    return null;
+}
+
+fn test_render_inner_with_cmp(comptime file_path: []const u8, comptime cmp: fn (allocator: std.mem.Allocator) zx.Component, comptime no_expect: bool) !void {
     const gpa = std.testing.allocator;
     var aa = std.heap.ArenaAllocator.init(gpa);
     defer aa.deinit();
@@ -401,9 +523,33 @@ fn test_render(comptime cmp: fn (allocator: std.mem.Allocator) zx.Component) !vo
     const rendered = aw.written();
     try testing.expect(rendered.len > 0);
 
-    // std.debug.print("\x1b[32m✓\x1b[0m Rendered: {s}\n", .{rendered});
+    if (no_expect) return;
 
-    // try testing.expectEqualStrings(expected_source_z, rendered);
+    const html_path = "test/data/" ++ file_path ++ ".html";
+
+    // Check for SNAPSHOT=1 environment variable
+    const snapshot_mode = std.posix.getenv("SNAPSHOT") != null;
+    if (snapshot_mode) {
+        // Save the rendered output to .html file
+        const file = std.fs.cwd().createFile(html_path, .{}) catch |err| {
+            std.log.err("Failed to create snapshot file {s}: {}\n", .{ html_path, err });
+            return err;
+        };
+        defer file.close();
+        file.writeAll(rendered) catch |err| {
+            std.log.err("Failed to write snapshot file {s}: {}\n", .{ html_path, err });
+            return err;
+        };
+        return; // Skip comparison in snapshot mode
+    }
+
+    // Read expected HTML file directly
+    const expected_html = std.fs.cwd().readFileAlloc(allocator, html_path, std.math.maxInt(usize)) catch |err| {
+        std.log.err("Expected HTML file not found: {s}\n", .{html_path});
+        return err;
+    };
+
+    try testing.expectEqualStrings(expected_html, rendered);
 }
 
 fn expectLessThan(expected: f64, actual: f64) !void {

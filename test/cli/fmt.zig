@@ -237,7 +237,7 @@ test "escaping_quotes" {
     try test_fmt("escaping/quotes");
 }
 
-test "performance" {
+test "performance > fmt" {
     // if (true) return error.Todo;
     const MAX_TIME_MS = 50.0 * 8; // 50ms is on M1 Pro
     const MAX_TIME_PER_FILE_MS = 8.0 * 10; // 5ms is on M1 Pro

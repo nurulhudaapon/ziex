@@ -95,7 +95,7 @@ pub const TestFileCache = struct {
 
         const base_path = "test/data/";
 
-        // Load both .zx and .zig files for each test file
+        // Load .zx and .zig files for each test file
         for (test_files) |file_path| {
             for ([_]struct { ext: []const u8 }{ .{ .ext = ".zx" }, .{ .ext = ".zig" } }) |ext_info| {
                 const full_path = try std.fmt.allocPrint(allocator, "{s}{s}{s}", .{ base_path, file_path, ext_info.ext });
