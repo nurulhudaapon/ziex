@@ -1263,8 +1263,9 @@ pub fn transpileFormat(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void 
 }
 
 pub fn transpileIf(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
-    // if_expression: 'if' '(' condition ')' then_expr ['else' else_expr]
+    // if_expression: 'if' '(' condition ')' [payload] then_expr ['else' else_expr]
     var condition_text: ?[]const u8 = null;
+    var payload_text: ?[]const u8 = null;
     var then_node: ?ts.Node = null;
     var else_node: ?ts.Node = null;
 
@@ -1276,6 +1277,7 @@ pub fn transpileIf(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
         const child_type = child.kind();
+        const child_kind = NodeKind.fromNode(child);
 
         if (std.mem.eql(u8, child_type, "if")) {
             in_condition = true;
@@ -1288,6 +1290,9 @@ pub fn transpileIf(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
             in_then = false;
         } else if (in_condition and condition_text == null) {
             condition_text = try self.getNodeText(child);
+        } else if (in_then and child_kind == .payload) {
+            // Capture payload like |un|
+            payload_text = try self.getNodeText(child);
         } else if (in_then and then_node == null) {
             then_node = child;
         } else if (!in_condition and !in_then and then_node != null) {
@@ -1312,6 +1317,12 @@ pub fn transpileIf(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
     }
     try ctx.write(" ");
 
+    // Write payload if present (e.g., |un|)
+    if (payload_text) |payload| {
+        try ctx.write(payload);
+        try ctx.write(" ");
+    }
+
     // Handle then branch
     try transpileBranch(self, then_n, ctx);
 
@@ -1328,6 +1339,7 @@ pub fn transpileIf(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
 fn transpileBranch(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
     switch (NodeKind.fromNode(node)) {
         .zx_block => try transpileBlock(self, node, ctx),
+        .if_expression => try transpileIf(self, node, ctx), // Handle else-if chains
         .parenthesized_expression => {
             try ctx.write("_zx.ele(.fragment, .{ .children = &.{\n");
             try transpileExprBlock(self, node, ctx);

@@ -25,6 +25,8 @@ pub const TestFileCache = struct {
         "control_flow/if_while",
         "control_flow/if_if_only",
         "control_flow/if_if_only_block",
+        "control_flow/if_else_if",
+        "control_flow/if_capture",
 
         "control_flow/for_if",
         "control_flow/for_for",

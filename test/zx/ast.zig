@@ -65,6 +65,14 @@ test "if_switch" {
     try test_transpile("control_flow/if_switch");
     try test_render(@import("./../data/control_flow/if_switch.zig").Page);
 }
+test "if_else_if" {
+    try test_transpile("control_flow/if_else_if");
+    try test_render(@import("./../data/control_flow/if_else_if.zig").Page);
+}
+test "if_capture" {
+    try test_transpile("control_flow/if_capture");
+    try test_render(@import("./../data/control_flow/if_capture.zig").Page);
+}
 
 // === For ===
 test "for" {

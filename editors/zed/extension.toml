@@ -1,7 +1,7 @@
 id = "zx"
 name = "ZX"
 description = "ZX support."
-version = "0.1.0-dev.406"
+version = "0.1.0-dev.407"
 schema_version = 1
 authors = ["Nurul Huda (Apon) <me@nurulhudaapon.com>"]
 repository = "https://github.com/nurulhudaapon/zx"

@@ -1,0 +1,12 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const is_logged_in = false;
+    const user_name = if (is_logged_in) "zx" else null;
+
+    return (
+        <main @allocator={allocator}>
+            {if (user_name) |un| (<p>{un}</p>)}
+        </main>
+    );
+}
+
+const zx = @import("zx");
