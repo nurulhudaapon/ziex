@@ -400,8 +400,7 @@ fn test_transpile_inner(comptime file_path: []const u8, comptime no_expect: bool
     defer result.deinit(allocator);
 
     // Check for SNAPSHOT=1 environment variable
-    const snapshot_mode = std.posix.getenv("SNAPSHOT") != null;
-    if (snapshot_mode) {
+    if (isSnapshotMode()) {
         // Save the transpiled output to .zig file
         const file = std.fs.cwd().createFile(output_zig_path, .{}) catch |err| {
             std.log.err("Failed to create snapshot file {s}: {}\n", .{ output_zig_path, err });
@@ -528,8 +527,7 @@ fn test_render_inner_with_cmp(comptime file_path: []const u8, comptime cmp: fn (
     const html_path = "test/data/" ++ file_path ++ ".html";
 
     // Check for SNAPSHOT=1 environment variable
-    const snapshot_mode = std.posix.getenv("SNAPSHOT") != null;
-    if (snapshot_mode) {
+    if (isSnapshotMode()) {
         // Save the rendered output to .html file
         const file = std.fs.cwd().createFile(html_path, .{}) catch |err| {
             std.log.err("Failed to create snapshot file {s}: {}\n", .{ html_path, err });
@@ -559,9 +557,20 @@ fn expectLessThan(expected: f64, actual: f64) !void {
     }
 }
 
+fn isSnapshotMode() bool {
+    // Cross-platform environment variable check
+    if (native_os == .windows) {
+        const val = std.process.getenvW(std.unicode.utf8ToUtf16LeStringLiteral("SNAPSHOT"));
+        return val != null;
+    } else {
+        return std.posix.getenv("SNAPSHOT") != null;
+    }
+}
+
 var test_file_cache: ?TestFileCache = null;
 var gpa_state: ?std.heap.GeneralPurposeAllocator(.{}) = null;
 
+const native_os = @import("builtin").os.tag;
 const TestFileCache = @import("./../test_util.zig").TestFileCache;
 
 const std = @import("std");
