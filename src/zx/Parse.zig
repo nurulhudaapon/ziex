@@ -53,6 +53,7 @@ pub const NodeKind = enum {
     payload,
     array_type,
     assignment_expression,
+    multiline_string,
 
     /// Anonymous/unrecognized node kind
     anon,

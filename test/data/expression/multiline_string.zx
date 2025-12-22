@@ -1,0 +1,12 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            {
+             \\ ZX
+             \\ Multiline
+            }
+        </main>
+    );
+}
+
+const zx = @import("zx");

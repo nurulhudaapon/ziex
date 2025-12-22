@@ -53,6 +53,7 @@ pub const TestFileCache = struct {
         "expression/mixed",
         "expression/struct_access",
         "expression/function_call",
+        "expression/multiline_string",
 
         // Component
         "component/basic",

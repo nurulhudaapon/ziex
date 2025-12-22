@@ -1225,6 +1225,10 @@ pub fn transpileExprBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) err
                 try transpileFormat(self, child, ctx);
                 continue;
             },
+            .multiline_string => {
+                try transpileMultilineString(self, child, ctx);
+                continue;
+            },
             else => {},
         }
 
@@ -1238,6 +1242,34 @@ pub fn transpileExprBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) err
         try ctx.writeM(trimmed, child.startByte(), self);
         try ctx.write(")");
     }
+}
+
+/// Transpile multiline string expression with proper formatting
+fn transpileMultilineString(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
+    const expr_text = try self.getNodeText(node);
+
+    // Write _zx.expr( followed by newline
+    try ctx.writeM("_zx.expr(", node.startByte(), self);
+    try ctx.write("\n");
+
+    ctx.indent_level += 1;
+
+    // Split by newlines and write each line with proper indentation
+    var lines = std.mem.splitScalar(u8, expr_text, '\n');
+    while (lines.next()) |line| {
+        const trimmed_line = std.mem.trimLeft(u8, line, " \t");
+        if (trimmed_line.len == 0) continue;
+
+        try ctx.writeIndent();
+        try ctx.write(trimmed_line);
+        try ctx.write("\n");
+    }
+
+    ctx.indent_level -= 1;
+
+    // Write closing paren with proper indentation
+    try ctx.writeIndent();
+    try ctx.write(")");
 }
 
 pub fn transpileFormat(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {

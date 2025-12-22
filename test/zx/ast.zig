@@ -272,6 +272,11 @@ test "expression_function_call" {
     try test_render(@import("./../data/expression/function_call.zig").Page);
 }
 
+test "expression_multiline_string" {
+    try test_transpile("expression/multiline_string");
+    try test_render(@import("./../data/expression/multiline_string.zig").Page);
+}
+
 test "component_basic" {
     // if (true) return error.Todo;
     try test_transpile("component/basic");
