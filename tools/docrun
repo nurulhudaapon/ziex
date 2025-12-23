@@ -1,2 +1,2 @@
 #!/bin/bash
-zig build serve -Dzx-docsite
+zig build serve -Ddoc

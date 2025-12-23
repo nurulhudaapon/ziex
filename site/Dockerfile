@@ -16,7 +16,7 @@ COPY build.zig.zon ./build.zig.zon
 COPY build.zig ./build.zig
 COPY packages/tree-sitter-zx ./packages/tree-sitter-zx
 
-RUN /opt/zig/zig build -Dzx-docsite -Doptimize=ReleaseSmall
+RUN /opt/zig/zig build -Ddoc -Doptimize=ReleaseSmall
 
 # Run the app
 FROM alpine:3.22.2

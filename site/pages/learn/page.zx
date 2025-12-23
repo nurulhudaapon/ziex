@@ -286,18 +286,24 @@ fn CreateProject(allocator: zx.Allocator) zx.Component {
             <p>Open <code>http://localhost:3000</code> in your browser!</p>
             
             <h3>Project Structure</h3>
-            <pre class="language-text"><code>my-project/
-├── build.zig           # Zig build config
-├── site/
-│   ├── main.zig        # Entry point
-│   ├── pages/
-│   │   ├── page.zx     # Home page (/)
-│   │   ├── about/
-│   │   │   └── page.zx # About (/about)
-│   │   └── layout.zx   # Root layout
-│   └── public/         # Static assets
-└── src/
-    └── root.zig        # Shared code</code></pre>
+            <pre class="language-text">
+                <code>
+                {
+                    \\my-app/
+                    \\├── build.zig           # Zig build config
+                    \\├── site/
+                    \\│   ├── main.zig        # Entry point
+                    \\│   ├── pages/
+                    \\│   │   ├── page.zx     # Home page (/)
+                    \\│   │   ├── about/
+                    \\│   │   │   └── page.zx # About (/about)
+                    \\│   │   └── layout.zx   # Root layout
+                    \\│   └── public/         # Static assets
+                    \\└── src/
+                    \\    └── root.zig        # Shared code
+                }
+                </code>
+            </pre>
             <div class="callout tip">
                 <strong>Tip:</strong> The <code>site/pages/</code> directory uses file-based routing. Each <code>page.zx</code> file becomes a route.
             </div>

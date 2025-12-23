@@ -64,7 +64,7 @@ pub fn build(b: *std.Build) !void {
 
     // --- ZX Site (Docs, Example, sample) --- //
     {
-        const is_zx_docsite = b.option(bool, "zx-docsite", "Build the ZX docsite") orelse false;
+        const is_zx_docsite = b.option(bool, "doc", "Build the ZX docsite") orelse false;
         if (is_zx_docsite) {
             const zx_docsite_exe = b.addExecutable(.{
                 .name = "zx_site",

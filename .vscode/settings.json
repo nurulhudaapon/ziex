@@ -5,7 +5,7 @@
     ],
     "editor.formatOnSave": false,
     "zig.buildOnSaveArgs": [
-        "-Dzx-docsite"
+        "-Ddoc"
     ],
     "zig.zls.completionLabelDetails": false,
     "zig.zls.inlayHintsShowStructLiteralFieldType": false,

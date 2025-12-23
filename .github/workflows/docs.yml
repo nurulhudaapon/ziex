@@ -45,10 +45,10 @@ jobs:
         run: cd site && bun install
         
       - name: Build Site
-        run: zig build -Dzx-docsite
+        run: zig build -Ddoc
 
       - name: Export Site
-        run: zig build export -Dzx-docsite
+        run: zig build export -Ddoc
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
