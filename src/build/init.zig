@@ -214,7 +214,7 @@ pub fn initInner(
                                 const outdir_placeholder = "{outdir}";
 
                                 const input = path.lazy_path.getPath3(b, null).sub_path;
-                                std.log.err("input path: {s}\n", .{input});
+                                std.debug.print("input path: {s}\n", .{input});
 
                                 if (std.mem.startsWith(u8, input, outdir_placeholder)) {
                                     const outdir_path = if (outdir_placeholder.len == input.len)
@@ -223,7 +223,7 @@ pub fn initInner(
                                         input[(outdir_placeholder.len + 1)..];
 
                                     const translated = transpile_outdir.path(b, outdir_path);
-                                    std.log.err("outputh path: {s}\n", .{translated.getPath(b)});
+                                    std.debug.print("outputh path: {s}\n", .{translated.getPath(b)});
 
                                     arg.* = .{
                                         .lazy_path = .{
@@ -233,7 +233,7 @@ pub fn initInner(
                                     };
                                 }
                             },
-                            else => std.log.err("{t}", .{arg.*}),
+                            else => {},
                         }
                     }
 
