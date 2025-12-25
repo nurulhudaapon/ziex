@@ -23,8 +23,15 @@ const categories = [_]SidebarProps.Category{
                 .title = "Expressions", 
                 .href = "/docs#expressions",
                 .items = &[_]SidebarProps.Link{
-                    .{ .href = "/docs#text-expressions", .text = "Text Expressions" },
-                    .{ .href = "/docs#format-expressions", .text = "Format Expressions" },
+                    .{ .href = "/docs#expr-strings", .text = "Strings" },
+                    .{ .href = "/docs#expr-integers", .text = "Integers" },
+                    .{ .href = "/docs#expr-floats", .text = "Floats" },
+                    .{ .href = "/docs#expr-booleans", .text = "Booleans" },
+                    .{ .href = "/docs#expr-enums", .text = "Enums" },
+                    .{ .href = "/docs#expr-optionals", .text = "Optionals" },
+                    .{ .href = "/docs#expr-null", .text = "Null" },
+                    .{ .href = "/docs#expr-components", .text = "Components" },
+                    .{ .href = "/docs#expr-component-arrays", .text = "Component Arrays" },
                 },
             },
             .{ 

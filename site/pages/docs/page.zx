@@ -36,21 +36,13 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     html_page_while.render(&aw_while.writer) catch unreachable;
     const html_example_while = allocator.dupe(u8, aw_while.written()) catch unreachable;
 
-    // Text expression example
-    var aw_text: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_text = @embedFile("../../../pages/examples/text.zx");
-    const zig_example_text = @embedFile("../examples/text.zig");
-    const html_page_text = @import("../examples/text.zig").Page(allocator);
-    html_page_text.render(&aw_text.writer) catch unreachable;
-    const html_example_text = allocator.dupe(u8, aw_text.written()) catch unreachable;
-
-    // Format expression example
-    var aw_format: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_format = @embedFile("../../../pages/examples/format.zx");
-    const zig_example_format = @embedFile("../examples/format.zig");
-    const html_page_format = @import("../examples/format.zig").Page(allocator);
-    html_page_format.render(&aw_format.writer) catch unreachable;
-    const html_example_format = allocator.dupe(u8, aw_format.written()) catch unreachable;
+    // Expression example
+    var aw_expr: std.io.Writer.Allocating = .init(allocator);
+    const zx_example_expr = @embedFile("../../../pages/examples/text.zx");
+    const zig_example_expr = @embedFile("../examples/text.zig");
+    const html_page_expr = @import("../examples/text.zig").Page(allocator);
+    html_page_expr.render(&aw_expr.writer) catch unreachable;
+    const html_example_expr = allocator.dupe(u8, aw_expr.written()) catch unreachable;
 
     // Components example
     var aw_components: std.io.Writer.Allocating = .init(allocator);
@@ -85,8 +77,54 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     html_page_allocator.render(&aw_allocator.writer) catch unreachable;
     const html_example_allocator = allocator.dupe(u8, aw_allocator.written()) catch unreachable;
 
-    const txt_expr = "{expression}";
-    const fmt_expr = "{[expression:format]}";
+    const expr_syntax = "{expression}";
+
+    // Expression type examples
+    const expr_string_example =
+        \\const name = "Alice";
+        \\...
+        \\<p>{name}</p>  // Outputs: <p>Alice</p>
+    ;
+    const expr_int_example =
+        \\const count: u32 = 42;
+        \\...
+        \\<p>{count}</p>  // Outputs: <p>42</p>
+    ;
+    const expr_float_example =
+        \\const price: f32 = 19.99;
+        \\...
+        \\<p>${price}</p>  // Outputs: <p>$19.99</p>
+    ;
+    const expr_bool_example =
+        \\const active = true;
+        \\...
+        \\<p>{active}</p>  // Outputs: <p>true</p>
+    ;
+    const expr_enum_example =
+        \\const Status = enum { pending, approved, rejected };
+        \\const status = Status.approved;
+        \\...
+        \\<p>{status}</p>  // Outputs: <p>approved</p>
+    ;
+    const expr_optional_example =
+        \\const maybe_name: ?[]const u8 = "Bob";
+        \\...
+        \\<p>{maybe_name}</p>  // Outputs: <p>Bob</p>
+        \\
+        \\const no_name: ?[]const u8 = null;
+        \\...
+        \\<p>{no_name}</p>  // Outputs: <p></p> (empty)
+    ;
+    const expr_component_example =
+        \\const header = Header(allocator);
+        \\...
+        \\<div>{header}</div>  // Renders the Header component
+    ;
+    const expr_component_array_example =
+        \\const items: []zx.Component = &.{ Item("A"), Item("B") };
+        \\...
+        \\<ul>{items}</ul>  // Renders both Item components
+    ;
 
     // Escaping example
     var aw_escaping: std.io.Writer.Allocating = .init(allocator);
@@ -145,13 +183,43 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <Introduction />
             <section id="expressions" class="section">
                 <h2>Expressions</h2>
-                <p>ZX provides different expression syntaxes for embedding dynamic content. Each syntax serves a specific purpose: rendering components, displaying text safely, or formatting values with custom format specifiers.</p>
-                <h3 id="text-expressions">Text Expressions</h3>
-                <p>Use <code>{txt_expr}</code> to embed text content. All text is automatically HTML-escaped to prevent XSS attacks. This is the safe way to display user input or dynamic text content.</p>
-                <ExampleBlock id="text" zx_code={zx_example_text} zig_code={zig_example_text} html_code={html_example_text} />
-                <h3 id="format-expressions">Format Expressions</h3>
-                <p>Use <code>{fmt_expr}</code> to format values with custom format specifiers. The format string follows Zig's standard format specifier syntax (e.g., <code>d</code> for decimal, <code>x</code> for hexadecimal). Unlike text expressions, format expressions are not HTML-escaped, making them suitable for numeric formatting and other non-HTML content.</p>
-                <ExampleBlock id="format" zx_code={zx_example_format} zig_code={zig_example_format} html_code={html_example_format} />
+                <p>Use curly braces <code>{expr_syntax}</code> to embed any Zig expression. Values are automatically formatted based on their type and HTML-escaped for safety.</p>
+                <ExampleBlock id="expressions-example" zx_code={zx_example_expr} zig_code={zig_example_expr} html_code={html_example_expr} />
+                
+                <h3 id="expr-strings">Strings</h3>
+                <p>String values (<code>[]const u8</code>) are displayed as text and automatically HTML-escaped to prevent XSS attacks. This is the safe default for displaying user input or any dynamic text content.</p>
+                <CodeBlock code={expr_string_example} />
+                
+                <h3 id="expr-integers">Integers</h3>
+                <p>Integer types (<code>i32</code>, <code>u64</code>, <code>comptime_int</code>, etc.) are formatted as decimal numbers. The special case <code>u8</code> is printed as a character if it's a printable ASCII character.</p>
+                <CodeBlock code={expr_int_example} />
+                
+                <h3 id="expr-floats">Floats</h3>
+                <p>Floating-point types (<code>f32</code>, <code>f64</code>, <code>comptime_float</code>) are formatted as decimal numbers.</p>
+                <CodeBlock code={expr_float_example} />
+                
+                <h3 id="expr-booleans">Booleans</h3>
+                <p>Boolean values are displayed as the literal strings "true" or "false".</p>
+                <CodeBlock code={expr_bool_example} />
+                
+                <h3 id="expr-enums">Enums</h3>
+                <p>Enum values are displayed as their tag name. This is useful for displaying status values, categories, or any enumerated type.</p>
+                <CodeBlock code={expr_enum_example} />
+                
+                <h3 id="expr-optionals">Optionals</h3>
+                <p>Optional values (<code>?T</code>) are automatically unwrapped and rendered if present. If the value is <code>null</code>, nothing is rendered. This makes it easy to conditionally display content.</p>
+                <CodeBlock code={expr_optional_example} />
+                
+                <h3 id="expr-null">Null</h3>
+                <p>The <code>null</code> value renders nothing, producing no output in the final HTML.</p>
+                
+                <h3 id="expr-components">Components</h3>
+                <p>A <code>zx.Component</code> value is rendered directly. This allows you to embed components returned from functions or stored in variables.</p>
+                <CodeBlock code={expr_component_example} />
+                
+                <h3 id="expr-component-arrays">Component Arrays</h3>
+                <p>Arrays or slices of components (<code>[]zx.Component</code>) are rendered as a fragment containing all the components in sequence.</p>
+                <CodeBlock code={expr_component_array_example} />
             </section>
             <section id="control-flow" class="section">
                 <h2>Control Flow</h2>

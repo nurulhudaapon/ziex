@@ -4,7 +4,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     return (
         <ul @allocator={allocator}>
             {while (i < 3) : (i += 1) (
-                <li>Item {[i:d]}</li>
+                <li>Item {i}</li>
             )}
         </ul>
     );

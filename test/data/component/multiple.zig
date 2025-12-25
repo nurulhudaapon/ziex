@@ -39,7 +39,7 @@ fn AsyncScore(allocator: zx.Allocator, props: AsyncScoreProps) zx.Component {
             .children = &.{
                 _zx.expr(props.label),
                 _zx.txt(" #"),
-                _zx.fmt("{d}", .{props.index}),
+                _zx.expr(props.index),
             },
         },
     );
