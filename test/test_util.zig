@@ -43,6 +43,9 @@ pub const TestFileCache = struct {
         "control_flow/while_for",
         "control_flow/while_switch",
         "control_flow/while_while",
+        "control_flow/while_capture",
+        "control_flow/while_else",
+        "control_flow/while_error",
 
         // Deeply Nested Control Flow (3-level nesting)
         "control_flow/if_for_if",

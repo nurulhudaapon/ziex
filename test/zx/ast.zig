@@ -181,6 +181,18 @@ test "while_switch" {
     try test_transpile("control_flow/while_switch");
     try test_render("control_flow/while_switch", @import("./../data/control_flow/while_switch.zig").Page);
 }
+test "while_capture" {
+    try test_transpile("control_flow/while_capture");
+    try test_render("control_flow/while_capture", @import("./../data/control_flow/while_capture.zig").Page);
+}
+test "while_else" {
+    try test_transpile("control_flow/while_else");
+    try test_render("control_flow/while_else", @import("./../data/control_flow/while_else.zig").Page);
+}
+test "while_error" {
+    try test_transpile("control_flow/while_error");
+    try test_render("control_flow/while_error", @import("./../data/control_flow/while_error.zig").Page);
+}
 
 // === Deeply Nested Control Flow (3-level) ===
 test "if_for_if" {
@@ -437,8 +449,10 @@ fn test_render(comptime file_path: []const u8, comptime cmp: fn (allocator: std.
 }
 
 fn test_render_inner(comptime file_path: []const u8, comptime no_expect: bool) !void {
-    const cmp = comptime getPageFn(file_path) orelse return;
-    try test_render_inner_with_cmp(file_path, cmp, no_expect);
+    const cmp_opt = comptime getPageFn(file_path);
+    if (cmp_opt) |cmp| {
+        try test_render_inner_with_cmp(file_path, cmp, no_expect);
+    }
 }
 
 fn getPageFn(comptime path: []const u8) ?fn (std.mem.Allocator) zx.Component {
@@ -453,6 +467,9 @@ fn getPageFn(comptime path: []const u8) ?fn (std.mem.Allocator) zx.Component {
         .{ "control_flow/switch_block", @import("./../data/control_flow/switch_block.zig") },
         .{ "control_flow/while", @import("./../data/control_flow/while.zig") },
         .{ "control_flow/while_block", @import("./../data/control_flow/while_block.zig") },
+        .{ "control_flow/while_capture", @import("./../data/control_flow/while_capture.zig") },
+        .{ "control_flow/while_else", @import("./../data/control_flow/while_else.zig") },
+        .{ "control_flow/while_error", @import("./../data/control_flow/while_error.zig") },
         .{ "control_flow/if_if", @import("./../data/control_flow/if_if.zig") },
         .{ "control_flow/if_for", @import("./../data/control_flow/if_for.zig") },
         .{ "control_flow/if_switch", @import("./../data/control_flow/if_switch.zig") },

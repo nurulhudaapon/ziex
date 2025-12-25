@@ -1294,7 +1294,7 @@ fn renderParenthesizedBody(
     try w.writeAll(")");
 }
 
-/// Render while expression: {while (cond) : (continue_expr) (<body>)}
+/// Render while expression: {while (cond) |payload| : (continue_expr) (<body>) else |err| (<else_body>)}
 fn renderWhileExpression(
     self: *Ast,
     node: ts.Node,
@@ -1302,22 +1302,44 @@ fn renderWhileExpression(
     ctx: *FormatContext,
 ) !void {
     var condition_node: ?ts.Node = null;
+    var payload_node: ?ts.Node = null;
     var continue_node: ?ts.Node = null;
     var body_node: ?ts.Node = null;
+    var else_payload_node: ?ts.Node = null;
+    var else_node: ?ts.Node = null;
 
     const child_count = node.childCount();
     var i: u32 = 0;
+    var in_else = false;
+
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
+        const child_type = child.kind();
         condition_node = node.childByFieldName("condition");
+
+        if (std.mem.eql(u8, child_type, "else")) {
+            in_else = true;
+            continue;
+        }
 
         const child_kind = NodeKind.fromNode(child);
         switch (child_kind) {
+            .payload => {
+                if (in_else) {
+                    else_payload_node = child;
+                } else if (body_node == null) {
+                    payload_node = child;
+                }
+            },
             .assignment_expression => {
                 continue_node = child;
             },
             .zx_block => {
-                body_node = child;
+                if (in_else) {
+                    else_node = child;
+                } else {
+                    body_node = child;
+                }
             },
             else => {},
         }
@@ -1333,6 +1355,13 @@ fn renderWhileExpression(
 
     try w.writeAll(")");
 
+    // Payload (e.g., |value|)
+    if (payload_node) |payload| {
+        try w.writeAll(" ");
+        const payload_text = try self.getNodeText(payload);
+        try w.writeAll(payload_text);
+    }
+
     // Continue expression (optional)
     if (continue_node) |cont| {
         try w.writeAll(" : (");
@@ -1347,6 +1376,20 @@ fn renderWhileExpression(
     if (body_node) |body| {
         ctx.indent_level -= 1;
         try renderBlockInline(self, body, w, ctx);
+        ctx.indent_level += 1;
+    }
+
+    // Else branch
+    if (else_node) |else_b| {
+        try w.writeAll(" else ");
+        // Else payload (e.g., |err|)
+        if (else_payload_node) |else_payload| {
+            const else_payload_text = try self.getNodeText(else_payload);
+            try w.writeAll(else_payload_text);
+            try w.writeAll(" ");
+        }
+        ctx.indent_level -= 1;
+        try renderBlockInline(self, else_b, w, ctx);
         ctx.indent_level += 1;
     }
 
@@ -1619,22 +1662,44 @@ fn renderWhileExpressionInner(
     ctx: *FormatContext,
 ) anyerror!void {
     var condition_node: ?ts.Node = null;
+    var payload_node: ?ts.Node = null;
     var continue_node: ?ts.Node = null;
     var body_node: ?ts.Node = null;
+    var else_payload_node: ?ts.Node = null;
+    var else_node: ?ts.Node = null;
 
     const child_count = node.childCount();
     var i: u32 = 0;
+    var in_else = false;
+
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
+        const child_type = child.kind();
         condition_node = node.childByFieldName("condition");
+
+        if (std.mem.eql(u8, child_type, "else")) {
+            in_else = true;
+            continue;
+        }
 
         const child_kind = NodeKind.fromNode(child);
         switch (child_kind) {
+            .payload => {
+                if (in_else) {
+                    else_payload_node = child;
+                } else if (body_node == null) {
+                    payload_node = child;
+                }
+            },
             .assignment_expression => {
                 continue_node = child;
             },
             .zx_block => {
-                body_node = child;
+                if (in_else) {
+                    else_node = child;
+                } else {
+                    body_node = child;
+                }
             },
             else => {},
         }
@@ -1649,6 +1714,13 @@ fn renderWhileExpressionInner(
 
     try w.writeAll(")");
 
+    // Payload (e.g., |value|)
+    if (payload_node) |payload| {
+        try w.writeAll(" ");
+        const payload_text = try self.getNodeText(payload);
+        try w.writeAll(payload_text);
+    }
+
     if (continue_node) |cont| {
         try w.writeAll(" : (");
         const cont_text = try self.getNodeText(cont);
@@ -1660,6 +1732,18 @@ fn renderWhileExpressionInner(
 
     if (body_node) |body| {
         try renderBlockInline(self, body, w, ctx);
+    }
+
+    // Else branch
+    if (else_node) |else_b| {
+        try w.writeAll(" else ");
+        // Else payload (e.g., |err|)
+        if (else_payload_node) |else_payload| {
+            const else_payload_text = try self.getNodeText(else_payload);
+            try w.writeAll(else_payload_text);
+            try w.writeAll(" ");
+        }
+        try renderBlockInline(self, else_b, w, ctx);
     }
 }
 

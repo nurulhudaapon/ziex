@@ -132,6 +132,15 @@ test "while_switch" {
     if (true) return error.Todo;
     try test_fmt("control_flow/while_switch");
 }
+test "while_capture" {
+    try test_fmt("control_flow/while_capture");
+}
+test "while_else" {
+    try test_fmt("control_flow/while_else");
+}
+test "while_error" {
+    try test_fmt("control_flow/while_error");
+}
 
 // === Deeply Nested Control Flow (3-level) ===
 test "if_for_if" {

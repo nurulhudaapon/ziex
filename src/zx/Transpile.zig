@@ -1503,16 +1503,22 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
 }
 
 pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
-    // while_expression: 'while' '(' condition ')' ':' '(' continue_expr ')' body
+    // while_expression: 'while' '(' condition ')' [payload] ':' '(' continue_expr ')' body ['else' [else_payload] else_body]
     var condition_text: ?[]const u8 = null;
+    var payload_text: ?[]const u8 = null;
     var continue_text: ?[]const u8 = null;
     var body_node: ?ts.Node = null;
+    var else_payload_text: ?[]const u8 = null;
+    var else_node: ?ts.Node = null;
 
     const child_count = node.childCount();
     var i: u32 = 0;
+    var in_body = false;
+    var in_else = false;
 
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
+        const child_type = child.kind();
         const field_name = node.fieldNameForChild(i);
 
         // Check for condition field
@@ -1524,13 +1530,34 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
             }
         }
 
+        if (std.mem.eql(u8, child_type, "else")) {
+            in_body = false;
+            in_else = true;
+            continue;
+        }
+
         const child_kind = NodeKind.fromNode(child);
         switch (child_kind) {
+            .payload => {
+                if (in_else) {
+                    // Else payload like |err|
+                    else_payload_text = try self.getNodeText(child);
+                } else if (body_node == null) {
+                    // Condition payload like |value|
+                    payload_text = try self.getNodeText(child);
+                    in_body = true;
+                }
+            },
             .assignment_expression => {
                 continue_text = try self.getNodeText(child);
             },
             .zx_block => {
-                body_node = child;
+                if (in_else) {
+                    else_node = child;
+                } else {
+                    body_node = child;
+                    in_body = true;
+                }
             },
             else => {},
         }
@@ -1542,7 +1569,7 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         var idx_buf: [16]u8 = undefined;
         const idx_str = std.fmt.bufPrint(&idx_buf, "{d}", .{block_idx}) catch unreachable;
 
-        // Generate: _zx_whl_blk_N: { var __zx_list_N = std.ArrayList(zx.Component).init(_zx.getAlloc()); while (cond) : (cont) { __zx_list_N.append(...); }; break :_zx_whl_blk_N ...; }
+        // Generate: _zx_whl_blk_N: { var __zx_list_N = std.ArrayList(zx.Component).init(_zx.getAlloc()); while (cond) |payload| : (cont) { __zx_list_N.append(...); } else |err| { ... }; break :_zx_whl_blk_N ...; }
         try ctx.writeM("_zx_whl_blk_", node.startByte(), self);
         try ctx.write(idx_str);
         try ctx.write(": {\n");
@@ -1558,6 +1585,12 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         try ctx.write(" (");
         try ctx.write(condition_text.?);
         try ctx.write(")");
+
+        // Write payload if present (e.g., |value|)
+        if (payload_text) |payload| {
+            try ctx.write(" ");
+            try ctx.write(payload);
+        }
 
         if (continue_text) |cont| {
             try ctx.write(" : (");
@@ -1577,7 +1610,30 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         ctx.indent_level -= 1;
 
         try ctx.writeIndent();
-        try ctx.write("}\n");
+        try ctx.write("}");
+
+        // Handle else branch - append to list instead of breaking
+        if (else_node) |else_n| {
+            try ctx.write(" else ");
+            // Write else payload if present (e.g., |err|)
+            if (else_payload_text) |else_payload| {
+                try ctx.write(else_payload);
+                try ctx.write(" ");
+            }
+            try ctx.write("{\n");
+            ctx.indent_level += 1;
+            try ctx.writeIndent();
+            try ctx.write("__zx_list_");
+            try ctx.write(idx_str);
+            try ctx.write(".append(_zx.getAlloc(), ");
+            try transpileBranch(self, else_n, ctx);
+            try ctx.write(") catch unreachable;\n");
+            ctx.indent_level -= 1;
+            try ctx.writeIndent();
+            try ctx.write("}\n");
+        } else {
+            try ctx.write("\n");
+        }
 
         try ctx.writeIndent();
         try ctx.write("break :_zx_whl_blk_");

@@ -1,0 +1,31 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    var iter = getIterator();
+
+    return (
+        <main @allocator={allocator}>
+            {while (iter.next()) |item| (
+                <p>{item}</p>
+            ) else (
+                <p>End</p>
+            )}
+        </main>
+    );
+}
+
+fn getIterator() Iterator {
+    return Iterator{ .items = &[_][]const u8{ "a", "b", "c" }, .index = 0 };
+}
+
+const Iterator = struct {
+    items: []const []const u8,
+    index: usize,
+
+    fn next(self: *Iterator) ?[]const u8 {
+        if (self.index >= self.items.len) return null;
+        const item = self.items[self.index];
+        self.index += 1;
+        return item;
+    }
+};
+
+const zx = @import("zx");
