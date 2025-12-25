@@ -417,7 +417,7 @@ fn test_transpile_inner(comptime file_path: []const u8, comptime no_expect: bool
     defer allocator.free(source_z);
 
     // Parse and transpile with file path for Client support
-    var result = try zx.Ast.parse(allocator, source_z, .{ .path = full_file_path, .version = .new });
+    var result = try zx.Ast.parse(allocator, source_z, .{ .path = full_file_path });
     defer result.deinit(allocator);
 
     // Check for SNAPSHOT=1 environment variable
