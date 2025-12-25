@@ -81,9 +81,13 @@ const zx = @import("zx");
 ## Feature Checklist
 
 - [x] Server Side Rendering (SSR)
-    - [ ] `getStaticParams`, `getStaticProps`
 - [x] Static Site Generation (SSG)
+    - [ ] `getStaticParams`, `getStaticProps`
 - [ ] Client Side Rendering (CSR) via WebAssembly (_WIP_)
+    - [x] Virtual DOM and diffing
+    - [x] Rendering only changed nodes
+    - [ ] useState hook
+    - [ ] useEffect hook
 - [x] Client Side Rendering (CSR) via React
 - [x] Routing
     - [x] File-system Routing
@@ -92,15 +96,12 @@ const zx = @import("zx");
 - [x] Components
 - [x] Control Flow
     - [x] `if`
-    - [x] `if` nested
     - [x] `if/else`
-    - [x] `if/else` nested
     - [x] `for`
-    - [x] `for` nested
     - [x] `switch`
-    - [ ] `switch` nested
     - [x] `while`
-    - [x] `while` nested
+    - [x] nesting control flows
+    - [x] error/optional captures in `while` and `if`
 - [x] Assets
     - [x] Copying
     - [x] Serving
@@ -108,11 +109,19 @@ const zx = @import("zx");
     - [ ] Image
     - [x] CSS (via plugins such as Tailwind)
     - [x] JS/TS (via esbuild)
-    - [x] HTML
+    - [x] HTML (optimized by default)
 - [ ] Middleware
+- [ ] Caching (configurable)
+    - [ ] Component
+    - [ ] Layout
+    - [ ] Page
+    - [ ] Assets
 - [ ] API Endpoints
 - [ ] Server Actions
-- [ ] Plugin System (_WIP_)
+- [ ] Plugin
+    - [x] Builtin TailwindCSS and Esbuild
+    - [x] Command based plugin system
+    - [ ] Source based plugin system
 - [ ] Global App Context
 - [ ] `error.zx` for default and per-route error page
 - [ ] `notfound.zx` for default and per-route error page
