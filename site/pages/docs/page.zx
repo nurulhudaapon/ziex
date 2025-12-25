@@ -8,7 +8,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_if: std.io.Writer.Allocating = .init(allocator);
     const zx_example_if = @embedFile("../../../pages/examples/if.zx");
     const zig_example_if = @embedFile("../examples/if.zig");
-    const html_page_if = @import("../examples/if.zig").Page(allocator);
+    const html_page_if = @import("../examples/if.zig").Conditional(allocator);
     html_page_if.render(&aw_if.writer) catch unreachable;
     const html_example_if = allocator.dupe(u8, aw_if.written()) catch unreachable;
 
@@ -16,7 +16,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_switch: std.io.Writer.Allocating = .init(allocator);
     const zx_example_switch = @embedFile("../../../pages/examples/switch.zx");
     const zig_example_switch = @embedFile("../examples/switch.zig");
-    const html_page_switch = @import("../examples/switch.zig").Page(allocator);
+    const html_page_switch = @import("../examples/switch.zig").RoleSwitch(allocator);
     html_page_switch.render(&aw_switch.writer) catch unreachable;
     const html_example_switch = allocator.dupe(u8, aw_switch.written()) catch unreachable;
 
@@ -24,7 +24,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_for: std.io.Writer.Allocating = .init(allocator);
     const zx_example_for = @embedFile("../../../pages/examples/for.zx");
     const zig_example_for = @embedFile("../examples/for.zig");
-    const html_page_for = @import("../examples/for.zig").Page(allocator);
+    const html_page_for = @import("../examples/for.zig").UserList(allocator);
     html_page_for.render(&aw_for.writer) catch unreachable;
     const html_example_for = allocator.dupe(u8, aw_for.written()) catch unreachable;
 
@@ -32,7 +32,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_while: std.io.Writer.Allocating = .init(allocator);
     const zx_example_while = @embedFile("../../../pages/examples/while.zx");
     const zig_example_while = @embedFile("../examples/while.zig");
-    const html_page_while = @import("../examples/while.zig").Page(allocator);
+    const html_page_while = @import("../examples/while.zig").Counter(allocator);
     html_page_while.render(&aw_while.writer) catch unreachable;
     const html_example_while = allocator.dupe(u8, aw_while.written()) catch unreachable;
 
@@ -40,7 +40,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_expr: std.io.Writer.Allocating = .init(allocator);
     const zx_example_expr = @embedFile("../../../pages/examples/text.zx");
     const zig_example_expr = @embedFile("../examples/text.zig");
-    const html_page_expr = @import("../examples/text.zig").Page(allocator);
+    const html_page_expr = @import("../examples/text.zig").TextDemo(allocator);
     html_page_expr.render(&aw_expr.writer) catch unreachable;
     const html_example_expr = allocator.dupe(u8, aw_expr.written()) catch unreachable;
 
@@ -48,7 +48,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_components: std.io.Writer.Allocating = .init(allocator);
     const zx_example_components = @embedFile("../../../pages/examples/components.zx");
     const zig_example_components = @embedFile("../examples/components.zig");
-    const html_page_components = @import("../examples/components.zig").Page(ctx);
+    const html_page_components = @import("../examples/components.zig").ButtonDemo(ctx);
     html_page_components.render(&aw_components.writer) catch unreachable;
     const html_example_components = allocator.dupe(u8, aw_components.written()) catch unreachable;
 
@@ -56,7 +56,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_routing: std.io.Writer.Allocating = .init(allocator);
     const zx_example_routing = @embedFile("../../../pages/examples/routing.zx");
     const zig_example_routing = @embedFile("../examples/routing.zig");
-    const html_page_routing = @import("../examples/routing.zig").Page(ctx);
+    const html_page_routing = @import("../examples/routing.zig").HomePage(ctx);
     html_page_routing.render(&aw_routing.writer) catch unreachable;
     const html_example_routing = allocator.dupe(u8, aw_routing.written()) catch unreachable;
 
@@ -73,7 +73,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_allocator: std.io.Writer.Allocating = .init(allocator);
     const zx_example_allocator = @embedFile("../../../pages/examples/allocator.zx");
     const zig_example_allocator = @embedFile("../examples/allocator.zig");
-    const html_page_allocator = @import("../examples/allocator.zig").Page(ctx);
+    const html_page_allocator = @import("../examples/allocator.zig").AllocatorDemo(ctx);
     html_page_allocator.render(&aw_allocator.writer) catch unreachable;
     const html_example_allocator = allocator.dupe(u8, aw_allocator.written()) catch unreachable;
 
@@ -130,7 +130,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_escaping: std.io.Writer.Allocating = .init(allocator);
     const zx_example_escaping = @embedFile("../../../pages/examples/escaping.zx");
     const zig_example_escaping = @embedFile("../examples/escaping.zig");
-    const html_page_escaping = @import("../examples/escaping.zig").Page(allocator);
+    const html_page_escaping = @import("../examples/escaping.zig").RawHtml(allocator);
     html_page_escaping.render(&aw_escaping.writer) catch unreachable;
     const html_example_escaping = allocator.dupe(u8, aw_escaping.written()) catch unreachable;
 
@@ -138,7 +138,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_csr: std.io.Writer.Allocating = .init(allocator);
     const zx_example_csr = @embedFile("../../../pages/examples/react.zx");
     const zig_example_csr = @embedFile("../examples/react.zig");
-    const html_page_csr = @import("../examples/react.zig").Page(allocator);
+    const html_page_csr = @import("../examples/react.zig").ReactDemo(allocator);
     html_page_csr.render(&aw_csr.writer) catch unreachable;
     const html_example_csr = allocator.dupe(u8, aw_csr.written()) catch unreachable;
 
@@ -146,7 +146,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_importing: std.io.Writer.Allocating = .init(allocator);
     const zx_example_importing = @embedFile("../../../pages/examples/importing.zx");
     const zig_example_importing = @embedFile("../examples/importing.zig");
-    const html_page_importing = @import("../examples/importing.zig").Page(allocator);
+    const html_page_importing = @import("../examples/importing.zig").ImportDemo(allocator);
     html_page_importing.render(&aw_importing.writer) catch unreachable;
     const html_example_importing = allocator.dupe(u8, aw_importing.written()) catch unreachable;
 
@@ -154,7 +154,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_dynamic: std.io.Writer.Allocating = .init(allocator);
     const zx_example_dynamic = @embedFile("../../../pages/examples/dynamic_route.zx");
     const zig_example_dynamic = @embedFile("../examples/dynamic_route.zig");
-    const html_page_dynamic = @import("../examples/dynamic_route.zig").Page(ctx);
+    const html_page_dynamic = @import("../examples/dynamic_route.zig").UserProfile(ctx);
     html_page_dynamic.render(&aw_dynamic.writer) catch unreachable;
     const html_example_dynamic = allocator.dupe(u8, aw_dynamic.written()) catch unreachable;
 
@@ -162,7 +162,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_fragment: std.io.Writer.Allocating = .init(allocator);
     const zx_example_fragment = @embedFile("../../../pages/examples/fragment.zx");
     const zig_example_fragment = @embedFile("../examples/fragment.zig");
-    const html_page_fragment = @import("../examples/fragment.zig").Page(allocator);
+    const html_page_fragment = @import("../examples/fragment.zig").FragmentDemo(allocator);
     html_page_fragment.render(&aw_fragment.writer) catch unreachable;
     const html_example_fragment = allocator.dupe(u8, aw_fragment.written()) catch unreachable;
 
@@ -170,7 +170,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_children: std.io.Writer.Allocating = .init(allocator);
     const zx_example_children = @embedFile("../../../pages/examples/children.zx");
     const zig_example_children = @embedFile("../examples/children.zig");
-    const html_page_children = @import("../examples/children.zig").Page(allocator);
+    const html_page_children = @import("../examples/children.zig").CardDemo(allocator);
     html_page_children.render(&aw_children.writer) catch unreachable;
     const html_example_children = allocator.dupe(u8, aw_children.written()) catch unreachable;
 
@@ -184,7 +184,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <section id="expressions" class="section">
                 <h2>Expressions</h2>
                 <p>Use curly braces <code>{expr_syntax}</code> to embed any Zig expression. Values are automatically formatted based on their type and HTML-escaped for safety.</p>
-                <ExampleBlock id="expressions-example" zx_code={zx_example_expr} zig_code={zig_example_expr} html_code={html_example_expr} />
+                <ExampleBlock id="expressions-example" zx_code={zx_example_expr} zig_code={zig_example_expr} html_code={html_example_expr} filename="text_demo.zx" />
                 
                 <h3 id="expr-strings">Strings</h3>
                 <p>String values (<code>[]const u8</code>) are displayed as text and automatically HTML-escaped to prevent XSS attacks. This is the safe default for displaying user input or any dynamic text content.</p>
@@ -226,16 +226,16 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <p>ZX supports conditional rendering and iteration using familiar Zig control flow constructs. These expressions allow you to conditionally render components or iterate over collections to build dynamic UIs.</p>
                 <h3 id="if-statements">If Statements</h3>
                 <p>Use <code>if</code> expressions to conditionally render components based on boolean conditions. The<code>else</code> branch is optional and can render alternative content when the condition is false.</p>
-                <ExampleBlock id="if" zx_code={zx_example_if} zig_code={zig_example_if} html_code={html_example_if} />
+                <ExampleBlock id="if" zx_code={zx_example_if} zig_code={zig_example_if} html_code={html_example_if} filename="conditional.zx" />
                 <h3 id="switch-statements">Switch Statements</h3>
                 <p>Use <code>switch</code> expressions to match against enum values or other types. Each case can return either a string literal or a component. Switch expressions are particularly useful for rendering different UI based on state or user roles.</p>
-                <ExampleBlock id="switch" zx_code={zx_example_switch} zig_code={zig_example_switch} html_code={html_example_switch} />
+                <ExampleBlock id="switch" zx_code={zx_example_switch} zig_code={zig_example_switch} html_code={html_example_switch} filename="role_switch.zx" />
                 <h3 id="for-loops">For Loops</h3>
                 <p>Use <code>for</code> loops to iterate over arrays, slices, or strings and render a component for each item. The loop variable can be used within the component body to display item-specific content. This is ideal for rendering lists, tables, or any repeating UI patterns.</p>
-                <ExampleBlock id="for" zx_code={zx_example_for} zig_code={zig_example_for} html_code={html_example_for} />
+                <ExampleBlock id="for" zx_code={zx_example_for} zig_code={zig_example_for} html_code={html_example_for} filename="user_list.zx" />
                 <h3 id="while-loops">While Loops</h3>
                 <p>Use <code>while</code> loops for conditional iteration with a continuation expression. The syntax follows Zig's while loop pattern: <code>{"while (condition) : (continue_expr) (body)"}</code>. This is useful for generating numbered sequences or iterating until a condition is met.</p>
-                <ExampleBlock id="while" zx_code={zx_example_while} zig_code={zig_example_while} html_code={html_example_while} />
+                <ExampleBlock id="while" zx_code={zx_example_while} zig_code={zig_example_while} html_code={html_example_while} filename="counter.zx" />
             </section>
             <section id="components" class="section">
                 <h2>Components</h2>
@@ -248,7 +248,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 </ul>
                 <h3>Defining Components</h3>
                 <p>To create a component, define a function that returns a <code>zx.Component</code>. The function must have an allocator as its first parameter. If your component needs configuration, add a props struct as the second parameter:</p>
-                <ExampleBlock id="components" zx_code={zx_example_components} zig_code={zig_example_components} html_code={html_example_components} />
+                <ExampleBlock id="components" zx_code={zx_example_components} zig_code={zig_example_components} html_code={html_example_components} filename="button_demo.zx" />
                 <h3>Props Coercion</h3>
                 <p>ZX automatically coerces the attributes you pass to a component into the expected props struct. Missing required fields will result in a compile-time error, while fields with default values are optional. This provides type safety while keeping component usage flexible.</p>
             </section>
@@ -262,7 +262,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     <li>Return a <code>zx.Component</code></li>
                     <li>Be exported as <code>pub fn Page</code></li>
                 </ul>
-                <ExampleBlock id="routing" zx_code={zx_example_routing} zig_code={zig_example_routing} html_code={html_example_routing} />
+                <ExampleBlock id="routing" zx_code={zx_example_routing} zig_code={zig_example_routing} html_code={html_example_routing} filename="home_page.zx" />
                 <h3 id="layouts">Layouts</h3>
                 <p>Layouts wrap pages with common UI elements like headers, footers, or navigation. A layout function must:</p>
                 <ul>
@@ -271,7 +271,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     <li>Return a <code>zx.Component</code></li>
                     <li>Be exported as <code>pub fn Layout</code></li>
                 </ul>
-                <ExampleBlock id="layout" zx_code={zx_example_layout} zig_code={zig_example_layout} html_code={html_example_layout} />
+                <ExampleBlock id="layout" zx_code={zx_example_layout} zig_code={zig_example_layout} html_code={html_example_layout} filename="layout.zx" />
                 <h3>PageContext and LayoutContext</h3>
                 <p>Both <code>PageContext</code> and <code>LayoutContext</code> provide access to:</p>
                 <ul>
@@ -296,7 +296,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     <li>Formatting expressions that allocate formatted strings</li>
                 </ul>
                 <p><strong>Usage:</strong></p>
-                <ExampleBlock id="allocator" zx_code={zx_example_allocator} zig_code={zig_example_allocator} html_code={html_example_allocator} />
+                <ExampleBlock id="allocator" zx_code={zx_example_allocator} zig_code={zig_example_allocator} html_code={html_example_allocator} filename="allocator_demo.zx" />
                 <p><strong>Best Practices:</strong></p>
                 <ul>
                     <li>Always use <code>ctx.arena</code> in page components (it's automatically freed after the request)</li>
@@ -311,7 +311,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     <li><code>.default</code> - Standard HTML escaping (default behavior)</li>
                     <li><code>.raw</code> - No escaping; outputs raw HTML. Use with caution for trusted content only.</li>
                 </ul>
-                <ExampleBlock id="escaping" zx_code={zx_example_escaping} zig_code={zig_example_escaping} html_code={html_example_escaping} />
+                <ExampleBlock id="escaping" zx_code={zx_example_escaping} zig_code={zig_example_escaping} html_code={html_example_escaping} filename="raw_html.zx" />
                 <p><strong>Warning:</strong> Only use <code>@escaping={"{.raw}"}</code> for content you trust completely. User-provided content should always use the default escaping.</p>
                 <h3 id="rendering">@rendering</h3>
                 <p>The <code>@rendering</code> attribute enables client-side rendering for interactive components.</p>
@@ -320,12 +320,12 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     <li><code>.react</code> - Client-side render with React (for imported React/TSX components)</li>
                     <li><code>.client</code> - Client-side render with Zig (compile component to WebAssembly)</li>
                 </ul>
-                <ExampleBlock id="react" zx_code={zx_example_csr} zig_code={zig_example_csr} html_code={html_example_csr} />
+                <ExampleBlock id="react" zx_code={zx_example_csr} zig_code={zig_example_csr} html_code={html_example_csr} filename="react_demo.zx" />
             </section>
             <section id="importing" class="section">
                 <h2>Importing</h2>
                 <p>ZX supports importing components and modules from various sources. You can import ZX components from other files, React/TSX components for client-side interactivity, and standard Zig modules.</p>
-                <ExampleBlock id="importing" zx_code={zx_example_importing} zig_code={zig_example_importing} html_code={html_example_importing} />
+                <ExampleBlock id="importing" zx_code={zx_example_importing} zig_code={zig_example_importing} html_code={html_example_importing} filename="import_demo.zx" />
                 <p>Use <code>@jsImport</code> for React/TSX components and the standard <code>@import</code> for ZX and Zig files.</p>
             </section>
             <section id="dynamic-routes" class="section">
@@ -340,19 +340,19 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 </ul>
                 <h3>Accessing Route and Query Parameters</h3>
                 <p>Use <code>ctx.request.param("name")</code> to access dynamic route parameters and <code>ctx.request.query("name")</code> for query strings:</p>
-                <ExampleBlock id="dynamic-route" zx_code={zx_example_dynamic} zig_code={zig_example_dynamic} html_code={html_example_dynamic} />
+                <ExampleBlock id="dynamic-route" zx_code={zx_example_dynamic} zig_code={zig_example_dynamic} html_code={html_example_dynamic} filename="user_profile.zx" />
                 <p>Both methods return <code>?[]const u8</code>, so use <code>orelse</code> to provide a default value.</p>
             </section>
             <section id="fragments" class="section">
                 <h2>Fragments</h2>
                 <p>Fragments allow you to return multiple elements from a component without adding an extra wrapper element to the DOM. Use the empty tag syntax <code>{"<>...</>"}</code> to create a fragment:</p>
-                <ExampleBlock id="fragment" zx_code={zx_example_fragment} zig_code={zig_example_fragment} html_code={html_example_fragment} />
+                <ExampleBlock id="fragment" zx_code={zx_example_fragment} zig_code={zig_example_fragment} html_code={html_example_fragment} filename="fragment_demo.zx" />
                 <p>The fragment's children are rendered directly without any containing element.</p>
             </section>
             <section id="children-props" class="section">
                 <h2>Children Props</h2>
                 <p>Components can accept child elements through a <code>children</code> prop, enabling wrapper and container patterns. Any elements between the opening and closing tags are passed as the <code>children</code> prop:</p>
-                <ExampleBlock id="children" zx_code={zx_example_children} zig_code={zig_example_children} html_code={html_example_children} />
+                <ExampleBlock id="children" zx_code={zx_example_children} zig_code={zig_example_children} html_code={html_example_children} filename="card_demo.zx" />
             </section>
             <PluginsSection />
             // <ExamplesSection />

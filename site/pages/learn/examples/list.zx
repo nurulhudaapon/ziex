@@ -1,4 +1,4 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
+pub fn ProductList(allocator: zx.Allocator) zx.Component {
     const products = [_][]const u8{ "Apple", "Banana", "Orange" };
 
     return (

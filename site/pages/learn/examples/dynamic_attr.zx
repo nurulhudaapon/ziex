@@ -1,4 +1,4 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
+pub fn DynamicAttrs(allocator: zx.Allocator) zx.Component {
     const class_name = "primary-btn";
     const user_id = "user-123";
     const is_active = true;

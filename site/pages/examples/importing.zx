@@ -1,4 +1,4 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
+pub fn ImportDemo(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
             <Button title="Click me" />

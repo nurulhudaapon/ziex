@@ -1,4 +1,4 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
+pub fn RoleBadge(allocator: zx.Allocator) zx.Component {
     const role: Role = .admin;
 
     return (

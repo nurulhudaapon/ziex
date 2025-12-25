@@ -1,5 +1,5 @@
 // This example shows a page component
-pub fn Page(ctx: zx.PageContext) zx.Component {
+pub fn HomePage(ctx: zx.PageContext) zx.Component {
     const allocator = ctx.arena;
     
     // Access request data (e.g., query params, headers, etc.)

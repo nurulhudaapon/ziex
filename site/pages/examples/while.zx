@@ -1,4 +1,4 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
+pub fn Counter(allocator: zx.Allocator) zx.Component {
     var i: usize = 0;
 
     return (

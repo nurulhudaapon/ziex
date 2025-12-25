@@ -1,4 +1,4 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
+pub fn RawHtml(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
             <div @escaping={.raw}>

@@ -1,4 +1,4 @@
-pub fn Page(ctx: zx.PageContext) zx.Component {
+pub fn ButtonDemo(ctx: zx.PageContext) zx.Component {
     const allocator = ctx.arena;
     
     return (

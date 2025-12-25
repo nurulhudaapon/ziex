@@ -1,4 +1,4 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
+pub fn FormatDemo(allocator: zx.Allocator) zx.Component {
     const count = 42;
     const hex_value = 255;
     const percentage = 75;

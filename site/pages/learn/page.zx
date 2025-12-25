@@ -5,7 +5,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_greeting: std.io.Writer.Allocating = .init(allocator);
     const zx_greeting = @embedFile("../../../pages/learn/examples/greeting.zx");
     const zig_greeting = @embedFile("./examples/greeting.zig");
-    const html_page_greeting = @import("./examples/greeting.zig").Page(allocator);
+    const html_page_greeting = @import("./examples/greeting.zig").HelloWorld(allocator);
     html_page_greeting.render(&aw_greeting.writer) catch unreachable;
     const html_greeting = allocator.dupe(u8, aw_greeting.written()) catch unreachable;
 
@@ -13,7 +13,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_markup: std.io.Writer.Allocating = .init(allocator);
     const zx_markup = @embedFile("../../../pages/learn/examples/markup.zx");
     const zig_markup = @embedFile("./examples/markup.zig");
-    const html_page_markup = @import("./examples/markup.zig").Page(allocator);
+    const html_page_markup = @import("./examples/markup.zig").AboutSection(allocator);
     html_page_markup.render(&aw_markup.writer) catch unreachable;
     const html_markup = allocator.dupe(u8, aw_markup.written()) catch unreachable;
 
@@ -21,7 +21,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_text: std.io.Writer.Allocating = .init(allocator);
     const zx_text = @embedFile("../../../pages/learn/examples/text_expr.zx");
     const zig_text = @embedFile("./examples/text_expr.zig");
-    const html_page_text = @import("./examples/text_expr.zig").Page(allocator);
+    const html_page_text = @import("./examples/text_expr.zig").UserGreeting(allocator);
     html_page_text.render(&aw_text.writer) catch unreachable;
     const html_text = allocator.dupe(u8, aw_text.written()) catch unreachable;
 
@@ -29,7 +29,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_format: std.io.Writer.Allocating = .init(allocator);
     const zx_format = @embedFile("../../../pages/learn/examples/format_expr.zx");
     const zig_format = @embedFile("./examples/format_expr.zig");
-    const html_page_format = @import("./examples/format_expr.zig").Page(allocator);
+    const html_page_format = @import("./examples/format_expr.zig").ProductInfo(allocator);
     html_page_format.render(&aw_format.writer) catch unreachable;
     const html_format = allocator.dupe(u8, aw_format.written()) catch unreachable;
 
@@ -37,7 +37,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_conditional: std.io.Writer.Allocating = .init(allocator);
     const zx_conditional = @embedFile("../../../pages/learn/examples/conditional.zx");
     const zig_conditional = @embedFile("./examples/conditional.zig");
-    const html_page_conditional = @import("./examples/conditional.zig").Page(allocator);
+    const html_page_conditional = @import("./examples/conditional.zig").UserStatus(allocator);
     html_page_conditional.render(&aw_conditional.writer) catch unreachable;
     const html_conditional = allocator.dupe(u8, aw_conditional.written()) catch unreachable;
 
@@ -45,7 +45,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_switch: std.io.Writer.Allocating = .init(allocator);
     const zx_switch = @embedFile("../../../pages/learn/examples/switch_expr.zx");
     const zig_switch = @embedFile("./examples/switch_expr.zig");
-    const html_page_switch = @import("./examples/switch_expr.zig").Page(allocator);
+    const html_page_switch = @import("./examples/switch_expr.zig").RoleBadge(allocator);
     html_page_switch.render(&aw_switch.writer) catch unreachable;
     const html_switch = allocator.dupe(u8, aw_switch.written()) catch unreachable;
 
@@ -53,7 +53,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_list: std.io.Writer.Allocating = .init(allocator);
     const zx_list = @embedFile("../../../pages/learn/examples/list.zx");
     const zig_list = @embedFile("./examples/list.zig");
-    const html_page_list = @import("./examples/list.zig").Page(allocator);
+    const html_page_list = @import("./examples/list.zig").ProductList(allocator);
     html_page_list.render(&aw_list.writer) catch unreachable;
     const html_list = allocator.dupe(u8, aw_list.written()) catch unreachable;
 
@@ -61,7 +61,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_props: std.io.Writer.Allocating = .init(allocator);
     const zx_props = @embedFile("../../../pages/learn/examples/props.zx");
     const zig_props = @embedFile("./examples/props.zig");
-    const html_page_props = @import("./examples/props.zig").Page(allocator);
+    const html_page_props = @import("./examples/props.zig").ButtonDemo(allocator);
     html_page_props.render(&aw_props.writer) catch unreachable;
     const html_props = allocator.dupe(u8, aw_props.written()) catch unreachable;
 
@@ -69,7 +69,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_page: std.io.Writer.Allocating = .init(allocator);
     const zx_page = @embedFile("../../../pages/learn/examples/page_example.zx");
     const zig_page = @embedFile("./examples/page_example.zig");
-    const html_page_page = @import("./examples/page_example.zig").Page(ctx);
+    const html_page_page = @import("./examples/page_example.zig").AboutPage(ctx);
     html_page_page.render(&aw_page.writer) catch unreachable;
     const html_page = allocator.dupe(u8, aw_page.written()) catch unreachable;
 
@@ -80,7 +80,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_dynamic: std.io.Writer.Allocating = .init(allocator);
     const zx_dynamic = @embedFile("../../../pages/learn/examples/dynamic_route.zx");
     const zig_dynamic = @embedFile("./examples/dynamic_route.zig");
-    const html_page_dynamic = @import("./examples/dynamic_route.zig").Page(ctx);
+    const html_page_dynamic = @import("./examples/dynamic_route.zig").UserProfile(ctx);
     html_page_dynamic.render(&aw_dynamic.writer) catch unreachable;
     const html_dynamic = allocator.dupe(u8, aw_dynamic.written()) catch unreachable;
 
@@ -88,7 +88,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_fragment: std.io.Writer.Allocating = .init(allocator);
     const zx_fragment = @embedFile("../../../pages/learn/examples/fragment.zx");
     const zig_fragment = @embedFile("./examples/fragment.zig");
-    const html_page_fragment = @import("./examples/fragment.zig").Page(allocator);
+    const html_page_fragment = @import("./examples/fragment.zig").FragmentDemo(allocator);
     html_page_fragment.render(&aw_fragment.writer) catch unreachable;
     const html_fragment = allocator.dupe(u8, aw_fragment.written()) catch unreachable;
 
@@ -96,7 +96,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_children: std.io.Writer.Allocating = .init(allocator);
     const zx_children = @embedFile("../../../pages/learn/examples/children.zx");
     const zig_children = @embedFile("./examples/children.zig");
-    const html_page_children = @import("./examples/children.zig").Page(allocator);
+    const html_page_children = @import("./examples/children.zig").CardDemo(allocator);
     html_page_children.render(&aw_children.writer) catch unreachable;
     const html_children = allocator.dupe(u8, aw_children.written()) catch unreachable;
 
@@ -104,7 +104,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     var aw_dynattr: std.io.Writer.Allocating = .init(allocator);
     const zx_dynattr = @embedFile("../../../pages/learn/examples/dynamic_attr.zx");
     const zig_dynattr = @embedFile("./examples/dynamic_attr.zig");
-    const html_page_dynattr = @import("./examples/dynamic_attr.zig").Page(allocator);
+    const html_page_dynattr = @import("./examples/dynamic_attr.zig").DynamicAttrs(allocator);
     html_page_dynattr.render(&aw_dynattr.writer) catch unreachable;
     const html_dynattr = allocator.dupe(u8, aw_dynattr.written()) catch unreachable;
 
@@ -369,7 +369,7 @@ fn CreatingComponents(allocator: zx.Allocator, props: CreatingComponentsProps) z
             <h2>Creating and nesting components</h2>
             <p>ZX apps are made out of <em>components</em>. A component is a function that returns a <code>zx.Component</code> type. Components can be as small as a button or as large as an entire page.</p>
             <p>ZX components are Zig functions that return markup. Notice how <code>{"<Greeting />"}</code> starts with a capital letter - that's how ZX distinguishes between custom components and HTML elements:</p>
-            <ExampleBlock id="greeting" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} />
+            <ExampleBlock id="greeting" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="hello_world.zx" />
             <div class="callout note">
                 <strong>Note:</strong> Every component needs an allocator for memory management. The <code>@allocator</code> attribute must be set on the root element of each component. Child components inherit the allocator from their parent.
             </div>
@@ -389,7 +389,7 @@ fn WritingMarkup(allocator: zx.Allocator, props: WritingMarkupProps) zx.Componen
             <h2>Writing markup with ZX</h2>
             <p>The markup syntax is called <em>ZX</em> - it's similar to JSX but designed for Zig. ZX files use the <code>.zx</code> extension and are transpiled to efficient Zig code.</p>
             <p>ZX is stricter than HTML. You have to close all tags, including self-closing ones like <code>{"<br />"}</code>:</p>
-            <ExampleBlock id="markup" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} />
+            <ExampleBlock id="markup" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="about_section.zx" />
             <p>CSS classes are specified with the <code>class</code> attribute, same as HTML. Write your CSS in separate files and include them in your layout.</p>
         </section>
     );
@@ -406,7 +406,7 @@ fn Fragments(allocator: zx.Allocator, props: FragmentsProps) zx.Component {
         <section id="fragments" class="section" @allocator={allocator}>
             <h2>Fragments</h2>
             <p>Sometimes you want to return multiple elements from a component without adding an extra wrapper. Use the empty tag syntax <code>{"<>"}...{"</>"}</code>:</p>
-            <ExampleBlock id="fragment" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} />
+            <ExampleBlock id="fragment" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="fragment_demo.zx" />
             <p>Fragments are useful when you need to group elements but don't want to add extra DOM nodes. The children are rendered directly without any wrapper element.</p>
         </section>
     );
@@ -433,9 +433,9 @@ fn DisplayingData(allocator: zx.Allocator, props: DisplayingDataProps) zx.Compon
                 <li><strong>Enums</strong> — displayed as the tag name</li>
                 <li><strong>Optionals</strong> — unwrapped if present, otherwise renders nothing</li>
             </ul>
-            <ExampleBlock id="text-expr" zx_code={props.zx_text} zig_code={props.zig_text} html_code={props.html_text} />
+            <ExampleBlock id="text-expr" zx_code={props.zx_text} zig_code={props.zig_text} html_code={props.html_text} filename="user_greeting.zx" />
             <p>Different types are automatically handled:</p>
-            <ExampleBlock id="format-expr" zx_code={props.zx_format} zig_code={props.zig_format} html_code={props.html_format} />
+            <ExampleBlock id="format-expr" zx_code={props.zx_format} zig_code={props.zig_format} html_code={props.html_format} filename="product_info.zx" />
         </section>
     );
 }
@@ -451,7 +451,7 @@ fn DynamicAttributes(allocator: zx.Allocator, props: DynamicAttributesProps) zx.
         <section id="dynamic-attributes" class="section" @allocator={allocator}>
             <h2>Dynamic attributes</h2>
             <p>Use curly braces to pass dynamic values to HTML attributes:</p>
-            <ExampleBlock id="dynamic-attr" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} />
+            <ExampleBlock id="dynamic-attr" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="dynamic_attrs.zx" />
             <p>You can use any expression, including conditionals, to compute attribute values dynamically.</p>
         </section>
     );
@@ -471,11 +471,11 @@ fn ConditionalRendering(allocator: zx.Allocator, props: ConditionalRenderingProp
         <section id="conditional-rendering" class="section" @allocator={allocator}>
             <h2>Conditional rendering</h2>
             <p>Use Zig's <code>if</code> expressions to conditionally render content:</p>
-            <ExampleBlock id="conditional" zx_code={props.zx_conditional} zig_code={props.zig_conditional} html_code={props.html_conditional} />
+            <ExampleBlock id="conditional" zx_code={props.zx_conditional} zig_code={props.zig_conditional} html_code={props.html_conditional} filename="user_status.zx" />
             
             <h3>Switch expressions</h3>
             <p>Use <code>switch</code> expressions to match against enum values. Each case can return text or a component:</p>
-            <ExampleBlock id="switch-expr" zx_code={props.zx_switch} zig_code={props.zig_switch} html_code={props.html_switch} />
+            <ExampleBlock id="switch-expr" zx_code={props.zx_switch} zig_code={props.zig_switch} html_code={props.html_switch} filename="role_badge.zx" />
         </section>
     );
 }
@@ -491,7 +491,7 @@ fn RenderingLists(allocator: zx.Allocator, props: RenderingListsProps) zx.Compon
         <section id="rendering-lists" class="section" @allocator={allocator}>
             <h2>Rendering lists</h2>
             <p>Use <code>for</code> loops to iterate over arrays and render a component for each item:</p>
-            <ExampleBlock id="list" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} />
+            <ExampleBlock id="list" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="product_list.zx" />
             <p>The loop variable can be used within the component body to display item-specific content.</p>
         </section>
     );
@@ -508,7 +508,7 @@ fn PassingProps(allocator: zx.Allocator, props: PassingPropsProps) zx.Component 
         <section id="passing-props" class="section" @allocator={allocator}>
             <h2>Passing props to components</h2>
             <p>Components can accept <em>props</em> (properties) to customize their behavior. Define a props struct as the second parameter:</p>
-            <ExampleBlock id="props" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} />
+            <ExampleBlock id="props" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="button_demo.zx" />
             <p>ZX automatically coerces attributes to the props struct. Fields with default values are optional.</p>
             <h3>Component signatures</h3>
             <ul>
@@ -530,7 +530,7 @@ fn ChildrenProps(allocator: zx.Allocator, props: ChildrenPropsProps) zx.Componen
         <section id="children" class="section" @allocator={allocator}>
             <h2>Passing children to components</h2>
             <p>Components can accept <em>children</em> — content passed between opening and closing tags. Add a <code>children: zx.Component</code> field to your props:</p>
-            <ExampleBlock id="children" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} />
+            <ExampleBlock id="children" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="card_demo.zx" />
             <p>This pattern is useful for creating wrapper components like cards, modals, or layout containers.</p>
         </section>
     );
@@ -578,7 +578,7 @@ fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Comp
         <section id="pages-layouts" class="section" @allocator={allocator}>
             <h2>Pages and Layouts</h2>
             <p>ZX uses file-based routing. Create <code>page.zx</code> files in the <code>site/pages/</code> directory:</p>
-            <ExampleBlock id="page-example" zx_code={props.zx_page} zig_code={props.zig_page} html_code={props.html_page} />
+            <ExampleBlock id="page-example" zx_code={props.zx_page} zig_code={props.zig_page} html_code={props.html_page} filename="about_page.zx" />
             <p>The file path determines the URL: <code>site/pages/about/page.zx</code> → <code>/about</code></p>
             
             <h3>Dynamic routes</h3>
@@ -588,7 +588,7 @@ fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Comp
                 <li><code>site/pages/blog/[slug]/page.zx</code> → <code>/blog/:slug</code></li>
             </ul>
             <p>Access the parameter value using <code>ctx.request.param("name")</code>:</p>
-            <ExampleBlock id="dynamic-route" zx_code={props.zx_dynamic} zig_code={props.zig_dynamic} html_code={props.html_dynamic} filename="[id]/page.zx" />
+            <ExampleBlock id="dynamic-route" zx_code={props.zx_dynamic} zig_code={props.zig_dynamic} html_code={props.html_dynamic} filename="user/[id]/user_profile.zx" />
             
             <h3>Creating layouts</h3>
             <p>Layouts wrap pages with common UI. Create a <code>layout.zx</code> file:</p>

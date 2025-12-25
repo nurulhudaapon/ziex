@@ -1,4 +1,4 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
+pub fn FragmentDemo(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
             <Header />

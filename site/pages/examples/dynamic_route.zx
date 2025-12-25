@@ -1,4 +1,4 @@
-pub fn Page(ctx: zx.PageContext) zx.Component {
+pub fn UserProfile(ctx: zx.PageContext) zx.Component {
     const user_id = ctx.request.param("id") orelse "unknown";
 
     return (

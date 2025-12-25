@@ -1,4 +1,4 @@
-pub fn Page(arena: zx.Allocator) zx.Component {
+pub fn UserList(arena: zx.Allocator) zx.Component {
     const users = [_]struct { name: []const u8, role: UserRole }{
         .{ .name = "John", .role = .admin },
         .{ .name = "Jane", .role = .member },

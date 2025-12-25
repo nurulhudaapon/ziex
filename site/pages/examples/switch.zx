@@ -1,4 +1,4 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
+pub fn RoleSwitch(allocator: zx.Allocator) zx.Component {
     const user_swtc = users[0];
 
     return (

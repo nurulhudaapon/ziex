@@ -1,4 +1,4 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
+pub fn HelloWorld(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
             <h1>Welcome to my app</h1>

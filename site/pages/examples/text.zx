@@ -1,4 +1,4 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
+pub fn TextDemo(allocator: zx.Allocator) zx.Component {
     const user_name = "Alice & Bob";
     const html_content = "<script>alert('XSS')</script>";
     const unsafe_html = "<span>Test</span>";

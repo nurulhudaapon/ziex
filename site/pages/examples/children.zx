@@ -1,4 +1,4 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
+pub fn CardDemo(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
             <Card title="Welcome">

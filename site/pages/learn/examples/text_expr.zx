@@ -1,4 +1,4 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
+pub fn UserGreeting(allocator: zx.Allocator) zx.Component {
     const user_name = "Alice";
     const greeting = "Welcome back";
 

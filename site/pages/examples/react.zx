@@ -1,4 +1,4 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
+pub fn ReactDemo(allocator: zx.Allocator) zx.Component {
     const max_count = 10;
 
     return (

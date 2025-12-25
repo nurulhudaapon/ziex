@@ -1,4 +1,4 @@
-pub fn Page(ctx: zx.PageContext) zx.Component {
+pub fn AllocatorDemo(ctx: zx.PageContext) zx.Component {
     return (
         <html @allocator={ctx.arena}>
             <head>
