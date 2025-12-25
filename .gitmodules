@@ -1,0 +1,3 @@
+[submodule "vendor/cachez"]
+	path = vendor/cachez
+	url = git@github.com:nurulhudaapon/cachez.git

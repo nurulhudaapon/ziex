@@ -38,37 +38,224 @@ const ElementInjector = struct {
     }
 };
 
+pub const CacheConfig = struct {
+    /// Maximum number of cached pages
+    max_size: u32 = 1000,
+
+    /// Default TTL in seconds for cached pages
+    default_ttl: u32 = 10,
+};
+
+/// PageCache handles caching of rendered HTML pages with ETag support
+const PageCache = struct {
+    pub const Status = enum {
+        hit, // Served from cache
+        miss, // Not in cache, freshly rendered
+        skip, // Not cacheable (POST, internal paths, etc.)
+        disabled, // Cache is disabled
+
+        pub fn indicator(self: Status, http_status: u16) []const u8 {
+            if (self == .disabled) return "";
+            const status = if (isCacheableHttpStatus(http_status)) self else Status.skip;
+
+            return switch (status) {
+                .hit => "\x1b[1;32m[>]\x1b[0m ", // green [>]
+                .miss => "\x1b[1;33m[o]\x1b[0m ", // yellow [o]
+                .skip => "\x1b[2m[-]\x1b[0m ", // dim [-]
+                .disabled => "",
+            };
+        }
+    };
+
+    const CacheValue = struct {
+        body: []const u8,
+        etag: []const u8,
+        content_type: ?httpz.ContentType,
+
+        pub fn removedFromCache(self: CacheValue, allocator: Allocator) void {
+            allocator.free(self.body);
+            allocator.free(self.etag);
+        }
+    };
+
+    cache: cachez.Cache(CacheValue),
+    config: CacheConfig,
+    allocator: Allocator,
+
+    pub fn init(allocator: Allocator, config: CacheConfig) !PageCache {
+        return .{
+            .allocator = allocator,
+            .config = config,
+            .cache = try cachez.Cache(CacheValue).init(allocator, .{
+                .max_size = config.max_size,
+            }),
+        };
+    }
+
+    pub fn deinit(self: *PageCache) void {
+        self.cache.deinit();
+    }
+
+    /// Try to serve from cache. Returns cache status.
+    pub fn tryServe(self: *PageCache, req: *httpz.Request, res: *httpz.Response) Status {
+        if (self.config.max_size == 0) return .disabled;
+        if (!isCacheable(req)) return .skip;
+
+        // Check conditional request (If-None-Match)
+        if (req.header("if-none-match")) |client_etag| {
+            if (self.cache.get(req.url.path)) |entry| {
+                defer entry.release();
+                if (std.mem.eql(u8, client_etag, entry.value.etag)) {
+                    res.setStatus(.not_modified);
+                    self.addCacheHeaders(res, entry.value.etag);
+                    return .hit;
+                }
+            }
+        }
+
+        // Try to serve full cached response
+        if (self.cache.get(req.url.path)) |entry| {
+            defer entry.release();
+            res.content_type = entry.value.content_type;
+            res.body = entry.value.body;
+            self.addCacheHeaders(res, entry.value.etag);
+            return .hit;
+        }
+
+        return .miss;
+    }
+
+    /// Cache a successful response
+    pub fn store(self: *PageCache, req: *httpz.Request, res: *httpz.Response) void {
+        if (self.config.max_size == 0) return;
+        if (!isCacheableHttpStatus(res.status)) return;
+        if (!isCacheableContentType(res.content_type)) return;
+
+        // Get response body from buffer.writer (rendered pages) or res.body (direct)
+        const buffered = res.buffer.writer.buffered();
+        const body = if (buffered.len > 0) buffered else res.body;
+        if (body.len == 0) return;
+
+        // Generate ETag from body hash
+        const hash = std.hash.Wyhash.hash(0, body);
+        const etag = std.fmt.allocPrint(self.allocator, "\"{x}\"", .{hash}) catch return;
+
+        // Dupe the body for cache storage
+        const cached_body = self.allocator.dupe(u8, body) catch {
+            self.allocator.free(etag);
+            return;
+        };
+
+        self.cache.put(req.url.path, .{
+            .body = cached_body,
+            .etag = etag,
+            .content_type = res.content_type,
+        }, .{
+            .ttl = getTtl(req) orelse self.config.default_ttl,
+        }) catch |err| {
+            log.warn("Failed to cache page {s}: {}", .{ req.url.path, err });
+            self.allocator.free(cached_body);
+            self.allocator.free(etag);
+            return;
+        };
+
+        // Add cache headers to response
+        self.addCacheHeaders(res, etag);
+        res.headers.add("X-Cache", "MISS");
+    }
+
+    fn addCacheHeaders(self: *PageCache, res: *httpz.Response, etag: []const u8) void {
+        res.headers.add("ETag", etag);
+        res.headers.add("Cache-Control", std.fmt.allocPrint(self.allocator, "public, max-age={d}", .{self.config.default_ttl}) catch "public, max-age=300");
+        res.headers.add("X-Cache", "HIT");
+    }
+
+    fn isCacheable(req: *httpz.Request) bool {
+        if (getTtl(req) == null) return false;
+        if (req.method != .GET) return false;
+        if (std.mem.startsWith(u8, req.url.path, "/_zx/")) return false;
+        if (std.mem.startsWith(u8, req.url.path, "/assets/_zx/")) return false;
+        return true;
+    }
+
+    fn isCacheableContentType(content_type: ?httpz.ContentType) bool {
+        const ct = content_type orelse return false;
+        return ct == .HTML or ct == .ICO or ct == .CSS or ct == .JS or ct == .TEXT;
+    }
+    fn isCacheableHttpStatus(http_status: u16) bool {
+        return http_status == 200;
+    }
+    fn getTtl(req: *httpz.Request) ?u32 {
+        if (req.route_data) |rd| {
+            const route: *const App.Meta.Route = @ptrCast(@alignCast(rd));
+            if (route.options) |options| {
+                return options.caching.getSeconds();
+            }
+        }
+        return null;
+    }
+};
+
 pub const Handler = struct {
     meta: *App.Meta,
+    page_cache: PageCache,
     allocator: std.mem.Allocator,
 
+    pub fn init(allocator: std.mem.Allocator, meta: *App.Meta, cache_config: CacheConfig) !Handler {
+        return .{
+            .meta = meta,
+            .allocator = allocator,
+            .page_cache = try PageCache.init(allocator, cache_config),
+        };
+    }
+
+    pub fn deinit(self: *Handler) void {
+        self.page_cache.deinit();
+    }
+
     pub fn dispatch(self: *Handler, action: httpz.Action(*Handler), req: *httpz.Request, res: *httpz.Response) !void {
-        if (self.meta.cli_command != .dev)
-            return try action(self, req, res);
+        const is_dev = self.meta.cli_command == .dev;
+        var timer = if (is_dev) try std.time.Timer.start() else null;
+
+        // Try cache first, execute action on miss
+        const cache_status = self.page_cache.tryServe(req, res);
+        if (cache_status != .hit) {
+            try action(self, req, res);
+            if (cache_status == .miss) self.page_cache.store(req, res);
+        }
 
         // Dev mode logging
-        const is_zx_path = std.mem.startsWith(u8, req.url.path, "/_zx/") or std.mem.startsWith(u8, req.url.path, "/assets/_zx/");
-        if (is_zx_path) return try action(self, req, res);
+        if (is_dev) {
+            const elapsed_ns = timer.?.lap();
+            const elapsed_ms = @as(f64, @floatFromInt(elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
+            const c = struct {
+                const reset = "\x1b[0m";
+                const method = "\x1b[1;34m"; // bold blue
+                const path = "\x1b[1;36m"; // bold cyan
+                fn time(ms: f64) []const u8 {
+                    return if (ms < 10) "\x1b[1;32m" else if (ms < 100) "\x1b[1;33m" else "\x1b[1;31m";
+                }
+                fn status(code: u16) []const u8 {
+                    return if (code < 300) "\x1b[1;32m" else if (code < 400) "\x1b[1;33m" else "\x1b[1;31m";
+                }
+            };
 
-        var timer = try std.time.Timer.start();
-
-        try action(self, req, res);
-
-        const elapsed_ns = timer.lap();
-        const elapsed_ms = @as(f64, @floatFromInt(elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
-        const color_reset = "\x1b[0m";
-        const color_method = "\x1b[1;34m"; // bold blue
-        const color_path = "\x1b[1;36m"; // bold cyan
-        const color_time = if (elapsed_ms < 10) "\x1b[1;32m" else if (elapsed_ms < 100) "\x1b[1;33m" else "\x1b[1;31m"; // green/yellow/red based on time
-        const status_code = res.status;
-        const color_status = if (status_code < 300) "\x1b[1;32m" else if (status_code < 400) "\x1b[1;33m" else "\x1b[1;31m"; // green/yellow/red based on status
-
-        std.log.info("{s}{s}{s} {s}{s}{s} {s}{d}{s} {s}{d:.3}ms{s}\x1b[K", .{
-            color_method, @tagName(req.method), color_reset,
-            color_path,   req.url.path,         color_reset,
-            color_status, status_code,          color_reset,
-            color_time,   elapsed_ms,           color_reset,
-        });
+            std.log.info("{s}{s}{s}{s} {s}{s}{s} {s}{d}{s} {s}{d:.3}ms{s}\x1b[K", .{
+                cache_status.indicator(res.status),
+                c.method,
+                @tagName(req.method),
+                c.reset,
+                c.path,
+                req.url.path,
+                c.reset,
+                c.status(res.status),
+                res.status,
+                c.reset,
+                c.time(elapsed_ms),
+                elapsed_ms,
+                c.reset,
+            });
+        }
     }
 
     pub fn page(self: *Handler, req: *httpz.Request, res: *httpz.Response) !void {
@@ -271,6 +458,7 @@ pub const Handler = struct {
 
 const std = @import("std");
 const builtin = @import("builtin");
+const cachez = @import("cachez");
 const zx = @import("../root.zig");
 
 const Allocator = std.mem.Allocator;

@@ -32,11 +32,15 @@
             .url = "git+https://github.com/tree-sitter/zig-tree-sitter#a53dac49d66562006e84dd11211b7ae40db68263",
             .hash = "tree_sitter-0.25.0-8heIf4KZAQB9VQhOgtGaSvAJFbBn1t08wtsrkce4uEnI",
         },
+        .cachez = .{
+            .path = "vendor/cachez",
+        },
     },
     .paths = .{
         "build.zig",
         "build.zig.zon",
         "src",
         "packages/tree-sitter-zx",
+        "vendor/cachez",
     },
 }

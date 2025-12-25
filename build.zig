@@ -30,6 +30,9 @@ pub fn build(b: *std.Build) !void {
     const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });
     const tree_sitter_dep = b.dependency("tree_sitter", .{ .target = target, .optimize = optimize });
     const tree_sitter_zx_dep = b.dependency("tree_sitter_zx", .{ .target = target, .optimize = optimize, .@"build-shared" = false });
+    const cachez_dep = b.dependency("cachez", .{ .target = target, .optimize = optimize });
+
+    mod.addImport("cachez", cachez_dep.module("cache"));
     mod.addImport("httpz", httpz_dep.module("httpz"));
     mod.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
     mod.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));

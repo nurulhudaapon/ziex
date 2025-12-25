@@ -3,6 +3,7 @@ pub const routes = [_]zx.App.Meta.Route{
         .path = "/",
         .page = @import(".zx/pages/page.zig").Page,
         .layout = @import(".zx/pages/layout.zig").Layout,
+        .options = if (@hasDecl(@import(".zx/pages/page.zig"), "options")) @import(".zx/pages/page.zig").options else null,
     },
     .{
         .path = "/about",
@@ -33,6 +34,7 @@ pub const routes = [_]zx.App.Meta.Route{
     .{
         .path = "/time",
         .page = @import(".zx/pages/time/page.zig").Page,
+        .options = if (@hasDecl(@import(".zx/pages/time/page.zig"), "options")) @import(".zx/pages/time/page.zig").options else null,
     },
     .{
         .path = "/examples/wasm",

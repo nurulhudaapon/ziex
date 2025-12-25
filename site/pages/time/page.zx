@@ -13,5 +13,10 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     );
 }
 
+pub const options = zx.PageOptions{
+    .rendering = .server,
+    .caching = .{ .seconds = 10 },
+};
+
 const zx = @import("zx");
 const std = @import("std");

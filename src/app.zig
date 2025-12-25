@@ -10,6 +10,7 @@ pub const App = struct {
             path: []const u8,
             page: *const fn (ctx: zx.PageContext) Component,
             layout: ?*const fn (ctx: zx.LayoutContext, component: Component) Component = null,
+            options: ?zx.PageOptions = null,
         };
         pub const CliCommand = enum { dev, serve, @"export" };
 
@@ -20,6 +21,7 @@ pub const App = struct {
     pub const Config = struct {
         server: httpz.Config,
         meta: Meta,
+        cache: CacheConfig = .{},
     };
 
     pub const version = module_config.version_string;
@@ -37,7 +39,8 @@ pub const App = struct {
 
         app.allocator = allocator;
         app.meta = config.meta;
-        app.handler = Handler{ .meta = &app.meta, .allocator = allocator };
+        app.handler = try Handler.init(allocator, &app.meta, config.cache);
+        errdefer app.handler.deinit();
         app.server = try httpz.Server(*Handler).init(allocator, config.server, &app.handler);
 
         // -- Routing -- //
@@ -65,6 +68,7 @@ pub const App = struct {
             self._is_listening = false;
         }
         self.server.deinit();
+        self.handler.deinit();
         allocator.destroy(self);
     }
 
@@ -258,11 +262,13 @@ pub const App = struct {
 
 const std = @import("std");
 const builtin = @import("builtin");
-const zx = @import("root.zig");
 const httpz = @import("httpz");
+const cachez = @import("cachez");
+const zx = @import("root.zig");
 const module_config = @import("zx_info");
 const Constant = @import("./constant.zig");
 const Handler = @import("./app/handler.zig").Handler;
+const CacheConfig = @import("./app/handler.zig").CacheConfig;
 
 const Allocator = std.mem.Allocator;
 const Component = zx.Component;

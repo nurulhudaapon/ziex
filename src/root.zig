@@ -949,6 +949,12 @@ pub const Client = @import("client/Client.zig");
 pub const App = @import("app.zig").App;
 
 pub const Allocator = std.mem.Allocator;
+
+pub const PageOptions = struct {
+    rendering: ?Attribute.Rendering = null,
+    caching: Attribute.Caching = .none,
+};
+
 pub const PageContext = routing.PageContext;
 pub const LayoutContext = routing.LayoutContext;
 pub const Attribute = struct {
@@ -974,6 +980,93 @@ pub const Attribute = struct {
         html,
         /// No escaping; outputs raw HTML. Use with caution for trusted content only.
         raw,
+    };
+
+    pub const Caching = union(enum) {
+        none,
+        seconds: u32,
+
+        /// Example:
+        ///
+        /// `5s` -> .{ .seconds = 5 }
+        ///
+        /// `10m` -> .{ .seconds = 600 }
+        ///
+        /// `1h` -> .{ .seconds = 3600 }
+        ///
+        /// `1y` -> .{ .seconds = 31536000 }
+        tag: []const u8,
+
+        /// Get caching duration in seconds
+        /// Examples: "10s" -> 10, "5m" -> 300, "1h" -> 3600, "1d" -> 86400
+        pub fn getSeconds(self: Caching) ?u32 {
+            switch (self) {
+                .seconds => |seconds| return seconds,
+                .tag => |tag| return parseTagRuntime(tag),
+                .none => return null,
+            }
+        }
+
+        /// Comptime version for compile-time validation
+        pub fn getSecondsComptime(comptime self: Caching) comptime_int {
+            return comptime switch (self) {
+                .seconds => |seconds| seconds,
+                .tag => |tag| parseTagComptime(tag),
+                .none => 0,
+            };
+        }
+
+        fn parseTagRuntime(tag: []const u8) u32 {
+            var num_end: usize = 0;
+            while (num_end < tag.len) : (num_end += 1) {
+                const c = tag[num_end];
+                if (!std.ascii.isDigit(c)) break;
+            }
+            if (num_end == 0) return 0;
+
+            const num_str = tag[0..num_end];
+            const unit_str = tag[num_end..];
+
+            const num_value = std.fmt.parseInt(u32, num_str, 10) catch return 0;
+            const unit_value = parseUnitRuntime(unit_str);
+
+            return num_value * unit_value;
+        }
+
+        fn parseTagComptime(comptime tag: []const u8) comptime_int {
+            comptime {
+                var num_end: usize = 0;
+                while (num_end < tag.len) : (num_end += 1) {
+                    const c = tag[num_end];
+                    if (!std.ascii.isDigit(c)) break;
+                }
+                if (num_end == 0) @compileError("Invalid caching tag '" ++ tag ++ "': no number found");
+
+                const num_str = tag[0..num_end];
+                const unit_str = tag[num_end..];
+
+                const num_value = std.fmt.parseInt(u64, num_str, 10) catch @compileError("Invalid caching number '" ++ num_str ++ "'");
+                const unit_value = parseUnitComptime(unit_str);
+
+                return num_value * unit_value;
+            }
+        }
+
+        fn parseUnitRuntime(unit: []const u8) u32 {
+            if (std.mem.eql(u8, unit, "s") or unit.len == 0) return 1;
+            if (std.mem.eql(u8, unit, "m")) return std.time.s_per_min;
+            if (std.mem.eql(u8, unit, "h")) return std.time.s_per_hour;
+            if (std.mem.eql(u8, unit, "d")) return std.time.s_per_day;
+            return 1; // default to seconds
+        }
+
+        fn parseUnitComptime(comptime unit: []const u8) comptime_int {
+            if (std.mem.eql(u8, unit, "s") or unit.len == 0) return 1;
+            if (std.mem.eql(u8, unit, "m")) return std.time.s_per_min;
+            if (std.mem.eql(u8, unit, "h")) return std.time.s_per_hour;
+            if (std.mem.eql(u8, unit, "d")) return std.time.s_per_day;
+            @compileError("Invalid caching unit '" ++ unit ++ "', supported units: s, m, h, d");
+        }
     };
 };
 const ClientComponentOptions = struct {
