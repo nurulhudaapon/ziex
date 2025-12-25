@@ -25,13 +25,6 @@ const copy_only_flag = zli.Flag{
     .default_value = .{ .Bool = false },
 };
 
-const ts_flag = zli.Flag{
-    .name = "ts",
-    .description = "Use tree-sitter to transpile the code",
-    .type = .Bool,
-    .default_value = .{ .Bool = false },
-};
-
 pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
     const cmd = try zli.Command.init(writer, reader, allocator, .{
         .name = "transpile",
@@ -40,7 +33,6 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
 
     try cmd.addFlag(outdir_flag);
     try cmd.addFlag(copy_only_flag);
-    try cmd.addFlag(ts_flag);
     try cmd.addFlag(flags.verbose_flag);
     try cmd.addPositionalArg(.{
         .name = "path",
@@ -54,7 +46,7 @@ fn transpile(ctx: zli.CommandContext) !void {
     const outdir = ctx.flag("outdir", []const u8);
     const copy_dirs = [_][]const u8{ "assets", "public" };
     const copy_only = ctx.flag("copy-only", bool);
-    const ts = ctx.flag("ts", bool);
+    const ts = true;
     const verbose = ctx.flag("verbose", bool);
     const path = ctx.getArg("path") orelse {
         try ctx.writer.print("Missing path arg\n", .{});

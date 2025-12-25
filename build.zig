@@ -82,7 +82,6 @@ pub fn build(b: *std.Build) !void {
                 .site_outdir = b.path("site/.zx"),
                 .site_path = b.path("site"),
                 .experimental_enabled_csr = true,
-                .experimental_ts_based_transpile = true,
                 .steps = .{ .serve = "serve", .dev = "dev", .@"export" = "export", .bundle = "bundle" },
                 .plugins = &.{
                     plugins.esbuild(b, .{
