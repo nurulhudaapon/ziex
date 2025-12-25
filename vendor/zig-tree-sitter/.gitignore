@@ -1,0 +1,27 @@
+### Zig ###
+.zig-cache/
+zig-out/
+build/
+build-*/
+docgen_tmp/
+
+### JetBrains ###
+.idea/*
+out/
+*.iws
+*.iml
+*.ipr
+
+### Vim ###
+[._]*.s[a-v][a-z]
+[._]*.sw[a-p]
+[._]s[a-rt-v][a-z]
+[._]ss[a-gi-z]
+[._]sw[a-p]
+Session.vim
+.nvimrc
+tags
+*~
+
+### Nix ###
+.direnv

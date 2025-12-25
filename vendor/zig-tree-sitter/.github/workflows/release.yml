@@ -1,0 +1,27 @@
+name: Release
+
+on:
+  push:
+    tags: ["*"]
+
+jobs:
+  release:
+    name: Release on GitHub
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+      - name: Generate changelog
+        uses: orhun/git-cliff-action@v4
+        id: git-cliff
+        with:
+          args: --current
+          config: .github/cliff.toml
+      - name: Create release
+        run: >-
+          gh release create '${{github.ref_name}}'
+          -F '${{steps.git-cliff.outputs.changelog}}'
+        env:
+          GH_TOKEN: ${{github.token}}
