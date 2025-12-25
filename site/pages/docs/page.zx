@@ -694,11 +694,6 @@ fn PluginsSection(allocator: zx.Allocator) zx.Component {
             <p>You can use multiple plugins together. They run in order after ZX transpilation:</p>
             <CodeBlock code={combined_example} />
 
-            <div class="callout note">
-                <strong>Prerequisites:</strong> Install the required CLI tools before using builtin plugins:
-                <code>npm install tailwindcss esbuild</code>
-            </div>
-
             <h3 id="custom-plugins">Creating Custom Plugins</h3>
             <p>You can create your own plugins by returning a <code>zx.ZxInitOptions.PluginOptions</code> struct. This allows you to integrate any command-line tool into the ZX build process.</p>
             

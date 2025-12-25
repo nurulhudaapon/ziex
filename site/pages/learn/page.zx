@@ -666,7 +666,7 @@ fn Plugins(allocator: zx.Allocator) zx.Component {
             <div class="callout note">
                 <strong>Prerequisites:</strong>
                  Install the required CLI tools before using builtin plugins:
-                <code>npm install tailwindcss</code>
+                <code>npm install tailwindcss @tailwindcss/cli</code>
             </div>
 
             <h3>esbuild Plugin</h3>
