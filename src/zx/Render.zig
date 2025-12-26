@@ -821,6 +821,17 @@ fn hasMeaningfulContent(self: *Ast, node: ts.Node) bool {
     return false;
 }
 
+/// Check if a text node contains only inline spaces (no newlines or tabs)
+fn hasInlineSpacesOnly(self: *Ast, node: ts.Node) bool {
+    const text = self.getNodeText(node) catch return false;
+    const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
+    if (trimmed.len > 0) return false; // Has content, not spaces-only
+
+    // Check if text contains newlines or tabs (vertical/layout spaces)
+    const has_newline_or_tab = std.mem.indexOfAny(u8, text, "\n\r\t") != null;
+    return !has_newline_or_tab and text.len > 0;
+}
+
 /// Render zx_child node
 fn renderChild(
     self: *Ast,
