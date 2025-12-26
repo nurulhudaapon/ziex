@@ -586,8 +586,8 @@ pub fn getAllocatorAttribute(self: *Ast, node: ts.Node) !?[]const u8 {
             }
         }
 
-        // Self-closing elements (like <Button @allocator={allocator} />)
-        if (child_kind == .zx_attribute or child_kind == .zx_builtin_attribute or child_kind == .zx_shorthand_attribute) {
+        // Self-closing elements (like <Button @allocator={allocator} /> or <Button @{allocator} />)
+        if (child_kind == .zx_attribute or child_kind == .zx_builtin_attribute or child_kind == .zx_shorthand_attribute or child_kind == .zx_builtin_shorthand_attribute) {
             if (try checkAllocatorAttr(self, child)) |value| return value;
         }
     }
@@ -596,12 +596,23 @@ pub fn getAllocatorAttribute(self: *Ast, node: ts.Node) !?[]const u8 {
 
 fn checkAllocatorAttr(self: *Ast, attr: ts.Node) !?[]const u8 {
     const attr_kind = NodeKind.fromNode(attr);
-    if (attr_kind != .zx_attribute and attr_kind != .zx_builtin_attribute and attr_kind != .zx_shorthand_attribute) return null;
+    if (attr_kind != .zx_attribute and attr_kind != .zx_builtin_attribute and attr_kind != .zx_shorthand_attribute and attr_kind != .zx_builtin_shorthand_attribute) return null;
 
     const actual_attr = if (attr_kind == .zx_attribute) attr.child(0) orelse return null else attr;
+    const actual_kind = NodeKind.fromNode(actual_attr);
 
-    // Shorthand attributes can't be @allocator since they don't have @ prefix
-    if (NodeKind.fromNode(actual_attr) == .zx_shorthand_attribute) return null;
+    // Regular shorthand attributes can't be @allocator since they don't have @ prefix
+    if (actual_kind == .zx_shorthand_attribute) return null;
+
+    // Handle builtin shorthand: @{allocator} -> @allocator={allocator}
+    if (actual_kind == .zx_builtin_shorthand_attribute) {
+        const name_node = actual_attr.childByFieldName("name") orelse return null;
+        const name = try self.getNodeText(name_node);
+        if (std.mem.eql(u8, name, "allocator")) {
+            return name; // The variable name is "allocator"
+        }
+        return null;
+    }
 
     const name_node = actual_attr.childByFieldName("name") orelse return null;
     const name = try self.getNodeText(name_node);
@@ -732,7 +743,7 @@ pub fn transpileSelfClosing(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
 
         switch (NodeKind.fromNode(child)) {
             .zx_tag_name => tag_name = try self.getNodeText(child),
-            .zx_attribute, .zx_builtin_attribute, .zx_regular_attribute, .zx_shorthand_attribute => {
+            .zx_attribute, .zx_builtin_attribute, .zx_regular_attribute, .zx_shorthand_attribute, .zx_builtin_shorthand_attribute => {
                 const attr = try parseAttribute(self, child);
                 if (attr.name.len > 0) {
                     try attributes.append(ctx.output.allocator, attr);
@@ -1956,6 +1967,29 @@ pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {
                 .value = full_name,
                 .value_byte_offset = n.startByte(),
                 .is_builtin = false,
+                .is_shorthand = true,
+            };
+        }
+        return ZxAttribute{
+            .name = "",
+            .value = "\"\"",
+            .value_byte_offset = node.startByte(),
+            .is_builtin = false,
+        };
+    }
+
+    // Handle builtin shorthand attribute: @{identifier} -> @identifier=identifier
+    if (attr_kind == .zx_builtin_shorthand_attribute) {
+        const name_node = attr_node.childByFieldName("name");
+        if (name_node) |n| {
+            const var_name = try self.getNodeText(n);
+            // Prepend @ to create the builtin attribute name
+            const attr_name = try std.fmt.allocPrint(self.allocator, "@{s}", .{var_name});
+            return ZxAttribute{
+                .name = attr_name,
+                .value = var_name,
+                .value_byte_offset = n.startByte(),
+                .is_builtin = true,
                 .is_shorthand = true,
             };
         }

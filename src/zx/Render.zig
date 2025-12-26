@@ -2071,6 +2071,14 @@ fn renderAttributesFromNode(
                         try w.writeAll(self.source[c_start..c_end]);
                     }
                 },
+                .zx_builtin_shorthand_attribute => {
+                    // Builtin shorthand: @{name} renders as @{name} (preserving shorthand form)
+                    const c_start = attr_child.startByte();
+                    const c_end = attr_child.endByte();
+                    if (c_start < c_end and c_end <= self.source.len) {
+                        try w.writeAll(self.source[c_start..c_end]);
+                    }
+                },
                 else => {
                     // Fallback - render source
                     const c_start = child.startByte();

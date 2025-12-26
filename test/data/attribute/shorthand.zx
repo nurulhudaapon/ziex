@@ -4,7 +4,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     const class = "b-1 bold";
 
     return (
-        <form @allocator={allocator}>
+        <form @{allocator}>
             <input {@"data-name"} {class} />
             <input {value} />
         </form>
