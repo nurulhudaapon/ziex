@@ -202,7 +202,9 @@ pub fn initInner(
             switch (step.*) {
                 .command => {
                     var run = step.command.run;
-                    _ = run.captureStdErr();
+                    // TODO: Fails when used with remote package, was added to supress the output of TW Plugin
+                    // But it tries to check for that before the plugin is run, so it fails.
+                    // _ = run.captureStdErr();
                     run.setName(plugin.name);
 
                     for (run.argv.items) |*arg| {
