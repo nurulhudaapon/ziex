@@ -807,7 +807,11 @@ fn hasMeaningfulContent(self: *Ast, node: ts.Node) bool {
         const child_kind = NodeKind.fromNode(child);
         if (child_kind == .zx_text) {
             const text = self.getNodeText(child) catch continue;
-            if (std.mem.trim(u8, text, &std.ascii.whitespace).len > 0) {
+            const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
+
+            if (trimmed.len > 0) {
+                return true;
+            } else if (text.len == 1 and text[0] == ' ') {
                 return true;
             }
         } else {
