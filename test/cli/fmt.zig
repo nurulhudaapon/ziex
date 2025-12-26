@@ -129,7 +129,7 @@ test "while_for" {
     try test_fmt("control_flow/while_for");
 }
 test "while_switch" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("control_flow/while_switch");
 }
 test "while_capture" {
@@ -164,7 +164,7 @@ test "expression_component" {
     try test_fmt("expression/component");
 }
 test "expression_mixed" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("expression/mixed");
 }
 test "expression_optional" {

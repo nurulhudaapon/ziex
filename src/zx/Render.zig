@@ -748,7 +748,12 @@ fn renderText(
 
     const text = self.source[start_byte..end_byte];
     const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
-    if (trimmed.len == 0) return;
+
+    if (trimmed.len == 0) {
+        // Skip multiple spaces or newlines/tabs
+        if(text.len == 1 and text[0] == ' ') try w.writeAll(" ");
+        return;
+    }
 
     const has_leading_ws = text.len > 0 and std.ascii.isWhitespace(text[0]);
     const has_trailing_ws = text.len > 0 and std.ascii.isWhitespace(text[text.len - 1]);
@@ -778,9 +783,11 @@ fn hasMeaningfulContent(self: *Ast, node: ts.Node) bool {
         const child_kind = NodeKind.fromNode(child);
         if (child_kind == .zx_text) {
             const text = self.getNodeText(child) catch continue;
-            if (std.mem.trim(u8, text, &std.ascii.whitespace).len > 0) {
-                return true;
-            }
+            const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
+
+            if (trimmed.len > 0) { return true; }
+            else if (text.len == 1 and text[0] == ' ') { return true; }
+            
         } else {
             return true;
         }
