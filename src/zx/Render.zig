@@ -619,7 +619,10 @@ fn renderElement(
         const child_kind = NodeKind.fromNode(child);
         if (child_kind == .zx_child) {
             // Check if child has meaningful content
-            if (!hasMeaningfulContent(self, child)) continue;
+            // In inline mode, also consider spaces-only (no newlines) as meaningful
+            const is_meaningful = hasMeaningfulContent(self, child) or
+                (!is_vertical and hasInlineSpacesOnly(self, child));
+            if (!is_meaningful) continue;
 
             // Check if this child should be on a new line
             if (is_vertical) {
@@ -647,7 +650,7 @@ fn renderElement(
                 }
                 try ctx.writeIndent(w);
             }
-            try renderChild(self, child, w, ctx);
+            try renderChildInner(self, child, w, ctx, !is_vertical);
             last_content_end = child.endByte();
             rendered_any = true;
         } else {
@@ -752,7 +755,14 @@ fn renderText(
 
     const text = self.source[start_byte..end_byte];
     const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
-    if (trimmed.len == 0) return;
+
+    if (trimmed.len == 0) {
+        // If text is only spaces (no newlines/tabs), collapse to single space
+        // If it contains newlines or tabs, skip it (layout whitespace)
+        const has_newline_or_tab = std.mem.indexOfAny(u8, text, "\n\r\t") != null;
+        if (!has_newline_or_tab and text.len > 0) try w.writeAll(" ");
+        return;
+    }
 
     const has_leading_ws = text.len > 0 and std.ascii.isWhitespace(text[0]);
     const has_trailing_ws = text.len > 0 and std.ascii.isWhitespace(text[text.len - 1]);
@@ -797,7 +807,11 @@ fn hasMeaningfulContent(self: *Ast, node: ts.Node) bool {
         const child_kind = NodeKind.fromNode(child);
         if (child_kind == .zx_text) {
             const text = self.getNodeText(child) catch continue;
-            if (std.mem.trim(u8, text, &std.ascii.whitespace).len > 0) {
+            const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
+
+            if (trimmed.len > 0) {
+                return true;
+            } else if (text.len == 1 and text[0] == ' ') {
                 return true;
             }
         } else {
@@ -807,6 +821,17 @@ fn hasMeaningfulContent(self: *Ast, node: ts.Node) bool {
     return false;
 }
 
+/// Check if a text node contains only inline spaces (no newlines or tabs)
+fn hasInlineSpacesOnly(self: *Ast, node: ts.Node) bool {
+    const text = self.getNodeText(node) catch return false;
+    const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
+    if (trimmed.len > 0) return false; // Has content, not spaces-only
+
+    // Check if text contains newlines or tabs (vertical/layout spaces)
+    const has_newline_or_tab = std.mem.indexOfAny(u8, text, "\n\r\t") != null;
+    return !has_newline_or_tab and text.len > 0;
+}
+
 /// Render zx_child node
 fn renderChild(
     self: *Ast,
@@ -814,10 +839,24 @@ fn renderChild(
     w: *std.io.Writer,
     ctx: *FormatContext,
 ) !void {
+    try renderChildInner(self, node, w, ctx, false);
+}
+
+/// Render zx_child node with option to preserve inline spaces
+fn renderChildInner(
+    self: *Ast,
+    node: ts.Node,
+    w: *std.io.Writer,
+    ctx: *FormatContext,
+    preserve_inline_spaces: bool,
+) !void {
     const child_count = node.childCount();
     if (child_count == 0) return;
 
-    if (!hasMeaningfulContent(self, node)) return;
+    // Check if meaningful, with option to preserve inline spaces
+    const is_meaningful = hasMeaningfulContent(self, node) or
+        (preserve_inline_spaces and hasInlineSpacesOnly(self, node));
+    if (!is_meaningful) return;
 
     // Render children
     var i: u32 = 0;
