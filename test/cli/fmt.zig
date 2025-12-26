@@ -207,6 +207,12 @@ test "component_children_only" {
     // if (true) return error.Todo;
     try test_fmt("component/children_only");
 }
+test "component_contexted" {
+    try test_fmt("component/contexted");
+}
+test "component_contexted_props" {
+    try test_fmt("component/contexted_props");
+}
 test "component_csr_zig" {
     // if (true) return error.Todo;
     try test_fmt("component/csr_zig");

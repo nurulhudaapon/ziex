@@ -350,36 +350,61 @@ pub const Component = union(enum) {
             if (param_count != 1 and param_count != 2)
                 @compileError(std.fmt.comptimePrint("{s} must have 1 or 2 parameters found {d} parameters", .{ fn_name, param_count }));
 
-            // Validation of props type
             const FirstPropType = FuncInfo.@"fn".params[0].type.?;
+            const first_is_allocator = FirstPropType == std.mem.Allocator;
+            const first_is_ctx_ptr = @typeInfo(FirstPropType) == .pointer and
+                @hasField(@typeInfo(FirstPropType).pointer.child, "allocator") and
+                @hasField(@typeInfo(FirstPropType).pointer.child, "children");
 
-            if (FirstPropType != std.mem.Allocator)
-                @compileError("Component" ++ fn_name ++ " must have allocator as the first parameter");
+            if (!first_is_allocator and !first_is_ctx_ptr)
+                @compileError("Component " ++ fn_name ++ " must have allocator or *ComponentCtx as the first parameter");
 
-            // If two parameters are passed, the props type must be a struct
-            if (param_count == 2) {
+            // If two parameters are passed with allocator first, the props type must be a struct
+            if (first_is_allocator and param_count == 2) {
                 const SecondPropType = FuncInfo.@"fn".params[1].type.?;
-
                 if (@typeInfo(SecondPropType) != .@"struct")
-                    @compileError("Component" ++ fn_name ++ "must have a struct as the second parameter, found " ++ @typeName(SecondPropType));
+                    @compileError("Component" ++ fn_name ++ " must have a struct as the second parameter, found " ++ @typeName(SecondPropType));
             }
 
+            // Context-based components should only have 1 parameter
+            if (first_is_ctx_ptr and param_count != 1)
+                @compileError("Component " ++ fn_name ++ " with *ComponentCtx must have exactly 1 parameter");
+
             // Allocate props on heap to persist
-            const props_copy = if (param_count == 2) blk: {
+            const props_copy = if (first_is_allocator and param_count == 2) blk: {
                 const SecondPropType = FuncInfo.@"fn".params[1].type.?;
                 const coerced = coerceProps(SecondPropType, props);
                 const p = allocator.create(SecondPropType) catch @panic("OOM");
                 p.* = coerced;
                 break :blk p;
+            } else if (first_is_ctx_ptr) blk: {
+                // Contexted components
+                const CtxType = @typeInfo(FirstPropType).pointer.child;
+                const ctx = allocator.create(CtxType) catch @panic("OOM");
+                ctx.allocator = allocator;
+                // Children from props if present
+                ctx.children = if (@hasField(@TypeOf(props), "children")) props.children else null;
+                // fn Component(ctx: *ComponentCtx(Props)) zx.Component
+                if (@hasField(CtxType, "props")) {
+                    const PropsFieldType = @FieldType(CtxType, "props");
+                    if (PropsFieldType != void) {
+                        ctx.props = coerceProps(PropsFieldType, props);
+                    }
+                }
+                break :blk ctx;
             } else null;
 
             const Wrapper = struct {
                 fn call(propsPtr: ?*const anyopaque, alloc: Allocator) Component {
-                    // Check function signature and call appropriately
-                    if (param_count == 1) {
+                    if (first_is_ctx_ptr) {
+                        const CtxType = @typeInfo(FirstPropType).pointer.child;
+                        const ctx_ptr: *CtxType = @ptrCast(@alignCast(@constCast(propsPtr orelse @panic("ctx is null"))));
+                        return func(ctx_ptr);
+                    }
+                    if (first_is_allocator and param_count == 1) {
                         return func(alloc);
                     }
-                    if (param_count == 2) {
+                    if (first_is_allocator and param_count == 2) {
                         const SecondPropType = FuncInfo.@"fn".params[1].type.?;
                         const p = propsPtr orelse @panic("propsPtr is null for function with props");
                         const typed_p: *const SecondPropType = @ptrCast(@alignCast(p));
@@ -389,13 +414,18 @@ pub const Component = union(enum) {
                 }
 
                 fn deinit(propsPtr: ?*const anyopaque, alloc: Allocator) void {
-                    if (param_count == 2) {
+                    if (first_is_ctx_ptr) {
+                        const CtxType = @typeInfo(FirstPropType).pointer.child;
+                        const ctx_ptr: *CtxType = @ptrCast(@alignCast(@constCast(propsPtr orelse return)));
+                        alloc.destroy(ctx_ptr);
+                        return;
+                    }
+                    if (first_is_allocator and param_count == 2) {
                         const SecondPropType = FuncInfo.@"fn".params[1].type.?;
                         const p = propsPtr orelse @panic("propsPtr is null for function with props");
                         const typed_p: *const SecondPropType = @ptrCast(@alignCast(p));
                         alloc.destroy(typed_p);
                     }
-                    // If param_count == 1, propsPtr is null, so nothing to destroy
                 }
             };
 
@@ -917,10 +947,14 @@ const ZxContext = struct {
         const allocator = self.getAlloc();
         const FuncInfo = @typeInfo(@TypeOf(func));
         const param_count = FuncInfo.@"fn".params.len;
+        const FirstPropType = FuncInfo.@"fn".params[0].type.?;
+        const first_is_ctx_ptr = @typeInfo(FirstPropType) == .pointer and
+            @hasField(@typeInfo(FirstPropType).pointer.child, "allocator") and
+            @hasField(@typeInfo(FirstPropType).pointer.child, "children");
 
-        // If function has props parameter, coerce props to the expected type
-        if (param_count == 2) {
-            const PropsType = FuncInfo.@"fn".params[1].type.?;
+        // Context-based component or function with props parameter
+        if (first_is_ctx_ptr or param_count == 2) {
+            const PropsType = if (first_is_ctx_ptr) @TypeOf(props) else FuncInfo.@"fn".params[1].type.?;
             const coerced_props = coerceProps(PropsType, props);
             return .{ .component_fn = Component.ComponentFn.init(func, allocator, coerced_props) };
         } else {
@@ -960,8 +994,9 @@ pub fn allocInit(allocator: std.mem.Allocator) ZxContext {
     return .{ .allocator = allocator };
 }
 
-pub const info = @import("zx_info");
 const routing = @import("routing.zig");
+
+pub const info = @import("zx_info");
 pub const Client = @import("client/Client.zig");
 pub const App = @import("app.zig").App;
 
@@ -974,6 +1009,21 @@ pub const PageOptions = struct {
 
 pub const PageContext = routing.PageContext;
 pub const LayoutContext = routing.LayoutContext;
+pub fn ComponentCtx(comptime PropsType: type) type {
+    if (PropsType == void) {
+        return struct {
+            allocator: Allocator,
+            children: ?Component = null,
+        };
+    } else {
+        return struct {
+            props: PropsType,
+            allocator: Allocator,
+            children: ?Component = null,
+        };
+    }
+}
+pub const ComponentContext = ComponentCtx(void);
 pub const Attribute = struct {
     pub const Rendering = enum {
         /// Client-side React.js

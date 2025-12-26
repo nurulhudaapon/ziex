@@ -1,0 +1,46 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <Button title="Click me" />
+            <Alert message="This is an alert" level="warning" />
+            <Panel title="Panel Title">
+                <p>Panel content here</p>
+            </Panel>
+        </main>
+    );
+}
+
+/// Component using ComponentCtx with props (no children)
+const ButtonProps = struct { title: []const u8 };
+pub fn Button(ctx: *zx.ComponentCtx(ButtonProps)) zx.Component {
+    return (
+        <button @allocator={ctx.allocator} class="btn">
+            {ctx.props.title}
+        </button>
+    );
+}
+
+/// Component with multiple props
+const AlertProps = struct { message: []const u8, level: []const u8 };
+fn Alert(ctx: *zx.ComponentCtx(AlertProps)) zx.Component {
+    return (
+        <div @allocator={ctx.allocator} class="alert" data-level={ctx.props.level}>
+            {ctx.props.message}
+        </div>
+    );
+}
+
+/// Component with props AND children
+const PanelProps = struct { title: []const u8 };
+fn Panel(ctx: *zx.ComponentCtx(PanelProps)) zx.Component {
+    return (
+        <section @allocator={ctx.allocator} class="panel">
+            <h2>{ctx.props.title}</h2>
+            <div class="panel-content">
+                {ctx.children}
+            </div>
+        </section>
+    );
+}
+
+const zx = @import("zx");

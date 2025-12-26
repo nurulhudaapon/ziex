@@ -1,0 +1,32 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <Wrapper>
+                <p>Wrapped content</p>
+            </Wrapper>
+            <Card>
+                <span>Card content</span>
+            </Card>
+        </main>
+    );
+}
+
+/// Component using ComponentContext (void props, children only)
+pub fn Wrapper(ctx: *zx.ComponentContext) zx.Component {
+    return (
+        <div @allocator={ctx.allocator} class="wrapper">
+            {ctx.children}
+        </div>
+    );
+}
+
+/// Another component using ComponentContext
+fn Card(ctx: *zx.ComponentContext) zx.Component {
+    return (
+        <article @allocator={ctx.allocator} class="card">
+            {ctx.children}
+        </article>
+    );
+}
+
+const zx = @import("zx");
