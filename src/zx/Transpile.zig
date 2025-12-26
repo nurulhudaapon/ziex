@@ -587,7 +587,7 @@ pub fn getAllocatorAttribute(self: *Ast, node: ts.Node) !?[]const u8 {
         }
 
         // Self-closing elements (like <Button @allocator={allocator} />)
-        if (child_kind == .zx_attribute or child_kind == .zx_builtin_attribute) {
+        if (child_kind == .zx_attribute or child_kind == .zx_builtin_attribute or child_kind == .zx_shorthand_attribute) {
             if (try checkAllocatorAttr(self, child)) |value| return value;
         }
     }
@@ -596,9 +596,12 @@ pub fn getAllocatorAttribute(self: *Ast, node: ts.Node) !?[]const u8 {
 
 fn checkAllocatorAttr(self: *Ast, attr: ts.Node) !?[]const u8 {
     const attr_kind = NodeKind.fromNode(attr);
-    if (attr_kind != .zx_attribute and attr_kind != .zx_builtin_attribute) return null;
+    if (attr_kind != .zx_attribute and attr_kind != .zx_builtin_attribute and attr_kind != .zx_shorthand_attribute) return null;
 
     const actual_attr = if (attr_kind == .zx_attribute) attr.child(0) orelse return null else attr;
+
+    // Shorthand attributes can't be @allocator since they don't have @ prefix
+    if (NodeKind.fromNode(actual_attr) == .zx_shorthand_attribute) return null;
 
     const name_node = actual_attr.childByFieldName("name") orelse return null;
     const name = try self.getNodeText(name_node);
@@ -729,7 +732,7 @@ pub fn transpileSelfClosing(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
 
         switch (NodeKind.fromNode(child)) {
             .zx_tag_name => tag_name = try self.getNodeText(child),
-            .zx_attribute, .zx_builtin_attribute, .zx_regular_attribute => {
+            .zx_attribute, .zx_builtin_attribute, .zx_regular_attribute, .zx_shorthand_attribute => {
                 const attr = try parseAttribute(self, child);
                 if (attr.name.len > 0) {
                     try attributes.append(ctx.output.allocator, attr);
@@ -1771,6 +1774,8 @@ pub const ZxAttribute = struct {
     zx_block_node: ?ts.Node = null,
     /// Optional template string node for attribute values that are template strings
     template_string_node: ?ts.Node = null,
+    /// True if this is a shorthand attribute {name} -> name={name}
+    is_shorthand: bool = false,
 
     /// Check if any attributes in the list are regular (non-builtin)
     fn hasRegular(attrs: []const ZxAttribute) bool {
@@ -1926,7 +1931,7 @@ fn transpileTemplateStringAttr(self: *Ast, attr_name: []const u8, template_node:
 pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {
     const node_kind = NodeKind.fromNode(node);
 
-    // Handle nested attribute structure: zx_attribute contains zx_builtin_attribute or zx_regular_attribute
+    // Handle nested attribute structure: zx_attribute contains zx_builtin_attribute, zx_regular_attribute, or zx_shorthand_attribute
     const attr_node = switch (node_kind) {
         .zx_attribute => node.child(0) orelse return ZxAttribute{
             .name = "",
@@ -1936,6 +1941,31 @@ pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {
         },
         else => node,
     };
+
+    const attr_kind = NodeKind.fromNode(attr_node);
+
+    // Handle shorthand attribute: {identifier} -> name=identifier, value=identifier
+    if (attr_kind == .zx_shorthand_attribute) {
+        const name_node = attr_node.childByFieldName("name");
+        if (name_node) |n| {
+            const full_name = try self.getNodeText(n);
+            // Extract clean name for HTML attribute (strip @"..." wrapper if present)
+            const clean_name = extractCleanIdentifierName(full_name);
+            return ZxAttribute{
+                .name = clean_name,
+                .value = full_name,
+                .value_byte_offset = n.startByte(),
+                .is_builtin = false,
+                .is_shorthand = true,
+            };
+        }
+        return ZxAttribute{
+            .name = "",
+            .value = "\"\"",
+            .value_byte_offset = node.startByte(),
+            .is_builtin = false,
+        };
+    }
 
     // Use field names to get name and value directly
     const name_node = attr_node.childByFieldName("name");
@@ -1961,6 +1991,20 @@ pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {
         .zx_block_node = zx_block_node,
         .template_string_node = template_string_node,
     };
+}
+
+/// Extract clean identifier name for HTML attributes
+/// For quoted identifiers like @"data-name", returns "data-name"
+/// For regular identifiers like "class", returns "class"
+fn extractCleanIdentifierName(name: []const u8) []const u8 {
+    // Check if it's a quoted identifier: @"..."
+    if (name.len >= 3 and name[0] == '@' and name[1] == '"') {
+        // Strip @" prefix and " suffix
+        if (name[name.len - 1] == '"') {
+            return name[2 .. name.len - 1];
+        }
+    }
+    return name;
 }
 
 /// Find a zx_block node within an attribute value (for values like attr={<div>...</div>})

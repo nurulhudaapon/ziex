@@ -2598,6 +2598,10 @@
         {
           "type": "zx_regular_attribute",
           "named": true
+        },
+        {
+          "type": "zx_shorthand_attribute",
+          "named": true
         }
       ]
     }
@@ -2851,6 +2855,22 @@
           "named": true
         }
       ]
+    }
+  },
+  {
+    "type": "zx_shorthand_attribute",
+    "named": true,
+    "fields": {
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      }
     }
   },
   {

@@ -1,0 +1,14 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const @"data-name" = "hello";
+    const value: i32 = 42;
+    const class = "b-1 bold";
+
+    return (
+        <form @allocator={allocator}>
+            <input {@"data-name"} {class} />
+            <input {value} />
+        </form>
+    );
+}
+
+const zx = @import("zx");

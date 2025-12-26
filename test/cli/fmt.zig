@@ -247,6 +247,9 @@ test "attribute_types" {
     // if (true) return error.Todo;
     try test_fmt("attribute/types");
 }
+test "attribute_shorthand" {
+    try test_fmt("attribute/shorthand");
+}
 
 // === Element ===
 test "element_void" {

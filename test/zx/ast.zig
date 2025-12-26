@@ -229,6 +229,10 @@ test "attribute_types" {
     try test_transpile("attribute/types");
     try test_render("attribute/types", @import("./../data/attribute/types.zig").Page);
 }
+test "attribute_shorthand" {
+    try test_transpile("attribute/shorthand");
+    try test_render("attribute/shorthand", @import("./../data/attribute/shorthand.zig").Page);
+}
 
 // === Element ===
 test "element_void" {
@@ -532,6 +536,7 @@ fn getPageFn(comptime path: []const u8) ?fn (std.mem.Allocator) zx.Component {
         .{ "attribute/builtin_escaping", @import("./../data/attribute/builtin_escaping.zig") },
         .{ "attribute/dynamic", @import("./../data/attribute/dynamic.zig") },
         .{ "attribute/types", @import("./../data/attribute/types.zig") },
+        .{ "attribute/shorthand", @import("./../data/attribute/shorthand.zig") },
         .{ "element/void", @import("./../data/element/void.zig") },
         .{ "element/empty", @import("./../data/element/empty.zig") },
         .{ "element/nested", @import("./../data/element/nested.zig") },
