@@ -8,6 +8,7 @@ const NodeKind = Parse.NodeKind;
 pub const FormatContext = struct {
     indent_level: u32 = 0,
     in_block: bool = false,
+    suppress_leading_space: bool = false,
 
     fn writeIndent(self: *FormatContext, w: *std.io.Writer) !void {
         for (0..self.indent_level * 4) |_| try w.writeAll(" ");
@@ -294,7 +295,7 @@ pub fn renderNodeWithContext(
             try renderEndTag(self, node, w);
         },
         .zx_text => {
-            try renderText(self, node, w);
+            try renderText(self, node, w, ctx);
         },
         .zx_child => {
             try renderChild(self, node, w, ctx);
@@ -618,39 +619,27 @@ fn renderElement(
     for (content_nodes.items) |child| {
         const child_kind = NodeKind.fromNode(child);
         if (child_kind == .zx_child) {
+            // Calculate newline count between last content and this child
+            const newline_count = countNewlines(self.source, last_content_end, child.startByte());
+
             // Check if child has meaningful content
-            // In inline mode, also consider spaces-only (no newlines) as meaningful
+            // In inline mode (or if on same line in vertical mode), also consider spaces-only as meaningful
             const is_meaningful = hasMeaningfulContent(self, child) or
-                (!is_vertical and hasInlineSpacesOnly(self, child));
+                ((!is_vertical or newline_count == 0) and hasInlineSpacesOnly(self, child));
             if (!is_meaningful) continue;
 
             // Check if this child should be on a new line
-            if (is_vertical) {
-                // Check for blank lines between last content and this child
-                const child_start = child.startByte();
-                const has_blank_line = blk: {
-                    if (last_content_end < child_start and child_start <= self.source.len) {
-                        const between = self.source[last_content_end..child_start];
-                        // Count newlines - if more than 1, there's a blank line
-                        var newline_count: usize = 0;
-                        for (between) |c| {
-                            if (c == '\n') {
-                                newline_count += 1;
-                                if (newline_count > 1) break :blk true;
-                            }
-                        }
-                    }
-                    break :blk false;
-                };
-
+            if (is_vertical and (!rendered_any or newline_count > 0)) {
                 try w.writeAll("\n");
                 // Add one extra newline if there was a blank line in source
-                if (has_blank_line and rendered_any) {
+                if (newline_count > 1 and rendered_any) {
                     try w.writeAll("\n");
                 }
                 try ctx.writeIndent(w);
+                ctx.suppress_leading_space = true;
             }
-            try renderChildInner(self, child, w, ctx, !is_vertical);
+            try renderChildInner(self, child, w, ctx, !is_vertical or newline_count == 0);
+            ctx.suppress_leading_space = false; // Reset just in case
             last_content_end = child.endByte();
             rendered_any = true;
         } else {
@@ -664,6 +653,7 @@ fn renderElement(
         ctx.indent_level -= 1;
         try w.writeAll("\n");
         try ctx.writeIndent(w);
+        ctx.suppress_leading_space = true; // End tag starts on new line
     } else if (is_vertical) {
         ctx.indent_level -= 1;
     }
@@ -748,6 +738,7 @@ fn renderText(
     self: *Ast,
     node: ts.Node,
     w: *std.io.Writer,
+    ctx: *FormatContext,
 ) !void {
     const start_byte = node.startByte();
     const end_byte = node.endByte();
@@ -760,21 +751,59 @@ fn renderText(
         // If text is only spaces (no newlines/tabs), collapse to single space
         // If it contains newlines or tabs, skip it (layout whitespace)
         const has_newline_or_tab = std.mem.indexOfAny(u8, text, "\n\r\t") != null;
-        if (!has_newline_or_tab and text.len > 0) try w.writeAll(" ");
+        if (!has_newline_or_tab and text.len > 0 and !ctx.suppress_leading_space) try w.writeAll(" ");
+        ctx.suppress_leading_space = false;
         return;
     }
 
-    const has_leading_ws = text.len > 0 and std.ascii.isWhitespace(text[0]);
-    const has_trailing_ws = text.len > 0 and std.ascii.isWhitespace(text[text.len - 1]);
+    // Calculate leading whitespace length using pointer arithmetic
+    const leading_ws_len = @intFromPtr(trimmed.ptr) - @intFromPtr(text.ptr);
+    const leading_ws = text[0..leading_ws_len];
+    const has_leading_ws = leading_ws_len > 0;
 
-    // Write leading space if there was leading whitespace
+    // Determine if we should print a space
+    var should_print_space = false;
     if (has_leading_ws) {
+        if (ctx.suppress_leading_space) {
+            // If we are at the start of a line, check if the whitespace is just indentation
+            // or if it contains explicit spaces beyond the expected indentation.
+
+            // Find the last newline in leading whitespace
+            const last_nl = std.mem.lastIndexOfScalar(u8, leading_ws, '\n');
+
+            var spaces_after_nl: usize = 0;
+            if (last_nl) |nl_idx| {
+                spaces_after_nl = leading_ws.len - nl_idx - 1;
+            } else {
+                spaces_after_nl = leading_ws.len;
+            }
+
+            const expected_indent = ctx.indent_level * 4;
+
+            // If we have more spaces than expected indentation, preserve one space
+            if (spaces_after_nl > expected_indent) {
+                should_print_space = true;
+            }
+        } else {
+            // Normal case: collapse whitespace to a single space
+            should_print_space = true;
+        }
+    }
+
+    // If we have leading whitespace but decided NOT to print a space because of suppression/newlines,
+    // we should check if the trimmed content itself starts with something that might need separation
+    // if it was inline. But here we are handling text node boundaries.
+
+    // Write leading space if needed
+    if (should_print_space) {
         try w.writeAll(" ");
     }
+    ctx.suppress_leading_space = false;
 
     // Write the trimmed content (no internal whitespace normalization for now)
     try w.writeAll(trimmed);
 
+    const has_trailing_ws = text.len > 0 and std.ascii.isWhitespace(text[text.len - 1]);
     // Write trailing space if there was trailing whitespace
     if (has_trailing_ws) {
         try w.writeAll(" ");
@@ -794,6 +823,19 @@ fn renderTemplateString(
 
     // Write the template string exactly as it appears in source
     try w.writeAll(self.source[start_byte..end_byte]);
+}
+
+fn countNewlines(source: []const u8, start: usize, end: usize) usize {
+    if (start >= end or end > source.len) return 0;
+    const text = source[start..end];
+    var count: usize = 0;
+    for (text) |c| {
+        if (c == '\n') {
+            count += 1;
+            if (count > 1) return count;
+        }
+    }
+    return count;
 }
 
 /// Check if a child node has meaningful (non-whitespace) content
