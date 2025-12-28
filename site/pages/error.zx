@@ -1,0 +1,12 @@
+pub fn Error(ctx: zx.ErrorContext) zx.Component {
+    return (
+        <div @allocator={ctx.arena}>
+            <h1>500 - Internal Server Error</h1>
+            <p>An internal server error occurred.</p>
+            <p>{@errorName(ctx.err)}</p>
+            <a href="/">Go back to the home page</a>
+        </div>
+    );
+}
+
+const zx = @import("zx");

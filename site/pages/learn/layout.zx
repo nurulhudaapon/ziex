@@ -1,0 +1,94 @@
+pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+    const allocator = ctx.arena;
+
+    return (
+        <Sidebar @{allocator} categories={&categories} toc={&toc_links}>
+            {children}
+        </Sidebar>
+    );
+}
+
+const categories = [_]SidebarProps.Category{
+    .{
+        .title = "GET STARTED",
+        .sections = &[_]SidebarProps.Section{
+            .{ .title = "Quick Start", .href = "/learn" },
+            .{
+                .title = "Installation",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/learn#installation", .text = "Install ZX CLI" },
+                    .{ .href = "/learn#create-project", .text = "Create a Project" },
+                },
+            },
+            .{
+                .title = "Editor Setup",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/learn#vscode", .text = "VS Code / Cursor" },
+                    .{ .href = "/learn#neovim", .text = "Neovim" },
+                    .{ .href = "/learn#zed", .text = "Zed" },
+                },
+            },
+        },
+    },
+    .{
+        .title = "LEARN ZX",
+        .sections = &[_]SidebarProps.Section{
+            .{
+                .title = "Describing the UI",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/learn#creating-components", .text = "Creating Components" },
+                    .{ .href = "/learn#writing-markup", .text = "Writing Markup" },
+                    .{ .href = "/learn#fragments", .text = "Fragments" },
+                    .{ .href = "/learn#displaying-data", .text = "Displaying Data" },
+                    .{ .href = "/learn#dynamic-attributes", .text = "Dynamic Attributes" },
+                    .{ .href = "/learn#passing-props", .text = "Passing Props" },
+                    .{ .href = "/learn#children", .text = "Children Props" },
+                },
+            },
+            .{
+                .title = "Control Flow",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/learn#conditional-rendering", .text = "Conditional Rendering" },
+                    .{ .href = "/learn#rendering-lists", .text = "Rendering Lists" },
+                },
+            },
+            .{
+                .title = "Routing",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/learn#pages-layouts", .text = "Pages and Layouts" },
+                },
+            },
+            .{
+                .title = "Plugins",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/learn#plugins", .text = "Using Plugins" },
+                },
+            },
+        },
+    },
+};
+
+const toc_links = [_]SidebarProps.Link{
+    .{ .href = "/learn#installation", .text = "Installation" },
+    .{ .href = "/learn#create-project", .text = "Create a Project" },
+    .{ .href = "/learn#vscode", .text = "VS Code / Cursor" },
+    .{ .href = "/learn#neovim", .text = "Neovim" },
+    .{ .href = "/learn#zed", .text = "Zed" },
+    .{ .href = "/learn#creating-components", .text = "Creating Components" },
+    .{ .href = "/learn#writing-markup", .text = "Writing Markup" },
+    .{ .href = "/learn#fragments", .text = "Fragments" },
+    .{ .href = "/learn#displaying-data", .text = "Displaying Data" },
+    .{ .href = "/learn#dynamic-attributes", .text = "Dynamic Attributes" },
+    .{ .href = "/learn#conditional-rendering", .text = "Conditional Rendering" },
+    .{ .href = "/learn#rendering-lists", .text = "Rendering Lists" },
+    .{ .href = "/learn#passing-props", .text = "Passing Props" },
+    .{ .href = "/learn#children", .text = "Children Props" },
+    .{ .href = "/learn#pages-layouts", .text = "Pages and Layouts" },
+    .{ .href = "/learn#plugins", .text = "Using Plugins" },
+    .{ .href = "/learn#next-steps", .text = "Next Steps" },
+};
+
+const Sidebar = @import("../components/sidebar.zx").Sidebar;
+const SidebarProps = @import("../components/sidebar.zx").SidebarProps;
+
+const zx = @import("zx");

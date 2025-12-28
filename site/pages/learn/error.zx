@@ -1,0 +1,10 @@
+pub fn Error(ctx: zx.ErrorContext) zx.Component {
+    return (
+        <div @allocator={ctx.arena}>
+            <h1>Error Rendering Learning Page</h1>
+            <p>{@errorName(ctx.err)}</p>
+        </div>
+    );
+}
+
+const zx = @import("zx");

@@ -111,18 +111,18 @@ const categories = [_]SidebarProps.Category{
 };
 
 const toc_links = [_]SidebarProps.Link{
-    .{ .href = "#overview", .text = "Overview" },
-    .{ .href = "#expressions", .text = "Expressions" },
-    .{ .href = "#control-flow", .text = "Control Flow" },
-    .{ .href = "#components", .text = "Components" },
-    .{ .href = "#routing", .text = "Routing" },
-    .{ .href = "#builtin-attributes", .text = "Builtin Attributes" },
-    .{ .href = "#importing", .text = "Importing" },
-    .{ .href = "#dynamic-routes", .text = "Dynamic Routes" },
-    .{ .href = "#fragments", .text = "Fragments" },
-    .{ .href = "#children-props", .text = "Children Props" },
-    .{ .href = "#plugins", .text = "Plugins" },
-    .{ .href = "#cli", .text = "CLI" },
+    .{ .href = "/docs#overview", .text = "Overview" },
+    .{ .href = "/docs#expressions", .text = "Expressions" },
+    .{ .href = "/docs#control-flow", .text = "Control Flow" },
+    .{ .href = "/docs#components", .text = "Components" },
+    .{ .href = "/docs#routing", .text = "Routing" },
+    .{ .href = "/docs#builtin-attributes", .text = "Builtin Attributes" },
+    .{ .href = "/docs#importing", .text = "Importing" },
+    .{ .href = "/docs#dynamic-routes", .text = "Dynamic Routes" },
+    .{ .href = "/docs#fragments", .text = "Fragments" },
+    .{ .href = "/docs#children-props", .text = "Children Props" },
+    .{ .href = "/docs#plugins", .text = "Plugins" },
+    .{ .href = "/docs#cli", .text = "CLI" },
 };
 
 const Sidebar = @import("../components/sidebar.zx").Sidebar;

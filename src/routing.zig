@@ -69,3 +69,25 @@ pub const PageContext = BaseContext;
 /// }
 /// ```
 pub const LayoutContext = BaseContext;
+pub const NotFoundContext = BaseContext;
+pub const ErrorContext = struct {
+    request: *httpz.Request,
+    response: *httpz.Response,
+    allocator: std.mem.Allocator,
+    arena: std.mem.Allocator,
+    err: anyerror,
+
+    pub fn init(request: *httpz.Request, response: *httpz.Response, allocator: std.mem.Allocator, err: anyerror) ErrorContext {
+        return .{
+            .request = request,
+            .response = response,
+            .allocator = allocator,
+            .arena = request.arena,
+            .err = err,
+        };
+    }
+
+    pub fn deinit(self: *ErrorContext) void {
+        self.allocator.destroy(self);
+    }
+};

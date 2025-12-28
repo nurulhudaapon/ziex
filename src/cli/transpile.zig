@@ -636,11 +636,19 @@ const Route = struct {
     path: []const u8,
     page_import: []const u8,
     layout_import: ?[]const u8,
+    notfound_import: ?[]const u8,
+    error_import: ?[]const u8,
 
     fn deinit(self: *Route, allocator: std.mem.Allocator) void {
         allocator.free(self.path);
         allocator.free(self.page_import);
         if (self.layout_import) |import| {
+            allocator.free(import);
+        }
+        if (self.notfound_import) |import| {
+            allocator.free(import);
+        }
+        if (self.error_import) |import| {
             allocator.free(import);
         }
     }
@@ -696,7 +704,11 @@ fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, verbose: bool
     try writer.writeAll("    .routes = &routes,\n");
     try writer.print("    .rootdir = \"{s}\",\n", .{escaped_path});
     try writer.writeAll("};\n\n");
-    try writer.writeAll("const zx = @import(\"zx\");\n");
+    try writer.writeAll("const zx = @import(\"zx\");\n\n");
+    // Helper function for getting options from a module with inferred return type
+    try writer.writeAll("fn getOptions(comptime T: type, comptime R: type) ?R {\n");
+    try writer.writeAll("    return if (@hasDecl(T, \"options\")) T.options else null;\n");
+    try writer.writeAll("}\n");
 
     const meta_path = try std.fs.path.join(allocator, &.{ output_dir, "meta.zig" });
     defer allocator.free(meta_path);
@@ -747,6 +759,32 @@ fn writeRoute(writer: anytype, route: Route) !void {
         try writer.print("{s}    .layout = @import(\"{s}\").Layout,\n", .{ indent, layout });
     }
 
+    if (route.notfound_import) |notfound| {
+        try writer.print("{s}    .notfound = @import(\"{s}\").NotFound,\n", .{ indent, notfound });
+    }
+
+    if (route.error_import) |err_import| {
+        try writer.print("{s}    .@\"error\" = @import(\"{s}\").Error,\n", .{ indent, err_import });
+    }
+
+    // Page options
+    try writer.print("{s}    .page_opts = getOptions(@import(\"{s}\"), zx.PageOptions),\n", .{ indent, route.page_import });
+
+    // Layout options (only if layout exists)
+    if (route.layout_import) |layout| {
+        try writer.print("{s}    .layout_opts = getOptions(@import(\"{s}\"), zx.LayoutOptions),\n", .{ indent, layout });
+    }
+
+    // Notfound options (only if notfound exists)
+    if (route.notfound_import) |notfound| {
+        try writer.print("{s}    .notfound_opts = getOptions(@import(\"{s}\"), zx.NotFoundOptions),\n", .{ indent, notfound });
+    }
+
+    // Error options (only if error exists)
+    if (route.error_import) |err_import| {
+        try writer.print("{s}    .error_opts = getOptions(@import(\"{s}\"), zx.ErrorOptions),\n", .{ indent, err_import });
+    }
+
     try writer.print("{s}}},\n", .{indent});
 }
 
@@ -790,6 +828,12 @@ fn scanRecursive(
     const layout_path = try std.fs.path.join(allocator, &.{ current_dir, "layout.zig" });
     defer allocator.free(layout_path);
 
+    const notfound_path = try std.fs.path.join(allocator, &.{ current_dir, "notfound.zig" });
+    defer allocator.free(notfound_path);
+
+    const error_path = try std.fs.path.join(allocator, &.{ current_dir, "error.zig" });
+    defer allocator.free(error_path);
+
     const has_page = blk: {
         std.fs.cwd().access(page_path, .{}) catch break :blk false;
         break :blk true;
@@ -797,6 +841,16 @@ fn scanRecursive(
 
     const has_layout = blk: {
         std.fs.cwd().access(layout_path, .{}) catch break :blk false;
+        break :blk true;
+    };
+
+    const has_notfound = blk: {
+        std.fs.cwd().access(notfound_path, .{}) catch break :blk false;
+        break :blk true;
+    };
+
+    const has_error = blk: {
+        std.fs.cwd().access(error_path, .{}) catch break :blk false;
         break :blk true;
     };
 
@@ -812,6 +866,18 @@ fn scanRecursive(
         // Only set layout if the current directory has a layout file
         const layout_import = if (has_layout)
             try std.mem.concat(allocator, u8, &.{ import_prefix, "/layout.zig" })
+        else
+            null;
+
+        // Only set notfound if the current directory has a notfound file
+        const notfound_import = if (has_notfound)
+            try std.mem.concat(allocator, u8, &.{ import_prefix, "/notfound.zig" })
+        else
+            null;
+
+        // Only set error if the current directory has an error file
+        const error_import = if (has_error)
+            try std.mem.concat(allocator, u8, &.{ import_prefix, "/error.zig" })
         else
             null;
 
@@ -836,6 +902,8 @@ fn scanRecursive(
             .path = try normalized_route_path.toOwnedSlice(),
             .page_import = page_import,
             .layout_import = layout_import,
+            .notfound_import = notfound_import,
+            .error_import = error_import,
         };
         try routes.append(route);
     }

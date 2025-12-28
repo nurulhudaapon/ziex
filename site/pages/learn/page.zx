@@ -111,88 +111,9 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     html_page_dynattr.render(&aw_dynattr.writer) catch unreachable;
     const html_dynattr = allocator.dupe(u8, aw_dynattr.written()) catch unreachable;
 
-    const categories = [_]SidebarProps.Category{
-        .{
-            .title = "GET STARTED",
-            .sections = &[_]SidebarProps.Section{
-                .{ .title = "Quick Start", .href = "/learn" },
-                .{
-                    .title = "Installation",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#installation", .text = "Install ZX CLI" },
-                        .{ .href = "#create-project", .text = "Create a Project" },
-                    },
-                },
-                .{
-                    .title = "Editor Setup",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#vscode", .text = "VS Code / Cursor" },
-                        .{ .href = "#neovim", .text = "Neovim" },
-                        .{ .href = "#zed", .text = "Zed" },
-                    },
-                },
-            },
-        },
-        .{
-            .title = "LEARN ZX",
-            .sections = &[_]SidebarProps.Section{
-                .{
-                    .title = "Describing the UI",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#creating-components", .text = "Creating Components" },
-                        .{ .href = "#writing-markup", .text = "Writing Markup" },
-                        .{ .href = "#fragments", .text = "Fragments" },
-                        .{ .href = "#displaying-data", .text = "Displaying Data" },
-                        .{ .href = "#dynamic-attributes", .text = "Dynamic Attributes" },
-                        .{ .href = "#passing-props", .text = "Passing Props" },
-                        .{ .href = "#children", .text = "Children Props" },
-                    },
-                },
-                .{
-                    .title = "Control Flow",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#conditional-rendering", .text = "Conditional Rendering" },
-                        .{ .href = "#rendering-lists", .text = "Rendering Lists" },
-                    },
-                },
-                .{
-                    .title = "Routing",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#pages-layouts", .text = "Pages and Layouts" },
-                    },
-                },
-                .{
-                    .title = "Plugins",
-                    .items = &[_]SidebarProps.Link{
-                        .{ .href = "#plugins", .text = "Using Plugins" },
-                    },
-                },
-            },
-        },
-    };
-
-    const toc_links = [_]SidebarProps.Link{
-        .{ .href = "#installation", .text = "Installation" },
-        .{ .href = "#create-project", .text = "Create a Project" },
-        .{ .href = "#vscode", .text = "VS Code / Cursor" },
-        .{ .href = "#neovim", .text = "Neovim" },
-        .{ .href = "#zed", .text = "Zed" },
-        .{ .href = "#creating-components", .text = "Creating Components" },
-        .{ .href = "#writing-markup", .text = "Writing Markup" },
-        .{ .href = "#fragments", .text = "Fragments" },
-        .{ .href = "#displaying-data", .text = "Displaying Data" },
-        .{ .href = "#dynamic-attributes", .text = "Dynamic Attributes" },
-        .{ .href = "#conditional-rendering", .text = "Conditional Rendering" },
-        .{ .href = "#rendering-lists", .text = "Rendering Lists" },
-        .{ .href = "#passing-props", .text = "Passing Props" },
-        .{ .href = "#children", .text = "Children Props" },
-        .{ .href = "#pages-layouts", .text = "Pages and Layouts" },
-        .{ .href = "#plugins", .text = "Using Plugins" },
-        .{ .href = "#next-steps", .text = "Next Steps" },
-    };
 
     return (
-        <Sidebar @allocator={allocator} categories={&categories} toc={&toc_links}>
+        <fragment @{allocator}>
             <LearnHeader />
             <YouWillLearn />
             <Installation />
@@ -210,7 +131,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <PagesAndLayouts zx_page={zx_page} zig_page={zig_page} html_page={html_page} zx_layout={zx_layout} zx_dynamic={zx_dynamic} zig_dynamic={zig_dynamic} html_dynamic={html_dynamic} />
             <Plugins />
             <NextSteps />
-        </Sidebar>
+        </fragment>
     );
 }
 

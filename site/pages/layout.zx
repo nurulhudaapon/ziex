@@ -9,8 +9,7 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
                 <link rel="preconnect" href="https://fonts.googleapis.com" />
                 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
-                <link rel="stylesheet" href={getCssPath(ctx)} />
-                // <link rel="stylesheet" href="/assets/styles.css" />
+                <link rel="stylesheet" href=`{getCssPath(ctx)}?v={zx.info.version_string}` />
             </head>
             <body>
                 {children}
@@ -21,12 +20,10 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
 
 fn getCssPath(ctx: zx.LayoutContext) []const u8 {
     const path = ctx.request.url.path;
-    const css_path = if (std.mem.eql(u8, path, "/"))
+    return if (std.mem.eql(u8, path, "/"))
         "/assets/home.css"
     else
         "/assets/docs.css";
-    const css_versioned_path = std.fmt.allocPrint(ctx.arena, "{s}?v={s}", .{ css_path, zx.info.version_string }) catch unreachable;
-    return css_versioned_path;
 }
 
 const zx = @import("zx");

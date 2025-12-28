@@ -1160,14 +1160,38 @@ pub const App = @import("app.zig").App;
 pub const Allocator = std.mem.Allocator;
 
 const PageOptionsStatic = struct {};
+pub const PageMethod = enum {
+    GET,
+    POST,
+    PUT,
+    DELETE,
+    PATCH,
+    OPTIONS,
+    HEAD,
+    CONNECT,
+    TRACE,
+    ALL,
+};
 pub const PageOptions = struct {
     rendering: ?BuiltinAttribute.Rendering = null,
     caching: BuiltinAttribute.Caching = .none,
+    methods: []const PageMethod = &.{.GET},
     static: ?PageOptionsStatic = null,
 };
 
+pub const LayoutOptions = struct {
+    rendering: ?BuiltinAttribute.Rendering = null,
+    caching: BuiltinAttribute.Caching = .none,
+};
+pub const NotFoundOptions = struct {
+    rendering: ?BuiltinAttribute.Rendering = null,
+    caching: BuiltinAttribute.Caching = .none,
+};
+pub const ErrorOptions = struct {};
 pub const PageContext = routing.PageContext;
 pub const LayoutContext = routing.LayoutContext;
+pub const NotFoundContext = routing.NotFoundContext;
+pub const ErrorContext = routing.ErrorContext;
 
 /// Compute the merged type of two structs for props spreading
 /// All fields from both structs are included in the result
@@ -1270,6 +1294,8 @@ pub const BuiltinAttribute = struct {
         client,
         /// Server-side rendering (default)
         server,
+        /// Static rendering (pre-render the component/page/layout as static HTML and store in cache/cdn)
+        static,
 
         pub fn from(value: []const u8) Rendering {
             const v = if (std.mem.startsWith(u8, value, ".")) value[1..value.len] else value;

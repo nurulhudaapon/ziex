@@ -10,7 +10,12 @@ pub const App = struct {
             path: []const u8,
             page: *const fn (ctx: zx.PageContext) Component,
             layout: ?*const fn (ctx: zx.LayoutContext, component: Component) Component = null,
-            options: ?zx.PageOptions = null,
+            notfound: ?*const fn (ctx: zx.NotFoundContext) Component = null,
+            @"error": ?*const fn (ctx: zx.ErrorContext) Component = null,
+            page_opts: ?zx.PageOptions = null,
+            layout_opts: ?zx.LayoutOptions = null,
+            notfound_opts: ?zx.NotFoundOptions = null,
+            error_opts: ?zx.ErrorOptions = null,
         };
         pub const CliCommand = enum { dev, serve, @"export" };
 
@@ -51,8 +56,15 @@ pub const App = struct {
         router.get("/*", Handler.public, .{});
 
         // Routes
-        for (config.meta.routes) |*route|
-            router.all(route.path, Handler.page, .{ .data = route });
+        for (config.meta.routes) |*route| {
+            if (route.page_opts) |pg_opts| {
+                for (pg_opts.methods) |method| {
+                    router.method(@tagName(method), route.path, Handler.page, .{ .data = route });
+                }
+            } else {
+                router.get(route.path, Handler.page, .{ .data = route });
+            }
+        }
 
         // Introspect the app, this will exit the program in some cases like --introspect flag
         try app.introspect();

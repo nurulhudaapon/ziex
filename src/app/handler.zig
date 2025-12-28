@@ -188,7 +188,7 @@ const PageCache = struct {
     fn getTtl(req: *httpz.Request) ?u32 {
         if (req.route_data) |rd| {
             const route: *const App.Meta.Route = @ptrCast(@alignCast(rd));
-            if (route.options) |options| {
+            if (route.page_opts) |options| {
                 return options.caching.getSeconds();
             }
         }
@@ -256,6 +256,284 @@ pub const Handler = struct {
                 c.reset,
             });
         }
+    }
+
+    pub fn notFound(self: *Handler, req: *httpz.Request, res: *httpz.Response) !void {
+        std.log.info("404 {} {s}", .{ req.method, req.url.path });
+        const path = req.url.path;
+
+        res.status = 404;
+        res.content_type = .HTML;
+
+        const notfoundctx = zx.NotFoundContext.init(req, res, self.allocator);
+
+        // First try to get notfound from route_data if available
+        var notfound_fn: ?*const fn (zx.NotFoundContext) Component = null;
+        if (req.route_data) |rd| {
+            const route: *const App.Meta.Route = @ptrCast(@alignCast(rd));
+            notfound_fn = route.notfound;
+        }
+
+        // If no notfound from route_data, find the closest route with notfound handler
+        if (notfound_fn == null) {
+            if (self.findRoute(path, .{ .match = .closest, .has_notfound = true })) |route| {
+                notfound_fn = route.notfound;
+            }
+        }
+
+        // If still no notfound handler found, return plain error
+        const nf_fn = notfound_fn orelse {
+            res.body = "404 Not Found";
+            return;
+        };
+
+        // Render the notfound component wrapped in layouts
+        const notfound_cmp = nf_fn(notfoundctx);
+        self.renderErrorPage(req, res, notfound_cmp, .{
+            .fallback_message = "Internal Server Error, notfound page rendering failed",
+        });
+    }
+
+    pub fn uncaughtError(self: *Handler, req: *httpz.Request, res: *httpz.Response, err: anyerror) void {
+        std.log.info("500 {} {s} {}", .{ req.method, req.url.path, err });
+        const path = req.url.path;
+
+        res.status = 500;
+        res.content_type = .HTML;
+
+        const errorctx = zx.ErrorContext.init(req, res, self.allocator, err);
+
+        // Find the closest route with error handler
+        var error_fn: ?*const fn (zx.ErrorContext) Component = null;
+        if (self.findRoute(path, .{ .match = .closest, .has_error = true })) |route| {
+            error_fn = route.@"error";
+        }
+
+        // If no error handler found, return plain error
+        const err_fn = error_fn orelse {
+            res.body = "500 Internal Server Error";
+            return;
+        };
+
+        // Render the error component wrapped in layouts
+        const error_cmp = err_fn(errorctx);
+        self.renderErrorPage(req, res, error_cmp, .{
+            .fallback_message = "Internal Server Error, error page rendering failed",
+        });
+    }
+
+    const RenderErrorPageOptions = struct {
+        fallback_message: []const u8 = "Internal Server Error",
+    };
+
+    /// Shared method to render error/notfound pages wrapped in parent layouts
+    fn renderErrorPage(
+        self: *Handler,
+        req: *httpz.Request,
+        res: *httpz.Response,
+        page_component: Component,
+        opts: RenderErrorPageOptions,
+    ) void {
+        const path = req.url.path;
+        const layoutctx = zx.LayoutContext.init(req, res, self.allocator);
+        const is_dev_mode = self.meta.cli_command == .dev;
+
+        var component = page_component;
+
+        // Collect all parent layouts from root to deepest
+        var layouts_to_apply: [10]*const fn (ctx: zx.LayoutContext, component: Component) Component = undefined;
+        var layouts_count: usize = 0;
+
+        // Build list of paths from deepest to shallowest
+        var paths_to_check: [32][]const u8 = undefined;
+        var path_count: usize = 0;
+
+        // First, include the current path itself (if it's not just "/")
+        if (path.len > 1) {
+            paths_to_check[path_count] = path;
+            path_count += 1;
+        }
+
+        // Build parent paths by removing trailing segments (deepest to shallowest)
+        var current_path = path;
+        while (current_path.len > 1) {
+            if (std.mem.lastIndexOfScalar(u8, current_path[0 .. current_path.len - 1], '/')) |last_slash| {
+                if (last_slash == 0) {
+                    paths_to_check[path_count] = "/";
+                    path_count += 1;
+                    break;
+                } else {
+                    current_path = current_path[0..last_slash];
+                    paths_to_check[path_count] = current_path;
+                    path_count += 1;
+                }
+            } else {
+                break;
+            }
+        }
+
+        // Ensure root "/" is included if not already
+        if (path_count == 0 or !std.mem.eql(u8, paths_to_check[path_count - 1], "/")) {
+            paths_to_check[path_count] = "/";
+            path_count += 1;
+        }
+
+        // Collect layouts from shallowest (root) to deepest
+        // We iterate in reverse since paths_to_check is ordered deepest to shallowest
+        var i: usize = path_count;
+        while (i > 0) {
+            i -= 1;
+            if (self.findRoute(paths_to_check[i], .{ .match = .exact })) |route| {
+                if (route.layout) |layout_fn| {
+                    if (layouts_count < layouts_to_apply.len) {
+                        layouts_to_apply[layouts_count] = layout_fn;
+                        layouts_count += 1;
+                    }
+                }
+            }
+        }
+
+        // Apply layouts in reverse order (deepest first, then parent layouts wrap around)
+        // This means root layout is applied last, wrapping everything
+        var injector: ?ElementInjector = null;
+        if (is_dev_mode) {
+            injector = ElementInjector{ .allocator = req.arena };
+        }
+
+        var j: usize = layouts_count;
+        while (j > 0) {
+            j -= 1;
+            component = layouts_to_apply[j](layoutctx, component);
+            // In dev mode, inject dev script into body element of root layout (last one applied, j == 0)
+            if (injector) |*inj| {
+                if (j == 0) {
+                    _ = inj.injectScriptIntoBody(&component, "/assets/_zx/devscript.js");
+                    injector = null;
+                }
+            }
+        }
+
+        // If no layouts were applied but we're in dev mode, still try to inject
+        if (layouts_count == 0 and is_dev_mode) {
+            const inj = ElementInjector{ .allocator = req.arena };
+            _ = inj.injectScriptIntoBody(&component, "/assets/_zx/devscript.js");
+        }
+
+        // Render the final component
+        const writer = res.writer();
+        writer.writeAll("<!DOCTYPE html>\n") catch {
+            res.body = opts.fallback_message;
+            return;
+        };
+        component.render(writer) catch {
+            res.body = opts.fallback_message;
+        };
+    }
+
+    const FindRouteOptions = struct {
+        match: enum { closest, exact } = .exact,
+        has_notfound: bool = false,
+        has_error: bool = false,
+        has_layout: bool = false,
+        has_page_opts: bool = false,
+        has_layout_opts: bool = false,
+        has_notfound_opts: bool = false,
+        has_error_opts: bool = false,
+    };
+
+    pub fn findRoute(
+        self: *Handler,
+        path: []const u8,
+        opts: FindRouteOptions,
+    ) ?*const App.Meta.Route {
+        switch (opts.match) {
+            .closest => {
+                // For closest match, we want to find the deepest route that matches
+                // by building up the path progressively from root to leaf.
+                // E.g., for "/users/profile/settings", check:
+                // "/users/profile/settings", then "/users/profile", then "/users", then "/"
+                // Return the first (deepest) match that has the required handlers.
+
+                const no_filters =
+                    !opts.has_layout and
+                    !opts.has_notfound and
+                    !opts.has_error and
+                    !opts.has_page_opts and
+                    !opts.has_layout_opts and
+                    !opts.has_notfound_opts and
+                    !opts.has_error_opts;
+
+                // Build list of paths to check from deepest to shallowest
+                var paths_to_check: [32][]const u8 = undefined;
+                var path_count: usize = 0;
+
+                // Start with the full path
+                if (path.len > 0) {
+                    paths_to_check[path_count] = path;
+                    path_count += 1;
+                }
+
+                // Build parent paths by removing trailing segments
+                var current_path = path;
+                while (current_path.len > 1) {
+                    // Find the last '/' and truncate
+                    if (std.mem.lastIndexOfScalar(u8, current_path[0 .. current_path.len - 1], '/')) |last_slash| {
+                        if (last_slash == 0) {
+                            // Parent is root "/"
+                            paths_to_check[path_count] = "/";
+                            path_count += 1;
+                            break;
+                        } else {
+                            current_path = current_path[0..last_slash];
+                            paths_to_check[path_count] = current_path;
+                            path_count += 1;
+                        }
+                    } else {
+                        break;
+                    }
+                }
+
+                // Ensure root "/" is included if not already
+                if (path_count == 0 or !std.mem.eql(u8, paths_to_check[path_count - 1], "/")) {
+                    paths_to_check[path_count] = "/";
+                    path_count += 1;
+                }
+
+                // Check paths from deepest to shallowest
+                for (paths_to_check[0..path_count]) |check_path| {
+                    if (self.findRoute(check_path, .{ .match = .exact })) |route| {
+                        // If no filters specified, return first match
+                        if (no_filters) {
+                            return route;
+                        }
+
+                        // Check if route matches any of the requested filters
+                        const matches_filter =
+                            (opts.has_layout and route.layout != null) or
+                            (opts.has_notfound and route.notfound != null) or
+                            (opts.has_error and route.@"error" != null) or
+                            (opts.has_page_opts and route.page_opts != null) or
+                            (opts.has_layout_opts and route.layout_opts != null) or
+                            (opts.has_notfound_opts and route.notfound_opts != null) or
+                            (opts.has_error_opts and route.error_opts != null);
+
+                        if (matches_filter) {
+                            return route;
+                        }
+                    }
+                }
+
+                return null;
+            },
+            .exact => {
+                for (self.meta.routes) |*route| {
+                    if (std.mem.eql(u8, route.path, path)) {
+                        return route;
+                    }
+                }
+            },
+        }
+        return null;
     }
 
     pub fn page(self: *Handler, req: *httpz.Request, res: *httpz.Response) !void {
@@ -400,11 +678,15 @@ pub const Handler = struct {
         const assets_path = try std.fs.path.join(allocator, &.{ self.meta.rootdir, req.url.path });
         defer allocator.free(assets_path);
 
-        res.content_type = httpz.ContentType.forFile(req.url.path);
-        res.body = std.fs.cwd().readFileAlloc(allocator, assets_path, std.math.maxInt(usize)) catch {
-            res.setStatus(.not_found);
-            return;
+        const body = std.fs.cwd().readFileAlloc(allocator, assets_path, std.math.maxInt(usize)) catch |err| {
+            switch (err) {
+                error.FileNotFound => return self.notFound(req, res),
+                else => return self.uncaughtError(req, res, err),
+            }
         };
+
+        res.content_type = httpz.ContentType.forFile(req.url.path);
+        res.body = body;
     }
 
     pub fn public(self: *Handler, req: *httpz.Request, res: *httpz.Response) !void {
@@ -413,11 +695,15 @@ pub const Handler = struct {
         const assets_path = try std.fs.path.join(allocator, &.{ self.meta.rootdir, "public", req.url.path });
         defer allocator.free(assets_path);
 
-        res.content_type = httpz.ContentType.forFile(req.url.path);
-        res.body = std.fs.cwd().readFileAlloc(allocator, assets_path, std.math.maxInt(usize)) catch {
-            res.setStatus(.not_found);
-            return;
+        const body = std.fs.cwd().readFileAlloc(allocator, assets_path, std.math.maxInt(usize)) catch |err| {
+            switch (err) {
+                error.FileNotFound => return self.notFound(req, res),
+                else => return self.uncaughtError(req, res, err),
+            }
         };
+
+        res.body = body;
+        res.content_type = httpz.ContentType.forFile(req.url.path);
     }
 
     const DevSocketContext = struct {
