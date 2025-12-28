@@ -250,6 +250,8 @@ fn Installation(allocator: zx.Allocator) zx.Component {
 
             <InstallCLI />
 
+            <p style="margin-top: 1rem;">If you prefer not to install the CLI, you can create a project manually. See the <a href="#create-project">Create a Project</a> section for the manual setup option.</p>
+
             <h3>Install Zig</h3>
             <p>ZX <code>{zx.info.version_string}</code> requires Zig <code>{zx.info.minimum_zig_version}</code>:</p>
 
@@ -279,7 +281,7 @@ fn CreateProject(allocator: zx.Allocator, props: CreateProjectProps) zx.Componen
                     <p>Create a new ZX project using the CLI:</p>
                     <div class="install-box install-box-simple">
                         <div class="install-box-content">
-                            <div class="install-code">
+                            <div class="install-code" style="min-height: 28px; margin-top: 5px;">
                                 <span class="install-prompt">$ </span>
                                 <span class="function">zx</span>
                                 <span class="operator"> init </span>

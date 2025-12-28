@@ -1,25 +1,82 @@
-import * as prettier from "https://unpkg.com/prettier@3.6.2/standalone.mjs";
-import * as prettierPluginHtml from "https://unpkg.com/prettier@3.6.2/plugins/html.mjs";
+// Dynamic import to reduce initial bundle size
+async function formatHTML(html: string, printWidth: number): Promise<string> {
+  const prettier = await import("prettier");
+  const prettierPluginHtml = await import("prettier/plugins/html.js");
+  
+  return await prettier.format(html, {
+    parser: "html",
+    plugins: [prettierPluginHtml],
+    printWidth: printWidth,
+    singleAttributePerLine: false,
+    htmlWhitespaceSensitivity: "css",
+  });
+}
+
+// Calculate printWidth based on window width
+function getPrintWidth(): number {
+  const width = window.innerWidth;
+  
+  // Responsive breakpoints for printWidth
+  if (width < 640) {
+    // Mobile: ~30 chars
+    return 30;
+  } else if (width < 768) {
+    // Small tablet: ~40 chars
+    return 40;
+  } else if (width < 1024) {
+    // Tablet: ~60 chars
+    return 60;
+  } else if (width < 1280) {
+    // Desktop: ~80 chars
+    return 80;
+  } else {
+    // Large desktop: ~100 chars
+    return 100;
+  }
+}
+
+// Simple lightweight HTML syntax highlighter
+function highlightHTML(html: string): string {
+  let result = html;
+  
+  // HTML comments (must be first to avoid matching inside tags)
+  result = result.replace(/&lt;!--[\s\S]*?--&gt;/g, '<span class="comment">$&</span>');
+  
+  // Doctype
+  result = result.replace(/&lt;!DOCTYPE[^&]*&gt;/gi, '<span class="keyword">$&</span>');
+  
+  // HTML tags with attributes
+  result = result.replace(/&lt;(\/?)([\w-]+)([^&]*?)&gt;/g, (match, closing, tagName, attrs) => {
+    // Highlight attributes: name="value" or name='value' or name=value
+    const attrsHighlighted = attrs.replace(/([\w-]+)(\s*=\s*)("([^"]*)"|'([^']*)'|([^\s>]+))/g, 
+      '<span class="attribute">$1</span><span class="punctuation">$2</span><span class="string">$3</span>');
+    return `<span class="punctuation">&lt;</span><span class="tag">${closing}${tagName}</span>${attrsHighlighted}<span class="punctuation">&gt;</span>`;
+  });
+  
+  return result;
+}
 
 // Find and format HTML code snippets
 document.addEventListener("DOMContentLoaded", async () => {
-  const htmlCodeElements = document.querySelectorAll('code.language-markup');
+  const htmlCodeElements = document.querySelectorAll<HTMLPreElement>('code.language-markup');
 
   for (const codeElement of htmlCodeElements) {
     const htmlContent = codeElement.textContent || codeElement.innerText;
     
     if (htmlContent.trim()) {
       try {
-        const formatted = await prettier.format(htmlContent, {
-          parser: "html",
-          plugins: [prettierPluginHtml],
-          printWidth: 120,
-          singleAttributePerLine: false,
-          htmlWhitespaceSensitivity: "css",
-        });
+        const formatted = await formatHTML(htmlContent, getPrintWidth());
         
-        // Update the code element with formatted content
-        codeElement.textContent = formatted;
+        // Escape HTML for highlighting, then apply syntax highlighting
+        const escaped = formatted
+          .replace(/&/g, '&amp;')
+          .replace(/</g, '&lt;')
+          .replace(/>/g, '&gt;');
+        
+        const highlighted = highlightHTML(escaped);
+        
+        // Update the code element with highlighted HTML
+        codeElement.innerHTML = highlighted;
         
       } catch (error) {
         // console.error("Error formatting HTML:", error);
@@ -81,7 +138,7 @@ function setupCopyButtons() {
   }
 
   // Setup for regular code blocks (pre code)
-  document.querySelectorAll('pre code').forEach((codeElement) => {
+  document.querySelectorAll<HTMLPreElement>('pre code').forEach((codeElement) => {
     const preElement = codeElement.parentElement;
     if (!preElement || preElement.querySelector('.copy-button')) return;
     
@@ -108,7 +165,7 @@ function setupCopyButtons() {
     
     copyButton.addEventListener('click', () => {
       // Find the visible install code based on checked radio button
-      let installCode = null;
+      let installCode: HTMLPreElement | null | undefined = null;
       
       // Check which radio is checked and find corresponding content
       const checkedRadio = box.querySelector('.install-tab-radio:checked');
@@ -120,7 +177,7 @@ function setupCopyButtons() {
       
       // Fallback for simple boxes without tabs
       if (!installCode) {
-        installCode = box.querySelector('.install-code');
+        installCode = box.querySelector<HTMLPreElement>('.install-code');
       }
       
       if (!installCode) return;
@@ -178,5 +235,5 @@ const osTabs = {
 
 (osTabs[os] || []).forEach(id => {
   const tab = document.getElementById(id);
-  if (tab) tab.checked = true;
+  if (tab && tab instanceof HTMLInputElement) tab.checked = true;
 });
