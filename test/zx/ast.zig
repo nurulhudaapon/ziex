@@ -421,7 +421,7 @@ fn test_transpile(comptime file_path: []const u8) !void {
 
 fn test_transpile_inner(comptime file_path: []const u8, comptime no_expect: bool) !void {
     const allocator = std.testing.allocator;
-    const cache = test_file_cache orelse return error.CacheNotInitialized;
+    const cache = if (test_file_cache) |*c| c else return error.CacheNotInitialized;
 
     // Construct paths for .zx and .zig files
     const source_path = file_path ++ ".zx";
@@ -430,7 +430,7 @@ fn test_transpile_inner(comptime file_path: []const u8, comptime no_expect: bool
     const output_zig_path = "test/data/" ++ file_path ++ ".zig";
 
     // Get pre-loaded source file
-    const source = cache.get(source_path) orelse return error.FileNotFound;
+    const source = try cache.get(source_path) orelse return error.FileNotFound;
     const source_z = try allocator.dupeZ(u8, source);
     defer allocator.free(source_z);
 
@@ -454,7 +454,7 @@ fn test_transpile_inner(comptime file_path: []const u8, comptime no_expect: bool
     }
 
     // Get pre-loaded expected file
-    const expected_source = cache.get(expected_source_path) orelse {
+    const expected_source = try cache.get(expected_source_path) orelse {
         std.log.err("Expected file not found: {s}\n", .{expected_source_path});
         return error.FileNotFound;
     };

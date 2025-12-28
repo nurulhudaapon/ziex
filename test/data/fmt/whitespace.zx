@@ -1,0 +1,17 @@
+pub fn FmtWhitespace(allocator: zx.Allocator) zx.Component {
+    return (
+        <div>
+            <span>| </span>
+            <span> |</span>
+            <span> | </span>
+            <span>|   </span>
+            <span>   |</span>
+            <span>   |   </span>
+            <span>
+                |
+            </span>
+        </div>
+    );
+}
+
+const zx = @import("zx");

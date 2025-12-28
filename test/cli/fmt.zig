@@ -286,6 +286,10 @@ test "escaping_quotes" {
     try test_fmt("escaping/quotes");
 }
 
+test "whitespace" {
+    try expect_fmt("fmt/whitespace");
+}
+
 test "performance > fmt" {
     // if (true) return error.Todo;
     const MAX_TIME_MS = 50.0 * 8; // 50ms is on M1 Pro
@@ -294,7 +298,7 @@ test "performance > fmt" {
     var total_time_ns: f64 = 0.0;
     inline for (TestFileCache.test_files) |comptime_path| {
         const start_time = std.time.nanoTimestamp();
-        try test_fmt_inner(comptime_path, true);
+        try test_fmt_inner(comptime_path, false, true);
         const end_time = std.time.nanoTimestamp();
         const duration = @as(f64, @floatFromInt(end_time - start_time));
         total_time_ns += duration;
@@ -311,19 +315,23 @@ test "performance > fmt" {
 }
 
 fn test_fmt(comptime file_path: []const u8) !void {
-    try test_fmt_inner(file_path, false);
+    try test_fmt_inner(file_path, false, false);
 }
 
-fn test_fmt_inner(comptime file_path: []const u8, comptime no_expect: bool) !void {
+fn expect_fmt(comptime file_path: []const u8) !void {
+    try test_fmt_inner(file_path, true, false);
+}
+
+fn test_fmt_inner(comptime file_path: []const u8, comptime has_diff_expected: bool, comptime no_expect: bool) !void {
     const allocator = std.testing.allocator;
-    const cache = test_file_cache orelse return error.CacheNotInitialized;
+    const cache = if (test_file_cache) |*c| c else return error.CacheNotInitialized;
 
     // Construct paths for .zx and .zig files
     const source_path = file_path ++ ".zx";
-    const expected_source_path = file_path ++ ".zx";
+    const expected_source_path = if (has_diff_expected) file_path ++ "_out.zx" else file_path ++ ".zx";
 
     // Get pre-loaded source file
-    const source = cache.get(source_path) orelse return error.FileNotFound;
+    const source = try cache.get(source_path) orelse return error.FileNotFound;
     const source_z = try allocator.dupeZ(u8, source);
     defer allocator.free(source_z);
 
@@ -332,7 +340,7 @@ fn test_fmt_inner(comptime file_path: []const u8, comptime no_expect: bool) !voi
     defer result.deinit(allocator);
 
     // Get pre-loaded expected file
-    const expected_source = cache.get(expected_source_path) orelse {
+    const expected_source = try cache.get(expected_source_path) orelse {
         std.log.err("Expected file not found: {s}\n", .{expected_source_path});
         return error.FileNotFound;
     };
