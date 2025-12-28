@@ -172,7 +172,6 @@ fn YouWillLearn(allocator: zx.Allocator) zx.Component {
 }
 
 fn Installation(allocator: zx.Allocator) !zx.Component {
-    if(true) return  error.MethodNotAllowed;
     return (
         <section id="installation" class="section" @allocator={allocator}>
             <h2>Installation</h2>
