@@ -1,0 +1,71 @@
+#!/bin/bash
+
+# Script to sync/update changelogs for all releases using the changelog script
+
+set -e
+
+echo "Fetching all release tags..."
+
+# Get all release tags from GitHub (sorted by creation date, oldest first for proper processing)
+RELEASES=$(gh release list --json tagName,createdAt -q 'sort_by(.createdAt) | .[].tagName' || echo "")
+
+if [ -z "$RELEASES" ]; then
+    echo "Error: Could not fetch releases from GitHub" >&2
+    exit 1
+fi
+
+# Count releases
+RELEASE_COUNT=$(echo "$RELEASES" | grep -v '^$' | wc -l | tr -d ' ')
+echo "Found $RELEASE_COUNT releases to update"
+
+if [ "$RELEASE_COUNT" -eq 0 ]; then
+    echo "No releases found"
+    exit 0
+fi
+
+# Create temporary directory for generated changelogs
+TMP_DIR=$(mktemp -d)
+trap "rm -rf $TMP_DIR" EXIT
+
+# Process each release
+CURRENT=0
+SUCCESS=0
+FAILED=0
+
+while IFS= read -r TAG; do
+    if [ -z "$TAG" ]; then
+        continue
+    fi
+    
+    CURRENT=$((CURRENT + 1))
+    echo ""
+    echo "[$CURRENT/$RELEASE_COUNT] Processing $TAG..."
+    
+    # Generate changelog for this release
+    CHANGELOG_FILE="${TMP_DIR}/${TAG}.md"
+    
+    if ./tools/changelog "$TAG" "$CHANGELOG_FILE" 2>&1; then
+        if [ -s "$CHANGELOG_FILE" ]; then
+            echo "  ✓ Generated changelog for $TAG"
+            
+            # Update the GitHub release with the new changelog
+            if gh release edit "$TAG" -F "$CHANGELOG_FILE" 2>&1; then
+                echo "  ✓ Updated GitHub release for $TAG"
+                SUCCESS=$((SUCCESS + 1))
+            else
+                echo "  ✗ Failed to update GitHub release for $TAG" >&2
+                FAILED=$((FAILED + 1))
+            fi
+        else
+            echo "  ✗ Generated changelog file is empty for $TAG" >&2
+            FAILED=$((FAILED + 1))
+        fi
+    else
+        echo "  ✗ Failed to generate changelog for $TAG" >&2
+        FAILED=$((FAILED + 1))
+    fi
+done <<< "$RELEASES"
+
+echo ""
+echo "Done! Updated $SUCCESS release(s), $FAILED failed."
+

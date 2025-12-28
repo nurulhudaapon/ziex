@@ -1,31 +1,98 @@
 #!/bin/bash
 
 # Script to generate release notes with changelog from commits between tags
-# Usage: ./gen-release-notes [output_file]
-# If output_file is not provided, outputs to stdout
+# Usage: ./changelog [version/tag] [output_file]
+#   - If version/tag is provided, generates changelog from previous tag to that version
+#   - If not provided, generates changelog from latest tag to HEAD (next release)
+#   - If output_file is not provided, outputs to stdout
 
 set -e
 
-OUTPUT_FILE="${1:-}"
+# Parse arguments
+TARGET_VERSION=""
+OUTPUT_FILE=""
 
-# Get the latest release tag (this will be the previous tag for the new release)
-PREVIOUS_TAG=$(gh release list --limit 1 --json tagName -q '.[0].tagName' 2>/dev/null || echo "")
-
-if [ -z "$PREVIOUS_TAG" ]; then
-    echo "Warning: Could not find release tags from GitHub, trying git tags" >&2
-    # Try to get the latest tag from git
-    PREVIOUS_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-    
-    if [ -z "$PREVIOUS_TAG" ]; then
-        echo "Error: Could not find any release tags" >&2
-        exit 1
+# Check if first argument looks like a version/tag (starts with 'v' or is a version pattern)
+if [ -n "${1:-}" ]; then
+    if [[ "$1" =~ ^v?[0-9] ]] || [[ "$1" =~ ^v[0-9]+\.[0-9]+ ]] || git rev-parse "$1" >/dev/null 2>&1; then
+        TARGET_VERSION="$1"
+        OUTPUT_FILE="${2:-}"
+    else
+        OUTPUT_FILE="$1"
     fi
 fi
 
-# Get current version from build.zig.zon for the release title
-CURRENT_VERSION=$(grep -E '^\s*\.version\s*=' build.zig.zon | sed -E 's/.*"([^"]+)".*/\1/' || echo "HEAD")
-
-echo "Generating changelog from $PREVIOUS_TAG to HEAD (v${CURRENT_VERSION})..." >&2
+# Determine target tag and previous tag
+if [ -n "$TARGET_VERSION" ]; then
+    # Normalize version (add 'v' prefix if missing)
+    if [[ ! "$TARGET_VERSION" =~ ^v ]]; then
+        TARGET_TAG="v${TARGET_VERSION}"
+    else
+        TARGET_TAG="$TARGET_VERSION"
+    fi
+    
+    # Verify the tag exists
+    if ! git rev-parse "$TARGET_TAG" >/dev/null 2>&1; then
+        echo "Error: Tag $TARGET_TAG does not exist" >&2
+        exit 1
+    fi
+    
+    # Find the previous tag before the target tag
+    # Get all tags sorted by version (newest first), find the one that comes after TARGET_TAG
+    ALL_TAGS=$(git tag --sort=-version:refname 2>/dev/null || echo "")
+    
+    if [ -n "$ALL_TAGS" ]; then
+        # Find the tag that comes right after TARGET_TAG in the sorted list (which is the previous release)
+        FOUND_TARGET=false
+        PREVIOUS_TAG=""
+        while IFS= read -r tag; do
+            if [ "$FOUND_TARGET" = true ]; then
+                PREVIOUS_TAG="$tag"
+                break
+            fi
+            if [ "$tag" = "$TARGET_TAG" ]; then
+                FOUND_TARGET=true
+            fi
+        done <<< "$ALL_TAGS"
+    fi
+    
+    # If still not found, try GitHub releases
+    if [ -z "$PREVIOUS_TAG" ]; then
+        PREVIOUS_TAG=$(gh release list --json tagName -q ".[] | select(.tagName != \"$TARGET_TAG\") | .tagName" 2>/dev/null | grep -v "^$TARGET_TAG$" | head -1 || echo "")
+    fi
+    
+    # Last resort: use git describe to find previous tag
+    if [ -z "$PREVIOUS_TAG" ]; then
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 "${TARGET_TAG}^" 2>/dev/null || echo "")
+    fi
+    
+    if [ -z "$PREVIOUS_TAG" ]; then
+        echo "Warning: Could not find previous tag for $TARGET_TAG, using first commit" >&2
+        PREVIOUS_TAG=$(git rev-list --max-parents=0 HEAD 2>/dev/null || echo "")
+    fi
+    
+    CURRENT_VERSION="${TARGET_VERSION#v}"
+    COMPARE_TO="$TARGET_TAG"
+    echo "Generating changelog from $PREVIOUS_TAG to $TARGET_TAG (v${CURRENT_VERSION})..." >&2
+else
+    # Default behavior: generate for next release (latest tag to HEAD)
+    PREVIOUS_TAG=$(gh release list --limit 1 --json tagName -q '.[0].tagName' 2>/dev/null || echo "")
+    
+    if [ -z "$PREVIOUS_TAG" ]; then
+        echo "Warning: Could not find release tags from GitHub, trying git tags" >&2
+        PREVIOUS_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        
+        if [ -z "$PREVIOUS_TAG" ]; then
+            echo "Error: Could not find any release tags" >&2
+            exit 1
+        fi
+    fi
+    
+    # Get current version from build.zig.zon for the release title
+    CURRENT_VERSION=$(grep -E '^\s*\.version\s*=' build.zig.zon | sed -E 's/.*"([^"]+)".*/\1/' || echo "HEAD")
+    COMPARE_TO="HEAD"
+    echo "Generating changelog from $PREVIOUS_TAG to HEAD (v${CURRENT_VERSION})..." >&2
+fi
 
 # Read the base RELEASE.md
 BASE_CONTENT=$(cat .github/RELEASE.md)
@@ -35,18 +102,19 @@ REPO_OWNER="nurulhudaapon"
 REPO_NAME="zx"
 REPO_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}"
 
-# Get commits between previous tag and HEAD with SHA and message
+# Get commits between previous tag and HEAD with SHA, message, and author
 # Use temporary files to avoid subshell issues with arrays
 TMP_COMMITS="/tmp/changelog_commits.txt"
 rm -f "$TMP_COMMITS"
 
-# Try GitHub API first
-gh api "repos/${REPO_OWNER}/${REPO_NAME}/compare/${PREVIOUS_TAG}...HEAD" --jq '.commits[] | "\(.sha)|\(.commit.message | split("\n")[0])"' > "$TMP_COMMITS" 2>/dev/null || true
+# Try GitHub API first (includes author login)
+gh api "repos/${REPO_OWNER}/${REPO_NAME}/compare/${PREVIOUS_TAG}...${COMPARE_TO}" --jq '.commits[] | "\(.sha)|\(.commit.message | split("\n")[0])|\(if .author.login then .author.login elif .committer.login then .committer.login else "" end)"' > "$TMP_COMMITS" 2>/dev/null || true
 
 # If GitHub API failed or returned empty, use git log
 if [ ! -s "$TMP_COMMITS" ]; then
     echo "Warning: GitHub API failed, using git log" >&2
-    git log "${PREVIOUS_TAG}..HEAD" --pretty=format:"%H|%s" > "$TMP_COMMITS" 2>/dev/null || true
+    # Get author email and try to map to GitHub username
+    git log "${PREVIOUS_TAG}..${COMPARE_TO}" --pretty=format:"%H|%s|%ae" > "$TMP_COMMITS" 2>/dev/null || true
 fi
 
 # Categorize commits with links
@@ -55,15 +123,41 @@ DOCS=()
 FIXES=()
 OTHER=()
 
+# Track unique contributors (using a temporary file for compatibility with bash 3.x)
+TMP_CONTRIBUTORS="/tmp/changelog_contributors.txt"
+rm -f "$TMP_CONTRIBUTORS"
+
 # Process commits from file
-while IFS='|' read -r sha message || [ -n "$sha" ]; do
+while IFS='|' read -r sha message author || [ -n "$sha" ]; do
     if [[ -z "$sha" ]] || [[ -z "$message" ]]; then
         continue
+    fi
+    
+    # Get GitHub username from author
+    # When using GitHub API, author should be the login (username)
+    # When using git log fallback, author will be an email address
+    GITHUB_USERNAME=""
+    if [[ "$author" =~ @[a-zA-Z0-9.-]+\.[a-zA-Z]{2,} ]]; then
+        # It's an email address (from git log fallback), skip to avoid incorrect tags
+        GITHUB_USERNAME=""
+    elif [ -n "$author" ] && [ "$author" != "unknown" ] && [ "$author" != "" ]; then
+        # It's a GitHub username from the API
+        GITHUB_USERNAME="$author"
+        # Add to contributors file (if not already present)
+        if [ -f "$TMP_CONTRIBUTORS" ]; then
+            if ! grep -q "^${GITHUB_USERNAME}$" "$TMP_CONTRIBUTORS" 2>/dev/null; then
+                echo "$GITHUB_USERNAME" >> "$TMP_CONTRIBUTORS"
+            fi
+        else
+            echo "$GITHUB_USERNAME" > "$TMP_CONTRIBUTORS"
+        fi
     fi
     
     # Create commit link (short SHA)
     SHORT_SHA="${sha:0:7}"
     COMMIT_LINK="[\`${SHORT_SHA}\`](${REPO_URL}/commit/${sha})"
+    
+    # Format commit entry (without contributor mention)
     COMMIT_ENTRY="${message} ${COMMIT_LINK}"
     
     if [[ "$message" =~ ^feat ]]; then
@@ -118,8 +212,22 @@ rm -f "$TMP_COMMITS"
             echo "- ${other}"
         done
         echo ""
-    fi    
+    fi
+    
+    # Add Contributors section if there are any
+    if [ -f "$TMP_CONTRIBUTORS" ] && [ -s "$TMP_CONTRIBUTORS" ]; then
+        echo "### Contributors"
+        echo ""
+        # Sort contributors alphabetically and format
+        sort "$TMP_CONTRIBUTORS" | while read -r contributor; do
+            echo "- @${contributor}"
+        done
+        echo ""
+    fi
 } > /tmp/changelog.txt
+
+# Cleanup contributors file
+rm -f "$TMP_CONTRIBUTORS"
 
 # Combine base content with changelog
 if [ -n "$OUTPUT_FILE" ]; then
