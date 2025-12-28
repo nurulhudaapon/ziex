@@ -10,4 +10,3 @@ pub fn ReactDemo(allocator: zx.Allocator) zx.Component {
 
 const zx = @import("zx");
 const CounterComponent = @jsImport("react.tsx");
-

@@ -61,7 +61,7 @@ pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Compon
     };
 
     // Wrap HTML with dark mode styles for iframe
-    const dark_mode_style = 
+    const dark_mode_style =
         \\<style>
         \\  * { 
         \\    color-scheme: light dark; 
@@ -94,62 +94,62 @@ pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Compon
     const zig_content_id = std.fmt.allocPrint(allocator, "tab-zig-{s}", .{props.id}) catch unreachable;
 
     return (
-    <div class="sandbox" @allocator={allocator}>
-        <div class="sandbox-container">
-            <div class="sandbox-editor">
-                <div class="sandbox-editor-header">
-                    <div class="sandbox-tabs sandbox-file-tabs">
-                        {for (files) |file| (
-                            <>
-                                <input @allocator={allocator} type="radio" id={file.radio_id} name={file_radio_name} class="file-radio" checked={file.is_first} />
-                                <label for={file.radio_id} class="sandbox-tab">
-                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                                        <path d="M13 9h5.5L13 3.5V9M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4c0-1.11.89-2 2-2m5 2H6v16h12v-9h-7V4z"/>
-                                    </svg>
-                                    {file.filename}
-                                </label>
-                            </>
-                        )}
+        <div class="sandbox" @allocator={allocator}>
+            <div class="sandbox-container">
+                <div class="sandbox-editor">
+                    <div class="sandbox-editor-header">
+                        <div class="sandbox-tabs sandbox-file-tabs">
+                            {for (files) |file| (
+                                <>
+                                    <input @allocator={allocator} type="radio" id={file.radio_id} name={file_radio_name} class="file-radio" checked={file.is_first} />
+                                    <label for={file.radio_id} class="sandbox-tab">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M13 9h5.5L13 3.5V9M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4c0-1.11.89-2 2-2m5 2H6v16h12v-9h-7V4z" />
+                                        </svg>
+                                        {file.filename}
+                                    </label>
+                                </>
+                            )}
+                        </div>
                     </div>
+                    {for (files) |file| (
+                        <div @allocator={allocator} class="sandbox-code file-content" id={file.content_id}>
+                            <pre class="sandbox-code-pre"><code class="hljs sandbox-code-lines">{[file.highlighted:s]}</code></pre>
+                        </div>
+                    )}
                 </div>
-                {for (files) |file| (
-                    <div @allocator={allocator} class="sandbox-code file-content" id={file.content_id}>
-                        <pre class="sandbox-code-pre"><code class="hljs sandbox-code-lines">{[file.highlighted:s]}</code></pre>
-                    </div>
-                )}
-            </div>
 
-            <div class="sandbox-preview">
-                <div class="sandbox-preview-header">
-                    <input type="radio" id={preview_id} name={name_id} class="tab-radio" checked="true" />
-                    <input type="radio" id={html_id} name={name_id} class="tab-radio" />
-                    <input type="radio" id={zig_id} name={name_id} class="tab-radio" />
-                    <div class="sandbox-preview-tabs">
-                        <label for={preview_id} class="sandbox-preview-tab">Preview</label>
-                        <label for={html_id} class="sandbox-preview-tab">HTML</label>
+                <div class="sandbox-preview">
+                    <div class="sandbox-preview-header">
+                        <input type="radio" id={preview_id} name={name_id} class="tab-radio" checked="true" />
+                        <input type="radio" id={html_id} name={name_id} class="tab-radio" />
+                        <input type="radio" id={zig_id} name={name_id} class="tab-radio" />
+                        <div class="sandbox-preview-tabs">
+                            <label for={preview_id} class="sandbox-preview-tab">Preview</label>
+                            <label for={html_id} class="sandbox-preview-tab">HTML</label>
+                        </div>
+                        <div class="sandbox-preview-actions">
+                            <button class="sandbox-action-btn" title="Reset">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 4v6h6M23 20v-6h-6" />
+                                    <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
-                    <div class="sandbox-preview-actions">
-                        <button class="sandbox-action-btn" title="Reset">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                <path d="M1 4v6h6M23 20v-6h-6"/>
-                                <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/>
-                            </svg>
-                        </button>
+                    <div class="sandbox-preview-content" id={preview_content_id}>
+                        <iframe class="sandbox-preview-frame" srcdoc={html_with_style}></iframe>
                     </div>
-                </div>
-                <div class="sandbox-preview-content" id={preview_content_id}>
-                    <iframe class="sandbox-preview-frame" srcdoc={html_with_style}></iframe>
-                </div>
-                <div class="sandbox-preview-content sandbox-code-content" id={html_content_id}>
-                    <pre><code class="language-markup">{props.html_code}</code></pre>
-                </div>
-                <div class="sandbox-preview-content sandbox-code-content" id={zig_content_id} style="display: none;">
-                    <pre><code class="language-zig">{props.zig_code}</code></pre>
+                    <div class="sandbox-preview-content sandbox-code-content" id={html_content_id}>
+                        <pre><code class="language-markup">{props.html_code}</code></pre>
+                    </div>
+                    <div class="sandbox-preview-content sandbox-code-content" id={zig_content_id} style="display: none;">
+                        <pre><code class="language-zig">{props.zig_code}</code></pre>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
-);
+    );
 }
 
 const zx = @import("zx");

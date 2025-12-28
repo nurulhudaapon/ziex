@@ -12,7 +12,7 @@ pub fn CodeBlock(allocator: zx.Allocator, props: CodeBlockProps) zx.Component {
             <div class="sandbox-editor-header">
                 <div class="sandbox-tab" style="cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M13 9h5.5L13 3.5V9M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4c0-1.11.89-2 2-2m5 2H6v16h12v-9h-7V4z"/>
+                        <path d="M13 9h5.5L13 3.5V9M6 2h8l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4c0-1.11.89-2 2-2m5 2H6v16h12v-9h-7V4z" />
                     </svg>
                     {filename}
                 </div>
@@ -33,4 +33,3 @@ pub fn CodeBlock(allocator: zx.Allocator, props: CodeBlockProps) zx.Component {
 const zx = @import("zx");
 const std = @import("std");
 const util = @import("../docs/util.zig");
-

@@ -6,14 +6,12 @@ pub fn ExamplesSection(allocator: zx.Allocator) zx.Component {
                 <li>
                     <strong>This Documentation Site: </strong>
                     <a href="https://ziex.dev" target="_blank" rel="noopener noreferrer">Live</a> |
-                    <a href="https://github.com/nurulhudaapon/zx/tree/main/site" target="_blank"
-                        rel="noopener noreferrer">Source</a>
+                    <a href="https://github.com/nurulhudaapon/zx/tree/main/site" target="_blank" rel="noopener noreferrer">Source</a>
                 </li>
                 <li>
                     <strong>A Portfolio Site with Blog: </strong>
                     <a href="https://zigx.nuhu.dev" target="_blank" rel="noopener noreferrer">Live</a> |
-                    <a href="https://github.com/nurulhudaapon/zx-example-portfolio" target="_blank"
-                        rel="noopener noreferrer">Source</a>
+                    <a href="https://github.com/nurulhudaapon/zx-example-portfolio" target="_blank" rel="noopener noreferrer">Source</a>
                 </li>
             </ul>
         </section>
@@ -21,4 +19,3 @@ pub fn ExamplesSection(allocator: zx.Allocator) zx.Component {
 }
 
 const zx = @import("zx");
-

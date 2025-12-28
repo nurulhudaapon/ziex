@@ -1,10 +1,10 @@
 // This example shows a page component
 pub fn Page(ctx: zx.PageContext) zx.Component {
     const allocator = ctx.arena;
-    
+
     // Access request data (e.g., query params, headers, etc.)
     // const query = ctx.request.query() catch unreachable;
-    
+
     return (
         <main @allocator={allocator}>
             <h1>Hello, World!</h1>
@@ -14,4 +14,3 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 }
 
 const zx = @import("zx");
-

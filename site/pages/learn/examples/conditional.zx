@@ -17,4 +17,3 @@ pub fn UserStatus(allocator: zx.Allocator) zx.Component {
 }
 
 const zx = @import("zx");
-

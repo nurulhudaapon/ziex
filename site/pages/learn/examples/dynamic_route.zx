@@ -1,7 +1,7 @@
 // site/pages/user/[id]/page.zx
 pub fn UserProfile(ctx: zx.PageContext) zx.Component {
     const user_id = ctx.request.param("id") orelse "unknown";
-    
+
     return (
         <main @allocator={ctx.arena}>
             <h1>User Profile</h1>
@@ -11,4 +11,3 @@ pub fn UserProfile(ctx: zx.PageContext) zx.Component {
 }
 
 const zx = @import("zx");
-

@@ -13,7 +13,7 @@ pub fn AllocatorDemo(ctx: zx.PageContext) zx.Component {
 
 fn MyComponent(allocator: zx.Allocator) zx.Component {
     const someText = "This text will be allocated and escaped";
-    
+
     return (
         <div @allocator={allocator}>
             {someText}
@@ -22,4 +22,3 @@ fn MyComponent(allocator: zx.Allocator) zx.Component {
 }
 
 const zx = @import("zx");
-

@@ -20,4 +20,3 @@ fn Card(allocator: zx.Allocator, props: CardProps) zx.Component {
 }
 
 const zx = @import("zx");
-

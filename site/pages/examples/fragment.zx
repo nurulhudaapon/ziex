@@ -16,4 +16,3 @@ fn Header(allocator: zx.Allocator) zx.Component {
 }
 
 const zx = @import("zx");
-

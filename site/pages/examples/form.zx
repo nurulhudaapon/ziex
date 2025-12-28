@@ -5,7 +5,7 @@ pub fn FormExample(allocator: zx.Allocator) zx.Component {
                 <input type="text" name="search" placeholder="Search users..." />
                 <button>Search</button>
             </form>
-        
+
             <form method="get">
                 <input type="text" name="name" placeholder="Name" />
                 <button>Add User</button>

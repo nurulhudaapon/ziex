@@ -16,4 +16,3 @@ pub fn RoleBadge(allocator: zx.Allocator) zx.Component {
 
 const Role = enum { admin, member, guest };
 const zx = @import("zx");
-

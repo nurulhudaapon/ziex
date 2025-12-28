@@ -3,7 +3,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         <div @allocator={ctx.arena}>
             <CounterComponent @rendering={.client} />
 
-            <script  type="module" src="/assets/main.js" />
+            <script type="module" src="/assets/main.js" />
         </div>
     );
 }

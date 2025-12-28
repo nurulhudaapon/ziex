@@ -1,28 +1,26 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
     const allocator = ctx.arena;
     const myButtonClass = "custom-btn";
-    
+
     return (
         <html lang="en-US" @allocator={allocator}>
+            <head>
+                <title>ZX - Props Demo</title>
+            </head>
 
-        <head>
-            <title>ZX - Props Demo</title>
-        </head>
+            <body>
+                <h1>Custom Component Props Examples</h1>
 
-        <body>
-            <h1>Custom Component Props Examples</h1>
-            
-            <section>
-                <h2>Button Component with Props</h2>
-                <Button title="Click Me!" class="primary-btn" />
-                <Button title="Submit" class={myButtonClass} />
-                <Button />
-            </section>
+                <section>
+                    <h2>Button Component with Props</h2>
+                    <Button title="Click Me!" class="primary-btn" />
+                    <Button title="Submit" class={myButtonClass} />
+                    <Button />
+                </section>
 
-            <section>
-                <h2>Async Score with Dynamic Props</h2>
-
-            </section>
+                <section>
+                    <h2>Async Score with Dynamic Props</h2>
+                </section>
 
                 <template shadowrootmode="open">
                     <ul>
@@ -48,8 +46,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <span slot="item-8"> <AsyncScore index={8} label="Points" /> </span>
                 <span slot="item-9"> <AsyncScore index={9} label="Rating" /> </span>
                 <span slot="item-10"> <AsyncScore index={10} label="Score" /> </span>
-        </body>
-
+            </body>
         </html>
     );
 }
@@ -57,25 +54,17 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 const std = @import("std");
 const zx = @import("zx");
 
-const ButtonProps = struct {
-    title: []const u8 = "Click Me",
-    class: []const u8 = "btn"
-};
+const ButtonProps = struct { title: []const u8 = "Click Me", class: []const u8 = "btn" };
 
 fn Button(allocator: zx.Allocator, props: ButtonProps) zx.Component {
     return (
-        <button @allocator={allocator} class={props.class}>{props.title}
-            <span>
-                ZX
-            </span>
-        </button>
+        <button @allocator={allocator} class={props.class}>{props.title} <span>
+             ZX
+        </span> </button>
     );
 }
 
-const AsyncScoreProps = struct {
-    index: u64 = 0,
-    label: []const u8 = "Item"
-};
+const AsyncScoreProps = struct { index: u64 = 0, label: []const u8 = "Item" };
 
 fn AsyncScore(allocator: zx.Allocator, props: AsyncScoreProps) zx.Component {
     // const rand = std.crypto.random;
@@ -83,8 +72,8 @@ fn AsyncScore(allocator: zx.Allocator, props: AsyncScoreProps) zx.Component {
     // std.Thread.sleep(ns);
 
     return (
-            <span @allocator={allocator}>
-                {props.label} #{props.index} - Complete
-            </span>
+        <span @allocator={allocator}>
+            {props.label} #{props.index} - Complete
+        </span>
     );
 }

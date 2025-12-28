@@ -9,8 +9,8 @@ pub fn CardDemo(allocator: zx.Allocator) zx.Component {
     );
 }
 
-const CardProps = struct { 
-    title: []const u8, 
+const CardProps = struct {
+    title: []const u8,
     children: zx.Component,
 };
 
@@ -24,4 +24,3 @@ fn Card(allocator: zx.Allocator, props: CardProps) zx.Component {
 }
 
 const zx = @import("zx");
-

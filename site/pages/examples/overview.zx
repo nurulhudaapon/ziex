@@ -7,11 +7,11 @@ pub fn QuickExample(allocator: zx.Allocator) zx.Component {
             <section>
                 {if (is_loading) (<h1>Loading...</h1>) else (<h1>Loaded</h1>)}
             </section>
-        
+
             <section>
                 {for (chars) |char| (<span>{char}</span>)}
             </section>
-        
+
             <section>
                 {for (users) |user| (
                     <Profile name={user.name} age={user.age} role={user.role} />

@@ -317,7 +317,7 @@ fn CreateProject(allocator: zx.Allocator, props: CreateProjectProps) zx.Componen
 
                     <h3 style="margin-top: 1.5rem;">Existing Project</h3>
                     <p>For an existing Zig project, add the following to your <code>build.zig</code>:</p>
-                    <CodeBlock code={props.build_manual_code} filename="build.zig" />  
+                    <CodeBlock code={props.build_manual_code} filename="build.zig" /> 
 
                     <p style="margin-top: 1.5rem;">Then initialize the project with templates:</p>
                     <div class="install-box install-box-simple">

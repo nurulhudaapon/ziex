@@ -1,7 +1,7 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
     const allocator = ctx.arena;
-    
-        const time = std.time.timestamp();
+
+    const time = std.time.timestamp();
 
     return (
         <div @allocator={allocator}>

@@ -7,7 +7,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         "File-based routing",
         "Fast and efficient",
     };
-    
+
     return (
         <div @allocator={allocator}>
             <link rel="stylesheet" href="/doc.css" />
@@ -17,12 +17,12 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         <h2>About ZX</h2>
                     </div>
                     <p>ZX is a modern web framework that combines the expressiveness of JSX with the performance and safety of Zig.</p>
-                    
+
                     <h3>Key Features</h3>
                     <ul>
                         {for (features) |feature| (<li>{feature}</li>)}
                     </ul>
-                    
+
                     <h3>Why ZX?</h3>
                     <p>Built with Zig, ZX offers:</p>
                     <ul>
@@ -31,7 +31,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         <li>Compile-time guarantees</li>
                         <li>Zero-cost abstractions</li>
                     </ul>
-                    
+
                     <footer>
                         <p>Copyright - ZX Framework - Built with Zig</p>
                     </footer>

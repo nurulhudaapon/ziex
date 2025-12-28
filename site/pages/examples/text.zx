@@ -6,7 +6,7 @@ pub fn Expressions(allocator: zx.Allocator) zx.Component {
     const bool_false = false;
     const optional_val: ?[]const u8 = "present";
     const optional_null: ?[]const u8 = null;
-    
+
     const InputType = enum { text, number, checkbox };
     const enum_val = InputType.text;
 

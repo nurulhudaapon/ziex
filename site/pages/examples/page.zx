@@ -59,14 +59,14 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         .{
             .title = "CONTROL FLOW",
             .sections = &[_]SidebarProps.Section{
-                .{ 
+                .{
                     .title = "Conditionals",
                     .items = &[_]SidebarProps.Link{
                         .{ .href = "#if-else", .text = "If/Else" },
                         .{ .href = "#switch", .text = "Switch" },
                     },
                 },
-                .{ 
+                .{
                     .title = "Loops",
                     .items = &[_]SidebarProps.Link{
                         .{ .href = "#for-loop", .text = "For Loop" },
@@ -77,7 +77,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         .{
             .title = "COMPONENTS",
             .sections = &[_]SidebarProps.Section{
-                .{ 
+                .{
                     .title = "Building Blocks",
                     .items = &[_]SidebarProps.Link{
                         .{ .href = "#components", .text = "Component Props" },
@@ -89,7 +89,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         .{
             .title = "FORMS",
             .sections = &[_]SidebarProps.Section{
-                .{ 
+                .{
                     .title = "Form Handling",
                     .items = &[_]SidebarProps.Link{
                         .{ .href = "#form-handling", .text = "Basic Form" },

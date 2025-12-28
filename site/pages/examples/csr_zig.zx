@@ -18,9 +18,9 @@ pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
         <div @allocator={allocator}>
             <button onclick="_zx.exports.incrementCount(event)">Increment</button>
             <p>Count: {count}</p>
-        
+
             <input type="text" id="hello-input" />
-        
+
             <ul>
                 {for (todos.items) |todo| (<li>Todo {todo}</li>)}
             </ul>
@@ -34,7 +34,7 @@ export fn incrementCount() void {
     count += 1;
     const allocator = std.heap.wasm_allocator;
 
-    const text = std.fmt.allocPrint(allocator, "{d}", .{ count }) catch @panic("OOM");
+    const text = std.fmt.allocPrint(allocator, "{d}", .{count}) catch @panic("OOM");
     todos.append(allocator, text) catch @panic("OOM");
 
     root.client.renderAll();

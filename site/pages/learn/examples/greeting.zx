@@ -8,10 +8,7 @@ pub fn HelloWorld(allocator: zx.Allocator) zx.Component {
 }
 
 fn Greeting(allocator: zx.Allocator) zx.Component {
-    return (
-        <p @allocator={allocator}>Hello, World!</p>
-    );
+    return (<p @allocator={allocator}>Hello, World!</p>);
 }
 
 const zx = @import("zx");
-

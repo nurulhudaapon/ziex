@@ -32,4 +32,3 @@ fn ProductCard(allocator: zx.Allocator, props: ProductCardProps) zx.Component {
 }
 
 const zx = @import("zx");
-

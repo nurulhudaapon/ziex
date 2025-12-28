@@ -179,7 +179,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     // const setup_elapsed_ms = @as(f64, @floatFromInt(setup_elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
     // std.log.info("\x1b[1;36m[DOCS PAGE] Setup phase completed: {d:.3}ms\x1b[0m", .{setup_elapsed_ms});
 
-
     // Allocate files on heap to avoid stack lifetime issues
     const layout_files = blk: {
         const files = allocator.alloc(File, 2) catch unreachable;
@@ -194,38 +193,38 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <h2>Expressions</h2>
                 <p>Use curly braces <code>{expr_syntax}</code> to embed any Zig expression. Values are automatically formatted based on their type and HTML-escaped for safety.</p>
                 <ExampleBlock id="expressions-example" zx_code={zx_example_expr} zig_code={zig_example_expr} html_code={html_example_expr} filename="expressions.zx" />
-                
+
                 <h3 id="expr-strings">Strings</h3>
                 <p>String values (<code>[]const u8</code>) are displayed as text and automatically HTML-escaped to prevent XSS attacks. This is the safe default for displaying user input or any dynamic text content.</p>
                 <CodeBlock code={expr_string_example} />
-                
+
                 <h3 id="expr-integers">Integers</h3>
                 <p>Integer types (<code>i32</code>, <code>u64</code>, <code>comptime_int</code>, etc.) are formatted as decimal numbers. The special case <code>u8</code> is printed as a character if it's a printable ASCII character.</p>
                 <CodeBlock code={expr_int_example} />
-                
+
                 <h3 id="expr-floats">Floats</h3>
                 <p>Floating-point types (<code>f32</code>, <code>f64</code>, <code>comptime_float</code>) are formatted as decimal numbers.</p>
                 <CodeBlock code={expr_float_example} />
-                
+
                 <h3 id="expr-booleans">Booleans</h3>
                 <p>Boolean values are displayed as the literal strings "true" or "false".</p>
                 <CodeBlock code={expr_bool_example} />
-                
+
                 <h3 id="expr-enums">Enums</h3>
                 <p>Enum values are displayed as their tag name. This is useful for displaying status values, categories, or any enumerated type.</p>
                 <CodeBlock code={expr_enum_example} />
-                
+
                 <h3 id="expr-optionals">Optionals</h3>
                 <p>Optional values (<code>?T</code>) are automatically unwrapped and rendered if present. If the value is <code>null</code>, nothing is rendered. This makes it easy to conditionally display content.</p>
                 <CodeBlock code={expr_optional_example} />
-                
+
                 <h3 id="expr-null">Null</h3>
                 <p>The <code>null</code> value renders nothing, producing no output in the final HTML.</p>
-                
+
                 <h3 id="expr-components">Components</h3>
                 <p>A <code>zx.Component</code> value is rendered directly. This allows you to embed components returned from functions or stored in variables.</p>
                 <CodeBlock code={expr_component_example} />
-                
+
                 <h3 id="expr-component-arrays">Component Arrays</h3>
                 <p>Arrays or slices of components (<code>[]zx.Component</code>) are rendered as a fragment containing all the components in sequence.</p>
                 <CodeBlock code={expr_component_array_example} />
@@ -364,9 +363,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <ExampleBlock id="children" zx_code={zx_example_children} zig_code={zig_example_children} html_code={html_example_children} filename="card_demo.zx" />
             </section>
             <PluginsSection />
-            <CLISection />
-            // <ExamplesSection />
-      
+            <CLISection />            // <ExamplesSection />
         </div>
     );
 }
@@ -518,7 +515,7 @@ fn PluginsSection(allocator: zx.Allocator) zx.Component {
         <section id="plugins" class="section" @allocator={allocator}>
             <h2>Plugins</h2>
             <p>ZX provides a plugin system to extend the build process with additional tools. Plugins run as build steps and integrate seamlessly with <code>zig build</code>.</p>
-            
+
             <h3 id="plugin-overview">Overview</h3>
             <p>Plugins are configured in your <code>build.zig</code> file and passed to <code>zx.init()</code>. Each plugin adds build steps that run before or after ZX transpilation, allowing you to process CSS, bundle JavaScript, or run other tools.</p>
             <p>ZX provides <strong>builtin plugins</strong> for common tasks, and you can also <strong>create custom plugins</strong> for your specific needs.</p>
@@ -532,7 +529,7 @@ fn PluginsSection(allocator: zx.Allocator) zx.Component {
 
             <h3 id="tailwind-plugin">Tailwind CSS Plugin</h3>
             <p>The <code>tailwind</code> builtin plugin compiles your CSS using the Tailwind CSS CLI. It automatically runs after ZX transpiles your pages.</p>
-            
+
             <h4>Options</h4>
             <table class="options-table">
                 <thead>
@@ -588,13 +585,13 @@ fn PluginsSection(allocator: zx.Allocator) zx.Component {
                     </tr>
                 </tbody>
             </table>
-            
+
             <h4>Example</h4>
             <CodeBlock code={tailwind_full_example} filename="build.zig" />
 
             <h3 id="esbuild-plugin">esbuild Plugin</h3>
             <p>The <code>esbuild</code> builtin plugin bundles TypeScript or JavaScript files for client-side code. It supports modern JavaScript features and can bundle dependencies.</p>
-            
+
             <h4>Options</h4>
             <table class="options-table">
                 <thead>
@@ -686,9 +683,9 @@ fn PluginsSection(allocator: zx.Allocator) zx.Component {
                     </tr>
                 </tbody>
             </table>
-            
+
             <p><strong>Automatic defines:</strong> The esbuild plugin automatically sets <code>__DEV__</code> and <code>process.env.NODE_ENV</code> based on the build mode.</p>
-            
+
             <h4>Example</h4>
             <CodeBlock code={esbuild_full_example} filename="build.zig" />
 
@@ -698,7 +695,7 @@ fn PluginsSection(allocator: zx.Allocator) zx.Component {
 
             <h3 id="custom-plugins">Creating Custom Plugins</h3>
             <p>You can create your own plugins by returning a <code>zx.ZxInitOptions.PluginOptions</code> struct. This allows you to integrate any command-line tool into the ZX build process.</p>
-            
+
             <h4>Plugin Structure</h4>
             <p>A plugin consists of a name and a list of steps. Each step specifies when to run (before or after transpilation) and what command to execute:</p>
             <CodeBlock code={plugin_options_struct} />
@@ -858,11 +855,11 @@ fn CLISection(allocator: zx.Allocator) zx.Component {
         <section id="cli" class="section" @allocator={allocator}>
             <h2>Command Line Interface</h2>
             <p>ZX comes with a built-in CLI tool to help you create, develop, and deploy your projects.</p>
-            
+
             <h3 id="cli-installation">Installation</h3>
             <p>Install the ZX CLI using one of the following methods:</p>
             <InstallCLI />
-            
+
             {for (cli_commands) |cmd| (
                 <CLICommand allocator={allocator} command={cmd} />
             )}
@@ -876,7 +873,7 @@ fn CLICommand(allocator: zx.Allocator, props: struct { command: CLICommandInfo }
     const usage = command.usage;
     var parts = std.ArrayList(struct { text: []const u8, class: []const u8 }).empty;
     defer parts.deinit(allocator);
-    
+
     var iter = std.mem.tokenizeScalar(u8, usage, ' ');
     var first = true;
     while (iter.next()) |token| {
@@ -884,7 +881,7 @@ fn CLICommand(allocator: zx.Allocator, props: struct { command: CLICommandInfo }
         parts.append(allocator, .{ .text = token, .class = class_name }) catch unreachable;
         first = false;
     }
-    
+
     return (
         <div @allocator={allocator}>
             <h3 id={command.id}>
@@ -894,7 +891,7 @@ fn CLICommand(allocator: zx.Allocator, props: struct { command: CLICommandInfo }
                 )}
             </h3>
             <p>{command.description}</p>
-            
+
             <div class="install-box install-box-simple">
                 <div class="install-box-content">
                     <div class="install-code">
@@ -907,7 +904,7 @@ fn CLICommand(allocator: zx.Allocator, props: struct { command: CLICommandInfo }
                     </div>
                 </div>
             </div>
-            
+
             {if (command.arguments) |args| (
                 <div>
                     <h5>Arguments</h4>
@@ -918,7 +915,7 @@ fn CLICommand(allocator: zx.Allocator, props: struct { command: CLICommandInfo }
                     </ul>
                 </div>
             )}
-            
+
             {if (command.flags) |flags| (
                 <div>
                     <h5>Flags</h4>
@@ -929,7 +926,7 @@ fn CLICommand(allocator: zx.Allocator, props: struct { command: CLICommandInfo }
                     </ul>
                 </div>
             )}
-            
+
             {if (command.note) |note| (
                 <div class="callout">
                     <strong>Note:</strong> {note}

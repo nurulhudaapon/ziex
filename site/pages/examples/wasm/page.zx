@@ -2,13 +2,12 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     const allocator = ctx.arena;
     return (
         <div @allocator={allocator} class="todo-container">
-          
             <TodoApp @rendering={.client} />
 
             <style>
                 {[@embedFile("style.css"):s]}
             </style>
-            <script  type="module" src="/assets/main.js" />
+            <script type="module" src="/assets/main.js" />
         </div>
     );
 }
@@ -25,12 +24,12 @@ pub fn TodoApp(allocator: zx.Allocator) zx.Component {
                 <h1 class="todo-title">ZX + WASM</h1>
                 <p class="todo-subtitle">A demo todo app built with ZX Client Side Rendering</p>
             </div>
-        
+
             <form class="todo-input-section" onsubmit="event.preventDefault(); _zx.actions.example_wasm_addTodo(event);">
                 <input type="text" class="todo-input" id="todo-input" placeholder="Add a new todo..." />
                 <button class="todo-add-btn" type="submit">Add</button>
             </form>
-        
+
             <div class="todo-stats">
                 <div class="todo-stat">
                     <span class="todo-stat-value">{todos.items.len}</span>
@@ -45,7 +44,7 @@ pub fn TodoApp(allocator: zx.Allocator) zx.Component {
                     <span class="todo-stat-label">Remaining</span>
                 </div>
             </div>
-        
+
             <ul class="todo-list">
                 {for (todos.items) |todo| (
                     <TodoItem id={todo.id} text={todo.text} completed={todo.completed} />
@@ -65,10 +64,7 @@ fn TodoItem(allocator: zx.Allocator, props: TodoItemProps) zx.Component {
     const id = std.fmt.allocPrint(allocator, "{d}", .{props.id}) catch @panic("OOM");
 
     return (
-        <li @allocator={allocator} 
-            class={item_class} key={id} data-completed={if (props.completed) "true" else "false"}
-            onclick={std.fmt.allocPrint(allocator, "_zx.exports.example_wasm_toggleTodo({d})", .{props.id}) catch @panic("OOM")}
-        >
+        <li @allocator={allocator} class={item_class} key={id} data-completed={if (props.completed) "true" else "false"} onclick={std.fmt.allocPrint(allocator, "_zx.exports.example_wasm_toggleTodo({d})", .{props.id}) catch @panic("OOM")}>
             <button class="todo-checkbox">
                 {if (props.completed) "✓" else ""}
             </button>
@@ -130,9 +126,9 @@ export fn example_wasm_toggleTodo(id: u32) void {
         }
     }
 
-const todos_str_after = std.json.Stringify.valueAlloc(std.heap.wasm_allocator, todos.items, .{}) catch @panic("OOM");
+    const todos_str_after = std.json.Stringify.valueAlloc(std.heap.wasm_allocator, todos.items, .{}) catch @panic("OOM");
     console.log(.{ js.string("TODO After: "), js.string(todos_str_after) });
-            root.client.renderAll();
+    root.client.renderAll();
 }
 
 export fn example_wasm_clearTodos() void {

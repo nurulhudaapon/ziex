@@ -1,4 +1,3 @@
-
 var count: i32 = 0;
 pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
     return (

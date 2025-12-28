@@ -147,7 +147,7 @@ fn SidebarSection(allocator: zx.Allocator, props: SidebarSectionProps) zx.Compon
 
 fn SidebarSectionTitle(allocator: zx.Allocator, props: SidebarSectionProps) zx.Component {
     const has_link = props.section.href.len > 0;
-    
+
     if (has_link) {
         return (
             <a href={props.section.href} class="sidebar-section-link" @allocator={allocator}>
@@ -155,7 +155,7 @@ fn SidebarSectionTitle(allocator: zx.Allocator, props: SidebarSectionProps) zx.C
             </a>
         );
     }
-    
+
     return (
         <span class="sidebar-section-title" @allocator={allocator}>
             <span>{props.section.title}</span>
