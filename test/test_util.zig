@@ -132,8 +132,31 @@ pub const TestFileCache = struct {
         self.files.deinit();
     }
 
-    pub fn get(self: *const TestFileCache, path: []const u8) ?[]const u8 {
-        return self.files.get(path);
+    pub fn get(self: *TestFileCache, path: []const u8) !?[]const u8 {
+        // Check if file is already in cache
+        if (self.files.get(path)) |content| {
+            return content;
+        }
+
+        // File not in cache, try to fetch it from disk
+        const base_path = "test/data/";
+        const full_path = try std.fmt.allocPrint(self.allocator, "{s}{s}", .{ base_path, path });
+        defer self.allocator.free(full_path);
+
+        const content = std.fs.cwd().readFileAlloc(
+            self.allocator,
+            full_path,
+            std.math.maxInt(usize),
+        ) catch |err| switch (err) {
+            error.FileNotFound => return null,
+            else => return err,
+        };
+
+        // Cache the file for future calls
+        const cache_key = try std.fmt.allocPrint(self.allocator, "{s}", .{path});
+        try self.files.put(cache_key, content);
+
+        return content;
     }
 };
 
