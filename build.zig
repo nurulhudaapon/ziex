@@ -92,6 +92,11 @@ pub fn build(b: *std.Build) !void {
                         .input = b.path("site/main.ts"),
                         .output = b.path("{outdir}/assets/main.js"),
                     }),
+                    plugins.esbuild(b, .{
+                        .bin = b.path("site/node_modules/.bin/esbuild"),
+                        .input = b.path("site/scripts/docs.ts"),
+                        .output = b.path("{outdir}/assets/docs.js"),
+                    }),
                     plugins.tailwind(b, .{
                         .bin = b.path("site/node_modules/.bin/tailwindcss"),
                         .input = b.path("site/assets/styles.css"),
