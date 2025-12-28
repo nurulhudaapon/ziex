@@ -30,33 +30,54 @@ echo "Generating changelog from $PREVIOUS_TAG to HEAD (v${CURRENT_VERSION})..." 
 # Read the base RELEASE.md
 BASE_CONTENT=$(cat .github/RELEASE.md)
 
-# Get commits between previous tag and HEAD
-COMMITS=$(gh api "repos/nurulhudaapon/zx/compare/${PREVIOUS_TAG}...HEAD" --jq '.commits[] | "\(.commit.message | split("\n")[0])"' 2>/dev/null || git log "${PREVIOUS_TAG}..HEAD" --pretty=format:"%s" 2>/dev/null || echo "")
+# Get repository owner and name for commit URLs
+REPO_OWNER="nurulhudaapon"
+REPO_NAME="zx"
+REPO_URL="https://github.com/${REPO_OWNER}/${REPO_NAME}"
 
-# Categorize commits
+# Get commits between previous tag and HEAD with SHA and message
+# Use temporary files to avoid subshell issues with arrays
+TMP_COMMITS="/tmp/changelog_commits.txt"
+rm -f "$TMP_COMMITS"
+
+# Try GitHub API first
+gh api "repos/${REPO_OWNER}/${REPO_NAME}/compare/${PREVIOUS_TAG}...HEAD" --jq '.commits[] | "\(.sha)|\(.commit.message | split("\n")[0])"' > "$TMP_COMMITS" 2>/dev/null || true
+
+# If GitHub API failed or returned empty, use git log
+if [ ! -s "$TMP_COMMITS" ]; then
+    echo "Warning: GitHub API failed, using git log" >&2
+    git log "${PREVIOUS_TAG}..HEAD" --pretty=format:"%H|%s" > "$TMP_COMMITS" 2>/dev/null || true
+fi
+
+# Categorize commits with links
 FEATURES=()
 DOCS=()
 FIXES=()
-CHORES=()
 OTHER=()
 
-while IFS= read -r commit || [ -n "$commit" ]; do
-    if [[ -z "$commit" ]]; then
+# Process commits from file
+while IFS='|' read -r sha message || [ -n "$sha" ]; do
+    if [[ -z "$sha" ]] || [[ -z "$message" ]]; then
         continue
     fi
     
-    if [[ "$commit" =~ ^feat ]]; then
-        FEATURES+=("$commit")
-    elif [[ "$commit" =~ ^docs ]]; then
-        DOCS+=("$commit")
-    elif [[ "$commit" =~ ^fix ]]; then
-        FIXES+=("$commit")
-    elif [[ "$commit" =~ ^chore ]]; then
-        CHORES+=("$commit")
+    # Create commit link (short SHA)
+    SHORT_SHA="${sha:0:7}"
+    COMMIT_LINK="[\`${SHORT_SHA}\`](${REPO_URL}/commit/${sha})"
+    COMMIT_ENTRY="${message} ${COMMIT_LINK}"
+    
+    if [[ "$message" =~ ^feat ]]; then
+        FEATURES+=("$COMMIT_ENTRY")
+    elif [[ "$message" =~ ^docs ]]; then
+        DOCS+=("$COMMIT_ENTRY")
+    elif [[ "$message" =~ ^fix ]]; then
+        FIXES+=("$COMMIT_ENTRY")
     else
-        OTHER+=("$commit")
+        OTHER+=("$COMMIT_ENTRY")
     fi
-done <<< "$COMMITS"
+done < "$TMP_COMMITS"
+
+rm -f "$TMP_COMMITS"
 
 # Generate changelog section
 {
@@ -73,13 +94,7 @@ done <<< "$COMMITS"
         echo ""
     fi
     
-    if [ ${#DOCS[@]} -gt 0 ]; then
-        echo "#### Documentation"
-        for doc in "${DOCS[@]}"; do
-            echo "- ${doc}"
-        done
-        echo ""
-    fi
+
     
     if [ ${#FIXES[@]} -gt 0 ]; then
         echo "#### Fixes"
@@ -88,22 +103,22 @@ done <<< "$COMMITS"
         done
         echo ""
     fi
-    
-    if [ ${#CHORES[@]} -gt 0 ]; then
-        echo "#### Chores"
-        for chore in "${CHORES[@]}"; do
-            echo "- ${chore}"
+
+    if [ ${#DOCS[@]} -gt 0 ]; then
+        echo "#### Documentation"
+        for doc in "${DOCS[@]}"; do
+            echo "- ${doc}"
         done
         echo ""
     fi
     
     if [ ${#OTHER[@]} -gt 0 ]; then
-        echo "#### Other"
+        echo "#### Miscellaneous"
         for other in "${OTHER[@]}"; do
             echo "- ${other}"
         done
         echo ""
-    fi
+    fi    
 } > /tmp/changelog.txt
 
 # Combine base content with changelog
