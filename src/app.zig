@@ -57,11 +57,26 @@ pub const App = struct {
 
         // Routes
         for (config.meta.routes) |*route| {
+            var method_found = false;
             if (route.page_opts) |pg_opts| {
                 for (pg_opts.methods) |method| {
-                    router.method(@tagName(method), route.path, Handler.page, .{ .data = route });
+                    method_found = true;
+                    switch (method) {
+                        .GET => router.get(route.path, Handler.page, .{ .data = route }),
+                        .POST => router.post(route.path, Handler.page, .{ .data = route }),
+                        .PUT => router.put(route.path, Handler.page, .{ .data = route }),
+                        .DELETE => router.delete(route.path, Handler.page, .{ .data = route }),
+                        .PATCH => router.patch(route.path, Handler.page, .{ .data = route }),
+                        .OPTIONS => router.options(route.path, Handler.page, .{ .data = route }),
+                        .HEAD => router.head(route.path, Handler.page, .{ .data = route }),
+                        .CONNECT => router.connect(route.path, Handler.page, .{ .data = route }),
+                        .TRACE => router.trace(route.path, Handler.page, .{ .data = route }),
+                        .ALL => router.all(route.path, Handler.page, .{ .data = route }),
+                    }
                 }
-            } else {
+            }
+
+            if (!method_found) {
                 router.get(route.path, Handler.page, .{ .data = route });
             }
         }

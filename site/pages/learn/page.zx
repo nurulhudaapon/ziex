@@ -1,3 +1,7 @@
+pub const options = zx.PageOptions{
+    .methods = &.{ .GET, .POST },
+};
+
 pub fn Page(ctx: zx.PageContext) zx.Component {
     const allocator = ctx.arena;
 
