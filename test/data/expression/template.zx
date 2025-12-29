@@ -5,7 +5,20 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     return (
         <section @allocator={allocator} class=`test-{count} {getThemeClass(.dark)}` data-name=`person-{name}` id=`test` data-normal={name} data-text="{text}" data-t="`{text}`">
             <p>My name is {name}</p>
+            <Component text=`hello {count}` name=`test {name} {getThemeClass(.dark)} more-text` />
         </section>
+    );
+}
+
+fn Component(ctx: *zx.ComponentCtx(struct {
+    text: []const u8,
+    name: []const u8,
+})) zx.Component {
+    return (
+        <div>
+            <p>{ctx.props.text}</p>
+            <p>{ctx.props.name}</p>
+        </div>
     );
 }
 

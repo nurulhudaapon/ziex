@@ -81,6 +81,7 @@ const categories = [_]SidebarProps.Category{
                 .items = &[_]SidebarProps.Link{
                     .{ .href = "/docs#spread-attributes", .text = "Spread Attributes" },
                     .{ .href = "/docs#shorthand-attributes", .text = "Shorthand" },
+                    .{ .href = "/docs#template-attributes", .text = "Template Strings" },
                 },
             },
             .{ .title = "Importing", .href = "/docs#importing" },

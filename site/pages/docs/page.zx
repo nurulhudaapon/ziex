@@ -175,6 +175,17 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
         \\(<button {class} {disabled} {@"data-id"}>Click</button>)
         \\// Renders: <button class="btn-primary" disabled data-id="123">Click</button>
     ;
+    const template_attrs_example =
+        \\const count = 42;
+        \\const name = "John";
+        \\...
+        \\(<div class=`item-{count}` data-user=`user-{name}`>
+        \\    <a href=`/users/{name}/profile`>Profile</a>
+        \\</div>)
+        \\// Renders: <div class="item-42" data-user="user-John">
+        \\//            <a href="/users/John/profile">Profile</a>
+        \\//          </div>
+    ;
 
     // Component context examples
     const component_ctx_example =
@@ -449,6 +460,10 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 <p>When the attribute name matches the variable name, use the shorthand syntax <code>{"{variable}"}</code>:</p>
                 <CodeBlock code={shorthand_attrs_example} />
                 <p>This is equivalent to writing <code>class={"{class}"}</code> but more concise.</p>
+                <h3 id="template-attributes">Template Attributes</h3>
+                <p>Use backticks (<code>`</code>) for string interpolation in attribute values. Embed expressions with <code>{"{expr}"}</code> inside the template:</p>
+                <CodeBlock code={template_attrs_example} />
+                <p>Template attributes are useful for building dynamic URLs, class names, or data attributes that combine static text with dynamic values.</p>
             </section>
             <section id="importing" class="section">
                 <h2>Importing</h2>

@@ -434,6 +434,11 @@ fn DynamicAttributes(allocator: zx.Allocator, props: DynamicAttributesProps) zx.
         \\...
         \\(<button {..attrs}>Click</button>)
     ;
+    const template_example =
+        \\const id = 42;
+        \\...
+        \\(<a href=`/users/{id}/profile`>Profile</a>)
+    ;
 
     return (
         <section id="dynamic-attributes" class="section" @allocator={allocator}>
@@ -441,6 +446,10 @@ fn DynamicAttributes(allocator: zx.Allocator, props: DynamicAttributesProps) zx.
             <p>Use curly braces to pass dynamic values to HTML attributes:</p>
             <ExampleBlock id="dynamic-attr" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="dynamic_attrs.zx" />
             <p>You can use any expression, including conditionals, to compute attribute values dynamically.</p>
+
+            <h3>Template strings</h3>
+            <p>Use backticks for string interpolation in attributes:</p>
+            <CodeBlock code={template_example} />
 
             <h3>Spread and shorthand</h3>
             <p>Use <code>{"{..struct}"}</code> to spread struct fields as attributes, or <code>{"{variable}"}</code> as shorthand when the attribute name matches the variable:</p>

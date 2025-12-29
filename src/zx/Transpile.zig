@@ -926,8 +926,10 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
             try ctx.write(" .");
             try ctx.write(attr.name);
             try ctx.write(" = ");
-            // If value contains a zx_block, transpile it instead of writing raw text
-            if (attr.zx_block_node) |zx_node| {
+            // Handle template strings, zx_blocks, and regular values
+            if (attr.template_string_node) |template_node| {
+                try transpileTemplateStringProp(self, template_node, ctx);
+            } else if (attr.zx_block_node) |zx_node| {
                 try transpileBlock(self, zx_node, ctx);
             } else {
                 try ctx.writeM(attr.value, attr.value_byte_offset, self);
@@ -991,7 +993,10 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
                     try ctx.write(" .");
                     try ctx.write(attr.name);
                     try ctx.write(" = ");
-                    if (attr.zx_block_node) |zx_node| {
+                    // Handle template strings, zx_blocks, and regular values
+                    if (attr.template_string_node) |template_node| {
+                        try transpileTemplateStringProp(self, template_node, ctx);
+                    } else if (attr.zx_block_node) |zx_node| {
                         try transpileBlock(self, zx_node, ctx);
                     } else {
                         try ctx.writeM(attr.value, attr.value_byte_offset, self);
@@ -1023,7 +1028,10 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
                 try ctx.write(" .");
                 try ctx.write(attr.name);
                 try ctx.write(" = ");
-                if (attr.zx_block_node) |zx_node| {
+                // Handle template strings, zx_blocks, and regular values
+                if (attr.template_string_node) |template_node| {
+                    try transpileTemplateStringProp(self, template_node, ctx);
+                } else if (attr.zx_block_node) |zx_node| {
                     try transpileBlock(self, zx_node, ctx);
                 } else {
                     try ctx.writeM(attr.value, attr.value_byte_offset, self);
@@ -1878,6 +1886,86 @@ fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileC
     ctx.indent_level -= 1;
     try ctx.writeIndent();
     try ctx.write("}),\n");
+}
+
+/// Transpile a template string for component props to _zx.propf("format", .{ values })
+fn transpileTemplateStringProp(self: *Ast, template_node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
+    var format_parts = std.ArrayList(u8){};
+    defer format_parts.deinit(ctx.output.allocator);
+    var substitutions = std.ArrayList(ts.Node){};
+    defer substitutions.deinit(ctx.output.allocator);
+
+    const template_start = template_node.startByte();
+    const template_end = template_node.endByte();
+
+    // Track current position to capture gaps between children (like spaces)
+    var current_pos = template_start + 1; // Skip opening backtick
+
+    const child_count = template_node.childCount();
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = template_node.child(i) orelse continue;
+        const child_kind = NodeKind.fromNode(child);
+        const child_start = child.startByte();
+        const child_end = child.endByte();
+
+        // Capture any gap (like spaces) between previous position and this child
+        if (current_pos < child_start and child_start <= self.source.len) {
+            try format_parts.appendSlice(ctx.output.allocator, self.source[current_pos..child_start]);
+        }
+
+        switch (child_kind) {
+            .zx_template_content => {
+                // Add text content to format string
+                const text = try self.getNodeText(child);
+                try format_parts.appendSlice(ctx.output.allocator, text);
+            },
+            .zx_template_substitution => {
+                // Tree-sitter may include leading whitespace in the substitution node.
+                // Find the actual '{' position and capture any text before it.
+                const sub_source = self.source[child_start..child_end];
+                const brace_pos = std.mem.indexOfScalar(u8, sub_source, '{');
+                if (brace_pos) |pos| {
+                    if (pos > 0) {
+                        // There's text before the '{' (like a space)
+                        try format_parts.appendSlice(ctx.output.allocator, sub_source[0..pos]);
+                    }
+                }
+
+                // Replace with {s} and save the expression node
+                try format_parts.appendSlice(ctx.output.allocator, "{s}");
+
+                // Get the expression using field name
+                const expr_node = child.childByFieldName("expression");
+                if (expr_node) |expr| {
+                    try substitutions.append(ctx.output.allocator, expr);
+                }
+            },
+            else => {},
+        }
+
+        current_pos = child_end;
+    }
+
+    // Capture any remaining content before closing backtick (unlikely but safe)
+    if (current_pos < template_end - 1 and template_end <= self.source.len) {
+        try format_parts.appendSlice(ctx.output.allocator, self.source[current_pos .. template_end - 1]);
+    }
+
+    // Write _zx.propf("format", .{ values })
+    try ctx.write("_zx.propf(\"");
+    try ctx.write(format_parts.items);
+    try ctx.write("\", .{");
+
+    for (substitutions.items, 0..) |sub_node, idx| {
+        if (idx > 0) try ctx.write(",");
+        try ctx.write(" _zx.propv(");
+        const expr_text = try self.getNodeText(sub_node);
+        try ctx.writeM(expr_text, sub_node.startByte(), self);
+        try ctx.write(")");
+    }
+
+    try ctx.write(" })");
 }
 
 /// Transpile a template string attribute to _zx.attrf("name", "format", .{ values })

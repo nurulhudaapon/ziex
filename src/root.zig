@@ -918,6 +918,12 @@ const ZxContext = struct {
         return "";
     }
 
+    pub fn propf(self: *ZxContext, comptime format: []const u8, args: anytype) []const u8 {
+        const allocator = self.getAlloc();
+        return std.fmt.allocPrint(allocator, format, args) catch @panic("OOM");
+    }
+    pub const propv = attrv;
+
     /// Filter and collect non-null attributes into a slice
     pub fn attrs(self: *ZxContext, inputs: anytype) []const Element.Attribute {
         const allocator = self.getAlloc();
