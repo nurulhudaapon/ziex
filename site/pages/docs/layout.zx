@@ -40,11 +40,17 @@ const categories = [_]SidebarProps.Category{
                     .{ .href = "/docs#switch-statements", .text = "Switch Statements" },
                     .{ .href = "/docs#for-loops", .text = "For Loops" },
                     .{ .href = "/docs#while-loops", .text = "While Loops" },
+                    .{ .href = "/docs#optional-capture", .text = "Optional Capture" },
+                    .{ .href = "/docs#error-capture", .text = "Error Capture" },
                 },
             },
             .{
                 .title = "Components",
                 .href = "/docs#components",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/docs#component-context", .text = "ComponentContext" },
+                    .{ .href = "/docs#component-ctx-props", .text = "ComponentCtx" },
+                },
             },
             .{
                 .title = "Routing",
@@ -69,9 +75,25 @@ const categories = [_]SidebarProps.Category{
                     .{ .href = "/docs#rendering", .text = "@rendering" },
                 },
             },
+            .{
+                .title = "Attribute Syntax",
+                .href = "/docs#attribute-syntax",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/docs#spread-attributes", .text = "Spread Attributes" },
+                    .{ .href = "/docs#shorthand-attributes", .text = "Shorthand" },
+                },
+            },
             .{ .title = "Importing", .href = "/docs#importing" },
             .{ .title = "Fragments", .href = "/docs#fragments" },
             .{ .title = "Children Props", .href = "/docs#children-props" },
+            .{
+                .title = "Syntax",
+                .href = "/docs#syntax",
+                .items = &[_]SidebarProps.Link{
+                    .{ .href = "/docs#multiline-strings", .text = "Multiline Strings" },
+                    .{ .href = "/docs#comments", .text = "Comments" },
+                },
+            },
         },
     },
     .{
@@ -117,10 +139,12 @@ const toc_links = [_]SidebarProps.Link{
     .{ .href = "/docs#components", .text = "Components" },
     .{ .href = "/docs#routing", .text = "Routing" },
     .{ .href = "/docs#builtin-attributes", .text = "Builtin Attributes" },
+    .{ .href = "/docs#attribute-syntax", .text = "Attribute Syntax" },
     .{ .href = "/docs#importing", .text = "Importing" },
     .{ .href = "/docs#dynamic-routes", .text = "Dynamic Routes" },
     .{ .href = "/docs#fragments", .text = "Fragments" },
     .{ .href = "/docs#children-props", .text = "Children Props" },
+    .{ .href = "/docs#syntax", .text = "Syntax" },
     .{ .href = "/docs#plugins", .text = "Plugins" },
     .{ .href = "/docs#cli", .text = "CLI" },
 };

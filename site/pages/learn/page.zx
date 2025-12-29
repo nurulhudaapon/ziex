@@ -429,12 +429,23 @@ const DynamicAttributesProps = struct {
 };
 
 fn DynamicAttributes(allocator: zx.Allocator, props: DynamicAttributesProps) zx.Component {
+    const spread_example =
+        \\const attrs = .{ .class = "btn", .disabled = true };
+        \\...
+        \\(<button {..attrs}>Click</button>)
+    ;
+
     return (
         <section id="dynamic-attributes" class="section" @allocator={allocator}>
             <h2>Dynamic attributes</h2>
             <p>Use curly braces to pass dynamic values to HTML attributes:</p>
             <ExampleBlock id="dynamic-attr" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="dynamic_attrs.zx" />
-            <p>You can use any expression, including conditionals, to compute attribute values dynamically. ZX also provides special <a href="/docs#builtin-attributes">builtin attributes</a> like <code>@allocator</code>, <code>@escaping</code>, and <code>@rendering</code> for component behavior control.</p>
+            <p>You can use any expression, including conditionals, to compute attribute values dynamically.</p>
+
+            <h3>Spread and shorthand</h3>
+            <p>Use <code>{"{..struct}"}</code> to spread struct fields as attributes, or <code>{"{variable}"}</code> as shorthand when the attribute name matches the variable:</p>
+            <CodeBlock code={spread_example} />
+            <p>See the <a href="/docs#attribute-syntax">Attribute Syntax documentation</a> for more details. ZX also provides special <a href="/docs#builtin-attributes">builtin attributes</a> like <code>@allocator</code>, <code>@escaping</code>, and <code>@rendering</code>.</p>
         </section>
     );
 }

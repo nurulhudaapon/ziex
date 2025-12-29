@@ -127,6 +127,97 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
         \\(<ul>{items}</ul>) // Renders both Item components
     ;
 
+    // Control flow capture examples
+    const optional_capture_example =
+        \\const user_name: ?[]const u8 = "Alice";
+        \\...
+        \\{if (user_name) |name| (<p>Welcome, {name}!</p>)}
+        \\
+        \\// With else branch:
+        \\{if (user_name) |name| (<p>Hello, {name}</p>) else (<p>Guest</p>)}
+        \\
+        \\// While with capture (iterator pattern):
+        \\{while (iter.next()) |item| (<li>{item}</li>)}
+    ;
+    const error_capture_example =
+        \\// If with error capture:
+        \\{if (fetchUser()) |user| (
+        \\    <p>Welcome, {user.name}!</p>
+        \\) else |err| (
+        \\    <p>Error: {@errorName(err)}</p>
+        \\)}
+        \\
+        \\// While with error capture:
+        \\{while (iter.next()) |item| (
+        \\    <li>{item}</li>
+        \\) else |err| (
+        \\    <p>Iteration ended: {@errorName(err)}</p>
+        \\)}
+    ;
+
+    // Attribute examples
+    const spread_attrs_example =
+        \\const form_attrs = .{
+        \\    .class = "form-control",
+        \\    .@"data-validate" = "true",
+        \\};
+        \\const input_props = .{ .name = "email", .value = "test@example.com" };
+        \\...
+        \\(<form {..form_attrs}>
+        \\    <input type="text" {..input_props} />
+        \\</form>)
+    ;
+    const shorthand_attrs_example =
+        \\const class = "btn-primary";
+        \\const disabled = true;
+        \\const @"data-id" = "123";
+        \\...
+        \\(<button {class} {disabled} {@"data-id"}>Click</button>)
+        \\// Renders: <button class="btn-primary" disabled data-id="123">Click</button>
+    ;
+
+    // Component context examples
+    const component_ctx_example =
+        \\// ComponentContext: children only, no custom props
+        \\fn Wrapper(ctx: *zx.ComponentContext) zx.Component {
+        \\    return (
+        \\        <div @allocator={ctx.allocator} class="wrapper">
+        \\            {ctx.children}
+        \\        </div>
+        \\    );
+        \\}
+    ;
+    const component_ctx_props_example =
+        \\// ComponentCtx(Props): props and children access
+        \\const CardProps = struct { title: []const u8 };
+        \\fn Card(ctx: *zx.ComponentCtx(CardProps)) zx.Component {
+        \\    return (
+        \\        <article @allocator={ctx.allocator} class="card">
+        \\            <h2>{ctx.props.title}</h2>
+        \\            {ctx.children}
+        \\        </article>
+        \\    );
+        \\}
+    ;
+
+    // Syntax examples
+    const multiline_string_example =
+        \\// Multiline strings use Zig's \\ syntax:
+        \\(<pre>{
+        \\    \\const x = 1;
+        \\    \\const y = 2;
+        \\    \\const sum = x + y;
+        \\}</pre>)
+    ;
+    const comments_example =
+        \\// Single-line comments are supported in ZX:
+        \\(<div>
+        \\    // This is a comment
+        \\    <p>Visible content</p>
+        \\    // Another comment
+        \\</div>)
+    ;
+
     // Escaping example
     var aw_escaping: std.io.Writer.Allocating = .init(allocator);
     const zx_example_escaping = @embedFile("../../../pages/examples/escaping.zx");
@@ -244,16 +335,33 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 <h3 id="while-loops">While Loops</h3>
                 <p>Use <code>while</code> loops for conditional iteration with a continuation expression. The syntax follows Zig's while loop pattern: <code>{"while (condition) : (continue_expr) (body)"}</code>. This is useful for generating numbered sequences or iterating until a condition is met.</p>
                 <ExampleBlock id="while" zx_code={zx_example_while} zig_code={zig_example_while} html_code={html_example_while} filename="counter.zx" />
+                <h3 id="optional-capture">Optional Capture</h3>
+                <p>Use payload capture syntax to unwrap optional values in <code>if</code> and <code>while</code> expressions:</p>
+                <CodeBlock code={optional_capture_example} />
+                <p>If the optional is <code>null</code>, the body is skipped (or the <code>else</code> branch runs if provided).</p>
+                <h3 id="error-capture">Error Capture</h3>
+                <p>Capture errors from error unions using <code>else |err|</code> syntax:</p>
+                <CodeBlock code={error_capture_example} />
+                <p>This works with both <code>if</code> and <code>while</code> expressions for handling fallible operations.</p>
             </section>
             <section id="components" class="section">
                 <h2>Components</h2>
                 <p>Components are reusable functions that return <code>zx.Component</code>. They allow you to encapsulate UI logic and create modular, maintainable code. Components can accept props (properties) to customize their behavior and appearance.</p>
                 <h3>Component Function Signatures</h3>
-                <p>Component functions must follow one of two signatures:</p>
+                <p>Component functions can use one of several signatures depending on their needs:</p>
                 <ul>
-                    <li><strong>Single parameter (allocator only):</strong><code>fn ComponentName(allocator: zx.Allocator) zx.Component</code></li>
-                    <li><strong>Two parameters (allocator and props):</strong><code>fn ComponentName(allocator: zx.Allocator, props: PropsType) zx.Component</code></li>
+                    <li><strong>Allocator only:</strong><code>fn Component(allocator: zx.Allocator) zx.Component</code></li>
+                    <li><strong>With props:</strong><code>fn Component(allocator: zx.Allocator, props: Props) zx.Component</code></li>
+                    <li><strong>Context (children only):</strong><code>fn Component(ctx: *zx.ComponentContext) zx.Component</code></li>
+                    <li><strong>Context with props:</strong><code>fn Component(ctx: *zx.ComponentCtx(Props)) zx.Component</code></li>
                 </ul>
+                <h3 id="component-context">ComponentContext</h3>
+                <p>Use <code>zx.ComponentContext</code> when your component needs access to children but has no custom props:</p>
+                <CodeBlock code={component_ctx_example} />
+                <h3 id="component-ctx-props">ComponentCtx with Props</h3>
+                <p>Use <code>zx.ComponentCtx(Props)</code> when you need both custom props and children access:</p>
+                <CodeBlock code={component_ctx_props_example} />
+                <p>The context provides <code>ctx.allocator</code>, <code>ctx.props</code>, and <code>ctx.children</code>.</p>
                 <h3>Defining Components</h3>
                 <p>To create a component, define a function that returns a <code>zx.Component</code>. The function must have an allocator as its first parameter. If your component needs configuration, add a props struct as the second parameter:</p>
                 <ExampleBlock id="components" zx_code={zx_example_components} zig_code={zig_example_components} html_code={html_example_components} filename="button_demo.zx" />
@@ -330,6 +438,18 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 </ul>
                 <ExampleBlock id="react" zx_code={zx_example_csr} zig_code={zig_example_csr} html_code={html_example_csr} filename="react_demo.zx" />
             </section>
+            <section id="attribute-syntax" class="section">
+                <h2>Attribute Syntax</h2>
+                <p>ZX provides convenient syntax for working with attributes beyond simple static values.</p>
+                <h3 id="spread-attributes">Spread Attributes</h3>
+                <p>Use <code>{"{..struct}"}</code> to spread all fields of a struct as attributes on an element. This is useful for passing groups of attributes or forwarding props:</p>
+                <CodeBlock code={spread_attrs_example} />
+                <p>Spread attributes can be combined with explicit attributes. Explicit attributes take precedence when there are conflicts.</p>
+                <h3 id="shorthand-attributes">Shorthand Attributes</h3>
+                <p>When the attribute name matches the variable name, use the shorthand syntax <code>{"{variable}"}</code>:</p>
+                <CodeBlock code={shorthand_attrs_example} />
+                <p>This is equivalent to writing <code>class={"{class}"}</code> but more concise.</p>
+            </section>
             <section id="importing" class="section">
                 <h2>Importing</h2>
                 <p>ZX supports importing components and modules from various sources. You can import ZX components from other files, React/TSX components for client-side interactivity, and standard Zig modules.</p>
@@ -361,6 +481,18 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 <h2>Children Props</h2>
                 <p>Components can accept child elements through a <code>children</code> prop, enabling wrapper and container patterns. Any elements between the opening and closing tags are passed as the <code>children</code> prop:</p>
                 <ExampleBlock id="children" zx_code={zx_example_children} zig_code={zig_example_children} html_code={html_example_children} filename="card_demo.zx" />
+            </section>
+            <section id="syntax" class="section">
+                <h2>Syntax Features</h2>
+                <p>ZX supports additional Zig syntax features within templates.</p>
+                <h3 id="multiline-strings">Multiline Strings</h3>
+                <p>Use Zig's multiline string syntax (<code>\\</code>) to embed formatted text blocks:</p>
+                <CodeBlock code={multiline_string_example} />
+                <p>Each line prefixed with <code>\\</code> is concatenated. This is useful for code snippets, preformatted text, or ASCII art.</p>
+                <h3 id="comments">Comments</h3>
+                <p>Single-line comments are supported within ZX templates:</p>
+                <CodeBlock code={comments_example} />
+                <p>Comments are stripped from the output and do not appear in the rendered HTML.</p>
             </section>
             <PluginsSection />
             <CLISection />
