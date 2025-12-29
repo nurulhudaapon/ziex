@@ -179,7 +179,7 @@ fn Installation(allocator: zx.Allocator) !zx.Component {
 
             <InstallCLI />
 
-            <p style="margin-top: 1rem;">If you prefer not to install the CLI, you can create a project manually. See the <a href="#create-project">Create a Project</a> section for the manual setup option.</p>
+            <p style="margin-top: 1rem;">If you prefer not to install the CLI, you can create a project manually. See the <a href="#create-project">Create a Project</a> section for the manual setup option, or check the <a href="/docs#cli">CLI documentation</a> for all available commands.</p>
 
             <h3>Install Zig</h3>
             <p>ZX <code>{zx.info.version_string}</code> requires Zig <code>{zx.info.minimum_zig_version}</code>:</p>
@@ -351,7 +351,7 @@ fn CreatingComponents(allocator: zx.Allocator, props: CreatingComponentsProps) z
                 <strong>Note:</strong>
                  Every component needs an allocator for memory management. The 
                 <code>@allocator</code>
-                 attribute must be set on the root element of each component. Child components inherit the allocator from their parent.
+                 attribute must be set on the root element of each component. Child components inherit the allocator from their parent. See the <a href="/docs#allocator">@allocator documentation</a> for details.
             </div>
         </section>
     );
@@ -371,6 +371,7 @@ fn WritingMarkup(allocator: zx.Allocator, props: WritingMarkupProps) zx.Componen
             <p>ZX is stricter than HTML. You have to close all tags, including self-closing ones like <code>{"<br />"}</code>:</p>
             <ExampleBlock id="markup" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="about_section.zx" />
             <p>CSS classes are specified with the <code>class</code> attribute, same as HTML. Write your CSS in separate files and include them in your layout.</p>
+            <p>ZX automatically escapes HTML content for security. If you need to render raw HTML, see the <a href="/docs#escaping">@escaping documentation</a>.</p>
         </section>
     );
 }
@@ -387,7 +388,7 @@ fn Fragments(allocator: zx.Allocator, props: FragmentsProps) zx.Component {
             <h2>Fragments</h2>
             <p>Sometimes you want to return multiple elements from a component without adding an extra wrapper. Use the empty tag syntax <code>{"<>"}...{"</>"}</code>:</p>
             <ExampleBlock id="fragment" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="fragment_demo.zx" />
-            <p>Fragments are useful when you need to group elements but don't want to add extra DOM nodes. The children are rendered directly without any wrapper element.</p>
+            <p>Fragments are useful when you need to group elements but don't want to add extra DOM nodes. The children are rendered directly without any wrapper element. Learn more in the <a href="/docs#fragments">Fragments documentation</a>.</p>
         </section>
     );
 }
@@ -416,6 +417,7 @@ fn DisplayingData(allocator: zx.Allocator, props: DisplayingDataProps) zx.Compon
             <ExampleBlock id="text-expr" zx_code={props.zx_text} zig_code={props.zig_text} html_code={props.html_text} filename="user_greeting.zx" />
             <p>Different types are automatically handled:</p>
             <ExampleBlock id="format-expr" zx_code={props.zx_format} zig_code={props.zig_format} html_code={props.html_format} filename="product_info.zx" />
+            <p>See the <a href="/docs#expressions">Expressions documentation</a> for detailed information on all supported types including components and component arrays.</p>
         </section>
     );
 }
@@ -432,7 +434,7 @@ fn DynamicAttributes(allocator: zx.Allocator, props: DynamicAttributesProps) zx.
             <h2>Dynamic attributes</h2>
             <p>Use curly braces to pass dynamic values to HTML attributes:</p>
             <ExampleBlock id="dynamic-attr" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="dynamic_attrs.zx" />
-            <p>You can use any expression, including conditionals, to compute attribute values dynamically.</p>
+            <p>You can use any expression, including conditionals, to compute attribute values dynamically. ZX also provides special <a href="/docs#builtin-attributes">builtin attributes</a> like <code>@allocator</code>, <code>@escaping</code>, and <code>@rendering</code> for component behavior control.</p>
         </section>
     );
 }
@@ -456,6 +458,7 @@ fn ConditionalRendering(allocator: zx.Allocator, props: ConditionalRenderingProp
             <h3>Switch expressions</h3>
             <p>Use <code>switch</code> expressions to match against enum values. Each case can return text or a component:</p>
             <ExampleBlock id="switch-expr" zx_code={props.zx_switch} zig_code={props.zig_switch} html_code={props.html_switch} filename="role_badge.zx" />
+            <p>ZX also supports <code>while</code> loops for conditional iteration. See the <a href="/docs#control-flow">Control Flow documentation</a> for all patterns.</p>
         </section>
     );
 }
@@ -472,7 +475,7 @@ fn RenderingLists(allocator: zx.Allocator, props: RenderingListsProps) zx.Compon
             <h2>Rendering lists</h2>
             <p>Use <code>for</code> loops to iterate over arrays and render a component for each item:</p>
             <ExampleBlock id="list" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="product_list.zx" />
-            <p>The loop variable can be used within the component body to display item-specific content.</p>
+            <p>The loop variable can be used within the component body to display item-specific content. See the <a href="/docs#for-loops">For Loops documentation</a> for more examples.</p>
         </section>
     );
 }
@@ -489,7 +492,7 @@ fn PassingProps(allocator: zx.Allocator, props: PassingPropsProps) zx.Component 
             <h2>Passing props to components</h2>
             <p>Components can accept <em>props</em> (properties) to customize their behavior. Define a props struct as the second parameter:</p>
             <ExampleBlock id="props" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="button_demo.zx" />
-            <p>ZX automatically coerces attributes to the props struct. Fields with default values are optional.</p>
+            <p>ZX automatically coerces attributes to the props struct. Fields with default values are optional. See the <a href="/docs#components">Components documentation</a> for more on props coercion.</p>
             <h3>Component signatures</h3>
             <ul>
                 <li><strong>Allocator only:</strong><code>fn Component(allocator: zx.Allocator) zx.Component</code></li>
@@ -511,7 +514,7 @@ fn ChildrenProps(allocator: zx.Allocator, props: ChildrenPropsProps) zx.Componen
             <h2>Passing children to components</h2>
             <p>Components can accept <em>children</em> — content passed between opening and closing tags. Add a <code>children: zx.Component</code> field to your props:</p>
             <ExampleBlock id="children" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="card_demo.zx" />
-            <p>This pattern is useful for creating wrapper components like cards, modals, or layout containers.</p>
+            <p>This pattern is useful for creating wrapper components like cards, modals, or layout containers. See the <a href="/docs#children-props">Children Props documentation</a> for more details.</p>
         </section>
     );
 }
@@ -566,6 +569,7 @@ fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Comp
                 <code>ctx.arena</code>
                  for allocations - it's automatically freed after the request.
             </div>
+            <p>See the <a href="/docs#routing">Routing documentation</a> for detailed information on pages, layouts, and dynamic routes.</p>
         </section>
     );
 }
@@ -640,17 +644,12 @@ fn NextSteps(allocator: zx.Allocator) zx.Component {
 
 const zx = @import("zx");
 const std = @import("std");
-const Sidebar = @import("../components/sidebar.zx").Sidebar;
-const SidebarProps = @import("../components/sidebar.zx").SidebarProps;
 const example_block = @import("../components/example_block.zx");
 const ExampleBlock = example_block.ExampleBlock;
 const File = example_block.File;
 const CodeBlock = @import("../components/code_block.zx").CodeBlock;
 const InstallCLI = @import("../components/install_guide.zx").InstallCLI;
 const InstallZig = @import("../components/install_guide.zx").InstallZig;
-const util = @import("../docs/util.zig");
-const tailwind_plugin = @import("../../../pages/learn/examples/tailwind_plugin.zig");
-const esbuild_plugin = @import("../../../pages/learn/examples/esbuild_plugin.zig");
 
 // Helper to allocate files on heap to avoid stack lifetime issues
 fn layoutFiles(allocator: zx.Allocator, layout_code: []const u8, page_code: []const u8) []const File {

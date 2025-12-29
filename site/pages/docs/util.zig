@@ -1,3 +1,31 @@
+/// Extract specific line ranges from content (1-indexed, inclusive)
+/// Similar to cli/init.zig's line extraction for templates
+pub fn extractLines(allocator: zx.Allocator, content: []const u8, line_ranges: []const struct { u32, u32 }) []const u8 {
+    var result = std.array_list.Managed(u8).init(allocator);
+    defer result.deinit();
+
+    var line_iter = std.mem.splitScalar(u8, content, '\n');
+    var line_n: u32 = 1;
+    var first_line = true;
+
+    while (line_iter.next()) |line| {
+        for (line_ranges) |line_range| {
+            const start, const end = line_range;
+            if (line_n >= start and line_n <= end) {
+                if (!first_line) {
+                    result.append('\n') catch unreachable;
+                }
+                result.appendSlice(line) catch unreachable;
+                first_line = false;
+                break;
+            }
+        }
+        line_n += 1;
+    }
+
+    return allocator.dupe(u8, result.items) catch unreachable;
+}
+
 /// Helper function to find minimum indentation in non-empty lines
 pub fn findMinIndent(lines: []const []const u8, first_non_empty: usize, last_non_empty: usize) usize {
     var min_indent: usize = std.math.maxInt(usize);

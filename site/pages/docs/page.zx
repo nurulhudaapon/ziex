@@ -383,134 +383,16 @@ const CodeBlock = @import("../components/code_block.zig").CodeBlock;
 const InstallCLI = @import("../components/install_guide.zx").InstallCLI;
 
 fn PluginsSection(allocator: zx.Allocator) zx.Component {
-    const tailwind_full_example =
-        \\const zx = @import("zx");
-        \\const std = @import("std");
-        \\
-        \\pub fn build(b: *std.Build) !void {
-        \\    const target = b.standardTargetOptions(.{});
-        \\    const optimize = b.standardOptimizeOption(.{});
-        \\    
-        \\    const zx_dep = b.dependency("zx", .{ .target = target, .optimize = optimize });
-        \\    const exe = b.addExecutable(.{
-        \\        .name = "my-app",
-        \\        .root_module = b.createModule(.{
-        \\            .root_source_file = b.path("site/main.zig"),
-        \\            .target = target,
-        \\            .optimize = optimize,
-        \\        }),
-        \\    });
-        \\
-        \\    try zx.init(b, exe, .{
-        \\        .plugins = &.{
-        \\            zx.plugins.tailwind(b, .{
-        \\                .bin = b.path("node_modules/.bin/tailwindcss"),
-        \\                .input = b.path("site/assets/styles.css"),
-        \\                .output = b.path("{outdir}/assets/styles.css"),
-        \\                .minify = optimize != .Debug,
-        \\            }),
-        \\        },
-        \\    });
-        \\}
-    ;
-    const esbuild_full_example =
-        \\const zx = @import("zx");
-        \\const std = @import("std");
-        \\
-        \\pub fn build(b: *std.Build) !void {
-        \\    // ... setup code ...
-        \\
-        \\    try zx.init(b, exe, .{
-        \\        .plugins = &.{
-        \\            zx.plugins.esbuild(b, .{
-        \\                .bin = b.path("node_modules/.bin/esbuild"),
-        \\                .input = b.path("site/main.ts"),
-        \\                .output = b.path("{outdir}/assets/main.js"),
-        \\                .bundle = true,
-        \\                .format = .esm,
-        \\                .platform = .browser,
-        \\                .target = "es2020",
-        \\                .external = &.{ "react", "react-dom" },
-        \\                .define = &.{
-        \\                    .{ .key = "API_URL", .value = "\"https://api.example.com\"" },
-        \\                },
-        \\            }),
-        \\        },
-        \\    });
-        \\}
-    ;
-    const combined_example =
-        \\try zx.init(b, exe, .{
-        \\    .plugins = &.{
-        \\        zx.plugins.esbuild(b, .{
-        \\            .input = b.path("site/main.ts"),
-        \\            .output = b.path("{outdir}/assets/main.js"),
-        \\        }),
-        \\        zx.plugins.tailwind(b, .{
-        \\            .input = b.path("site/assets/styles.css"),
-        \\            .output = b.path("{outdir}/assets/styles.css"),
-        \\        }),
-        \\    },
-        \\});
-    ;
-    const custom_plugin_example =
-        \\const zx = @import("zx");
-        \\const std = @import("std");
-        \\
-        \\pub fn build(b: *std.Build) !void {
-        \\    // ... setup code ...
-        \\
-        \\    try zx.init(b, exe, .{
-        \\        .plugins = &.{
-        \\            // Custom plugin using PluginOptions directly
-        \\            createImageOptimizer(b),
-        \\        },
-        \\    });
-        \\}
-        \\
-        \\fn createImageOptimizer(b: *std.Build) zx.ZxInitOptions.PluginOptions {
-        \\    const cmd = std.Build.Step.Run.create(b, "optimize-images");
-        \\    
-        \\    // Add your custom command
-        \\    cmd.addArgs(&.{ "npx", "imagemin", "site/public/**/*", "--out-dir={outdir}/public" });
-        \\    
-        \\    // Allocate steps array
-        \\    const steps = b.allocator.alloc(zx.ZxInitOptions.PluginOptions.PluginStep, 1) catch @panic("OOM");
-        \\    steps[0] = .{
-        \\        .command = .{
-        \\            .type = .after_transpile,  // Run after ZX transpilation
-        \\            .run = cmd,
-        \\        },
-        \\    };
-        \\    
-        \\    return .{
-        \\        .name = "image-optimizer",
-        \\        .steps = steps,
-        \\    };
-        \\}
-    ;
-    const plugin_options_struct =
-        \\/// Configuration for build plugins
-        \\pub const PluginOptions = struct {
-        \\    /// Human-readable name for this plugin
-        \\    name: []const u8,
-        \\    
-        \\    /// List of steps this plugin should execute
-        \\    steps: []const PluginStep,
-        \\    
-        \\    pub const PluginStep = union(enum) {
-        \\        command: PluginStepCommand,
-        \\    };
-        \\    
-        \\    pub const PluginStepCommand = struct {
-        \\        /// When to execute: before_transpile or after_transpile
-        \\        type: enum { before_transpile, after_transpile },
-        \\        
-        \\        /// The command to run (use {outdir} for output directory)
-        \\        run: *std.Build.Step.Run,
-        \\    };
-        \\};
-    ;
+    // Embedded snippet files for plugin examples
+    const plugin_examples = @embedFile("../../../assets/snippets/plugin_examples.zig");
+    const zx_init_options = @embedFile("../../../assets/snippets/ZxInitOptions.zig");
+
+    // Extract specific line ranges from the embedded snippets
+    const tailwind_full_example = util.extractLines(allocator, plugin_examples, &.{ .{ 2, 29 } });
+    const esbuild_full_example = util.extractLines(allocator, plugin_examples, &.{ .{ 32, 56 } });
+    const combined_example = util.extractLines(allocator, plugin_examples, &.{ .{ 59, 70 } });
+    const custom_plugin_example = util.extractLines(allocator, plugin_examples, &.{ .{ 73, 107 } });
+    const plugin_options_struct = util.extractLines(allocator, zx_init_options, &.{ .{ 79, 107 } });
 
     return (
         <section id="plugins" class="section" @allocator={allocator}>
