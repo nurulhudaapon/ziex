@@ -235,6 +235,7 @@ pub const App = struct {
     pub const SerilizableAppMeta = struct {
         pub const Route = struct {
             path: []const u8,
+            has_notfound: bool = false,
         };
         pub const Config = struct {
             server: httpz.Config,
@@ -253,6 +254,7 @@ pub const App = struct {
             for (app.meta.routes, 0..) |route, i| {
                 routes[i] = Route{
                     .path = try allocator.dupe(u8, route.path),
+                    .has_notfound = route.notfound != null,
                 };
             }
 

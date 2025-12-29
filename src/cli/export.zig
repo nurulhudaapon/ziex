@@ -65,11 +65,19 @@ fn @"export"(ctx: zli.CommandContext) !void {
     process_block: while (true) {
         for (app_meta.routes) |route| {
             log.debug("Processing route! {s}", .{route.path});
-            processRoute(ctx.allocator, host, port, route, outdir, &printer) catch |err| {
+            processRoute(ctx.allocator, host, port, route, outdir, &printer, .page) catch |err| {
                 if (err == error.ConnectionRefused) {
                     continue :process_block;
                 }
             };
+            // Also export 404.html for routes that have notfound handler
+            if (route.has_notfound) {
+                processRoute(ctx.allocator, host, port, route, outdir, &printer, .notfound) catch |err| {
+                    if (err == error.ConnectionRefused) {
+                        continue :process_block;
+                    }
+                };
+            }
         }
         break;
     }
@@ -91,6 +99,8 @@ fn @"export"(ctx: zli.CommandContext) !void {
     // printer.footer("", .{});
 }
 
+const ExportType = enum { page, notfound };
+
 fn processRoute(
     allocator: std.mem.Allocator,
     host: []const u8,
@@ -98,6 +108,7 @@ fn processRoute(
     route: zx.App.SerilizableAppMeta.Route,
     outdir: []const u8,
     printer: *tui.Printer,
+    export_type: ExportType,
 ) !void {
     // Fetch the route's HTML content
     var client = std.http.Client{ .allocator = allocator };
@@ -109,22 +120,43 @@ fn processRoute(
     const url = try std.fmt.allocPrint(allocator, "http://{s}:{d}{s}", .{ host, port, route.path });
     defer allocator.free(url);
 
+    var extra_headers: [1]std.http.Header = .{.{ .name = "x-zx-export-notfound", .value = "true" }};
+
     _ = try client.fetch(.{
         .method = .GET,
         .location = .{ .url = url },
-        .headers = std.http.Client.Request.Headers{},
+        .extra_headers = if (export_type == .notfound) &extra_headers else &.{},
         .response_writer = &aw.writer,
     });
 
     const response_text = aw.written();
 
     // Determine the output file path
-    // For root path "/", use "index.html", otherwise use the route path
     var file_path: []const u8 = undefined;
     var file_path_owned: ?[]u8 = null;
     defer if (file_path_owned) |fp| allocator.free(fp);
 
-    if (std.mem.eql(u8, route.path, "/")) {
+    if (export_type == .notfound) {
+        // For 404 pages, output as 404.html in the route's directory
+        if (std.mem.eql(u8, route.path, "/")) {
+            file_path = "404.html";
+        } else {
+            // For non-root paths like /docs, output as docs/404.html
+            var path_components = std.ArrayList([]const u8).empty;
+            defer path_components.deinit(allocator);
+
+            var path_iter = std.mem.splitScalar(u8, route.path, '/');
+            while (path_iter.next()) |component| {
+                if (component.len > 0) {
+                    try path_components.append(allocator, component);
+                }
+            }
+            try path_components.append(allocator, "404.html");
+            file_path_owned = try std.fs.path.join(allocator, path_components.items);
+            file_path = file_path_owned.?;
+        }
+    } else if (std.mem.eql(u8, route.path, "/")) {
+        // For root path "/", use "index.html"
         file_path = "index.html";
     } else {
         // Split the URL path by "/" to get path components

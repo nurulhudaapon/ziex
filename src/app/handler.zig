@@ -540,11 +540,18 @@ pub const Handler = struct {
 
     pub fn page(self: *Handler, req: *httpz.Request, res: *httpz.Response) !void {
         const allocator = self.allocator;
+        const is_dev_mode = self.meta.cli_command == .dev;
+        const is_export_mode = self.meta.cli_command == .@"export";
+
+        if (is_export_mode) {
+            if (req.header("x-zx-export-notfound")) |_| {
+                return self.notFound(req, res);
+            }
+        }
 
         const pagectx = zx.PageContext.init(req, res, allocator);
         const layoutctx = zx.LayoutContext.init(req, res, allocator);
 
-        const is_dev_mode = self.meta.cli_command == .dev;
         // log.debug("cli command: {s}", .{@tagName(meta.cli_command orelse .serve)});
 
         if (req.route_data) |rd| {

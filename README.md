@@ -93,6 +93,7 @@ const zx = @import("zx");
     - [x] File-system Routing
     - [x] Search Parameters
     - [x] Path Segments
+- [ ] Streaming
 - [x] Components
 - [x] Control Flow
     - [x] `if`
@@ -114,7 +115,7 @@ const zx = @import("zx");
 - [ ] Caching (configurable)
     - [ ] Component
     - [ ] Layout
-    - [ ] Page
+    - [x] Page
     - [ ] Assets
 - [ ] API Endpoints
 - [ ] Server Actions
@@ -123,8 +124,8 @@ const zx = @import("zx");
     - [x] Command based plugin system
     - [ ] Source based plugin system
 - [ ] Global App Context
-- [ ] `error.zx` for default and per-route error page
-- [ ] `notfound.zx` for default and per-route error page
+- [x] `error.zx` for default and per-route error page
+- [x] `notfound.zx` for default and per-route error page
 - [x] CLI
     - [x] `init` Project Template
     - [x] `transpile` Transpile .zx files to Zig source code
