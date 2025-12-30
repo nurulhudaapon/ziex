@@ -50,6 +50,8 @@ pub fn TodoApp(allocator: zx.Allocator) zx.Component {
                     <TodoItem id={todo.id} text={todo.text} completed={todo.completed} />
                 )}
             </ul>
+
+            <button class="todo-clear-btn" onclick={clearTodos}>Clear All</button>
         </div>
     );
 }
@@ -81,9 +83,10 @@ const initial_todos = [_]Todo{
     .{ .id = 3, .text = "Implement server-side rendering", .completed = true },
     .{ .id = 4, .text = "Implement client-side rendering", .completed = false },
 };
-
+var initialized: bool = false;
 fn initTodos(allocator: zx.Allocator) void {
-    if (todos.items.len > 0) return;
+    if (initialized) return;
+    initialized = true;
     todos.appendSlice(allocator, &initial_todos) catch @panic("OOM");
 }
 

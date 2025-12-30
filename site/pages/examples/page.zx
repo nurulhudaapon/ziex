@@ -51,8 +51,8 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
     return (
         <fragment @allocator={allocator}>
-            <ClientComponent />
-            <ClientCounter @rendering={.react} visit_count={0} />
+            // <ClientComponent />
+            // <ClientCounter @rendering={.react} visit_count={0} />
             <ExamplesHeader />
             <IfElseSection zx_code={zx_if} zig_code={zig_if} html_code={html_if} />
             <SwitchSection zx_code={zx_switch} zig_code={zig_switch} html_code={html_switch} />

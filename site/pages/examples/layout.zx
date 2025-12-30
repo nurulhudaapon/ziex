@@ -55,10 +55,10 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
             },
         },
         .{
-            .title = "ADVANCED",
+            .title = "EXPERIMENTAL (CSR)",
             .sections = &[_]SidebarProps.Section{
-                .{ .title = "WASM TODO App", .href = "/examples/wasm" },
-                .{ .title = "Simple WASM", .href = "/examples/wasm/simple" },
+                .{ .title = "Counter App", .href = "/examples/wasm/simple" },
+                .{ .title = "Todo App", .href = "/examples/wasm" },
             },
         },
     };

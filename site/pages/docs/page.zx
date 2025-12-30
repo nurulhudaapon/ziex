@@ -40,7 +40,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     var aw_expr: std.io.Writer.Allocating = .init(allocator);
     const zx_example_expr = @embedFile("../../../pages/examples/text.zx");
     const zig_example_expr = @embedFile("../examples/text.zig");
-    const html_page_expr = @import("../examples/text.zig").Expressions(allocator);
+    const html_page_expr = try @import("../examples/text.zig").Expressions(allocator);
     html_page_expr.render(&aw_expr.writer) catch unreachable;
     const html_example_expr = allocator.dupe(u8, aw_expr.written()) catch unreachable;
 

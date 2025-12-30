@@ -10,7 +10,10 @@ pub fn ButtonDemo(ctx: zx.PageContext) zx.Component {
     );
 }
 
-const ButtonProps = struct { title: []const u8 = "Click Me", class: []const u8 = "btn" };
+const ButtonProps = struct {
+    title: []const u8 = "Click Me",
+    class: []const u8 = "btn",
+};
 
 fn Button(allocator: zx.Allocator, props: ButtonProps) zx.Component {
     return (

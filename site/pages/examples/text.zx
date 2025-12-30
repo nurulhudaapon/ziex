@@ -1,4 +1,4 @@
-pub fn Expressions(allocator: zx.Allocator) zx.Component {
+pub fn Expressions(allocator: zx.Allocator) !zx.Component {
     const string_val = "hello";
     const int_val: i32 = 42;
     const float_val: f32 = 3.14;
@@ -12,7 +12,7 @@ pub fn Expressions(allocator: zx.Allocator) zx.Component {
 
     const component_val = (<p>hi</p>);
 
-    const component_array_val = allocator.alloc(zx.Component, 2) catch unreachable;
+    const component_array_val = try allocator.alloc(zx.Component, 2);
     component_array_val[0] = (<li>hi</li>);
     component_array_val[1] = (<li>hello</li>);
 
@@ -27,7 +27,7 @@ pub fn Expressions(allocator: zx.Allocator) zx.Component {
             <p>Optional: {optional_null}</p>
             <p>Enum: {enum_val}</p>
             <p>Component: {component_val}</p>
-            <p>Component Array: {component_array_val}</p>
+            <ol>Component Array: {component_array_val}</ol>
         </form>
     );
 }

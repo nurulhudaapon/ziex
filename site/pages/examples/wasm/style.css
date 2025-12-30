@@ -180,6 +180,27 @@ body {
     color: var(--text-muted);
 }
 
+.todo-clear-btn {
+    width: 100%;
+    padding: 1rem 2rem;
+    margin-top: 1.5rem;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid var(--border);
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 0;
+    font-family: inherit;
+    font-size: 0.875rem;
+    transition: all 0.3s ease;
+}
+
+.todo-clear-btn:hover {
+    background: #1a0000;
+    border-color: #ff4444;
+    color: #ff4444;
+}
+
 @media (max-width: 768px) {
     .todo-container {
         padding: 2rem 1rem;
