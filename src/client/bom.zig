@@ -42,13 +42,13 @@ pub const Console = struct {
 
 pub const Event = struct {
     const EventTarget = struct {
-        value: []const u8,
+        value: ?[]const u8 = null,
     };
 
     id: u64,
     ref: js.Object,
 
-    target: EventTarget,
+    target: ?EventTarget = null,
     data: ?[]const u8 = null,
 
     pub fn idInit(allocator: std.mem.Allocator, id: u64) !Event {
@@ -56,10 +56,10 @@ pub const Event = struct {
         const ob_val: js.Object = try obj.get(js.Object, "events");
 
         const current_event: js.Object = try ob_val.call(js.Object, "at", .{id});
-        const target: js.Object = try current_event.get(js.Object, "target");
-        const target_value: []const u8 = try target.getAlloc(js.String, allocator, "value");
+        const target: ?js.Object = current_event.get(js.Object, "target") catch null;
+        const target_value: ?[]const u8 = if (target) |t| t.getAlloc(js.String, allocator, "value") catch null else null;
 
-        const event_target: EventTarget = .{ .value = target_value };
+        const event_target: ?EventTarget = if (target_value) |v| .{ .value = v } else null;
         const event_data: ?[]const u8 = current_event.getAlloc(js.String, allocator, "data") catch null;
 
         return .{
@@ -68,6 +68,14 @@ pub const Event = struct {
             .target = event_target,
             .data = event_data,
         };
+    }
+
+    pub fn preventDefault(id: u64) void {
+        const obj: js.Object = js.global.get(js.Object, "_zx") catch @panic("Failed to get _zx");
+        const ob_val: js.Object = obj.get(js.Object, "events") catch @panic("Failed to get events");
+        const current_event: js.Object = ob_val.call(js.Object, "at", .{id}) catch @panic("Failed to call at");
+
+        current_event.call(void, "preventDefault", .{}) catch @panic("Failed to call preventDefault");
     }
 
     pub fn deinit(self: Event) void {

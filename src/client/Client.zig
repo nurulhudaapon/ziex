@@ -11,9 +11,52 @@ pub const ComponentMeta = struct {
     import: *const fn (allocator: std.mem.Allocator) zx.Component,
 };
 
+/// Key for the handler registry: (velement_id, event_type_hash)
+const HandlerKey = struct {
+    velement_id: u64,
+    event_type: EventType,
+};
+
+/// Supported event types
+pub const EventType = enum(u8) {
+    click,
+    dblclick,
+    input,
+    change,
+    submit,
+    focus,
+    blur,
+    keydown,
+    keyup,
+    keypress,
+    mouseenter,
+    mouseleave,
+    mousedown,
+    mouseup,
+    mousemove,
+    touchstart,
+    touchend,
+    touchmove,
+    scroll,
+
+    /// Parse event type from attribute name (e.g., "onclick" -> .click)
+    pub fn fromAttributeName(name: []const u8) ?EventType {
+        // Event attributes start with "on"
+        if (name.len < 3 or !std.mem.startsWith(u8, name, "on")) return null;
+
+        const event_name = name[2..]; // Skip "on" prefix
+        return std.meta.stringToEnum(EventType, event_name);
+    }
+};
+
 allocator: std.mem.Allocator,
 components: []const ComponentMeta,
 vtrees: std.StringHashMap(VDOMTree),
+/// Registry mapping VElement IDs to their VElement pointers for event delegation
+id_to_velement: std.AutoHashMap(u64, *vtree_mod.VElement),
+/// Registry mapping (velement_id, event_type) to event handlers
+/// This is the React-style handler registry - handlers are stored here, not as strings
+handler_registry: std.AutoHashMap(HandlerKey, zx.EventHandler),
 
 const InitOptions = struct {
     components: []const ComponentMeta,
@@ -24,6 +67,8 @@ pub fn init(allocator: std.mem.Allocator, options: InitOptions) Client {
         .allocator = allocator,
         .components = options.components,
         .vtrees = std.StringHashMap(VDOMTree).init(allocator),
+        .id_to_velement = std.AutoHashMap(u64, *vtree_mod.VElement).init(allocator),
+        .handler_registry = std.AutoHashMap(HandlerKey, zx.EventHandler).init(allocator),
     };
 }
 
@@ -33,6 +78,81 @@ pub fn deinit(self: *Client) void {
         entry.value_ptr.deinit(self.allocator);
     }
     self.vtrees.deinit();
+    self.id_to_velement.deinit();
+    self.handler_registry.deinit();
+}
+
+/// Register a VElement and all its children in the id_to_velement registry
+/// This enables event delegation lookup by VElement ID
+/// Also extracts and registers event handlers from component attributes
+pub fn registerVElement(self: *Client, velement: *vtree_mod.VElement) void {
+    self.id_to_velement.put(velement.id, velement) catch {};
+
+    // Extract and register event handlers from the component's attributes
+    switch (velement.component) {
+        .element => |element| {
+            if (element.attributes) |attributes| {
+                for (attributes) |attr| {
+                    // Check if this attribute has a handler (React-style)
+                    if (attr.handler) |handler| {
+                        // Parse event type from attribute name (e.g., "onclick" -> .click)
+                        if (EventType.fromAttributeName(attr.name)) |event_type| {
+                            self.registerHandler(velement.id, event_type, handler);
+                        }
+                    }
+                }
+            }
+        },
+        else => {},
+    }
+
+    // Recursively register children
+    for (velement.children.items) |*child| {
+        self.registerVElement(child);
+    }
+}
+
+/// Register an event handler for a specific VElement and event type
+pub fn registerHandler(self: *Client, velement_id: u64, event_type: EventType, handler: zx.EventHandler) void {
+    const key = HandlerKey{ .velement_id = velement_id, .event_type = event_type };
+    self.handler_registry.put(key, handler) catch {};
+}
+
+/// Look up a handler by VElement ID and event type
+pub fn getHandler(self: *Client, velement_id: u64, event_type: EventType) ?zx.EventHandler {
+    const key = HandlerKey{ .velement_id = velement_id, .event_type = event_type };
+    return self.handler_registry.get(key);
+}
+
+/// Unregister a VElement and all its children from the registry
+pub fn unregisterVElement(self: *Client, velement: *vtree_mod.VElement) void {
+    _ = self.id_to_velement.remove(velement.id);
+
+    // Recursively unregister children
+    for (velement.children.items) |*child| {
+        self.unregisterVElement(child);
+    }
+}
+
+pub fn getVElementById(self: *Client, id: u64) ?*vtree_mod.VElement {
+    return self.id_to_velement.get(id);
+}
+
+/// Dispatch an event to the appropriate handler
+/// This looks up the handler in the registry and calls it with an EventContext
+/// Returns true if a handler was found and called
+pub fn dispatchEvent(self: *Client, velement_id: u64, event_type: EventType, event_id: u64) bool {
+    if (self.getHandler(velement_id, event_type)) |handler| {
+        const event_context = zx.EventContext.init(event_id);
+        handler(event_context);
+        return true;
+    }
+    return false;
+}
+
+pub fn dispatchEventByName(self: *Client, velement_id: u64, event_type_name: []const u8) bool {
+    const event_type = std.meta.stringToEnum(EventType, event_type_name) orelse return false;
+    return self.dispatchEvent(velement_id, event_type);
 }
 
 pub fn info(self: *Client) void {
@@ -48,12 +168,6 @@ pub fn info(self: *Client) void {
     defer self.allocator.free(format_str);
 
     console.log(.{ js.string(format_str), js.string(title_css), js.string(version_css) });
-
-    // const obj: js.Object = js.global.get(js.Object, "_zx") catch @panic("ZX not found");
-    // const zx_events: js.Object = obj.get(js.Object, "events") catch @panic("Events not found");
-    // const zx_exports: js.Object = obj.get(js.Object, "exports") catch @panic("");
-    // console.table(.{ zx_events, zx_exports });
-    // console.table(.{zx_exports});
 }
 
 pub fn renderAll(self: *Client) void {
@@ -82,6 +196,11 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
     if (existing_vtree == null) {
         try container.appendChild(new_vtree.vtree.dom);
         try self.vtrees.put(cmp.id, new_vtree);
+
+        // Register VElements for event delegation
+        if (self.vtrees.getPtr(cmp.id)) |vtree_ptr| {
+            self.registerVElement(&vtree_ptr.vtree);
+        }
         return;
     }
 

@@ -13,7 +13,6 @@ body {
 
 .todo-container {
     min-height: 100vh;
-    background: var(--bg);
     color: var(--text);
     padding: 4rem 2rem;
     display: flex;

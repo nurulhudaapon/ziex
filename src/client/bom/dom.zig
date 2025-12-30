@@ -41,6 +41,17 @@ pub const HTMLElement = struct {
         self.ref.call(void, "removeAttribute", .{js.string(name)}) catch {};
     }
 
+    /// Set a JavaScript property directly on the DOM node (not an attribute)
+    /// Used for internal references like __zx_ref
+    pub fn setProperty(self: HTMLElement, name: []const u8, value: anytype) void {
+        self.ref.set(name, value) catch {};
+    }
+
+    /// Get a JavaScript property from the DOM node
+    pub fn getProperty(self: HTMLElement, comptime T: type, name: []const u8) !T {
+        return try self.ref.get(T, name);
+    }
+
     pub fn removeChild(self: HTMLElement, child: HTMLNode) !void {
         switch (child) {
             .element => |element| {

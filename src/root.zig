@@ -259,10 +259,30 @@ fn coerceProps(comptime TargetType: type, props: anytype) TargetType {
 }
 
 const ComponentSerializable = struct {
+    /// Serializable attribute (excludes handler which is a function pointer)
+    const AttributeSerializable = struct {
+        name: []const u8,
+        value: ?[]const u8 = null,
+    };
+
     tag: ?ElementTag = null,
     text: ?[]const u8 = null,
-    attributes: ?[]const Element.Attribute = null,
+    attributes: ?[]const AttributeSerializable = null,
     children: ?[]ComponentSerializable = null,
+
+    /// Convert Element.Attribute slice to serializable form (strips handlers)
+    fn serializeAttributes(allocator: Allocator, attrs: ?[]const Element.Attribute) !?[]const AttributeSerializable {
+        const attributes = attrs orelse return null;
+        const serializable = try allocator.alloc(AttributeSerializable, attributes.len);
+        for (attributes, 0..) |attr, i| {
+            serializable[i] = .{
+                .name = attr.name,
+                .value = attr.value,
+                // handler is intentionally excluded - not serializable
+            };
+        }
+        return serializable;
+    }
 
     pub fn init(allocator: Allocator, component: Component) !ComponentSerializable {
         return switch (component) {
@@ -277,7 +297,7 @@ const ComponentSerializable = struct {
                 } else null;
                 break :blk .{
                     .tag = element.tag,
-                    .attributes = element.attributes,
+                    .attributes = try serializeAttributes(allocator, element.attributes),
                     .children = children_serializable,
                 };
             },
@@ -484,7 +504,7 @@ pub const Component = union(enum) {
     }
 
     pub fn render(self: Component, writer: *std.Io.Writer) !void {
-        try self.internalRender(writer, .{ .escaping = .html, .rendering = .server });
+        try self.renderInner(writer, .{ .escaping = .html, .rendering = .server });
     }
 
     /// Stream method that renders HTML while collecting elements with 'slot' attribute
@@ -493,7 +513,7 @@ pub const Component = union(enum) {
         var slots = std.array_list.Managed(Component).init(allocator);
         errdefer slots.deinit();
 
-        try self.internalRender(writer, &slots);
+        try self.renderInner(writer, &slots);
         return slots.toOwnedSlice();
     }
 
@@ -502,7 +522,7 @@ pub const Component = union(enum) {
         escaping: ?BuiltinAttribute.Escaping = .html,
         rendering: ?BuiltinAttribute.Rendering = .server,
     };
-    fn internalRender(self: Component, writer: *std.Io.Writer, options: RenderInnerOptions) !void {
+    fn renderInner(self: Component, writer: *std.Io.Writer, options: RenderInnerOptions) !void {
         switch (self) {
             .text => |text| {
                 try writer.print("{s}", .{text});
@@ -513,7 +533,7 @@ pub const Component = union(enum) {
                     std.debug.print("Error rendering component: {}\n", .{err});
                     return err;
                 };
-                try component.internalRender(writer, options);
+                try component.renderInner(writer, options);
             },
             .component_csr => |component_csr| {
                 try writer.print("<{s} id=\"{s}\"", .{ "div", component_csr.id });
@@ -550,7 +570,7 @@ pub const Component = union(enum) {
                 if (elem.tag == .fragment) {
                     if (elem.children) |children| {
                         for (children) |child| {
-                            try child.internalRender(writer, options);
+                            try child.renderInner(writer, options);
                         }
                     }
                     return;
@@ -566,7 +586,13 @@ pub const Component = union(enum) {
                 // Handle attributes
                 if (elem.attributes) |attributes| {
                     for (attributes) |attribute| {
-                        try writer.print(" {s}", .{attribute.name});
+                        if (attribute.handler) |handler| {
+                            // try writer.print(" {s}", .{attribute.name});
+                            // try handler(.{});
+                            _ = handler;
+                        } else {
+                            try writer.print(" {s}", .{attribute.name});
+                        }
                         if (attribute.value) |value| {
                             try writer.writeAll("=\"");
                             try escapeAttributeValueToWriter(writer, value);
@@ -585,7 +611,7 @@ pub const Component = union(enum) {
                 // Render children (recursively collect slots if needed)
                 if (elem.children) |children| {
                     for (children) |child| {
-                        try child.internalRender(writer, options);
+                        try child.renderInner(writer, options);
                     }
                 }
 
@@ -679,6 +705,7 @@ pub const Element = struct {
     pub const Attribute = struct {
         name: []const u8,
         value: ?[]const u8 = null,
+        handler: ?EventHandler = null,
     };
 
     tag: ElementTag,
@@ -900,6 +927,11 @@ const ZxContext = struct {
                 .value = @tagName(val),
             },
 
+            // Event handlers - store as function pointer
+            .@"fn" => .{
+                .name = name,
+                .handler = val,
+            },
             else => @compileError("Unsupported type for attribute value: " ++ @typeName(T)),
         };
     }
@@ -1294,7 +1326,21 @@ pub fn ComponentCtx(comptime PropsType: type) type {
         };
     }
 }
-pub const ComponentContext = ComponentCtx(void);
+
+pub const ComponentContext = struct { allocator: Allocator, children: ?Component = null };
+pub const EventContext = struct {
+    id: u64,
+    pub fn init(id: u64) EventContext {
+        return .{ .id = id };
+    }
+
+    pub fn preventDefault(self: EventContext) void {
+        Client.bom.Event.preventDefault(self.id);
+    }
+};
+
+pub const EventHandler = *const fn (event: EventContext) void;
+
 pub const BuiltinAttribute = struct {
     pub const Rendering = enum {
         /// Client-side React.js

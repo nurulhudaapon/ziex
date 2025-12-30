@@ -206,6 +206,10 @@ test "attribute_spread" {
     try test_transpile("attribute/spread");
     try test_render("attribute/spread", @import("./../data/attribute/spread.zig").Page);
 }
+test "attribute_event_handler" {
+    try test_transpile("attribute/event_handler");
+    try test_render("attribute/event_handler", @import("./../data/attribute/event_handler.zig").Page);
+}
 
 // === Element ===
 test "element_void" {

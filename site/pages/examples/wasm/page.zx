@@ -25,7 +25,7 @@ pub fn TodoApp(allocator: zx.Allocator) zx.Component {
                 <p class="todo-subtitle">A demo todo app built with ZX Client Side Rendering</p>
             </div>
 
-            <form class="todo-input-section" onsubmit="event.preventDefault(); _zx.actions.example_wasm_addTodo(event);">
+            <form class="todo-input-section" onsubmit={addTodo}>
                 <input type="text" class="todo-input" id="todo-input" placeholder="Add a new todo..." />
                 <button class="todo-add-btn" type="submit">Add</button>
             </form>
@@ -60,15 +60,18 @@ const TodoItemProps = struct {
     completed: bool,
 };
 fn TodoItem(allocator: zx.Allocator, props: TodoItemProps) zx.Component {
-    const item_class = if (props.completed) "todo-item todo-item-completed" else "todo-item";
-    const id = std.fmt.allocPrint(allocator, "{d}", .{props.id}) catch @panic("OOM");
+    const class = if (props.completed) "todo-item todo-item-completed" else "todo-item";
+    const @"data-completed" = if (props.completed) "true" else "false";
+    const key = props.id;
 
     return (
-        <li @allocator={allocator} class={item_class} key={id} data-completed={if (props.completed) "true" else "false"} onclick={std.fmt.allocPrint(allocator, "_zx.exports.example_wasm_toggleTodo({d})", .{props.id}) catch @panic("OOM")}>
-            <button class="todo-checkbox">
+        <li @{allocator} {class} {key} {@"data-completed"}>
+            <input type="button" class="todo-checkbox" value={props.id} onclick={toggleTodo}>
                 {if (props.completed) "✓" else ""}
-            </button>
-            <span class="todo-text">{props.text}</span>
+            </input>
+            <span>
+                {props.text}
+            </span>
         </li>
     );
 }
@@ -84,8 +87,9 @@ fn initTodos(allocator: zx.Allocator) void {
     todos.appendSlice(allocator, &initial_todos) catch @panic("OOM");
 }
 
-export fn example_wasm_addTodo() void {
+fn addTodo(ctx: zx.EventContext) void {
     if (builtin.os.tag != .freestanding) return;
+    ctx.preventDefault();
     const allocator = std.heap.wasm_allocator;
     const document = zx.Client.bom.Document.init(allocator);
     const input = document.getElementById("todo-input") catch return;
@@ -95,48 +99,42 @@ export fn example_wasm_addTodo() void {
 
     todos.append(allocator, .{ .id = todos.items.len + 1, .text = text, .completed = false }) catch @panic("OOM");
     input.ref.set("value", js.string("")) catch return;
-
-    root.client.renderAll();
 }
 
-fn example_wasm_handleInputChange(event_id: u32) void {
+fn handleInputChange(ctx: zx.EventContext) void {
     if (builtin.os.tag != .freestanding) return;
     const allocator = std.heap.wasm_allocator;
 
-    const event = client.Event.idInit(allocator, event_id) catch return;
+    const event = client.Event.idInit(allocator, ctx.id) catch return;
     const value = event.target.value;
 
-    todos.append(allocator, .{ .id = todos.items.len + event_id, .text = value, .completed = false }) catch @panic("OOM");
-
-    root.client.renderAll();
+    todos.append(allocator, .{ .id = todos.items.len, .text = value, .completed = false }) catch @panic("OOM");
 }
-export fn example_wasm_toggleTodo(id: u32) void {
+fn toggleTodo(ctx: zx.EventContext) void {
     if (builtin.os.tag != .freestanding) return;
+    const allocator = std.heap.wasm_allocator;
 
-    const console = client.Console.init();
-    defer console.deinit();
+    const event = client.Event.idInit(allocator, ctx.id) catch return;
+    var id: ?u32 = null;
+    const target = event.target;
+    if (target) |t| {
+        const value = t.value;
+        if (value) |v| {
+            id = std.fmt.parseInt(u32, v, 10) catch return;
+        }
+    }
 
-    const todos_str_before = std.json.Stringify.valueAlloc(std.heap.wasm_allocator, todos.items, .{}) catch @panic("OOM");
-    console.log(.{ js.string("TODO Before: "), js.string(todos_str_before) });
-    // const allocator = std.heap.wasm_allocator;
     for (todos.items) |*todo| {
         if (todo.id == id) {
             todo.completed = !todo.completed;
             break;
         }
     }
-
-    const todos_str_after = std.json.Stringify.valueAlloc(std.heap.wasm_allocator, todos.items, .{}) catch @panic("OOM");
-    console.log(.{ js.string("TODO After: "), js.string(todos_str_after) });
-    root.client.renderAll();
 }
 
-export fn example_wasm_clearTodos() void {
+fn clearTodos(_: zx.EventContext) void {
     if (builtin.os.tag != .freestanding) return;
-    // const allocator = std.heap.wasm_allocator;
     todos.clearRetainingCapacity();
-
-    root.client.renderAll();
 }
 
 fn countCompleted() u32 {
@@ -150,6 +148,5 @@ fn countCompleted() u32 {
 const zx = @import("zx");
 const std = @import("std");
 const builtin = @import("builtin");
-const root = @import("root");
 const client = zx.Client.bom;
 const js = zx.Client.js;

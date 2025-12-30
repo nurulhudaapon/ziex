@@ -1,0 +1,17 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <fragment @{allocator}>
+            <button onclick={handleClick}>
+                Click me
+            </button>
+        </fragment>
+    );
+}
+
+fn handleClick(event: zx.EventContext) void {
+    _ = event;
+    std.debug.print("handleClick\n", .{});
+}
+
+const zx = @import("zx");
+const std = @import("std");

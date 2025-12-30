@@ -17,6 +17,7 @@ pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
     return (
         <div @allocator={allocator}>
             <button onclick="_zx.exports.incrementCount(event)">Increment</button>
+            <button onclick={handleClick}>Handler</button>
             <p>Count: {count}</p>
 
             <input type="text" id="hello-input" />
@@ -37,6 +38,14 @@ export fn incrementCount() void {
     const text = std.fmt.allocPrint(allocator, "{d}", .{count}) catch @panic("OOM");
     todos.append(allocator, text) catch @panic("OOM");
 
+    root.client.renderAll();
+}
+
+fn handleClick(event: zx.EventContext) void {
+    if (builtin.os.tag != .freestanding) return;
+
+    _ = event;
+    count += 1;
     root.client.renderAll();
 }
 

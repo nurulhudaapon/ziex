@@ -259,7 +259,6 @@ pub const Handler = struct {
     }
 
     pub fn notFound(self: *Handler, req: *httpz.Request, res: *httpz.Response) !void {
-        std.log.info("404 {} {s}", .{ req.method, req.url.path });
         const path = req.url.path;
 
         res.status = 404;
@@ -296,7 +295,6 @@ pub const Handler = struct {
     }
 
     pub fn uncaughtError(self: *Handler, req: *httpz.Request, res: *httpz.Response, err: anyerror) void {
-        std.log.info("500 {} {s} {}", .{ req.method, req.url.path, err });
         const path = req.url.path;
 
         res.status = 500;

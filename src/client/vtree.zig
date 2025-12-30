@@ -1,11 +1,26 @@
 pub const VDOMTree = @This();
 
+/// Global counter for generating unique VElement IDs
+/// This is used for event delegation - each VElement gets a unique ID
+/// that is also set as __zx_ref on the corresponding DOM node
+var next_velement_id: u64 = 0;
+
 /// Virtual DOM element that holds both the component and its corresponding DOM element reference
 pub const VElement = struct {
+    /// Unique identifier for this VElement, used for event delegation
+    /// This ID is also set as __zx_ref property on the DOM node
+    id: u64,
     /// The actual DOM node (element or text)
     dom: Document.HTMLNode,
     component: zx.Component,
     children: std.ArrayList(VElement),
+
+    /// Generate the next unique VElement ID
+    fn nextId() u64 {
+        const id = next_velement_id;
+        next_velement_id += 1;
+        return id;
+    }
 
     fn createFromComponent(
         allocator: zx.Allocator,
@@ -16,6 +31,10 @@ pub const VElement = struct {
         switch (component) {
             .element => |element| {
                 const dom_element = document.createElement(@tagName(element.tag));
+                const velement_id = nextId();
+
+                // Set __zx_ref on the DOM node for event delegation lookup
+                dom_element.setProperty("__zx_ref", velement_id);
 
                 if (element.attributes) |attributes| {
                     for (attributes) |attr| {
@@ -25,6 +44,7 @@ pub const VElement = struct {
                 }
 
                 var velement = VElement{
+                    .id = velement_id,
                     .dom = .{ .element = dom_element },
                     .component = component,
                     .children = std.ArrayList(VElement).empty,
@@ -45,8 +65,10 @@ pub const VElement = struct {
             },
             .text => |text| {
                 const text_node = document.createTextNode(if (text.len > 0) text else "");
+                const velement_id = nextId();
 
                 const velement = VElement{
+                    .id = velement_id,
                     .dom = .{ .text = text_node },
                     .component = component,
                     .children = std.ArrayList(VElement).empty,
@@ -64,11 +86,17 @@ pub const VElement = struct {
             },
             .component_csr => |component_csr| {
                 const dom_element = document.createElement("div");
+                const velement_id = nextId();
+
+                // Set __zx_ref on the DOM node for event delegation lookup
+                dom_element.setProperty("__zx_ref", velement_id);
+
                 dom_element.setAttribute("id", component_csr.id);
                 dom_element.setAttribute("data-name", component_csr.name);
                 dom_element.setAttribute("data-props", component_csr.props_json orelse "{}");
 
                 const velement = VElement{
+                    .id = velement_id,
                     .dom = .{ .element = dom_element },
                     .component = component,
                     .children = std.ArrayList(VElement).empty,
