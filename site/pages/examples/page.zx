@@ -51,8 +51,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
     return (
         <fragment @allocator={allocator}>
-            // <ClientComponent />
-            // <ClientCounter @rendering={.react} visit_count={0} />
             <ExamplesHeader />
             <IfElseSection zx_code={zx_if} zig_code={zig_if} html_code={html_if} />
             <SwitchSection zx_code={zx_switch} zig_code={zig_switch} html_code={html_switch} />
@@ -150,5 +148,3 @@ const zx = @import("zx");
 const Sidebar = @import("../components/sidebar.zx").Sidebar;
 const SidebarProps = @import("../components/sidebar.zx").SidebarProps;
 const ExampleBlock = @import("../components/example_block.zx").ExampleBlock;
-const ClientCounter = @jsImport("./react.tsx");
-const ClientComponent = @import("./csr_zig.zig").Page;
