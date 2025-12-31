@@ -1,30 +1,22 @@
 pub const VDOMTree = @This();
 
-/// Global counter for generating unique VElement IDs
-/// This is used for event delegation - each VElement gets a unique ID
-/// that is also set as __zx_ref on the corresponding DOM node
+/// Global counter for unique VElement IDs used for event delegation
 var next_velement_id: u64 = 0;
 
-/// Virtual DOM element that holds both the component and its corresponding DOM element reference
+/// Virtual DOM element with component data and DOM reference
 pub const VElement = struct {
-    /// Unique identifier for this VElement, used for event delegation
-    /// This ID is also set as __zx_ref property on the DOM node
     id: u64,
-    /// The actual DOM node (element or text)
     dom: Document.HTMLNode,
     component: zx.Component,
     children: std.ArrayList(VElement),
-    /// Optional key for stable identity in lists (from key attribute)
     key: ?[]const u8 = null,
 
-    /// Generate the next unique VElement ID
     fn nextId() u64 {
         const id = next_velement_id;
         next_velement_id += 1;
         return id;
     }
 
-    /// Extract key attribute from a component if present
     fn extractKey(component: zx.Component) ?[]const u8 {
         switch (component) {
             .element => |element| {
@@ -37,8 +29,6 @@ pub const VElement = struct {
                 }
             },
             .component_fn => |comp_fn| {
-                // For component functions, we need to check if there's a key in the resolved component
-                // This is tricky since we'd need to call the function - defer to runtime
                 _ = comp_fn;
             },
             else => {},
@@ -57,15 +47,11 @@ pub const VElement = struct {
                 const dom_element = document.createElement(@tagName(element.tag));
                 const velement_id = nextId();
 
-                // Set __zx_ref on the DOM node for event delegation lookup
                 dom_element.setProperty("__zx_ref", velement_id);
-
-                // Extract key for list reconciliation
                 const key = extractKey(component);
 
                 if (element.attributes) |attributes| {
                     for (attributes) |attr| {
-                        // Don't add "key" as a DOM attribute - it's for reconciliation only
                         if (std.mem.eql(u8, attr.name, "key")) continue;
                         const attr_val = if (attr.value) |val| val else "true";
                         dom_element.setAttribute(attr.name, attr_val);
@@ -114,7 +100,6 @@ pub const VElement = struct {
             .component_fn => |comp_fn| {
                 const resolved = try comp_fn.callFn(comp_fn.propsPtr, allocator);
                 var velement = try createFromComponent(allocator, document, parent_dom, resolved);
-                // Preserve key from resolved component if not already set
                 if (velement.key == null) {
                     velement.key = extractKey(resolved);
                 }
@@ -124,9 +109,7 @@ pub const VElement = struct {
                 const dom_element = document.createElement("div");
                 const velement_id = nextId();
 
-                // Set __zx_ref on the DOM node for event delegation lookup
                 dom_element.setProperty("__zx_ref", velement_id);
-
                 dom_element.setAttribute("id", component_csr.id);
                 dom_element.setAttribute("data-name", component_csr.name);
                 dom_element.setAttribute("data-props", component_csr.props_json orelse "{}");
@@ -169,68 +152,39 @@ pub const VElement = struct {
     }
 };
 
-/// Patch types following React's reconciliation algorithm
-/// These match React Fiber's effect tags
 pub const PatchType = enum {
-    /// Update properties/attributes of an existing node
     UPDATE,
-    /// Insert a new node (placement)
     PLACEMENT,
-    /// Remove a node (deletion)
     DELETION,
-    /// Replace an entire node
     REPLACE,
-    /// Move a node to a different position
     MOVE,
 };
 
-/// Patch data structure following React's architecture
 pub const PatchData = union(PatchType) {
-    /// UPDATE: Update attributes/properties
     UPDATE: struct {
-        /// The VElement to update
         velement: *VElement,
-        /// Attributes to update (name -> value mapping)
         attributes: std.StringHashMap([]const u8),
-        /// Attributes to remove
         removed_attributes: std.ArrayList([]const u8),
     },
-    /// PLACEMENT: Insert a new node
     PLACEMENT: struct {
-        /// The new VElement to insert
         velement: VElement,
-        /// Parent VElement where to insert
         parent: *VElement,
-        /// Reference node (for insertBefore), null for appendChild
         reference: ?*VElement,
-        /// Index in parent's children list
         index: usize,
     },
-    /// DELETION: Remove a node
     DELETION: struct {
-        /// The VElement to remove
         velement: *VElement,
-        /// Parent VElement
         parent: *VElement,
     },
-    /// REPLACE: Replace an entire node
     REPLACE: struct {
-        /// The old VElement to replace
         old_velement: *VElement,
-        /// The new VElement
         new_velement: VElement,
-        /// Parent VElement
         parent: *VElement,
     },
-    /// MOVE: Move a node to a different position
     MOVE: struct {
-        /// The VElement to move
         velement: *VElement,
-        /// Parent VElement
         parent: *VElement,
-        /// Reference node (for insertBefore), null for appendChild
         reference: ?*VElement,
-        /// New index in parent's children list
         new_index: usize,
     },
 };
@@ -248,13 +202,9 @@ pub const DiffError = error{
 
 vtree: VElement,
 
-/// Initialize a VDOMTree from a root component
-/// This creates the entire virtual DOM tree with actual DOM element references
 pub fn init(allocator: zx.Allocator, component: zx.Component) VDOMTree {
     const document = Document.init(allocator);
-
     const root_velement = VElement.createFromComponent(allocator, document, null, component) catch @panic("Error creating root VElement");
-
     return VDOMTree{ .vtree = root_velement };
 }
 
@@ -265,7 +215,6 @@ pub fn diff(
     parent: ?*VElement,
     patches: *std.ArrayList(Patch),
 ) anyerror!void {
-    // Component type changed - need full replacement
     if (!areComponentsSameType(old_velement.component, new_velement.component)) {
         if (parent) |p| {
             try patches.append(allocator, Patch{
@@ -282,7 +231,6 @@ pub fn diff(
         return;
     }
 
-    // Same type - diff attributes and children
     switch (new_velement.component) {
         .element => |new_element| {
             switch (old_velement.component) {
@@ -290,10 +238,8 @@ pub fn diff(
                     var attributes_to_update = std.StringHashMap([]const u8).init(allocator);
                     var attributes_to_remove = std.ArrayList([]const u8).empty;
 
-                    // Remove missing attributes
                     if (old_element.attributes) |old_attrs| {
                         for (old_attrs) |old_attr| {
-                            // Skip key attribute - it's for reconciliation only
                             if (std.mem.eql(u8, old_attr.name, "key")) continue;
 
                             var found = false;
@@ -301,7 +247,6 @@ pub fn diff(
                                 for (new_attrs) |new_attr| {
                                     if (std.mem.eql(u8, old_attr.name, new_attr.name)) {
                                         found = true;
-                                        // Value changed
                                         const old_val = old_attr.value orelse "";
                                         const new_val = new_attr.value orelse "";
                                         if (!std.mem.eql(u8, old_val, new_val)) {
@@ -318,10 +263,8 @@ pub fn diff(
                         }
                     }
 
-                    // Add new attributes
                     if (new_element.attributes) |new_attrs| {
                         for (new_attrs) |new_attr| {
-                            // Skip key attribute - it's for reconciliation only
                             if (std.mem.eql(u8, new_attr.name, "key")) continue;
 
                             var found = false;
@@ -352,12 +295,9 @@ pub fn diff(
                         });
                     }
 
-                    // Update the VElement to reflect the new component state
-                    // This is critical for subsequent diffs to compare against current state
                     old_velement.component = new_velement.component;
                     old_velement.key = new_velement.key;
 
-                    // Diff children with key-based reconciliation
                     try diffChildrenKeyed(allocator, old_velement, new_velement, old_velement, patches);
                 },
                 else => {},
@@ -373,7 +313,6 @@ pub fn diff(
                             },
                             else => {},
                         }
-                        // Update the component to reflect the new text value
                         old_velement.component = .{ .text = new_text };
                     }
                 },
@@ -384,13 +323,12 @@ pub fn diff(
     }
 }
 
-/// Entry for tracking VElement with its index
 const IndexedVElement = struct {
     velement: *VElement,
     index: usize,
 };
 
-/// Key-based child reconciliation algorithm (similar to React's reconciliation)
+/// Key-based child reconciliation (React-style)
 fn diffChildrenKeyed(
     allocator: zx.Allocator,
     old_velement: *VElement,
@@ -408,16 +346,13 @@ fn diffChildrenKeyed(
         }
     } else &[_]zx.Component{};
 
-    // Build a map of old children by key for O(1) lookup
     var old_keyed_children = std.StringHashMap(IndexedVElement).init(allocator);
     defer old_keyed_children.deinit();
 
-    // Track which old children have been matched
     var old_matched = try allocator.alloc(bool, old_children.len);
     defer allocator.free(old_matched);
     @memset(old_matched, false);
 
-    // First pass: build key map and track non-keyed children
     var non_keyed_old = std.array_list.Managed(IndexedVElement).init(allocator);
     defer non_keyed_old.deinit();
 
@@ -429,7 +364,6 @@ fn diffChildrenKeyed(
         }
     }
 
-    // Create VElements for new children and extract keys
     var new_velements = try allocator.alloc(VElement, new_children_components.len);
     defer {
         for (new_velements) |*nv| {
@@ -442,28 +376,23 @@ fn diffChildrenKeyed(
         new_velements[i] = try createVElementFromComponent(allocator, new_child_component);
     }
 
-    // Track last matched index for detecting moves
     var last_placed_index: isize = -1;
     var non_keyed_idx: usize = 0;
 
-    // Second pass: match new children to old children
     for (new_velements, 0..) |*new_child_velement, new_idx| {
         var matched_old: ?IndexedVElement = null;
 
-        // Try to match by key first
         if (new_child_velement.key) |new_key| {
             if (old_keyed_children.get(new_key)) |old_entry| {
                 matched_old = old_entry;
                 old_matched[old_entry.index] = true;
             }
         } else {
-            // No key - try to match by position among non-keyed children
             while (non_keyed_idx < non_keyed_old.items.len) {
                 const candidate = non_keyed_old.items[non_keyed_idx];
                 non_keyed_idx += 1;
 
                 if (!old_matched[candidate.index]) {
-                    // Check if types match
                     if (areComponentsSameType(candidate.velement.component, new_child_velement.component)) {
                         matched_old = candidate;
                         old_matched[candidate.index] = true;
@@ -477,14 +406,10 @@ fn diffChildrenKeyed(
             const old_child = old_entry.velement;
             const old_idx = old_entry.index;
 
-            // Recursively diff the matched pair
             try diff(allocator, old_child, new_child_velement, parent, patches);
 
-            // Check if node needs to be moved
             const old_idx_signed: isize = @intCast(old_idx);
             if (old_idx_signed < last_placed_index) {
-                // This node was before a node that's already been placed
-                // It needs to be moved
                 const reference = if (new_idx + 1 < old_children.len)
                     &old_velement.children.items[new_idx + 1]
                 else
@@ -505,10 +430,7 @@ fn diffChildrenKeyed(
 
             last_placed_index = @max(last_placed_index, old_idx_signed);
         } else {
-            // No match found - this is a new node
             const new_child = try cloneVElement(allocator, new_child_velement);
-
-            // Find reference node for insertion
             const reference = if (new_idx < old_velement.children.items.len)
                 &old_velement.children.items[new_idx]
             else
@@ -528,7 +450,6 @@ fn diffChildrenKeyed(
         }
     }
 
-    // Third pass: remove unmatched old children
     for (old_matched, 0..) |matched, i| {
         if (!matched) {
             try patches.append(allocator, Patch{
@@ -585,16 +506,79 @@ fn createVElementFromComponent(allocator: zx.Allocator, component: zx.Component)
     return try VElement.createFromComponent(allocator, document, null, component);
 }
 
-/// Compare a VElement with another by their unique ID (which maps to __zx_ref on DOM nodes)
-/// This follows React's pattern of using stable identifiers rather than comparing DOM nodes directly
-fn velementsHaveSameId(child: VElement, velement: *const VElement) bool {
-    return child.id == velement.id;
-}
+/// Pre-collected patch data to avoid pointer invalidation during batch operations
+const DeletionInfo = struct {
+    velement_id: u64,
+    velement_dom: Document.HTMLNode,
+    parent: *VElement,
+};
+
+const ReplaceInfo = struct {
+    old_velement_id: u64,
+    old_velement_dom: Document.HTMLNode,
+    new_velement: VElement,
+    parent: *VElement,
+};
+
+const MoveInfo = struct {
+    velement_id: u64,
+    velement_dom: Document.HTMLNode,
+    parent: *VElement,
+    reference: ?*VElement,
+    new_index: usize,
+};
 
 pub fn applyPatches(
     allocator: zx.Allocator,
     patches: std.ArrayList(Patch),
 ) !void {
+    // Pre-collect data before modifications to avoid pointer invalidation
+    var deletion_infos = std.ArrayList(DeletionInfo).empty;
+    defer deletion_infos.deinit(allocator);
+
+    var replace_infos = std.ArrayList(ReplaceInfo).empty;
+    defer replace_infos.deinit(allocator);
+
+    var move_infos = std.ArrayList(MoveInfo).empty;
+    defer move_infos.deinit(allocator);
+
+    for (patches.items) |patch| {
+        switch (patch.type) {
+            .DELETION => {
+                const d = patch.data.DELETION;
+                try deletion_infos.append(allocator, .{
+                    .velement_id = d.velement.id,
+                    .velement_dom = d.velement.dom,
+                    .parent = d.parent,
+                });
+            },
+            .REPLACE => {
+                const r = patch.data.REPLACE;
+                try replace_infos.append(allocator, .{
+                    .old_velement_id = r.old_velement.id,
+                    .old_velement_dom = r.old_velement.dom,
+                    .new_velement = r.new_velement,
+                    .parent = r.parent,
+                });
+            },
+            .MOVE => {
+                const m = patch.data.MOVE;
+                try move_infos.append(allocator, .{
+                    .velement_id = m.velement.id,
+                    .velement_dom = m.velement.dom,
+                    .parent = m.parent,
+                    .reference = m.reference,
+                    .new_index = m.new_index,
+                });
+            },
+            else => {},
+        }
+    }
+
+    var deletion_idx: usize = 0;
+    var replace_idx: usize = 0;
+    var move_idx: usize = 0;
+
     for (patches.items) |patch| {
         switch (patch.type) {
             .UPDATE => {
@@ -603,13 +587,11 @@ pub fn applyPatches(
 
                 switch (velement.dom) {
                     .element => |element| {
-                        // Update attributes
                         var attr_iter = update_data.attributes.iterator();
                         while (attr_iter.next()) |entry| {
                             element.setAttribute(entry.key_ptr.*, entry.value_ptr.*);
                         }
 
-                        // Remove attributes
                         for (update_data.removed_attributes.items) |attr_name| {
                             element.removeAttribute(attr_name);
                         }
@@ -637,7 +619,6 @@ pub fn applyPatches(
                             try parent_element.appendChild(new_child.dom);
                         }
 
-                        // Insert at the correct index in the children list
                         const index = @min(placement_data.index, parent.children.items.len);
                         try parent.children.insert(allocator, index, new_child);
                     },
@@ -647,24 +628,21 @@ pub fn applyPatches(
                 }
             },
             .DELETION => {
-                const deletion_data = patch.data.DELETION;
-                const velement = deletion_data.velement;
-                const parent = deletion_data.parent;
+                const info = deletion_infos.items[deletion_idx];
+                deletion_idx += 1;
 
-                switch (parent.dom) {
+                switch (info.parent.dom) {
                     .element => |parent_element| {
-                        try parent_element.removeChild(velement.dom);
+                        try parent_element.removeChild(info.velement_dom);
 
-                        // Remove from parent's children list by VElement ID
-                        const children = &parent.children;
+                        const children = &info.parent.children;
                         for (children.items, 0..) |child, i| {
-                            if (velementsHaveSameId(child, velement)) {
-                                _ = children.orderedRemove(i);
+                            if (child.id == info.velement_id) {
+                                var removed = children.orderedRemove(i);
+                                removed.deinit(allocator);
                                 break;
                             }
                         }
-
-                        velement.deinit(allocator);
                     },
                     .text => {
                         return error.CannotRemoveFromTextNode;
@@ -672,25 +650,22 @@ pub fn applyPatches(
                 }
             },
             .REPLACE => {
-                const replace_data = patch.data.REPLACE;
-                const old_velement = replace_data.old_velement;
-                const new_velement = replace_data.new_velement;
-                const parent = replace_data.parent;
+                const info = replace_infos.items[replace_idx];
+                replace_idx += 1;
 
-                switch (parent.dom) {
+                switch (info.parent.dom) {
                     .element => |parent_element| {
-                        try parent_element.replaceChild(new_velement.dom, old_velement.dom);
+                        try parent_element.replaceChild(info.new_velement.dom, info.old_velement_dom);
 
-                        // Replace in parent's children list by VElement ID
-                        const children = &parent.children;
+                        const children = &info.parent.children;
                         for (children.items, 0..) |*child, i| {
-                            if (velementsHaveSameId(child.*, old_velement)) {
-                                children.items[i] = new_velement;
+                            if (child.id == info.old_velement_id) {
+                                var old_child = children.items[i];
+                                children.items[i] = info.new_velement;
+                                old_child.deinit(allocator);
                                 break;
                             }
                         }
-
-                        old_velement.deinit(allocator);
                     },
                     .text => {
                         return error.CannotReplaceInTextNode;
@@ -698,26 +673,22 @@ pub fn applyPatches(
                 }
             },
             .MOVE => {
-                const move_data = patch.data.MOVE;
-                const velement = move_data.velement;
-                const parent = move_data.parent;
+                const info = move_infos.items[move_idx];
+                move_idx += 1;
 
-                switch (parent.dom) {
+                switch (info.parent.dom) {
                     .element => |parent_element| {
-                        // Remove from current position and insert at new position
-                        if (move_data.reference) |ref| {
-                            try parent_element.insertBefore(velement.dom, ref.dom);
+                        if (info.reference) |ref| {
+                            try parent_element.insertBefore(info.velement_dom, ref.dom);
                         } else {
-                            try parent_element.appendChild(velement.dom);
+                            try parent_element.appendChild(info.velement_dom);
                         }
 
-                        // Update position in children list by VElement ID
-                        const children = &parent.children;
+                        const children = &info.parent.children;
                         var old_idx: ?usize = null;
 
-                        // Find current position by VElement ID
                         for (children.items, 0..) |child, i| {
-                            if (velementsHaveSameId(child, velement)) {
+                            if (child.id == info.velement_id) {
                                 old_idx = i;
                                 break;
                             }
@@ -725,7 +696,7 @@ pub fn applyPatches(
 
                         if (old_idx) |idx| {
                             const removed = children.orderedRemove(idx);
-                            const new_idx = @min(move_data.new_index, children.items.len);
+                            const new_idx = @min(info.new_index, children.items.len);
                             try children.insert(allocator, new_idx, removed);
                         }
                     },
@@ -764,8 +735,6 @@ pub fn getRootElement(self: *const VDOMTree) ?Document.HTMLElement {
     };
 }
 
-/// Update the VElement tree's components to match a new component tree
-/// This is called after applying patches to keep the VElement tree in sync
 fn updateVElementComponent(velement: *VElement, new_component: zx.Component) void {
     velement.component = new_component;
     velement.key = VElement.extractKey(new_component);
@@ -788,8 +757,6 @@ fn updateVElementComponent(velement: *VElement, new_component: zx.Component) voi
     }
 }
 
-/// Update the VDOMTree's components to match a new component
-/// This should be called after applying patches to keep the tree in sync
 pub fn updateComponents(self: *VDOMTree, new_component: zx.Component) void {
     updateVElementComponent(&self.vtree, new_component);
 }

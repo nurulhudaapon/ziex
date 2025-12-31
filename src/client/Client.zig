@@ -272,6 +272,10 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
 
         try VDOMTree.applyPatches(allocator, patches);
 
+        // Re-register VElements to pick up any new elements created by PLACEMENT patches
+        // This ensures event handlers are registered for newly created elements
+        self.registerVElement(&old_vtree.vtree);
+
         // Update the VElement tree's components to match the new component
         // This ensures that on the next render, the diff will compare against the updated state
         // old_vtree.updateComponents(Component);
