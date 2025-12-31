@@ -37,6 +37,9 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
     return (
         <div @allocator={allocator}>
+            <style @escaping={.none}>
+                {@embedFile("../assets/home.css")}
+            </style>
             <nav class="nav">
                 <div class="nav-content">
                     <a href="/" class="nav-logo">ZX</a>
@@ -59,77 +62,79 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     </div>
                 </div>
             </nav>
-            <section class="hero">
-                <div class="hero-content">
-                    <div class="hero-badge">v{zx.info.version_string}</div>
-                    <div class="hero-title-wrapper">
-                        <h1 class="hero-title-main">ZX</h1>
-                        <div class="hero-title-accent">/</div>
+            <main>
+                <section class="hero">
+                    <div class="hero-content">
+                        <div class="hero-badge">v{zx.info.version_string}</div>
+                        <div class="hero-title-wrapper">
+                            <h1 class="hero-title-main">ZX</h1>
+                            <div class="hero-title-accent">/</div>
+                        </div>
+                        <p class="hero-subtitle">
+                            Build fast full-stack web apps with Zig.
+                        </p>
+                        <p class="hero-description">
+                            JSX like syntax or just like HTML with having access to Zig's control flow. 
+                            No JavaScript runtime, no garbage collection.
+                        </p>
+                        <div class="hero-stats">
+                            {for (hero_stats) |h| (<HeroStatCard allocator={allocator} value={h.value} label={h.label} />)}
+                        </div>
+                        <div class="hero-cta">
+                            <a href="/learn" class="btn btn-primary">Get Started</a>
+                            <a href="/examples" class="btn btn-secondary">Examples</a>
+                        </div>
                     </div>
-                    <p class="hero-subtitle">
-                         Build fast full-stack web apps with Zig.
-                    </p>
-                    <p class="hero-description">
-                         JSX like syntax or just like HTML with having access to Zig's control flow. 
-                         No JavaScript runtime, no garbage collection.
-                    </p>
-                    <div class="hero-stats">
-                        {for (hero_stats) |h| (<HeroStatCard allocator={allocator} value={h.value} label={h.label} />)}
+                    <div class="hero-decoration">
+                        <div class="hero-decoration-line"></div>
+                        <div class="hero-decoration-line"></div>
+                        <div class="hero-decoration-line"></div>
                     </div>
-                    <div class="hero-cta">
-                        <a href="/learn" class="btn btn-primary">Get Started</a>
-                        <a href="/examples" class="btn btn-secondary">Examples</a>
-                    </div>
-                </div>
-                <div class="hero-decoration">
-                    <div class="hero-decoration-line"></div>
-                    <div class="hero-decoration-line"></div>
-                    <div class="hero-decoration-line"></div>
-                </div>
-            </section>
-            <section class="features">
-                <div class="features-header">
-                    <h2 class="section-title">Features</h2>
-                    <p class="section-subtitle">
-                         Performance-focused web apps built with Zig.
-                    </p>
-                </div>
-                <div class="features-grid">
-                    {for (features) |f| (<FeatureCard allocator={allocator} icon_fn={f.icon_fn} title={f.title} description={f.description} />)}
-                </div>
-            </section>
-            <section class="code-section">
-                <div class="code-container">
-                    <div class="code-header">
-                        <h2 class="section-title">Familiar Syntax</h2>
+                </section>
+                <section class="features">
+                    <div class="features-header">
+                        <h2 class="section-title">Features</h2>
                         <p class="section-subtitle">
-                             Familiar JSX like syntax or just like HTML with having access to Zig's control flow.
+                            Performance-focused web apps built with Zig.
                         </p>
                     </div>
-                    <div class="code-example">
-                        <div class="code-example-header">
-                            <div class="code-example-dots">
-                                <span></span>
-                                <span></span>
-                                <span></span>
-                            </div>
-                            <div class="code-example-title">example.zx</div>
-                        </div>
-                        <pre><code class="hljs" @escaping={.none}>{overview_code_highlighted}</code></pre>
+                    <div class="features-grid">
+                        {for (features) |f| (<FeatureCard allocator={allocator} icon_fn={f.icon_fn} title={f.title} description={f.description} />)}
                     </div>
-                </div>
-            </section>
-            <section class="performance">
-                <div class="performance-header">
-                    <h2 class="section-title">The Numbers</h2>
-                    <p class="section-subtitle">
-                         Real numbers based on some initial benchmarks.
-                    </p>
-                </div>
-                <div class="performance-grid">
-                    {for (performances) |p| (<PerformanceCard allocator={allocator} value={p.value} label={p.label} />)}
-                </div>
-            </section>
+                </section>
+                <section class="code-section">
+                    <div class="code-container">
+                        <div class="code-header">
+                            <h2 class="section-title">Familiar Syntax</h2>
+                            <p class="section-subtitle">
+                                Familiar JSX like syntax or just like HTML with having access to Zig's control flow.
+                            </p>
+                        </div>
+                        <div class="code-example">
+                            <div class="code-example-header">
+                                <div class="code-example-dots">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                                <div class="code-example-title">example.zx</div>
+                            </div>
+                            <pre><code class="hljs" @escaping={.none}>{overview_code_highlighted}</code></pre>
+                        </div>
+                    </div>
+                </section>
+                <section class="performance">
+                    <div class="performance-header">
+                        <h2 class="section-title">The Numbers</h2>
+                        <p class="section-subtitle">
+                            Real numbers based on some initial benchmarks.
+                        </p>
+                    </div>
+                    <div class="performance-grid">
+                        {for (performances) |p| (<PerformanceCard allocator={allocator} value={p.value} label={p.label} />)}
+                    </div>
+                </section>
+            </main>
             <footer class="footer">
                 <p>© {current_year} ZX Framework. Built with Zig.</p>
             </footer>

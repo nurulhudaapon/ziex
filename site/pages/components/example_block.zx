@@ -121,9 +121,9 @@ pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Compon
 
                 <div class="sandbox-preview">
                     <div class="sandbox-preview-header">
-                        <input type="radio" id={preview_id} name={name_id} class="tab-radio" checked="true" />
-                        <input type="radio" id={html_id} name={name_id} class="tab-radio" />
-                        <input type="radio" id={zig_id} name={name_id} class="tab-radio" />
+                        <input type="radio" id={preview_id} name={name_id} class="tab-radio" checked="true" aria-label="Preview" />
+                        <input type="radio" id={html_id} name={name_id} class="tab-radio" aria-label="HTML output" />
+                        <input type="radio" id={zig_id} name={name_id} class="tab-radio" aria-label="Zig code" />
                         <div class="sandbox-preview-tabs">
                             <label for={preview_id} class="sandbox-preview-tab">Preview</label>
                             <label for={html_id} class="sandbox-preview-tab">HTML</label>
@@ -138,7 +138,7 @@ pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Compon
                         </div>
                     </div>
                     <div class="sandbox-preview-content" id={preview_content_id}>
-                        <iframe class="sandbox-preview-frame" srcdoc={html_with_style}></iframe>
+                        <iframe class="sandbox-preview-frame" srcdoc={html_with_style} title="Code example preview"></iframe>
                     </div>
                     <div class="sandbox-preview-content sandbox-code-content" id={html_content_id}>
                         <pre><code class="language-markup">{props.html_code}</code></pre>

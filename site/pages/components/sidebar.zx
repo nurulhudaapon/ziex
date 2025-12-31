@@ -29,7 +29,7 @@ pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
                     <div class="top-bar-left">
                         <a href="/" class="top-bar-logo">ZX</a>
                     </div>
-                    <input type="checkbox" id="top-bar-toggle" class="top-bar-toggle" />
+                    <input type="checkbox" id="top-bar-toggle" class="top-bar-toggle" aria-label="Toggle navigation menu" />
                     <label for="top-bar-toggle" class="top-bar-hamburger" aria-label="Toggle menu">
                         <span></span>
                         <span></span>

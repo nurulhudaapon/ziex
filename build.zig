@@ -101,8 +101,11 @@ pub fn build(b: *std.Build) !void {
                     }),
                     plugins.tailwind(b, .{
                         .bin = b.path("site/node_modules/.bin/tailwindcss"),
-                        .input = b.path("site/assets/styles.css"),
-                        .output = b.path("{outdir}/assets/styles.css"),
+                        .input = b.path("site/assets/docs.css"),
+                        .output = b.path("{outdir}/assets/docs.css"),
+                        .minify = true,
+                        .optimize = true,
+                        .map = false,
                     }),
                 },
             });

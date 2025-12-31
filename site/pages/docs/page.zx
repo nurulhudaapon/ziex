@@ -511,8 +511,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
             </section>
             <CachingSection />
             <PluginsSection />
-            <CLISection />
-            // <ExamplesSection />
+            <CLISection />            // <ExamplesSection />
         </div>
     );
 }
@@ -536,11 +535,11 @@ fn PluginsSection(allocator: zx.Allocator) zx.Component {
     const zx_init_options = @embedFile("../../../assets/snippets/ZxInitOptions.zig");
 
     // Extract specific line ranges from the embedded snippets
-    const tailwind_full_example = util.extractLines(allocator, plugin_examples, &.{ .{ 2, 29 } });
-    const esbuild_full_example = util.extractLines(allocator, plugin_examples, &.{ .{ 32, 56 } });
-    const combined_example = util.extractLines(allocator, plugin_examples, &.{ .{ 59, 70 } });
-    const custom_plugin_example = util.extractLines(allocator, plugin_examples, &.{ .{ 73, 107 } });
-    const plugin_options_struct = util.extractLines(allocator, zx_init_options, &.{ .{ 79, 107 } });
+    const tailwind_full_example = util.extractLines(allocator, plugin_examples, &.{.{ 2, 29 }});
+    const esbuild_full_example = util.extractLines(allocator, plugin_examples, &.{.{ 32, 56 }});
+    const combined_example = util.extractLines(allocator, plugin_examples, &.{.{ 59, 70 }});
+    const custom_plugin_example = util.extractLines(allocator, plugin_examples, &.{.{ 73, 107 }});
+    const plugin_options_struct = util.extractLines(allocator, zx_init_options, &.{.{ 79, 107 }});
 
     return (
         <section id="plugins" class="section" @allocator={allocator}>
@@ -1101,7 +1100,7 @@ fn CLICommand(allocator: zx.Allocator, props: struct { command: CLICommandInfo }
 
             {if (command.arguments) |args| (
                 <div>
-                    <h5>Arguments</h4>
+                    <h4>Arguments</h4>
                     <ul>
                         {for (args) |arg| (
                             <li><code>{arg.name}</code> — {arg.description}</li>
@@ -1112,7 +1111,7 @@ fn CLICommand(allocator: zx.Allocator, props: struct { command: CLICommandInfo }
 
             {if (command.flags) |flags| (
                 <div>
-                    <h5>Flags</h4>
+                    <h4>Flags</h4>
                     <ul>
                         {for (flags) |flag| (
                             <li><code>{flag.name}</code> — {flag.description}</li>

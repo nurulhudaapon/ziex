@@ -8,15 +8,15 @@
     --zx-accent: #ffd23f;
     --zx-dark: #0a0a0a;
     --zx-dark-light: #141414;
-    --zx-gray: #6b7280;
-    --zx-gray-light: #9ca3af;
+    --zx-gray: #8b9299;
+    --zx-gray-light: #b0b8c1;
     --zx-white: #ffffff;
     --zx-bg: #000000;
     --zx-bg-light: #0a0a0a;
     --zx-card-bg: #111111;
     --zx-border: #262626;
     --zx-code-bg: #0a0a0a;
-    --zx-text-muted: #737373;
+    --zx-text-muted: #a1a1a1;
 }
 
 * {
@@ -142,7 +142,7 @@ body {
     line-height: 0.9;
     letter-spacing: -0.05em;
     margin: 0;
-    font-family: 'Inter', sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
 }
 
 .hero-title-accent {
@@ -870,7 +870,7 @@ body {
 
 /* Tree-sitter syntax highlighting - ZX Home Theme (Material Ocean) */
 .code-example .attribute { color: #f78c6c; }
-.code-example .comment { font-style: italic; color: #546e7a; }
+.code-example .comment { font-style: italic; color: #7a9aa8; }
 .code-example .constant { color: #89ddff; }
 .code-example .constant.builtin { color: #89ddff; }
 .code-example .constructor { color: #c792ea; }

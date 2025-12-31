@@ -7,7 +7,7 @@
 :root {
     --border-color: #e0e0e0;
     --text-color: #333;
-    --link-color: #0066cc;
+    --link-color: #0055b3;
     --code-bg: #ffffff;
     --nav-bg: #ffffff;
     --bg-color: #ffffff;
@@ -15,14 +15,14 @@
     --right-sidebar-width: 200px;
     --submenu-bg: rgba(0, 0, 0, 0.02);
     --hover-bg: rgba(0, 0, 0, 0.05);
-    --link-hover-bg: rgba(0, 102, 204, 0.05);
-    --link-active-bg: rgba(0, 102, 204, 0.08);
+    --link-hover-bg: rgba(0, 85, 179, 0.08);
+    --link-active-bg: rgba(0, 85, 179, 0.12);
     --code-border: #e0e0e0;
     --badge-bg: #f6f8fa;
     --badge-border: #e0e0e0;
     --badge-hover-bg: #eaeef2;
     --badge-hover-border: #d0d7de;
-    --subtitle-color: #666;
+    --subtitle-color: #555;
     --scrollbar-thumb: rgba(176, 176, 176, 0.5);
     --tooltip-bg: #333;
     --copy-button-bg: #f6f8fa;
@@ -30,8 +30,8 @@
     --copy-button-hover-bg: #eaeef2;
     --copy-button-hover-border: #d0d7de;
     --preview-bg: #ffffff;
-    --link-hover-color: #0052a3;
-    --tooltip-icon-bg: #0066cc;
+    --link-hover-color: #003d80;
+    --tooltip-icon-bg: #0055b3;
     --success-color: #28a745;
 }
 
@@ -39,22 +39,22 @@
     :root {
         --border-color: #3a3a3a;
         --text-color: #e0e0e0;
-        --link-color: #4a9eff;
+        --link-color: #7cc4ff;
         /* Dark code blocks for dark mode */
         --code-bg: #1a1a1a;
         --nav-bg: #1a1a1a;
         --bg-color: #121212;
         --submenu-bg: rgba(255, 255, 255, 0.05);
         --hover-bg: rgba(255, 255, 255, 0.1);
-        --link-hover-bg: rgba(74, 158, 255, 0.15);
-        --link-active-bg: rgba(74, 158, 255, 0.2);
+        --link-hover-bg: rgba(124, 196, 255, 0.12);
+        --link-active-bg: rgba(124, 196, 255, 0.18);
         /* Dark borders for code blocks in dark mode */
         --code-border: #4a4a4a;
         --badge-bg: #2a2a2a;
         --badge-border: #3a3a3a;
         --badge-hover-bg: #333;
         --badge-hover-border: #4a4a4a;
-        --subtitle-color: #a0a0a0;
+        --subtitle-color: #b8b8b8;
         --scrollbar-thumb: rgba(150, 150, 150, 0.5);
         --tooltip-bg: #2a2a2a;
         --copy-button-bg: #2a2a2a;
@@ -62,8 +62,8 @@
         --copy-button-hover-bg: #333;
         --copy-button-hover-border: #4a4a4a;
         --preview-bg: #1a1a1a;
-        --link-hover-color: #6bb3ff;
-        --tooltip-icon-bg: #4a9eff;
+        --link-hover-color: #a3d5ff;
+        --tooltip-icon-bg: #7cc4ff;
         --success-color: #2dce5d;
     }
 }
@@ -87,7 +87,7 @@
 
 
 body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     color: var(--text-color);
     line-height: 1.6;
     background: var(--bg-color);
@@ -582,9 +582,20 @@ body {
     max-width: 900px;
 }
 
-/* Callout boxes slightly wider */
-.content .callout {
+/* Links in content area - ensure good contrast */
+.content a:not(.section-anchor):not(.next-step-card) {
+    color: var(--link-color);
+    text-decoration: underline;
+    text-decoration-color: currentColor;
+    text-underline-offset: 2px;
+    text-decoration-thickness: 1px;
 }
+
+.content a:not(.section-anchor):not(.next-step-card):hover {
+    color: var(--link-hover-color);
+}
+
+/* Callout boxes - inherits default width */
 
 /* Right Sidebar (ON THIS PAGE) */
 .right-sidebar {
@@ -1238,6 +1249,13 @@ code[class*="language-"] {
     color: var(--text-color);
 }
 
+.callout-title {
+    font-size: 1rem;
+    font-weight: 700;
+    margin: 0 0 1rem 0;
+    color: var(--text-color);
+}
+
 .callout ul {
     margin: 0;
     padding-left: 1.25rem;
@@ -1259,6 +1277,17 @@ code[class*="language-"] {
 .callout.note {
     border-left: 4px solid var(--link-color);
     background: var(--link-hover-bg);
+}
+
+.callout.note a {
+    color: var(--link-color);
+    text-decoration: underline;
+    text-decoration-color: currentColor;
+    text-underline-offset: 2px;
+}
+
+.callout.note a:hover {
+    color: var(--link-hover-color);
 }
 
 .callout.tip {

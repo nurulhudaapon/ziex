@@ -2,8 +2,8 @@ pub fn InstallCLI(allocator: zx.Allocator) zx.Component {
     return (
         <div class="install-box" @allocator={allocator}>
             <div class="install-box-header">
-                <input type="radio" id="tab-unix" name="install-platform" class="install-tab-radio" checked="true" />
-                <input type="radio" id="tab-windows" name="install-platform" class="install-tab-radio" />
+                <input type="radio" id="tab-unix" name="install-platform" class="install-tab-radio" checked="true" aria-label="Linux or macOS installation" />
+                <input type="radio" id="tab-windows" name="install-platform" class="install-tab-radio" aria-label="Windows installation" />
                 <div class="install-tab-labels">
                     <label for="tab-unix" class="install-tab-label">Linux / macOS</label>
                     <label for="tab-windows" class="install-tab-label">Windows</label>
@@ -37,9 +37,9 @@ pub fn InstallZig(allocator: zx.Allocator) zx.Component {
     return (
         <div class="install-box" @allocator={allocator}>
             <div class="install-box-header">
-                <input type="radio" id="tab-zig-mac" name="install-zig" class="install-tab-radio" checked="true" />
-                <input type="radio" id="tab-zig-win" name="install-zig" class="install-tab-radio" />
-                <input type="radio" id="tab-zig-other" name="install-zig" class="install-tab-radio" />
+                <input type="radio" id="tab-zig-mac" name="install-zig" class="install-tab-radio" checked="true" aria-label="Zig installation on macOS" />
+                <input type="radio" id="tab-zig-win" name="install-zig" class="install-tab-radio" aria-label="Zig installation on Windows" />
+                <input type="radio" id="tab-zig-other" name="install-zig" class="install-tab-radio" aria-label="Zig installation on other platforms" />
                 <div class="install-tab-labels">
                     <label for="tab-zig-mac" class="install-tab-label">macOS</label>
                     <label for="tab-zig-win" class="install-tab-label">Windows</label>

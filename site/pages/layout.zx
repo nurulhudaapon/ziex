@@ -1,15 +1,44 @@
 pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+    const description = "A full-stack web framework for Zig. Write declarative UI components using familiar JSX patterns, transpiled to efficient Zig code.";
+    const title = "ZX - Full-Stack Web Framework for Zig";
+    const site_url = "https://ziex.dev";
+    const keywords = "zig, zx, web framework, jsx, full-stack, ssr, ssg, wasm, components, server-side rendering, static site generation";
+    const js_href = std.fmt.allocPrint(ctx.arena, "/assets/docs.js?v={s}", .{zx.info.version_string}) catch unreachable;
+    const needs_js = !std.mem.eql(u8, ctx.request.url.path, "/");
+
     return (
-        <html @allocator={ctx.arena}>
+        <html lang="en" @allocator={ctx.arena}>
             <head>
-                <title>ZX - Full-Stack Web Framework for Zig</title>
                 <meta charset="UTF-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-                <meta name="description" content="A Zig library for building full-stack web applications with JSX-like syntax. Write declarative UI components using familiar JSX patterns, transpiled to efficient Zig code." />
-                <link rel="preconnect" href="https://fonts.googleapis.com" />
-                <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
-                <link rel="stylesheet" href=`{getCssPath(ctx)}?v={zx.info.version_string}` />
+
+                <title>{title}</title>
+                <meta name="description" content={description} />
+                <meta name="keywords" content={keywords} />
+                <meta name="author" content="Nurul Huda" />
+                <meta name="robots" content="index, follow" />
+                <meta name="theme-color" content="#0055b3" />
+
+                <link rel="canonical" href={site_url} />
+                <link rel="icon" href="/favicon.ico" type="image/x-icon" />
+
+                {if (needs_js) (<link rel="preload" href={js_href} as="script" />)}
+
+                <meta property="og:type" content="website" />
+                <meta property="og:title" content={title} />
+                <meta property="og:description" content={description} />
+                <meta property="og:url" content={site_url} />
+                <meta property="og:site_name" content="ZX" />
+                <meta property="og:locale" content="en_US" />
+
+                <meta name="twitter:card" content="summary_large_image" />
+                <meta name="twitter:title" content={title} />
+                <meta name="twitter:description" content={description} />
+                <meta name="twitter:creator" content="@aspect_dev" />
+
+                <style @escaping={.none}>
+                    {getCss(ctx)}
+                </style>
             </head>
             <body>
                 {children}
@@ -18,12 +47,12 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     );
 }
 
-fn getCssPath(ctx: zx.LayoutContext) []const u8 {
+fn getCss(ctx: zx.LayoutContext) []const u8 {
     const path = ctx.request.url.path;
     return if (std.mem.eql(u8, path, "/"))
-        "/assets/home.css"
+        @embedFile("../assets/home.css")
     else
-        "/assets/docs.css";
+        @embedFile("../assets/docs.css");
 }
 
 const zx = @import("zx");

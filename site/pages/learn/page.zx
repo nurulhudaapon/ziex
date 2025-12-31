@@ -119,7 +119,6 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     html_page_dynattr.render(&aw_dynattr.writer) catch unreachable;
     const html_dynattr = allocator.dupe(u8, aw_dynattr.written()) catch unreachable;
 
-
     return (
         <fragment @{allocator}>
             <LearnHeader />
@@ -156,7 +155,7 @@ fn LearnHeader(allocator: zx.Allocator) zx.Component {
 fn YouWillLearn(allocator: zx.Allocator) zx.Component {
     return (
         <div class="callout learn-callout" @allocator={allocator}>
-            <h3>You will learn</h3>
+            <p class="callout-title"><strong>You will learn</strong></p>
             <ul>
                 <li>How to install ZX and set up your environment</li>
                 <li>How to create and nest components</li>
@@ -201,8 +200,8 @@ fn CreateProject(allocator: zx.Allocator, props: CreateProjectProps) zx.Componen
             <p><strong>Manual:</strong> If you prefer not to install the CLI, you can simply add the ZX dependency to your <code>build.zig</code> file and initialize the project manually, or use the <code>zx</code> build step available after configuring <code>zx.init</code>.</p>
             <div>
                 <div class="simple-tab-header">
-                    <input type="radio" id="tab-cli" name="create-project" class="simple-tab-radio" checked="true" />
-                    <input type="radio" id="tab-manual" name="create-project" class="simple-tab-radio" />
+                    <input type="radio" id="tab-cli" name="create-project" class="simple-tab-radio" checked="true" aria-label="CLI setup method" />
+                    <input type="radio" id="tab-manual" name="create-project" class="simple-tab-radio" aria-label="Manual setup method" />
                     <label for="tab-cli" class="simple-tab-label">CLI</label>
                     <label for="tab-manual" class="simple-tab-label">Manual</label>
                 </div>
@@ -329,7 +328,7 @@ fn EditorSetup(allocator: zx.Allocator) zx.Component {
                 </ol>
                 <p>See the <a href="https://github.com/nurulhudaapon/zx/tree/main/editors/zed" target="_blank" rel="noopener noreferrer">Zed setup guide</a> for details.</p>
             </section>
-            <script type="module" src="/assets/docs.js"></script>
+            <script src=`/assets/docs.js?v={zx.info.version_string}` defer="true"></script>
         </>
     );
 }
