@@ -31,18 +31,12 @@ pub fn TodoApp(allocator: zx.Allocator) zx.Component {
             </form>
 
             <div class="todo-stats">
-                <div class="todo-stat">
-                    <span class="todo-stat-value">{todos.items.len}</span>
-                    <span class="todo-stat-label">Total</span>
-                </div>
-                <div class="todo-stat">
-                    <span class="todo-stat-value">{countCompleted()}</span>
-                    <span class="todo-stat-label">Completed</span>
-                </div>
-                <div class="todo-stat">
-                    <span class="todo-stat-value">{(todos.items.len - countCompleted())}</span>
-                    <span class="todo-stat-label">Remaining</span>
-                </div>
+                <span class="todo-stat"><strong>{todos.items.len}</strong> total</span>
+                <span class="todo-stat-divider">•</span>
+                <span class="todo-stat"><strong>{countCompleted()}</strong> done</span>
+                <span class="todo-stat-divider">•</span>
+                <span class="todo-stat"><strong>{(todos.items.len - countCompleted())}</strong> left</span>
+                <button class="todo-clear-btn" onclick={clearTodos}>Clear All</button>
             </div>
 
             <ul class="todo-list">
@@ -50,17 +44,11 @@ pub fn TodoApp(allocator: zx.Allocator) zx.Component {
                     <TodoItem id={todo.id} text={todo.text} completed={todo.completed} />
                 )}
             </ul>
-
-            <button class="todo-clear-btn" onclick={clearTodos}>Clear All</button>
         </div>
     );
 }
 
-const TodoItemProps = struct {
-    id: u32,
-    text: []const u8,
-    completed: bool,
-};
+const TodoItemProps = struct { id: u32, text: []const u8, completed: bool };
 fn TodoItem(allocator: zx.Allocator, props: TodoItemProps) zx.Component {
     const class = if (props.completed) "todo-item todo-item-completed" else "todo-item";
     const @"data-completed" = if (props.completed) "true" else "false";
@@ -74,6 +62,7 @@ fn TodoItem(allocator: zx.Allocator, props: TodoItemProps) zx.Component {
             <span>
                 {props.text}
             </span>
+            <button type="button" class="todo-delete-btn" data-id={props.id} onclick={deleteTodo}>×</button>
         </li>
     );
 }
@@ -92,7 +81,6 @@ fn initTodos(allocator: zx.Allocator) void {
 }
 
 fn addTodo(ctx: zx.EventContext) void {
-    if (builtin.os.tag != .freestanding) return;
     ctx.preventDefault();
     const allocator = std.heap.wasm_allocator;
     const document = zx.Client.bom.Document.init(allocator);
@@ -108,7 +96,6 @@ fn addTodo(ctx: zx.EventContext) void {
 }
 
 fn handleInputChange(ctx: zx.EventContext) void {
-    if (builtin.os.tag != .freestanding) return;
     const allocator = std.heap.wasm_allocator;
 
     const event = client.Event.idInit(allocator, ctx.id) catch return;
@@ -119,7 +106,6 @@ fn handleInputChange(ctx: zx.EventContext) void {
     todos.append(allocator, .{ .id = id, .text = value, .completed = false }) catch @panic("OOM");
 }
 fn toggleTodo(ctx: zx.EventContext) void {
-    if (builtin.os.tag != .freestanding) return;
     const allocator = std.heap.wasm_allocator;
 
     const event = client.Event.idInit(allocator, ctx.id) catch return;
@@ -141,8 +127,27 @@ fn toggleTodo(ctx: zx.EventContext) void {
 }
 
 fn clearTodos(_: zx.EventContext) void {
-    if (builtin.os.tag != .freestanding) return;
     todos.clearRetainingCapacity();
+}
+
+fn deleteTodo(ctx: zx.EventContext) void {
+    const allocator = std.heap.wasm_allocator;
+
+    const obj: js.Object = js.global.get(js.Object, "_zx") catch return;
+    const ob_val: js.Object = obj.get(js.Object, "events") catch return;
+    const current_event: js.Object = ob_val.call(js.Object, "at", .{ctx.id}) catch return;
+    const target: js.Object = current_event.get(js.Object, "target") catch return;
+    const dataset: js.Object = target.get(js.Object, "dataset") catch return;
+    const data_id = dataset.getAlloc(js.String, allocator, "id") catch return;
+
+    const todo_id = std.fmt.parseInt(u32, data_id, 10) catch return;
+
+    for (todos.items, 0..) |todo, i| {
+        if (todo.id == todo_id) {
+            _ = todos.orderedRemove(i);
+            break;
+        }
+    }
 }
 
 fn countCompleted() u32 {
@@ -155,6 +160,5 @@ fn countCompleted() u32 {
 
 const zx = @import("zx");
 const std = @import("std");
-const builtin = @import("builtin");
 const client = zx.Client.bom;
 const js = zx.Client.js;

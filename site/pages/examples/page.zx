@@ -70,7 +70,7 @@ fn ExamplesHeader(allocator: zx.Allocator) zx.Component {
         <section class="section learn-header" @allocator={allocator}>
             <p class="section-category">ZX Framework</p>
             <h1>Examples</h1>
-            <p class="lead">Explore interactive examples showcasing the power and flexibility of ZX framework. Each example includes live code and preview.</p>
+            <p class="lead">Explore the examples showcasing use of ZX in different scenarios. Each example includes the codes and it's preview.</p>
         </section>
     );
 }

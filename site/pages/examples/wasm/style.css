@@ -101,31 +101,27 @@
 
 .todo-stats {
     display: flex;
-    gap: 2rem;
-    margin-bottom: 2rem;
-    padding: 1.5rem;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    padding: 0.75rem 1rem;
     background: var(--card-bg);
     border: 1px solid var(--border);
+    font-size: 0.875rem;
+    color: var(--text-muted);
 }
 
 .todo-stat {
-    flex: 1;
-    text-align: center;
+    display: inline;
 }
 
-.todo-stat-value {
-    display: block;
-    font-size: 2rem;
-    font-weight: 700;
+.todo-stat strong {
     color: var(--primary);
-    margin-bottom: 0.25rem;
+    font-weight: 700;
 }
 
-.todo-stat-label {
-    font-size: 0.875rem;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
+.todo-stat-divider {
+    color: var(--border);
 }
 
 .todo-list {
@@ -190,17 +186,16 @@
 }
 
 .todo-clear-btn {
-    width: 100%;
-    padding: 1rem 2rem;
-    margin-top: 1.5rem;
+    margin-left: auto;
+    padding: 0.375rem 0.75rem;
     background: transparent;
     color: var(--text-muted);
     border: 1px solid var(--border);
-    font-weight: 600;
+    font-weight: 500;
     cursor: pointer;
     border-radius: 0;
     font-family: inherit;
-    font-size: 0.875rem;
+    font-size: 0.75rem;
     transition: all 0.2s ease;
 }
 
@@ -208,6 +203,33 @@
     background: var(--danger-bg);
     border-color: var(--danger-border);
     color: var(--danger-text);
+}
+
+.todo-delete-btn {
+    width: 28px;
+    height: 28px;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid transparent;
+    font-size: 1.25rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: all 0.2s ease;
+    opacity: 0;
+}
+
+.todo-item:hover .todo-delete-btn {
+    opacity: 1;
+}
+
+.todo-delete-btn:hover {
+    color: var(--danger-text);
+    border-color: var(--danger-border);
+    background: var(--danger-bg);
 }
 
 @media (max-width: 768px) {
@@ -220,8 +242,7 @@
     }
     
     .todo-stats {
-        flex-direction: column;
-        gap: 1rem;
+        flex-wrap: wrap;
     }
     
     .todo-input-section {
@@ -230,5 +251,9 @@
     
     .todo-add-btn {
         width: 100%;
+    }
+
+    .todo-delete-btn {
+        opacity: 1;
     }
 }

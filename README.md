@@ -90,6 +90,7 @@ const zx = @import("zx");
     - [x] Rendering only changed nodes
     - [x] `on`event handler
     - [ ] State managment
+    - [ ] Hydration
     - [ ] Lifecycle hook
 - [x] Client Side Rendering (CSR) via React
 - [x] Routing
@@ -142,7 +143,9 @@ const zx = @import("zx");
     - [x] `version` Show the version of the ZX CLI
     - [x] `update` Update the version of ZX dependency
     - [x] `upgrade` Upgrade the version of ZX CLI
-- [ ] Native
+- [ ] Platform
+    - [x] Web Server
+    - [x] Web Browser
     - [ ] iOS
     - [ ] Android
     - [ ] macOS
