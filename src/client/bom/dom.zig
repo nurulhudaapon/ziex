@@ -110,6 +110,11 @@ pub const HTMLText = struct {
     pub fn setNodeValue(self: HTMLText, value: []const u8) void {
         self.ref.set("nodeValue", js.string(value)) catch {};
     }
+
+    /// Set a JavaScript property directly on the text node
+    pub fn setProperty(self: HTMLText, name: []const u8, value: anytype) void {
+        self.ref.set(name, value) catch {};
+    }
 };
 
 pub const HTMLNode = union(enum) {

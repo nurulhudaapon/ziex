@@ -1,22 +1,31 @@
 #!/bin/bash
 
-# Script to sync/update changelogs for all releases using the changelog script
+# Script to sync/update changelogs for releases using the changelog script
+# Usage: ./tools/syncchangelog [tag]
+#   - If tag is provided, only sync that specific tag
+#   - If no tag is provided, sync all releases
 
 set -e
 
-echo "Fetching all release tags..."
-
-# Get all release tags from GitHub (sorted by creation date, oldest first for proper processing)
-RELEASES=$(gh release list --json tagName,createdAt -q 'sort_by(.createdAt) | .[].tagName' || echo "")
-
-if [ -z "$RELEASES" ]; then
-    echo "Error: Could not fetch releases from GitHub" >&2
-    exit 1
+# Check if a specific tag was provided
+if [ -n "$1" ]; then
+    RELEASES="$1"
+    echo "Syncing changelog for tag: $1"
+else
+    echo "Fetching all release tags..."
+    
+    # Get all release tags from GitHub (sorted by creation date, oldest first for proper processing)
+    RELEASES=$(gh release list --json tagName,createdAt -q 'sort_by(.createdAt) | .[].tagName' || echo "")
+    
+    if [ -z "$RELEASES" ]; then
+        echo "Error: Could not fetch releases from GitHub" >&2
+        exit 1
+    fi
 fi
 
 # Count releases
 RELEASE_COUNT=$(echo "$RELEASES" | grep -v '^$' | wc -l | tr -d ' ')
-echo "Found $RELEASE_COUNT releases to update"
+echo "Found $RELEASE_COUNT release(s) to update"
 
 if [ "$RELEASE_COUNT" -eq 0 ]; then
     echo "No releases found"

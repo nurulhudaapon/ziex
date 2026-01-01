@@ -37,7 +37,8 @@ export fn handleEvent(velement_id: u64, event_type_id: u8, event_id: u64) void {
     const event_type: zx.Client.EventType = @enumFromInt(event_type_id);
     const handled = client.dispatchEvent(velement_id, event_type, event_id);
 
-    if (handled) {
-        client.renderAll();
-    }
+    // if (handled) {
+    //     client.renderAll();
+    // }
+    _ = handled;
 }

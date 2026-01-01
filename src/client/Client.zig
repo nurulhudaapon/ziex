@@ -1,6 +1,12 @@
 pub const Client = @This();
 
 pub const bom = @import("bom.zig");
+pub const reactivity = @import("Reactivity.zig");
+
+// pub const Signal = reactivity.Signal;
+// pub const Computed = reactivity.Computed;
+// pub const Effect = reactivity.Effect;
+// pub const scheduleRender = reactivity.scheduleRender;
 
 pub const ComponentMeta = struct {
     type: zx.BuiltinAttribute.Rendering,
@@ -70,6 +76,13 @@ pub fn init(allocator: std.mem.Allocator, options: InitOptions) Client {
         .id_to_velement = std.AutoHashMap(u64, *vtree_mod.VElement).init(allocator),
         .handler_registry = std.AutoHashMap(HandlerKey, zx.EventHandler).init(allocator),
     };
+}
+
+/// Set this client as the global instance for Signal reactivity.
+/// Must be called on a Client that's stored in a stable location (e.g., global var).
+/// This is automatically called by renderAll(), but can be called manually if needed.
+pub fn setAsGlobal(self: *Client) void {
+    reactivity.setGlobalClient(self);
 }
 
 pub fn deinit(self: *Client) void {
@@ -171,6 +184,9 @@ pub fn info(self: *Client) void {
 }
 
 pub fn renderAll(self: *Client) void {
+    // Ensure global client reference is set for Signal reactivity
+    self.setAsGlobal();
+
     const console = Console.init();
     defer console.deinit();
 

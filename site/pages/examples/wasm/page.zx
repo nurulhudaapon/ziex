@@ -35,7 +35,7 @@ pub fn TodoApp(allocator: zx.Allocator) zx.Component {
                 <span class="todo-stat-divider">•</span>
                 <span class="todo-stat"><strong>{countCompleted()}</strong> done</span>
                 <span class="todo-stat-divider">•</span>
-                <span class="todo-stat"><strong>{(todos.items.len - countCompleted())}</strong> left</span>
+                <span class="todo-stat"><strong>{todos.items.len - countCompleted()}</strong> left</span>
                 <button class="todo-clear-btn" onclick={clearTodos}>Clear All</button>
             </div>
 
@@ -93,6 +93,7 @@ fn addTodo(ctx: zx.EventContext) void {
     next_todo_id += 1;
     todos.append(allocator, .{ .id = id, .text = text, .completed = false }) catch @panic("OOM");
     input.ref.set("value", js.string("")) catch return;
+    zx.requestRender();
 }
 
 fn handleInputChange(ctx: zx.EventContext) void {
@@ -124,10 +125,12 @@ fn toggleTodo(ctx: zx.EventContext) void {
             break;
         }
     }
+    zx.requestRender();
 }
 
 fn clearTodos(_: zx.EventContext) void {
     todos.clearRetainingCapacity();
+    zx.requestRender();
 }
 
 fn deleteTodo(ctx: zx.EventContext) void {
@@ -148,6 +151,7 @@ fn deleteTodo(ctx: zx.EventContext) void {
             break;
         }
     }
+    zx.requestRender();
 }
 
 fn countCompleted() u32 {

@@ -381,6 +381,7 @@ const ComponentSerializable = struct {
     pub fn init(allocator: Allocator, component: Component) !ComponentSerializable {
         return switch (component) {
             .text => |text| .{ .text = text },
+            .signal_text => |sig| .{ .text = sig.current_text },
             .element => |element| blk: {
                 const children_serializable = if (element.children) |children| blk2: {
                     const serializable = try allocator.alloc(ComponentSerializable, children.len);
@@ -441,6 +442,16 @@ pub const Component = union(enum) {
     element: Element,
     component_fn: ComponentFn,
     component_csr: ComponentCsr,
+    /// Reactive signal text - updates automatically when signal changes
+    signal_text: SignalText,
+
+    /// A text node bound to a Signal for fine-grained reactivity
+    pub const SignalText = struct {
+        /// The signal's unique ID for DOM binding
+        signal_id: u64,
+        /// The current text value (for initial render)
+        current_text: []const u8,
+    };
 
     pub const ComponentCsr = struct {
         name: []const u8,
@@ -734,6 +745,14 @@ pub const Component = union(enum) {
                 try writer.print(">", .{});
                 try writer.print("</{s}>", .{"div"});
             },
+            .signal_text => |sig| {
+                // Render a span with __zx_signal_ref for fine-grained reactivity
+                // The signal ID allows direct DOM updates when the signal changes
+                try writer.print("<span __zx_signal_ref=\"{d}\">{s}</span>", .{
+                    sig.signal_id,
+                    sig.current_text,
+                });
+            },
             .element => |elem| {
                 // Check if this element is async and we're collecting async components
                 if (options.async_components != null and elem.async == .stream) {
@@ -863,7 +882,7 @@ pub const Component = union(enum) {
                 // Now search the resolved component
                 return self.getElementByName(allocator, tag);
             },
-            .text, .component_csr => return null,
+            .text, .component_csr, .signal_text => return null,
         }
     }
 
@@ -947,6 +966,70 @@ pub fn lazy(allocator: Allocator, comptime func: anytype, props: anytype) Compon
     return .{ .component_fn = Component.ComponentFn.init(func, allocator, props) };
 }
 
+/// Check at comptime if a type is a pointer to a Signal struct
+fn isSignalPointer(comptime T: type) bool {
+    const type_info = @typeInfo(T);
+    if (type_info != .pointer) return false;
+    if (type_info.pointer.size != .one) return false;
+
+    const Child = type_info.pointer.child;
+    if (@typeInfo(Child) != .@"struct") return false;
+
+    // Check for Signal's characteristic fields and declarations
+    return @hasField(Child, "id") and
+        @hasField(Child, "value") and
+        @hasDecl(Child, "get") and
+        @hasDecl(Child, "set") and
+        @hasDecl(Child, "notifyChange");
+}
+
+/// Check at comptime if a type is a pointer to a Computed struct
+fn isComputedPointer(comptime T: type) bool {
+    const type_info = @typeInfo(T);
+    if (type_info != .pointer) return false;
+    if (type_info.pointer.size != .one) return false;
+
+    const Child = type_info.pointer.child;
+    if (@typeInfo(Child) != .@"struct") return false;
+
+    // Check for Computed's characteristic fields: source, compute, id, and subscribe
+    return @hasField(Child, "source") and
+        @hasField(Child, "compute") and
+        @hasField(Child, "id") and
+        @hasDecl(Child, "get") and
+        @hasDecl(Child, "subscribe");
+}
+
+/// Get the value type from a Computed pointer type
+fn ComputedValueType(comptime T: type) type {
+    const type_info = @typeInfo(T);
+    if (type_info == .pointer) {
+        const Child = type_info.pointer.child;
+        if (@typeInfo(Child) == .@"struct" and @hasField(Child, "value")) {
+            return @FieldType(Child, "value");
+        }
+    }
+    @compileError("Expected a pointer to a Computed type");
+}
+
+/// Format a Signal's value to a string for DOM text content
+fn formatSignalValue(comptime T: type, value: T, allocator: Allocator) []const u8 {
+    return switch (@typeInfo(T)) {
+        .int, .comptime_int => std.fmt.allocPrint(allocator, "{d}", .{value}) catch "?",
+        .float, .comptime_float => std.fmt.allocPrint(allocator, "{d:.2}", .{value}) catch "?",
+        .bool => if (value) "true" else "false",
+        .pointer => |ptr_info| blk: {
+            if (ptr_info.size == .slice and ptr_info.child == u8) {
+                break :blk allocator.dupe(u8, value) catch "?";
+            }
+            break :blk std.fmt.allocPrint(allocator, "{any}", .{value}) catch "?";
+        },
+        .@"enum" => @tagName(value),
+        .optional => if (value) |v| formatSignalValue(@TypeOf(v), v, allocator) else "",
+        else => std.fmt.allocPrint(allocator, "{any}", .{value}) catch "?",
+    };
+}
+
 /// Context for creating components with allocator support
 pub const ZxContext = struct {
     allocator: ?std.mem.Allocator = null,
@@ -1005,6 +1088,37 @@ pub const ZxContext = struct {
         const T = @TypeOf(val);
 
         if (T == Component) return val;
+
+        // Check if it's a Signal pointer - enable fine-grained reactivity
+        if (comptime isSignalPointer(T)) {
+            const allocator = self.getAlloc();
+            // Ensure the signal has a runtime ID for DOM binding
+            val.ensureId();
+            // Format the current value as text
+            const ValueType = Client.reactivity.SignalValueType(T);
+            const current_value = val.get();
+            const text = formatSignalValue(ValueType, current_value, allocator);
+            return .{ .signal_text = .{
+                .signal_id = val.id,
+                .current_text = text,
+            } };
+        }
+
+        // Check if it's a Computed pointer - enable fine-grained reactivity like Signal
+        if (comptime isComputedPointer(T)) {
+            const allocator = self.getAlloc();
+            // Ensure the computed has a runtime ID and subscribes to source
+            val.ensureId();
+            @constCast(val).subscribe();
+            // Format the current value as text
+            const ValueType = ComputedValueType(T);
+            const current_value = val.get();
+            const text = formatSignalValue(ValueType, current_value, allocator);
+            return .{ .signal_text = .{
+                .signal_id = val.id,
+                .current_text = text,
+            } };
+        }
 
         const Cmp = switch (@typeInfo(T)) {
             .comptime_int, .comptime_float, .float => self.fmt("{d}", .{val}),
@@ -1423,6 +1537,11 @@ pub const Client = @import("client/Client.zig");
 pub const App = @import("app.zig").App;
 
 pub const Allocator = std.mem.Allocator;
+
+pub const Signal = Client.reactivity.Signal;
+pub const Computed = Client.reactivity.Computed;
+pub const Effect = Client.reactivity.Effect;
+pub const requestRender = Client.reactivity.requestRender;
 
 const PageOptionsStatic = struct {};
 pub const PageMethod = enum {

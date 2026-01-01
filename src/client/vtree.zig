@@ -130,6 +130,29 @@ pub const VElement = struct {
 
                 return velement;
             },
+            .signal_text => |sig| {
+                const text_node = document.createTextNode(sig.current_text);
+                const velement_id = nextId();
+
+                text_node.setProperty("__zx_ref", velement_id);
+
+                const reactivity = @import("Reactivity.zig");
+                reactivity.registerBinding(sig.signal_id, text_node.ref);
+
+                const velement = VElement{
+                    .id = velement_id,
+                    .dom = .{ .text = text_node },
+                    .component = component,
+                    .children = std.ArrayList(VElement).empty,
+                    .key = null,
+                };
+
+                if (parent_dom) |parent| {
+                    try parent.appendChild(velement.dom);
+                }
+
+                return velement;
+            },
         }
     }
 
@@ -492,6 +515,12 @@ pub fn areComponentsSameType(old: zx.Component, new: zx.Component) bool {
         .component_csr => {
             switch (new) {
                 .component_csr => return true,
+                else => return false,
+            }
+        },
+        .signal_text => |old_sig| {
+            switch (new) {
+                .signal_text => |new_sig| return old_sig.signal_id == new_sig.signal_id,
                 else => return false,
             }
         },

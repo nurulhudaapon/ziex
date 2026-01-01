@@ -1,26 +1,76 @@
 pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
+    countEffect.run();
+
     return (
         <div @allocator={allocator}>
+            <h4>Fine-Grained Reactivity Example</h4>
+            <p style="font-size: 12px; color: #666;">
+                Signal updates the DOM directly without full re-render!
+            </p>
+            <div style="margin: 16px 0;">
+                <button onclick={handleDecrement}>-</button>
+                <span style="margin: 0 16px; font-size: 24px; font-weight: bold;">
+                    Count: {&count}
+                </span>
+                <button onclick={handleIncrement}>+</button>
+            </div>
             <button onclick={handleReset}>Reset</button>
-            <h5>{count}</h5>
-            <button onclick={handleDecrement}>Decrement</button>
-            <button onclick={handleIncrement}>Increment</button>
+
+            <hr style="margin: 16px 0;" />
+
+            <h5>Computed Value Example</h5>
+            <p>Count doubled: <strong>{&doubled}</strong></p>
+            <p>Is even: <strong>{&isEven}</strong></p>
+
+            <p style="font-size: 11px; color: #999; margin-top: 16px;">
+                Open browser console to see Effect logs.
+            </p>
         </div>
     );
 }
 
-var count: i32 = 0;
+/// Reactive state using Signal - has unique ID for DOM binding
+var count = zx.Signal(i32).init(0);
+
+/// Computed values derived from the signal
+var doubled = zx.Computed(i32, i32).init(&count, doubleValue);
+var isEven = zx.Computed(bool, i32).init(&count, checkEven);
+
+fn doubleValue(val: i32) i32 {
+    return val * 2;
+}
+
+fn checkEven(val: i32) bool {
+    return @mod(val, 2) == 0;
+}
+
+export fn tick() void {
+    count.set(count.get() + 1);
+}
+
+var countEffect = zx.Effect(i32).init(&count, onCountChange);
+
+fn onCountChange(newCount: i32) void {
+    const Console = zx.Client.bom.Console;
+    const console = Console.init();
+    defer console.deinit();
+
+    var buf: [64]u8 = undefined;
+    const msg = std.fmt.bufPrint(&buf, "[Effect] Count changed to: {d}", .{newCount}) catch return;
+    console.str(msg);
+}
 
 fn handleIncrement(_: zx.EventContext) void {
-    count += 1;
+    count.set(count.get() + 1);
 }
 
 fn handleDecrement(_: zx.EventContext) void {
-    count -= 1;
+    count.set(count.get() - 1);
 }
 
 fn handleReset(_: zx.EventContext) void {
-    count = 0;
+    count.set(0);
 }
 
 const zx = @import("zx");
+const std = @import("std");
