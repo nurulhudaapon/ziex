@@ -1,0 +1,114 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    const allocator = ctx.arena;
+    const bench_state = handler.handleRequest(ctx);
+
+    return (
+        <html @allocator={allocator}>
+            <head>
+                <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+                <title>ZX Server-Side Non-Keyed</title>
+                <link href="/css/currentStyle.css" rel="stylesheet" />
+                <script>
+                    {
+                        \\ if ('scrollRestoration' in history) { history.scrollRestoration = 'manual'; }
+                        \\ window.addEventListener('beforeunload', function() { window.scrollTo(0, 0); });
+                        \\ // This specifically resets the scroll on the content div (the table), not just the window
+                        \\ function resetScroll() {
+                        \\    var content = document.querySelector('.content');
+                        \\    if (content) { content.scrollTop = 0; }
+                        \\ }
+                        \\ window.addEventListener('DOMContentLoaded', resetScroll);
+                        \\ window.addEventListener('load', resetScroll);
+                    }
+                </script>
+                <style>
+                    {
+                        \\  * { box-sizing: border-box; }
+                        \\  html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
+                        \\  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a1a; color: #e0e0e0; }
+                        \\
+                        \\  /* LAYOUT CONTAINER */
+                        \\  #main { display: flex; height: 100%; width: 100%; overflow: hidden; }
+                        \\
+                        \\  /* SIDEBAR (Fixed) */
+                        \\  .controls { width: 350px; padding: 20px; background: #2d2d2d; border-right: 1px solid #3a3a3a; display: flex; flex-direction: column; flex-shrink: 0; z-index: 10; overflow-y: auto; }
+                        \\
+                        \\  /* CONTENT (Scrollable) */
+                        \\  .content { flex: 1; padding: 20px; overflow-y: auto; position: relative; height: 100%; }
+                        \\
+                        \\  /* WIDGETS & DESIGN */
+                        \\  .jumbotron { background: #3a3a3a; padding: 25px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+                        \\  .jumbotron h3 { margin: 0 0 20px 0; color: #ffffff; font-size: 24px; font-weight: 400; }
+                        \\  
+                        \\  .button-grid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+                        \\  .btn { width: 100%; padding: 12px 20px; background: #2b5a8d; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: background 0.2s; text-align: center; }
+                        \\  .btn:hover { background: #3a6ba5; }
+                        \\
+                        \\  /* TABLE */
+                        \\  .table { width: 100%; border-collapse: collapse; background: #2d2d2d; border-radius: 8px; overflow: hidden; }
+                        \\  .table td { padding: 12px 16px; border-bottom: 1px solid #3a3a3a; color: #e0e0e0; }
+                        \\  .table tbody tr:hover { background-color: #353535; }
+                        \\  .table tbody tr:nth-child(odd) { background-color: #282828; }
+                        \\  .danger { background-color: #3d1f1f !important; }
+                        \\
+                        \\  /* UTILS */
+                        \\  .col-md-1 { width: 80px; color: #999; }
+                        \\  .col-md-4 a { cursor: pointer; color: #5b9dd9; text-decoration: none; font-size: 14px; }
+                        \\  .col-md-4 a:hover { text-decoration: underline; }
+                        \\  .col-md-1 a { cursor: pointer; color: #5b9dd9; font-size: 18px; text-decoration: none; }
+                        \\  .col-md-1 a:hover { color: #7bb4e8; }
+                        \\  .glyphicon-remove:before { content: '✕'; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div id="main">
+                    <div class="controls">
+                        <div class="jumbotron">
+                            <h3>ZX Server-Side "non-keyed"</h3>
+                            <div class="button-grid">
+                                <form method="get"><button type="submit" class="btn" name="action" value="run">Create 1,000 rows</button></form>
+                                <form method="get"><button type="submit" class="btn" name="action" value="runlots">Create 10,000 rows</button></form>
+                                <form method="get"><button type="submit" class="btn" name="action" value="add">Append 1,000 rows</button></form>
+                                <form method="get"><button type="submit" class="btn" name="action" value="update">Update every 10th row</button></form>
+                                <form method="get"><button type="submit" class="btn" name="action" value="clear">Clear</button></form>
+                                <form method="get"><button type="submit" class="btn" name="action" value="swaprows">Swap Rows</button></form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="content">
+                        <table class="table table-hover table-striped test-data">
+                            <tbody id="tbody">
+                                {for (bench_state.rows.items) |row| (
+                                    <tr 
+                                        data-id={std.fmt.allocPrint(allocator, "{d}", .{row.id}) catch @panic("OOM")}
+                                        class={if (bench_state.selected_id != null and bench_state.selected_id.? == row.id) "danger" else ""}
+                                    >
+                                        <td class="col-md-1">{std.fmt.allocPrint(allocator, "{d}", .{row.id}) catch @panic("OOM")}</td>
+                                        <td class="col-md-4">
+                                            <a class="select-link" href="#">
+                                                {row.label}
+                                            </a>
+                                        </td>
+                                        <td class="col-md-1">
+                                            <a class="remove-link" href="#">
+                                                <span class="glyphicon glyphicon-remove" aria-hidden="true"></span>
+                                            </a>
+                                        </td>
+                                        <td class="col-md-6"></td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                        <span class="preloadicon glyphicon glyphicon-remove" aria-hidden="true"></span>
+                    </div>
+                </div>
+            </body>
+        </html>
+    );
+}
+
+const zx = @import("zx");
+const std = @import("std");
+const handler = @import("handler.zig");
