@@ -1,8 +1,6 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
-    const allocator = ctx.arena;
-
     return (
-        <div @allocator={allocator} class="todo-container">
+        <div @allocator={ctx.arena} class="todo-container">
             <TodoApp @rendering={.client} />
 
             <style @escaping={.none}>
@@ -13,37 +11,13 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     );
 }
 
-pub const CounterPage = @import("./simple/page.zx").Page;
-
-fn Counter(allocator: zx.Allocator) zx.Component {
-    const ctx = zx.PageContext{
-        .request = .{
-            .url = "",
-            .method = .GET,
-            .pathname = "",
-            .headers = .{},
-            .arena = allocator,
-        },
-        .response = .{ .arena = allocator },
-        .allocator = allocator,
-        .arena = allocator,
-    };
-    const counter_page = CounterPage(ctx);
-    return (
-        <div @allocator={allocator}>
-            {counter_page}
-        </div>
-    );
-}
-
 const Todo = struct { id: u32, text: []const u8, completed: bool };
-var todos = std.ArrayList(Todo).empty;
-
 pub fn TodoApp(allocator: zx.Allocator) zx.Component {
-    initTodos(allocator);
+    initTodos(todos_allocator);
+    if (builtin.cpu.arch != .wasm32) resetTodosForSSR(todos_allocator);
 
     return (
-        <div @allocator={allocator} class="todo-app">
+        <div @{allocator} class="todo-app">
             <div class="todo-header">
                 <h1 class="todo-title">ZX + WASM</h1>
                 <Counter />
@@ -73,21 +47,16 @@ pub fn TodoApp(allocator: zx.Allocator) zx.Component {
     );
 }
 
-const TodoItemProps = struct { id: u32, text: []const u8, completed: bool };
-fn TodoItem(allocator: zx.Allocator, props: TodoItemProps) zx.Component {
-    const class = if (props.completed) "todo-item todo-item-completed" else "todo-item";
-    const @"data-completed" = if (props.completed) "true" else "false";
-    const key = props.id;
+fn TodoItem(ctx: *zx.ComponentCtx(struct { id: u32, text: []const u8, completed: bool })) zx.Component {
+    const class = if (ctx.props.completed) "todo-item todo-item-completed" else "todo-item";
+    const key = ctx.props.id;
+    const value = ctx.props.id;
 
     return (
-        <li @{allocator} {class} {key} {@"data-completed"}>
-            <input type="button" class="todo-checkbox" value={props.id} onclick={toggleTodo}>
-                {if (props.completed) "✓" else ""}
-            </input>
-            <span>
-                {props.text}
-            </span>
-            <button type="button" class="todo-delete-btn" data-id={props.id} onclick={deleteTodo}>×</button>
+        <li @allocator={ctx.allocator} {class} {key}>
+            <input type="button" class="todo-checkbox" {value} onclick={toggleTodo} />
+            <span> {ctx.props.text} </span>
+            <button class="todo-delete-btn" {value} onclick={deleteTodo}>×</button>
         </li>
     );
 }
@@ -99,42 +68,48 @@ const initial_todos = [_]Todo{
 };
 var next_todo_id: u32 = 4; // Start after initial todos (1, 2, 3)
 var initialized: bool = false;
+var todos = std.ArrayList(Todo).empty;
+var todos_allocator: std.mem.Allocator = if (builtin.cpu.arch == .wasm32) std.heap.wasm_allocator else std.heap.page_allocator;
+
 fn initTodos(allocator: zx.Allocator) void {
     if (initialized) return;
     initialized = true;
+    todos_allocator = allocator;
+    todos.appendSlice(allocator, &initial_todos) catch @panic("OOM");
+}
+
+fn resetTodosForSSR(allocator: zx.Allocator) void {
+    todos = std.ArrayList(Todo).empty;
+    todos_allocator = allocator;
     todos.appendSlice(allocator, &initial_todos) catch @panic("OOM");
 }
 
 fn addTodo(ctx: zx.EventContext) void {
     ctx.preventDefault();
-    const allocator = std.heap.wasm_allocator;
-    const document = zx.Client.bom.Document.init(allocator);
+    if (comptime builtin.cpu.arch != .wasm32) return;
+    const document = zx.Client.bom.Document.init(todos_allocator);
     const input = document.getElementById("todo-input") catch return;
 
-    const text = input.ref.getAlloc(js.String, allocator, "value") catch return;
+    const text = input.ref.getAlloc(js.String, todos_allocator, "value") catch return;
     if (text.len == 0) return;
 
     const id = next_todo_id;
     next_todo_id += 1;
-    todos.append(allocator, .{ .id = id, .text = text, .completed = false }) catch @panic("OOM");
+    todos.append(todos_allocator, .{ .id = id, .text = text, .completed = false }) catch @panic("OOM");
     input.ref.set("value", js.string("")) catch return;
     zx.requestRender();
 }
 
 fn handleInputChange(ctx: zx.EventContext) void {
-    const allocator = std.heap.wasm_allocator;
-
-    const event = client.Event.idInit(allocator, ctx.id) catch return;
+    const event = client.Event.idInit(todos_allocator, ctx.id) catch return;
     const value = event.target.value;
 
     const id = next_todo_id;
     next_todo_id += 1;
-    todos.append(allocator, .{ .id = id, .text = value, .completed = false }) catch @panic("OOM");
+    todos.append(todos_allocator, .{ .id = id, .text = value, .completed = false }) catch @panic("OOM");
 }
 fn toggleTodo(ctx: zx.EventContext) void {
-    const allocator = std.heap.wasm_allocator;
-
-    const event = client.Event.idInit(allocator, ctx.id) catch return;
+    const event = client.Event.idInit(todos_allocator, ctx.id) catch return;
     var id: ?u32 = null;
     const target = event.target;
     if (target) |t| {
@@ -159,19 +134,18 @@ fn clearTodos(_: zx.EventContext) void {
 }
 
 fn deleteTodo(ctx: zx.EventContext) void {
-    const allocator = std.heap.wasm_allocator;
-
-    const obj: js.Object = js.global.get(js.Object, "_zx") catch return;
-    const ob_val: js.Object = obj.get(js.Object, "events") catch return;
-    const current_event: js.Object = ob_val.call(js.Object, "at", .{ctx.id}) catch return;
-    const target: js.Object = current_event.get(js.Object, "target") catch return;
-    const dataset: js.Object = target.get(js.Object, "dataset") catch return;
-    const data_id = dataset.getAlloc(js.String, allocator, "id") catch return;
-
-    const todo_id = std.fmt.parseInt(u32, data_id, 10) catch return;
+    const event = client.Event.idInit(todos_allocator, ctx.id) catch return;
+    var id: ?u32 = null;
+    const target = event.target;
+    if (target) |t| {
+        const value = t.value;
+        if (value) |v| {
+            id = std.fmt.parseInt(u32, v, 10) catch return;
+        }
+    }
 
     for (todos.items, 0..) |todo, i| {
-        if (todo.id == todo_id) {
+        if (todo.id == id) {
             _ = todos.orderedRemove(i);
             break;
         }
@@ -187,7 +161,32 @@ fn countCompleted() u32 {
     return count;
 }
 
+// This is temporarily here to validated pagecontext is buildable for wasm target
+fn Counter(allocator: zx.Allocator) zx.Component {
+    const ctx = zx.PageContext{
+        .request = .{
+            .url = "",
+            .method = .GET,
+            .pathname = "",
+            .headers = .{},
+            .arena = allocator,
+        },
+        .response = .{ .arena = allocator },
+        .allocator = allocator,
+        .arena = allocator,
+    };
+    const counter_page = CounterPage(ctx);
+    return (
+        <div @allocator={allocator} style="display: none;">
+            {counter_page}
+        </div>
+    );
+}
+
+pub const CounterPage = @import("./simple/page.zx").Page;
+
 const zx = @import("zx");
 const std = @import("std");
+const builtin = @import("builtin");
 const client = zx.Client.bom;
 const js = zx.Client.js;

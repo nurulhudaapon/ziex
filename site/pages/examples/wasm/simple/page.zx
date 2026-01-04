@@ -1,7 +1,7 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
         <div @allocator={ctx.arena}>
-            <CounterComponent />
+            <CounterComponent @rendering={.client} />
 
             <script type="module" src="/assets/main.js" />
         </div>

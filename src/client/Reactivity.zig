@@ -15,7 +15,16 @@
 //! ```
 
 const std = @import("std");
-const js = @import("js");
+const builtin = @import("builtin");
+
+/// Whether we're running in a browser environment (WASM)
+const is_wasm = builtin.cpu.arch == .wasm32 or builtin.cpu.arch == .wasm64;
+
+/// JS bindings - only available in WASM builds
+const js = if (is_wasm) @import("js") else struct {
+    pub const Object = void;
+    pub fn string(_: []const u8) void {}
+};
 
 /// Global signal ID counter for unique identification
 var next_signal_id: u64 = 0;
@@ -27,8 +36,11 @@ var global_client: ?*@import("Client.zig") = null;
 /// This is the key to SolidJS-like fine-grained reactivity: no tree walking,
 /// just direct reference lookups.
 const SignalBinding = struct {
-    text_node: js.Object,
+    text_node: JsObject,
 };
+
+/// JS Object type - real in WASM, void stub on server
+const JsObject = if (is_wasm) @import("js").Object else void;
 
 /// Maximum number of bindings per signal (for static allocation)
 const MAX_BINDINGS_PER_SIGNAL: usize = 16;
@@ -36,11 +48,15 @@ const MAX_BINDINGS_PER_SIGNAL: usize = 16;
 const MAX_SIGNALS: usize = 256;
 
 /// Signal bindings registry: signal_id → array of text node refs
-var signal_bindings: [MAX_SIGNALS][MAX_BINDINGS_PER_SIGNAL]?js.Object = .{.{null} ** MAX_BINDINGS_PER_SIGNAL} ** MAX_SIGNALS;
+/// Only used in WASM builds for DOM binding
+var signal_bindings: if (is_wasm) [MAX_SIGNALS][MAX_BINDINGS_PER_SIGNAL]?JsObject else void =
+    if (is_wasm) .{.{null} ** MAX_BINDINGS_PER_SIGNAL} ** MAX_SIGNALS else {};
 var binding_counts: [MAX_SIGNALS]usize = .{0} ** MAX_SIGNALS;
 
 /// Register a text node binding for a signal
-pub fn registerBinding(signal_id: u64, text_node: js.Object) void {
+/// No-op on server builds
+pub fn registerBinding(signal_id: u64, text_node: JsObject) void {
+    if (!is_wasm) return;
     if (signal_id >= MAX_SIGNALS) return;
     const idx = @as(usize, @intCast(signal_id));
     const count = binding_counts[idx];
@@ -52,7 +68,9 @@ pub fn registerBinding(signal_id: u64, text_node: js.Object) void {
 }
 
 /// Clear all bindings for a signal (call when re-rendering)
+/// No-op on server builds
 pub fn clearBindings(signal_id: u64) void {
+    if (!is_wasm) return;
     if (signal_id >= MAX_SIGNALS) return;
     const idx = @as(usize, @intCast(signal_id));
     // Deinit old references
@@ -230,7 +248,10 @@ fn formatValue(comptime T: type, value: T, buf: []u8) []const u8 {
 
 /// Update all DOM text nodes bound to a signal.
 /// Uses direct registry lookups - no DOM querying or tree walking (SolidJS-style).
+/// No-op on server builds (no DOM to update).
 fn updateSignalNodes(signal_id: u64, value: anytype) void {
+    // On server builds, there's no DOM to update
+    if (!is_wasm) return;
     if (signal_id >= MAX_SIGNALS) return;
 
     const T = @TypeOf(value);
@@ -247,7 +268,7 @@ fn updateSignalNodes(signal_id: u64, value: anytype) void {
     for (0..count) |i| {
         if (signal_bindings[idx][i]) |node| {
             // Text nodes use nodeValue, not textContent
-            node.set("nodeValue", js.string(text)) catch {};
+            node.set("nodeValue", @import("js").string(text)) catch {};
         }
     }
 }

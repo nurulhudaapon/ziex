@@ -808,7 +808,7 @@ pub fn transpileFullElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
     try writeHtmlElement(self, node, tag, attributes.items, children.items, ctx, preserve_whitespace);
 }
 
-/// Write a custom component: _zx.cmp(Component, .{ .prop = value }) or _zx.client(...) for CSR/Client
+/// Write a custom component: _zx.cmp(Component, .{ .prop = value }) or _zx.client(...) for React CSR
 fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: []const ZxAttribute, children: []const ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
     // Check if this is a client-side rendered component (@rendering={.react} or @rendering={.client})
     var rendering_value: ?[]const u8 = null;
@@ -822,49 +822,34 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
     const is_csr = if (rendering_value) |rv| std.mem.eql(u8, rv, ".react") else false;
     const is_client = if (rendering_value) |rv| std.mem.eql(u8, rv, ".client") else false;
 
-    if (is_csr or is_client) {
+    // React CSR components use _zx.client() directly
+    if (is_csr) {
         var path_buf: [512]u8 = undefined;
         var full_path: []const u8 = undefined;
 
-        if (is_csr) {
-            // CSR: use current file's directory + @jsImport path
-            const raw_path = ctx.js_imports.get(tag) orelse "unknown.tsx";
+        // CSR: use current file's directory + @jsImport path
+        const raw_path = ctx.js_imports.get(tag) orelse "unknown.tsx";
 
-            // Get the directory of the current file
-            if (ctx.file_path) |fp| {
-                // Find the last slash to get the directory
-                if (std.mem.lastIndexOfScalar(u8, fp, '/')) |last_slash| {
-                    const dir = fp[0 .. last_slash + 1];
-                    // Strip leading ./ from raw_path if present
-                    const clean_path = if (std.mem.startsWith(u8, raw_path, "./"))
-                        raw_path[2..]
-                    else
-                        raw_path;
-                    const len = dir.len + clean_path.len;
-                    if (len <= path_buf.len) {
-                        @memcpy(path_buf[0..dir.len], dir);
-                        @memcpy(path_buf[dir.len..][0..clean_path.len], clean_path);
-                        full_path = path_buf[0..len];
-                    } else {
-                        full_path = raw_path;
-                    }
+        // Get the directory of the current file
+        if (ctx.file_path) |fp| {
+            // Find the last slash to get the directory
+            if (std.mem.lastIndexOfScalar(u8, fp, '/')) |last_slash| {
+                const dir = fp[0 .. last_slash + 1];
+                // Strip leading ./ from raw_path if present
+                const clean_path = if (std.mem.startsWith(u8, raw_path, "./"))
+                    raw_path[2..]
+                else
+                    raw_path;
+                const len = dir.len + clean_path.len;
+                if (len <= path_buf.len) {
+                    @memcpy(path_buf[0..dir.len], dir);
+                    @memcpy(path_buf[dir.len..][0..clean_path.len], clean_path);
+                    full_path = path_buf[0..len];
                 } else {
-                    // No directory, just use the raw path with ./
-                    if (std.mem.startsWith(u8, raw_path, "./")) {
-                        full_path = raw_path;
-                    } else {
-                        const len = 2 + raw_path.len;
-                        if (len <= path_buf.len) {
-                            @memcpy(path_buf[0..2], "./");
-                            @memcpy(path_buf[2..][0..raw_path.len], raw_path);
-                            full_path = path_buf[0..len];
-                        } else {
-                            full_path = raw_path;
-                        }
-                    }
+                    full_path = raw_path;
                 }
             } else {
-                // No file path, fallback to ./ + raw_path
+                // No directory, just use the raw path with ./
                 if (std.mem.startsWith(u8, raw_path, "./")) {
                     full_path = raw_path;
                 } else {
@@ -879,29 +864,23 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
                 }
             }
         } else {
-            // Client: use file path with .zig extension (relative to cwd)
-            if (ctx.file_path) |fp| {
-                // Replace .zx extension with .zig
-                if (std.mem.endsWith(u8, fp, ".zx")) {
-                    const base_len = fp.len - 3;
-                    const len = base_len + 4; // ".zig" is 4 chars
-                    if (len <= path_buf.len) {
-                        @memcpy(path_buf[0..base_len], fp[0..base_len]);
-                        @memcpy(path_buf[base_len..][0..4], ".zig");
-                        full_path = path_buf[0..len];
-                    } else {
-                        full_path = fp;
-                    }
-                } else {
-                    full_path = fp;
-                }
+            // No file path, fallback to ./ + raw_path
+            if (std.mem.startsWith(u8, raw_path, "./")) {
+                full_path = raw_path;
             } else {
-                full_path = "unknown.zig";
+                const len = 2 + raw_path.len;
+                if (len <= path_buf.len) {
+                    @memcpy(path_buf[0..2], "./");
+                    @memcpy(path_buf[2..][0..raw_path.len], raw_path);
+                    full_path = path_buf[0..len];
+                } else {
+                    full_path = raw_path;
+                }
             }
         }
 
         // Add to client components list (use current list length as stable index)
-        const rendering_type = ClientComponentMetadata.Type.from(rendering_value orelse "client");
+        const rendering_type = ClientComponentMetadata.Type.from(rendering_value orelse "react");
         const component_index = ctx.client_components.items.len;
         const client_cmp = try ClientComponentMetadata.init(ctx.allocator, tag, full_path, rendering_type, component_index);
         try ctx.client_components.append(ctx.allocator, client_cmp);
@@ -937,7 +916,77 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
         }
 
         try ctx.write(" })");
-    } else {
+        return;
+    }
+
+    // Zig client components (@rendering={.client}) use _zx.cmp() with client option
+    if (is_client) {
+        var path_buf: [512]u8 = undefined;
+        var full_path: []const u8 = undefined;
+
+        // Client: use file path with .zig extension (relative to cwd)
+        if (ctx.file_path) |fp| {
+            // Replace .zx extension with .zig
+            if (std.mem.endsWith(u8, fp, ".zx")) {
+                const base_len = fp.len - 3;
+                const len = base_len + 4; // ".zig" is 4 chars
+                if (len <= path_buf.len) {
+                    @memcpy(path_buf[0..base_len], fp[0..base_len]);
+                    @memcpy(path_buf[base_len..][0..4], ".zig");
+                    full_path = path_buf[0..len];
+                } else {
+                    full_path = fp;
+                }
+            } else {
+                full_path = fp;
+            }
+        } else {
+            full_path = "unknown.zig";
+        }
+
+        // Add to client components list (use current list length as stable index)
+        const rendering_type = ClientComponentMetadata.Type.from(rendering_value orelse "client");
+        const component_index = ctx.client_components.items.len;
+        const client_cmp = try ClientComponentMetadata.init(ctx.allocator, tag, full_path, rendering_type, component_index);
+        try ctx.client_components.append(ctx.allocator, client_cmp);
+
+        // Write _zx.cmp(Component, .{ .client = .{ .name = ..., .path = ..., .id = ... } }, .{ props })
+        try ctx.writeM("_zx.cmp", node.startByte(), self);
+        try ctx.write("(");
+        try ctx.write(tag);
+        try ctx.write(", .{ .client = .{ .name = \"");
+        try ctx.write(tag);
+        // try ctx.write("\", .path = \"");
+        // try ctx.write(full_path);
+        try ctx.write("\", .id = \"");
+        try ctx.write(client_cmp.id);
+        try ctx.write("\" } }, .{");
+
+        // Write props (non-builtin attributes)
+        var first_prop = true;
+        for (attributes) |attr| {
+            if (attr.is_builtin) continue;
+            if (!first_prop) try ctx.write(",");
+            first_prop = false;
+
+            try ctx.write(" .");
+            try ctx.write(attr.name);
+            try ctx.write(" = ");
+            // Handle template strings, zx_blocks, and regular values
+            if (attr.template_string_node) |template_node| {
+                try transpileTemplateStringProp(self, template_node, ctx);
+            } else if (attr.zx_block_node) |zx_node| {
+                try transpileBlock(self, zx_node, ctx);
+            } else {
+                try ctx.writeM(attr.value, attr.value_byte_offset, self);
+            }
+        }
+
+        try ctx.write(" },)");
+        return;
+    }
+
+    {
         // Regular cmp component: _zx.cmp(Func, .{ options }, .{ props })
         try ctx.writeM("_zx.cmp", node.startByte(), self);
         try ctx.write("(");

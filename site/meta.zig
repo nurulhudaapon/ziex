@@ -63,11 +63,16 @@ pub const routes = [_]zx.App.Meta.Route{
         .page = wrapPage(@import(".zx/pages/examples/streaming/page.zig").Page),
         .page_opts = getOptions(@import(".zx/pages/examples/streaming/page.zig"), zx.PageOptions),
     },
-    // .{
-    //     .path = "/examples/wasm/simple",
-    //     .page = wrapPage(@import(".zx/pages/examples/wasm/simple/page.zig").Page),
-    //     .page_opts = getOptions(@import(".zx/pages/examples/wasm/simple/page.zig"), zx.PageOptions),
-    // },
+    .{
+        .path = "/examples/wasm/simple",
+        .page = wrapPage(@import(".zx/pages/examples/wasm/simple/page.zig").Page),
+        .page_opts = getOptions(@import(".zx/pages/examples/wasm/simple/page.zig"), zx.PageOptions),
+    },
+    .{
+        .path = "/examples/react",
+        .page = wrapPage(@import(".zx/pages/examples/wasm/react/page.zig").Page),
+        .page_opts = getOptions(@import(".zx/pages/examples/wasm/react/page.zig"), zx.PageOptions),
+    },
     .{
         .path = "/examples/overview",
         .page = wrapPage(@import(".zx/pages/examples/overview/page.zig").Page),

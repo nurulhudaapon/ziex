@@ -5,7 +5,21 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                _zx.client(.{ .name = "CounterComponent", .path = "test/data/component/csr_zig.zig", .id = "zx-2676a2f99c98f8f91dd890d002af04ba-0" }, .{}),
+                _zx.cmp(
+                    CounterComponent,
+                    .{ .client = .{ .name = "CounterComponent", .id = "zx-2676a2f99c98f8f91dd890d002af04ba-0" } },
+                    .{},
+                ),
+                _zx.cmp(
+                    CounterComponent,
+                    .{},
+                    .{},
+                ),
+                _zx.cmp(
+                    Button,
+                    .{ .client = .{ .name = "Button", .id = "zx-c6f40e3ab2f0caeebf36ba66712cc7fe-1" } },
+                    .{ .title = "Custom Button" },
+                ),
             },
         },
     );
@@ -24,4 +38,5 @@ pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
     );
 }
 
+const Button = @import("basic.zig").Button;
 const zx = @import("zx");

@@ -1,0 +1,15 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    visit_count += 1;
+
+    return (
+        <section @allocator={ctx.arena}>
+            <CounterComponent @rendering={.react} visit_count={visit_count} />
+
+            <script src="/assets/main.js" />
+        </section>
+    );
+}
+
+var visit_count: u64 = 0;
+const zx = @import("zx");
+const CounterComponent = @jsImport("./../../react.tsx");

@@ -396,9 +396,12 @@ const ComponentSerializable = struct {
                     .children = children_serializable,
                 };
             },
-            .component_csr => |component_csr| .{
-                .tag = .div,
-                .attributes = &.{.{ .name = "id", .value = component_csr.id }},
+            .component_csr => |component_csr| blk: {
+                // Serialize the SSR children content (comments are not serializable)
+                if (component_csr.children) |children| {
+                    break :blk try ComponentSerializable.init(allocator, children.*);
+                }
+                break :blk .{};
             },
             .component_fn => |comp_fn| blk: {
                 // Resolve component_fn by calling it, then serialize the result
@@ -455,9 +458,11 @@ pub const Component = union(enum) {
 
     pub const ComponentCsr = struct {
         name: []const u8,
-        path: []const u8,
+        // path: []const u8,
         id: []const u8,
         props_json: ?[]const u8 = null,
+        /// SSR-rendered content of the component (for hydration)
+        children: ?*const Component = null,
     };
 
     pub const ComponentFn = struct {
@@ -735,23 +740,31 @@ pub const Component = union(enum) {
                 try component.renderInner(writer, options);
             },
             .component_csr => |component_csr| {
-                try writer.print("<{s} id=\"{s}\"", .{ "div", component_csr.id });
-                if (component_csr.props_json) |props_json| {
-                    try writer.print(" data-name=\"{s}\" data-props=\"", .{component_csr.name});
-                    // Escape JSON for HTML attribute
-                    try escapeAttributeValueToWriter(writer, props_json);
-                    try writer.print("\"", .{});
+                // Start comment marker: <!--$id-->
+                try writer.print("<!--${s}-->", .{component_csr.id});
+
+                // Render SSR content
+                if (component_csr.children) |children| {
+                    try children.renderInner(writer, options);
                 }
-                try writer.print(">", .{});
-                try writer.print("</{s}>", .{"div"});
+
+                // End comment marker
+                try writer.print("<!--/${s}-->", .{component_csr.id});
+
+                // Output metadata script for React components (with props_json)
+                // Format: <script type="application/json" data-zx="id">{"name":"...","props":{...}}</script>
+                if (component_csr.props_json) |props_json| {
+                    try writer.print("<script type=\"application/json\" data-zx=\"{s}\">", .{component_csr.id});
+                    try writer.print("{{\"name\":\"{s}\",\"props\":{s}}}", .{ component_csr.name, props_json });
+                    try writer.print("</script>", .{});
+                }
             },
             .signal_text => |sig| {
-                // Render a span with __zx_signal_ref for fine-grained reactivity
-                // The signal ID allows direct DOM updates when the signal changes
-                try writer.print("<span __zx_signal_ref=\"{d}\">{s}</span>", .{
-                    sig.signal_id,
-                    sig.current_text,
-                });
+                if (options.escaping == .none) {
+                    try unescapeHtmlToWriter(writer, sig.current_text);
+                } else {
+                    try writer.print("{s}", .{sig.current_text});
+                }
             },
             .element => |elem| {
                 // Check if this element is async and we're collecting async components
@@ -939,6 +952,16 @@ pub const Element = struct {
     fallback: ?*const Component = null,
 };
 
+pub const ClientComponentOptions = struct {
+    name: []const u8,
+    path: []const u8,
+    id: []const u8,
+};
+
+pub const ComponentClientOptions = struct {
+    name: []const u8,
+    id: []const u8,
+};
 const ZxOptions = struct {
     children: ?[]const Component = null,
     attributes: ?[]const Element.Attribute = null,
@@ -948,6 +971,7 @@ const ZxOptions = struct {
     async: ?BuiltinAttribute.Async = .sync,
     fallback: ?*const Component = null,
     caching: ?BuiltinAttribute.Caching = null,
+    client: ?ComponentClientOptions = null,
 };
 
 pub fn zx(tag: ElementTag, options: ZxOptions) Component {
@@ -1466,6 +1490,7 @@ pub const ZxContext = struct {
 
     pub fn cmp(self: *ZxContext, comptime func: anytype, options: ZxOptions, props: anytype) Component {
         const allocator = self.getAlloc();
+
         const FuncInfo = @typeInfo(@TypeOf(func));
         const param_count = FuncInfo.@"fn".params.len;
         const FirstPropType = FuncInfo.@"fn".params[0].type.?;
@@ -1487,6 +1512,32 @@ pub const ZxContext = struct {
         comp_fn.fallback = options.fallback;
         comp_fn.caching = options.caching;
 
+        // If client option is set, return a client component (for @rendering={.client})
+        // Render the component on the server for SSR, then hydrate on client
+        if (options.client) |client_opts| {
+            const name_copy = allocator.alloc(u8, client_opts.name.len) catch @panic("OOM");
+            @memcpy(name_copy, client_opts.name);
+            // const path_copy = allocator.alloc(u8, client_opts.path.len) catch @panic("OOM");
+            // @memcpy(path_copy, client_opts.path);
+            const id_copy = allocator.alloc(u8, client_opts.id.len) catch @panic("OOM");
+            @memcpy(id_copy, client_opts.id);
+
+            // Call the component function to get SSR content
+            const rendered = comp_fn.call() catch @panic("Component call failed");
+            const children_ptr = allocator.create(Component) catch @panic("OOM");
+            children_ptr.* = rendered;
+
+            return .{
+                .component_csr = .{
+                    .name = name_copy,
+                    // .path = path_copy,
+                    .id = id_copy,
+                    .props_json = null,
+                    .children = children_ptr,
+                },
+            };
+        }
+
         return .{ .component_fn = comp_fn };
     }
 
@@ -1503,19 +1554,21 @@ pub const ZxContext = struct {
 
         const name_copy = allocator.alloc(u8, options.name.len) catch @panic("OOM");
         @memcpy(name_copy, options.name);
-        const path_copy = allocator.alloc(u8, options.path.len) catch @panic("OOM");
-        @memcpy(path_copy, options.path);
+        // const path_copy = allocator.alloc(u8, options.path.len) catch @panic("OOM");
+        // @memcpy(path_copy, options.path);
         const id_copy = allocator.alloc(u8, options.id.len) catch @panic("OOM");
         @memcpy(id_copy, options.id);
 
         const props_json = std.json.Stringify.valueAlloc(allocator, props, .{}) catch @panic("OOM");
 
-        return .{ .component_csr = .{
-            .name = name_copy,
-            .path = path_copy,
-            .id = id_copy,
-            .props_json = props_json,
-        } };
+        return .{
+            .component_csr = .{
+                .name = name_copy,
+                // .path = path_copy,
+                .id = id_copy,
+                .props_json = props_json,
+            },
+        };
     }
 };
 
@@ -1782,11 +1835,6 @@ pub const BuiltinAttribute = struct {
             @compileError("Invalid caching unit '" ++ unit ++ "', supported units: s, m, h, d");
         }
     };
-};
-const ClientComponentOptions = struct {
-    name: []const u8,
-    path: []const u8,
-    id: []const u8,
 };
 pub const Headers = @import("app/Headers.zig");
 pub const Request = @import("app/Request.zig");

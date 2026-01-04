@@ -106,7 +106,7 @@ const EsbuildPluginOptions = struct {
     /// Emit a source map [default: `inline` in debug, `none` in release]
     sourcemap: ?enum { none, @"inline", external, linked, both } = null,
     /// Disable logging [default: `silent`]
-    log_level: ?enum { verbose, debug, info, warning, @"error", silent } = .silent,
+    log_level: ?enum { verbose, debug, info, warning, @"error", silent } = .@"error",
     /// Output format [default: inferred by esbuild]
     format: ?enum { iife, cjs, esm } = null,
     /// Platform target [default: `browser`]

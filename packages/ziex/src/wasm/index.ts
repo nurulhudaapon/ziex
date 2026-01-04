@@ -73,10 +73,7 @@ class ZXInstance {
         if (this.#eventDelegationInitialized) return;
 
         const root = document.querySelector(rootSelector);
-        if (!root) {
-            console.warn(`[ZX] Event delegation root "${rootSelector}" not found`);
-            return;
-        }
+        if (!root) return;
 
         // Attach delegated event listeners
         for (const eventType of DELEGATED_EVENTS) {
@@ -86,7 +83,6 @@ class ZXInstance {
         }
 
         this.#eventDelegationInitialized = true;
-        console.debug('[ZX] Event delegation initialized on', rootSelector);
     }
 
     /**

@@ -199,18 +199,19 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
     const allocator = self.allocator;
 
     const document = Document.init(allocator);
-    const console = Console.init();
+    // const console = Console.init();
 
-    // Root Container
-    const container = document.getElementById(cmp.id) catch return error.ContainerNotFound;
+    // Find component boundary using comment markers <!--$id--> and <!--/$id-->
+    const marker = document.findCommentMarker(cmp.id) catch return error.ContainerNotFound;
 
     const Component = cmp.import(allocator);
     const existing_vtree = self.vtrees.getPtr(cmp.id);
     const new_vtree = VDOMTree.init(allocator, Component);
 
-    // First render
+    // First render (hydration) - replace SSR content with VDOM
     if (existing_vtree == null) {
-        try container.appendChild(new_vtree.vtree.dom);
+        // Clear SSR content and insert new VDOM
+        try marker.replaceContent(new_vtree.vtree.dom);
         try self.vtrees.put(cmp.id, new_vtree);
 
         // Register VElements for event delegation
@@ -226,9 +227,8 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
 
         if (root_type_changed) {
             defer old_vtree.deinit(allocator);
-            const old_root_dom = old_vtree.vtree.dom;
 
-            try container.replaceChild(new_vtree.vtree.dom, old_root_dom);
+            try marker.replaceContent(new_vtree.vtree.dom);
             try self.vtrees.put(cmp.id, new_vtree);
             return;
         }
@@ -237,41 +237,41 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
         var patches = try old_vtree.diffWithComponent(allocator, Component);
 
         // Debug Info
-        {
-            var aw = std.io.Writer.Allocating.init(allocator);
-            defer aw.deinit();
-            // Component.render(&aw.writer) catch @panic("OOM");
-            // console.log(.{ js.string("VTree: "), js.string(aw.written()) });
+        // if (builtin.mode == .Debug) {
+        //     var aw = std.io.Writer.Allocating.init(allocator);
+        //     defer aw.deinit();
+        //     // Component.render(&aw.writer) catch @panic("OOM");
+        //     // console.log(.{ js.string("VTree: "), js.string(aw.written()) });
 
-            const fmt_comp = std.fmt.allocPrint(allocator, "JSON.parse(`{f}`).children[1]", .{Component}) catch @panic("OOM");
-            console.log(.{try bom.eval(js.Object, fmt_comp)});
-            aw.clearRetainingCapacity();
+        //     const fmt_comp = std.fmt.allocPrint(allocator, "JSON.parse(`{f}`).children[1]", .{Component}) catch @panic("OOM");
+        //     console.log(.{try bom.eval(js.Object, fmt_comp)});
+        //     aw.clearRetainingCapacity();
 
-            for (patches.items) |patch| {
-                switch (patch.data) {
-                    .UPDATE => |update_data| {
-                        var attr_iter = update_data.attributes.iterator();
-                        while (attr_iter.next()) |entry| {
-                            console.log(.{ js.string("UPDATE: "), js.string(entry.key_ptr.*), js.string(" -> "), js.string(entry.value_ptr.*) });
-                        }
+        //     for (patches.items) |patch| {
+        //         switch (patch.data) {
+        //             .UPDATE => |update_data| {
+        //                 var attr_iter = update_data.attributes.iterator();
+        //                 while (attr_iter.next()) |entry| {
+        //                     console.log(.{ js.string("UPDATE: "), js.string(entry.key_ptr.*), js.string(" -> "), js.string(entry.value_ptr.*) });
+        //                 }
 
-                        for (update_data.removed_attributes.items) |attr| {
-                            console.log(.{ js.string("REMOVED: "), js.string(attr) });
-                        }
-                    },
-                    else => {},
-                }
-            }
+        //                 for (update_data.removed_attributes.items) |attr| {
+        //                     console.log(.{ js.string("REMOVED: "), js.string(attr) });
+        //                 }
+        //             },
+        //             else => {},
+        //         }
+        //     }
 
-            var vtrees_iter = self.vtrees.iterator();
-            while (vtrees_iter.next()) |entry| {
-                console.log(.{ js.string("VTREE: "), js.string(entry.key_ptr.*) });
-            }
+        //     var vtrees_iter = self.vtrees.iterator();
+        //     while (vtrees_iter.next()) |entry| {
+        //         console.log(.{ js.string("VTREE: "), js.string(entry.key_ptr.*) });
+        //     }
 
-            // patches.print(allocator, "patches: {s}", .{}) catch @panic("OOM");
+        //     // patches.print(allocator, "patches: {s}", .{}) catch @panic("OOM");
 
-            // container.setAttribute("data-vtree", vtree_json_str);
-        }
+        //     // container.setAttribute("data-vtree", vtree_json_str);
+        // }
 
         defer {
             for (patches.items) |*patch| {
@@ -298,12 +298,42 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
     }
 }
 
+// js module is only available when targeting WASM
+pub const js = if (builtin.cpu.arch == .wasm32) @import("js") else struct {
+    pub const String = []const u8;
+    pub const Object = struct {
+        pub fn get(_: Object, comptime _: type, _: []const u8) anyerror!Object {
+            return error.NotInBrowser;
+        }
+        pub fn getAlloc(_: Object, comptime _: type, _: std.mem.Allocator, _: []const u8) anyerror![]const u8 {
+            return error.NotInBrowser;
+        }
+        pub fn call(_: Object, comptime T: type, _: []const u8, _: anytype) anyerror!T {
+            return error.NotInBrowser;
+        }
+        pub fn set(_: Object, _: []const u8, _: anytype) anyerror!void {
+            return error.NotInBrowser;
+        }
+    };
+    pub const global = struct {
+        pub fn get(comptime _: type, _: []const u8) anyerror!Object {
+            return error.NotInBrowser;
+        }
+        pub fn call(comptime T: type, _: []const u8, _: anytype) anyerror!T {
+            return error.NotInBrowser;
+        }
+    };
+    pub fn string(_: []const u8) String {
+        return "";
+    }
+};
+
 const zx = @import("../root.zig");
+const vtree_mod = @import("vtree.zig");
+
 const std = @import("std");
-pub const js = @import("js");
 const builtin = @import("builtin");
 const zx_info = @import("zx_info");
-const vtree_mod = @import("vtree.zig");
 
 const VDOMTree = vtree_mod.VDOMTree;
 const Patch = vtree_mod.Patch;
