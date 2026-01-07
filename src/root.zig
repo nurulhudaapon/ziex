@@ -990,21 +990,37 @@ pub fn lazy(allocator: Allocator, comptime func: anytype, props: anytype) Compon
     return .{ .component_fn = Component.ComponentFn.init(func, allocator, props) };
 }
 
+/// Check at comptime if a type is a Signal struct (value, not pointer)
+fn isSignalValue(comptime T: type) bool {
+    if (@typeInfo(T) != .@"struct") return false;
+
+    // Check for Signal's characteristic fields and declarations
+    return @hasField(T, "id") and
+        @hasField(T, "value") and
+        @hasDecl(T, "get") and
+        @hasDecl(T, "set") and
+        @hasDecl(T, "notifyChange");
+}
+
 /// Check at comptime if a type is a pointer to a Signal struct
 fn isSignalPointer(comptime T: type) bool {
     const type_info = @typeInfo(T);
     if (type_info != .pointer) return false;
     if (type_info.pointer.size != .one) return false;
 
-    const Child = type_info.pointer.child;
-    if (@typeInfo(Child) != .@"struct") return false;
+    return isSignalValue(type_info.pointer.child);
+}
 
-    // Check for Signal's characteristic fields and declarations
-    return @hasField(Child, "id") and
-        @hasField(Child, "value") and
-        @hasDecl(Child, "get") and
-        @hasDecl(Child, "set") and
-        @hasDecl(Child, "notifyChange");
+/// Check at comptime if a type is a Computed struct (value, not pointer)
+fn isComputedValue(comptime T: type) bool {
+    if (@typeInfo(T) != .@"struct") return false;
+
+    // Check for Computed's characteristic fields: source, compute, id, and subscribe
+    return @hasField(T, "source") and
+        @hasField(T, "compute") and
+        @hasField(T, "id") and
+        @hasDecl(T, "get") and
+        @hasDecl(T, "subscribe");
 }
 
 /// Check at comptime if a type is a pointer to a Computed struct
@@ -1013,15 +1029,7 @@ fn isComputedPointer(comptime T: type) bool {
     if (type_info != .pointer) return false;
     if (type_info.pointer.size != .one) return false;
 
-    const Child = type_info.pointer.child;
-    if (@typeInfo(Child) != .@"struct") return false;
-
-    // Check for Computed's characteristic fields: source, compute, id, and subscribe
-    return @hasField(Child, "source") and
-        @hasField(Child, "compute") and
-        @hasField(Child, "id") and
-        @hasDecl(Child, "get") and
-        @hasDecl(Child, "subscribe");
+    return isComputedValue(type_info.pointer.child);
 }
 
 /// Get the value type from a Computed pointer type
@@ -1142,6 +1150,26 @@ pub const ZxContext = struct {
                 .signal_id = val.id,
                 .current_text = text,
             } };
+        }
+
+        // Check if it's a Signal VALUE (not pointer) - compile error with helpful message
+        if (comptime isSignalValue(T)) {
+            @compileError(
+                \\Signal passed by value - reactivity won't work.
+                \\Use `{&signal}` instead of `{signal}` to enable reactive updates.
+                \\
+                \\Example: <h5>{&count}</h5> instead of <h5>{count}</h5>
+            );
+        }
+
+        // Check if it's a Computed VALUE (not pointer) - compile error with helpful message
+        if (comptime isComputedValue(T)) {
+            @compileError(
+                \\Computed passed by value - reactivity won't work.
+                \\Use `{&computed}` instead of `{computed}` to enable reactive updates.
+                \\
+                \\Example: <h5>{&doubled}</h5> instead of <h5>{doubled}</h5>
+            );
         }
 
         const Cmp = switch (@typeInfo(T)) {
