@@ -349,3 +349,16 @@ export fn __zx_cb(callback_type: u8, callback_id: u64, data_ref: u64) void {
     const cb_type: bom.CallbackType = @enumFromInt(callback_type);
     _ = bom.dispatchCallback(cb_type, callback_id, data_ref, std.heap.wasm_allocator);
 }
+
+/// Custom log function for browser environment that outputs to console.
+/// Uses console.info/warn/error which already display the level visually.
+pub fn logFn(
+    comptime message_level: std.log.Level,
+    comptime scope: @TypeOf(.enum_literal),
+    comptime format: []const u8,
+    args: anytype,
+) void {
+    const prefix = if (scope == .default) "" else "(" ++ @tagName(scope) ++ ") ";
+    const formatted = std.fmt.allocPrint(zx.client_allocator, prefix ++ format, args) catch return;
+    Console.init().strLevel(message_level, formatted);
+}

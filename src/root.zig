@@ -1622,6 +1622,8 @@ pub const Allocator = std.mem.Allocator;
 pub const Signal = Client.reactivity.Signal;
 pub const Computed = Client.reactivity.Computed;
 pub const Effect = Client.reactivity.Effect;
+pub const effect = Client.reactivity.effect;
+pub const CleanupFn = Client.reactivity.CleanupFn;
 pub const requestRender = Client.reactivity.requestRender;
 
 const PageOptionsStatic = struct {};
@@ -1906,3 +1908,12 @@ pub const platform: Platform = if (builtin.os.tag == .freestanding) .browser els
 pub const Headers = @import("app/Headers.zig");
 pub const Request = @import("app/Request.zig");
 pub const Response = @import("app/Response.zig");
+
+/// Default std_options for zx apps.
+/// Re-export this in your main.zig:
+/// ```zig
+/// pub const std_options = zx.std_options;
+/// ```
+pub const std_options: std.Options = .{
+    .logFn = if (platform == .browser) Client.logFn else std.log.defaultLog,
+};

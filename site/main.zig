@@ -25,7 +25,8 @@ var client = zx.Client.init(
 
 export fn mainClient() void {
     if (zx.platform != .browser) return;
-
     client.info();
     client.renderAll();
 }
+
+pub const std_options = zx.std_options;
