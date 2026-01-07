@@ -30,3 +30,5 @@ export fn mainClient() void {
     client.info();
     client.renderAll();
 }
+
+pub const std_options = zx.std_options;

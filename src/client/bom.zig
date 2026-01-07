@@ -40,9 +40,19 @@ pub const Console = struct {
     }
 
     pub fn str(self: Console, data: []const u8) void {
-        // In non-WASM builds, this is a no-op - Zig will optimize away unused params
         if (!is_wasm) return;
         self.ref.call(void, "log", .{@import("js").string(data)}) catch @panic("Failed to call console.log");
+    }
+
+    pub fn strLevel(self: Console, message_level: std.log.Level, data: []const u8) void {
+        if (!is_wasm) return;
+        const j = @import("js");
+        switch (message_level) {
+            .debug => self.ref.call(void, "debug", .{j.string(data)}) catch @panic("Failed to call console.debug"),
+            .info => self.ref.call(void, "info", .{j.string(data)}) catch @panic("Failed to call console.info"),
+            .warn => self.ref.call(void, "warn", .{j.string(data)}) catch @panic("Failed to call console.warn"),
+            .err => self.ref.call(void, "error", .{j.string(data)}) catch @panic("Failed to call console.error"),
+        }
     }
 
     pub fn @"error"(self: Console, args: anytype) void {

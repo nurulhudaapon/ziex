@@ -2,7 +2,8 @@ var count: zx.Signal(i32) = .init(0);
 var doubled: zx.Computed(i32, i32) = .init(&count, doubleValue);
 
 pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
-    _ = zx.Effect(i32).init(&count, onCountChange);
+    zx.effect(&count, &onCountChange);
+    zx.effect(&doubled, &onDoubledChange);
 
     return (
         <div @allocator={allocator}>
@@ -39,9 +40,24 @@ fn handleReset(_: zx.EventContext) void {
 
 var message = zx.Signal([]const u8).init("Count Didn't Change");
 
-fn onCountChange(newCount: i32) void {
+/// Effect callback that returns an optional cleanup function.
+/// The cleanup runs before the next effect execution.
+fn onCountChange(newCount: i32) zx.CleanupFn {
     const new_msg = std.fmt.allocPrint(zx.client_allocator, "Count Changed: {d}", .{newCount}) catch "Count Changed";
     message.set(new_msg);
+
+    std.log.err("onCountChange newCount: {d}", .{newCount});
+
+    
+    return onCleanup;
+}
+
+fn onCleanup() void {
+    std.log.info("Cleanup", .{});
+}
+
+fn onDoubledChange(newDoubled: i32) void {
+    std.log.err("onDoubledChange newDoubled: {d}", .{newDoubled});
 }
 
 const std = @import("std");
