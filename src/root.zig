@@ -616,7 +616,7 @@ pub const Component = union(enum) {
     }
 
     pub const streaming_bootstrap_script =
-        \\<script>window.$ZX=function(id,html){var t=document.getElementById('zx-async-'+id);if(t){var d=document.createElement('div');d.innerHTML=html;while(d.firstChild)t.parentNode.insertBefore(d.firstChild,t);t.remove();}}</script>
+        \\<script>window.$ZX=function(id,html){var t=document.getElementById('__ZX_S-'+id);if(t){var d=document.createElement('div');d.innerHTML=html;while(d.firstChild)t.parentNode.insertBefore(d.firstChild,t);t.remove();}}</script>
     ;
 
     /// Async component collected during streaming
@@ -772,7 +772,7 @@ pub const Component = union(enum) {
                     options.async_counter.?.* += 1;
 
                     // Write placeholder div with fallback content
-                    try writer.print("<div id=\"zx-async-{d}\">", .{async_id});
+                    try writer.print("<div id=\"__ZX_S-{d}\">", .{async_id});
 
                     // Render fallback content if provided
                     if (elem.fallback) |fallback| {
