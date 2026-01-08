@@ -59,7 +59,6 @@ fn startTimeout(_: zx.EventContext) void {
 }
 
 fn toggleInterval(_: zx.EventContext) void {
-
     if (interval_id) |id| {
         zx.client.clearInterval(id);
         interval_id = null;

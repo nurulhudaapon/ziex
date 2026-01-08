@@ -17,7 +17,7 @@ pub const Chars = struct {
 pub const Options = struct {
     /// Border color (ANSI escape code)
     border_color: []const u8 = Colors.gray,
-    /// Title color (ANSI escape code)  
+    /// Title color (ANSI escape code)
     title_color: []const u8 = Colors.reset,
     /// Content width (excluding borders and padding)
     width: usize = 66,

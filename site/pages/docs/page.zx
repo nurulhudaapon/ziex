@@ -511,7 +511,8 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
             </section>
             <CachingSection />
             <PluginsSection />
-            <CLISection />            // <ExamplesSection />
+            <CLISection />
+            // <ExamplesSection />
         </div>
     );
 }

@@ -40,14 +40,14 @@ pub const SourceMap = struct {
         try writer.writeAll("\"],\"sourcesContent\":[\"");
         try escapeJSONString(writer, source_content);
         try writer.writeAll("\"]");
-        
+
         // Optionally include generated content (not standard but some tools support it)
         if (generated_content) |gen_content| {
             try writer.writeAll(",\"x_generatedContent\":\"");
             try escapeJSONString(writer, gen_content);
             try writer.writeAll("\"");
         }
-        
+
         try writer.writeAll(",\"mappings\":\"");
         try escapeJSONString(writer, self.mappings);
         try writer.writeAll("\"}");

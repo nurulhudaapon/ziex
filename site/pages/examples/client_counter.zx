@@ -12,7 +12,7 @@ pub fn Counter(ctx: *zx.ComponentCtx(struct { initial: i32 })) ?zx.Component {
             <button onclick={count.bind(increment)}>Increment</button>
             <button onclick={count.bind(zero)}>Zero</button>
             <button onclick={count.reset()}>Reset</button>
-            <br/><br/>
+            <br /><br />
         </div>
     );
 }
