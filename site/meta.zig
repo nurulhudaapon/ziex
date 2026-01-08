@@ -83,6 +83,13 @@ pub const routes = [_]zx.App.Meta.Route{
         .page_opts = getOptions(@import(".zx/pages/examples/wasm/react/page.zig"), zx.PageOptions),
     },
     .{
+        .path = "/examples/wasm/progress",
+        .page = wrapPage(@import(".zx/pages/examples/wasm/progress/page.zig").Page),
+        .page_opts = getOptions(@import(".zx/pages/examples/wasm/progress/page.zig"), zx.PageOptions),
+        .route = zx.App.Meta.route(@import(".zx/pages/examples/wasm/progress/route.zig"), @import(".zx/pages/examples/wasm/progress/page.zig")),
+        .route_opts = getOptions(@import(".zx/pages/examples/wasm/progress/route.zig"), zx.RouteOptions),
+    },
+    .{
         .path = "/examples/wasm/hydration",
         .page = wrapPage(@import(".zx/pages/examples/wasm/hydration/page.zig").Page),
         .page_opts = getOptions(@import(".zx/pages/examples/wasm/hydration/page.zig"), zx.PageOptions),

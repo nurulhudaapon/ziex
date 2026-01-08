@@ -44,6 +44,7 @@ const categories = [_]SidebarProps.Category{
             .{ .title = "Timer Demo", .href = "/examples/wasm/async" },
             .{ .title = "React.js Demo", .href = "/examples/react" },
             .{ .title = "Hydration Demo", .href = "/examples/wasm/hydration" },
+            .{ .title = "Progress Demo", .href = "/examples/wasm/progress" },
         },
     },
 };
