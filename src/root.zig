@@ -769,9 +769,8 @@ pub const Component = union(enum) {
                 try component.renderInner(writer, options);
             },
             .component_csr => |component_csr| {
-                // Start comment marker format depends on component type:
-                // - React: <!--$id name {"prop":"value"}--> (JSON)
-                // - Zig:   <!--$id.{.{...}}--> (ZON tuple, first element is props)
+                // Start comment marker format: <!--$id {"prop":"value"}--> (JSON)
+                // Both React and Zig components use JSON format
                 if (component_csr.is_react) {
                     // React component: use JSON format
                     if (component_csr.writeProps) |writeProps| {
@@ -786,12 +785,12 @@ pub const Component = union(enum) {
                         try writer.print("<!--${s} {s}-->", .{ component_csr.id, component_csr.name });
                     }
                 } else {
-                    // Zig component: use ZON tuple format
+                    // Zig component: use JSON format (same as React)
                     if (component_csr.writeProps) |writeProps| {
                         if (component_csr.props_ptr) |props_ptr| {
-                            try writer.print("<!--${s}.{{", .{component_csr.id});
+                            try writer.print("<!--${s} ", .{component_csr.id});
                             try writeProps(writer, props_ptr);
-                            try writer.print("}}-->", .{});
+                            try writer.print("-->", .{});
                         } else {
                             try writer.print("<!--${s}-->", .{component_csr.id});
                         }
@@ -972,17 +971,17 @@ pub const Component = union(enum) {
         }
     }
 
-    pub fn format(
-        self: *const Component,
-        w: *std.Io.Writer,
-    ) error{WriteFailed}!void {
-        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-        defer arena.deinit();
-        const allocator = arena.allocator();
+    // pub fn format(
+    //     self: *const Component,
+    //     w: *std.Io.Writer,
+    // ) error{WriteFailed}!void {
+    //     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    //     defer arena.deinit();
+    //     const allocator = arena.allocator();
 
-        var serializable = ComponentSerializable.init(allocator, self.*) catch return error.WriteFailed;
-        try serializable.serialize(w);
-    }
+    //     var serializable = ComponentSerializable.init(allocator, self.*) catch return error.WriteFailed;
+    //     try serializable.serialize(w);
+    // }
 };
 
 pub const Element = struct {
@@ -1607,7 +1606,28 @@ pub const ZxContext = struct {
             const children_ptr = allocator.create(Component) catch @panic("OOM");
             children_ptr.* = rendered;
 
-            const props_data = propsSerializer(@TypeOf(props), allocator, props);
+            // Get the full props type from the component function signature
+            // and coerce partial props to include defaults - this ensures all fields are serialized
+            const props_data = blk: {
+                if (first_is_ctx_ptr) {
+                    const CtxType = @typeInfo(FirstPropType).pointer.child;
+                    if (@hasField(CtxType, "props")) {
+                        const FullPropsType = @FieldType(CtxType, "props");
+                        if (@typeInfo(FullPropsType) == .@"struct") {
+                            const full_props = coerceProps(FullPropsType, props);
+                            break :blk propsSerializer(FullPropsType, allocator, full_props);
+                        }
+                    }
+                } else if (param_count == 2) {
+                    const FullPropsType = FuncInfo.@"fn".params[1].type.?;
+                    if (@typeInfo(FullPropsType) == .@"struct") {
+                        const full_props = coerceProps(FullPropsType, props);
+                        break :blk propsSerializer(FullPropsType, allocator, full_props);
+                    }
+                }
+                // Fallback: serialize the props as-is
+                break :blk propsSerializer(@TypeOf(props), allocator, props);
+            };
 
             return .{
                 .component_csr = .{
@@ -1658,11 +1678,13 @@ pub const ZxContext = struct {
 };
 
 /// Returns props pointer and serializer function for direct-to-writer serialization at render time
-/// For Zig components, uses ZON format. For React components, use propsSerializerJson.
+/// Uses positional array format [val1, val2, ...] instead of JSON objects for smaller size.
+/// Field names are known at compile time on both server and client, so we only need values.
 fn propsSerializer(comptime Props: type, allocator: std.mem.Allocator, props: Props) struct {
     ptr: ?*const anyopaque,
     writeFn: ?*const fn (*std.Io.Writer, *const anyopaque) anyerror!void,
 } {
+    if (platform == .browser) return .{ .ptr = null, .writeFn = null };
     const type_info = @typeInfo(Props);
 
     if (type_info != .@"struct") return .{ .ptr = null, .writeFn = null };
@@ -1677,10 +1699,98 @@ fn propsSerializer(comptime Props: type, allocator: std.mem.Allocator, props: Pr
         .writeFn = &struct {
             fn write(writer: *std.Io.Writer, ptr: *const anyopaque) anyerror!void {
                 const typed_props: *const Props = @ptrCast(@alignCast(ptr));
-                try std.zon.stringify.serialize(typed_props.*, .{ .whitespace = false }, writer);
+                // Use positional array format: [val1, val2, ...] - no field names
+                try serializePositional(Props, typed_props.*, writer);
             }
         }.write,
     };
+}
+
+/// Serialize a value in positional array format (structs become arrays, nested structs too)
+fn serializePositional(comptime T: type, value: T, writer: *std.Io.Writer) !void {
+    const type_info = @typeInfo(T);
+
+    switch (type_info) {
+        .@"struct" => |s| {
+            // Structs become arrays: [field1_value, field2_value, ...]
+            try writer.writeByte('[');
+            inline for (s.fields, 0..) |field, i| {
+                if (i > 0) try writer.writeByte(',');
+                try serializePositional(field.type, @field(value, field.name), writer);
+            }
+            try writer.writeByte(']');
+        },
+        .optional => |opt| {
+            if (value) |v| {
+                try serializePositional(opt.child, v, writer);
+            } else {
+                try writer.writeAll("null");
+            }
+        },
+        .pointer => |ptr| {
+            if (ptr.size == .slice and ptr.child == u8) {
+                // String slice - use JSON string encoding
+                try writer.writeByte('"');
+                for (value) |c| {
+                    switch (c) {
+                        '"' => try writer.writeAll("\\\""),
+                        '\\' => try writer.writeAll("\\\\"),
+                        '\n' => try writer.writeAll("\\n"),
+                        '\r' => try writer.writeAll("\\r"),
+                        '\t' => try writer.writeAll("\\t"),
+                        else => try writer.writeByte(c),
+                    }
+                }
+                try writer.writeByte('"');
+            } else if (ptr.size == .one) {
+                // String literal (*const [N]u8 or *const [N:0]u8)
+                const child_info = @typeInfo(ptr.child);
+                if (child_info == .array and child_info.array.child == u8) {
+                    try writer.writeByte('"');
+                    for (value) |c| {
+                        if (c == 0) break; // Handle null-terminated strings
+                        switch (c) {
+                            '"' => try writer.writeAll("\\\""),
+                            '\\' => try writer.writeAll("\\\\"),
+                            '\n' => try writer.writeAll("\\n"),
+                            '\r' => try writer.writeAll("\\r"),
+                            '\t' => try writer.writeAll("\\t"),
+                            else => try writer.writeByte(c),
+                        }
+                    }
+                    try writer.writeByte('"');
+                } else {
+                    try writer.writeAll("null");
+                }
+            } else {
+                try writer.writeAll("null");
+            }
+        },
+        .array => |arr| {
+            try writer.writeByte('[');
+            for (value, 0..) |item, i| {
+                if (i > 0) try writer.writeByte(',');
+                try serializePositional(arr.child, item, writer);
+            }
+            try writer.writeByte(']');
+        },
+        .int, .comptime_int => {
+            try writer.print("{d}", .{value});
+        },
+        .float, .comptime_float => {
+            try writer.print("{d}", .{value});
+        },
+        .bool => {
+            try writer.writeAll(if (value) "true" else "false");
+        },
+        .@"enum" => {
+            // Serialize enum as integer index for compactness
+            try writer.print("{d}", .{@intFromEnum(value)});
+        },
+        else => {
+            try writer.writeAll("null");
+        },
+    }
 }
 
 /// Returns props pointer and JSON serializer function for React components
@@ -1715,7 +1825,16 @@ fn isPropsSerializable(comptime T: type) bool {
     const type_info = @typeInfo(T);
     return switch (type_info) {
         .int, .comptime_int, .float, .comptime_float, .bool => true,
-        .pointer => |ptr| ptr.size == .slice and ptr.child == u8,
+        .pointer => |ptr| blk: {
+            // Handle both []const u8 (slices) and *const [N]u8 (string literals)
+            if (ptr.size == .slice and ptr.child == u8) break :blk true;
+            if (ptr.size == .one) {
+                const child_info = @typeInfo(ptr.child);
+                // Check for *const [N]u8 or *const [N:0]u8 (null-terminated string literals)
+                if (child_info == .array and child_info.array.child == u8) break :blk true;
+            }
+            break :blk false;
+        },
         .array => |arr| isPropsSerializable(arr.child),
         .optional => |opt| isPropsSerializable(opt.child),
         .@"struct" => |s| blk: {
@@ -1744,7 +1863,10 @@ const routing = @import("routing.zig");
 
 pub const info = @import("zx_info");
 pub const Client = @import("runtime/client/Client.zig");
-pub const client = @import("runtime/client/bom.zig");
+/// Client-side browser APIs (Document, Window, etc.)
+pub const client = @import("runtime/client/window.zig");
+/// Props hydration parser for positional array format
+pub const hydration = @import("runtime/client/hydration.zig");
 pub const App = @import("runtime/server/app.zig").App;
 
 pub const Allocator = std.mem.Allocator;

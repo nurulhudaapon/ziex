@@ -4,7 +4,7 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
-const bom = @import("../bom.zig");
+const bom = @import("../window.zig");
 const Console = bom.Console;
 
 /// Whether we're running in a browser environment (WASM)
@@ -202,7 +202,7 @@ pub fn createTextNode(self: Document, data: []const u8) HTMLText {
     return HTMLText.init(self.allocator, ref);
 }
 
-/// Represents a hydration boundary marked by comment nodes <!--$id--> or <!--$id.{.{props}}--> and <!--/$id-->
+/// Represents a hydration boundary marked by comment nodes <!--$id--> or <!--$id {"props":"json"}--> and <!--/$id-->
 pub const CommentMarker = struct {
     start_comment: JsObject,
     end_comment: JsObject,
@@ -251,7 +251,7 @@ pub const CommentMarker = struct {
 };
 
 /// Find comment markers for a component ID
-/// Start marker format: <!--$id.{.{...}}--> (ZON tuple) or <!--$id-->
+/// Start marker format: <!--$id [val1, val2]--> (positional array) or <!--$id {"prop":"value"}--> (JSON object) or <!--$id-->
 /// End marker format: <!--/$id-->
 pub fn findCommentMarker(self: Document, id: []const u8) error{ MarkerNotFound, NotInBrowser }!CommentMarker {
     if (!is_wasm) return error.NotInBrowser;
@@ -259,7 +259,7 @@ pub fn findCommentMarker(self: Document, id: []const u8) error{ MarkerNotFound, 
     const allocator = self.allocator;
 
     // Build the patterns we're looking for
-    // Start marker: $id or $id{...}
+    // Start marker: $id or $id {...}
     const start_prefix = std.fmt.allocPrint(allocator, "${s}", .{id}) catch return error.MarkerNotFound;
     defer allocator.free(start_prefix);
     // End marker: /$id
@@ -282,13 +282,26 @@ pub fn findCommentMarker(self: Document, id: []const u8) error{ MarkerNotFound, 
         // Get comment text content
         const text = node.getAlloc(real_js.String, allocator, "textContent") catch continue;
 
-        // Check for start marker: $id or $id.{...}
+        // Check for start marker: $id or $id {...} or $id [...]
         if (std.mem.startsWith(u8, text, start_prefix)) {
             start_comment = node;
-            // Extract ZON tuple payload after $id (if present)
-            // Format: $id.{.{...}} -> extract .{.{...}}
-            if (text.len > start_prefix.len and std.mem.startsWith(u8, text[start_prefix.len..], ".{")) {
-                props_zon = allocator.dupe(u8, text[start_prefix.len..]) catch null;
+            // Extract JSON payload after $id (if present)
+            // Format: $id {"prop":"value"} or $id [val1, val2] -> extract JSON
+            const rest = text[start_prefix.len..];
+            if (rest.len > 0 and rest[0] == ' ') {
+                // Skip the space and get JSON (object or array format)
+                const json_obj_start = std.mem.indexOf(u8, rest, "{");
+                const json_arr_start = std.mem.indexOf(u8, rest, "[");
+                // Find the first occurrence of either { or [
+                const json_start = if (json_obj_start != null and json_arr_start != null)
+                    @min(json_obj_start.?, json_arr_start.?)
+                else if (json_obj_start) |idx|
+                    idx
+                else
+                    json_arr_start;
+                if (json_start) |idx| {
+                    props_zon = allocator.dupe(u8, rest[idx..]) catch null;
+                }
             }
             allocator.free(text);
         } else if (std.mem.eql(u8, text, end_marker)) {
@@ -312,8 +325,6 @@ pub fn findCommentMarker(self: Document, id: []const u8) error{ MarkerNotFound, 
             };
         }
     }
-
-    if (props_zon) |pz| std.zon.parse.free(allocator, pz);
 
     return error.MarkerNotFound;
 }

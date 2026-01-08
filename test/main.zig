@@ -4,11 +4,12 @@ test {
     _ = @import("zx/ast.zig");
     _ = @import("cli/fmt.zig");
     _ = @import("cli/cli.zig");
-    _ = @import("app/headers.zig");
-    _ = @import("app/request.zig");
-    _ = @import("app/response.zig");
-    _ = @import("app/common.zig");
-    _ = @import("app/routing.zig");
+    _ = @import("core/headers.zig");
+    _ = @import("core/request.zig");
+    _ = @import("core/response.zig");
+    _ = @import("core/common.zig");
+    _ = @import("core/routing.zig");
+    _ = @import("client/hydration.zig");
 }
 
 pub const std_options = std.Options{

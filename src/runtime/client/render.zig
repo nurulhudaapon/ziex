@@ -151,7 +151,7 @@ pub const VElement = struct {
 
                 text_node.setProperty("__zx_ref", velement_id);
 
-                const reactivity = @import("Reactivity.zig");
+                const reactivity = @import("reactivity.zig");
                 reactivity.registerBinding(sig.signal_id, text_node.ref);
 
                 const velement = VElement{

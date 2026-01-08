@@ -1,0 +1,118 @@
+var scount: i32 = 0;
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    scount += 1;
+    const nested1: InnerProps = .{ .value = 123, .flag = true };
+
+    return (
+        <div @allocator={ctx.arena}>
+            <h2>Hydration Demo</h2>
+
+            <h3>Test 1: Basic types</h3>
+            <Counter @rendering={.client} initial={42} shared={true} nested={nested1} />
+
+            <h3>Test 2: Negative</h3>
+            <Counter @rendering={.client} initial={-100} negative={-999} shared={false} nested={nested1} />
+
+            <h3>Test 3: Floats</h3>
+            <Counter @rendering={.client} initial={0} float_val={3.14} negative_float={-2.5} shared={true} nested={nested1} />
+
+            <h3>Test 4: Strings</h3>
+            <Counter @rendering={.client} initial={1} label={"Hello World"} escaped_str={"Line1\nLine2"} shared={false} nested={nested1} />
+        </div>
+    );
+}
+
+var sharedCount = zx.Signal(i32).init(0);
+
+/// Inner nested struct for testing deep nesting
+pub const InnerProps = struct {
+    value: i32,
+    flag: bool,
+};
+
+/// Test all edge cases for the minimal parser
+pub const CounterProps = struct {
+    // Integers
+    initial: i32, // positive int
+    negative: i32 = -42, // negative int
+    zero_val: i32 = 0, // zero
+
+    // Floats
+    float_val: f32 = 3.14,
+    negative_float: f32 = -2.5,
+
+    // Booleans
+    shared: bool,
+    disabled: bool = false,
+
+    // Strings
+    label: []const u8 = "Counter",
+    escaped_str: []const u8 = "Hello\nWorld", // with newline escape
+
+    // Optional
+    optional_int: ?i32 = null,
+    optional_str: ?[]const u8 = null,
+
+    // Nested struct
+    nested: InnerProps = .{ .value = 0, .flag = false },
+
+    // Fixed-size array
+    scores: [3]i32 = .{ 10, 20, 30 },
+
+    // Enum (serialized as int)
+    status: Status = .active,
+
+    pub const Status = enum(u8) { inactive, active, pending };
+};
+
+// Keep the old struct for backwards compatibility with existing tests
+pub const NestedCounterProps = CounterProps;
+
+pub fn Counter(ctx: *zx.ComponentCtx(CounterProps)) ?zx.Component {
+    const count = ctx.Signal(i32).init(ctx.props.initial);
+    const props = ctx.props;
+
+    return (
+        <div @allocator={ctx.allocator}>
+            <h4>Counter Component Test</h4>
+
+            <h5>== Integers ==</h5>
+            <p>Inidtial: {props.initial}</p>
+            <p>Negative: {props.negative}</p>
+            <p>Zero: {props.zero_val}</p>
+
+            <h5>== Floats ==</h5>
+            <p>Float: {props.float_val}</p>
+            <p>Negative Float: {props.negative_float}</p>
+
+            <h5>== Booleans ==</h5>
+            <p>Shared: {props.shared}</p>
+            <p>Disabled: {props.disabled}</p>
+
+            <h5>== Strings ==</h5>
+            <p>Label: {props.label}</p>
+            <p>Escaped: {props.escaped_str}</p>
+
+            <h5>== Optionals ==</h5>
+            <p>Optional Int: {if (props.optional_int != null) "has value" else "null"}</p>
+            <p>Optional Str: {if (props.optional_str) |s| s else "null"}</p>
+
+            <h5>== Nested Struct ==</h5>
+            <p>Nested Value: {props.nested.value}</p>
+            <p>Nested Flag: {props.nested.flag}</p>
+
+            <h5>== Array ==</h5>
+            <p>Scores: {props.scores[0]}, {props.scores[1]}, {props.scores[2]}</p>
+
+            <h5>== Enum ==</h5>
+            <p>Status: {@as(u8, @intFromEnum(props.status))}</p>
+
+            <hr />
+            <h5>Signal: {count.signal}</h5>
+            <h5>Shared: {&sharedCount}</h5>
+        </div>
+    );
+}
+
+const zx = @import("zx");
+const std = @import("std");

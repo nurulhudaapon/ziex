@@ -147,7 +147,7 @@ pub fn eval(T: type, code: []const u8) !T {
     return try real_js.global.call(T, "eval", .{real_js.string(code)});
 }
 
-pub const Document = @import("bom/dom.zig").Document;
+pub const Document = @import("window/document.zig");
 
 // =============================================================================
 // Async APIs: setTimeout, setInterval

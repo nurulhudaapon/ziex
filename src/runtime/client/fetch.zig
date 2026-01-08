@@ -4,7 +4,7 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
-const bom = @import("bom.zig");
+const window = @import("window.zig");
 const Fetch = @import("../core/Fetch.zig");
 
 const Response = Fetch.Response;
@@ -13,7 +13,7 @@ const RequestInit = Fetch.RequestInit;
 const FetchError = Fetch.FetchError;
 const ResponseCallback = Fetch.ResponseCallback;
 
-pub const is_wasm = bom.is_wasm;
+pub const is_wasm = window.is_wasm;
 
 // ============================================================================
 // External declarations (provided by ZxBridge in JS)

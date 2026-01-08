@@ -43,6 +43,7 @@ const categories = [_]SidebarProps.Category{
             .{ .title = "Todo App", .href = "/examples/wasm" },
             .{ .title = "Timer Demo", .href = "/examples/wasm/async" },
             .{ .title = "React.js Demo", .href = "/examples/react" },
+            .{ .title = "Hydration Demo", .href = "/examples/wasm/hydration" },
         },
     },
 };

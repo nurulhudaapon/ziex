@@ -1,7 +1,8 @@
 pub const Client = @This();
 
-const bom = @import("bom.zig");
-pub const reactivity = @import("Reactivity.zig");
+const window = @import("window.zig");
+pub const reactivity = @import("reactivity.zig");
+pub const hydration = @import("hydration.zig");
 
 /// Global instance counter for assigning unique IDs to component instances
 var instance_counter: u16 = 0;
@@ -100,23 +101,8 @@ pub const ComponentMeta = struct {
         }.wrapper;
     }
 
-    /// Expected format: {.{...}} - tuple with props as first element (extensible for future fields)
-    fn parsePropsFromJson(comptime PropT: type, allocator: std.mem.Allocator, props_zon: ?[]const u8) PropT {
-        if (props_zon) |zon_bytes| {
-            const zon_z = allocator.dupeZ(u8, zon_bytes) catch return std.mem.zeroes(PropT);
-            defer allocator.free(zon_z);
-
-            // Parse ZON tuple and extract first element (props)
-            const PropsWrapper = struct { PropT };
-            if (std.zon.parse.fromSlice(PropsWrapper, allocator, zon_z, null, .{ .ignore_unknown_fields = true })) |parsed| {
-                return parsed[0];
-            } else |_| {
-                return std.mem.zeroes(PropT);
-            }
-        }
-
-        return std.mem.zeroes(PropT);
-    }
+    /// Parse props using the Hydrator module
+    const parsePropsFromJson = hydration.parseProps;
 };
 
 /// Key for the handler registry: (velement_id, event_type_hash)
@@ -427,7 +413,7 @@ pub const js = if (builtin.cpu.arch == .wasm32) @import("js") else struct {
 };
 
 const zx = @import("../../root.zig");
-const vtree_mod = @import("vtree.zig");
+const vtree_mod = @import("render.zig");
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -438,8 +424,8 @@ pub var global_client: ?*Client = null;
 
 const VDOMTree = vtree_mod.VDOMTree;
 const Patch = vtree_mod.Patch;
-const Document = bom.Document;
-const Console = bom.Console;
+const Document = window.Document;
+const Console = window.Console;
 const areComponentsSameType = vtree_mod.areComponentsSameType;
 
 /// Handle DOM events from JS bridge.
@@ -455,8 +441,8 @@ export fn __zx_eventbridge(velement_id: u64, event_type_id: u8, event_ref: u64) 
 export fn __zx_cb(callback_type: u8, callback_id: u64, data_ref: u64) void {
     if (builtin.os.tag != .freestanding) return;
 
-    const cb_type: bom.CallbackType = @enumFromInt(callback_type);
-    _ = bom.dispatchCallback(cb_type, callback_id, data_ref, std.heap.wasm_allocator);
+    const cb_type: window.CallbackType = @enumFromInt(callback_type);
+    _ = window.dispatchCallback(cb_type, callback_id, data_ref, std.heap.wasm_allocator);
 }
 
 /// Custom log function for browser environment that outputs to console.
