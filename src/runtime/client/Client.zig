@@ -3,6 +3,9 @@ pub const Client = @This();
 const bom = @import("bom.zig");
 pub const reactivity = @import("Reactivity.zig");
 
+/// Global instance counter for assigning unique IDs to component instances
+var instance_counter: u16 = 0;
+
 pub const ComponentMeta = struct {
     type: zx.BuiltinAttribute.Rendering,
     id: []const u8,
@@ -50,6 +53,10 @@ pub const ComponentMeta = struct {
                     const ctx = allocator.create(CtxType) catch @panic("OOM");
                     ctx.allocator = allocator;
                     ctx.children = null;
+
+                    // Inject unique instance ID for per-instance signal state
+                    ctx._id = instance_counter;
+                    instance_counter +%= 1; // Wrap around on overflow
 
                     // Parse props if the context has a props field
                     if (@hasField(CtxType, "props")) {

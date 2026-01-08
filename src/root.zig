@@ -1282,7 +1282,7 @@ pub const ZxContext = struct {
         const T = @TypeOf(val);
 
         return switch (@typeInfo(T)) {
-            // Strings pass through directly
+            // Strings and function pointers
             .pointer => |ptr_info| blk: {
                 if (ptr_info.size == .slice and ptr_info.child == u8) {
                     break :blk .{ .name = name, .value = val };
@@ -1291,6 +1291,10 @@ pub const ZxContext = struct {
                     if (@typeInfo(ptr_info.child) == .array) {
                         const Slice = []const std.meta.Elem(ptr_info.child);
                         return self.attr(name, @as(Slice, val));
+                    }
+                    // Function pointer - treat as event handler
+                    if (@typeInfo(ptr_info.child) == .@"fn") {
+                        break :blk .{ .name = name, .handler = val };
                     }
                 }
                 @compileError("Unsupported pointer type for attribute: " ++ @typeName(T));
@@ -1714,9 +1718,12 @@ pub const App = @import("runtime/server/app.zig").App;
 pub const Allocator = std.mem.Allocator;
 
 pub const Signal = Client.reactivity.Signal;
+/// Alias for Signal(T).Instance - helps IDE/ZLS with type inference
+pub const SignalInstance = Client.reactivity.SignalInstance;
 pub const Computed = Client.reactivity.Computed;
 pub const Effect = Client.reactivity.Effect;
 pub const effect = Client.reactivity.effect;
+pub const effectDeferred = Client.reactivity.effectDeferred;
 pub const CleanupFn = Client.reactivity.CleanupFn;
 pub const requestRender = Client.reactivity.requestRender;
 
@@ -1838,22 +1845,38 @@ pub fn MergedPropsType(comptime BaseType: type, comptime OverrideType: type) typ
     });
 }
 
-pub fn ComponentCtx(comptime PropsType: type) type {
-    if (PropsType == void) {
-        return struct {
-            allocator: Allocator,
-            children: ?Component = null,
-        };
-    } else {
-        return struct {
-            props: PropsType,
-            allocator: Allocator,
-            children: ?Component = null,
-        };
-    }
+/// Builder returned by ctx.Signal(T) - call .init(initial) to create the signal.
+pub fn SignalBuilder(comptime T: type) type {
+    return struct {
+        const Self = @This();
+        _id: u16,
+
+        /// Initialize the signal with an initial value.
+        /// Usage: `const count = ctx.Signal(i32).init(0);`
+        pub fn init(self: Self, initial: T) SignalInstance(T) {
+            return Signal(T).create(self._id, initial);
+        }
+    };
 }
 
-pub const ComponentContext = struct { allocator: Allocator, children: ?Component = null };
+pub fn ComponentCtx(comptime PropsType: type) type {
+    return struct {
+        const Self = @This();
+        props: PropsType,
+        allocator: Allocator,
+        children: ?Component = null,
+        /// Instance ID - automatically injected by Client.zig at runtime
+        _id: u16 = 0,
+
+        /// Get a signal builder for this component instance.
+        /// Usage: `const count = ctx.Signal(i32).init(ctx.props.initial);`
+        pub fn Signal(self: Self, comptime T: type) SignalBuilder(T) {
+            return .{ ._id = self._id };
+        }
+    };
+}
+
+pub const ComponentContext = ComponentCtx(void);
 
 pub const EventContext = struct {
     /// The JS event object reference (as a u64 NaN-boxed value)

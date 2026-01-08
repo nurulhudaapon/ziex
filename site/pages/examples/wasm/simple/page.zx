@@ -4,11 +4,13 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
     return (
         <div @allocator={ctx.arena}>
-            <CounterComponent @rendering={.client} count={count} />
+            <Counter @rendering={.client} initial={count} />
+            <Counter @rendering={.client} initial={count + 10} />
+            <Counter @rendering={.client} initial={count + 20} />
         </div>
     );
 }
 
-pub const CounterComponent = @import("../../client_counter.zx").CounterComponent;
+pub const Counter = @import("../../client_counter.zx").Counter;
 
 const zx = @import("zx");

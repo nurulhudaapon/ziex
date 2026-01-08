@@ -1,72 +1,53 @@
-var count: zx.Signal(i32) = .init(0);
-var doubled: zx.Computed(i32, i32) = .init(&count, doubleValue);
+var sharedCount = zx.Signal(i32).init(0);
 
-
-pub fn CounterComponent(ctx: *zx.ComponentCtx(struct { count: i32 })) zx.Component {
-    zx.effect(&count, &onCountChange);
-    // zx.effect(&doubled, &onDoubledChange);
-
-    std.log.info("CounterComponent ctx.props.count: {d}", .{ctx.props.count});
+pub fn Counter(ctx: *zx.ComponentCtx(struct { initial: i32 })) zx.Component {
+    const count = ctx.Signal(i32).init(ctx.props.initial);
 
     return (
-    <div @allocator={ctx.allocator}>
-        <button onclick={handleReset}>Reset</button>
-        <h5>Count: {&count}</h5>
-        <h5>Doubled: {&doubled}</h5>
-        <h5>Server Count: {ctx.props.count}</h5>
-        <NestedCounterComponent count={&count} />
-        <button onclick={handleDecrement}>Decrement</button>
-        <button onclick={handleIncrement}>Increment</button>             
-        // <button onclick={handleSubmit}>Submit</button>
-        <p>{&message}</p>
-    </div>
-);
+        <div @allocator={ctx.allocator}>
+            <h5>Component: {count.signal}</h5>
+            <h5>Shared: {&sharedCount}</h5>
+            <h5>Server: {ctx.props.initial}</h5>
+            <button onclick={count.bind(decrement)}>Decrement</button>
+            <button onclick={count.bind(increment)}>Increment</button>
+            <button onclick={count.bind(zero)}>Zero</button>
+            <button onclick={count.reset()}>Reset</button>
+            <br/><br/>
+        </div>
+    );
 }
 
-pub fn NestedCounterComponent(ctx: *zx.ComponentCtx(struct { count: *zx.Signal(i32) })) zx.Component {
-    return (<h5 @allocator={ctx.allocator}>Nested Count: {ctx.props.count}</h5>);
+fn zero(_: i32) i32 {
+    return 0;
+}
+fn increment(x: i32) i32 {
+    sharedCount.set(sharedCount.get() + 1);
+    _ = zx.fetch(.wasm(&onFetchComplete), zx.client_allocator, "", .{}) catch {};
+    return x + 1;
+}
+fn decrement(x: i32) i32 {
+    return x - 1;
 }
 
-fn doubleValue(val: i32) i32 {
-    return val * 2;
+/// Callback for fetch completion
+fn onFetchComplete(response: ?*zx.Fetch.Response, err: ?zx.Fetch.FetchError) void {
+    if (err) |e| {
+        std.log.err("Fetch error!", .{});
+        std.log.err("Fetch error: {s}", .{@errorName(e)});
+        return;
+    }
+
+    if (response) |res| {
+        defer res.deinit();
+        const text = res.text() catch |e| {
+            std.log.err("Fetch text error: {s}", .{@errorName(e)});
+            return;
+        };
+        std.log.info("Fetch completed! Response:", .{});
+        std.log.info("Fetch text: {s}", .{text});
+    }
 }
 
-fn handleIncrement(_: zx.EventContext) void {
-    count.set(count.get() + 1);
-}
 
-fn handleDecrement(_: zx.EventContext) void {
-    count.set(count.get() - 1);
-}
-
-fn handleReset(_: zx.EventContext) void {
-    count.set(0);
-}
-
-// fn handleSubmit(ctx: zx.ActionContext) zx.ActionResult(void) {
-//     std.log.info("handleSubmit", .{});
-// }
-
-var message = zx.Signal([]const u8).init("Count Didn't Change");
-
-/// Effect callback that returns an optional cleanup function.
-/// The cleanup runs before the next effect execution.
-fn onCountChange(newCount: i32) zx.CleanupFn {
-    const new_msg = std.fmt.allocPrint(zx.client_allocator, "Count Changed: {d}", .{newCount}) catch "Count Changed";
-    message.set(new_msg);
-
-    std.log.info("onCountChange newCount: {d}", .{newCount});
-
-    return onCleanup;
-}
-
-fn onCleanup() void {
-    std.log.info("Cleanup", .{});
-}
-
-fn onDoubledChange(newDoubled: i32) void {
-    std.log.info("onDoubledChange newDoubled: {d}", .{newDoubled});
-}
-
-const std = @import("std");
 const zx = @import("zx");
+const std = @import("std");

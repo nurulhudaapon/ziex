@@ -30,3 +30,5 @@ export fn mainClient() void {
 }
 
 pub const std_options = zx.std_options;
+
+const ctx = zx.ComponentCtx(void);

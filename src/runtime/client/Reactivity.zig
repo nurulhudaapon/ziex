@@ -5,7 +5,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const is_wasm = builtin.cpu.arch == .wasm32 or builtin.cpu.arch == .wasm64;
+const is_wasm = builtin.os.tag == .freestanding;
 
 const js = if (is_wasm) @import("js") else struct {
     pub const Object = void;
@@ -161,7 +161,80 @@ pub fn Signal(comptime T: type) type {
         pub fn format(self: *const Self, buf: []u8) []const u8 {
             return formatValue(T, self.value, buf);
         }
+
+        // ============ Instance-based signal creation for ComponentCtx ============
+
+        const MAX_INSTANCES = 256;
+        var instances: [MAX_INSTANCES]Self = .{Self.init(undefined)} ** MAX_INSTANCES;
+        var initial_values: [MAX_INSTANCES]T = .{undefined} ** MAX_INSTANCES;
+
+        /// Instance handle returned by create() - acts like Signal but with handler generation.
+        pub const ComponentSignal = struct {
+            signal: *Self,
+            _idx: u8,
+
+            const EventHandler = *const fn (zx.EventContext) void;
+
+            /// Get the current value
+            pub inline fn get(self: ComponentSignal) T {
+                return self.signal.get();
+            }
+
+            /// Set a new value
+            pub inline fn set(self: ComponentSignal, new_value: T) void {
+                self.signal.set(new_value);
+            }
+
+            /// Format for template rendering
+            pub fn format(self: ComponentSignal, buf: []u8) []const u8 {
+                return self.signal.format(buf);
+            }
+
+            /// Get a handler to reset to initial value
+            pub fn reset(self: ComponentSignal) EventHandler {
+                return switch (self._idx) {
+                    inline 0...MAX_INSTANCES - 1 => |i| &struct {
+                        fn handler(_: zx.EventContext) void {
+                            instances[i].set(initial_values[i]);
+                        }
+                    }.handler,
+                };
+            }
+
+            /// Create an event handler that updates the signal using a transform function.
+            /// Usage: `<button onclick={count.bind(struct { fn f(x: i32) i32 { return x + 1; } }.f)}>+</button>`
+            /// TODO: Allow generic functions
+            pub fn bind(self: ComponentSignal, comptime transform: *const fn (T) T) EventHandler {
+                return switch (self._idx) {
+                    inline 0...MAX_INSTANCES - 1 => |i| &struct {
+                        fn handler(_: zx.EventContext) void {
+                            instances[i].set(transform(instances[i].get()));
+                        }
+                    }.handler,
+                };
+            }
+        };
+
+        /// Create an instance-aware signal for use in ComponentCtx.
+        /// Each instance ID gets its own independent storage.
+        pub fn create(instance_id: u16, initial: T) ComponentSignal {
+            const idx: u8 = @intCast(instance_id % MAX_INSTANCES);
+            instances[idx] = Self.init(initial);
+            initial_values[idx] = initial;
+
+            return .{
+                .signal = &instances[idx],
+                ._idx = idx,
+            };
+        }
     };
+}
+
+const zx = @import("../../root.zig");
+
+/// Top-level alias for Signal(T).Instance to improve IDE/ZLS type resolution.
+pub fn SignalInstance(comptime T: type) type {
+    return Signal(T).ComponentSignal;
 }
 
 fn formatValue(comptime T: type, value: T, buf: []u8) []const u8 {
@@ -308,12 +381,34 @@ pub fn Computed(comptime T: type, comptime SourceT: type) type {
 pub const CleanupFn = *const fn () void;
 
 /// Create an effect that runs when the source signal/computed changes.
+/// Like SolidJS/React, runs on mount AND on signal changes.
 /// Type is inferred from the source.
 ///
 /// ```zig
+/// // Runs on mount and on every change (like SolidJS createEffect)
 /// zx.effect(&count, onCountChange);
 /// ```
 pub fn effect(source: anytype, comptime callback: anytype) void {
+    effectWithOptions(source, callback, .{ .skip_initial = false });
+}
+
+/// Create an effect that only runs when the value changes (skips initial mount).
+/// Like SolidJS `createEffect(on(signal, callback, { defer: true }))`.
+///
+/// ```zig
+/// // Skips initial mount, only runs on changes
+/// zx.effectDeferred(&count, onCountChange);
+/// ```
+pub fn effectDeferred(source: anytype, comptime callback: anytype) void {
+    effectWithOptions(source, callback, .{ .skip_initial = true });
+}
+
+const EffectOptions = struct {
+    /// If true, skip the initial run on mount (only run on changes)
+    skip_initial: bool = false,
+};
+
+fn effectWithOptions(source: anytype, comptime callback: anytype, options: EffectOptions) void {
     const SourcePtrType = @TypeOf(source);
     const source_info = @typeInfo(SourcePtrType);
 
@@ -327,8 +422,10 @@ pub fn effect(source: anytype, comptime callback: anytype) void {
         @compileError("effect source must be a Signal or Computed type");
     }
 
+    if (!is_wasm) return;
+
     const T = SourceType.ValueType;
-    Effect(T).init(source, callback);
+    Effect(T).init(source, callback, options.skip_initial);
 }
 
 /// Effect type (prefer `effect()` function for simpler API).
@@ -350,7 +447,8 @@ pub fn Effect(comptime T: type) type {
 
         /// Initialize and auto-run the effect.
         /// Callback can return `void` or `?CleanupFn`.
-        pub fn init(source: anytype, comptime callback: anytype) void {
+        /// If `skip_initial` is true, skips the initial run (only fires on changes).
+        pub fn init(source: anytype, comptime callback: anytype, skip_initial: bool) void {
             const SourcePtrType = @TypeOf(source);
             const source_info = @typeInfo(SourcePtrType);
 
@@ -411,7 +509,9 @@ pub fn Effect(comptime T: type) type {
                 .source_get = Wrapper.get,
                 .source_id_ptr = &@constCast(source).id,
                 .callback = wrapped_callback,
-                .last_value = null,
+                // If skip_initial, store current value so initial run is skipped
+                // If not (default), use null so effect runs on mount
+                .last_value = if (skip_initial) source.get() else null,
                 .registered = false,
                 .cleanup = null,
             };
@@ -424,11 +524,18 @@ pub fn Effect(comptime T: type) type {
             self.execute();
         }
 
-        pub fn run(self: *Self) void {
+        /// Register the effect without running it immediately.
+        /// Effect will only fire when the signal value changes.
+        pub fn register(self: *Self) void {
             if (!self.registered) {
                 registerEffect(self.source_id_ptr.*, @ptrCast(self), runWrapper);
                 self.registered = true;
             }
+        }
+
+        /// Register and run the effect immediately (React-like behavior).
+        pub fn run(self: *Self) void {
+            self.register();
             self.execute();
         }
 
