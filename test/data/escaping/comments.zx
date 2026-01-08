@@ -1,151 +1,151 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     return (
-    <section @allocator={allocator} data-src={@src().file}>
-        // <pre>
-        //     {
-        //         \\const data = 
-        //         \\
-        //         \\ Test 
-        //         \\ Test 2
-        //         \\
-        //         \\ name: "test" ;
-        //         \\
-        //         \\
-        //     }
-        // </pre>
-    </section>
-);
+        <section @allocator={allocator} data-src={@src().file}>
+            // <pre>
+            //     {
+            //         \\const data = 
+            //         \\
+            //         \\ Test 
+            //         \\ Test 2
+            //         \\
+            //         \\ name: "test" ;
+            //         \\
+            //         \\
+            //     }
+            // </pre>
+        </section>
+    );
 }
 
-pub fn Comments(_: zx.ComponentContext) {
+pub fn Comments(_: zx.ComponentContext) zx.Component {
     return (
-    <div>
-        // <p>Hello</p>
-        // <p>World</p>
-
-        <section>
+        <div>
             // <p>Hello</p>
             // <p>World</p>
-        </section>
-    </div>
-);
+
+            <section>
+                // <p>Hello</p>
+                // <p>World</p>
+            </section>
+        </div>
+    );
 }
 
 pub fn EmptyComments(_: zx.ComponentContext) zx.Element {
     return (
-    <div>
-        //
-        //
-        <p>Content after empty comments</p>
-    </div>
-);
+        <div>
+            //
+            //
+            <p>Content after empty comments</p>
+        </div>
+    );
 }
 
 pub fn CommentsWithSpecialChars(_: zx.ComponentContext) zx.Element {
     return (
-    <div>
-        // Special chars: <>&"'`~!@#$%^&*()_+-=[]{}|;:,.<>?
-        // Unicode: 你好 مرحبا 🎉 emoji test
-        // URL: https://example.com/path?query=value&other=123
-        // Email: test@example.com
-        <p>After special char comments</p>
-    </div>
-);
+        <div>
+            // Special chars: <>&"'`~!@#$%^&*()_+-=[]{}|;:,.<>?
+            // Unicode: 你好 مرحبا 🎉 emoji test
+            // URL: https://example.com/path?query=value&other=123
+            // Email: test@example.com
+            <p>After special char comments</p>
+        </div>
+    );
 }
 
 pub fn CommentsWithExpressions(_: zx.ComponentContext) zx.Element {
     const value = "test";
     return (
-    <div>
-        // {value}
-        // {"literal string"}
-        // {1 + 2}
-        // <span>{value}</span>
-        <p data-value={value}>Actual content</p>
-    </div>
-);
+        <div>
+            // {value}
+            // {"literal string"}
+            // {1 + 2}
+            // <span>{value}</span>
+            <p data-value={value}>Actual content</p>
+        </div>
+    );
 }
 
 pub fn NestedComments(_: zx.ComponentContext) zx.Element {
     return (
-    <div>
-        <section>
-            <article>
-                // Deeply nested comment
-                // <div>
-                //     <span>
-                //         <a href="#">Link</a>
-                //     </span>
-                // </div>
-                <p>Deep content</p>
-            </article>
-        </section>
-    </div>
-);
+        <div>
+            <section>
+                <article>
+                    // Deeply nested comment
+                    // <div>
+                    //     <span>
+                    //         <a href="#">Link</a>
+                    //     </span>
+                    // </div>
+                    <p>Deep content</p>
+                </article>
+            </section>
+        </div>
+    );
 }
 
 pub fn CommentsWithAttributes(_: zx.ComponentContext) zx.Element {
     return (
-    <div>
-        // <div class="test" id="commented" data-attr="value">
-        //     <span style="color: red;">Styled text</span>
-        // </div>
-        // <input type="text" placeholder="Enter value" disabled />
-        // <a href="https://example.com" target="_blank" rel="noopener">Link</a>
-        <p>After attribute comments</p>
-    </div>
-);
+        <div>
+            // <div class="test" id="commented" data-attr="value">
+            //     <span style="color: red;">Styled text</span>
+            // </div>
+            // <input type="text" placeholder="Enter value" disabled />
+            // <a href="https://example.com" target="_blank" rel="noopener">Link</a>
+            <p>After attribute comments</p>
+        </div>
+    );
 }
 
 pub fn MixedCommentsAndContent(_: zx.ComponentContext) zx.Element {
     return (
-    <ul>
-        // <li>Commented item 1</li>
-        <li>Visible item 1</li>
-        // <li>Commented item 2</li>
-        <li>Visible item 2</li>
-        // <li>Commented item 3</li>
-        <li>Visible item 3</li>
-        // <li>Commented item 4</li>
-    </ul>
-);
+        <ul>
+            // <li>Commented item 1</li>
+            <li>Visible item 1</li>
+            // <li>Commented item 2</li>
+            <li>Visible item 2</li>
+            // <li>Commented item 3</li>
+            <li>Visible item 3</li>
+            // <li>Commented item 4</li>
+        </ul>
+    );
 }
 
 pub fn CommentsWithZigCode(_: zx.ComponentContext) zx.Element {
     return (
-    <div>
-        // const x: i32 = 42;
-        // var y = x + 1;
-        // if (condition) { doSomething(); }
-        // for (items) |item| { process(item); }
-        // switch (value) { .a => {}, .b => {} }
-        <p>After zig code comments</p>
-    </div>
-);
+        <div>
+            // const x: i32 = 42;
+            // var y = x + 1;
+            // if (condition) { doSomething(); }
+            // for (items) |item| { process(item); }
+            // switch (value) { .a => {}, .b => {} }
+            <p>After zig code comments</p>
+        </div>
+    );
 }
 
 pub fn CommentsOnlyComponent(_: zx.ComponentContext) zx.Element {
     return (
-    <div>
-        // This component only has comments
-        // <p>Nothing visible here</p>
-        // <span>All commented out</span>
-    </div>
-);
+        <div>
+            // This component only has comments
+            // <p>Nothing visible here</p>
+            // <span>All commented out</span>
+        </div>
+    );
 }
 
 pub fn CommentsBetweenSiblings(_: zx.ComponentContext) zx.Element {
     return (
-    <div>
-        <header>Header</header>
-        // Navigation would go here
-        // <nav>...</nav>
-        <main>Main content</main>
-        // Footer is coming
-        // <aside>Sidebar</aside>
-        <footer>Footer</footer>
-    </div>
-);
+        <div>
+            <header>Header</header>
+            // Navigation would go here
+            // <nav>...</nav>
+            <main>Main content</main>
+            // Footer is coming
+            // <aside>Sidebar</aside>
+            <footer>Footer</footer>
+        </div>
+    );
 }
 
 const zx = @import("zx");
