@@ -101,7 +101,7 @@ test "switch_for" {
     try test_fmt("control_flow/switch_for");
 }
 test "switch_switch" {
-    if (true) return error.Todo;
+    // if (true) return error.Todo;
     try test_fmt("control_flow/switch_switch");
 }
 test "switch_while" {

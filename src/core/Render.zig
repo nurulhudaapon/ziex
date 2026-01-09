@@ -1626,7 +1626,13 @@ fn renderSwitchExpression(
         ctx.indent_level -= 1;
         try w.writeAll(std.mem.trim(u8, case.pattern, &std.ascii.whitespace));
         try w.writeAll(" => ");
+        const is_nested_switch = NodeKind.fromNode(case.value) == .switch_expression;
+
+        // For nested switches, keep indent level elevated
+        if (is_nested_switch) ctx.indent_level += 1;
         try renderCaseValue(self, case.value, w, ctx);
+        if (is_nested_switch) ctx.indent_level -= 1;
+
         try w.writeAll(",");
     }
 
@@ -1975,7 +1981,13 @@ fn renderSwitchExpressionInner(
         ctx.indent_level -= 1;
         try w.writeAll(std.mem.trim(u8, case.pattern, &std.ascii.whitespace));
         try w.writeAll(" => ");
+        const is_nested_switch = NodeKind.fromNode(case.value) == .switch_expression;
+
+        // For nested switches, keep indent level elevated
+        if (is_nested_switch) ctx.indent_level += 1;
         try renderCaseValue(self, case.value, w, ctx);
+        if (is_nested_switch) ctx.indent_level -= 1;
+
         try w.writeAll(",");
     }
 
