@@ -536,6 +536,11 @@ fn getPageFn(comptime path: []const u8) ?fn (std.mem.Allocator) zx.Component {
         .{ "element/fragment_root", @import("./../data/element/fragment_root.zig") },
         .{ "escaping/pre", @import("./../data/escaping/pre.zig") },
         .{ "escaping/quotes", @import("./../data/escaping/quotes.zig") },
+        .{ "control_flow/if_while_if", @import("./../data/control_flow/if_while_if.zig") },
+        .{ "attribute/event_handler", @import("./../data/attribute/event_handler.zig") },
+        .{ "component/csr_zig_props", @import("./../data/component/csr_zig_props.zig") },
+        .{ "component/error_component", @import("./../data/component/error_component.zig") },
+        .{ "component/optional_error", @import("./../data/component/optional_error.zig") },
     };
 
     inline for (imports) |entry| {
@@ -597,10 +602,10 @@ fn expectLessThan(expected: f64, actual: f64) !void {
 fn isSnapshotMode() bool {
     // Cross-platform environment variable check
     if (native_os == .windows) {
-        const val = std.process.getenvW(std.unicode.utf8ToUtf16LeStringLiteral("SNAPSHOT"));
+        const val = std.process.getenvW(std.unicode.utf8ToUtf16LeStringLiteral("SS"));
         return val != null;
     } else {
-        return std.posix.getenv("SNAPSHOT") != null;
+        return std.posix.getenv("SS") != null;
     }
 }
 

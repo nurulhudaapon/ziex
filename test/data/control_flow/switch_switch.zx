@@ -1,16 +1,34 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     const user_type: UserType = .admin;
-    const status: Status = .active;
+    const status: Status = .inactive;
     return (
         <main @allocator={allocator}>
             {switch (user_type) {
                 .admin => switch (status) {
                     .active => (<p>Active Admin</p>),
-                    .inactive => (<p>Inactive Admin</p>),
+                    .inactive => switch (status) {
+                        .active => (<p>Active Admin</p>),
+                        .inactive => switch (status) {
+                            .active => (<p>Active Admin</p>),
+                            .inactive => switch (status) {
+                                .active => (<p>Active Admin</p>),
+                                .inactive => (<p>Inactive Admin</p>),
+                            },
+                        },
+                    },
                 },
                 .member => switch (status) {
-                    .active => (<p>Active Member</p>),
-                    .inactive => (<p>Inactive Member</p>),
+                    .active => switch (status) {
+                        .active => switch (status) {
+                            .active => (<p>Active Admin</p>),
+                            .inactive => (<p>Inactive Admin</p>),
+                        },
+                        .inactive => (<p>Inactive Admin</p>),
+                    },
+                    .inactive => switch (status) {
+                        .active => (<p>Active Admin</p>),
+                        .inactive => (<p>Inactive Admin</p>),
+                    },
                 },
             }}
         </main>

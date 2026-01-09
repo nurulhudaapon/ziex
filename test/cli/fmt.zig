@@ -220,6 +220,21 @@ test "component_import" {
 test "component_root_cmp" {
     try test_fmt("component/root_cmp");
 }
+test "component_caching" {
+    try test_fmt("component/caching");
+}
+test "component_optional" {
+    try test_fmt("component/optional");
+}
+test "component_csr_zig_props" {
+    try test_fmt("component/csr_zig_props");
+}
+test "component_error" {
+    try test_fmt("component/error_component");
+}
+test "component_optional_error" {
+    try test_fmt("component/optional_error");
+}
 
 // === Attribute ===
 test "attribute_builtin" {
@@ -242,6 +257,9 @@ test "attribute_shorthand" {
 }
 test "attribute_spread" {
     try test_fmt("attribute/spread");
+}
+test "attribute_event_handler" {
+    try test_fmt("attribute/event_handler");
 }
 
 // === Element ===

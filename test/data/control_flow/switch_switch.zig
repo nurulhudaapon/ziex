@@ -1,6 +1,6 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     const user_type: UserType = .admin;
-    const status: Status = .active;
+    const status: Status = .inactive;
     var _zx = zx.allocInit(allocator);
     return _zx.ele(
         .main,
@@ -17,32 +17,92 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                 },
                             },
                         ),
-                        .inactive => _zx.ele(
-                            .p,
-                            .{
-                                .children = &.{
-                                    _zx.txt("Inactive Admin"),
+                        .inactive => switch (status) {
+                            .active => _zx.ele(
+                                .p,
+                                .{
+                                    .children = &.{
+                                        _zx.txt("Active Admin"),
+                                    },
+                                },
+                            ),
+                            .inactive => switch (status) {
+                                .active => _zx.ele(
+                                    .p,
+                                    .{
+                                        .children = &.{
+                                            _zx.txt("Active Admin"),
+                                        },
+                                    },
+                                ),
+                                .inactive => switch (status) {
+                                    .active => _zx.ele(
+                                        .p,
+                                        .{
+                                            .children = &.{
+                                                _zx.txt("Active Admin"),
+                                            },
+                                        },
+                                    ),
+                                    .inactive => _zx.ele(
+                                        .p,
+                                        .{
+                                            .children = &.{
+                                                _zx.txt("Inactive Admin"),
+                                            },
+                                        },
+                                    ),
                                 },
                             },
-                        ),
+                        },
                     },
                     .member => switch (status) {
-                        .active => _zx.ele(
-                            .p,
-                            .{
-                                .children = &.{
-                                    _zx.txt("Active Member"),
-                                },
+                        .active => switch (status) {
+                            .active => switch (status) {
+                                .active => _zx.ele(
+                                    .p,
+                                    .{
+                                        .children = &.{
+                                            _zx.txt("Active Admin"),
+                                        },
+                                    },
+                                ),
+                                .inactive => _zx.ele(
+                                    .p,
+                                    .{
+                                        .children = &.{
+                                            _zx.txt("Inactive Admin"),
+                                        },
+                                    },
+                                ),
                             },
-                        ),
-                        .inactive => _zx.ele(
-                            .p,
-                            .{
-                                .children = &.{
-                                    _zx.txt("Inactive Member"),
+                            .inactive => _zx.ele(
+                                .p,
+                                .{
+                                    .children = &.{
+                                        _zx.txt("Inactive Admin"),
+                                    },
                                 },
-                            },
-                        ),
+                            ),
+                        },
+                        .inactive => switch (status) {
+                            .active => _zx.ele(
+                                .p,
+                                .{
+                                    .children = &.{
+                                        _zx.txt("Active Admin"),
+                                    },
+                                },
+                            ),
+                            .inactive => _zx.ele(
+                                .p,
+                                .{
+                                    .children = &.{
+                                        _zx.txt("Inactive Admin"),
+                                    },
+                                },
+                            ),
+                        },
                     },
                 },
             },
