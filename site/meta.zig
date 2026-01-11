@@ -21,10 +21,15 @@ pub const routes = [_]zx.App.Meta.Route{
     },
     .{
         .path = "/about",
-        .page = wrapPage(@import(".zx/pages/about/page.zig").Page),
-        .page_opts = getOptions(@import(".zx/pages/about/page.zig"), zx.PageOptions),
+        // .page = wrapPage(@import(".zx/pages/about/page.zig").Page),
+        // .page_opts = getOptions(@import(".zx/pages/about/page.zig"), zx.PageOptions),
         .route = zx.App.Meta.route(@import(".zx/pages/about/route.zig"), @import(".zx/pages/about/page.zig")),
         .route_opts = getOptions(@import(".zx/pages/about/route.zig"), zx.RouteOptions),
+    },
+    .{
+        .path = "/about/api",
+        .route = zx.App.Meta.route(@import(".zx/pages/about/api/route.zig"), null),
+        .route_opts = getOptions(@import(".zx/pages/about/api/route.zig"), zx.RouteOptions),
     },
     .{
         .path = "/docs",
