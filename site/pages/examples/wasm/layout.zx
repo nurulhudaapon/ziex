@@ -6,7 +6,6 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
             <style @escaping={.none}>
                 {@embedFile("style.css")}
             </style>
-            <script type="module" src="/assets/main.js" />
         </section>
     );
 }

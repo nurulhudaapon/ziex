@@ -20,7 +20,7 @@ pub fn TodoApp(allocator: zx.Allocator) zx.Component {
             </div>
 
             <form class="todo-input-section" onsubmit={addTodo}>
-                <input type="text" class="todo-input" id="todo-input" placeholder="Add a new todo..." />
+                <input type="text" class="todo-input" id="todo-input" placeholder="Add a new todo..." required />
                 <button class="todo-add-btn" type="submit">Add</button>
             </form>
 

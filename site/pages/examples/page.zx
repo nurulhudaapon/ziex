@@ -71,8 +71,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <DynamicAttrSection zx_code={zx_dynattr} zig_code={zig_dynattr} html_code={html_dynattr} />
             <FormSection zx_code={zx_form} zig_code={zig_form} html_code={html_form} />
             <CachingSection />
-
-            <script src="/assets/main.js" />
         </fragment>
     );
 }
