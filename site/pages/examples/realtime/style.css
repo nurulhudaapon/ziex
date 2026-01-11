@@ -1,0 +1,143 @@
+.chat-join {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+}
+
+.chat-room {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 200px);
+    min-height: 500px;
+}
+
+.chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 1rem;
+}
+
+.chat-header .timer-title {
+    margin: 0;
+}
+
+.chat-user-info {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.chat-username {
+    font-weight: 500;
+    color: var(--text);
+}
+
+.status-online,
+.status-offline {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+}
+
+.status-online {
+    background: #22c55e;
+}
+
+.status-offline {
+    background: #ef4444;
+}
+
+.chat-leave-form {
+    display: contents;
+}
+
+.chat-leave-btn {
+    padding: 0.5rem 1rem;
+    font-size: 0.75rem;
+}
+
+.chat-leave-btn:hover {
+    border-color: var(--danger-border);
+    color: var(--danger-text);
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column-reverse;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: var(--bg);
+    border: 1px solid var(--border);
+}
+
+.chat-msg {
+    max-width: 75%;
+    padding: 0.5rem 0.75rem;
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 0.75rem;
+    word-break: break-word;
+}
+
+/* Other users' messages - left aligned */
+.chat-msg-other {
+    align-self: flex-start;
+    border-bottom-left-radius: 0.25rem;
+}
+
+/* Self messages - right aligned */
+.chat-msg-self {
+    align-self: flex-end;
+    background: #0077b6;
+    border-color: #0077b6;
+    border-bottom-right-radius: 0.25rem;
+}
+
+.chat-msg-self > .chat-msg-name {
+    color: #ffffff;
+    opacity: 0.9;
+}
+
+.chat-msg-self > .chat-msg-text {
+    color: #ffffff;
+}
+
+.chat-msg-name {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--primary);
+    margin-bottom: 0.125rem;
+    text-transform: capitalize;
+}
+
+.chat-msg-text {
+    margin: 0;
+    font-size: 0.9375rem;
+    color: var(--text);
+    line-height: 1.4;
+}
+
+.chat-msg-system {
+    max-width: 100%;
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-style: italic;
+    text-align: center;
+    font-size: 0.8125rem;
+    padding: 0.25rem 0.5rem;
+    align-self: center;
+}
+
+.chat-input {
+    margin-top: 1rem;
+    margin-bottom: 0;
+}

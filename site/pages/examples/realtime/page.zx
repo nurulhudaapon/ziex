@@ -1,15 +1,3 @@
-const Message = struct {
-    text: []const u8,
-    is_system: bool,
-};
-
-const MessageList = std.ArrayListUnmanaged(Message);
-
-// Shared state across components
-var messages = zx.Signal(MessageList).init(.{});
-var input_text = zx.Signal([]const u8).init("");
-var ws: ?zx.WebSocket = null;
-
 pub fn Page(ctx: zx.PageContext) zx.Component {
     var chat_username = ctx.request.cookies.get("username") orelse "";
     const set_username = ctx.request.searchParams.get("username") orelse "";
@@ -26,24 +14,23 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     }
 
     return (
-        <div @allocator={ctx.arena} class="chat-container">
+        <div @allocator={ctx.arena} class="todo-container">
             {if (chat_username.len > 0) (<ChatRoom username={chat_username} @rendering={.client} />) else (<JoinScreen />)}
-            <style @escaping={.none}>{css}</style>
+            <style @escaping={.none}>{@embedFile("../wasm/style.css")}</style>
+            <style @escaping={.none}>{@embedFile("style.css")}</style>
         </div>
     );
 }
 
 fn JoinScreen(allocator: zx.Allocator) zx.Component {
     return (
-        <div @allocator={allocator} class="join-screen">
-            <h2 class="chat-title">ZX Chat</h2>
-            <p class="chat-subtitle">Real-time chat powered by WebSockets</p>
+        <div @allocator={allocator} class="timer-demo chat-join">
+            <h3 class="timer-title">ZX Chat</h3>
+            <p class="timer-subtitle">Real-time chat powered by WebSockets</p>
 
-            <form class="join-form">
-                <input type="text" class="name-input" name="username" placeholder="Enter your name..." />
-                <button type="submit" class="join-btn">
-                    Join Chat
-                </button>
+            <form class="todo-input-section">
+                <input type="text" class="todo-input" name="username" placeholder="Enter your name..." />
+                <button type="submit" class="todo-add-btn">Join Chat</button>
             </form>
         </div>
     );
@@ -51,58 +38,65 @@ fn JoinScreen(allocator: zx.Allocator) zx.Component {
 
 pub fn ChatRoom(ctx: *zx.ComponentCtx(struct { username: []const u8 })) zx.Component {
     const connected = ws != null;
-    const status_class = if (connected) "status-dot online" else "status-dot offline";
+    const status_class = if (connected) "status-online" else "status-offline";
     const msgs = messages.get();
-
 
     if (ws == null) {
         joinChat(ctx.props.username);
     }
 
-
     return (
-        <div @allocator={ctx.allocator} class="chat-room">
+        <div @allocator={ctx.allocator} class="timer-demo chat-room">
             <div class="chat-header">
-                <h3 class="room-title">Chat Room</h3>
-                <div class="user-info">
+                <h3 class="timer-title">Chat Room</h3>
+                <div class="chat-user-info">
                     <span class={status_class}></span>
-                    <span class="username">{ctx.props.username}</span>
-                    <form class="leave-form">
-                        <button name="leave" class="leave-btn" value={ctx.props.username}>
-                            Leave
-                        </button>
+                    <span class="chat-username">{ctx.props.username}</span>
+                    <form class="chat-leave-form">
+                        <button name="leave" class="timer-btn chat-leave-btn" value={ctx.props.username}>Leave</button>
                     </form>
                 </div>
             </div>
 
-            <div class="messages-container">
-                {for (msgs.items) |msg| (<MessageItem key={msg.text} text={msg.text} is_system={msg.is_system} />)}
-                {if (msgs.items.len == 0) (<p class="no-messages">No messages yet. Say hello! 👋</p>) else (<fragment />)}
+            <div class="chat-messages">
+                {for (msgs.items) |msg| (<MessageItem key={msg.text} username={msg.username} text={msg.text} is_system={msg.is_system} />)}
             </div>
 
-            <form class="input-area" onsubmit={sendMessage}>
-                <input type="text" class="message-input" placeholder="Type a message..." oninput={onMessageInput} />
-                <button class="send-btn" onclick={sendMessage}>
-                    Send
-                </button>
+            <form class="todo-input-section chat-input" onsubmit={sendMessage}>
+                <input type="text" class="todo-input" id="message-input" placeholder="Type a message..." />
+                <button class="todo-add-btn" onclick={sendMessage}>Send</button>
             </form>
         </div>
     );
 }
 
-const MessageItemProps = struct { text: []const u8, is_system: bool };
+const MessageItemProps = struct { username: []const u8, text: []const u8, is_system: bool };
 fn MessageItem(allocator: zx.Allocator, props: MessageItemProps) zx.Component {
-    const msg_class = if (props.is_system) "message system-msg" else "message";
-    return (<div @allocator={allocator} class={msg_class}>{props.text}</div>);
+    if (props.is_system) {
+        return (<div @allocator={allocator} class="chat-msg chat-msg-system">{props.text}</div>);
+    }
+
+    const is_self = std.mem.eql(u8, props.username, current_username);
+    const msg_class = if (is_self) "chat-msg chat-msg-self" else "chat-msg chat-msg-other";
+
+    return (
+        <div @allocator={allocator} class={msg_class}>
+            <span class="chat-msg-name">{props.username}</span>
+            <p class="chat-msg-text">{props.text}</p>
+        </div>
+    );
 }
 
-fn onMessageInput(e: zx.EventContext) void {
-    std.log.info("onMessageInput: {s}", .{e.value() orelse ""});
-    input_text.set(e.value() orelse "");
-}
+const Message = struct { username: []const u8, text: []const u8, is_system: bool };
+const MessageList = std.ArrayListUnmanaged(Message);
+
+var messages = zx.Signal(MessageList).init(.{});
+var ws: ?zx.WebSocket = null;
+var current_username: []const u8 = "";
 
 fn joinChat(username: []const u8) void {
     std.log.info("joinChat: {s}", .{username});
+    current_username = zx.client_allocator.dupe(u8, username) catch return;
     ws = zx.WebSocket.init(zx.client_allocator, "/examples/realtime/ws", .{}) catch return;
 
     if (ws) |*w| {
@@ -113,11 +107,12 @@ fn joinChat(username: []const u8) void {
         w.connect() catch {};
     }
 
-
     zx.requestRender();
 }
 
 fn leaveChat(_: zx.EventContext) void {
+    if (zx.platform != .browser) return;
+
     if (ws) |*w| {
         w.close(.{ .code = 1000, .reason = "User left" });
         w.deinit();
@@ -128,34 +123,54 @@ fn leaveChat(_: zx.EventContext) void {
     msgs.deinit(zx.client_allocator);
 
     messages.set(.{});
-    input_text.set("");
+
+    // Clear input via DOM
+    const document = zx.client.Document.init(zx.client_allocator);
+    if (document.getElementById("message-input")) |input| {
+        input.ref.set("value", zx.Client.js.string("")) catch {};
+    } else |_| {}
 }
 
 fn sendMessage(e: zx.EventContext) void {
-    std.log.info("sendMessage: {s}", .{input_text.get()});
     e.preventDefault();
+    if (zx.platform != .browser) return;
 
-    const text = input_text.get();
+    const document = zx.client.Document.init(zx.client_allocator);
+    const input = document.getElementById("message-input") catch return;
+    const text = input.ref.getAlloc(zx.Client.js.String, zx.client_allocator, "value") catch return;
+
+    std.log.info("sendMessage: {s}", .{text});
     if (text.len == 0) return;
 
     if (ws) |*w| {
         if (w.isConnected()) {
             w.send(text) catch {};
-            input_text.set("");
+            input.ref.set("value", zx.Client.js.string("")) catch {};
         }
     }
+    zx.requestRender();
 }
 
-fn onWsOpen(_: *zx.WebSocket) void {
-}
+fn onWsOpen(_: *zx.WebSocket) void {}
 
 fn onWsMessage(_: *zx.WebSocket, event: zx.WebSocket.MessageEvent) void {
     const data = event.text() orelse return;
     const is_system = std.mem.startsWith(u8, data, "system:");
 
+    var username: []const u8 = "";
+    var text: []const u8 = data;
+
+    if (std.mem.indexOf(u8, data, ": ")) |colon_idx| {
+        username = zx.client_allocator.dupe(u8, data[0..colon_idx]) catch return;
+        text = zx.client_allocator.dupe(u8, data[colon_idx + 2 ..]) catch return;
+    } else {
+        text = zx.client_allocator.dupe(u8, data) catch return;
+    }
+
     var msgs = messages.get();
-    msgs.append(zx.client_allocator, .{
-        .text = zx.client_allocator.dupe(u8, data) catch return,
+    msgs.insert(zx.client_allocator, 0, .{
+        .username = username,
+        .text = text,
         .is_system = is_system,
     }) catch return;
     messages.set(msgs);
@@ -165,160 +180,25 @@ fn onWsMessage(_: *zx.WebSocket, event: zx.WebSocket.MessageEvent) void {
 
 fn onWsClose(_: *zx.WebSocket, _: zx.WebSocket.CloseEvent) void {
     var msgs = messages.get();
-    msgs.append(zx.client_allocator, .{
+    msgs.insert(zx.client_allocator, 0, .{
+        .username = "",
         .text = "Disconnected from server",
         .is_system = true,
     }) catch {};
     messages.set(msgs);
+    zx.requestRender();
 }
 
 fn onWsError(_: *zx.WebSocket, _: zx.WebSocket.ErrorEvent) void {
     var msgs = messages.get();
-    msgs.append(zx.client_allocator, .{
+    msgs.insert(zx.client_allocator, 0, .{
+        .username = "",
         .text = "Connection error",
         .is_system = true,
     }) catch {};
     messages.set(msgs);
+    zx.requestRender();
 }
-
-const css =
-    \\.chat-container {
-    \\  max-width: 600px;
-    \\  margin: 0 auto;
-    \\  height: 500px;
-    \\  display: flex;
-    \\  flex-direction: column;
-    \\}
-    \\.join-screen {
-    \\  display: flex;
-    \\  flex-direction: column;
-    \\  align-items: center;
-    \\  justify-content: center;
-    \\  height: 100%;
-    \\  gap: 1.5rem;
-    \\}
-    \\.chat-title {
-    \\  font-size: 2rem;
-    \\  margin: 0;
-    \\  color: var(--text);
-    \\}
-    \\.chat-subtitle {
-    \\  color: var(--text-muted);
-    \\  margin: 0;
-    \\}
-    \\.join-form {
-    \\  display: flex;
-    \\  gap: 0.75rem;
-    \\  width: 100%;
-    \\  max-width: 400px;
-    \\}
-    \\.name-input, .message-input {
-    \\  flex: 1;
-    \\  padding: 0.75rem 1rem;
-    \\  border: 1px solid var(--border);
-    \\  background: var(--bg-secondary);
-    \\  color: var(--text);
-    \\  font-size: 1rem;
-    \\}
-    \\.join-btn, .send-btn {
-    \\  padding: 0.75rem 1.5rem;
-    \\  background: var(--primary);
-    \\  color: white;
-    \\  border: none;
-    \\  cursor: pointer;
-    \\  font-weight: 500;
-    \\  transition: opacity 0.2s;
-    \\}
-    \\.join-btn:disabled, .send-btn:disabled {
-    \\  opacity: 0.5;
-    \\  cursor: not-allowed;
-    \\}
-    \\.chat-room {
-    \\  display: flex;
-    \\  flex-direction: column;
-    \\  height: 100%;
-    \\  border: 1px solid var(--border);
-    \\  background: var(--bg-secondary);
-    \\}
-    \\.chat-header {
-    \\  display: flex;
-    \\  justify-content: space-between;
-    \\  align-items: center;
-    \\  padding: 0.75rem 1rem;
-    \\  border-bottom: 1px solid var(--border);
-    \\  background: var(--bg);
-    \\}
-    \\.room-title {
-    \\  margin: 0;
-    \\  font-size: 1rem;
-    \\}
-    \\.user-info {
-    \\  display: flex;
-    \\  align-items: center;
-    \\  gap: 0.5rem;
-    \\}
-    \\.status-dot {
-    \\  width: 8px;
-    \\  height: 8px;
-    \\  border-radius: 50%;
-    \\  background: #888;
-    \\}
-    \\.status-dot.online {
-    \\  background: #22c55e;
-    \\}
-    \\.status-dot.offline {
-    \\  background: #ef4444;
-    \\}
-    \\.username {
-    \\  font-weight: 500;
-    \\  color: var(--text);
-    \\}
-    \\.leave-btn {
-    \\  padding: 0.25rem 0.75rem;
-    \\  background: transparent;
-    \\  border: 1px solid var(--border);
-    \\  color: var(--text-muted);
-    \\  cursor: pointer;
-    \\  font-size: 0.875rem;
-    \\}
-    \\.leave-btn:hover {
-    \\  border-color: #ef4444;
-    \\  color: #ef4444;
-    \\}
-    \\.messages-container {
-    \\  flex: 1;
-    \\  overflow-y: auto;
-    \\  padding: 1rem;
-    \\  display: flex;
-    \\  flex-direction: column;
-    \\  gap: 0.5rem;
-    \\}
-    \\.message {
-    \\  padding: 0.5rem 0.75rem;
-    \\  background: var(--bg);
-    \\  border-radius: 0.375rem;
-    \\  word-break: break-word;
-    \\}
-    \\.message.system-msg {
-    \\  background: transparent;
-    \\  color: var(--text-muted);
-    \\  font-style: italic;
-    \\  text-align: center;
-    \\  font-size: 0.875rem;
-    \\}
-    \\.no-messages {
-    \\  text-align: center;
-    \\  color: var(--text-muted);
-    \\  margin: auto;
-    \\}
-    \\.input-area {
-    \\  display: flex;
-    \\  gap: 0.5rem;
-    \\  padding: 0.75rem;
-    \\  border-top: 1px solid var(--border);
-    \\  background: var(--bg);
-    \\}
-;
 
 const zx = @import("zx");
 const std = @import("std");
