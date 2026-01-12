@@ -17,13 +17,13 @@ pub fn Proxy(ctx: *zx.ProxyContext) !void {
     // ctx.next(); // Continue to next handler (optional, continues by default)
 
     if (_count > 2) {
-        _count = 0;
-        ctx.response.setStatus(.unauthorized);
-        ctx.response.setHeader("Content-Type", "text/plain");
-        ctx.response.setBody("Unauthorized");
-        return ctx.abort(); // Stop chain - no further handlers will run
+        // _count = 0;
+        // ctx.response.setStatus(.unauthorized);
+        // ctx.response.setHeader("Content-Type", "text/plain");
+        // ctx.response.setBody("Unauthorized");
+        // return ctx.abort(); // Stop chain - no further handlers will run
     }
-    // ctx.next(); // Continue to next handler
+    ctx.next(); // Continue to next handler
 }
 
 /// Executed before API route handlers (route.zig) - does NOT cascade
@@ -50,13 +50,13 @@ pub fn PageProxy(ctx: *zx.ProxyContext) !void {
     // }
     // ctx.next(); // Continue to next handler (optional, continues by default)
 
-    if (_count > 2) {
-        _count = 0;
-        ctx.response.setStatus(.unauthorized);
-        ctx.response.setHeader("Content-Type", "text/plain");
-        ctx.response.setBody("Unauthorized");
-        return ctx.abort(); // Stop chain - no further handlers will run
-    }
+    // if (_count > 2) {
+    //     _count = 0;
+    //     ctx.response.setStatus(.unauthorized);
+    //     ctx.response.setHeader("Content-Type", "text/plain");
+    //     ctx.response.setBody("Unauthorized");
+    //     return ctx.abort(); // Stop chain - no further handlers will run
+    // }
     ctx.next(); // Continue to next handler
 }
 

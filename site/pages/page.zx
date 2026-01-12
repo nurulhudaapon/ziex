@@ -53,7 +53,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         <ul class="nav-links">
                             <li><a href="/learn" class="nav-link">Learn</a></li>
                             <li><a href="/docs" class="nav-link"><span class="nav-link-full">Reference</span><span class="nav-link-short">Ref</span></a></li>
-                            <li><a href="/examples" class="nav-link">Examples</a></li>
+                            <li><a href={root.configs.example_url} class="nav-link">Examples</a></li>
                         </ul>
                         <a href="https://github.com/nurulhudaapon/zx" target="_blank" rel="noopener noreferrer" class="nav-github" aria-label="GitHub">
                             <GitHubIcon allocator={allocator} />
@@ -82,7 +82,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         </div>
                         <div class="hero-cta">
                             <a href="/learn" class="btn btn-primary">Get Started</a>
-                            <a href="/examples" class="btn btn-secondary">Examples</a>
+                            <a href={root.configs.example_url} class="btn btn-secondary">Examples</a>
                         </div>
                     </div>
                     <div class="hero-decoration">
@@ -178,3 +178,4 @@ const std = @import("std");
 const zx = @import("zx");
 const icons = @import("./components/icons.zx");
 const GitHubIcon = icons.GitHub;
+const root = @import("root");

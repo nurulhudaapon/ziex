@@ -31,4 +31,8 @@ export fn mainClient() void {
 
 pub const std_options = zx.std_options;
 
-const ctx = zx.ComponentCtx(void);
+pub const configs = .{
+    // Example is on the SSR site beacuse the main site is statically generated and some of examples depends on the SSR.
+    .example_url = if (builtin.mode == .Debug) "/examples" else "https://ssr.ziex.dev/examples",
+    .main_site_url = if (builtin.mode == .Debug) "/" else "https://ziex.dev",
+};
