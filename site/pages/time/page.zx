@@ -2,12 +2,12 @@ var visit_count: usize = 0;
 pub fn Page(ctx: zx.PageContext) zx.Component {
     const allocator = ctx.arena;
 
-    // if (visit_count == 3) {
-    //     visit_count = 0;
-    //     _ = zx.cache.delPrefix("cmp:time");
-    // } else {
-    //     visit_count += 1;
-    // }
+    if (visit_count == 3) {
+        visit_count = 0;
+        _ = zx.cache.delPrefix("cmp:time");
+    } else {
+        visit_count += 1;
+    }
 
     return (
         <div @allocator={allocator}>
