@@ -1879,7 +1879,7 @@ pub fn allocInit(allocator: std.mem.Allocator) ZxContext {
 pub const Allocator = std.mem.Allocator;
 pub const info = @import("zx_info");
 const routing = @import("runtime/core/routing.zig");
-const app_module = @import("runtime/server/app.zig");
+const app_module = @import("runtime/server/Server.zig");
 pub const Server = app_module.Server;
 /// For new projects, prefer using `zx.Server(AppCtx)` for typed context injection.
 /// @deprecated: Use `zx.Server(AppCtx)` instead.
