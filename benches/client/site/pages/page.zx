@@ -1,0 +1,174 @@
+
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <main @allocator={ctx.arena}>
+            <SimpleApp @rendering={.client} @allocator={ctx.arena} />
+        </main>
+    );
+}
+
+const Item = struct { id: u32, text: []const u8 };
+
+pub fn SimpleApp(allocator: zx.Allocator) zx.Component {
+
+    return (
+        <div @{allocator} class="container">
+            <div class="jumbotron">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h1>{"ZX Client-Side keyed"}</h1>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="row">
+                            <Button onclick={create_rows} id="run" title="Create 1,000 rows" />
+                            <Button onclick={create_large_rows} id="runlots" title="Create 10,000 rows" />
+                            <Button onclick={append_rows} id="add" title="Append 1,000 rows" />
+                            <Button onclick={updateRows} id="update" title="Update every 10th row" />
+                            <Button onclick={clearRows} id="clear" title="Clear" />
+                            <Button onclick={swapRows} id="swaprows" title="Swap Rows" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <table class="table table-hover table-striped test-data">
+                <tbody>
+                    {for (items.items) |item| (
+                        <tr key={item.id}>
+                            <td class="col-md-1">{item.id}</td>
+                            <td class="col-md-4">
+                                <a>{item.text}</a>
+                            </td>
+                            <td class="col-md-1">
+                                <a>
+                                    <span class="glyphicon glyphicon-remove" aria-hidden="true" />
+                                </a>
+                            </td>
+                            <td class="col-md-6" />
+                        </tr>
+                    )}
+                </tbody>
+            </table>
+            <span class="preloadicon glyphicon glyphicon-remove" aria-hidden="true" />
+        </div>
+    );
+}
+
+const ButtonProps = struct { onclick: *const fn (zx.EventContext) void, title: []const u8, id: []const u8 };
+
+fn Button(ctx: *zx.ComponentCtx(ButtonProps)) zx.Component {
+    return (
+        <div @allocator={ctx.allocator} class="col-sm-6 smallpad">
+            <button type="button" class="btn btn-primary btn-block" onclick={ctx.props.onclick} id={ctx.props.id}>
+                {ctx.props.title}
+            </button>
+        </div>
+    );
+}
+var next_id: u32 = 1;
+var items = std.ArrayList(Item).empty;
+
+
+
+fn clearRows(_: zx.EventContext) void {
+    items.clearRetainingCapacity();
+    next_id = 1;
+    zx.requestRender();
+}
+
+fn swapRows(_: zx.EventContext) void {
+    if (items.items.len > 998) {
+        const tmp = items.items[1];
+        items.items[1] = items.items[998];
+        items.items[998] = tmp;
+        zx.requestRender();
+    }
+}
+
+fn updateRows(_: zx.EventContext) void {
+    var i: usize = 0;
+    while (i < items.items.len) : (i += 10) {
+        const item = &items.items[i];
+        const new_text = std.fmt.allocPrint(zx.client_allocator, "{s} !!!", .{item.text}) catch @panic("OOM");
+        item.text = new_text;
+    }
+    zx.requestRender();
+}
+
+var seed: u32 = 12345;
+fn RandomNumber(max: u32) u32 {
+    seed = seed *% 1103515245 +% 12345;
+    return seed % max;
+}
+
+
+const adjectives = [_][]const u8{
+        "pretty",
+        "large",
+        "big",
+        "small",
+        "tall",
+        "short",
+        "long",
+        "handsome",
+        "plain",
+        "quaint",
+        "clean",
+        "elegant",
+        "easy",
+        "angry",
+        "crazy",
+        "helpful",
+        "mushy",
+        "odd",
+        "unsightly",
+        "adorable",
+        "important",
+        "inexpensive",
+        "cheap",
+        "expensive",
+        "fancy",
+    };
+const colours = [_][]const u8{ "red", "yellow", "blue", "green", "pink", "brown", "purple", "brown", "white", "black", "orange" };
+const nouns = [_][]const u8{ "table", "chair", "house", "bbq", "desk", "car", "pony", "cookie", "sandwich", "burger", "pizza", "mouse", "keyboard" };
+
+
+fn BuildRows(count_to_add: u32, clear_first: bool) void {
+
+    std.log.info("BuildRows called with count_to_add: {d}", .{count_to_add});
+    if (clear_first) {
+        items.clearRetainingCapacity();
+        next_id = 1;
+    }
+    
+
+    for (0..count_to_add) |_| {
+        const text = std.fmt.allocPrint(zx.client_allocator, "{s} {s} {s}", .{ adjectives[RandomNumber(adjectives.len)], colours[RandomNumber(colours.len)], nouns[RandomNumber(nouns.len)] }) catch @panic("OOM");
+        const item = Item{
+            .id = next_id,
+            .text = text,
+        };
+
+        items.append(zx.client_allocator, item) catch @panic("OOM");
+        next_id += 1;
+    }
+
+    std.log.info("Total items after BuildRows: {d}", .{items.items.len});
+    zx.requestRender();
+    std.log.info("after: {d}", .{items.items.len});
+    // count.set(@intCast(items.items.len));
+}
+
+fn create_rows(_: zx.EventContext) void {
+    BuildRows(1000, true);
+}
+fn create_large_rows(_: zx.EventContext) void {
+    BuildRows(10000, true);
+}
+
+fn append_rows(_: zx.EventContext) void {
+    BuildRows(1000, false);
+}
+
+const zx = @import("zx");
+const std = @import("std");

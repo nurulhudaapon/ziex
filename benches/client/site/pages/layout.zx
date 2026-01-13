@@ -1,0 +1,17 @@
+pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+    return (
+        <html @allocator={ctx.arena} lang="en-US">
+            <head>
+                <title>ZX</title>
+                <link href="/css/currentStyle.css" rel="stylesheet"/>
+            </head>
+
+            <body>
+                {children}
+                <script src=`https://cdn.jsdelivr.net/npm/ziex@{zx.info.version_string}/wasm/init.min.js` />
+            </body>
+        </html>
+    );
+}
+
+const zx = @import("zx");
