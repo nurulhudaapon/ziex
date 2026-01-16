@@ -93,6 +93,7 @@ const zx = @import("zx");
     - [x] Hydration
     - [ ] Lifecycle hook
     - [ ] Server Actions
+    - [ ] Rendering performance
 - [x] Client Side Rendering (CSR) via React
 - [x] Routing
     - [x] File-system Routing
@@ -115,7 +116,7 @@ const zx = @import("zx");
     - [x] CSS (via plugins such as Tailwind)
     - [x] JS/TS (via esbuild)
     - [x] HTML (optimized by default)
-- [ ] Middleware (_cancalled_)
+- [x] Proxy/Middleware
 - [ ] Caching (configurable)
     - [x] Component
     - [ ] Layout
