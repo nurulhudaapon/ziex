@@ -41,7 +41,7 @@ const categories = [_]SidebarProps.Category{
             .{ .title = "Streaming", .href = "/examples/streaming" },
             .{ .title = "Todo App", .href = "/examples/wasm" },
             .{ .title = "Async Timer", .href = "/examples/wasm/async" },
-            .{ .title = "React Integration", .href = "/examples/react" },
+            .{ .title = "React Integration", .href = "/examples/wasm/react" },
             .{ .title = "Hydration", .href = "/examples/wasm/hydration" },
             .{ .title = "Progress Bar", .href = "/examples/wasm/progress" },
             .{ .title = "Realtime Chat", .href = "/examples/realtime" },
