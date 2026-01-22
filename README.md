@@ -84,7 +84,7 @@ const zx = @import("zx");
     - [ ] `on`event handler
     - [x] Streaming
 - [x] Static Site Generation (SSG)
-    - [ ] `getStaticParams`, `getStaticProps`
+    - [x] `options.static.params`, `options.getParams`
 - [ ] Client Side Rendering (CSR) via WebAssembly (_WIP_)
     - [x] Virtual DOM and diffing
     - [x] Rendering only changed nodes
