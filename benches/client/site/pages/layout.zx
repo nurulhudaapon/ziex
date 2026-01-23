@@ -8,7 +8,7 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
 
             <body>
                 {children}
-                <script src=`https://cdn.jsdelivr.net/npm/ziex@{zx.info.version_string}/wasm/init.min.js` />
+                <script src="/assets/main.js" />
             </body>
         </html>
     );

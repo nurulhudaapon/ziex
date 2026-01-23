@@ -127,7 +127,7 @@ const zx = @import("zx");
     - [x] Builtin TailwindCSS and Esbuild
     - [x] Command based plugin system
     - [ ] Source based plugin system
-- [ ] Context (configurable)
+- [x] Context (configurable)
     - [x] App
     - [x] Layout
     - [x] Page

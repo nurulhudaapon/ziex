@@ -37,11 +37,20 @@ pub const VElement = struct {
         return null;
     }
 
+    fn keysMatch(self: *const VElement, component: zx.Component) bool {
+        const key1 = self.key;
+        const key2 = extractKey(component);
+        if (key1 == null and key2 == null) return true;
+        if (key1 == null or key2 == null) return false;
+        return std.mem.eql(u8, key1.?, key2.?);
+    }
+
     fn createFromComponent(
         allocator: zx.Allocator,
         document: Document,
         parent_dom: ?Document.HTMLElement,
         component: zx.Component,
+        defer_append: bool,
     ) !VElement {
         switch (component) {
             .none => {
@@ -55,8 +64,10 @@ pub const VElement = struct {
                     .children = std.ArrayList(VElement).empty,
                     .key = null,
                 };
-                if (parent_dom) |parent| {
-                    try parent.appendChild(velement.dom);
+                if (!defer_append) {
+                    if (parent_dom) |parent| {
+                        try parent.appendChild(velement.dom);
+                    }
                 }
                 return velement;
             },
@@ -73,30 +84,36 @@ pub const VElement = struct {
                     };
 
                     // Append marker to parent first
-                    if (parent_dom) |parent| {
-                        try parent.appendChild(velement.dom);
+                    if (!defer_append) {
+                        if (parent_dom) |parent| {
+                            try parent.appendChild(velement.dom);
+                        }
                     }
 
                     // Render children directly to parent_dom
                     if (element.children) |children| {
+                        try velement.children.ensureTotalCapacity(allocator, children.len);
                         for (children) |child| {
-                            const child_velement = try createFromComponent(allocator, document, parent_dom, child);
-                            try velement.children.append(allocator, child_velement);
+                            const child_velement = try createFromComponent(allocator, document, parent_dom, child, defer_append);
+                            velement.children.appendAssumeCapacity(child_velement);
                         }
                     }
 
                     return velement;
                 }
 
-                const dom_element = document.createElement(@tagName(element.tag));
+                const dom_element = document.createElementId(@intFromEnum(element.tag));
                 const velement_id = nextId();
 
                 dom_element.setProperty("__zx_ref", velement_id);
-                const key = extractKey(component);
+                var key: ?[]const u8 = null;
 
                 if (element.attributes) |attributes| {
                     for (attributes) |attr| {
-                        if (std.mem.eql(u8, attr.name, "key")) continue;
+                        if (std.mem.eql(u8, attr.name, "key")) {
+                            key = attr.value;
+                            continue;
+                        }
                         if (attr.name.len >= 2 and std.mem.eql(u8, attr.name[0..2], "on")) continue;
                         const attr_val = if (attr.value) |val| val else "";
 
@@ -113,14 +130,17 @@ pub const VElement = struct {
                 };
 
                 if (element.children) |children| {
+                    try velement.children.ensureTotalCapacity(allocator, children.len);
                     for (children) |child| {
-                        const child_velement = try createFromComponent(allocator, document, dom_element, child);
-                        try velement.children.append(allocator, child_velement);
+                        const child_velement = try createFromComponent(allocator, document, dom_element, child, false);
+                        velement.children.appendAssumeCapacity(child_velement);
                     }
                 }
 
-                if (parent_dom) |parent| {
-                    try parent.appendChild(velement.dom);
+                if (!defer_append) {
+                    if (parent_dom) |parent| {
+                        try parent.appendChild(velement.dom);
+                    }
                 }
 
                 return velement;
@@ -137,15 +157,17 @@ pub const VElement = struct {
                     .key = null,
                 };
 
-                if (parent_dom) |parent| {
-                    try parent.appendChild(velement.dom);
+                if (!defer_append) {
+                    if (parent_dom) |parent| {
+                        try parent.appendChild(velement.dom);
+                    }
                 }
 
                 return velement;
             },
             .component_fn => |comp_fn| {
                 const resolved = try comp_fn.callFn(comp_fn.propsPtr, allocator);
-                var velement = try createFromComponent(allocator, document, parent_dom, resolved);
+                var velement = try createFromComponent(allocator, document, parent_dom, resolved, defer_append);
                 if (velement.key == null) {
                     velement.key = extractKey(resolved);
                 }
@@ -167,8 +189,10 @@ pub const VElement = struct {
                     .key = null,
                 };
 
-                if (parent_dom) |parent| {
-                    try parent.appendChild(velement.dom);
+                if (!defer_append) {
+                    if (parent_dom) |parent| {
+                        try parent.appendChild(velement.dom);
+                    }
                 }
 
                 return velement;
@@ -190,8 +214,10 @@ pub const VElement = struct {
                     .key = null,
                 };
 
-                if (parent_dom) |parent| {
-                    try parent.appendChild(velement.dom);
+                if (!defer_append) {
+                    if (parent_dom) |parent| {
+                        try parent.appendChild(velement.dom);
+                    }
                 }
 
                 return velement;
@@ -245,7 +271,7 @@ pub const PatchData = union(PatchType) {
     PLACEMENT: struct {
         velement: VElement,
         parent: *VElement,
-        reference: ?*VElement,
+        reference: ?Document.HTMLNode,
         index: usize,
     },
     DELETION: struct {
@@ -260,7 +286,7 @@ pub const PatchData = union(PatchType) {
     MOVE: struct {
         velement: *VElement,
         parent: *VElement,
-        reference: ?*VElement,
+        reference: ?Document.HTMLNode,
         new_index: usize,
     },
 };
@@ -280,25 +306,28 @@ vtree: VElement,
 
 pub fn init(allocator: zx.Allocator, component: zx.Component) VDOMTree {
     const document = Document.init(allocator);
-    const root_velement = VElement.createFromComponent(allocator, document, null, component) catch @panic("Error creating root VElement");
+    const root_velement = VElement.createFromComponent(allocator, document, null, component, true) catch @panic("Error creating root VElement");
     return VDOMTree{ .vtree = root_velement };
 }
 
 pub fn diff(
     allocator: zx.Allocator,
     old_velement: *VElement,
-    new_velement: *const VElement,
+    new_component: zx.Component,
     parent: ?*VElement,
     patches: *std.ArrayList(Patch),
 ) anyerror!void {
-    if (!areComponentsSameType(old_velement.component, new_velement.component)) {
+    // Resolve component functions to get the real element
+    const resolved_component = try resolveComponent(allocator, new_component);
+
+    if (!areComponentsSameType(old_velement.component, resolved_component)) {
         if (parent) |p| {
             try patches.append(allocator, Patch{
                 .type = .REPLACE,
                 .data = .{
                     .REPLACE = .{
                         .old_velement = old_velement,
-                        .new_velement = try cloneVElement(allocator, new_velement),
+                        .new_velement = try createVElementFromComponent(allocator, resolved_component),
                         .parent = p,
                     },
                 },
@@ -307,7 +336,7 @@ pub fn diff(
         return;
     }
 
-    switch (new_velement.component) {
+    switch (resolved_component) {
         .element => |new_element| {
             switch (old_velement.component) {
                 .element => |old_element| {
@@ -373,10 +402,10 @@ pub fn diff(
                         });
                     }
 
-                    old_velement.component = new_velement.component;
-                    old_velement.key = new_velement.key;
+                    old_velement.component = resolved_component;
+                    old_velement.key = VElement.extractKey(resolved_component);
 
-                    try diffChildrenKeyed(allocator, old_velement, new_velement, old_velement, patches);
+                    try diffChildrenKeyed(allocator, old_velement, resolved_component, old_velement, patches);
                 },
                 else => {},
             }
@@ -407,16 +436,28 @@ const IndexedVElement = struct {
 };
 
 /// Key-based child reconciliation (React-style)
+fn resolveComponent(allocator: zx.Allocator, component: zx.Component) !zx.Component {
+    var curr = component;
+    while (true) {
+        switch (curr) {
+            .component_fn => |comp_fn| {
+                curr = try comp_fn.callFn(comp_fn.propsPtr, allocator);
+            },
+            else => return curr,
+        }
+    }
+}
+
 fn diffChildrenKeyed(
     allocator: zx.Allocator,
     old_velement: *VElement,
-    new_velement: *const VElement,
+    new_component: zx.Component,
     parent: *VElement,
     patches: *std.ArrayList(Patch),
 ) !void {
-    const old_children = old_velement.children.items;
-    const new_children_components = if (new_velement.component == .element) blk: {
-        const element = new_velement.component.element;
+    var old_children = old_velement.children.items;
+    const new_children_slice = if (new_component == .element) blk: {
+        const element = new_component.element;
         if (element.children) |children| {
             break :blk children;
         } else {
@@ -424,123 +465,268 @@ fn diffChildrenKeyed(
         }
     } else &[_]zx.Component{};
 
-    var old_keyed_children = std.StringHashMap(IndexedVElement).init(allocator);
-    defer old_keyed_children.deinit();
+    var i: usize = 0; // Start index
+    var old_end = old_children.len;
+    var new_end = new_children_slice.len;
 
-    var old_matched = try allocator.alloc(bool, old_children.len);
-    defer allocator.free(old_matched);
-    @memset(old_matched, false);
+    var old_start_vnode = if (old_end > 0) &old_children[0] else null;
+    var new_start_component = if (new_end > 0) new_children_slice[0] else null;
+    var old_end_vnode = if (old_end > 0) &old_children[old_end - 1] else null;
+    var new_end_component = if (new_end > 0) new_children_slice[new_end - 1] else null;
 
-    var non_keyed_old = std.array_list.Managed(IndexedVElement).init(allocator);
-    defer non_keyed_old.deinit();
-
-    for (old_children, 0..) |*old_child, i| {
-        if (old_child.key) |k| {
-            try old_keyed_children.put(k, .{ .velement = old_child, .index = i });
-        } else {
-            try non_keyed_old.append(.{ .velement = old_child, .index = i });
-        }
-    }
-
-    var new_velements = try allocator.alloc(VElement, new_children_components.len);
-    defer {
-        for (new_velements) |*nv| {
-            nv.deinit(allocator);
-        }
-        allocator.free(new_velements);
-    }
-
-    for (new_children_components, 0..) |new_child_component, i| {
-        new_velements[i] = try createVElementFromComponent(allocator, new_child_component);
-    }
-
-    var last_placed_index: isize = -1;
-    var non_keyed_idx: usize = 0;
-
-    for (new_velements, 0..) |*new_child_velement, new_idx| {
-        var matched_old: ?IndexedVElement = null;
-
-        if (new_child_velement.key) |new_key| {
-            if (old_keyed_children.get(new_key)) |old_entry| {
-                matched_old = old_entry;
-                old_matched[old_entry.index] = true;
-            }
-        } else {
-            while (non_keyed_idx < non_keyed_old.items.len) {
-                const candidate = non_keyed_old.items[non_keyed_idx];
-                non_keyed_idx += 1;
-
-                if (!old_matched[candidate.index]) {
-                    if (areComponentsSameType(candidate.velement.component, new_child_velement.component)) {
-                        matched_old = candidate;
-                        old_matched[candidate.index] = true;
-                        break;
-                    }
-                }
-            }
+    // 1. Sync Prefix
+    while (old_start_vnode != null and new_start_component != null) {
+        const resolved_child = try resolveComponent(allocator, new_start_component.?);
+        if (!areComponentsSameType(old_start_vnode.?.component, resolved_child) or
+            !old_start_vnode.?.keysMatch(resolved_child))
+        {
+            break;
         }
 
-        if (matched_old) |old_entry| {
-            const old_child = old_entry.velement;
-            const old_idx = old_entry.index;
+        try diff(allocator, old_start_vnode.?, resolved_child, parent, patches);
 
-            try diff(allocator, old_child, new_child_velement, parent, patches);
+        i += 1;
+        if (i >= old_end or i >= new_end) break;
+        old_start_vnode = &old_children[i];
+        new_start_component = new_children_slice[i];
+    }
 
-            const old_idx_signed: isize = @intCast(old_idx);
-            if (old_idx_signed < last_placed_index) {
-                const reference = if (new_idx + 1 < old_children.len)
-                    &old_velement.children.items[new_idx + 1]
-                else
-                    null;
+    // 2. Sync Suffix
+    while (old_start_vnode != null and new_end_component != null and old_end > i and new_end > i) {
+        const resolved_child = try resolveComponent(allocator, new_end_component.?);
+        if (!areComponentsSameType(old_end_vnode.?.component, resolved_child) or
+            !old_end_vnode.?.keysMatch(resolved_child))
+        {
+            break;
+        }
 
+        try diff(allocator, old_end_vnode.?, resolved_child, parent, patches);
+
+        old_end -= 1;
+        new_end -= 1;
+        if (old_end <= i or new_end <= i) break;
+        old_end_vnode = &old_children[old_end - 1];
+        new_end_component = new_children_slice[new_end - 1];
+    }
+
+    // 3. Common sequence complete?
+    if (i >= old_end) {
+        if (i < new_end) {
+            // New items are remaining: Add them
+            // We need to resolve the reference node properly for the patches.
+            // But existing Patch structure uses `?HTMLNode`.
+            const reference_html_node: ?Document.HTMLNode = if (old_end < old_children.len)
+                old_children[old_end].dom
+            else
+                null;
+
+            while (i < new_end) : (i += 1) {
+                const resolved = try resolveComponent(allocator, new_children_slice[i]);
+                const new_child = try createVElementFromComponent(allocator, resolved);
                 try patches.append(allocator, Patch{
-                    .type = .MOVE,
+                    .type = .PLACEMENT,
                     .data = .{
-                        .MOVE = .{
-                            .velement = old_child,
+                        .PLACEMENT = .{
+                            .velement = new_child,
                             .parent = parent,
-                            .reference = reference,
-                            .new_index = new_idx,
+                            .reference = reference_html_node,
+                            .index = i, // Note: index in VElement children? Not widely used.
                         },
                     },
                 });
             }
-
-            last_placed_index = @max(last_placed_index, old_idx_signed);
-        } else {
-            const new_child = try cloneVElement(allocator, new_child_velement);
-            const reference = if (new_idx < old_velement.children.items.len)
-                &old_velement.children.items[new_idx]
-            else
-                null;
-
-            try patches.append(allocator, Patch{
-                .type = .PLACEMENT,
-                .data = .{
-                    .PLACEMENT = .{
-                        .velement = new_child,
-                        .parent = parent,
-                        .reference = reference,
-                        .index = new_idx,
-                    },
-                },
-            });
         }
-    }
-
-    for (old_matched, 0..) |matched, i| {
-        if (!matched) {
+    } else if (i >= new_end) {
+        // Old items are remaining: Remove them
+        while (i < old_end) : (i += 1) {
             try patches.append(allocator, Patch{
                 .type = .DELETION,
                 .data = .{
                     .DELETION = .{
-                        .velement = &old_velement.children.items[i],
+                        .velement = &old_children[i],
                         .parent = parent,
                     },
                 },
             });
         }
+    } else {
+        // 4. Unknown sequence: LIS algorithm
+        const old_remainder = old_children[i..old_end];
+        const new_remainder = new_children_slice[i..new_end];
+
+        // Map key -> old_indices
+        var key_map = std.StringHashMap(usize).init(allocator); // key -> index in old_children
+        defer key_map.deinit();
+
+        for (old_remainder, i..) |*c, idx| {
+            if (c.key) |k| {
+                try key_map.put(k, idx);
+            }
+        }
+
+        const new_cnt = new_remainder.len;
+
+        var source = try allocator.alloc(isize, new_cnt);
+        defer allocator.free(source);
+        @memset(source, -1);
+
+        for (new_remainder, 0..) |nc, new_idx| {
+            const resolved = try resolveComponent(allocator, nc);
+            const k = VElement.extractKey(resolved);
+            var matched: bool = false;
+
+            if (k) |key| {
+                if (key_map.get(key)) |old_idx| {
+                    // Verify type matches
+                    if (areComponentsSameType(old_children[old_idx].component, resolved)) {
+                        try diff(allocator, &old_children[old_idx], resolved, parent, patches);
+                        source[new_idx] = @intCast(old_idx);
+                        matched = true;
+                    }
+                }
+            }
+
+            if (!matched) {
+                // Try to find non-keyed match? simplified: assume new if no key match
+                // For fully keyed application this is fine.
+            }
+        }
+
+        // Removing unused old items
+        var moved_src = try allocator.alloc(bool, old_remainder.len);
+        defer allocator.free(moved_src);
+        @memset(moved_src, false);
+
+        for (source) |s| {
+            if (s != -1) {
+                if (s >= i) {
+                    moved_src[@as(usize, @intCast(s)) - i] = true;
+                }
+            }
+        }
+
+        for (moved_src, i..) |used, idx| {
+            if (!used) {
+                try patches.append(allocator, Patch{
+                    .type = .DELETION,
+                    .data = .{
+                        .DELETION = .{
+                            .velement = &old_children[idx],
+                            .parent = parent,
+                        },
+                    },
+                });
+            }
+        }
+
+        // Calculate Longest Increasing Subsequence
+        const seq = try getLis(allocator, source);
+        defer allocator.free(seq);
+
+        var seq_ptr = seq.len;
+
+        // Iterate backwards through new_remainder
+        var k: usize = new_cnt;
+
+        var last_processed_dom: ?Document.HTMLNode = if (new_end < old_children.len) old_children[new_end].dom else null;
+
+        k = new_cnt;
+        while (k > 0) {
+            k -= 1;
+            const s = source[k];
+            const new_pos = i + k;
+
+            if (s == -1) {
+                // New Item
+                const resolved = try resolveComponent(allocator, new_remainder[k]);
+                const new_child = try createVElementFromComponent(allocator, resolved);
+
+                const dom_ref = new_child.dom;
+
+                try patches.append(allocator, Patch{
+                    .type = .PLACEMENT,
+                    .data = .{
+                        .PLACEMENT = .{
+                            .velement = new_child,
+                            .parent = parent,
+                            .reference = last_processed_dom,
+                            .index = new_pos,
+                        },
+                    },
+                });
+                last_processed_dom = dom_ref;
+            } else {
+                // Existing Item
+                if (seq_ptr > 0 and seq[seq_ptr - 1] == k) {
+                    last_processed_dom = old_children[@as(usize, @intCast(s))].dom;
+                    seq_ptr -= 1;
+                } else {
+                    const velem = &old_children[@as(usize, @intCast(s))];
+                    try patches.append(allocator, Patch{
+                        .type = .MOVE,
+                        .data = .{
+                            .MOVE = .{
+                                .velement = velem,
+                                .parent = parent,
+                                .reference = last_processed_dom,
+                                .new_index = new_pos,
+                            },
+                        },
+                    });
+                    last_processed_dom = velem.dom;
+                }
+            }
+        }
     }
+}
+
+// Longest Increasing Subsequence
+// Returns indices in `source` that strictly increase.
+// Source contains indices >= 0. -1 is ignored.
+fn getLis(allocator: zx.Allocator, source: []const isize) ![]const usize {
+    var result = std.ArrayList(usize).empty;
+    var p = try allocator.alloc(isize, source.len); // Predecessor
+    defer allocator.free(p);
+    var m = try allocator.alloc(usize, source.len + 1); // Indices of ends of sequences
+    defer allocator.free(m);
+
+    var len: usize = 0;
+
+    for (source, 0..) |n, i| {
+        if (n == -1) continue;
+
+        // Binary search
+        var lo: usize = 1;
+        var hi: usize = len;
+        while (lo <= hi) {
+            const mid = lo + (hi - lo) / 2;
+            if (source[m[mid]] < n) {
+                lo = mid + 1;
+            } else {
+                hi = mid - 1;
+            }
+        }
+
+        const newL = lo;
+        p[i] = if (newL > 1) @as(isize, @intCast(m[newL - 1])) else -1;
+        m[newL] = i;
+
+        if (newL > len) {
+            len = newL;
+        }
+    }
+
+    var k = if (len > 0) @as(isize, @intCast(m[len])) else -1;
+    var i: usize = len;
+    try result.resize(allocator, len);
+
+    while (i > 0) {
+        i -= 1;
+        result.items[i] = @as(usize, @intCast(k));
+        k = p[@as(usize, @intCast(k))];
+    }
+
+    return result.toOwnedSlice(allocator);
 }
 
 pub fn areComponentsSameType(old: zx.Component, new: zx.Component) bool {
@@ -583,14 +769,14 @@ pub fn areComponentsSameType(old: zx.Component, new: zx.Component) bool {
 
 fn cloneVElement(allocator: zx.Allocator, velement: *const VElement) !VElement {
     const document = Document.init(allocator);
-    var cloned = try VElement.createFromComponent(allocator, document, null, velement.component);
+    var cloned = try VElement.createFromComponent(allocator, document, null, velement.component, true);
     cloned.key = velement.key;
     return cloned;
 }
 
 fn createVElementFromComponent(allocator: zx.Allocator, component: zx.Component) !VElement {
     const document = Document.init(allocator);
-    return try VElement.createFromComponent(allocator, document, null, component);
+    return try VElement.createFromComponent(allocator, document, null, component, true);
 }
 
 /// Pre-collected patch data to avoid pointer invalidation during batch operations
@@ -611,7 +797,7 @@ const MoveInfo = struct {
     velement_id: u64,
     velement_dom: Document.HTMLNode,
     parent: *VElement,
-    reference: ?*VElement,
+    reference: ?Document.HTMLNode,
     new_index: usize,
 };
 
@@ -666,7 +852,14 @@ pub fn applyPatches(
     var replace_idx: usize = 0;
     var move_idx: usize = 0;
 
-    for (patches.items) |patch| {
+    const document = Document.init(allocator);
+
+    var patch_idx: usize = 0;
+    while (patch_idx < patches.items.len) {
+        const patch = patches.items[patch_idx];
+        const current_idx = patch_idx;
+        patch_idx += 1;
+
         switch (patch.type) {
             .UPDATE => {
                 const update_data = patch.data.UPDATE;
@@ -689,18 +882,65 @@ pub fn applyPatches(
             .PLACEMENT => {
                 const placement_data = patch.data.PLACEMENT;
                 const parent = placement_data.parent;
-                const new_child = placement_data.velement;
-
                 const parent_element = parent.getDomParent() orelse return error.CannotAppendToTextNode;
 
-                if (placement_data.reference) |ref| {
-                    try parent_element.insertBefore(new_child.dom, ref.dom);
-                } else {
-                    try parent_element.appendChild(new_child.dom);
+                // Check if we can batch consecutive PLACEMENTS (appends only)
+                var batched = false;
+                if (placement_data.reference == null) {
+                    var batch_count: usize = 1;
+                    var end_idx = patch_idx; // next patch
+
+                    while (end_idx < patches.items.len) {
+                        const next_patch = patches.items[end_idx];
+                        if (next_patch.type == .PLACEMENT) {
+                            const next_data = next_patch.data.PLACEMENT;
+                            if (next_data.parent == parent and next_data.reference == null) {
+                                batch_count += 1;
+                                end_idx += 1;
+                                continue;
+                            }
+                        }
+                        break;
+                    }
+
+                    if (batch_count > 1) {
+                        batched = true;
+                        const fragment = document.createDocumentFragment();
+
+                        // Append all to fragment from VElements that are already fully built (with their children)
+                        var i: usize = current_idx;
+                        while (i < end_idx) : (i += 1) {
+                            const p = patches.items[i].data.PLACEMENT;
+                            try fragment.appendChild(p.velement.dom);
+                        }
+
+                        // Single append to DOM
+                        try parent_element.appendChild(.{ .element = fragment });
+
+                        // Update VTree structure
+                        try parent.children.ensureTotalCapacity(allocator, parent.children.items.len + (end_idx - current_idx));
+                        i = current_idx;
+                        while (i < end_idx) : (i += 1) {
+                            const p = patches.items[i].data.PLACEMENT;
+                            const index = @min(p.index, parent.children.items.len);
+                            try parent.children.insert(allocator, index, p.velement);
+                        }
+
+                        patch_idx = end_idx;
+                    }
                 }
 
-                const index = @min(placement_data.index, parent.children.items.len);
-                try parent.children.insert(allocator, index, new_child);
+                if (!batched) {
+                    const new_child = placement_data.velement;
+                    if (placement_data.reference) |ref_dom| {
+                        try parent_element.insertBefore(new_child.dom, ref_dom);
+                    } else {
+                        try parent_element.appendChild(new_child.dom);
+                    }
+
+                    const index = @min(placement_data.index, parent.children.items.len);
+                    try parent.children.insert(allocator, index, new_child);
+                }
             },
             .DELETION => {
                 const info = deletion_infos.items[deletion_idx];
@@ -741,8 +981,8 @@ pub fn applyPatches(
 
                 const parent_element = info.parent.getDomParent() orelse return error.CannotMoveInTextNode;
 
-                if (info.reference) |ref| {
-                    try parent_element.insertBefore(info.velement_dom, ref.dom);
+                if (info.reference) |ref_dom| {
+                    try parent_element.insertBefore(info.velement_dom, ref_dom);
                 } else {
                     try parent_element.appendChild(info.velement_dom);
                 }
@@ -774,10 +1014,8 @@ pub fn diffWithComponent(
 ) !std.ArrayList(Patch) {
     var patches = std.ArrayList(Patch).empty;
 
-    var new_velement = try createVElementFromComponent(allocator, new_component);
-    defer new_velement.deinit(allocator);
-
-    try diff(allocator, &self.vtree, &new_velement, null, &patches);
+    // Direct diff against component! No eager creation!
+    try diff(allocator, &self.vtree, new_component, null, &patches);
 
     return patches;
 }

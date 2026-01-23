@@ -28,5 +28,12 @@ pub fn build(b: *std.Build) !void {
 
     _ = try zx.init(b, site_exe, .{
         .experimental = .{ .enabled_csr = true },
+        .plugins = &.{
+            zx.plugins.esbuild(b, .{
+                .input = b.path("main.ts"),
+                .output = b.path("{outdir}/assets/main.js"),
+                .optimize = optimize,
+            }),
+        },
     });
 }

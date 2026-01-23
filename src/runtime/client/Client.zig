@@ -180,7 +180,11 @@ pub fn deinit(self: *Client) void {
 /// This enables event delegation lookup by VElement ID
 /// Also extracts and registers event handlers from component attributes
 pub fn registerVElement(self: *Client, velement: *vtree_mod.VElement) void {
-    self.id_to_velement.put(velement.id, velement) catch {};
+    // Optimization: Skip map update if pointer hasn't changed
+    const existing = self.id_to_velement.get(velement.id);
+    if (existing == null or existing.? != velement) {
+        self.id_to_velement.put(velement.id, velement) catch {};
+    }
 
     // Extract and register event handlers from the component's attributes
     switch (velement.component) {
@@ -290,11 +294,10 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
     // Call import with allocator and props_zon from the comment marker
     const Component = cmp.import(allocator, marker.props_zon);
     const existing_vtree = self.vtrees.getPtr(cmp.id);
-    const new_vtree = VDOMTree.init(allocator, Component);
 
     // First render (hydration) - replace SSR content with VDOM
     if (existing_vtree == null) {
-        // Clear SSR content and insert new VDOM
+        const new_vtree = VDOMTree.init(allocator, Component);
         try marker.replaceContent(new_vtree.vtree.dom);
         try self.vtrees.put(cmp.id, new_vtree);
 
@@ -310,6 +313,7 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
         const root_type_changed = !areComponentsSameType(old_vtree.vtree.component, Component);
 
         if (root_type_changed) {
+            const new_vtree = VDOMTree.init(allocator, Component);
             defer old_vtree.deinit(allocator);
 
             try marker.replaceContent(new_vtree.vtree.dom);

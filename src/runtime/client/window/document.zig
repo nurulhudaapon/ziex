@@ -139,7 +139,6 @@ pub const HTMLText = struct {
         self.ref.set("nodeValue", @import("js").string(value)) catch {};
     }
 
-    /// Set a JavaScript property directly on the text node
     pub fn setProperty(self: HTMLText, name: []const u8, value: anytype) void {
         if (!is_wasm) return;
         self.ref.set(name, value) catch {};
@@ -194,12 +193,36 @@ pub fn createElement(self: Document, tag: []const u8) HTMLElement {
     return HTMLElement.init(self.allocator, ref);
 }
 
+extern "__zx" fn _ce(id: usize) u64;
+
+pub fn createElementId(self: Document, id: usize) HTMLElement {
+    if (!is_wasm) return HTMLElement.init(self.allocator, {});
+    const ref_id = _ce(id);
+
+    const real_js = @import("js");
+    const val: real_js.Value = @enumFromInt(ref_id);
+    const obj = real_js.Object{ .value = val };
+
+    return HTMLElement.init(self.allocator, obj);
+}
+
 pub fn createTextNode(self: Document, data: []const u8) HTMLText {
     if (!is_wasm) return HTMLText.init(self.allocator, {});
     const real_js = @import("js");
     const ref: real_js.Object = self.ref.call(real_js.Object, "createTextNode", .{real_js.string(data)}) catch @panic("Failed to create text");
 
     return HTMLText.init(self.allocator, ref);
+}
+
+/// Create a DocumentFragment for batch DOM operations.
+/// Elements can be appended to the fragment without causing reflows,
+/// then the entire fragment is inserted in one operation.
+pub fn createDocumentFragment(self: Document) HTMLElement {
+    if (!is_wasm) return HTMLElement.init(self.allocator, {});
+    const real_js = @import("js");
+    const ref: real_js.Object = self.ref.call(real_js.Object, "createDocumentFragment", .{}) catch @panic("Failed to create fragment");
+
+    return HTMLElement.init(self.allocator, ref);
 }
 
 /// Represents a hydration boundary marked by comment nodes <!--$id--> or <!--$id {"props":"json"}--> and <!--/$id-->

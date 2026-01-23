@@ -165,7 +165,7 @@ pub fn initInner(
             .root_module = b.createModule(.{
                 .root_source_file = exe.root_module.root_source_file,
                 .target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding, .abi = .none }),
-                .optimize = if (optimize == .Debug) optimize else .ReleaseSmall,
+                .optimize = optimize,
             }),
         });
         const wasm_exe = wasm_exe_opt.?;

@@ -24,5 +24,5 @@ winget install -e --id zig.zig # Windows
 
 ## Running this Project
 ```bash
-zx serve
+zig build dev
 ```

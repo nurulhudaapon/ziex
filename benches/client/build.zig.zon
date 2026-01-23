@@ -4,10 +4,7 @@
     .fingerprint = 0xc04151551dc3c31d,
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
-        .zx = .{
-            .url = "git+https://github.com/nurulhudaapon/zx#a94b0efab6d9d2c30ccaa22eb80bb8051e76ee34",
-            .hash = "zx-0.1.0-dev.562-8okzKu7fgQAQaD7ebNtUdcIzmcdxEjtCvO3-GKhrojWv",
-        },
+        .zx = .{ .path = "../../" },
     },
     .paths = .{
         "build.zig",
