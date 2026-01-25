@@ -148,6 +148,7 @@ const zx = @import("zx");
 - [ ] Platform
     - [x] Server
     - [x] Browser
+    - [ ] Edge Runtime (Cloudflare Workers, Vercel Function, etc)
     - [ ] iOS
     - [ ] Android
     - [ ] macOS

@@ -344,9 +344,6 @@ pub fn Server(comptime H: type) type {
     };
 }
 
-/// Backward compatible App alias - uses void app context
-pub const App = Server(void);
-
 pub const ServerMeta = struct {
     /// Route handler function type for API routes
     pub const RouteHandler = *const fn (ctx: zx.RouteContext) anyerror!void;

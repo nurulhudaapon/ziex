@@ -54,6 +54,7 @@ const InitInnerOptions = struct {
     plugins: []const ZxInitOptions.PluginOptions,
     experimental_enabled_csr: bool,
     copy_embedded_sources: bool,
+    edge_path: ?LazyPath = null,
 };
 
 fn getZxRun(b: *std.Build, zx_exe: *std.Build.Step.Compile, opts: InitInnerOptions) *std.Build.Step.Run {
@@ -214,6 +215,65 @@ pub fn initInner(
         post_transpile_cmd.expectExitCode(0);
         post_transpile_cmd.step.dependOn(&transpile_cmd.step);
         post_transpile_cmd.step.dependOn(&wasm_exe.step);
+        b.default_step.dependOn(&post_transpile_cmd.step);
+    }
+
+    // --- ZX WASM Main Executable --- //
+    var wasm_edge_exe_opt: ?*std.Build.Step.Compile = null;
+    if (opts.experimental_enabled_csr and opts.edge_path != null) {
+        wasm_edge_exe_opt = b.addExecutable(.{
+            .name = b.fmt("edge", .{}),
+            .root_module = b.createModule(.{
+                .root_source_file = opts.edge_path,
+                .target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding, .abi = .none }),
+                .optimize = optimize,
+            }),
+        });
+        const wasm_edge_exe = wasm_edge_exe_opt.?;
+
+        wasm_edge_exe.entry = .disabled;
+        wasm_edge_exe.export_memory = true;
+        wasm_edge_exe.rdynamic = true;
+        // Create a site-specific wasm module (same approach as server module)
+        var wasm_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
+        var wasm_import_it = zx_wasm_module.import_table.iterator();
+        while (wasm_import_it.next()) |entry| {
+            if (!std.mem.eql(u8, entry.key_ptr.*, "zx_meta")) {
+                try wasm_imports.append(.{ .name = entry.key_ptr.*, .module = entry.value_ptr.* });
+            }
+        }
+
+        const site_wasm_module = b.createModule(.{
+            .root_source_file = zx_wasm_module.root_source_file,
+            .target = zx_wasm_module.resolved_target,
+            .optimize = zx_wasm_module.optimize,
+            .imports = wasm_imports.items,
+        });
+
+        // Build imports for wasm zx_meta
+        var wasm_meta_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
+        for (wasm_imports.items) |import| {
+            try wasm_meta_imports.append(import);
+        }
+        try wasm_meta_imports.append(.{ .name = "zx", .module = site_wasm_module });
+
+        site_wasm_module.addAnonymousImport("zx_meta", .{
+            .root_source_file = transpile_outdir.path(b, "meta.zig"),
+            .imports = wasm_meta_imports.items,
+        });
+
+        wasm_edge_exe.root_module.addImport("zx", site_wasm_module);
+        wasm_edge_exe.step.dependOn(&transpile_cmd.step);
+
+        // --- CMD: ZX Post Transpile --- //
+        const post_transpile_cmd = getZxRun(b, zx_exe, opts);
+        post_transpile_cmd.addArgs(&.{"transpile"});
+        post_transpile_cmd.addFileArg(wasm_edge_exe.getEmittedBin());
+        post_transpile_cmd.addArgs(&.{ "--copy-only", "--outdir" });
+        post_transpile_cmd.addDirectoryArg(transpile_outdir.path(b, "assets"));
+        post_transpile_cmd.expectExitCode(0);
+        post_transpile_cmd.step.dependOn(&transpile_cmd.step);
+        post_transpile_cmd.step.dependOn(&wasm_edge_exe.step);
         b.default_step.dependOn(&post_transpile_cmd.step);
     }
 

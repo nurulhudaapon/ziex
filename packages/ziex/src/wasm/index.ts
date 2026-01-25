@@ -707,6 +707,38 @@ export async function init(options: InitOptions = {}): Promise<{ source: WebAsse
     return { source, bridge };
 }
 
+
+/** Initialize WASM with the ZX Bridge */
+export async function edge(options: InitOptions = {}): Promise<{ source: WebAssembly.WebAssemblyInstantiatedSource; bridge: ZxBridge }> {
+    const url = options.url ?? DEFAULT_URL;
+    
+    // Bridge reference for import object (will be set after instantiation)
+    const bridgeRef: { current: ZxBridge | null } = { current: null };
+    
+    const importObject = Object.assign(
+        {},
+        ZxBridge.createImportObject(bridgeRef),
+        options.importObject
+    );
+    
+    const source = await WebAssembly.instantiateStreaming(fetch(url), importObject);
+    const { instance } = source;
+
+    jsz.memory = instance.exports.memory as WebAssembly.Memory;
+    
+    const bridge = new ZxBridge(instance.exports);
+    bridgeRef.current = bridge;
+
+    initEventDelegation(bridge, options.eventDelegationRoot ?? 'body');
+
+    // Call main to initiate the client side rendering
+    const main = instance.exports.main;
+    if (typeof main === 'function') main();
+
+    return { source, bridge };
+}
+
+
 // Global type declarations
 declare global {
     interface HTMLElement {

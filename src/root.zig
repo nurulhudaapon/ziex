@@ -4,70 +4,8 @@
 const std = @import("std");
 pub const Ast = @import("core/Ast.zig");
 pub const Parse = @import("core/Parse.zig");
-const cachez = @import("cachez");
-
 /// Global cache for components and pages
-pub const cache = struct {
-    const CacheEntry = struct {
-        html: []const u8,
-
-        pub fn removedFromCache(self: CacheEntry, allocator: std.mem.Allocator) void {
-            allocator.free(self.html);
-        }
-    };
-
-    var inner: ?cachez.Cache(CacheEntry) = null;
-    var alloc: ?std.mem.Allocator = null;
-
-    /// Initialize the cache (called once at app startup)
-    pub fn init(allocator: std.mem.Allocator, config: cachez.Config) !void {
-        if (inner != null) return;
-        alloc = allocator;
-        inner = try cachez.Cache(CacheEntry).init(allocator, config);
-    }
-
-    /// Deinitialize the cache
-    pub fn deinit() void {
-        if (inner) |*c| {
-            c.deinit();
-            inner = null;
-        }
-    }
-
-    /// Get cached HTML by key
-    pub fn get(key: []const u8) ?[]const u8 {
-        if (inner) |*c| {
-            if (c.get(key)) |entry| {
-                defer entry.release();
-                return entry.value.html;
-            }
-        }
-        return null;
-    }
-
-    /// Store HTML in cache with TTL
-    pub fn put(key: []const u8, html: []const u8, ttl_seconds: u32) void {
-        if (inner) |*c| {
-            const allocator = alloc orelse return;
-            const html_copy = allocator.dupe(u8, html) catch return;
-            c.put(key, .{ .html = html_copy }, .{ .ttl = ttl_seconds }) catch {
-                allocator.free(html_copy);
-            };
-        }
-    }
-
-    /// Delete cache entry by exact key
-    pub fn del(key: []const u8) bool {
-        if (inner) |*c| return c.del(key);
-        return false;
-    }
-
-    /// Delete all cache entries matching a prefix
-    pub fn delPrefix(prefix: []const u8) usize {
-        if (inner) |*c| return c.delPrefix(prefix) catch 0;
-        return 0;
-    }
-};
+pub const cache = @import("runtime/core//Cache.zig");
 
 // HTML Tags
 const ElementTag = enum {
@@ -755,11 +693,8 @@ pub const Component = union(enum) {
                             }
 
                             // Render to buffer for caching
-                            var buf_writer = std.io.Writer.Allocating.init(func.allocator);
-                            const component = func.call() catch |err| {
-                                std.debug.print("Error rendering component: {}\n", .{err});
-                                return err;
-                            };
+                            var buf_writer = std.Io.Writer.Allocating.init(func.allocator);
+                            const component = try func.call();
                             try component.renderInner(&buf_writer.writer, options);
 
                             const rendered = buf_writer.written();
@@ -773,10 +708,7 @@ pub const Component = union(enum) {
                 }
 
                 // No caching or cache miss - render directly
-                const component = func.call() catch |err| {
-                    std.debug.print("Error rendering component: {}\n", .{err});
-                    return err;
-                };
+                const component = try func.call();
                 try component.renderInner(writer, options);
             },
             .component_csr => |component_csr| {
@@ -1035,7 +967,6 @@ const ZxOptions = struct {
 };
 
 pub fn zx(tag: ElementTag, options: ZxOptions) Component {
-    std.debug.print("zx: Tag: {s}, allocator: {any}\n", .{ @tagName(tag), options.allocator });
     return .{ .element = .{
         .tag = tag,
         .children = options.children,
@@ -1829,10 +1760,7 @@ fn propsSerializerJson(comptime Props: type, allocator: std.mem.Allocator, props
         .writeFn = &struct {
             fn write(writer: *std.Io.Writer, ptr: *const anyopaque) anyerror!void {
                 const typed_props: *const Props = @ptrCast(@alignCast(ptr));
-                std.json.Stringify.value(typed_props.*, .{}, writer) catch |err| {
-                    std.debug.print("JSON stringify error: {}\n", .{err});
-                    return err;
-                };
+                try std.json.Stringify.value(typed_props.*, .{}, writer);
             }
         }.write,
     };
@@ -1876,18 +1804,18 @@ pub fn allocInit(allocator: std.mem.Allocator) ZxContext {
     return .{ .allocator = allocator };
 }
 
-pub const Allocator = std.mem.Allocator;
-pub const info = @import("zx_info");
 const routing = @import("runtime/core/routing.zig");
 const app_module = @import("runtime/server/Server.zig");
-pub const Server = app_module.Server;
-/// For new projects, prefer using `zx.Server(AppCtx)` for typed context injection.
-/// @deprecated: Use `zx.Server(AppCtx)` instead.
-pub const App = app_module.App;
+
 pub const routes = @import("zx_meta").routes;
 pub const components = @import("zx_meta").components.components;
 pub const meta = @import("zx_meta").meta;
+pub const info = @import("zx_info");
 
+pub const Allocator = std.mem.Allocator;
+pub const App = app_module.Server(void);
+pub const Server = app_module.Server;
+pub const Edge = @import("runtime/edge/Edge.zig").Edge;
 pub const Client = @import("runtime/client/Client.zig");
 pub const client = @import("runtime/client/window.zig");
 pub const hydration = @import("runtime/client/hydration.zig");
@@ -2199,10 +2127,7 @@ pub const BuiltinAttribute = struct {
 
         pub fn from(value: []const u8) Rendering {
             const v = if (std.mem.startsWith(u8, value, ".")) value[1..value.len] else value;
-            return std.meta.stringToEnum(Rendering, v) orelse {
-                std.debug.print("Invalid rendering type: {s}\n", .{value});
-                return .client;
-            };
+            return std.meta.stringToEnum(Rendering, v) orelse .client;
         }
     };
 
