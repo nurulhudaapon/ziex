@@ -64,6 +64,9 @@ jobs:
         uses: actions/deploy-pages@v4
 
   deploy_ssr:
+    environment:
+      name: ssr
+      url: https://ssr.ziex.dev
     runs-on: self-hosted
     steps:
       - name: Checkout
