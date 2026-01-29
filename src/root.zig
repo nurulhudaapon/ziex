@@ -1638,7 +1638,10 @@ fn propsSerializer(comptime Props: type, allocator: std.mem.Allocator, props: Pr
 
     if (type_info != .@"struct") return .{ .ptr = null, .writeFn = null };
     if (type_info.@"struct".fields.len == 0) return .{ .ptr = null, .writeFn = null };
-    if (!comptime isPropsSerializable(Props)) return .{ .ptr = null, .writeFn = null };
+    if (!comptime isPropsSerializable(Props)) {
+        // @compileError("Props must be serializable");
+        return .{ .ptr = null, .writeFn = null };
+    }
 
     const props_copy = allocator.create(Props) catch return .{ .ptr = null, .writeFn = null };
     props_copy.* = props;
@@ -1655,8 +1658,13 @@ fn propsSerializer(comptime Props: type, allocator: std.mem.Allocator, props: Pr
     };
 }
 
+/// This is internal and will change, do not use
+pub const prop = struct {
+    pub const serialize = serializePositional;
+};
+
 /// Serialize a value in positional array format (structs become arrays, nested structs too)
-fn serializePositional(comptime T: type, value: T, writer: *std.Io.Writer) !void {
+pub fn serializePositional(comptime T: type, value: T, writer: *std.Io.Writer) !void {
     const type_info = @typeInfo(T);
 
     switch (type_info) {
@@ -1691,6 +1699,14 @@ fn serializePositional(comptime T: type, value: T, writer: *std.Io.Writer) !void
                     }
                 }
                 try writer.writeByte('"');
+            } else if (ptr.size == .slice) {
+                // Non-u8 slice (e.g., []SearchContent) - serialize as JSON array
+                try writer.writeByte('[');
+                for (value, 0..) |item, i| {
+                    if (i > 0) try writer.writeByte(',');
+                    try serializePositional(ptr.child, item, writer);
+                }
+                try writer.writeByte(']');
             } else if (ptr.size == .one) {
                 // String literal (*const [N]u8 or *const [N:0]u8)
                 const child_info = @typeInfo(ptr.child);

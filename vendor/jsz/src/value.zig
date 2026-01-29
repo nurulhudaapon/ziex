@@ -199,6 +199,9 @@ pub const Value = enum(u64) {
         errdefer alloc.free(buf);
 
         // Copy the string into the buffer
+        if (buf.len == 0) return buf;
+
+        // Copy the string into the buffer
         ext.valueStringCopy(self.ref().id, buf.ptr, buf.len);
 
         return buf;
