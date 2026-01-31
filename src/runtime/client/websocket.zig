@@ -4,6 +4,7 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
+const ext = @import("window/extern.zig");
 const WebSocket = @import("../core/WebSocket.zig");
 
 const CloseOptions = WebSocket.CloseOptions;
@@ -13,32 +14,6 @@ const ErrorEvent = WebSocket.ErrorEvent;
 const WebSocketError = WebSocket.WebSocketError;
 
 pub const is_wasm = builtin.cpu.arch == .wasm32 or builtin.cpu.arch == .wasm64;
-
-// ============================================================================
-// External declarations (provided by ZxBridge in JS)
-// ============================================================================
-
-extern "__zx" fn _wsConnect(
-    ws_id: u64,
-    url_ptr: [*]const u8,
-    url_len: usize,
-    protocols_ptr: [*]const u8,
-    protocols_len: usize,
-) void;
-
-extern "__zx" fn _wsSend(
-    ws_id: u64,
-    data_ptr: [*]const u8,
-    data_len: usize,
-    is_binary: u8,
-) void;
-
-extern "__zx" fn _wsClose(
-    ws_id: u64,
-    code: u16,
-    reason_ptr: [*]const u8,
-    reason_len: usize,
-) void;
 
 // ============================================================================
 // WebSocket ID Counter & Registry
@@ -121,7 +96,7 @@ pub fn connect(ws: *WebSocket) WebSocketError!void {
     }
 
     // Call JS to create WebSocket
-    _wsConnect(
+    ext._wsConnect(
         ws_id,
         ws.url.ptr,
         ws.url.len,
@@ -136,12 +111,12 @@ pub fn connect(ws: *WebSocket) WebSocketError!void {
 
 pub fn send(ws: *WebSocket, data: []const u8) WebSocketError!void {
     const ws_id = getWsId(ws) orelse return error.NotConnected;
-    _wsSend(ws_id, data.ptr, data.len, 0);
+    ext._wsSend(ws_id, data.ptr, data.len, 0);
 }
 
 pub fn sendBinary(ws: *WebSocket, data: []const u8) WebSocketError!void {
     const ws_id = getWsId(ws) orelse return error.NotConnected;
-    _wsSend(ws_id, data.ptr, data.len, 1);
+    ext._wsSend(ws_id, data.ptr, data.len, 1);
 }
 
 // ============================================================================
@@ -153,7 +128,7 @@ pub fn close(ws: *WebSocket, options: CloseOptions) void {
     const code = options.code orelse 1000;
     const reason = options.reason orelse "";
 
-    _wsClose(ws_id, code, reason.ptr, reason.len);
+    ext._wsClose(ws_id, code, reason.ptr, reason.len);
 }
 
 // ============================================================================
@@ -223,4 +198,3 @@ export fn __zx_ws_onclose(ws_id: u64, code: u16, reason_ptr: [*]const u8, reason
         ws_slots[idx].ws = null;
     }
 }
-

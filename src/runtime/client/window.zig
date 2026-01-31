@@ -4,6 +4,7 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
+const ext = @import("window/extern.zig");
 
 /// Whether we're running in a browser environment (WASM)
 pub const is_wasm = builtin.cpu.arch == .wasm32 or builtin.cpu.arch == .wasm64;
@@ -184,11 +185,6 @@ var callbacks: [MAX_CALLBACKS]CallbackEntry = [_]CallbackEntry{.{
 }} ** MAX_CALLBACKS;
 var next_callback_id: u64 = 1;
 
-/// Bridge extern declarations (provided by ZxBridge in JS)
-extern "__zx" fn _setTimeout(callback_id: u64, delay_ms: u32) void;
-extern "__zx" fn _setInterval(callback_id: u64, interval_ms: u32) void;
-extern "__zx" fn _clearInterval(callback_id: u64) void;
-
 /// Register a callback and get its ID
 fn registerCallback(entry: CallbackEntry) ?u64 {
     const id = next_callback_id;
@@ -223,7 +219,7 @@ pub fn setTimeout(callback: TimeoutCallback, delay_ms: u32) ?u64 {
         .active = true,
     }) orelse return null;
 
-    _setTimeout(id, delay_ms);
+    ext._setTimeout(id, delay_ms);
     return id;
 }
 
@@ -237,7 +233,7 @@ pub fn setInterval(callback: IntervalCallback, interval_ms: u32) ?u64 {
         .active = true,
     }) orelse return null;
 
-    _setInterval(id, interval_ms);
+    ext._setInterval(id, interval_ms);
     return id;
 }
 
@@ -248,7 +244,7 @@ pub fn clearInterval(callback_id: u64) void {
     const index: usize = @intCast(callback_id % MAX_CALLBACKS);
     if (callbacks[index].active and callbacks[index].callback_type == .interval) {
         callbacks[index].active = false;
-        _clearInterval(callback_id);
+        ext._clearInterval(callback_id);
     }
 }
 

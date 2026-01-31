@@ -5,6 +5,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const window = @import("window.zig");
+const ext = @import("window/extern.zig");
 const Fetch = @import("../core/Fetch.zig");
 
 const Response = Fetch.Response;
@@ -14,28 +15,6 @@ const FetchError = Fetch.FetchError;
 const ResponseCallback = Fetch.ResponseCallback;
 
 pub const is_wasm = window.is_wasm;
-
-// ============================================================================
-// External declarations (provided by ZxBridge in JS)
-// ============================================================================
-
-extern "__zx" fn _fetchAsync(
-    url_ptr: [*]const u8,
-    url_len: usize,
-    method_ptr: [*]const u8,
-    method_len: usize,
-    headers_ptr: [*]const u8,
-    headers_len: usize,
-    body_ptr: [*]const u8,
-    body_len: usize,
-    timeout_ms: u32,
-    callback_id: u64,
-) void;
-
-// ============================================================================
-// Fetch ID Counter
-// ============================================================================
-
 var next_fetch_id: u64 = 1;
 
 // ============================================================================
@@ -72,7 +51,7 @@ pub fn fetchAsync(
     const headers_json = serializeHeadersJson(init.headers, &headers_buf);
     const body = init.body orelse "";
 
-    _fetchAsync(
+    ext._fetchAsync(
         url.ptr,
         url.len,
         method_str.ptr,

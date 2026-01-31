@@ -5,6 +5,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const bom = @import("../window.zig");
+const ext = @import("../window/extern.zig");
 const Console = bom.Console;
 
 /// Whether we're running in a browser environment (WASM)
@@ -193,11 +194,9 @@ pub fn createElement(self: Document, tag: []const u8) HTMLElement {
     return HTMLElement.init(self.allocator, ref);
 }
 
-extern "__zx" fn _ce(id: usize) u64;
-
 pub fn createElementId(self: Document, id: usize) HTMLElement {
     if (!is_wasm) return HTMLElement.init(self.allocator, {});
-    const ref_id = _ce(id);
+    const ref_id = ext._ce(id);
 
     const real_js = @import("js");
     const val: real_js.Value = @enumFromInt(ref_id);
@@ -212,6 +211,21 @@ pub fn createTextNode(self: Document, data: []const u8) HTMLText {
     const ref: real_js.Object = self.ref.call(real_js.Object, "createTextNode", .{real_js.string(data)}) catch @panic("Failed to create text");
 
     return HTMLText.init(self.allocator, ref);
+}
+
+/// Create DOM nodes from raw HTML string using template element.
+/// Returns the first child element, or null if the HTML produced no elements.
+pub fn createElementFromTemplate(self: Document, html: []const u8) ?HTMLElement {
+    if (!is_wasm) return null;
+    const real_js = @import("js");
+
+    const template: real_js.Object = self.ref.call(real_js.Object, "createElement", .{real_js.string("template")}) catch return null;
+    template.set("innerHTML", real_js.string(html)) catch return null;
+
+    const content: real_js.Object = template.get(real_js.Object, "content") catch return null;
+    const first_child: real_js.Object = content.get(real_js.Object, "firstElementChild") catch return null;
+
+    return HTMLElement.init(self.allocator, first_child);
 }
 
 /// Create a DocumentFragment for batch DOM operations.

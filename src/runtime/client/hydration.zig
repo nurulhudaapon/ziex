@@ -46,8 +46,39 @@ pub const PropsParser = struct {
                 return try self.parseValue(opt.child, allocator);
             },
             .pointer => |ptr| {
-                if (ptr.size == .slice and ptr.child == u8) {
-                    return self.parseString(allocator);
+                if (ptr.size == .slice) {
+                    if (ptr.child == u8) {
+                        return self.parseString(allocator);
+                    }
+
+                    if (self.current() != '[') return error.ExpectedArrayStart;
+                    self.pos += 1;
+                    self.skipWhitespace();
+
+                    if (self.current() == ']') {
+                        self.pos += 1;
+                        return &.{};
+                    }
+
+                    var list = std.array_list.Managed(ptr.child).init(allocator);
+                    errdefer list.deinit();
+
+                    while (self.pos < self.data.len) {
+                        const val = try self.parseValue(ptr.child, allocator);
+                        try list.append(val);
+
+                        self.skipWhitespace();
+                        if (self.current() == ',') {
+                            self.pos += 1;
+                            self.skipWhitespace();
+                        } else if (self.current() == ']') {
+                            self.pos += 1;
+                            return list.toOwnedSlice();
+                        } else {
+                            return error.ExpectedArrayEnd;
+                        }
+                    }
+                    return error.UnexpectedEnd;
                 }
                 return error.UnsupportedType;
             },

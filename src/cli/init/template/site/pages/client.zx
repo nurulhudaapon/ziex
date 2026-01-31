@@ -1,4 +1,5 @@
-pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
+pub fn CounterComponent(allocator: zx.Allocator, props: struct {count: i128}) zx.Component {
+    count.set(props.count);
     return (
         <div @allocator={allocator}>
             <button onclick={handleReset}>Reset</button>
@@ -9,7 +10,7 @@ pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
     );
 }
 
-var count: zx.Signal(i32) = .init(0);
+var count: zx.Signal(i128) = .init(0);
 
 fn handleIncrement(_: zx.EventContext) void {
     count.set(count.get() + 1);

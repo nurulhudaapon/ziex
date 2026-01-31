@@ -1661,6 +1661,7 @@ fn propsSerializer(comptime Props: type, allocator: std.mem.Allocator, props: Pr
 /// This is internal and will change, do not use
 pub const prop = struct {
     pub const serialize = serializePositional;
+    pub const parse = hydration.parseProps;
 };
 
 /// Serialize a value in positional array format (structs become arrays, nested structs too)
@@ -1788,8 +1789,11 @@ fn isPropsSerializable(comptime T: type) bool {
     return switch (type_info) {
         .int, .comptime_int, .float, .comptime_float, .bool => true,
         .pointer => |ptr| blk: {
-            // Handle both []const u8 (slices) and *const [N]u8 (string literals)
-            if (ptr.size == .slice and ptr.child == u8) break :blk true;
+            // Handle slices
+            if (ptr.size == .slice) {
+                if (ptr.child == u8) break :blk true;
+                if (isPropsSerializable(ptr.child)) break :blk true;
+            }
             if (ptr.size == .one) {
                 const child_info = @typeInfo(ptr.child);
                 // Check for *const [N]u8 or *const [N:0]u8 (null-terminated string literals)
@@ -1835,7 +1839,7 @@ pub const Server = app_module.Server;
 pub const Edge = @import("runtime/edge/Edge.zig").Edge;
 pub const Client = @import("runtime/client/Client.zig");
 pub const client = @import("runtime/client/window.zig");
-pub const hydration = @import("runtime/client/hydration.zig");
+const hydration = @import("runtime/client/hydration.zig");
 pub const Signal = Client.reactivity.Signal;
 pub const SignalInstance = Client.reactivity.SignalInstance;
 pub const Computed = Client.reactivity.Computed;
@@ -1887,7 +1891,18 @@ pub const NotFoundOptions = struct {
 };
 pub const ErrorOptions = struct {};
 pub const RouteOptions = struct {
+    pub const StaticParam = struct {
+        key: []const u8,
+        value: []const u8,
+    };
+
+    pub const Static = struct {
+        params: ?[]const []const StaticParam = null,
+        getParams: ?*const fn (std.mem.Allocator) anyerror![]const []const StaticParam = null,
+    };
+
     caching: BuiltinAttribute.Caching = .none,
+    static: ?Static = null,
 };
 
 /// Options for proxy middleware

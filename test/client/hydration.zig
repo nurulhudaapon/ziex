@@ -2,10 +2,8 @@ const std = @import("std");
 const testing = std.testing;
 const zx = @import("zx");
 
-/// Test the props hydration parser (zx.hydration)
-const parseProps = zx.hydration.parseProps;
+const parse = zx.prop.parse;
 const serializeProps = zx.prop.serialize;
-const PropsParser = zx.hydration.PropsParser;
 
 // ============================================================================
 // Test Fixtures
@@ -13,6 +11,7 @@ const PropsParser = zx.hydration.PropsParser;
 
 const Status = enum { pending, active, completed };
 const SearchContent = struct { title: []const u8, url: []const u8, content: []const u8 };
+const SearchProps = struct { search: []const u8, contents: []const SearchContent };
 const SimpleProps = struct { count: i32, enabled: bool };
 const NumberProps = struct { int_val: i32, negative: i32, zero: i32, float_val: f32, negative_float: f32 };
 const NestedInner = struct { value: i32, flag: bool };
@@ -43,31 +42,31 @@ const ComplexProps = struct {
 
 test "int positive" {
     const P = struct { value: i32 };
-    try testing.expectEqual(@as(i32, 42), parseProps(P, testing.allocator, "[42]").value);
+    try testing.expectEqual(@as(i32, 42), parse(P, testing.allocator, "[42]").value);
 }
 
 test "int negative" {
     const P = struct { value: i32 };
-    try testing.expectEqual(@as(i32, -100), parseProps(P, testing.allocator, "[-100]").value);
+    try testing.expectEqual(@as(i32, -100), parse(P, testing.allocator, "[-100]").value);
 }
 
 test "int zero" {
     const P = struct { value: i32 };
-    try testing.expectEqual(@as(i32, 0), parseProps(P, testing.allocator, "[0]").value);
+    try testing.expectEqual(@as(i32, 0), parse(P, testing.allocator, "[0]").value);
 }
 
 test "int max" {
     const P = struct { value: i32 };
-    try testing.expectEqual(@as(i32, 2147483647), parseProps(P, testing.allocator, "[2147483647]").value);
+    try testing.expectEqual(@as(i32, 2147483647), parse(P, testing.allocator, "[2147483647]").value);
 }
 
 test "int min" {
     const P = struct { value: i32 };
-    try testing.expectEqual(@as(i32, -2147483648), parseProps(P, testing.allocator, "[-2147483648]").value);
+    try testing.expectEqual(@as(i32, -2147483648), parse(P, testing.allocator, "[-2147483648]").value);
 }
 
 test "int multiple" {
-    const r = parseProps(NumberProps, testing.allocator, "[42,-100,0,0,0]");
+    const r = parse(NumberProps, testing.allocator, "[42,-100,0,0,0]");
     try testing.expectEqual(@as(i32, 42), r.int_val);
     try testing.expectEqual(@as(i32, -100), r.negative);
     try testing.expectEqual(@as(i32, 0), r.zero);
@@ -79,27 +78,27 @@ test "int multiple" {
 
 test "float positive" {
     const P = struct { value: f32 };
-    try testing.expectApproxEqAbs(@as(f32, 3.14), parseProps(P, testing.allocator, "[3.14]").value, 0.001);
+    try testing.expectApproxEqAbs(@as(f32, 3.14), parse(P, testing.allocator, "[3.14]").value, 0.001);
 }
 
 test "float negative" {
     const P = struct { value: f32 };
-    try testing.expectApproxEqAbs(@as(f32, -2.5), parseProps(P, testing.allocator, "[-2.5]").value, 0.001);
+    try testing.expectApproxEqAbs(@as(f32, -2.5), parse(P, testing.allocator, "[-2.5]").value, 0.001);
 }
 
 test "float zero" {
     const P = struct { value: f32 };
-    try testing.expectApproxEqAbs(@as(f32, 0.0), parseProps(P, testing.allocator, "[0.0]").value, 0.001);
+    try testing.expectApproxEqAbs(@as(f32, 0.0), parse(P, testing.allocator, "[0.0]").value, 0.001);
 }
 
 test "float small" {
     const P = struct { value: f32 };
-    try testing.expectApproxEqAbs(@as(f32, 0.000001), parseProps(P, testing.allocator, "[0.000001]").value, 0.0000001);
+    try testing.expectApproxEqAbs(@as(f32, 0.000001), parse(P, testing.allocator, "[0.000001]").value, 0.0000001);
 }
 
 test "float scientific" {
     const P = struct { value: f32 };
-    try testing.expectApproxEqAbs(@as(f32, 1500.0), parseProps(P, testing.allocator, "[1.5e3]").value, 0.1);
+    try testing.expectApproxEqAbs(@as(f32, 1500.0), parse(P, testing.allocator, "[1.5e3]").value, 0.1);
 }
 
 // ============================================================================
@@ -108,17 +107,17 @@ test "float scientific" {
 
 test "bool true" {
     const P = struct { value: bool };
-    try testing.expect(parseProps(P, testing.allocator, "[true]").value);
+    try testing.expect(parse(P, testing.allocator, "[true]").value);
 }
 
 test "bool false" {
     const P = struct { value: bool };
-    try testing.expect(!parseProps(P, testing.allocator, "[false]").value);
+    try testing.expect(!parse(P, testing.allocator, "[false]").value);
 }
 
 test "bool multiple" {
     const P = struct { a: bool, b: bool, c: bool };
-    const r = parseProps(P, testing.allocator, "[true,false,true]");
+    const r = parse(P, testing.allocator, "[true,false,true]");
     try testing.expect(r.a and !r.b and r.c);
 }
 
@@ -128,63 +127,63 @@ test "bool multiple" {
 
 test "string simple" {
     const P = struct { value: []const u8 };
-    const r = parseProps(P, testing.allocator, "[\"hello\"]");
+    const r = parse(P, testing.allocator, "[\"hello\"]");
     defer testing.allocator.free(r.value);
     try testing.expectEqualStrings("hello", r.value);
 }
 
 test "string empty" {
     const P = struct { value: []const u8 };
-    const r = parseProps(P, testing.allocator, "[\"\"]");
+    const r = parse(P, testing.allocator, "[\"\"]");
     defer testing.allocator.free(r.value);
     try testing.expectEqualStrings("", r.value);
 }
 
 test "string spaces" {
     const P = struct { value: []const u8 };
-    const r = parseProps(P, testing.allocator, "[\"hello world\"]");
+    const r = parse(P, testing.allocator, "[\"hello world\"]");
     defer testing.allocator.free(r.value);
     try testing.expectEqualStrings("hello world", r.value);
 }
 
 test "string escape newline" {
     const P = struct { value: []const u8 };
-    const r = parseProps(P, testing.allocator, "[\"line1\\nline2\"]");
+    const r = parse(P, testing.allocator, "[\"line1\\nline2\"]");
     defer testing.allocator.free(r.value);
     try testing.expectEqualStrings("line1\nline2", r.value);
 }
 
 test "string escape tab" {
     const P = struct { value: []const u8 };
-    const r = parseProps(P, testing.allocator, "[\"col1\\tcol2\"]");
+    const r = parse(P, testing.allocator, "[\"col1\\tcol2\"]");
     defer testing.allocator.free(r.value);
     try testing.expectEqualStrings("col1\tcol2", r.value);
 }
 
 test "string escape quote" {
     const P = struct { value: []const u8 };
-    const r = parseProps(P, testing.allocator, "[\"say \\\"hello\\\"\"]");
+    const r = parse(P, testing.allocator, "[\"say \\\"hello\\\"\"]");
     defer testing.allocator.free(r.value);
     try testing.expectEqualStrings("say \"hello\"", r.value);
 }
 
 test "string escape backslash" {
     const P = struct { value: []const u8 };
-    const r = parseProps(P, testing.allocator, "[\"path\\\\to\\\\file\"]");
+    const r = parse(P, testing.allocator, "[\"path\\\\to\\\\file\"]");
     defer testing.allocator.free(r.value);
     try testing.expectEqualStrings("path\\to\\file", r.value);
 }
 
 test "string unicode" {
     const P = struct { value: []const u8 };
-    const r = parseProps(P, testing.allocator, "[\"Hello 世界\"]");
+    const r = parse(P, testing.allocator, "[\"Hello 世界\"]");
     defer testing.allocator.free(r.value);
     try testing.expectEqualStrings("Hello 世界", r.value);
 }
 
 test "string emoji" {
     const P = struct { value: []const u8 };
-    const r = parseProps(P, testing.allocator, "[\"Hello 👋\"]");
+    const r = parse(P, testing.allocator, "[\"Hello 👋\"]");
     defer testing.allocator.free(r.value);
     try testing.expectEqualStrings("Hello 👋", r.value);
 }
@@ -194,25 +193,25 @@ test "string emoji" {
 // ============================================================================
 
 test "optional null" {
-    const r = parseProps(OptionalProps, testing.allocator, "[42,null,null]");
+    const r = parse(OptionalProps, testing.allocator, "[42,null,null]");
     try testing.expectEqual(@as(i32, 42), r.required);
     try testing.expect(r.optional_int == null);
     try testing.expect(r.optional_str == null);
 }
 
 test "optional int present" {
-    const r = parseProps(OptionalProps, testing.allocator, "[42,100,null]");
+    const r = parse(OptionalProps, testing.allocator, "[42,100,null]");
     try testing.expectEqual(@as(i32, 100), r.optional_int.?);
 }
 
 test "optional string present" {
-    const r = parseProps(OptionalProps, testing.allocator, "[42,null,\"hello\"]");
+    const r = parse(OptionalProps, testing.allocator, "[42,null,\"hello\"]");
     defer if (r.optional_str) |s| testing.allocator.free(s);
     try testing.expectEqualStrings("hello", r.optional_str.?);
 }
 
 test "optional all present" {
-    const r = parseProps(OptionalProps, testing.allocator, "[42,100,\"hello\"]");
+    const r = parse(OptionalProps, testing.allocator, "[42,100,\"hello\"]");
     defer if (r.optional_str) |s| testing.allocator.free(s);
     try testing.expectEqual(@as(i32, 100), r.optional_int.?);
     try testing.expectEqualStrings("hello", r.optional_str.?);
@@ -223,14 +222,14 @@ test "optional all present" {
 // ============================================================================
 
 test "nested struct" {
-    const r = parseProps(NestedProps, testing.allocator, "[10,[42,true],false]");
+    const r = parse(NestedProps, testing.allocator, "[10,[42,true],false]");
     try testing.expectEqual(@as(i32, 10), r.outer_val);
     try testing.expectEqual(@as(i32, 42), r.inner.value);
     try testing.expect(r.inner.flag and !r.outer_flag);
 }
 
 test "nested negative" {
-    const r = parseProps(NestedProps, testing.allocator, "[0,[-99,false],true]");
+    const r = parse(NestedProps, testing.allocator, "[0,[-99,false],true]");
     try testing.expectEqual(@as(i32, -99), r.inner.value);
     try testing.expect(!r.inner.flag and r.outer_flag);
 }
@@ -239,7 +238,7 @@ test "deeply nested" {
     const Inner = struct { value: i32 };
     const Middle = struct { inner: Inner };
     const Outer = struct { middle: Middle };
-    const r = parseProps(Outer, testing.allocator, "[[[42]]]");
+    const r = parse(Outer, testing.allocator, "[[[42]]]");
     try testing.expectEqual(@as(i32, 42), r.middle.inner.value);
 }
 
@@ -248,14 +247,14 @@ test "deeply nested" {
 // ============================================================================
 
 test "array int" {
-    const r = parseProps(ArrayProps, testing.allocator, "[[1,2,3],[true,false]]");
+    const r = parse(ArrayProps, testing.allocator, "[[1,2,3],[true,false]]");
     try testing.expectEqual(@as(i32, 1), r.scores[0]);
     try testing.expectEqual(@as(i32, 2), r.scores[1]);
     try testing.expectEqual(@as(i32, 3), r.scores[2]);
 }
 
 test "array negative" {
-    const r = parseProps(ArrayProps, testing.allocator, "[[-1,-2,-3],[false,true]]");
+    const r = parse(ArrayProps, testing.allocator, "[[-1,-2,-3],[false,true]]");
     try testing.expectEqual(@as(i32, -1), r.scores[0]);
     try testing.expectEqual(@as(i32, -2), r.scores[1]);
 }
@@ -265,17 +264,17 @@ test "array negative" {
 // ============================================================================
 
 test "enum first" {
-    const r = parseProps(EnumProps, testing.allocator, "[0,42]");
+    const r = parse(EnumProps, testing.allocator, "[0,42]");
     try testing.expectEqual(Status.pending, r.status);
 }
 
 test "enum middle" {
-    const r = parseProps(EnumProps, testing.allocator, "[1,42]");
+    const r = parse(EnumProps, testing.allocator, "[1,42]");
     try testing.expectEqual(Status.active, r.status);
 }
 
 test "enum last" {
-    const r = parseProps(EnumProps, testing.allocator, "[2,42]");
+    const r = parse(EnumProps, testing.allocator, "[2,42]");
     try testing.expectEqual(Status.completed, r.status);
 }
 
@@ -285,7 +284,7 @@ test "enum last" {
 
 test "complex all types" {
     const json = "[42,-100,0,3.14,-2.5,true,false,\"Hello\",\"World\",null,null,[10,true],[1,2,3],1]";
-    const r = parseProps(ComplexProps, testing.allocator, json);
+    const r = parse(ComplexProps, testing.allocator, json);
     defer testing.allocator.free(r.label);
     defer testing.allocator.free(r.escaped_str);
 
@@ -301,7 +300,7 @@ test "complex all types" {
 
 test "complex with optionals" {
     const json = "[42,-100,0,3.14,-2.5,true,false,\"Label\",\"Escaped\\n\",99,\"opt\",[0,false],[0,0,0],0]";
-    const r = parseProps(ComplexProps, testing.allocator, json);
+    const r = parse(ComplexProps, testing.allocator, json);
     defer testing.allocator.free(r.label);
     defer testing.allocator.free(r.escaped_str);
     defer if (r.optional_str) |s| testing.allocator.free(s);
@@ -346,6 +345,16 @@ test "serialize int positive" {
     const data = try serialize(P, .{ .value = 42 });
     defer testing.allocator.free(data);
     try testing.expectEqualStrings("[42]", data);
+}
+
+test "serialize nested pointer struct" {
+    const search_p = SearchProps{
+        .search = "query",
+        .contents = &.{.{ .title = "std.Io", .url = "https://ziglang.org/", .content = "std.Io is a library for Zig." }},
+    };
+    const data = try serialize(SearchProps, search_p);
+    defer testing.allocator.free(data);
+    try testing.expectEqualStrings("[\"query\",[[\"std.Io\",\"https://ziglang.org/\",\"std.Io is a library for Zig.\"]]]", data);
 }
 
 test "serialize int negative" {
@@ -620,7 +629,7 @@ test "serialize roundtrip simple" {
     const data = try serialize(SimpleProps, original);
     defer testing.allocator.free(data);
 
-    const parsed = parseProps(SimpleProps, testing.allocator, data);
+    const parsed = parse(SimpleProps, testing.allocator, data);
     try testing.expectEqual(original.count, parsed.count);
     try testing.expectEqual(original.enabled, parsed.enabled);
 }
@@ -634,7 +643,7 @@ test "serialize roundtrip nested" {
     const data = try serialize(NestedProps, original);
     defer testing.allocator.free(data);
 
-    const parsed = parseProps(NestedProps, testing.allocator, data);
+    const parsed = parse(NestedProps, testing.allocator, data);
     try testing.expectEqual(original.outer_val, parsed.outer_val);
     try testing.expectEqual(original.inner.value, parsed.inner.value);
     try testing.expectEqual(original.inner.flag, parsed.inner.flag);
@@ -649,7 +658,7 @@ test "serialize roundtrip array" {
     const data = try serialize(ArrayProps, original);
     defer testing.allocator.free(data);
 
-    const parsed = parseProps(ArrayProps, testing.allocator, data);
+    const parsed = parse(ArrayProps, testing.allocator, data);
     try testing.expectEqual(original.scores[0], parsed.scores[0]);
     try testing.expectEqual(original.scores[1], parsed.scores[1]);
     try testing.expectEqual(original.scores[2], parsed.scores[2]);
@@ -662,7 +671,7 @@ test "serialize roundtrip enum" {
     const data = try serialize(EnumProps, original);
     defer testing.allocator.free(data);
 
-    const parsed = parseProps(EnumProps, testing.allocator, data);
+    const parsed = parse(EnumProps, testing.allocator, data);
     try testing.expectEqual(original.status, parsed.status);
     try testing.expectEqual(original.value, parsed.value);
 }
@@ -672,7 +681,7 @@ test "serialize roundtrip optional null" {
     const data = try serialize(OptionalProps, original);
     defer testing.allocator.free(data);
 
-    const parsed = parseProps(OptionalProps, testing.allocator, data);
+    const parsed = parse(OptionalProps, testing.allocator, data);
     try testing.expectEqual(original.required, parsed.required);
     try testing.expect(parsed.optional_int == null);
     try testing.expect(parsed.optional_str == null);
@@ -683,7 +692,7 @@ test "serialize roundtrip optional present" {
     const data = try serialize(OptionalProps, original);
     defer testing.allocator.free(data);
 
-    const parsed = parseProps(OptionalProps, testing.allocator, data);
+    const parsed = parse(OptionalProps, testing.allocator, data);
     defer if (parsed.optional_str) |s| testing.allocator.free(s);
     try testing.expectEqual(original.required, parsed.required);
     try testing.expectEqual(original.optional_int, parsed.optional_int);
@@ -695,17 +704,17 @@ test "serialize roundtrip optional present" {
 // ============================================================================
 
 test "whitespace spaces" {
-    const r = parseProps(SimpleProps, testing.allocator, "[ 42 , true ]");
+    const r = parse(SimpleProps, testing.allocator, "[ 42 , true ]");
     try testing.expectEqual(@as(i32, 42), r.count);
 }
 
 test "whitespace newlines" {
-    const r = parseProps(SimpleProps, testing.allocator, "[\n42\n,\ntrue\n]");
+    const r = parse(SimpleProps, testing.allocator, "[\n42\n,\ntrue\n]");
     try testing.expectEqual(@as(i32, 42), r.count);
 }
 
 test "whitespace mixed" {
-    const r = parseProps(SimpleProps, testing.allocator, "[ \n\t42 , \n\ttrue ]");
+    const r = parse(SimpleProps, testing.allocator, "[ \n\t42 , \n\ttrue ]");
     try testing.expectEqual(@as(i32, 42), r.count);
 }
 
@@ -714,23 +723,22 @@ test "whitespace mixed" {
 // ============================================================================
 
 test "null input" {
-    const r = parseProps(SimpleProps, testing.allocator, null);
+    const r = parse(SimpleProps, testing.allocator, null);
     try testing.expectEqual(@as(i32, 0), r.count);
     try testing.expect(!r.enabled);
 }
 
 test "parser direct" {
     const P = struct { x: i32, y: i32 };
-    var parser = PropsParser.init("[10,20]");
-    const r = try parser.parse(P, testing.allocator);
+    const r = parse(P, testing.allocator, "[10,20]");
     try testing.expectEqual(@as(i32, 10), r.x);
     try testing.expectEqual(@as(i32, 20), r.y);
 }
 
 test "parser error" {
     const P = struct { value: i32 };
-    var parser = PropsParser.init("42"); // Missing bracket
-    try testing.expectError(error.ExpectedArrayStart, parser.parse(P, testing.allocator));
+    const parsed = parse(P, testing.allocator, "42");
+    try testing.expectEqual(parsed.value, @as(i32, 0));
 }
 
 const search_txt =
