@@ -1,5 +1,5 @@
 pub fn PUT(ctx: zx.RouteContext) !void {
-    ctx.response.setBody("Hello, World!");
+    ctx.response.text("Hello, World!");
 }
 
 const zx = @import("zx");

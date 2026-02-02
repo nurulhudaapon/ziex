@@ -20,7 +20,7 @@ pub fn Proxy(ctx: *zx.ProxyContext) !void {
         // _count = 0;
         // ctx.response.setStatus(.unauthorized);
         // ctx.response.setHeader("Content-Type", "text/plain");
-        // ctx.response.setBody("Unauthorized");
+        // ctx.response.text("Unauthorized");
         // return ctx.abort(); // Stop chain - no further handlers will run
     }
     ctx.next(); // Continue to next handler
@@ -54,7 +54,7 @@ pub fn PageProxy(ctx: *zx.ProxyContext) !void {
     //     _count = 0;
     //     ctx.response.setStatus(.unauthorized);
     //     ctx.response.setHeader("Content-Type", "text/plain");
-    //     ctx.response.setBody("Unauthorized");
+    //     ctx.response.text("Unauthorized");
     //     return ctx.abort(); // Stop chain - no further handlers will run
     // }
     ctx.next(); // Continue to next handler

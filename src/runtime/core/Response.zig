@@ -166,7 +166,7 @@ pub fn setStatusCode(self: *const Response, code: u16) void {
 ///
 /// **Zig Note:** This is an extension method not present in the web standard Response
 /// interface (which has read-only body). This method updates the backend response.
-pub fn setBody(self: *const Response, content: []const u8) void {
+pub fn text(self: *const Response, content: []const u8) void {
     if (self.vtable) |vt| {
         if (self.backend_ctx) |ctx| {
             vt.setBody(ctx, content);

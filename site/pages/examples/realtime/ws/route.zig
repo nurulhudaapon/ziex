@@ -2,7 +2,7 @@ pub fn GET(ctx: zx.RouteContext) !void {
     const uname = ctx.request.cookies.get("username") orelse "";
     if (uname.len == 0) {
         ctx.response.setStatus(.bad_request);
-        return ctx.response.setBody("Missing username cookie");
+        return ctx.response.text("Missing username cookie");
     }
 
     // Copy username into fixed-size buffer so it's embedded in the struct bytes
