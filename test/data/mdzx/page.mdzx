@@ -16,6 +16,8 @@ pub const options: zx.PageOptions = .{
 };
 ---
 
+<Lightning class="w-6 h-6 text-yellow-500" />
+
 # 1. Headers & Formatting
 # H1 Header
 ## H2 Header
