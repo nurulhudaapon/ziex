@@ -212,7 +212,7 @@ tildify() {
     fi
 }
 
-success "zx was installed successfully to $Bold_Green$(tildify "$exe")"
+success "ZX was installed successfully to $Bold_Green$(tildify "$exe")"
 
 if command -v zx >/dev/null; then
     info_bold "Run 'zx --help' to get started"
