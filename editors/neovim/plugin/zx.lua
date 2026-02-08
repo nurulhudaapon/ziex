@@ -16,7 +16,7 @@ local parser_path = vim.fn.stdpath("data") .. "/site/parser/zx.so"
 -- Auto-build parser if tree-sitter CLI is available
 if vim.fn.filereadable(parser_path) == 0 and vim.fn.executable("tree-sitter") == 1 then
   local plugin_dir = vim.fn.fnamemodify(debug.getinfo(1).source:sub(2), ":h:h")
-  local grammar_dir = plugin_dir .. "/../../packages/tree-sitter-zx"
+  local grammar_dir = plugin_dir .. "/../../pkg/tree-sitter-zx"
   
   vim.notify("ZX: Building parser...", vim.log.levels.INFO)
   vim.fn.mkdir(vim.fn.stdpath("data") .. "/site/parser", "p")
@@ -40,7 +40,7 @@ if ok then
   local config = {
     install_info = {
       url = "https://github.com/nurulhudaapon/zx",
-      files = { "packages/tree-sitter-zx/src/parser.c" },
+      files = { "pkg/tree-sitter-zx/src/parser.c" },
       branch = "main",
       generate_requires_npm = false,
     },

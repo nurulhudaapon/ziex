@@ -18,7 +18,7 @@ COPY src/ ./src
 COPY site/ ./site
 COPY build.zig.zon ./build.zig.zon
 COPY build.zig ./build.zig
-COPY packages/ ./packages/
+COPY pkg/ ./pkg/
 COPY vendor/ ./vendor
 
 RUN (cd site && $HOME/.bun/bin/bun install)

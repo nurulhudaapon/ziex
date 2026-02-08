@@ -7,7 +7,7 @@ pub fn build(
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
 ) *std.Build.Step {
-    const transformjs_dir = "packages/transformjs";
+    const transformjs_dir = "pkg/transformjs";
 
     // Build the Rust library using cargo
     const cargo_build = b.addSystemCommand(&.{ "cargo", "build", "--lib" });
@@ -66,7 +66,7 @@ pub fn link(
     optimize: std.builtin.OptimizeMode,
 ) void {
     const target = exe.root_module.resolved_target orelse return;
-    const transformjs_dir = "packages/transformjs";
+    const transformjs_dir = "pkg/transformjs";
 
     exe.step.dependOn(build_step);
     exe.addIncludePath(b.path(transformjs_dir));

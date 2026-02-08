@@ -1,6 +1,6 @@
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { hydrateAll } from "../../packages/ziex/src/react";
+import { hydrateAll } from "../../pkg/ziex/src/react";
 import { registry } from "@ziex/components";
 
 // Hydrate React islands

@@ -12,7 +12,7 @@ language = "ZX"
 
 [grammars.zx]
 # repository = "https://github.com/nurulhudaapon/zx"
-path = "packages/tree-sitter-zx"
+path = "pkg/tree-sitter-zx"
 # rev = "main"
 
 repository = "file:///Users/nurulhudaapon/Projects/nurulhudaapon/zx"
@@ -20,7 +20,7 @@ rev = "feat/mdzx"
 
 [grammars.mdzx]
 # repository = "https://github.com/nurulhudaapon/zx"
-path = "packages/tree-sitter-mdzx"
+path = "pkg/tree-sitter-mdzx"
 # rev = "main"
 
 repository = "file:///Users/nurulhudaapon/Projects/nurulhudaapon/zx"

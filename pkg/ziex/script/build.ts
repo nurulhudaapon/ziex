@@ -78,12 +78,12 @@ async function main() {
     await $`cd ${pkgDir} && tsc --project ${tempTsConfigPath}`;
     
     // Move nested declaration files to root of dist
-    // TypeScript outputs to dist/packages/ziex/src/ due to rootDir being project root
-    const nestedSrcDir = join(pkgDistDir, "packages/ziex/src");
+    // TypeScript outputs to dist/pkg/ziex/src/ due to rootDir being project root
+    const nestedSrcDir = join(pkgDistDir, "pkg/ziex/src");
     await $`cp -r ${nestedSrcDir}/* ${pkgDistDir}/`.quiet().nothrow();
     
     // Clean up nested directories
-    await $`rm -rf ${join(pkgDistDir, "packages")}`.quiet().nothrow();
+    await $`rm -rf ${join(pkgDistDir, "pkg")}`.quiet().nothrow();
     await $`rm -rf ${join(pkgDistDir, "vendor")}`.quiet().nothrow();
 
     // Clean up temporary tsconfig

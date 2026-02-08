@@ -64,12 +64,12 @@ rm -f "$BUILD_ZON_PATH.bak"
 echo "Version: $CURRENT_VERSION -> $NEW_VERSION"
 echo "Updated $BUILD_ZON_FILE"
 
-# Update packages/ziex/package.json version
-ZIEX_PACKAGE_JSON="$PROJECT_ROOT/packages/ziex/package.json"
+# Update pkg/ziex/package.json version
+ZIEX_PACKAGE_JSON="$PROJECT_ROOT/pkg/ziex/package.json"
 if [ -f "$ZIEX_PACKAGE_JSON" ]; then
     sed -i.bak -E "s/$VERSION_PATTERN/$NEW_VERSION/" "$ZIEX_PACKAGE_JSON"
     rm -f "$ZIEX_PACKAGE_JSON.bak"
-    echo "Updated packages/ziex/package.json"
+    echo "Updated pkg/ziex/package.json"
 fi
 
 # Update editors/zed/extension.toml version
@@ -100,7 +100,7 @@ git add "$ZED_EXTENSION_TOML" 2>/dev/null || true
 git add "$VSCODE_PACKAGE_JSON" 2>/dev/null || true
 
 # Update tree-sitter-zx version (ignore errors)
-TREE_SITTER_DIR="$PROJECT_ROOT/packages/tree-sitter-zx"
+TREE_SITTER_DIR="$PROJECT_ROOT/pkg/tree-sitter-zx"
 if [ -d "$TREE_SITTER_DIR" ]; then
     (cd "$TREE_SITTER_DIR" && tree-sitter version "$NEW_VERSION") 2>/dev/null || true
     git add "$TREE_SITTER_DIR" 2>/dev/null || true
