@@ -1062,7 +1062,6 @@ const cli_commands = [_]CLICommandInfo{
         .id = "cli-fmt",
         .description = "Format ZX source code files according to ZX's formatting rules.",
         .usage = "zx fmt [path] [flags]",
-        .badge = "Alpha",
         .arguments = &[_]CLIArg{
             .{ .name = "[path]", .description = "Path to .zx file or directory (optional, formats current directory if not specified)" },
         },

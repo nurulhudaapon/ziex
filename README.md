@@ -94,6 +94,8 @@ const zx = @import("zx");
     - [ ] Server Actions
     - [ ] Rendering performance
 - [x] Client Side Rendering (CSR) via React
+- [ ] MDZX (Markdown + ZX) (MDX eqiuvalent)
+- [ ] Render page as markdown via .md
 - [x] Routing
     - [x] File-system Routing
     - [x] Search Parameters
