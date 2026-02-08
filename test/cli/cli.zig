@@ -327,7 +327,7 @@ test "upgrade" {
             // "0.1.0-dev",
         },
         .expected_files = &.{},
-        .debug = true,
+        // .debug = true,
     });
 }
 
