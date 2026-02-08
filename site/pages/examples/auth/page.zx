@@ -35,7 +35,7 @@ pub fn Page(ctx: zx.PageCtx(void, AuthState)) zx.Component {
     );
 }
 
-fn handleAction(ctx: zx.PageCtx(void, @import("proxy.zig").AuthState)) void {
+fn handleAction(ctx: zx.PageCtx(void, AuthState)) void {
     if (ctx.request.method != .POST) return;
 
     const fd = ctx.request.formData();

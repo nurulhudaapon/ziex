@@ -92,7 +92,7 @@ pub fn build(b: *std.Build) !void {
                 .experimental_enabled_csr = true,
                 .copy_embedded_sources = true,
                 .steps = .{ .serve = "serve", .dev = "dev", .@"export" = "export", .bundle = "bundle" },
-                // .edge_path = b.path("site/edge.zig"),
+                .edge_path = b.path("site/edge.zig"),
                 .plugins = &.{
                     plugins.esbuild(b, .{
                         .bin = b.path("site/node_modules/.bin/esbuild"),
