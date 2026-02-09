@@ -37,8 +37,8 @@ pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
                     </label>
                     <div class="top-bar-right">
                         <nav class="top-bar-nav">
-                            <a href="/learn" class="top-bar-link">Learn</a>
-                            <a href="/docs" class="top-bar-link"><span class="top-bar-link-full">Reference</span><span class="top-bar-link-short">Ref</span></a>
+                            <a link="/learn" href="/learn" class="top-bar-link">Learn</a>
+                            <a link="/docs" href="/docs" class="top-bar-link"><span class="top-bar-link-full">Reference</span><span class="top-bar-link-short">Ref</span></a>
                             <a href={root.configs.example_url} class="top-bar-link">Examples</a>
                         </nav>
                         <div class="top-bar-actions">

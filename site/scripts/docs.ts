@@ -1,4 +1,5 @@
 import "../assets/clipboard";
+// import "./routing";
 
 // Dynamic import to reduce initial bundle size
 async function formatHTML(html: string, printWidth: number): Promise<string> {
