@@ -102,18 +102,20 @@ pub fn initInner(
     transpile_cmd.expectExitCode(0);
 
     // --- ZX File Cache Invalidator ---
-    const site_path = opts.site_path.getPath3(b, &transpile_cmd.step);
-    var site_dir = try site_path.root_dir.handle.openDir(site_path.subPathOrDot(), .{ .iterate = true });
-    var itd = try site_dir.walk(transpile_cmd.step.owner.allocator);
-    defer itd.deinit();
-    while (try itd.next()) |entry| {
-        switch (entry.kind) {
-            .directory => {},
-            .file => {
-                const entry_path = try site_path.join(transpile_cmd.step.owner.allocator, entry.path);
-                transpile_cmd.addFileInput(b.path(entry_path.sub_path));
-            },
-            else => continue,
+    watch: {
+        const site_path = opts.site_path.getPath3(b, &transpile_cmd.step);
+        var site_dir = site_path.root_dir.handle.openDir(site_path.subPathOrDot(), .{ .iterate = true }) catch break :watch;
+        var itd = try site_dir.walk(transpile_cmd.step.owner.allocator);
+        defer itd.deinit();
+        while (try itd.next()) |entry| {
+            switch (entry.kind) {
+                .directory => {},
+                .file => {
+                    const entry_path = try site_path.join(transpile_cmd.step.owner.allocator, entry.path);
+                    transpile_cmd.addFileInput(b.path(entry_path.sub_path));
+                },
+                else => continue,
+            }
         }
     }
 

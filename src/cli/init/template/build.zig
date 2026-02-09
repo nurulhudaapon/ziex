@@ -13,7 +13,7 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
 
-    // --- ZX Setup (sets up ZX, dependencies, executables and `serve` step) ---
+    // --- Site Executable ---
     const site_exe = b.addExecutable(.{
         .name = "zx_site",
         .root_module = b.createModule(.{
@@ -26,6 +26,7 @@ pub fn build(b: *std.Build) !void {
         }),
     });
 
+    // --- ZX setup: wires dependencies and adds `zx`/`dev` build steps ---
     _ = try zx.init(b, site_exe, .{
         .experimental = .{ .enabled_csr = true },
     });
