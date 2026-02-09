@@ -354,6 +354,19 @@ body {
     font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
     font-size: 0.86rem;
     color: rgba(230, 237, 243, 0.9);
+    display: block;
+    white-space: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    padding-bottom: 0.2rem;
+    -webkit-mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 88%, rgba(0,0,0,0) 100%);
+    mask-image: linear-gradient(90deg, rgba(0,0,0,1) 0%, rgba(0,0,0,1) 88%, rgba(0,0,0,0) 100%);
+}
+
+.hero-install .install-code::-webkit-scrollbar {
+    width: 0;
+    height: 0;
 }
 
 .hero-install .install-code .function {
@@ -375,6 +388,14 @@ body {
 @media (max-width: 768px) {
     .hero-cta {
         justify-content: center;
+    }
+
+    .hero-install .install-code {
+        text-align: left;
+    }
+
+    .hero-install .install-code {
+        font-size: 0.75rem;
     }
 }
 

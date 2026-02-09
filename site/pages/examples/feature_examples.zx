@@ -104,19 +104,23 @@ pub fn ControlWhileError(allocator: zx.Allocator) zx.Component {
 }
 
 // --- Caching: component ---
-pub fn CachedHeader(allocator: zx.Allocator) zx.Component {
-    return (
-        <header @allocator={allocator} @caching="10s">
-            <h1>Cached Header</h1>
-        </header>
-    );
+pub fn CacheComponent(alloc: zx.Allocator) zx.Component {
+    return (<Expensive @allocator={alloc} @caching="10s" />);
 }
 
+fn Expensive(allocator: zx.Allocator) zx.Component {
+    std.Thread.sleep(std.time.ns_per_s * 3);
+    return (<div @allocator={allocator}></div>);
+}
 // --- Caching: page ---
-pub fn Caching__Page(ctx: zx.PageContext) zx.Component {
+pub fn Caching__Page(
+    ctx: zx.PageContext,
+) zx.Component {
+    std.Thread.sleep(std.time.ns_per_s * 3);
     return (
         <div @allocator={ctx.arena}>
-            <h1>Cached Page</h1>
+            <h1>Expensive Page</h1>
+            <p>I take too long to load.</p>
         </div>
     );
 }
@@ -126,7 +130,9 @@ pub const options = zx.PageOptions{
 };
 
 // --- File System Routing: page ---
-pub fn Routing__Page(ctx: zx.PageContext) zx.Component {
+pub fn Routing__Page(
+    ctx: zx.PageContext,
+) zx.Component {
     return (
         <div @allocator={ctx.arena}>
             <h1>Home</h1>
@@ -161,7 +167,9 @@ pub fn Button(
 }
 
 // --- Component: fragment ---
-pub fn Fragment(allocator: zx.Allocator) zx.Component {
+pub fn Fragment(
+    allocator: zx.Allocator,
+) zx.Component {
     return (
         <fragment @allocator={allocator}>
             <span>One</span>
@@ -173,26 +181,31 @@ pub fn Fragment(allocator: zx.Allocator) zx.Component {
 }
 
 // --- Component: props ---
-pub fn SpreadProps(allocator: zx.Allocator) zx.Component {
-    const attrs = .{ .class = "btn", .id = "cta" };
+pub fn SpreadProps(
+    allocator: zx.Allocator,
+) zx.Component {
+    const attrs =
+        .{ .class = "btn", .id = "cta" };
     const class = "primary";
     return (
         <section @allocator={allocator}>
-            <button {..attrs}>Attribute Spreading</button>
-            <button {class}>Attribute Shorthand</button>
+            <button {..attrs}>Spreading</button>
+            <button {class}>Shorthand</button>
         </section>
     );
 }
 
 // --- Component: attr ---
-pub fn DynamicAttr(allocator: zx.Allocator) zx.Component {
+pub fn DynamicAttr(
+    allocator: zx.Allocator,
+) zx.Component {
     const is_active = true;
     const class = if (is_active) "active" else "idle";
     const color = if (is_active) "green" else "red";
     return (
         <section @allocator={allocator}>
             <button class={class}>Go</button>
-            <button class={class} style=`color: {color};`>
+            <button style=`color: {color};`>
                 Template String
             </button>
         </section>
@@ -237,7 +250,7 @@ pub fn Socket(ctx: zx.SocketContext) !void {
 }
 
 pub fn SocketOpen(ctx: zx.SocketOpenContext) !void {
-    try ctx.socket.write("Welcome to the WebSocket!");
+    try ctx.socket.write("Opened!");
 }
 
 // --- Imports ---
