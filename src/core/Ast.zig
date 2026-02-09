@@ -3,7 +3,7 @@ pub fn fmt(allocator: std.mem.Allocator, source: [:0]const u8) !FmtResult {
     defer aa.deinit();
     const arena = aa.allocator();
 
-    var parser_result = try Parser.parse(arena, source);
+    var parser_result = try Parser.parse(arena, source, .zx);
     defer parser_result.deinit(allocator);
 
     // Don't format if tree has syntax errors
@@ -41,14 +41,10 @@ pub const ParseOptions = struct {
             };
         }
     };
-    pub const Lang = enum {
-        zx,
-        mdzx,
-        md,
-    };
+
     path: ?[]const u8 = null,
     map: MapMode = .none,
-    lang: Lang = .zx,
+    lang: Parser.Language = .zx,
 };
 
 pub fn parse(gpa: std.mem.Allocator, zx_source: [:0]const u8, options: ParseOptions) !ParseResult {
@@ -56,7 +52,7 @@ pub fn parse(gpa: std.mem.Allocator, zx_source: [:0]const u8, options: ParseOpti
     defer aa.deinit();
     const arena = aa.allocator();
 
-    var parse_result = try Parser.parse(arena, zx_source);
+    var parse_result = try Parser.parse(arena, zx_source, options.lang);
     defer parse_result.deinit(arena);
     const render_result = try parse_result.renderAlloc(arena, .{ .mode = .zig, .sourcemap = options.map.enabled(), .path = options.path });
     var zig_ast = try std.zig.Ast.parse(gpa, try arena.dupeZ(u8, render_result.source), .zig);

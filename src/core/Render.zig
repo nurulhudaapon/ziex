@@ -157,7 +157,7 @@ pub fn patchInBlocks(allocator: std.mem.Allocator, extract_result: ExtractBlockR
                 const base_indent = getIndentationLevel(extract_result.zig_source, i);
 
                 // Format the zx_block using the tree-sitter renderer
-                var block_ast = try Parse.parse(allocator, zx_block);
+                var block_ast = try Parse.parse(allocator, zx_block, .zx);
                 defer block_ast.deinit(allocator);
 
                 var block_writer = std.io.Writer.Allocating.init(allocator);

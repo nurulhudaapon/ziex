@@ -1,0 +1,3 @@
+pub fn _zx_md(ctx: *@import("zx").ComponentCtx(struct { children: @import("zx").Component })) @import("zx").Component {
+    return (<h1 @allocator={ctx.allocator}>hi</h1>);
+}

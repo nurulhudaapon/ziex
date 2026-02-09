@@ -81,19 +81,30 @@ pub const NodeKind = enum {
     }
 };
 
+pub const Language = enum {
+    zx,
+    mdzx,
+    md,
+};
+
 tree: *ts.Tree,
+lang: Language,
 source: []const u8,
 allocator: std.mem.Allocator,
 
-pub fn parse(allocator: std.mem.Allocator, source: []const u8) !Parse {
+pub fn parse(allocator: std.mem.Allocator, source: []const u8, lang: Language) !Parse {
     const parser = ts.Parser.create();
-    const lang = ts.Language.fromRaw(ts_zx.language());
-    parser.setLanguage(lang) catch return error.LoadingLang;
-    const tree = parser.parseString(source, null) orelse return error.ParseError;
+    parser.setLanguage(ts.Language.fromRaw(@import("tree_sitter_zx").language())) catch return error.LoadingLang;
+
+    const tree = switch (lang) {
+        .zx => parser.parseString(source, null) orelse return error.ParseError,
+        .mdzx, .md => parser.parseString(try mdzxTozx(source), null) orelse return error.ParseError,
+    };
 
     return Parse{
         .tree = tree,
         .source = source,
+        .lang = lang,
         .allocator = allocator,
     };
 }
@@ -123,7 +134,7 @@ pub const RenderResult = struct {
 };
 
 pub const RenderOptions = struct {
-    pub const RenderMode = enum { zx, zig };
+    pub const RenderMode = enum { zx, zig, mdzx };
     mode: RenderMode,
     sourcemap: bool,
     path: ?[]const u8,
@@ -141,6 +152,7 @@ pub fn renderAlloc(
             try Render.renderNode(self, root, &aw.writer);
             return RenderResult{ .source = try aw.toOwnedSlice(), .client_components = &.{} };
         },
+        .mdzx => @panic("MDZX rendering not implemented yet"),
         .zig => {
             var ctx = Transpile.TranspileContext.init(allocator, self.source, .{ .sourcemap = options.sourcemap, .path = options.path });
             defer ctx.deinit();
@@ -155,6 +167,27 @@ pub fn renderAlloc(
             };
         },
     }
+}
+
+fn mdzxTozx(
+    source: []const u8,
+) ![]const u8 {
+    const parser = ts.Parser.create();
+    parser.setLanguage(ts.Language.fromRaw(@import("tree_sitter_mdzx").language())) catch return error.LoadingLang;
+    const tree = parser.parseString(source, null) orelse return error.ParseError;
+    defer tree.destroy();
+
+    const root = tree.rootNode();
+    if (root.childCount() == 0) {
+        return "";
+    }
+
+    const first_child = root.child(0) orelse return "";
+    if (std.mem.eql(u8, first_child.kind(), "ERROR")) {
+        return "";
+    }
+    // TODO: Transpile the mdzx to zx;
+    return source[first_child.startByte()..first_child.endByte()];
 }
 
 pub fn getNodeText(self: *Parse, node: ts.Node) ![]const u8 {
@@ -185,7 +218,8 @@ pub fn getLineColumn(self: *const Parse, byte_offset: u32) struct { line: i32, c
 
 const std = @import("std");
 const ts = @import("tree_sitter");
-const ts_zx = @import("tree_sitter_zx");
+
 const sourcemap = @import("sourcemap.zig");
 const Render = @import("Render.zig");
 const Transpile = @import("Transpile.zig");
+const Markdown = @import("Markdown.zig");
