@@ -171,7 +171,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 // </section>
             </main>
             <footer class="footer">
-                <p>© {current_year} {"Ziex contributors. ZX is free and open source software released under the MIT license."}</p>
+                <p>© {current_year} {" Ziex contributors. Ziex is free and open source software released under the MIT license."}</p>
             </footer>
             <script src={std.fmt.allocPrint(allocator, "/assets/clipboard.js?v={s}", .{zx.info.version_string}) catch unreachable} defer="true"></script>
         </div>
