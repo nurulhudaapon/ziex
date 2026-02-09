@@ -1,8 +1,8 @@
-# ZX
+# Ziex
 
 A full-stack web framework for Zig. Write declarative UI components using familiar JSX patterns, transpiled to efficient Zig code.
 
-ZX combines the power and performance of Zig with the expressiveness of JSX, enabling you to build fast, type-safe web applications.
+Ziex combines the power and performance of Zig with the expressiveness of JSX, enabling you to build fast, type-safe web applications.
 
 **[Documentation →](https://ziex.dev/learn)**
 

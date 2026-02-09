@@ -1,14 +1,14 @@
-# ZX
+# Ziex
 
 A Zig library for building web applications with JSX-like syntax. Write declarative UI components using familiar JSX patterns, transpiled to efficient Zig code.
 
-**📚 [Full Documentation of ZX →](https://ziex.dev)**
+**📚 [Full Documentation of Ziex →](https://ziex.dev)**
 
 ## Contributing
 
 ### Project Overview
 
-This is a VS Code extension that provides syntax highlighting, language support, and formatting for ZX files (`.zx`). ZX allows you to write HTML within Zig code using JSX-like syntax.
+This is a VS Code extension that provides syntax highlighting, language support, and formatting for Ziex files (`.zx`). ZX allows you to write HTML within Zig code using JSX-like syntax.
 
 #### Project Structure
 

@@ -1,5 +1,5 @@
-This is a developer preview of ZX; some features are still works in progress.
-Update or install the ZX CLI using the following scripts.
+This is a developer preview of Ziex; some features are still works in progress.
+Update or install the Ziex CLI using the following scripts.
 
 ## Installation
 

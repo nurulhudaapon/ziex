@@ -5,14 +5,14 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
     return (
         <main @allocator={ctx.arena}>
-            <p>ZX is a framework for building web applications with Zig.</p>
-            <a href="https://ziex.dev" target="_blank">See ZX Docs →</a>
+            <p>Ziex is a framework for building web applications with Zig.</p>
+            <a href="https://ziex.dev" target="_blank">See Ziex Docs →</a>
             <br />
             <div style="height: 150px; margin: 10px;">
                 <ReactCounterComponent @rendering={.react} counter={counter} />
                 <ZigCounterComponent @rendering={.client} counter={counter} />
             </div>
-            <h4>ZX + React + WASM</h4>
+            <h4>Ziex + React + WASM</h4>
             <hr />
             <a href="/about">Navigate to About Page</a>
 

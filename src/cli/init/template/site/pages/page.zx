@@ -3,8 +3,8 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
     return (
         <main @allocator={ctx.arena}>
-            <p>ZX is a framework for building web applications with Zig.</p>
-            <a href="https://ziex.dev" target="_blank">See ZX Docs →</a>
+            <p>Ziex is a framework for building web applications with Zig.</p>
+            <a href="https://ziex.dev" target="_blank">See Ziex Docs →</a>
             <br />
             <h5>{counter}</h5>
             <h6>Visit Count</h6>

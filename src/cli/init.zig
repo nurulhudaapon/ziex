@@ -194,12 +194,12 @@ const templates = [_]TemplateFile{
     .{ .path = ".gitattributes", .content = @embedFile(template_dir ++ "/.gitattributes") },
 
     // Default (SSR)
-    .{ .name = .default, .path = "build.zig", .content = @embedFile(template_dir ++ "/build.zig"), .lines = &.{ .{ 1, 33 } } },
+    .{ .name = .default, .path = "build.zig", .content = @embedFile(template_dir ++ "/build.zig"), .lines = &.{.{ 1, 33 }} },
     .{ .name = .default, .path = "site/main.zig", .content = @embedFile(template_dir ++ "/site/main.zig") },
     .{ .name = .default, .path = "site/pages/page.zx", .content = @embedFile(template_dir ++ "/site/pages/page.zx") },
 
     // React (CSR)
-    .{ .name = .react, .path = "build.zig", .content = @embedFile(template_dir ++ "/build.zig"), .lines = &.{ .{ 1, 33 } } },
+    .{ .name = .react, .path = "build.zig", .content = @embedFile(template_dir ++ "/build.zig"), .lines = &.{.{ 1, 33 }} },
     .{ .name = .react, .path = "site/main.zig", .content = @embedFile(template_dir ++ "/site/main.zig"), .lines = &.{ .{ 1, 3 }, .{ 5, 8 }, .{ 11, 21 } } },
     .{ .name = .react, .path = "site/main.ts", .content = @embedFile(template_dir ++ "/site/main.ts"), .lines = &.{ .{ 1, 4 }, .{ 7, 7 }, .{ 11, 18 } } },
     .{ .name = .react, .path = "site/pages/page.zx", .content = @embedFile(template_dir ++ "/site/pages/page+react.zx") },
@@ -215,7 +215,7 @@ const templates = [_]TemplateFile{
     .{ .name = .wasm, .path = "site/pages/client.zx", .content = @embedFile(template_dir ++ "/site/pages/client.zx") },
 
     // React + WASM
-    .{ .name = .react_wasm, .path = "build.zig", .content = @embedFile(template_dir ++ "/build.zig"), .lines = &.{ .{ 1, 33 } } },
+    .{ .name = .react_wasm, .path = "build.zig", .content = @embedFile(template_dir ++ "/build.zig"), .lines = &.{.{ 1, 33 }} },
     .{ .name = .react_wasm, .path = "site/main.zig", .content = @embedFile(template_dir ++ "/site/main.zig") },
     .{ .name = .react_wasm, .path = "site/main.ts", .content = @embedFile(template_dir ++ "/site/main.ts") },
     .{ .name = .react_wasm, .path = "site/pages/page.zx", .content = @embedFile(template_dir ++ "/site/pages/page+react_wasm.zx") },
