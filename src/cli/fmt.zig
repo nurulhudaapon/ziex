@@ -49,7 +49,7 @@ fn fmt(ctx: zli.CommandContext) !void {
     if (paths.len == 0) {
         try ctx.writer.print("{s}No paths were given.{s}\n", .{ colors.yellow, colors.reset });
         try ctx.writer.print("\nUsage:\n\n", .{});
-        try ctx.writer.print("  {s}zx fmt{s} {s}{s}site/pages/page.zx{s}  {s}# Format a single file{s}\n\n", .{
+        try ctx.writer.print("  {s}zx fmt{s} {s}{s}app/pages/page.zx{s}  {s}# Format a single file{s}\n\n", .{
             colors.cyan,
             colors.reset,
             colors.bold,
@@ -58,7 +58,7 @@ fn fmt(ctx: zli.CommandContext) !void {
             colors.gray,
             colors.reset,
         });
-        try ctx.writer.print("  {s}zx fmt{s} {s}{s}site/pages{s}  {s}# Format all .zx files in a directory{s}\n\n", .{
+        try ctx.writer.print("  {s}zx fmt{s} {s}{s}app/pages{s}  {s}# Format all .zx files in a directory{s}\n\n", .{
             colors.cyan,
             colors.reset,
             colors.bold,

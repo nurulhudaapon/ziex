@@ -13,16 +13,16 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions)
     const zx_exe = zx_dep.artifact("zx");
 
     var opts: InitInnerOptions = .{
-        .site_path = b.path("site"),
+        .site_path = b.path("app"),
         .cli_path = null,
         .site_outdir = null,
         .steps = .default,
         .plugins = &.{},
-        .experimental_enabled_csr = false,
         .copy_embedded_sources = false,
+        .client = options.client,
     };
 
-    if (options.site) |site_opts| {
+    if (options.app) |site_opts| {
         opts.site_path = site_opts.path;
         opts.copy_embedded_sources = site_opts.copy_embedded_sources;
     }
@@ -33,10 +33,6 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions)
         if (cli_opts.steps) |cli_steps| {
             opts.steps = cli_steps;
         }
-    }
-
-    if (options.experimental) |experimental_opts| {
-        opts.experimental_enabled_csr = experimental_opts.enabled_csr;
     }
 
     if (options.plugins) |plugins| {
@@ -52,9 +48,9 @@ const InitInnerOptions = struct {
     site_outdir: ?LazyPath,
     steps: ZxInitOptions.CliOptions.Steps,
     plugins: []const ZxInitOptions.PluginOptions,
-    experimental_enabled_csr: bool,
     copy_embedded_sources: bool,
     edge_path: ?LazyPath = null,
+    client: ?ZxInitOptions.ClientOptions = null,
 };
 
 fn getZxRun(b: *std.Build, zx_exe: *std.Build.Step.Compile, opts: InitInnerOptions) *std.Build.Step.Run {
@@ -74,8 +70,8 @@ fn getTranspileOutdir(transpile_cmd: *std.Build.Step.Run, opts: InitInnerOptions
     }
 
     // if user didn't provide a path, they don't want to keep transpiled output
-    // this will put the transpiled output in .zig-cache/o/{HASH}/site
-    return transpile_cmd.addOutputDirectoryArg("site");
+    // this will put the transpiled output in .zig-cache/o/{HASH}/app
+    return transpile_cmd.addOutputDirectoryArg("app");
 }
 
 pub fn initInner(
@@ -100,6 +96,12 @@ pub fn initInner(
         transpile_cmd.addArg("--copy-embedded-sources");
     }
     transpile_cmd.expectExitCode(0);
+
+    // --- ZX Options --- //
+    const zx_options = b.addOptions();
+    zx_options.addOption(bool, "client_enabled", opts.client != null);
+    zx_options.addOption(?[]const u8, "jsglue_href", if (opts.client) |client_opts| client_opts.jsglue_href else null);
+    zx_module.addOptions("zx_options", zx_options);
 
     // --- ZX File Cache Invalidator ---
     watch: {
@@ -162,7 +164,7 @@ pub fn initInner(
 
     // --- ZX WASM Main Executable --- //
     var wasm_exe_opt: ?*std.Build.Step.Compile = null;
-    if (opts.experimental_enabled_csr) {
+    if (opts.client != null) {
         wasm_exe_opt = b.addExecutable(.{
             .name = b.fmt("main", .{}),
             .root_module = b.createModule(.{
@@ -222,7 +224,7 @@ pub fn initInner(
 
     // --- ZX WASM Main Executable --- //
     var wasm_edge_exe_opt: ?*std.Build.Step.Compile = null;
-    if (opts.experimental_enabled_csr and opts.edge_path != null) {
+    if (opts.client != null and opts.edge_path != null) {
         wasm_edge_exe_opt = b.addExecutable(.{
             .name = b.fmt("edge", .{}),
             .root_module = b.createModule(.{

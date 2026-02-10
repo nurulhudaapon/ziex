@@ -54,12 +54,12 @@ pub const CliOptions = struct {
     },
 };
 
-/// Configuration for the ZX site directory.
-pub const SiteOptions = struct {
-    /// Path to the ZX site source directory.
+/// Configuration for the ZX app directory.
+pub const AppOptions = struct {
+    /// Path to the ZX app source directory.
     ///
     /// This directory should contain your `.zx` template files, layouts,
-    /// and other site assets. Defaults to "site" if not specified in ZxInitOptions.
+    /// and other app assets. Defaults to "app" if not specified in ZxInitOptions.
     path: LazyPath,
 
     /// Copy embedded `.zx` source files to the transpile output directory.
@@ -68,24 +68,21 @@ pub const SiteOptions = struct {
     /// will be copied to the output directory alongside the generated `.zig` files,
     /// and the `@embedFile` paths will be updated to reference the local copies.
     ///
-    /// This is useful when you want to display source code examples in your site
+    /// This is useful when you want to display source code examples in your app
     /// and need the files accessible within the package boundary.
     ///
     /// Default: `false`
     copy_embedded_sources: bool = false,
 };
 
-/// Experimental features that may change in future versions.
-const ExperimentalOptions = struct {
-    /// Enable Client-Side Rendering (CSR) support.
-    ///
-    /// When enabled, ZX will compile a WebAssembly module for client-side
-    /// interactivity and hydration. This generates additional build artifacts
-    /// in the assets directory.
-    ///
-    /// Default: `false`
-    enabled_csr: bool = false,
+pub const ClientOptions = struct {
+    pub const default: ClientOptions = .{};
+
+    jsglue_href: ?[]const u8 = null,
 };
+
+/// Experimental features that may change in future versions.
+const ExperimentalOptions = struct {};
 
 /// Configuration for build plugins that extend ZX functionality.
 pub const PluginOptions = struct {
@@ -118,17 +115,24 @@ pub const PluginOptions = struct {
     steps: []const PluginStep,
 };
 
-/// Site directory configuration.
+/// App directory configuration.
 ///
-/// If `null`, defaults to `site` directory in your project root.
-/// Override this to use a custom site source directory.
-site: ?SiteOptions = null,
+/// If `null`, defaults to `app` directory in your project root.
+/// Override this to use a custom app source directory.
+app: ?AppOptions = null,
 
 /// ZX CLI configuration.
 ///
 /// Controls which ZX CLI executable to use and which build steps to create.
 /// If `null`, uses default configuration with ZX CLI from dependency source.
 cli: ?CliOptions = null,
+
+/// Enable Client-Side Rendering (CSR) support.
+///
+/// When enabled, ZX will compile a WebAssembly module for client-side
+/// interactivity and hydration. This generates additional build artifacts
+/// in the assets directory.
+client: ?ClientOptions = .default,
 
 /// Experimental features configuration.
 ///

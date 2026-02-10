@@ -1,5 +1,5 @@
 {
-  "main": "site/main.ts",
+  "main": "app/main.ts",
   "devDependencies": {
     "@types/react": "^19.2.8",
     "@types/react-dom": "^19.2.3",

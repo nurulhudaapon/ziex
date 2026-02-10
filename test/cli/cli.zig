@@ -12,11 +12,10 @@ test "init" {
         .expected_files = &.{
             "build.zig.zon",
             "build.zig",
-            "site/main.zig",
-            "site/pages/page.zx",
-            "site/assets/style.css",
-            "site/public/favicon.ico",
-            "src/root.zig",
+            "app/main.zig",
+            "app/pages/page.zx",
+            "app/assets/style.css",
+            "app/public/favicon.ico",
             ".gitignore",
             ".gitattributes",
             "README.md",
@@ -48,8 +47,8 @@ test "init --force" {
         .expected_files = &.{
             "build.zig.zon",
             "build.zig",
-            "site/main.zig",
-            "site/pages/page.zx",
+            "app/main.zig",
+            "app/pages/page.zx",
             ".gitignore",
             ".gitattributes",
             "README.md",
@@ -77,10 +76,10 @@ test "init -t react" {
         .expected_files = &.{
             "react/build.zig.zon",
             "react/build.zig",
-            "react/site/main.zig",
-            "react/site/main.ts",
-            "react/site/pages/page.zx",
-            "react/site/pages/client.tsx",
+            "react/app/main.zig",
+            "react/app/main.ts",
+            "react/app/pages/page.zx",
+            "react/app/pages/client.tsx",
             "react/package.json",
             "react/.gitattributes",
             "react/tsconfig.json",
@@ -105,9 +104,9 @@ test "init -t wasm" {
         .expected_files = &.{
             "wasm/build.zig.zon",
             "wasm/build.zig",
-            "wasm/site/main.zig",
-            "wasm/site/pages/page.zx",
-            "wasm/site/pages/client.zx",
+            "wasm/app/main.zig",
+            "wasm/app/pages/page.zx",
+            "wasm/app/pages/client.zx",
         },
     });
 }
@@ -256,12 +255,12 @@ test "bundle" {
         .expected_stderr_strings = &.{
             "Bundling ZX site!",
             "bundle",
-            "zx_site",
+            "zx_app",
             "style.css",
             "favicon.ico",
         },
         .expected_files = &.{
-            "bundle/zx_site" ++ (if (builtin.os.tag == .windows) ".exe" else ""),
+            "bundle/zx_app" ++ (if (builtin.os.tag == .windows) ".exe" else ""),
             "bundle/assets/style.css",
             "bundle/public/favicon.ico",
         },
@@ -308,11 +307,11 @@ test "bundle --docker-compose" {
 
 test "fmt" {
     try test_cmd(.{
-        .args = &.{ "fmt", "site" ++ std.fs.path.sep_str ++ "pages" },
+        .args = &.{ "fmt", "app" ++ std.fs.path.sep_str ++ "pages" },
         .expected_exit_code = 0,
         .expected_stdout_strings = &.{
-            // "site" ++ std.fs.path.sep_str ++ "pages" ++ std.fs.path.sep_str ++ "layout.zx",
-            // "site" ++ std.fs.path.sep_str ++ "pages" ++ std.fs.path.sep_str ++ "page.zx",
+            // "app" ++ std.fs.path.sep_str ++ "pages" ++ std.fs.path.sep_str ++ "layout.zx",
+            // "app" ++ std.fs.path.sep_str ++ "pages" ++ std.fs.path.sep_str ++ "page.zx",
         },
     });
 }
@@ -406,9 +405,9 @@ fn test_cmd(options: TestCmdOptions) !void {
 
 const local_zon_str =
     \\.{
-    \\    .name = .zx_site,
+    \\    .name = .zx_app,
     \\    .version = "0.0.0",
-    \\    .fingerprint = 0xc04151551dc3c31d,
+    \\    .fingerprint = 0x77989223bd4e92d3,
     \\    .minimum_zig_version = "0.15.2",
     \\    .dependencies = .{
     \\        .zx = .{
@@ -418,15 +417,15 @@ const local_zon_str =
     \\    .paths = .{
     \\        "build.zig",
     \\        "build.zig.zon",
-    \\        "src",
+    \\        "app",
     \\    },
     \\}
 ;
 
 var local_wasm_zon_str = .{
-    .name = .zx_site,
+    .name = .zx_app,
     .version = "0.0.0",
-    .fingerprint = 0xc04151551dc3c31d,
+    .fingerprint = 0x77989223bd4e92d3,
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
         .zx = .{
@@ -436,7 +435,7 @@ var local_wasm_zon_str = .{
     .paths = .{
         "build.zig",
         "build.zig.zon",
-        "src",
+        "app",
     },
 };
 

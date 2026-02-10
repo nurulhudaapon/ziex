@@ -1,12 +1,14 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
-    const about_zx = mod.get_about_zx();
     return (
         <main @allocator={ctx.arena}>
-            <p>{about_zx}</p>
+            <p>{get_about_zx()}</p>
             <a href="/">Back to Home</a>
         </main>
     );
 }
 
-const mod = @import("root_mod");
+pub fn get_about_zx() []const u8 {
+    return "Ziex is a framework for building web applications with Zig.";
+}
+
 const zx = @import("zx");

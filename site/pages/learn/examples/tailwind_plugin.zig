@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) !void {
     try zx.init(b, exe, .{
         .plugins = &.{
             zx.plugins.tailwind(b, .{
-                .input = b.path("site/assets/styles.css"),
+                .input = b.path("app/assets/styles.css"),
                 .output = b.path("{outdir}/assets/styles.css"),
             }),
         },

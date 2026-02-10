@@ -93,8 +93,10 @@ pub fn build(b: *std.Build) !void {
                 .cli_path = null,
                 .site_outdir = null,
                 .site_path = b.path("site"),
-                .experimental_enabled_csr = true,
                 .copy_embedded_sources = true,
+                .client = .{
+                    .jsglue_href = "/assets/main.js?=" ++ build_zon.version,
+                },
                 .steps = .{ .serve = "serve", .dev = "dev", .@"export" = "export", .bundle = "bundle" },
                 // .edge_path = b.path("site/edge.zig"),
                 .plugins = &.{

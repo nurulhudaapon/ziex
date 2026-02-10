@@ -3,7 +3,6 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
         <div @allocator={ctx.arena}>
             <Sidebar allocator={ctx.arena} categories={&categories} toc={&toc_links} children={children} />
             <script src=`/assets/docs.js?v={zx.info.version_string}` defer="true"></script>
-            <script src=`/assets/main.js?v={zx.info.version_string}` defer="true"></script>
         </div>
     );
 }

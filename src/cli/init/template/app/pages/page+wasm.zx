@@ -19,8 +19,6 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
             <h4>Ziex + WASM</h4>
             <hr />
             <a href="/about">Navigate to About Page</a>
-
-            <script src=`https://cdn.jsdelivr.net/npm/ziex@{zx.info.jsglue_version}/wasm/init.min.js` />
         </main>
     );
 }

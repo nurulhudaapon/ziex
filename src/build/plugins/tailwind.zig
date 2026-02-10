@@ -1,6 +1,6 @@
 pub fn tailwind(b: *std.Build, options: TailwindPluginOptions) ZxInitOptions.PluginOptions {
     const bin = options.bin orelse b.path("node_modules/.bin/tailwindcss");
-    const input = options.input orelse b.path("site/assets/styles.css");
+    const input = options.input orelse b.path("app/assets/styles.css");
     const output = options.output orelse b.path("{outdir}/assets/styles.css");
 
     const cmd: *std.Build.Step.Run = .create(b, "tailwind");
@@ -57,7 +57,7 @@ const LazyPath = std.Build.LazyPath;
 const TailwindPluginOptions = struct {
     /// Path to the tailwindcss binary [default: `node_modules/.bin/tailwindcss`]
     bin: ?LazyPath = null,
-    /// Input file [default: `site/assets/styles.css`]
+    /// Input file [default: `app/assets/styles.css`]
     input: ?LazyPath = null,
     /// Output file [default: `{outdir}/assets/styles.css`]
     /// `{outdir}/assets` means you can add link the styles like

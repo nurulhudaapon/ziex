@@ -1,7 +1,7 @@
 .{
-    .name = .zx_site,
+    .name = .zx_app,
     .version = "0.0.0",
-    .fingerprint = 0xc04151551dc3c31d,
+    .fingerprint = 0x77989223bd4e92d3,
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
         .zx = .{
@@ -12,6 +12,6 @@
     .paths = .{
         "build.zig",
         "build.zig.zon",
-        "src",
+        "app",
     },
 }

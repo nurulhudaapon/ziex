@@ -1,6 +1,6 @@
 pub fn esbuild(b: *std.Build, options: EsbuildPluginOptions) ZxInitOptions.PluginOptions {
     const bin = options.bin orelse b.path("node_modules/.bin/esbuild");
-    const input = options.input orelse b.path("site/main.ts");
+    const input = options.input orelse b.path("app/main.ts");
     const output = options.output orelse b.path("{outdir}/assets/main.js");
 
     const cmd: *std.Build.Step.Run = .create(b, "esbuild");
@@ -94,7 +94,7 @@ const LazyPath = std.Build.LazyPath;
 const EsbuildPluginOptions = struct {
     /// Path to the esbuild binary [default: `node_modules/.bin/esbuild`]
     bin: ?LazyPath = null,
-    /// Input entry point file [default: `site/main.ts`]
+    /// Input entry point file [default: `app/main.ts`]
     input: ?LazyPath = null,
     /// Output file [default: `{outdir}/assets/main.js`]
     /// `{outdir}/assets` means you can link the script like:
