@@ -28,6 +28,7 @@ pub fn Server(comptime H: type) type {
         pub const Meta = ServerMeta;
         pub const Config = ServerConfig;
         pub const version = module_config.version_string;
+        pub const jsglue_version = module_config.jsglue_version;
 
         allocator: std.mem.Allocator,
         meta: ServerMeta,
