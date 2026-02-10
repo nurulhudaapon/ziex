@@ -2,10 +2,10 @@ const features = [_]Feature{
     .{ .icon_fn = icons.Lightning, .title = "It's Fast", .description = "~100x faster SSR than Next.js. Compiles to native code instead of running JavaScript." },
     .{ .icon_fn = icons.Shield, .title = "Compile-Time Safety", .description = "Zig's type system catches bugs at compile time. No runtime surprises, no GC." },
     .{ .icon_fn = icons.PaintBrush, .title = "Familiar Syntax", .description = "Familiar JSX like syntax or just like HTML with having access to Zig's control flow." },
-    .{ .icon_fn = icons.Rocket, .title = "Server-Side Rendering", .description = "Server-side rendering by default. Pages render on the server with zero configuration." },
-    .{ .icon_fn = icons.Rocket, .title = "Static Site Generation", .description = "Static site generation by default. Pages render on the server with zero configuration." },
+    .{ .icon_fn = icons.Server, .title = "Server-Side Rendering", .description = "Server-side rendering by default. Pages render on the server with zero configuration." },
+    .{ .icon_fn = icons.Layers, .title = "Static Site Generation", .description = "Static site generation by default. Pages render on the server with zero configuration." },
     .{ .icon_fn = icons.Folder, .title = "File System Routing", .description = "Folder structure defines routes. No configs, no magic strings, just files in folders." },
-    .{ .icon_fn = icons.Rocket, .title = "Client-side Rendering", .description = "Optional client-side rendering for interactive experiences when you need it." },
+    .{ .icon_fn = icons.Monitor, .title = "Client-side Rendering", .description = "Optional client-side rendering for interactive experiences when you need it." },
     .{ .icon_fn = icons.Flow, .title = "Control Flow in Zig's Syntax", .description = "if/else, for/while, switch, standard control flow works as expected. It's just Zig." },
     .{ .icon_fn = icons.Wrench, .title = "Developer Tooling", .description = "CLI, hot reload, and editor extensions for the best DX." },
 };
@@ -99,11 +99,10 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                             <div class="hero-title-accent">/</div>
                         </div>
                         <p class="hero-subtitle">
-                            Build fast full-stack web apps with Zig.
+                            Build fast & type-safe full-stack web apps with Zig.
                         </p>
                         <p class="hero-description">
                             JSX like syntax or just like HTML with having access to Zig's control flow. 
-                            No JavaScript runtime, no garbage collection.
                         </p>
                         <div class="hero-install">
                             <InstallCLI allocator={allocator} />
@@ -122,9 +121,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <section class="features">
                     <div class="features-header">
                         <h2 class="section-title">Features</h2>
-                        <p class="section-subtitle">
-                            Performance-focused web apps built with Zig.
-                        </p>
                     </div>
                     <div class="features-grid">
                         {for (features) |f| (<FeatureCard  icon_fn={f.icon_fn} title={f.title} description={f.description} />)}

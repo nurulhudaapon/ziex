@@ -51,6 +51,37 @@ pub fn Rocket(allocator: zx.Allocator) zx.Component {
     );
 }
 
+pub fn Server(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg @allocator={allocator} width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+            <path d="M6 6h.01"></path>
+            <path d="M6 18h.01"></path>
+        </svg>
+    );
+}
+
+pub fn Layers(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg @allocator={allocator} width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m12 2 9 5-9 5-9-5 9-5"></path>
+            <path d="m3 12 9 5 9-5"></path>
+            <path d="m3 17 9 5 9-5"></path>
+        </svg>
+    );
+}
+
+pub fn Monitor(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg @allocator={allocator} width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+            <path d="M8 21h8"></path>
+            <path d="M12 17v4"></path>
+        </svg>
+    );
+}
+
 pub fn Folder(allocator: zx.Allocator) zx.Component {
     return (
         <svg @allocator={allocator} width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

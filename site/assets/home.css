@@ -442,7 +442,7 @@ body {
         display: none;
     }
     .hero {
-        min-height: 90vh;
+        /* min-height: 100vh; */
         padding: 1rem;
         padding-top: 8rem;
     }
@@ -1399,7 +1399,7 @@ body {
 /* Responsive */
 @media (max-width: 768px) {
     .hero {
-        min-height: 90vh;
+        /* min-height: 90vh; */
         padding: 1rem;
         padding-top: 8rem;
     }
