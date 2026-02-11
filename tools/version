@@ -58,8 +58,8 @@ fi
 # Version pattern to match any dev version (e.g., 0.1.0-dev.XXX)
 VERSION_PATTERN="0\\.1\\.0-dev\\.[0-9]+"
 
-# Update build.zig.zon
-sed -i.bak -E "s/$VERSION_PATTERN/$NEW_VERSION/" "$BUILD_ZON_PATH"
+# Update build.zig.zon (only .version field, not .jsglue_version)
+sed -i.bak -E "/^[[:space:]]*\.version[[:space:]]*=/s/$VERSION_PATTERN/$NEW_VERSION/" "$BUILD_ZON_PATH"
 rm -f "$BUILD_ZON_PATH.bak"
 echo "Version: $CURRENT_VERSION -> $NEW_VERSION"
 echo "Updated $BUILD_ZON_FILE"
