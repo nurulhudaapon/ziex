@@ -1,0 +1,13 @@
+pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+    return (
+        <fragment @allocator={ctx.arena}>
+            {children}
+            <div>
+                <p>Extra data to match with the content size of Next.js</p>
+                <span>{comptime "ABC" ** 330}</span>
+            </div>
+        </fragment>
+    );
+}
+
+const zx = @import("zx");

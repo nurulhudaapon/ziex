@@ -1,0 +1,13 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    const arr: [50]u32 = @splat(1);
+
+    return (
+        <main @allocator={ctx.arena} lang="en">
+            {for (arr, 0..) |v, i| (
+                <div>SSR {v}-{i}</div>
+            )}
+        </main>
+    );
+}
+
+const zx = @import("zx");

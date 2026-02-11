@@ -17,14 +17,5 @@ pub fn build(b: *std.Build) !void {
         }),
     });
 
-    _ = try zx.init(b, site_exe, .{
-        .client = .{ .jsglue_href = "/assets/main.js" },
-        .plugins = &.{
-            zx.plugins.esbuild(b, .{
-                .input = b.path("main.ts"),
-                .output = b.path("{outdir}/assets/main.js"),
-                .optimize = optimize,
-            }),
-        },
-    });
+    _ = try zx.init(b, site_exe, .{});
 }
