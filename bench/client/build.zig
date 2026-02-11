@@ -6,27 +6,19 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // --- Root Module ---
-    const mod = b.addModule("root_mod", .{
-        .root_source_file = b.path("src/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
     // --- ZX Setup (sets up ZX, dependencies, executables and `serve` step) ---
     const site_exe = b.addExecutable(.{
-        .name = "zx_site",
+        .name = "zx_bench_client",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("site/main.zig"),
+            .root_source_file = b.path("app/main.zig"),
             .target = target,
             .optimize = optimize,
-            .imports = &.{
-                .{ .name = "root_mod", .module = mod },
-            },
+            .imports = &.{},
         }),
     });
 
     _ = try zx.init(b, site_exe, .{
+        .client = .{ .jsglue_href = "/assets/main.js" },
         .plugins = &.{
             zx.plugins.esbuild(b, .{
                 .input = b.path("main.ts"),
