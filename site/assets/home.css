@@ -542,35 +542,49 @@ body {
     color: var(--zx-white);
 }
 
-.nav-github {
-    color: var(--zx-white);
-    text-decoration: none;
-    display: flex;
+.nav-social {
+    display: inline-flex;
     align-items: center;
-    gap: 0.5rem;
-    padding: 0.4rem 0.85rem;
+    gap: 0.2rem;
+    padding: 0.2rem 0.35rem;
     border-radius: 999px;
     background: var(--zx-card-bg);
     border: 1px solid transparent;
-    font-size: 0.9rem;
-    font-weight: 600;
     transition: all 0.2s ease;
 }
 
-.nav-github:hover {
+.nav-social:hover {
     background: rgba(255, 255, 255, 0.06);
     border-color: rgba(255, 255, 255, 0.2);
-    color: var(--zx-white);
 }
 
-.nav-github:focus-visible {
+.nav-social-link {
+    color: var(--zx-white);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.35rem 0.65rem;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: color 0.2s ease;
+}
+
+.nav-social-link:focus-visible {
     outline: 2px solid var(--zx-primary);
     outline-offset: 2px;
 }
 
-.nav-github svg {
+.nav-social-link svg {
     width: 18px;
     height: 18px;
+}
+
+.nav-social-divider {
+    width: 1px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.18);
 }
 
 /* Nav label variants - short labels hidden by default */
@@ -617,12 +631,12 @@ body {
         display: none;
     }
 
-    .nav-github-text {
+    .nav-social-text {
         display: none;
     }
 
-    .nav-github {
-        padding: 0.5rem;
+    .nav-social {
+        padding: 0.3rem;
     }
 
     .nav-right {
@@ -695,16 +709,21 @@ body {
         display: inline;
     }
 
-    /* Show GitHub text in hamburger menu */
-    .nav-github-text {
+    /* Show labels in hamburger menu */
+    .nav-social-text {
         display: inline;
     }
 
-    .nav-github {
+    .nav-social {
         width: 100%;
         justify-content: center;
         margin-top: 1rem;
-        padding: 0.5rem 1rem;
+        padding: 0.35rem 0.75rem;
+    }
+
+    .nav-social-link {
+        flex: 1;
+        justify-content: center;
     }
 
     /* Hamburger animation when open */

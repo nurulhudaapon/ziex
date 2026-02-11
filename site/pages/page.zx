@@ -79,14 +79,17 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                             <li><a href="/docs" class="nav-link"><span class="nav-link-full">Reference</span><span class="nav-link-short">Ref</span></a></li>
                             <li><a href={root.configs.example_url} class="nav-link">Examples</a></li>
                         </ul>
-                        <a href="https://discord.gg/39UgnhgpUD" target="_blank" rel="noopener noreferrer" class="nav-github" aria-label="Discord">
-                            <DiscordIcon allocator={allocator} />
-                            <span class="nav-github-text">Discord</span>
-                        </a>
-                        <a href="https://github.com/nurulhudaapon/zx" target="_blank" rel="noopener noreferrer" class="nav-github" aria-label="GitHub">
-                            <GitHubIcon allocator={allocator} />
-                            <span class="nav-github-text">GitHub</span>
-                        </a>
+                        <div class="nav-social" role="group" aria-label="Community links">
+                            <a href="https://discord.gg/39UgnhgpUD" target="_blank" rel="noopener noreferrer" class="nav-social-link" aria-label="Discord">
+                                <DiscordIcon allocator={allocator} />
+                                <span class="nav-social-text">Discord</span>
+                            </a>
+                            <span class="nav-social-divider" aria-hidden="true"></span>
+                            <a href="https://github.com/nurulhudaapon/zx" target="_blank" rel="noopener noreferrer" class="nav-social-link" aria-label="GitHub">
+                                <GitHubIcon allocator={allocator} />
+                                <span class="nav-social-text">GitHub</span>
+                            </a>
+                        </div>
                     </div>
                 </div>
             </nav>
