@@ -12,42 +12,40 @@ const features = [_]Feature{
 
 
 const benchmark_cwv_rows = [_]BenchmarkRow{
-    .{ .label = "Ziex", .value = "0.98", .display = "98%" },
-    .{ .label = "Next.js", .value = "0.44", .display = "44%" },
-    .{ .label = "Nuxt", .value = "0.42", .display = "42%" },
-    .{ .label = "Leptos", .value = "0.27", .display = "27%" },
+    .{ .label = "Ziex", .value = 98, .display = "98%", .url = "" },
+    .{ .label = "Next.js", .value = 44, .display = "44%", .url = "https://nextjs.org" },
+    .{ .label = "Nuxt", .value = 42, .display = "42%", .url = "https://nuxt.com" },
+    .{ .label = "Leptos", .value = 27, .display = "27%", .url = "https://leptos.dev" },
 };
 
 const benchmark_ssr_rows = [_]BenchmarkRow{
-    .{ .label = "Ziex", .value = "0.95", .display = "95k" },
-    .{ .label = "Leptos", .value = "0.52", .display = "52k" },
-    .{ .label = "Next.js", .value = "0.38", .display = "38k" },
-    .{ .label = "Nuxt", .value = "0.29", .display = "29k" },
+    .{ .label = "Leptos", .value = 80650, .display = "81k", .url = "https://leptos.dev" },
+    .{ .label = "Ziex", .value = 56026, .display = "56k", .url = "" },
+    .{ .label = "Next.js", .value = 1000, .display = "1k", .url = "https://nextjs.org" },
 };
 
 const benchmark_mem_rows = [_]BenchmarkRow{
-    .{ .label = "Ziex", .value = "0.84", .display = "84 MB" },
-    .{ .label = "Leptos", .value = "0.55", .display = "55 MB" },
-    .{ .label = "Next.js", .value = "0.33", .display = "33 MB" },
-    .{ .label = "Nuxt", .value = "0.28", .display = "28 MB" },
+    .{ .label = "Ziex", .value = -6.7, .display = "6.7 MB", .url = "" },
+    .{ .label = "Leptos", .value = -8.1, .display = "8.1 MB", .url = "https://leptos.dev" },
+    .{ .label = "Next.js", .value = -63.4, .display = "63 MB", .url = "https://nextjs.org" },
 };
 
 const benchmark_tabs = [_]BenchmarkTab{
-    .{
-        .id = "bench-tab-cwv",
-        .label = "Core Web Vitals",
-        .metric = "% of real-world sites with good Core Web Vitals",
-        .footnote = "Full report. Benchmarked against Next.js and Leptos using real-world Core Web Vitals.",
-        .rows = benchmark_cwv_rows[0..],
-        .checked = true,
-    },
+    // .{
+    //     .id = "bench-tab-cwv",
+    //     .label = "Core Web Vitals",
+    //     .metric = "% of real-world sites with good Core Web Vitals",
+    //     .footnote = "Full report. Benchmarked against Next.js and Leptos using real-world Core Web Vitals.",
+    //     .rows = benchmark_cwv_rows[0..],
+    //     .checked = true,
+    // },
     .{
         .id = "bench-tab-ssr",
         .label = "SSR Throughput",
-        .metric = "Requests per second on a 12-core VM",
+        .metric = "Requests per second on a M1 Pro",
         .footnote = "Throughput measured at steady-state with warm caches.",
         .rows = benchmark_ssr_rows[0..],
-        .checked = false,
+        .checked = true,
     },
     .{
         .id = "bench-tab-mem",
@@ -173,9 +171,9 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 </section>
                 <BenchmarksSection
                     allocator={allocator}
-                    eyebrow="Best-in-Class Performance"
-                    title="ZX Speed Benchmarks"
-                    subtitle="ZX eliminates runtime overhead to deliver unmatched page speeds. Leverage the power of Zig to maximize your Core Web Vitals and SEO rankings."
+                    eyebrow="Performance Benchmarks"
+                    title="Performance"
+                    subtitle="<a href='https://github.com/nurulhudaapon/zx/tree/main/bench' target='_blank' class='bench-label-link'>See full benchmarks →</a> <br/> Benchmarks against Next.js and Leptos."
                     tabs={benchmark_tabs[0..]}
                 />
                 <section class="feature-examples">
@@ -229,8 +227,14 @@ fn FeatureCard(allocator: zx.Allocator, props: Feature) zx.Component {
 
 const BenchmarkRow = struct {
     label: []const u8,
-    value: []const u8,
+    value: f64,
     display: []const u8,
+    url: []const u8,
+};
+
+const BenchmarkRowViewProps = struct {
+    row: BenchmarkRow,
+    normalized_value: f64,
 };
 
 const BenchmarkTab = struct {
@@ -274,13 +278,93 @@ fn buildBenchTabStyles(allocator: zx.Allocator, container_id: []const u8, tabs: 
     return allocator.dupe(u8, out.items) catch unreachable;
 }
 
-fn BenchmarkRowView(allocator: zx.Allocator, row: BenchmarkRow) zx.Component {
-    const style_value = std.fmt.allocPrint(allocator, "--value: {s};", .{row.value}) catch unreachable;
+fn BenchmarkRowView(allocator: zx.Allocator, props: BenchmarkRowViewProps) zx.Component {
+    const style_value = std.fmt.allocPrint(allocator, "--value: {d:.3};", .{props.normalized_value}) catch unreachable;
     return (
         <div @allocator={allocator} class="bench-row" style={style_value}>
-            <div class="bench-label">{row.label}</div>
+            <div class="bench-label">
+                {if (props.row.url.len > 0) (
+                    <a href={props.row.url} target="_blank" rel="noopener noreferrer" class="bench-label-link">{props.row.label}</a>
+                ) else (
+                    <span>{props.row.label}</span>
+                )}
+            </div>
             <div class="bench-bar"><span class="bench-bar-fill"></span></div>
-            <div class="bench-value">{row.display}</div>
+            <div class="bench-value">{props.row.display}</div>
+        </div>
+    );
+}
+
+fn roundToNiceValue(value: f64) f64 {
+    if (value <= 0) return 1;
+    
+    const log_val = std.math.log10(value);
+    const magnitude = std.math.pow(f64, 10, @floor(log_val));
+    const normalized = value / magnitude;
+    
+    // Round up to nice values: 1, 2, 5, 10, 20, 50, 100, etc.
+    if (normalized <= 1) return magnitude;
+    if (normalized <= 2) return magnitude * 2;
+    if (normalized <= 5) return magnitude * 5;
+    return magnitude * 10;
+}
+
+fn normalizeValue(value: f64, rows: []const BenchmarkRow) f64 {
+    const min_bar_value = 0.1; // 10% minimum bar size for visibility
+    
+    if (rows.len == 0) return 0;
+    
+    // Check if we're dealing with negative values (lower is better)
+    const all_negative = blk: {
+        for (rows) |row| {
+            if (row.value >= 0) break :blk false;
+        }
+        break :blk true;
+    };
+    
+    if (all_negative) {
+        // For negative values: find min (most negative) and max (least negative)
+        var min_value = rows[0].value;
+        var max_value = rows[0].value;
+        for (rows[1..]) |row| {
+            if (row.value < min_value) min_value = row.value;
+            if (row.value > max_value) max_value = row.value;
+        }
+        // Use absolute value for rounding calculation
+        const rounded_range = roundToNiceValue(@abs(max_value - min_value));
+        if (rounded_range == 0) return min_bar_value;
+        const normalized = (value - min_value) / rounded_range;
+        // Clamp to minimum bar size for visibility
+        return if (normalized < min_bar_value) min_bar_value else normalized;
+    } else {
+        // For positive values: higher is better
+        var max_value: f64 = 0;
+        for (rows) |row| {
+            if (row.value > max_value) {
+                max_value = row.value;
+            }
+        }
+        if (max_value <= 0) return min_bar_value;
+        const rounded_max = roundToNiceValue(max_value);
+        const normalized = value / rounded_max;
+        // Clamp to minimum bar size for visibility
+        return if (normalized < min_bar_value) min_bar_value else normalized;
+    }
+}
+
+fn BenchmarksPanel(allocator: zx.Allocator, tab: BenchmarkTab) zx.Component {
+    return (
+        <div @allocator={allocator} class="benchmarks-panel" data-tab={tab.id}>
+            <div class="benchmarks-metric">{tab.metric}</div>
+            <div class="benchmarks-chart">
+                {for (tab.rows) |row| (
+                    <BenchmarkRowView
+                        row={row}
+                        normalized_value={normalizeValue(row.value, tab.rows)}
+                    />
+                )}
+            </div>
+            <div class="benchmarks-footnote">{tab.footnote}</div>
         </div>
     );
 }
@@ -288,11 +372,11 @@ fn BenchmarkRowView(allocator: zx.Allocator, row: BenchmarkRow) zx.Component {
 fn BenchmarksSection(allocator: zx.Allocator, props: BenchmarksSectionProps) zx.Component {
     const tab_styles = buildBenchTabStyles(allocator, "benchmarks-tabs", props.tabs);
     return (
-        <section @allocator={allocator} class="benchmarks" style="display: none;">
+        <section @allocator={allocator} class="benchmarks">
             <div class="benchmarks-header">
                 <span class="benchmarks-eyebrow">{props.eyebrow}</span>
                 <h2 class="section-title">{props.title}</h2>
-                <p class="section-subtitle">{props.subtitle}</p>
+                <p class="section-subtitle" @escaping={.none}>{props.subtitle}</p>
             </div>
             <div id="benchmarks-tabs" class="benchmarks-card">
                 <style @escaping={.none}>{tab_styles}</style>
@@ -309,15 +393,7 @@ fn BenchmarksSection(allocator: zx.Allocator, props: BenchmarksSectionProps) zx.
                     )}
                 </div>
                 <div class="benchmarks-panels">
-                    {for (props.tabs) |tab| (
-                        <div class="benchmarks-panel" data-tab={tab.id}>
-                            <div class="benchmarks-metric">{tab.metric}</div>
-                            <div class="benchmarks-chart">
-                                {for (tab.rows) |row| (<BenchmarkRowView {..row} />)}
-                            </div>
-                            <div class="benchmarks-footnote">{tab.footnote}</div>
-                        </div>
-                    )}
+                    {for (props.tabs) |tab| (BenchmarksPanel(allocator, tab))}
                 </div>
             </div>
         </section>

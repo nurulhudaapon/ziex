@@ -1429,6 +1429,24 @@ body {
     margin: 0 auto 2.5rem;
 }
 
+.benchmarks-footnote-link {
+    display: block;
+    text-align: right;
+    color: rgba(0, 217, 255, 0.8);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    margin-top: 0.75rem;
+    padding: 0.5rem;
+    border-radius: 4px;
+}
+
+.benchmarks-footnote-link:hover {
+    color: var(--zx-primary-light);
+    background: rgba(0, 217, 255, 0.05);
+}
+
 .benchmarks-eyebrow {
     display: inline-flex;
     align-items: center;
@@ -1506,6 +1524,21 @@ body {
 .bench-label {
     font-weight: 600;
     color: rgba(255, 255, 255, 0.85);
+}
+
+.bench-label-link {
+    color: var(--zx-white);
+    text-decoration: none;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    border-bottom: 1px solid transparent;
+    padding-bottom: 2px;
+}
+
+.bench-label-link:hover {
+    color: var(--zx-primary-light);
+    border-bottom-color: var(--zx-primary);
+    text-decoration: none;
 }
 
 .bench-bar {
