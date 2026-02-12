@@ -1,6 +1,6 @@
 const std = @import("std");
 const zx = @import("zx");
-const root_mod = @import("root_mod");
+const root_mod = @import("lib/root.zig");
 const data = root_mod.data;
 
 pub const Row = data.Row;
@@ -33,17 +33,17 @@ fn createRows(count: usize, clear_first: bool) void {
 }
 
 fn redirect(ctx: zx.PageContext) void {
-    ctx.response.header("Location", "/");
+    ctx.response.setHeader("Location", "/js-framework-benchmark/ssr");
     ctx.response.setStatus(.found);
 }
 
 pub fn handleRequest(ctx: zx.PageContext) BenchState {
     // Add CORS headers to allow requests from the benchmark server
-    ctx.response.header("Access-Control-Allow-Origin", "*");
-    ctx.response.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-    ctx.response.header("Access-Control-Allow-Headers", "Content-Type");
+    ctx.response.setHeader("Access-Control-Allow-Origin", "*");
+    ctx.response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+    ctx.response.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-    const qs = ctx.request.query() catch @panic("OOM");
+    const qs = ctx.request.searchParams;
 
     const action = qs.get("action");
     if (action) |a| {

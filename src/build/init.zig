@@ -305,8 +305,11 @@ pub fn initInner(
     // --- Steps: Dev --- //
     if (opts.steps.dev) |dev_step_name| {
         const dev_cmd = getZxRun(b, zx_exe, opts);
-        dev_cmd.addArgs(&.{ "dev", "--binpath" });
-        dev_cmd.addFileArg(exe.getEmittedBin());
+        dev_cmd.addArgs(&.{
+            "dev",
+            // "--binpath",
+        });
+        // dev_cmd.addFileArg(exe.getEmittedBin());
         const dev_step = b.step(dev_step_name, "Run the Ziex app in development mode");
         dev_step.dependOn(&dev_cmd.step);
         if (b.args) |args| dev_cmd.addArgs(args);

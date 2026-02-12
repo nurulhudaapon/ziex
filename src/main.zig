@@ -48,10 +48,10 @@ const tui = @import("tui/main.zig");
 
 pub const std_options = std.Options{
     .log_scope_levels = &[_]std.log.ScopeLevel{
-        // .{ .scope = .@"html/ast", .level = .info },
-        // .{ .scope = .@"html/tokenizer", .level = .info },
-        // .{ .scope = .@"html/ast/fmt", .level = .info },
-        // .{ .scope = .ast, .level = if (builtin.mode == .Debug) .info else .warn },
-        // .{ .scope = .cli, .level = if (builtin.mode == .Debug) .info else .info },
+        .{ .scope = .@"html/ast", .level = .info },
+        .{ .scope = .@"html/tokenizer", .level = .info },
+        .{ .scope = .@"html/ast/fmt", .level = .info },
+        .{ .scope = .ast, .level = if (builtin.mode == .Debug) .info else .warn },
+        .{ .scope = .cli, .level = if (builtin.mode == .Debug) .info else .info },
     },
 };
