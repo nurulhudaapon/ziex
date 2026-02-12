@@ -3,14 +3,17 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     const formdata = ctx.request.multiFormData();
 
     const name = if (formdata.get("name")) |nd| nd.data else null;
-    const pic_file = if (formdata.get("picture")) |pd| pd.filename else null;
-    const pic_src = formatImageSrc(ctx);
+    const picture = formdata.get("picture");
+    const pic_file = if (picture) |pd| pd.filename else null;
+    const pic_too_large = if (picture) |pd| pd.data.len > max_file_bytes else false;
+    const pic_src = if (pic_too_large) null else formatImageSrc(ctx);
 
     return (
         <div @allocator={allocator}>
             <p>{name}</p>
             <p>{pic_file}</p>
 
+            {if (pic_too_large) (<p>File too large. Max size is 1 MB.</p>)}
             {if (pic_src) |src| (<img src={src} height={100} width={100} />)}
             <form method="post" enctype="multipart/form-data">
                 <input type="text" name="name" />
@@ -28,6 +31,7 @@ fn formatImageSrc(ctx: zx.PageContext) ?[]const u8 {
     const pic_file = if (picture) |p| p.filename else null;
 
     const pic_src = if (pic_data) |pd| b: {
+        if (pd.len > max_file_bytes) break :b null;
         const mime = if (pic_file) |f| m: {
             if (std.ascii.eqlIgnoreCase(std.fs.path.extension(f), ".jpg") or std.ascii.eqlIgnoreCase(std.fs.path.extension(f), ".jpeg")) break :m "image/jpeg";
             if (std.ascii.eqlIgnoreCase(std.fs.path.extension(f), ".gif")) break :m "image/gif";
@@ -50,6 +54,8 @@ fn formatImageSrc(ctx: zx.PageContext) ?[]const u8 {
 pub const options = zx.PageOptions{
     .methods = &.{.POST},
 };
+
+const max_file_bytes: usize = 1_048_576 - (1024 * 10);
 
 const zx = @import("zx");
 const std = @import("std");
