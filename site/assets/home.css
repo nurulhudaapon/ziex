@@ -1516,9 +1516,10 @@ body {
 
 .bench-row {
     display: grid;
-    grid-template-columns: 140px 1fr 64px;
+    grid-template-columns: 140px 1fr 80px;
     align-items: center;
     gap: 1rem;
+    position: relative;
 }
 
 .bench-label {
@@ -1570,10 +1571,62 @@ body {
     font-weight: 700;
     color: rgba(255, 255, 255, 0.75);
     text-align: right;
+    white-space: nowrap;
 }
 
 .bench-row:first-child .bench-value {
     color: var(--zx-primary-light);
+}
+
+.bench-tooltip {
+    position: absolute;
+    bottom: calc(100% + 12px);
+    left: 50%;
+    transform: translateX(-50%) scale(0.95);
+    background: linear-gradient(180deg, rgba(12, 16, 22, 0.98) 0%, rgba(9, 12, 18, 0.98) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 12px;
+    padding: 0.75rem;
+    min-width: 240px;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transition: all 0.2s ease;
+    backdrop-filter: blur(12px);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+
+.bench-row:hover .bench-tooltip {
+    opacity: 1;
+    pointer-events: auto;
+    transform: translateX(-50%) scale(1);
+}
+
+.bench-tooltip-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+    padding: 0.35rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    gap: 1rem;
+}
+
+.bench-tooltip-row:last-child {
+    border-bottom: none;
+}
+
+.bench-tooltip-label {
+    color: rgba(255, 255, 255, 0.6);
+    font-weight: 500;
+}
+
+.bench-tooltip-value {
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    flex-shrink: 0;
 }
 
 .benchmarks-footnote {

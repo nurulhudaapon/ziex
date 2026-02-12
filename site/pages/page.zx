@@ -18,17 +18,100 @@ const benchmark_cwv_rows = [_]BenchmarkRow{
     .{ .label = "Leptos", .value = 27, .display = "27%", .url = "https://leptos.dev" },
 };
 
-const benchmark_ssr_rows = [_]BenchmarkRow{
-    .{ .label = "Leptos", .value = 80650, .display = "81k", .url = "https://leptos.dev" },
-    .{ .label = "Ziex", .value = 56026, .display = "56k", .url = "" },
-    .{ .label = "Next.js", .value = 1000, .display = "1k", .url = "https://nextjs.org" },
-};
+// Import benchmark data from auto-generated file
+const bench_data = @import("bench.zon");
+const bench_len = @typeInfo(@TypeOf(bench_data)).@"struct".fields.len;
 
-const benchmark_mem_rows = [_]BenchmarkRow{
-    .{ .label = "Ziex", .value = -6.7, .display = "6.7 MB", .url = "" },
-    .{ .label = "Leptos", .value = -8.1, .display = "8.1 MB", .url = "https://leptos.dev" },
-    .{ .label = "Next.js", .value = -63.4, .display = "63 MB", .url = "https://nextjs.org" },
-};
+// Helper function to format large numbers (e.g., 25153 -> "25k")
+fn formatLargeNumber(n: f64) []const u8 {
+    if (n >= 1000) {
+        const k = n / 1000;
+        if (k >= 10) {
+            return std.fmt.comptimePrint("{d}k", .{@as(u32, @intFromFloat(k))});
+        } else {
+            return std.fmt.comptimePrint("{d:.1}k", .{k});
+        }
+    }
+    return std.fmt.comptimePrint("{d}", .{@as(u32, @intFromFloat(n))});
+}
+
+// Helper function to format memory with 1 decimal place (e.g., 9.8 MB)
+fn formatMemory(mb: f64) []const u8 {
+    return std.fmt.comptimePrint("{d:.1} MB", .{mb});
+}
+
+// Helper function to format requests per second with comma separator
+fn formatRequests(n: f64) []const u8 {
+    const int_val = @as(u32, @intFromFloat(n));
+    if (int_val >= 10000) {
+        const thousands = int_val / 1000;
+        const remainder = int_val % 1000;
+        return std.fmt.comptimePrint("{d},{d:0>3}", .{thousands, remainder});
+    }
+    if (int_val >= 1000) {
+        const thousands = int_val / 1000;
+        const remainder = int_val % 1000;
+        return std.fmt.comptimePrint("{d},{d}", .{thousands, remainder});
+    }
+    return std.fmt.comptimePrint("{d}", .{int_val});
+}
+
+// Helper function to format latency in milliseconds
+fn formatLatency(ms: f64) []const u8 {
+    return std.fmt.comptimePrint("{d:.2} ms", .{ms});
+}
+
+// Map framework id to its website URL
+fn getFrameworkUrl(comptime id: []const u8) []const u8 {
+    if (std.mem.eql(u8, id, "leptos")) return "https://leptos.dev";
+    if (std.mem.eql(u8, id, "solidjs")) return "https://solidjs.com";
+    if (std.mem.eql(u8, id, "nextjs")) return "https://nextjs.org";
+    return "";
+}
+
+fn buildSsrRows() [bench_len]BenchmarkRow {
+    @setEvalBranchQuota(10000);
+    var rows: [bench_len]BenchmarkRow = undefined;
+    const fields = @typeInfo(@TypeOf(bench_data)).@"struct".fields;
+    inline for (fields, 0..) |field, i| {
+        const d = @field(bench_data, field.name);
+        rows[i] = .{
+            .label = d.label,
+            .value = d.requests_per_sec,
+            .display = formatLargeNumber(d.requests_per_sec),
+            .url = getFrameworkUrl(d.id),
+            .tooltip_metrics = &[_]TooltipMetric{
+                .{ .label = "Requests/sec", .value = formatRequests(d.requests_per_sec) },
+                .{ .label = "P50 Latency", .value = formatLatency(d.p50_latency_ms) },
+                .{ .label = "P99 Latency", .value = formatLatency(d.p99_latency_ms) },
+            },
+        };
+    }
+    return rows;
+}
+
+fn buildMemoryRows() [bench_len]BenchmarkRow {
+    @setEvalBranchQuota(10000);
+    var rows: [bench_len]BenchmarkRow = undefined;
+    const fields = @typeInfo(@TypeOf(bench_data)).@"struct".fields;
+    inline for (fields, 0..) |field, i| {
+        const d = @field(bench_data, field.name);
+        rows[i] = .{
+            .label = d.label,
+            .value = -d.peak_memory_mb,
+            .display = formatMemory(d.peak_memory_mb),
+            .url = getFrameworkUrl(d.id),
+            .tooltip_metrics = &[_]TooltipMetric{
+                .{ .label = "Idle Memory", .value = formatMemory(d.idle_memory_mb) },
+                .{ .label = "Peak Memory", .value = formatMemory(d.peak_memory_mb) },
+            },
+        };
+    }
+    return rows;
+}
+
+const benchmark_ssr_rows = buildSsrRows();
+const benchmark_memory_rows = buildMemoryRows();
 
 const benchmark_tabs = [_]BenchmarkTab{
     // .{
@@ -42,17 +125,17 @@ const benchmark_tabs = [_]BenchmarkTab{
     .{
         .id = "bench-tab-ssr",
         .label = "SSR Throughput",
-        .metric = "Requests per second on a M1 Pro",
-        .footnote = "Throughput measured at steady-state with warm caches.",
+        .metric = "Requests per second (higher is better)",
+        .footnote = "Dockerized SSR endpoint hit with 5k requests at 50 concurrent connections, averaged over 2 runs.",
         .rows = benchmark_ssr_rows[0..],
         .checked = true,
     },
     .{
-        .id = "bench-tab-mem",
-        .label = "Memory Footprint",
-        .metric = "Median memory usage per 1k requests",
-        .footnote = "Lower is better. Memory usage includes allocator overhead.",
-        .rows = benchmark_mem_rows[0..],
+        .id = "bench-tab-memory",
+        .label = "Memory",
+        .metric = "Peak memory under load",
+        .footnote = "Peak container RSS during load test. Lower is better. Hover for idle memory.",
+        .rows = benchmark_memory_rows[0..],
         .checked = false,
     },
 };
@@ -173,7 +256,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     allocator={allocator}
                     eyebrow="Performance Benchmarks"
                     title="Performance"
-                    subtitle="<a href='https://github.com/nurulhudaapon/zx/tree/main/bench' target='_blank' class='bench-label-link'>See full benchmarks →</a> <br/> Benchmarks against Next.js and Leptos."
+                    subtitle="<a href='https://github.com/nurulhudaapon/zx/tree/main/bench' target='_blank' class='bench-label-link'>View benchmark code & methodology →</a> <br/> Each framework runs in a Docker container limited to 2 CPU cores and 2 GB RAM."
                     tabs={benchmark_tabs[0..]}
                 />
                 <section class="feature-examples">
@@ -225,11 +308,17 @@ fn FeatureCard(allocator: zx.Allocator, props: Feature) zx.Component {
     );
 }
 
+const TooltipMetric = struct {
+    label: []const u8,
+    value: []const u8,
+};
+
 const BenchmarkRow = struct {
     label: []const u8,
     value: f64,
     display: []const u8,
     url: []const u8,
+    tooltip_metrics: []const TooltipMetric = &[_]TooltipMetric{},
 };
 
 const BenchmarkRowViewProps = struct {
@@ -291,6 +380,14 @@ fn BenchmarkRowView(allocator: zx.Allocator, props: BenchmarkRowViewProps) zx.Co
             </div>
             <div class="bench-bar"><span class="bench-bar-fill"></span></div>
             <div class="bench-value">{props.row.display}</div>
+            <div class="bench-tooltip">
+                {for (props.row.tooltip_metrics) |metric| (
+                    <div class="bench-tooltip-row">
+                        <span class="bench-tooltip-label">{metric.label}</span>
+                        <span class="bench-tooltip-value">{metric.value}</span>
+                    </div>
+                )}
+            </div>
         </div>
     );
 }
@@ -302,9 +399,12 @@ fn roundToNiceValue(value: f64) f64 {
     const magnitude = std.math.pow(f64, 10, @floor(log_val));
     const normalized = value / magnitude;
     
-    // Round up to nice values: 1, 2, 5, 10, 20, 50, 100, etc.
+    // Round up to nice values: 1, 2, 2.5, 3, 5, 10
+    // This ensures the highest bar fills to ~90% of space
     if (normalized <= 1) return magnitude;
     if (normalized <= 2) return magnitude * 2;
+    if (normalized <= 2.5) return magnitude * 2.5;
+    if (normalized <= 3) return magnitude * 3;
     if (normalized <= 5) return magnitude * 5;
     return magnitude * 10;
 }

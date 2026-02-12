@@ -1,10 +1,10 @@
 export default function HelloSsr() {
-  const arr = new Array(50).fill(1);
+  const arr = Array.from({ length: 50 }, () => 1);
 
   return (
     <main>
       {arr.map((v, i) => (
-        <div key={i}>SSR {v}-{i}</div>
+        <div>SSR {v}-{i}</div>
       ))}
     </main>
   );

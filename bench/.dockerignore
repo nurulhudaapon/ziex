@@ -1,0 +1,30 @@
+# Node modules
+node_modules/
+npm-debug.log*
+
+# Build outputs
+.next/
+dist/
+build/
+zig-out/
+zig-cache/
+target/
+
+# Development files
+.git/
+.gitignore
+*.md
+.env*.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test files
+*.test.js
+*.spec.js
+__tests__/

@@ -1,0 +1,84 @@
+name: "ziex_bench"
+
+services:
+  nextjs:
+    build: ./nextjs
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/ssr"]
+      interval: 1s
+      timeout: 2s
+      retries: 15
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    networks:
+      - bench-net
+
+  solidjs:
+    build: ./solidjs
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=production
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/ssr"]
+      interval: 1s
+      timeout: 2s
+      retries: 15
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    networks:
+      - bench-net
+
+  leptos:
+    build: ./leptos
+    ports:
+      - "3002:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/ssr"]
+      interval: 1s
+      timeout: 2s
+      retries: 15
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    networks:
+      - bench-net
+
+  ziex:
+    build:
+      context: ../
+      dockerfile: bench/ziex/Dockerfile
+    ports:
+      - "3003:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/ssr"]
+      interval: 1s
+      timeout: 2s
+      retries: 15
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    networks:
+      - bench-net
+
+networks:
+  bench-net:
+    driver: bridge

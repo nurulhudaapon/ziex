@@ -1,54 +1,37 @@
-# Benchmarks
+# Benchmark
 
-## SSR Throughput
+Compares SSR performance of Ziex, Leptos, SolidStart, and Next.js in Docker containers limited to 2 CPUs and 2 GB RAM.
 
-Prerequisites:
-- [oha](https://github.com/hatoo/oha) for benchmarking
-- [Node.js](https://nodejs.org/) for Next.js
-- [Zig](https://ziglang.org/) for Ziex
-- [Rust](https://www.rust-lang.org/) for Leptos
+## Prerequisites
 
-### Next.js
-From the `bench/nextjs` directory, run:
+- Docker
+- [oha](https://github.com/hatoo/oha) (`cargo install oha`)
 
-```sh
-npm install
-npm run build
-npm run start
+## Usage
+
+```bash
+# all frameworks
+./run.sh
+
+# one or more
+./run.sh ziex
+./run.sh ziex leptos
 ```
 
-Then run the benchmark:
+Results are written to `result.csv` and `../site/pages/bench.zon` (used to generate the benchmark chart on ziex.dev).
 
-```sh
-oha -n 10000 -c 100 http://localhost:3000/ssr
-```
+## Measures:
+- Requests per second (req/s)
+- p50 latency
+- p99 latency
+- Idle memory (MB)
+- Peak memory (MB)
 
-### Ziex
+## Frameworks
 
-From the `bench/ziex` directory, run:
-
-```sh
-zig build serve -Doptimize=ReleaseFast
-```
-
-Then run the benchmark:
-
-```sh
-oha -n 10000 -c 100 http://localhost:3000/ssr
-```
-
-### Leptos
-
-From the `bench/leptos` directory, run:
-
-```sh
-cargo install --locked cargo-leptos
-rustup target add wasm32-unknown-unknown
-cargo leptos serve --release
-```
-
-Then run the benchmark:
-
-```sh
-oha -n 10000 -c 100 http://localhost:3000/ssr
-```
+| Framework  | Port | Stack                    |
+|------------|------|--------------------------|
+| Ziex       | 3003 | Zig, native binary       |
+| Leptos     | 3002 | Rust, Actix-web          |
+| SolidStart | 3001 | Bun, Vinxi               |
+| Next.js    | 3000 | Bun, React 19            |
