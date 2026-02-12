@@ -27,7 +27,13 @@ pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
             <header class="top-bar">
                 <div class="top-bar-content">
                     <div class="top-bar-left">
-                        <a href={root.configs.main_site_url} class="top-bar-logo">Ziex</a>
+                        <a href={root.configs.main_site_url} class="top-bar-logo">
+                            // <span class="top-bar-logo-mark">ZX</span>
+                            <span class="top-bar-logo-text">
+                                Ziex Docs 
+                                // <span class="top-bar-logo-subtitle">v{zx.info.version_string}</span>
+                            </span>
+                        </a>
                     </div>
                     <input type="checkbox" id="top-bar-toggle" class="top-bar-toggle" aria-label="Toggle navigation menu" />
                     <label for="top-bar-toggle" class="top-bar-hamburger" aria-label="Toggle menu">
@@ -35,6 +41,10 @@ pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
                         <span></span>
                         <span></span>
                     </label>
+                    // <form class="top-bar-search" role="search" action="/docs">
+                    //     <input class="top-bar-search-input" type="search" name="q" placeholder="Search docs" aria-label="Search documentation" autocomplete="off" />
+                    //     <span class="top-bar-search-hint">/</span>
+                    // </form>
                     <div class="top-bar-right">
                         <nav class="top-bar-nav">
                             <a link="/learn" href="/learn" class="top-bar-link">Learn</a>
