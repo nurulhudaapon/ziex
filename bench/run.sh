@@ -28,12 +28,14 @@ get_label() {
 
 echo "framework,idle_mb,peak_mb,rps,p50_ms,p99_ms" > "$RESULTS_FILE"
 
-# Start all framework containers
-echo "Starting containers..."
-docker compose up -d --wait "${FRAMEWORKS[@]}"
 
-# Start bench container
-docker compose up -d --build bench
+# Build only selected frameworks and bench container
+echo "Building selected containers..."
+docker compose build "${FRAMEWORKS[@]}" bench
+
+# Start only selected frameworks and bench container
+echo "Starting containers..."
+docker compose up -d --wait "${FRAMEWORKS[@]}" bench
 
 
 # Print a DIM line to separate startup logs from benchmark output

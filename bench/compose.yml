@@ -75,11 +75,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.bench
-    depends_on:
-      - ziex
-      - leptos
-      - solidjs
-      - nextjs
+    # depends_on removed to allow selective startup
     networks:
       - bench-net
 
