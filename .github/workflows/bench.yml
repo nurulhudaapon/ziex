@@ -21,24 +21,20 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-
-      - name: Cache Docker layers
-        uses: actions/cache@v4
         with:
-          path: ${{ github.workspace }}/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
+          driver-opts: image=moby/buildkit:master
 
       - name: Build images with cache
         run: |
-          docker compose build \
-            --build-arg BUILDKIT_INLINE_CACHE=1 \
-            --progress=plain \
-            --parallel
+          for service in nextjs solidjs leptos ziex bench; do
+            echo "Building $service..."
+            docker buildx bake "$service" \
+              --set "*.cache-from=type=gha,scope=$service" \
+              --set "*.cache-to=type=gha,mode=max,scope=$service" \
+              --load
+          done
         env:
           DOCKER_BUILDKIT: 1
-          BUILDKIT_CACHE: ${{ github.workspace }}/.buildx-cache
         working-directory: bench
 
       - name: Run benchmark script
@@ -53,7 +49,6 @@ jobs:
           fi
         env:
           DOCKER_BUILDKIT: 1
-          BUILDKIT_CACHE: ${{ github.workspace }}/.buildx-cache
 
       - name: Upload result.csv artifact
         uses: actions/upload-artifact@v4
