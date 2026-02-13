@@ -5,7 +5,7 @@
 
 set -euo pipefail
 
-ALL_FRAMEWORKS=(ziex leptos solidjs nextjs)
+ALL_FRAMEWORKS=(ziex leptos dioxus solidjs nextjs)
 RESULTS_FILE="result.csv"
 BENCH_CONTAINER="ziex_bench-bench-1"
 
@@ -20,6 +20,7 @@ get_label() {
   case "$1" in
     ziex) echo "Ziex" ;;
     leptos) echo "Leptos" ;;
+    dioxus) echo "Dioxus" ;;
     solidjs) echo "SolidStart" ;;
     nextjs) echo "Next.js" ;;
     *) echo "$1" ;;

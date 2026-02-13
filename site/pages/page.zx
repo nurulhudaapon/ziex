@@ -65,6 +65,7 @@ fn formatLatency(ms: f64) []const u8 {
 fn getFrameworkUrl(comptime id: []const u8) []const u8 {
     if (std.mem.eql(u8, id, "leptos")) return "https://leptos.dev";
     if (std.mem.eql(u8, id, "solidjs")) return "https://start.solidjs.com";
+    if (std.mem.eql(u8, id, "dioxus")) return "https://dioxuslabs.com";
     if (std.mem.eql(u8, id, "nextjs")) return "https://nextjs.org";
     return "";
 }

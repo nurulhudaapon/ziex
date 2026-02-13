@@ -30,7 +30,7 @@ jobs:
           if [ -n "${{ github.event.inputs.frameworks }}" ]; then
             echo "list=${{ github.event.inputs.frameworks }}" >> $GITHUB_OUTPUT
           else
-            echo "list=nextjs solidjs leptos ziex" >> $GITHUB_OUTPUT
+            echo "list=nextjs solidjs leptos dioxus ziex" >> $GITHUB_OUTPUT
           fi
 
       - name: Build nextjs
@@ -62,6 +62,16 @@ jobs:
           tags: ziex_bench-leptos:latest
           cache-from: type=gha,scope=leptos
           cache-to: type=gha,mode=max,scope=leptos
+
+      - name: Build dioxus
+        if: contains(steps.frameworks.outputs.list, 'dioxus')
+        uses: docker/build-push-action@v6
+        with:
+          context: bench/dioxus
+          load: true
+          tags: ziex_bench-dioxus:latest
+          cache-from: type=gha,scope=dioxus
+          cache-to: type=gha,mode=max,scope=dioxus
 
       - name: Build ziex
         if: contains(steps.frameworks.outputs.list, 'ziex')
@@ -123,6 +133,7 @@ jobs:
               case "$fw" in
                 ziex) label="Ziex" ;;
                 leptos) label="Leptos" ;;
+                dioxus) label="Dioxus" ;;
                 solidjs) label="SolidStart" ;;
                 nextjs) label="Next.js" ;;
                 *) label="$fw" ;;

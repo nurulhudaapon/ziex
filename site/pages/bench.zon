@@ -19,6 +19,15 @@
         .p99_latency_ms = 4.81,
     },
     .{
+        .id = "dioxus",
+        .label = "Dioxus",
+        .idle_memory_mb = 10.28,
+        .peak_memory_mb = 13.55,
+        .requests_per_sec = 18111,
+        .p50_latency_ms = 1.72,
+        .p99_latency_ms = 31.30,
+    },
+    .{
         .id = "solidjs",
         .label = "SolidStart",
         .idle_memory_mb = 60,

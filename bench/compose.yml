@@ -53,6 +53,22 @@ services:
     networks:
       - bench-net
 
+  dioxus:
+    build: ./dioxus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/ssr"]
+      interval: 1s
+      timeout: 2s
+      retries: 15
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+    networks:
+      - bench-net
+
   ziex:
     build:
       context: ../

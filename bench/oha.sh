@@ -17,13 +17,14 @@ GREEN='\033[32m'
 RED='\033[31m'
 NC='\033[0m'
 
-ALL_FRAMEWORKS="ziex leptos solidjs nextjs"
+ALL_FRAMEWORKS="ziex leptos dioxus solidjs nextjs"
 
 # ─── Helpers ─────────────────────────────────────────
 get_port() {
     case "$1" in
         ziex)    echo 3000 ;;
         leptos)  echo 3000 ;;
+        dioxus)  echo 3000 ;;
         solidjs) echo 3000 ;;
         nextjs)  echo 3000 ;;
     esac
@@ -33,7 +34,7 @@ get_label() {
     case "$1" in
         ziex)    echo "Ziex" ;;
         leptos)  echo "Leptos" ;;
-        solidjs) echo "SolidStart" ;;
+        dioxus)  echo "Dioxus" ;;
         nextjs)  echo "Next.js" ;;
         *)       echo "$1" ;;
     esac
