@@ -1,0 +1,58 @@
+name: Benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      frameworks:
+        description: 'Frameworks to benchmark (space-separated, default: all)'
+        required: false
+        default: ''
+
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Free disk space (optional)
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+
+      - name: Run benchmark script
+        id: bench
+        working-directory: bench
+        run: |
+          chmod +x run.sh
+          if [ -n "${{ github.event.inputs.frameworks }}" ]; then
+            ./run.sh ${{ github.event.inputs.frameworks }}
+          else
+            ./run.sh
+          fi
+
+      - name: Upload result.csv artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-results
+          path: bench/result.csv
+
+      - name: Print result.csv to GitHub output
+        id: print-result
+        run: |
+          echo 'Benchmark Results:'
+          cat bench/result.csv
+          echo "results<<EOF" >> $GITHUB_OUTPUT
+          cat bench/result.csv >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Print summary
+        run: |
+          echo "## Benchmark Results" >> $GITHUB_STEP_SUMMARY
+          cat bench/result.csv | column -t -s, >> $GITHUB_STEP_SUMMARY
