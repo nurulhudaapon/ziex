@@ -40,26 +40,25 @@ docker compose up -d --build bench
 echo -e "\033[2m───────────────────────────────────────────────────────────────────────\033[0m"
 
 
-declare -A IDLE_MEM
+IDLE_MEM_LIST=()
 echo "▸ Measuring idle memory..."
 for fw in "${FRAMEWORKS[@]}"; do
   cid=$(docker compose ps -q "$fw")
   if [ -z "$cid" ]; then
     echo "  $fw: container not found" >&2
+    IDLE_MEM_LIST+=("0")
     continue
   fi
   idle_mem=$(docker stats --no-stream --format "{{.MemUsage}}" "$cid" | awk -F'/' '{print $1}' | grep -o '[0-9.]*' | head -1)
-  IDLE_MEM[$fw]="${idle_mem:-0}"
+  IDLE_MEM_LIST+=("${idle_mem:-0}")
 done
 echo ""
 
 echo "▸ Measuring req/s..."
 # echo -e "\033[2m───────────────────────────────────────────────────────────────────────\033[0m"
 
-# Benchmark each framework and measure peak memory immediately after
-declare -A PEAK_MEM
-declare -A BENCH_RESULTS
-
+PEAK_MEM_LIST=()
+BENCH_RESULTS_LIST=()
 for fw in "${FRAMEWORKS[@]}"; do
   # Run benchmark for this single framework, passing arguments to bench container
   docker exec -t "$BENCH_CONTAINER" /bench/oha.sh --container --quiet "$fw" 2>&1 | \
@@ -70,22 +69,24 @@ for fw in "${FRAMEWORKS[@]}"; do
   cid=$(docker compose ps -q "$fw")
   if [ -n "$cid" ]; then
     peak_mem=$(docker stats --no-stream --format "{{.MemUsage}}" "$cid" | awk -F'/' '{print $1}' | grep -o '[0-9.]*' | head -1)
-    PEAK_MEM[$fw]="${peak_mem:-0}"
+    PEAK_MEM_LIST+=("${peak_mem:-0}")
   else
-    PEAK_MEM[$fw]="0"
+    PEAK_MEM_LIST+=("0")
   fi
 
   # Extract benchmark result for this framework
   docker cp "$BENCH_CONTAINER:/bench/result.csv" /tmp/bench_result_${fw}.csv 2>/dev/null
   result_line=$(tail -1 /tmp/bench_result_${fw}.csv)
-  BENCH_RESULTS[$fw]="$result_line"
+  BENCH_RESULTS_LIST+=("$result_line")
 done
 
 # Write combined results
-for fw in "${FRAMEWORKS[@]}"; do
-  # Parse: framework,rps,p50_ms,p99_ms
-  IFS=',' read -r _ rps p50 p99 <<< "${BENCH_RESULTS[$fw]}"
-  echo "$fw,${IDLE_MEM[$fw]:-0},${PEAK_MEM[$fw]:-0},$rps,$p50,$p99" >> "$RESULTS_FILE"
+for i in "${!FRAMEWORKS[@]}"; do
+  fw="${FRAMEWORKS[$i]}"
+  idle="${IDLE_MEM_LIST[$i]:-0}"
+  peak="${PEAK_MEM_LIST[$i]:-0}"
+  IFS=',' read -r _ rps p50 p99 <<< "${BENCH_RESULTS_LIST[$i]}"
+  echo "$fw,$idle,$peak,$rps,$p50,$p99" >> "$RESULTS_FILE"
 done
 
 # Stop all services
