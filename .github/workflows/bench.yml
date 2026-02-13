@@ -26,7 +26,12 @@ jobs:
 
       - name: Build images with cache
         run: |
-          for service in nextjs solidjs leptos ziex bench; do
+          if [ -n "${{ github.event.inputs.frameworks }}" ]; then
+            SERVICES="${{ github.event.inputs.frameworks }} bench"
+          else
+            SERVICES="nextjs solidjs leptos ziex bench"
+          fi
+          for service in $SERVICES; do
             echo "Building $service..."
             docker buildx bake "$service" \
               --set "*.cache-from=type=gha,scope=$service" \
@@ -67,5 +72,20 @@ jobs:
 
       - name: Print summary
         run: |
-          echo "## Benchmark Results" >> $GITHUB_STEP_SUMMARY
-          cat bench/result.csv | column -t -s, >> $GITHUB_STEP_SUMMARY
+          {
+            echo "## Benchmark Results"
+            echo ""
+            echo "| Framework | Req/s | P50 (ms) | P99 (ms) | Idle (MB) | Peak (MB) |"
+            echo "|-----------|------:|---------:|---------:|----------:|----------:|"
+            tail -n +2 bench/result.csv | while IFS=',' read -r fw idle peak rps p50 p99; do
+              case "$fw" in
+                ziex) label="Ziex" ;;
+                leptos) label="Leptos" ;;
+                solidjs) label="SolidStart" ;;
+                nextjs) label="Next.js" ;;
+                *) label="$fw" ;;
+              esac
+              printf "| %s | %.0f | %.2f | %.2f | %.1f | %.1f |\n" \
+                "$label" "$rps" "$p50" "$p99" "$idle" "$peak"
+            done
+          } >> $GITHUB_STEP_SUMMARY
