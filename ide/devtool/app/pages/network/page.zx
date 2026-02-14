@@ -1,0 +1,35 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <div @allocator={ctx.arena} class="app-container">
+            <div class="content">
+                <div style="margin-bottom: 24px;">
+                    <div class="current-route-label">Current route</div>
+                    <div class="route-input-row">
+                        <span class="route-arrow">↳</span>
+                        <input type="text" value="/" class="route-input" />
+                    </div>
+                    <div class="route-hint">
+                        Press <strong>Enter</strong> to navigate <span class="no-match">(no match)</span>
+                    </div>
+                </div>
+
+                <div class="routes-section">
+                    <div class="routes-section-row">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M3 3v18h18"></path>
+                            <path d="M18 9l-5-5-5 5"></path>
+                            <path d="M13 4v10a2 2 0 0 0 2 2h3"></path>
+                        </svg>
+                        <span class="routes-section-title">All Routes</span>
+                        <span class="routes-section-arrow">^</span>
+                    </div>
+                    <div class="routes-section-desc">
+                        0 routes registered in your application
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+const zx = @import("zx");

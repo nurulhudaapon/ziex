@@ -1,0 +1,67 @@
+pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+    return (
+        <html @allocator={ctx.arena} lang="en-US">
+            <head>
+                <meta charset="UTF-8" />
+                <meta name="color-scheme" content="dark" />
+                <title>Ziex DevTools</title>
+                <link rel="stylesheet" href="/assets/style.css" />
+            </head>
+
+            <body>
+                <div class="app-layout">
+                    <aside class="sidebar">
+                        <div class="sidebar-header">
+                            <span class="sidebar-logo">ZX</span><span class="sidebar-title-text">Ziex DevTools</span>
+                        </div>
+                        <nav class="sidebar-nav">
+                            {for (menu) |item| (
+                                <a href={buildUrl(ctx.arena, item.href)} class={if (isActive(ctx.request.url, item.active_match)) "nav-item active" else "nav-item"}>
+                                    <span class="nav-icon">{item.icon_fn(ctx.arena)}</span><span class="nav-text">{item.label}</span>
+                                </a>
+                            )}
+                        </nav>
+                        <div class="sidebar-footer">
+                            v1.0.0
+                        </div>
+                    </aside>
+                    <main class="main-content">
+                        {children}
+                    </main>
+                </div>
+            </body>
+        </html>
+    );
+}
+
+const menu = [_]MenuItem{
+    .{ .href = "overview", .icon_fn = icons.Info, .label = "Overview", .active_match = "overview" },
+    .{ .href = "/", .icon_fn = icons.Hive, .label = "Components", .active_match = "devtools" },
+    .{ .href = "network", .icon_fn = icons.Workflow, .label = "Network", .active_match = "network" },
+    .{ .href = "settings", .icon_fn = icons.Settings, .label = "Settings", .active_match = "settings" },
+};
+
+fn isActive(url: []const u8, match: []const u8) bool {
+    return std.mem.indexOf(u8, url, match) != null;
+}
+fn buildUrl(allocator: std.mem.Allocator, path: []const u8) []const u8 {
+    if (options.platform == .chromium) {
+        if (std.mem.eql(u8, path, "/")) {
+            return "index.html";
+        }
+        return std.fmt.allocPrint(allocator, "{s}.html", .{path}) catch unreachable;
+    } else {
+        return path;
+    }
+}
+const MenuItem = struct {
+    href: []const u8,
+    icon_fn: *const fn (zx.Allocator) zx.Component,
+    label: []const u8,
+    active_match: []const u8,
+};
+
+const icons = @import("./components/icons.zx");
+const options = @import("build_options");
+const std = @import("std");
+const zx = @import("zx");

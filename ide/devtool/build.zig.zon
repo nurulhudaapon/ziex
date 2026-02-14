@@ -1,0 +1,17 @@
+.{
+    .name = .zx_site,
+    .version = "0.0.0",
+    .fingerprint = 0xc04151551dc3c31d,
+    .minimum_zig_version = "0.15.2",
+    .dependencies = .{
+        .zx = .{
+            .url = "git+https://github.com/nurulhudaapon/ziex#ba14883fabaa3a85a933e5384441b85f67f813de",
+            .hash = "zx-0.1.0-dev.678-8okzKiHP6QCND1wLOGnUu2H3ZIVVepe8FJhzUURTyQhn",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

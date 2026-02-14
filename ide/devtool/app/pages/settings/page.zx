@@ -1,0 +1,166 @@
+const std = @import("std");
+const zx = @import("zx");
+const icons = @import("../components/icons.zx");
+const Pin = icons.Pin;
+
+const TabItem = struct {
+    name: []const u8,
+    icon: []const u8,
+    pinned: bool,
+    checked: bool,
+};
+
+const TabIconProps = struct {
+    name: []const u8,
+};
+
+const SwitchProps = struct {
+    checked: bool,
+};
+
+const CheckboxRowProps = struct {
+    label: []const u8,
+    checked: bool,
+    style: []const u8,
+};
+
+const tab_items = [_]TabItem{
+    .{ .name = "App", .icon = "App", .pinned = false, .checked = true },
+    .{ .name = "Overview", .icon = "Overview", .pinned = true, .checked = true },
+    .{ .name = "Components", .icon = "Components", .pinned = true, .checked = true },
+    .{ .name = "Pages", .icon = "Pages", .pinned = true, .checked = true },
+    .{ .name = "Timeline", .icon = "Timeline", .pinned = true, .checked = true },
+};
+
+fn TabIcon(allocator: zx.Allocator, props: TabIconProps) zx.Component {
+    const name = props.name;
+    if (std.mem.eql(u8, name, "App")) {
+        return (
+            <svg @allocator={allocator} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
+        );
+    }
+    if (std.mem.eql(u8, name, "Overview")) {
+        return (
+             <svg @allocator={allocator} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+        );
+    }
+    if (std.mem.eql(u8, name, "Components")) {
+        return (
+            <svg @allocator={allocator} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+        );
+    }
+    if (std.mem.eql(u8, name, "Pages")) {
+        return (
+             <svg @allocator={allocator} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><path d="M10 7h4"></path><path d="M17 10v4"></path></svg>
+        );
+    }
+    if (std.mem.eql(u8, name, "Timeline")) {
+        return (
+            <svg @allocator={allocator} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path></svg>
+        );
+    }
+    return (<div />);
+}
+
+fn Switch(allocator: zx.Allocator, props: SwitchProps) zx.Component {
+    const checked = props.checked;
+    return (
+        <label @allocator={allocator} class="switch">
+            <input type="checkbox" checked={checked} style="display: none;" />
+            <div style="width: 36px; height: 20px; background: #00d9ff; border-radius: 99px; position: relative; display: flex; align-items: center; cursor: pointer;">
+                <div style="width: 16px; height: 16px; background: white; border-radius: 50%; position: absolute; right: 2px;"></div>
+            </div>
+        </label>
+    );
+}
+
+fn TabRow(allocator: zx.Allocator, props: TabItem) zx.Component {
+    const item = props;
+    return (
+        <div @allocator={allocator} style="display: flex; align-items: center; justify-content: space-between; padding: 0.625rem 1rem; border-bottom: 1px solid #262626;">
+            <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <TabIcon allocator={allocator} name={item.icon} />
+                <span style="font-weight: 400; font-size: 0.95rem;">{item.name}</span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 1rem;">
+                {if (item.pinned) (<Pin @allocator={allocator} />)}
+                <Switch allocator={allocator} checked={item.checked} />
+            </div>
+        </div>
+    );
+}
+
+fn CheckboxRow(allocator: zx.Allocator, props: CheckboxRowProps) zx.Component {
+    const label = props.label;
+    const checked = props.checked;
+    const style = props.style;
+    return (
+        <label @allocator={allocator} style={style}>
+            <input type="checkbox" checked={checked} style="width: 16px; height: 16px; cursor: pointer; accent-color: #00d9ff;" />
+            <span style="font-size: 0.9rem; color: #e5e5e5;">{label}</span>
+        </label>
+    );
+}
+
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <div @allocator={ctx.arena} style="color: #e5e5e5; font-family: system-ui, -apple-system, sans-serif; min-height: 100vh; padding: 1rem 1.5rem;">
+            <div class="page-header" style="margin-bottom: 1.25rem; max-width: 1000px; padding: 0; border-bottom: none;">
+                <h2 style="font-size: 1.125rem; font-weight: 500; color: #e5e5e5; display: flex; align-items: center; gap: 0.75rem; margin: 0;">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle>
+                    </svg>
+                    DevTools Settings
+                </h2>
+            </div>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 3rem; max-width: 1000px;">
+                <div>
+                    <h3 style="font-size: 1rem; font-weight: 500; margin-bottom: 1rem; color: #e5e5e5;">Tabs</h3>
+                    <div class="panel" style="border: 1px solid #333; border-radius: 6px; overflow: hidden; padding: 0; height: auto;">
+                        {for (tab_items) |item| (<TabRow allocator={ctx.arena} name={item.name} icon={item.icon} pinned={item.pinned} checked={item.checked} />)}
+                    </div>
+                </div>
+
+                <div>
+                    <div style="margin-bottom: 2rem;">
+                        <h3 style="font-size: 1rem; font-weight: 500; margin-bottom: 1rem; color: #e5e5e5;">Appearance</h3>
+                        <div class="panel" style=" border: 1px solid #333; border-radius: 6px; overflow: hidden;">
+                            <button style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background: transparent; border: 1px solid #333; border-radius: 4px; color: #e5e5e5; cursor: pointer; font-size: 0.875rem; margin-bottom: 1.5rem; width: fit-content;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                                Dark
+                            </button>
+
+                            <div style="margin-bottom: 1.5rem; border-bottom: 1px solid #262626; padding-bottom: 1.5rem;">
+                                <label style="display: block; font-weight: 400; margin-bottom: 0.75rem; font-size: 0.95rem;">UI Scale</label>
+                                <div style="position: relative; max-width: 150px;">
+                                    <select style="width: 100%; padding: 0.5rem 2rem 0.5rem 0.75rem; background: #0d0d0d; border: 1px solid #333; border-radius: 4px; color: #e5e5e5; font-size: 0.875rem; cursor: pointer; appearance: none; outline: none;">
+                                        <option>Normal</option>
+                                        <option>Large</option>
+                                        <option>Small</option>
+                                    </select>
+                                    <div style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); pointer-events: none;">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <CheckboxRow allocator={ctx.arena} label="Expand Sidebar" checked={true} style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; cursor: pointer;" />
+                            <CheckboxRow allocator={ctx.arena} label="Scrollable Sidebar" checked={true} style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;" />
+                        </div>
+                    </div>
+
+                    <div>
+                        <h3 style="font-size: 1rem; font-weight: 500; margin-bottom: 1rem; color: #e5e5e5;">Debug</h3>
+                        <div>
+                            <button style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 1rem; background: transparent; border: 1px solid #333; border-radius: 4px; color: #e5e5e5; cursor: pointer; font-size: 0.875rem;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"></path><path d="M21 3v5h-5"></path><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"></path><path d="M8 16H3v5"></path></svg>
+                                Reset Local Settings & State
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
