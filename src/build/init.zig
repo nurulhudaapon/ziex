@@ -164,6 +164,7 @@ pub fn initInner(
 
     // --- ZX WASM Main Executable --- //
     var wasm_exe_opt: ?*std.Build.Step.Compile = null;
+    var wasm_zx_meta_module: ?*std.Build.Module = null;
     if (opts.client != null) {
         wasm_exe_opt = b.addExecutable(.{
             .name = b.fmt("main", .{}),
@@ -202,11 +203,12 @@ pub fn initInner(
         }
         try wasm_meta_imports.append(.{ .name = "zx", .module = site_wasm_module });
 
-        site_wasm_module.addAnonymousImport("zx_meta", .{
+        wasm_zx_meta_module = b.addModule("zx_meta", .{
             .root_source_file = transpile_outdir.path(b, "meta.zig"),
             .imports = wasm_meta_imports.items,
         });
 
+        site_wasm_module.addImport("zx_meta", wasm_zx_meta_module.?);
         wasm_exe.root_module.addImport("zx", site_wasm_module);
         wasm_exe.step.dependOn(&transpile_cmd.step);
 
@@ -385,12 +387,27 @@ pub fn initInner(
     }
 
     return .{
-        .zx_exe = zx_exe,
-        .client_exe = wasm_exe_opt,
+        .zx = .{
+            .exe = zx_exe,
+        },
+
+        .client = if (wasm_zx_meta_module != null) .{
+            .exe = wasm_exe_opt.?,
+            .root_module = wasm_zx_meta_module.?,
+        } else null,
     };
 }
 
 pub const Build = struct {
-    zx_exe: *std.Build.Step.Compile,
-    client_exe: ?*std.Build.Step.Compile,
+    pub const BuildClient = struct {
+        exe: *std.Build.Step.Compile,
+        root_module: *std.Build.Module,
+    };
+
+    pub const BuildZiex = struct {
+        exe: *std.Build.Step.Compile,
+    };
+
+    zx: BuildZiex,
+    client: ?BuildClient,
 };
