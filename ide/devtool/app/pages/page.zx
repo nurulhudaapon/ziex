@@ -1,0 +1,213 @@
+const components = [_]Component{
+    .{ .name = "Header", .has_children = true, .children = &[_]Component{
+        .{ .name = "VersionSelect", .has_children = false, .children = &[_]Component{} },
+        .{ .name = "VersionSelect", .has_children = false, .children = &[_]Component{} },
+        .{ .name = "Sun", .has_children = false, .children = &[_]Component{} },
+        .{ .name = "Moon", .has_children = false, .children = &[_]Component{} },
+        .{ .name = "Share", .has_children = false, .children = &[_]Component{} },
+        .{ .name = "Reload", .has_children = false, .children = &[_]Component{} },
+        .{ .name = "Download", .has_children = false, .children = &[_]Component{} },
+        .{ .name = "GitHub", .has_children = false, .children = &[_]Component{} },
+    } },
+    .{
+        .name = "Repl",
+        .has_children = true,
+        .children = &[_]Component{
+            .{
+                .name = "SplitPane",
+                .has_children = true,
+                .children = &[_]Component{
+                    .{ .name = "Panes", .has_children = false, .children = &[_]Component{} },
+                    .{ .name = "PanesTwo", .has_children = false, .children = &[_]Component{} },
+                    .{ .name = "PanesThree", .has_children = false, .children = &[_]Component{} },
+                },
+            },
+        },
+    },
+};
+
+const setup_items = [_]StateItem{
+    .{ .arrow = "▶", .key = "replRef", .value = "Object", .meta = "(Ref)", .is_nested = false },
+    .{ .arrow = "", .key = "AUTO_SAVE_STORAGE_KEY", .value = "\"zx-sfc-playground-auto-save\"", .meta = "", .is_nested = false },
+    .{ .arrow = "", .key = "initAutoSave", .value = "true", .meta = "", .is_nested = false },
+    .{ .arrow = "", .key = "autoSave", .value = "true", .meta = "(Ref)", .is_nested = false },
+    .{ .arrow = "", .key = "productionMode", .value = "false", .meta = "(Ref)", .is_nested = false },
+    .{ .arrow = "", .key = "zxVersion", .value = "null", .meta = "(Ref)", .is_nested = false },
+    .{ .arrow = "▶", .key = "importMap", .value = "Object", .meta = "(Computed)", .is_nested = false },
+    .{ .arrow = "", .key = "hash", .value = "eNp9UU1LAzEQ/StjLqugXURPZVtQKaBgHFRW85FJ2p9vUBbKS2bWw7H93kqw1Q...", .meta = "", .is_nested = false },
+    .{ .arrow = "▶", .key = "sfcOptions", .value = "Object", .meta = "(Computed)", .is_nested = false },
+    .{ .arrow = "▼", .key = "store", .value = "Reactive", .meta = "", .is_nested = false },
+    .{ .arrow = "", .key = "theme", .value = "dark", .meta = "(Ref)", .is_nested = true },
+    .{ .arrow = "", .key = "isVaporSupported", .value = "false", .meta = "(Ref)", .is_nested = true },
+    .{ .arrow = "▶", .key = "previewOptions", .value = "Object", .meta = "(Computed)", .is_nested = false },
+};
+
+const setup_other_items = [_]StateItem{
+    .{ .arrow = "", .key = "setVH", .value = "fn i()", .meta = "", .is_nested = false },
+    .{ .arrow = "", .key = "toggleProdMode", .value = "fn p()", .meta = "", .is_nested = false },
+    .{ .arrow = "", .key = "toggleSSR", .value = "fn f()", .meta = "", .is_nested = false },
+    .{ .arrow = "", .key = "toggleAutoSave", .value = "fn m()", .meta = "", .is_nested = false },
+    .{ .arrow = "", .key = "reloadPage", .value = "fn _()", .meta = "", .is_nested = false },
+    .{ .arrow = "", .key = "toggleTheme", .value = "fn y(I)", .meta = "", .is_nested = false },
+    .{ .arrow = "", .key = "Header", .value = "Header", .meta = "", .is_nested = false },
+    .{ .arrow = "▶", .key = "Repl", .value = "Object", .meta = "", .is_nested = false },
+    .{ .arrow = "▶", .key = "Monaco", .value = "Object", .meta = "", .is_nested = false },
+};
+
+const template_refs_items = [_]StateItem{
+    .{ .arrow = "▶", .key = "replRef", .value = "Object", .meta = "", .is_nested = false },
+};
+
+const icons = @import("./components/icons.zx");
+
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <div @allocator={ctx.arena} class="devtools-container">
+            <div class="sidebar">
+                <div class="search-box">
+                    <div class="search-wrapper">
+                        <input type="text" placeholder="Find components..." class="search-input" />
+                        {icons.Search(ctx.arena)}
+                        <div class="search-shortcut">↲</div>
+                    </div>
+                </div>
+
+                <div class="component-tree">
+                    <div class="component-root">
+                        <span class="tree-arrow">▼</span>
+                        <span class="component-name-root">{"<App>"}</span>
+                        <span class="component-badge">fragment</span>
+                    </div>
+
+                    <div class="component-list">
+                        {for (components) |comp| (<ComponentItem allocator={ctx.arena} name={comp.name} has_children={comp.has_children} children={comp.children} />)}
+                    </div>
+                </div>
+            </div>
+
+            <div class="state-panel">
+                <div class="state-header">
+                    <span class="state-title">{"<App>"}</span>
+                    <div class="filter-wrapper">
+                        <input type="text" placeholder="Filter State..." class="filter-input" />
+                    </div>
+                    <div class="state-actions">
+                        {icons.StateEye(ctx.arena)}
+                        {icons.StateArrows(ctx.arena)}
+                        {icons.StateList(ctx.arena)}
+                        {icons.StateExport(ctx.arena)}
+                    </div>
+                </div>
+
+                <div class="state-content">
+                    <StateSection allocator={ctx.arena} title="Props" items={&setup_items} />
+                    <StateSection allocator={ctx.arena} title="Signals" items={&setup_other_items} />
+                    <StateSection allocator={ctx.arena} title="Actions" items={&template_refs_items} />
+                </div>
+            </div>
+        </div>
+    );
+}
+
+const Component = struct {
+    name: []const u8,
+    has_children: bool,
+    children: []const Component,
+};
+const ComponentItemProps = struct { name: []const u8, has_children: bool, children: []const Component, depth: usize = 0 };
+
+fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Component {
+    const id = std.fmt.allocPrint(allocator, "comp-{d}-{s}", .{ props.depth, props.name }) catch "";
+    const padding = props.depth * 16 + 24;
+    const style_str = std.fmt.allocPrint(allocator, "padding-left: {d}px", .{padding}) catch "";
+    return (
+        <div @allocator={allocator} class="component-group">
+            {if (props.has_children) (
+                <>
+                    <input type="checkbox" id={id} class="component-toggle" checked />
+                    <label for={id} class="component-item" style={style_str}>
+                        <span class="tree-arrow"></span>
+                        <span class="bracket">{"<"}</span>
+                        <span class="component-name">{props.name}</span>
+                        <span class="bracket">{">"}</span>
+                    </label>
+                    <div class="component-children">
+                        {for (props.children) |child| (
+                            <ComponentItem allocator={allocator} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} />
+                        )}
+                    </div>
+                </>
+            ) else (
+                <div class="component-item" style={style_str}>
+                    <span class="bracket">{"<"}</span>
+                    <span class="component-name">{props.name}</span>
+                    <span class="bracket">{">"}</span>
+                </div>
+            )}
+        </div>
+    );
+}
+
+const StateItem = struct { arrow: []const u8, key: []const u8, value: []const u8, meta: []const u8, is_nested: bool };
+fn StateSection(allocator: zx.Allocator, props: struct { title: []const u8, items: []const StateItem }) zx.Component {
+    const id = std.fmt.allocPrint(allocator, "state-section-{s}", .{props.title}) catch "";
+    return (
+        <div @allocator={allocator} class="state-section">
+            <input type="checkbox" id={id} class="state-toggle" checked />
+            <label for={id} class="section-header">
+                <span class="section-arrow"></span>
+                <span class="section-title">{props.title}</span>
+            </label>
+            <div class="section-items">
+                {for (props.items) |item| (
+                    <StateItemRow allocator={allocator} item={item} />
+                )}
+            </div>
+        </div>
+    );
+}
+
+fn StateItemRow(allocator: zx.Allocator, props: struct { item: StateItem }) zx.Component {
+    const item = props.item;
+    const indent_class = if (item.is_nested) "state-item-nested" else "state-item";
+    const has_arrow = item.arrow.len > 0;
+    const id = std.fmt.allocPrint(allocator, "state-row-{s}", .{item.key}) catch "";
+    const key_color = getKeyColor(item.value);
+    const value_color_base = getValueColor(item.value);
+    const is_hash = std.mem.eql(u8, item.key, "hash");
+    const value_color = if (is_hash) "value-default hash-value" else value_color_base;
+    return (
+        <div @allocator={allocator} class={indent_class}>
+            {if (has_arrow) (
+                <>
+                    <input type="checkbox" id={id} class="state-row-toggle" checked />
+                    <label for={id} class="item-arrow"></label>
+                </>
+            ) else (
+                <span class="item-spacer"></span>
+            )}
+            <span class={key_color}>{item.key}</span>
+            <span class="item-colon">:</span>
+            <div class="state-row-value">
+                <span class={value_color}>{item.value}</span>
+                {if (item.meta.len > 0) (<span class="item-meta">{item.meta}</span>) else ""}
+            </div>
+        </div>
+    );
+}
+
+fn getKeyColor(value: []const u8) []const u8 {
+    if (std.mem.indexOf(u8, value, "fn") != null) return ("key-function");
+    if (std.mem.eql(u8, value, "true") or std.mem.eql(u8, value, "false")) return ("key-boolean");
+    return ("key-default");
+}
+
+fn getValueColor(value: []const u8) []const u8 {
+    if (std.mem.indexOf(u8, value, "fn") != null) return ("value-function");
+    if (std.mem.eql(u8, value, "true") or std.mem.eql(u8, value, "false")) return ("value-boolean");
+    if (std.mem.startsWith(u8, value, "\"")) return ("value-string");
+    return ("value-default");
+}
+
+const zx = @import("zx");
+const std = @import("std");

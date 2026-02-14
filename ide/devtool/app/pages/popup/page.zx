@@ -1,0 +1,10 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <div @allocator={ctx.arena}>
+            <h2>Ziex DevTools</h2>
+            <p>Open DevTools (F12) and look for the "Ziex" tab to inspect your Ziex applications.</p>
+        </div>
+    );
+}
+
+const zx = @import("zx");

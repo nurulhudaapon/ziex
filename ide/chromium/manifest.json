@@ -1,0 +1,54 @@
+{
+  "manifest_version": 3,
+  "name": "Ziex DevTools",
+  "version": "0.1.0",
+  "description": "DevTools browser extension for Ziex Framework",
+  "icons": {
+    "16": "icons/zx-icon-dark.svg"
+  },
+  "devtools_page": "pages/devtools-background.html",
+  "action": {
+    "default_icon": {
+      "16": "icons/zx-icon-dark.svg"
+    },
+    "default_popup": "pages/popup.html",
+    "default_title": "Ziex DevTools"
+  },
+  "background": {
+    "service_worker": "src/background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "js": [
+        "src/content.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ],
+      "run_at": "document_start"
+    }
+  ],
+  "permissions": [
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "dist/*",
+        "client-dist/*",
+        "assets/*",
+        "pages/*"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}
