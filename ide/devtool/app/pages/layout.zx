@@ -28,6 +28,8 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
                     <main class="main-content">
                         {children}
                     </main>
+
+                    <script src="/assets/splitpane.js"></script>
                 </div>
             </body>
         </html>
