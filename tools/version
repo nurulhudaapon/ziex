@@ -72,16 +72,16 @@ if [ -f "$ZIEX_PACKAGE_JSON" ]; then
     echo "Updated pkg/ziex/package.json"
 fi
 
-# Update editors/zed/extension.toml version
-ZED_EXTENSION_TOML="$PROJECT_ROOT/editors/zed/extension.toml"
+# Update ide/zed/extension.toml version
+ZED_EXTENSION_TOML="$PROJECT_ROOT/ide/zed/extension.toml"
 if [ -f "$ZED_EXTENSION_TOML" ]; then
     sed -i.bak -E "s/$VERSION_PATTERN/$NEW_VERSION/" "$ZED_EXTENSION_TOML"
     rm -f "$ZED_EXTENSION_TOML.bak"
-    echo "Updated editors/zed/extension.toml"
+    echo "Updated ide/zed/extension.toml"
 fi
 
-# Update editors/vscode/package.json version (uses 0.1.X format since VSCode doesn't support prerelease versions)
-VSCODE_PACKAGE_JSON="$PROJECT_ROOT/editors/vscode/package.json"
+# Update ide/vscode/package.json version (uses 0.1.X format since VSCode doesn't support prerelease versions)
+VSCODE_PACKAGE_JSON="$PROJECT_ROOT/ide/vscode/package.json"
 if [ -f "$VSCODE_PACKAGE_JSON" ]; then
     # Extract the dev number from the new version (e.g., 357 from 0.1.0-dev.357)
     VSCODE_DEV_NUMBER=$(echo "$NEW_VERSION" | grep -oE 'dev\.([0-9]+)' | grep -oE '[0-9]+')
@@ -89,7 +89,7 @@ if [ -f "$VSCODE_PACKAGE_JSON" ]; then
         VSCODE_VERSION="0.1.$VSCODE_DEV_NUMBER"
         sed -i.bak -E "s/\"version\": \"0\\.1\\.[0-9]+\"/\"version\": \"$VSCODE_VERSION\"/" "$VSCODE_PACKAGE_JSON"
         rm -f "$VSCODE_PACKAGE_JSON.bak"
-        echo "Updated editors/vscode/package.json -> $VSCODE_VERSION"
+        echo "Updated ide/vscode/package.json -> $VSCODE_VERSION"
     fi
 fi
 

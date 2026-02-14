@@ -11,7 +11,7 @@ return {
     lazy = false,
     priority = 50,   -- Load after lspconfig but early
     config = function()
-      vim.opt.runtimepath:prepend(vim.fn.stdpath("data") .. "/lazy/zx/editors/neovim")
+      vim.opt.runtimepath:prepend(vim.fn.stdpath("data") .. "/lazy/zx/ide/neovim")
       vim.cmd("runtime! plugin/zx.lua")
     end,
   }

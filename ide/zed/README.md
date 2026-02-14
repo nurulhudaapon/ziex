@@ -11,4 +11,4 @@ The extension has not yet been published in the marketplace. See PR [here](https
 
 - Open the Extensions panel in Zed (CTRL/CMD + SHIFT + P)
 - Select `Install Dev Extension`
-- Navigate to the `editors/zed` directory in the cloned repository
+- Navigate to the `ide/zed` directory in the cloned repository

@@ -72,7 +72,7 @@ fi
 echo ""
 echo "Step 6: Testing Neovim integration..."
 nvim --headless \
-  -c "set runtimepath+=$HOME/Projects/nurulhudaapon/zx/editors/neovim" \
+  -c "set runtimepath+=$HOME/Projects/nurulhudaapon/zx/ide/neovim" \
   -c "lua vim.filetype.add({ extension = { zx = 'zx' } })" \
   -c "e /tmp/test.zx" \
   -c "lua print('Filetype: ' .. vim.bo.filetype)" \

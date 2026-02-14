@@ -5,7 +5,7 @@
       "name": "VSCode Extension",
       "type": "extensionHost",
       "request": "launch",
-      "args": ["--extensionDevelopmentPath=${workspaceFolder}/editors/vscode"],
+      "args": ["--extensionDevelopmentPath=${workspaceFolder}/ide/vscode"],
       "preLaunchTask": "npm: watch"
     }
   ]

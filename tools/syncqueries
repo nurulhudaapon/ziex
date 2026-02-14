@@ -7,8 +7,8 @@ PROJECT_ROOT="$(pwd)"
 
 # Source and destination directories
 SOURCE_DIR="$PROJECT_ROOT/pkg/tree-sitter-zx/queries"
-ZED_DIR="$PROJECT_ROOT/editors/zed/languages/zx"
-NEOVIM_DIR="$PROJECT_ROOT/editors/neovim/queries/zx"
+ZED_DIR="$PROJECT_ROOT/ide/zed/languages/zx"
+NEOVIM_DIR="$PROJECT_ROOT/ide/neovim/queries/zx"
 SITE_PAGES_DIR="$PROJECT_ROOT/site/pages/docs"
 
 # Ensure destination directories exist

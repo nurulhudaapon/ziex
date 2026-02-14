@@ -323,7 +323,7 @@ fn EditorSetup(allocator: zx.Allocator) zx.Component {
             <section id="neovim" class="section">
                 <h2>Neovim</h2>
                 <p>With <a href="https://github.com/folke/lazy.nvim" target="_blank" rel="noopener noreferrer">lazy.nvim</a>, add <code>nurulhudaapon/ziex</code> as a plugin with <code>nvim-treesitter</code> as a dependency.</p>
-                <p>See the <a href=`{zx.info.repository}/tree/main/editors/neovim` target="_blank" rel="noopener noreferrer">Neovim setup guide</a> for the full configuration.</p>
+                <p>See the <a href=`{zx.info.repository}/tree/main/ide/neovim` target="_blank" rel="noopener noreferrer">Neovim setup guide</a> for the full configuration.</p>
                 <p><strong>Features:</strong> Tree-sitter syntax highlighting, LSP support, and file icons.</p>
             </section>
 
@@ -334,9 +334,9 @@ fn EditorSetup(allocator: zx.Allocator) zx.Component {
                     <li>Clone: <code>git clone {zx.info.repository}</code></li>
                     <li>Open Extensions panel (Cmd/Ctrl + Shift + P)</li>
                     <li>Select "Install Dev Extension"</li>
-                    <li>Navigate to <code>editors/zed</code> in the cloned repo</li>
+                    <li>Navigate to <code>ide/zed</code> in the cloned repo</li>
                 </ol>
-                <p>See the <a href=`{zx.info.repository}/tree/main/editors/zed` target="_blank" rel="noopener noreferrer">Zed setup guide</a> for details.</p>
+                <p>See the <a href=`{zx.info.repository}/tree/main/ide/zed` target="_blank" rel="noopener noreferrer">Zed setup guide</a> for details.</p>
             </section>
             <script src=`/assets/docs.js?v={zx.info.version}` defer="true"></script>
         </>

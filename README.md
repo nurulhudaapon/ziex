@@ -159,8 +159,8 @@ const zx = @import("zx");
 #### Editor Support
 
 - ##### [VSCode](https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx)/[VSCode Forks](https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx) Extension
-- ##### [Neovim](/editors/neovim/)
-- ##### [Zed](/editors/zed/)
+- ##### [Neovim](/ide/neovim/)
+- ##### [Zed](/ide/zed/)
 
 ## Community
 
