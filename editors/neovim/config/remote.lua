@@ -1,6 +1,6 @@
 -- ~/.config/nvim/lua/plugins/zx.lua
 return {
-    "nurulhudaapon/zx",
+    "nurulhudaapon/ziex",
     dependencies = {
       "nvim-treesitter/nvim-treesitter",
       "neovim/nvim-lspconfig",           -- for LSP support

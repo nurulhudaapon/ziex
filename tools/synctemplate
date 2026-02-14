@@ -10,12 +10,12 @@ fi
 cd src/cli/init/template
 
 # Since we are releasing as pre-release it takes the last latest releases
-# LATEST_RELEASE_VERSION=$(curl -s https://api.github.com/repos/nurulhudaapon/zx/releases/latest | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p')
-# zig fetch --save "git+https://github.com/nurulhudaapon/zx#${LATEST_RELEASE_VERSION}"
+# LATEST_RELEASE_VERSION=$(curl -s https://api.github.com/repos/nurulhudaapon/ziex/releases/latest | sed -n 's/.*"tag_name": "\([^"]*\)".*/\1/p')
+# zig fetch --save "git+https://github.com/nurulhudaapon/ziex#${LATEST_RELEASE_VERSION}"
 
 
-echo "Updating template to zx version: ${VERSION}"
-zig fetch --save "git+https://github.com/nurulhudaapon/zx#${VERSION}"
+echo "Updating template to ziex version: ${VERSION}"
+zig fetch --save "git+https://github.com/nurulhudaapon/ziex#${VERSION}"
 
 npx --yes npm-check-updates -u
-# git commit -m"feat: update template to latest zx"
+# git commit -m"feat: update template to latest ziex"

@@ -2,9 +2,9 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     const path = ctx.request.pathname;
     const description = "A full-stack web framework for Zig. Write declarative UI components using familiar JSX patterns, transpiled to efficient Zig code.";
     const title = "Ziex - Full-stack Web Framework for Zig";
-    const site_url = "https://ziex.dev";
+    const site_url = zx.info.homepage;
     const keywords = "zig, zx, ziex, web framework, jsx, full-stack, ssr, ssg, wasm, components, server-side rendering, static site generation";
-    const js_href = std.fmt.allocPrint(ctx.arena, "/assets/docs.js?v={s}", .{zx.info.version_string}) catch unreachable;
+    const js_href = std.fmt.allocPrint(ctx.arena, "/assets/docs.js?v={s}", .{zx.info.version}) catch unreachable;
     const needs_js = !std.mem.eql(u8, path, "/");
 
     if (std.mem.eql(u8, path, "/overview") or std.mem.eql(u8, path, "/time")) {

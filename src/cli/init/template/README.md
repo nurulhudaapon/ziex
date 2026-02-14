@@ -1,5 +1,5 @@
 # ZX
-This website is built with [ZX](https://github.com/nurulhudaapon/zx).
+This website is built with [ZX](https://github.com/nurulhudaapon/ziex).
 
 **[Full Documentation →](https://ziex.dev)**
 

@@ -29,7 +29,7 @@ pub fn main() !void {
             base_url,
             err_name,
             err_name,
-            zx.info.version_string,
+            zx.info.version,
         }) catch base_url;
         // OSC 8 hyperlink: \x1b]8;;URL\x07DISPLAY_TEXT\x1b]8;;\x07
         std.debug.print("\n{s}An unexpected problem occurred while running ZX CLI.{s}\n", .{ c.red, c.reset });

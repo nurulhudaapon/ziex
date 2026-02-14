@@ -2,7 +2,7 @@ pub fn build(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.
     const root = try zli.Command.init(writer, reader, allocator, .{
         .name = "zx",
         .description = zx.info.description,
-        .version = std.SemanticVersion.parse(zx.info.version_string) catch unreachable,
+        .version = std.SemanticVersion.parse(zx.info.version) catch unreachable,
     }, showHelp);
 
     try root.addCommands(&.{

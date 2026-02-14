@@ -138,7 +138,7 @@ function Install-ZX {
   # if ($IsBaseline) {
   #   $Target = "zx-windows-$Arch-baseline"
   # }
-  $BaseURL = "https://github.com/nurulhudaapon/zx/releases"
+  $BaseURL = "https://github.com/nurulhudaapon/ziex/releases"
   $URL = "$BaseURL/$(if ($Version -eq "latest") { "latest/download" } else { "download/$Version" })/$Target.zip"
 
   $ZipPath = "${ZxBin}\$Target.zip"
@@ -207,7 +207,7 @@ function Install-ZX {
   if ($LASTEXITCODE -eq 1073741795) { # STATUS_ILLEGAL_INSTRUCTION
     if ($IsBaseline) {
       Write-Output "Install Failed - zx.exe (baseline) is not compatible with your CPU.`n"
-      Write-Output "Please open a GitHub issue with your CPU model:`nhttps://github.com/nurulhudaapon/zx/issues/new/choose`n"
+      Write-Output "Please open a GitHub issue with your CPU model:`nhttps://github.com/nurulhudaapon/ziex/issues/new/choose`n"
       return 1
     }
 
@@ -224,7 +224,7 @@ function Install-ZX {
   { 
     Write-Output "Install Failed - You are missing a DLL required to run zx.exe"
     Write-Output "This can be solved by installing the Visual C++ Redistributable from Microsoft:`nSee https://learn.microsoft.com/cpp/windows/latest-supported-vc-redist`nDirect Download -> https://aka.ms/vs/17/release/vc_redist.x64.exe`n`n"
-    Write-Output "The error above should be unreachable as ZX does not depend on this library. Please comment in https://github.com/nurulhudaapon/zx/issues/8598 or open a new issue.`n`n"
+    Write-Output "The error above should be unreachable as ZX does not depend on this library. Please open a issue.`n`n"
     Write-Output "The command '${ZxBin}\zx.exe --revision' exited with code ${LASTEXITCODE}`n"
     return 1
   }

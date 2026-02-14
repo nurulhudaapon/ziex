@@ -13,7 +13,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
         <main @allocator={ctx.arena}>
             <p>Ziex is a framework for building web applications with Zig.</p>
-            <a href="https://ziex.dev" target="_blank">See Ziex Docs →</a>
+            <a href={zx.info.homepage} target="_blank">See Ziex Docs →</a>
             <br />
             <div class="counter-row">
                 <ZigCounterComponent @rendering={.client} count={count} />

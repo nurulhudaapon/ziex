@@ -223,7 +223,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                                 <span class="nav-social-text">Discord</span>
                             </a>
                             <span class="nav-social-divider" aria-hidden="true"></span>
-                            <a href="https://github.com/nurulhudaapon/zx" target="_blank" rel="noopener noreferrer" class="nav-social-link" aria-label="GitHub">
+                            <a href={zx.info.repository} target="_blank" rel="noopener noreferrer" class="nav-social-link" aria-label="GitHub">
                                 <GitHubIcon allocator={allocator} />
                                 <span class="nav-social-text">GitHub</span>
                             </a>
@@ -234,7 +234,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <main>
                 <section class="hero">
                     <div class="hero-content">
-                        <div class="hero-badge">v{zx.info.version_string}</div>
+                        <div class="hero-badge">v{zx.info.version}</div>
                         <div class="hero-title-wrapper">
                             <h1 class="hero-title-main">Ziex</h1>
                             <div class="hero-title-accent">/</div>
@@ -271,7 +271,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     allocator={allocator}
                     eyebrow="Performance Benchmarks"
                     title="Performance"
-                    subtitle="<a href='https://github.com/nurulhudaapon/zx/tree/main/bench' target='_blank' class='bench-label-link'>View benchmark →</a> <br/> Each framework runs in a Docker container limited to 2 CPU cores and 2 GB RAM."
+                    subtitle=`<a href='{zx.info.repository}/tree/main/bench' target='_blank' class='bench-label-link'>View benchmark →</a> <br/> Each framework runs in a Docker container limited to 2 CPU cores and 2 GB RAM.`
                     tabs={benchmark_tabs[0..]}
                 />
                 <section class="feature-examples">
@@ -306,7 +306,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <footer class="footer">
                 <p>© {current_year} {" Ziex contributors. Ziex is free and open source software released under the MIT license."}</p>
             </footer>
-            <script src=`/assets/clipboard.js?v={zx.info.version_string}` defer="true"></script>
+            <script src=`/assets/clipboard.js?v={zx.info.version}` defer="true"></script>
         </div>
     );
 }

@@ -5,8 +5,8 @@ pub fn ExamplesSection(allocator: zx.Allocator) zx.Component {
             <ul>
                 <li>
                     <strong>This Documentation Site: </strong>
-                    <a href="https://ziex.dev" target="_blank" rel="noopener noreferrer">Live</a> |
-                    <a href="https://github.com/nurulhudaapon/zx/tree/main/site" target="_blank" rel="noopener noreferrer">Source</a>
+                    <a href={zx.info.homepage} target="_blank" rel="noopener noreferrer">Live</a> |
+                    <a href=`{zx.info.repository}/tree/main/site` target="_blank" rel="noopener noreferrer">Source</a>
                 </li>
                 <li>
                     <strong>A Portfolio Site with Blog: </strong>

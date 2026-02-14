@@ -198,8 +198,8 @@ const zx = @import("zx");
 
 ## Related Projects
 
-* [Codeberg Mirror](https://codeberg.org/nurulhudaapon/zx) - ZX repository mirror on Codeberg
-* [ziex.dev](https://github.com/nurulhudaapon/zx/tree/main/site) - Official documentation site of ZX made using ZX.
+* [Codeberg Mirror](https://codeberg.org/nurulhudaapon/ziex) - ZX repository mirror on Codeberg
+* [ziex.dev](https://github.com/nurulhudaapon/ziex/tree/main/site) - Official documentation site of ZX made using ZX.
 * [zx-example-portfolio](https://github.com/nurulhudaapon/zx-example-portfolio) - Demo portfolio web application built with ZX
 * [thegates.dev](https://github.com/nurulhudaapon/thegates.dev) - Example clone demonstrating ZX capabilities
 * [zx-numbers-game](https://github.com/Andrew-Velox/zx-numbers-game) - ZX numbers game

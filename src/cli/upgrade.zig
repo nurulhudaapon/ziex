@@ -18,19 +18,19 @@ fn upgrade(ctx: zli.CommandContext) !void {
     const install_cmd = switch (builtin.os.tag) {
         .windows => blk: {
             if (std.mem.eql(u8, version, "latest")) {
-                break :blk [_][:0]const u8{ "powershell", "-c", "irm ziex.dev/install.ps1 | iex" };
+                break :blk [_][:0]const u8{ "powershell", "-c", "irm " ++ zx.info.homepage["https://".len..] ++ "/install.ps1 | iex" };
             } else {
                 const prefix = if (std.mem.startsWith(u8, version, "v")) "" else "v";
-                maybe_cmd_str = try std.fmt.allocPrintSentinel(ctx.allocator, "& ([scriptblock]::Create((irm ziex.dev/install.ps1))) -Version '{s}{s}'", .{ prefix, version }, 0);
+                maybe_cmd_str = try std.fmt.allocPrintSentinel(ctx.allocator, "& ([scriptblock]::Create((irm {s}/install.ps1))) -Version '{s}{s}'", .{ zx.info.homepage["https://".len..], prefix, version }, 0);
                 break :blk [_][:0]const u8{ "powershell", "-c", maybe_cmd_str.? };
             }
         },
         .linux, .macos => blk: {
             if (std.mem.eql(u8, version, "latest")) {
-                break :blk [_][:0]const u8{ "bash", "-c", "curl -fsSL https://ziex.dev/install | bash" };
+                break :blk [_][:0]const u8{ "bash", "-c", "curl -fsSL " ++ zx.info.homepage ++ "/install | bash" };
             } else {
                 const prefix = if (std.mem.startsWith(u8, version, "v")) "" else "v";
-                maybe_cmd_str = try std.fmt.allocPrintSentinel(ctx.allocator, "curl -fsSL https://ziex.dev/install | bash -s -- {s}{s}", .{ prefix, version }, 0);
+                maybe_cmd_str = try std.fmt.allocPrintSentinel(ctx.allocator, "curl -fsSL {s}/install | bash -s -- {s}{s}", .{ zx.info.homepage, prefix, version }, 0);
                 break :blk [_][:0]const u8{ "bash", "-c", maybe_cmd_str.? };
             }
         },

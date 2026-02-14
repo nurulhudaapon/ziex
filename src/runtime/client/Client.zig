@@ -263,7 +263,7 @@ pub fn info(self: *Client) void {
     const title_css = "background-color: #00a8cc; color: white; font-weight: bold; padding: 3px 5px;";
     const version_css = "background-color: #141414; color: white; font-weight: normal; padding: 3px 5px;";
 
-    const format_str = std.fmt.allocPrint(self.allocator, "%cZX%c{s}", .{zx_info.version_string}) catch unreachable;
+    const format_str = std.fmt.allocPrint(self.allocator, "%cZX%c{s}", .{zx_info.version}) catch unreachable;
     defer self.allocator.free(format_str);
 
     console.log(.{ js.string(format_str), js.string(title_css), js.string(version_css) });

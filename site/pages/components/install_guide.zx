@@ -15,7 +15,7 @@ pub fn InstallCLI(allocator: zx.Allocator) zx.Component {
                         <span class="install-prompt">$ </span>
                         <span class="function">curl</span>
                         <span class="operator"> -fsSL </span>
-                        <span class="string">https://ziex.dev/install</span>
+                        <span class="string">{zx.info.homepage}/install</span>
                         <span class="operator"> | </span>
                         <span class="function">bash</span>
                     </div>
@@ -25,7 +25,7 @@ pub fn InstallCLI(allocator: zx.Allocator) zx.Component {
                         <span class="install-prompt">{"> "}</span>
                         <span class="function">powershell</span>
                         <span class="operator"> -c </span>
-                        <span class="string">"irm ziex.dev/install.ps1 | iex"</span>
+                        <span class="string">"irm {zx.info.homepage["https://".len..]}/install.ps1 | iex"</span>
                     </div>
                 </div>
             </div>

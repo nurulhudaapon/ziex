@@ -11,10 +11,10 @@
     "./wasm": "./wasm/index.js",
     "./wasm/init": "./wasm/init.js"
   },
-  "homepage": "https://github.com/nurulhudaapon/zx",
+  "homepage": "https://ziex.dev",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/nurulhudaapon/zx.git"
+    "url": "git+https://github.com/nurulhudaapon/ziex.git"
   },
   "keywords": [
     "zx",

@@ -6,7 +6,7 @@ The extension has not yet been published in the marketplace. See PR [here](https
 ### Manual Installation
 - Clone this repository
     ```bash
-    git clone git@github.com:nurulhudaapon/zx.git
+    git clone git@github.com:nurulhudaapon/ziex.git
     ```
 
 - Open the Extensions panel in Zed (CTRL/CMD + SHIFT + P)
