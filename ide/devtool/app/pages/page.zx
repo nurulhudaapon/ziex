@@ -100,8 +100,8 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 </div>
 
                 <div class="state-content">
-                    <StateSection allocator={ctx.arena} title="Global Signals" items={&setup_items} />
-                    <StateSection allocator={ctx.arena} title="Components Signals" items={&setup_other_items} />
+                    <StateSection allocator={ctx.arena} title="Props" items={&setup_items} />
+                    <StateSection allocator={ctx.arena} title="Signals" items={&setup_other_items} />
                     <StateSection allocator={ctx.arena} title="Actions" items={&template_refs_items} />
                 </div>
             </div>
