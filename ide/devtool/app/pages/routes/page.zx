@@ -15,7 +15,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
                 <div class="routes-section">
                     <div class="routes-section-row">
-                        {icons.AllRoutes(ctx.arena)}
+                        {icons.Workflow(ctx.arena)}
                         <span class="routes-section-title">All Routes</span>
                         <span class="routes-section-arrow">^</span>
                     </div>

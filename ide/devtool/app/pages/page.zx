@@ -58,6 +58,31 @@ const template_refs_items = [_]StateItem{
     .{ .arrow = "▶", .key = "replRef", .value = "Object", .meta = "", .is_nested = false },
 };
 
+
+var inputvalue: []const u8 = "hello";
+var inputvalue2= zx.Signal([]const u8).init("hello2");
+
+const ComponentSearchInputProps = struct {  };
+pub fn ComponentSearchInput(
+    ctx: *zx.ComponentCtx(ComponentSearchInputProps),
+) zx.Component {
+    return (
+        <div @allocator={ctx.allocator} class="search-input-wrapper">
+            <input @allocator={ctx.allocator} oninput={handleComponentSearchInput} type="text" placeholder="Find components..." class="search-input" />
+
+            // <h1>{inputvalue}</h1>
+            // <h1>{&inputvalue2}</h1>
+        </div>
+    );
+}
+
+pub fn handleComponentSearchInput(ctx: zx.EventContext) void {
+    std.log.info("Component search input changed: {s}", .{ctx.value() orelse ""});
+    inputvalue = ctx.value() orelse "";
+    inputvalue2.set(inputvalue);
+    // zx.requestRender();
+}
+
 const icons = @import("./components/icons.zx");
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
@@ -66,7 +91,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <div class="sidebar">
                 <div class="search-box">
                     <div class="search-wrapper">
-                        <input type="text" placeholder="Find components..." class="search-input" />
+                        <ComponentSearchInput @rendering={.client} />
                         {icons.Search(ctx.arena)}
                         <div class="search-shortcut">↲</div>
                     </div>

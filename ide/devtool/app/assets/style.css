@@ -1057,7 +1057,8 @@ input:checked+.slider:before {
 
 .current-route-label {
   color: #9ca3af;
-  font-size: 12px;
+  font-size: 16px;
+  font-weight: 500;
   margin-bottom: 8px;
 }
 
@@ -1073,27 +1074,27 @@ input:checked+.slider:before {
 
 .route-arrow {
   color: #666;
-  font-size: 14px;
+  font-size: 17px;
 }
 
 .route-input {
   background: transparent;
   border: none;
-  color: #fff;
+  color: var(--zx-primary);
   outline: none;
   flex: 1;
   font-family: monospace;
-  font-size: 13px;
+  font-size: 16px;
 }
 
 .route-hint {
   color: #9ca3af;
-  font-size: 12px;
+  font-size: 16px;
   margin-top: 8px;
 }
 
 .route-hint .no-match {
-  color: #d97706;
+  color: var(--zx-primary);
 }
 
 .routes-section-row {
@@ -1109,7 +1110,7 @@ input:checked+.slider:before {
 }
 
 .routes-section-title {
-  font-size: 13px;
+  font-size: 16px;
   font-weight: 500;
 }
 
@@ -1122,7 +1123,7 @@ input:checked+.slider:before {
   margin-left: 24px;
   margin-top: 4px;
   color: #666;
-  font-size: 12px;
+  font-size: 14px;
 }
 
 .sidebar-logo {
