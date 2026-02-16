@@ -105,7 +105,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     </div>
 
                     <div class="component-list">
-                        {for (components) |comp| (<ComponentItem allocator={ctx.arena} name={comp.name} has_children={comp.has_children} children={comp.children} />)}
+                        {for (components) |comp| (<ComponentItem allocator={ctx.arena} name={comp.name} has_children={comp.has_children} children={comp.children} depth={1} />)}
                     </div>
                 </div>
             </div>
@@ -143,7 +143,7 @@ const ComponentItemProps = struct { name: []const u8, has_children: bool, childr
 
 fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Component {
     const id = std.fmt.allocPrint(allocator, "comp-{d}-{s}", .{ props.depth, props.name }) catch "";
-    const padding = props.depth * 16 + 24;
+    const padding = props.depth * 24 + 16;
     const style_str = std.fmt.allocPrint(allocator, "padding-left: {d}px", .{padding}) catch "";
     return (
         <div @allocator={allocator} class="component-group">
