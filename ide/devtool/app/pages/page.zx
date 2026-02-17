@@ -1,29 +1,34 @@
 const components = [_]Component{
-    .{ .name = "Header", .has_children = true, .children = &[_]Component{
-        .{ .name = "VersionSelect", .has_children = false, .children = &[_]Component{} },
-        .{ .name = "VersionSelect", .has_children = false, .children = &[_]Component{} },
-        .{ .name = "Sun", .has_children = false, .children = &[_]Component{} },
-        .{ .name = "Moon", .has_children = false, .children = &[_]Component{} },
-        .{ .name = "Share", .has_children = false, .children = &[_]Component{} },
-        .{ .name = "Reload", .has_children = false, .children = &[_]Component{} },
-        .{ .name = "Download", .has_children = false, .children = &[_]Component{} },
-        .{ .name = "GitHub", .has_children = false, .children = &[_]Component{} },
-    } },
-    .{
-        .name = "Repl",
-        .has_children = true,
-        .children = &[_]Component{
-            .{
-                .name = "SplitPane",
-                .has_children = true,
-                .children = &[_]Component{
-                    .{ .name = "Panes", .has_children = false, .children = &[_]Component{} },
-                    .{ .name = "PanesTwo", .has_children = false, .children = &[_]Component{} },
-                    .{ .name = "PanesThree", .has_children = false, .children = &[_]Component{} },
+    .{ .name = "App", .has_children = true, .selected = true, .badge = "fragment", .children = &[_]Component{
+        .{ .name = "Header", .has_children = true, .children = &[_]Component{
+            .{ .name = "VersionSelect", .has_children = false, .children = &[_]Component{} },
+            .{ .name = "VersionSelect", .has_children = false, .children = &[_]Component{} },
+            .{ .name = "Sun", .has_children = false, .children = &[_]Component{} },
+            .{ .name = "Moon", .has_children = false, .children = &[_]Component{} },
+            .{ .name = "Share", .has_children = false, .children = &[_]Component{} },
+            .{ .name = "Reload", .has_children = false, .children = &[_]Component{} },
+            .{ .name = "Download", .has_children = false, .children = &[_]Component{} },
+            .{ .name = "GitHub", .has_children = false, .children = &[_]Component{} },
+        } },
+        .{
+            .name = "Repl",
+            .has_children = true,
+            .children = &[_]Component{
+                .{
+                    .name = "SplitPane",
+                    .has_children = true,
+                    .children = &[_]Component{
+                        .{ .name = "Panes", .has_children = false, .children = &[_]Component{} },
+                        .{ .name = "PanesTwo", .has_children = false, .children = &[_]Component{} },
+                        .{ .name = "PanesThree", .has_children = true, .children = &[_]Component{} },
+                    },
                 },
             },
         },
-    },
+    } },
+
+
+    
 };
 
 const setup_items = [_]StateItem{
@@ -98,14 +103,9 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 </div>
 
                 <div class="component-tree">
-                    <div class="component-root">
-                        <span class="tree-arrow">▼</span>
-                        <span class="component-name-root">{"<App>"}</span>
-                        <span class="component-badge">fragment</span>
-                    </div>
 
                     <div class="component-list">
-                        {for (components) |comp| (<ComponentItem allocator={ctx.arena} name={comp.name} has_children={comp.has_children} children={comp.children} depth={1} />)}
+                        {for (components) |comp| (<ComponentItem allocator={ctx.arena} name={comp.name} has_children={comp.has_children} children={comp.children} depth={0} selected={comp.selected} badge={comp.badge} />)}
                     </div>
                 </div>
             </div>
@@ -138,35 +138,42 @@ const Component = struct {
     name: []const u8,
     has_children: bool,
     children: []const Component,
+    selected: bool = false,
+    badge: []const u8 = "",
 };
-const ComponentItemProps = struct { name: []const u8, has_children: bool, children: []const Component, depth: usize = 0 };
+const ComponentItemProps = struct { name: []const u8, has_children: bool, children: []const Component, depth: usize = 0, selected: bool = false, badge: []const u8 = "" };
 
 fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Component {
     const id = std.fmt.allocPrint(allocator, "comp-{d}-{s}", .{ props.depth, props.name }) catch "";
     const padding = props.depth * 24 + 16;
     const style_str = std.fmt.allocPrint(allocator, "padding-left: {d}px", .{padding}) catch "";
+    const item_class = if (props.selected) "component-root" else "component-item";
+    const name_class = if (props.selected) "component-name-root" else "component-name";
     return (
         <div @allocator={allocator} class="component-group">
             {if (props.has_children) (
                 <>
                     <input type="checkbox" id={id} class="component-toggle" checked />
-                    <label for={id} class="component-item" style={style_str}>
+                    <label for={id} class={item_class} style={style_str}>
                         <span class="tree-arrow"></span>
                         <span class="bracket">{"<"}</span>
-                        <span class="component-name">{props.name}</span>
+                        <span class={name_class}>{props.name}</span>
                         <span class="bracket">{">"}</span>
+                        {if (props.badge.len > 0) (<span class="component-badge">{props.badge}</span>) else ""}
                     </label>
                     <div class="component-children">
                         {for (props.children) |child| (
-                            <ComponentItem allocator={allocator} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} />
+                            <ComponentItem allocator={allocator} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} selected={child.selected} badge={child.badge} />
                         )}
                     </div>
                 </>
             ) else (
-                <div class="component-item" style={style_str}>
+                <div class={item_class} style={style_str}>
+                    <span class="tree-arrow-spacer"></span>
                     <span class="bracket">{"<"}</span>
-                    <span class="component-name">{props.name}</span>
+                    <span class={name_class}>{props.name}</span>
                     <span class="bracket">{">"}</span>
+                    {if (props.badge.len > 0) (<span class="component-badge">{props.badge}</span>) else ""}
                 </div>
             )}
         </div>
