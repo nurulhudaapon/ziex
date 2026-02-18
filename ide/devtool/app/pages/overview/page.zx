@@ -2,7 +2,7 @@ const features = [_]Feature{
     .{ .icon_fn = icons.Lightning, .title = "v1.0.0", .link = "overview.html" },
     // .{ .icon_fn = icons.Shield, .title = "Compile-Time Safety", .description = "Zig's type system catches bugs at compile time. No runtime surprises, no memory leaks, no garbage collection." },
     .{ .icon_fn = icons.Hive, .title = "29 components", .link = "index.html" },
-    .{ .icon_fn = icons.Network, .title = "1 networks", .link = "network.html" },
+    .{ .icon_fn = icons.Workflow, .title = "8 Routes", .link = "routes" },
 };
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
