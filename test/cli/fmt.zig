@@ -92,6 +92,10 @@ test "switch" {
 test "switch_capture" {
     try test_fmt("control_flow/switch_capture");
 }
+test "switch_multicaseval" {
+    if (true) return error.Todo;
+    try test_fmt("control_flow/switch_multicaseval");
+}
 test "switch_block" {
     // if (true) return error.Todo;
     try test_fmt("control_flow/switch_block");
