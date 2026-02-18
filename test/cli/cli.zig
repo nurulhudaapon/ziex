@@ -258,8 +258,8 @@ test "bundle --docker" {
             ".dockerignore",
         },
         .expected_files = &.{
-            "bundle/Dockerfile",
-            "bundle/.dockerignore",
+            "Dockerfile",
+            ".dockerignore",
         },
     });
 }
@@ -277,9 +277,9 @@ test "bundle --docker-compose" {
             ".dockerignore",
         },
         .expected_files = &.{
-            "bundle/Dockerfile",
-            "bundle/compose.yml",
-            "bundle/.dockerignore",
+            "Dockerfile",
+            "compose.yml",
+            ".dockerignore",
         },
     });
 }

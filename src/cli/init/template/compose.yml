@@ -1,0 +1,8 @@
+name: "$BIN_NAME"
+services:
+  $BIN_NAME:
+    container_name: "$BIN_NAME"
+    build:
+      context: .
+    ports:
+      - "$PORT:$PORT"

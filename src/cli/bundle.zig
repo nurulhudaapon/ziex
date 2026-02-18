@@ -84,12 +84,12 @@ fn bundle(ctx: zli.CommandContext) !void {
     // std.fs.cwd().deleteTree(outdir) catch |err| switch (err) {
     //     else => {},
     // };
-    std.fs.cwd().makePath(outdir) catch |err| switch (err) {
-        error.PathAlreadyExists => {},
-        else => return err,
-    };
 
     if (!(docker or docker_compose)) {
+        std.fs.cwd().makePath(outdir) catch |err| switch (err) {
+            error.PathAlreadyExists => {},
+            else => return err,
+        };
         try std.fs.cwd().copyFile(final_binpath, std.fs.cwd(), dest_binpath, .{});
         printer.filepath(bin_name);
 
@@ -107,8 +107,8 @@ fn bundle(ctx: zli.CommandContext) !void {
         else => {},
     };
 
-    const compose_content = @embedFile("bundle/template/compose.yml");
-    const dockerfile_content = @embedFile("bundle/template/Dockerfile");
+    const compose_content = @embedFile("init/template/compose.yml");
+    const dockerfile_content = @embedFile("init/template/Dockerfile");
 
     if (docker or docker_compose) {
 
@@ -128,9 +128,9 @@ fn bundle(ctx: zli.CommandContext) !void {
         const compose_content_with_port = try std.mem.replaceOwned(u8, ctx.allocator, compose_content_with_build_args, "$PORT", port_str);
         defer ctx.allocator.free(compose_content_with_port);
 
-        const dockerfile_path = try std.fs.path.join(ctx.allocator, &.{ outdir, "Dockerfile" });
-        const compose_path = try std.fs.path.join(ctx.allocator, &.{ outdir, "compose.yml" });
-        const dockerignore_path = try std.fs.path.join(ctx.allocator, &.{ outdir, ".dockerignore" });
+        const dockerfile_path = try std.fs.path.join(ctx.allocator, &.{"Dockerfile"});
+        const compose_path = try std.fs.path.join(ctx.allocator, &.{"compose.yml"});
+        const dockerignore_path = try std.fs.path.join(ctx.allocator, &.{".dockerignore"});
         defer ctx.allocator.free(dockerfile_path);
         defer ctx.allocator.free(compose_path);
         defer ctx.allocator.free(dockerignore_path);
@@ -141,15 +141,15 @@ fn bundle(ctx: zli.CommandContext) !void {
             try std.fs.cwd().writeFile(.{ .sub_path = compose_path, .data = compose_content_with_port });
             printer.filepath(std.fs.path.basename(compose_path));
         }
-        try std.fs.cwd().writeFile(.{ .sub_path = dockerignore_path, .data = @embedFile("bundle/template/.dockerignore") });
+        try std.fs.cwd().writeFile(.{ .sub_path = dockerignore_path, .data = @embedFile("init/template/.dockerignore") });
         printer.filepath(std.fs.path.basename(dockerignore_path));
     }
 
     if (docker or docker_compose) {
         if (docker_compose) {
-            printer.footer("Now run {s}\n\n{s}(cd {s} && docker compose up --build){s}", .{ tui.Printer.emoji("→"), tui.Colors.cyan, outdir, tui.Colors.reset });
+            printer.footer("Now run {s}\n{s}ndocker compose up -d{s}", .{ tui.Printer.emoji("→"), tui.Colors.cyan, tui.Colors.reset });
         } else {
-            printer.footer("Now run {s}\n\n{s}docker build -t {s} . -f {s}/Dockerfile \ndocker run -p {d}:{d} {s}{s}", .{ tui.Printer.emoji("→"), tui.Colors.cyan, bin_name, outdir, port, port, bin_name, tui.Colors.reset });
+            printer.footer("Now run {s}\n\n{s}docker build -t {s} . \ndocker run -p {d}:{d} {s}{s}", .{ tui.Printer.emoji("→"), tui.Colors.cyan, bin_name, port, port, bin_name, tui.Colors.reset });
         }
     } else {
         printer.footer("Now run {s}\n\n{s}(cd {s} && ./{s} --rootdir ./){s}", .{ tui.Printer.emoji("→"), tui.Colors.cyan, outdir, bin_name, tui.Colors.reset });
