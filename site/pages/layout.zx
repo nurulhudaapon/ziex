@@ -7,7 +7,7 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     const js_href = std.fmt.allocPrint(ctx.arena, "/assets/docs.js?v={s}", .{zx.info.version}) catch unreachable;
     const needs_js = !std.mem.eql(u8, path, "/");
 
-    if (std.mem.eql(u8, path, "/overview") or std.mem.eql(u8, path, "/time")) {
+    if (std.mem.eql(u8, path, "/overview") or std.mem.eql(u8, path, "/time") or std.mem.eql(u8, path, "/playground")) {
         return (
             <html lang="en" @allocator={ctx.arena}>
                 <head>

@@ -1,0 +1,128 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    const a = ctx.arena;
+
+    // const line_numbers = comptime blk: {
+    //     var buf: []const u8 = "";
+    //     for (1..15) |i| {
+    //         buf = buf ++ std.fmt.comptimePrint("{d}\n", .{i});
+    //     }
+    //     break :blk buf;
+    // };
+
+    return (
+        <div @allocator={a} class="pg-ide" id="playground-ide">
+            <style @escaping={.none}>
+                {@embedFile("../../assets/playground.css")}
+            </style>
+
+            // ── Top Navigation ──
+            <nav class="pg-nav">
+                <a href="/" class="pg-nav-logo">Ziex</a>
+                <div class="pg-nav-actions">
+                    <a href="/learn" class="pg-nav-btn">Docs</a>
+                    <button class="pg-nav-btn pg-nav-btn--primary" id="pg-run-btn">▶ Run</button>
+                </div>
+            </nav>
+
+            // ── IDE Body ──
+            <div class="pg-ide-body" id="pg-ide-body">
+                // ── Editor Pane ──
+                <div class="pg-editor" id="pg-editor" style="flex: 1 1 50%;">
+                    <div class="pg-tabs" id="pg-tabs">
+                        <button class="pg-tab pg-tab--active" data-file="page.zx" id="pg-tab-0">
+                            <span class="pg-tab-icon">⚡</span>
+                            page.zx
+                            <span class="pg-tab-close" aria-label="Close tab">×</span>
+                        </button>
+                        <button class="pg-tab" data-file="layout.zx" id="pg-tab-1">
+                            <span class="pg-tab-icon">⚡</span>
+                            layout.zx
+                            <span class="pg-tab-close" aria-label="Close tab">×</span>
+                        </button>
+                        <button class="pg-tab" data-file="style.css" id="pg-tab-2">
+                            <span class="pg-tab-icon">🎨</span>
+                            style.css
+                            <span class="pg-tab-close" aria-label="Close tab">×</span>
+                        </button>
+                        <button class="pg-tab-add" id="pg-add-file" aria-label="Add new file" title="New file">+</button>
+                    </div>
+                    <div class="pg-code" id="pg-code-area">
+                    </div>
+                </div>
+
+                // ── Vertical Splitter ──
+                <div class="pg-splitter" id="pg-splitter"></div>
+
+                // ── Preview Pane ──
+                <div class="pg-preview" id="pg-preview" style="flex: 1 1 50%;">
+                    // ── Browser ──
+                    <div class="pg-browser" id="pg-browser">
+                        <div class="pg-browser-toolbar">
+                            <div class="pg-browser-dots">
+                                <span></span><span></span><span></span>
+                            </div>
+                            <div class="pg-browser-nav">
+                                <button class="pg-browser-nav-btn" aria-label="Back" id="pg-browser-back">◀</button>
+                                <button class="pg-browser-nav-btn" aria-label="Forward" id="pg-browser-forward">▶</button>
+                            </div>
+                            <div class="pg-browser-url">
+                                <span class="pg-browser-url-lock">🔒</span>
+                                <input class="pg-browser-url-text" value="localhost:5588/" id="pg-browser-url-input" readonly="true" />
+                            </div>
+                            <button class="pg-browser-refresh-btn" aria-label="Refresh" id="pg-browser-refresh">⟳</button>
+                        </div>
+                        <div class="pg-browser-viewport" id="pg-browser-viewport">
+                            <div class="pg-browser-placeholder">
+                                <div class="pg-browser-placeholder-icon">🌐</div>
+                                Press Run to see preview
+                            </div>
+                        </div>
+                    </div>
+
+                    // ── Horizontal Splitter ──
+                    <div class="pg-hsplitter" id="pg-hsplitter"></div>
+
+                    // ── Terminal ──
+                    <div class="pg-terminal" id="pg-terminal">
+                        <div class="pg-terminal-header">
+                            <div class="pg-terminal-title">
+                                <span class="pg-terminal-title-dot"></span>
+                                Terminal
+                            </div>
+                            <div class="pg-terminal-actions">
+                                <button class="pg-terminal-action-btn" aria-label="Clear terminal" id="pg-terminal-clear" title="Clear">⌫</button>
+                            </div>
+                        </div>
+                        <div class="pg-terminal-body" id="pg-terminal-body">
+                            // <span class="pg-terminal-line"><span class="pg-terminal-prompt">$ </span><span class="pg-terminal-muted">Ready. Click Run to compile and preview.</span></span>
+                            // <span class="pg-terminal-line"><span class="pg-terminal-prompt">$ </span><span class="pg-terminal-cursor"></span></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            // ── Status Bar ──
+            <div class="pg-status">
+                <div class="pg-status-left">
+                    <span class="pg-status-item">⚡ Ziex Playground</span>
+                    <span class="pg-status-item">Ln 1, Col 1</span>
+                </div>
+                <div class="pg-status-right">
+                    <span class="pg-status-item">UTF-8</span>
+                    <span class="pg-status-item">Zig</span>
+                </div>
+            </div>
+
+            // ── Splitter JS ──
+            <script @escaping={.none}>
+                {@embedFile("scripts/split.js")}
+            </script>
+
+            // ── Playground JS ──
+            <script type="module" src="/assets/playground/editor.js"/>
+        </div>
+    );
+}
+
+const std = @import("std");
+const zx = @import("zx");

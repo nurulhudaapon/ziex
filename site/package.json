@@ -7,6 +7,15 @@
     "esbuild": "0.27.2"
   },
   "dependencies": {
+    "@andrewbranch/untar.js": "^1.0.3",
+    "@bjorn3/browser_wasi_shim": "^0.4.2",
+    "@codemirror/autocomplete": "^6.20.0",
+    "@codemirror/commands": "^6.10.2",
+    "@codemirror/language": "^6.12.1",
+    "@codemirror/lint": "^6.9.4",
+    "@codemirror/state": "^6.5.4",
+    "@codemirror/view": "^6.39.14",
+    "codemirror": "^6.0.2",
     "prettier": "3.7.4",
     "react": "19.2.3",
     "react-dom": "19.2.3",

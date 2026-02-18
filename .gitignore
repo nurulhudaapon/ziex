@@ -17,3 +17,4 @@ test/data/assets/
 /bun.lock
 /src/cli/init/template/bun.lock
 
+site/assets/playground
