@@ -186,6 +186,16 @@ pub fn getElementById(self: Document, id: []const u8) error{ ElementNotFound, No
     return HTMLElement.init(self.allocator, ref);
 }
 
+pub fn querySelector(self: Document, selector: []const u8) error{ ElementNotFound, NotInBrowser }!HTMLElement {
+    if (!is_wasm) return error.NotInBrowser;
+    const real_js = @import("js");
+    const ref: real_js.Object = self.ref.call(real_js.Object, "querySelector", .{real_js.string(selector)}) catch {
+        return error.ElementNotFound;
+    };
+
+    return HTMLElement.init(self.allocator, ref);
+}
+
 pub fn createElement(self: Document, tag: []const u8) HTMLElement {
     if (!is_wasm) return HTMLElement.init(self.allocator, {});
     const real_js = @import("js");

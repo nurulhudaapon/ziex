@@ -9,22 +9,43 @@
     vsplit.addEventListener('mousedown', function (e) {
         e.preventDefault();
         draggingV = true;
-        document.getElementById('playground-ide').classList.add('pg-ide--dragging');
+        const isColumn = getComputedStyle(ide).flexDirection === 'column';
+        const ideContainer = document.getElementById('playground-ide');
+        if (isColumn) {
+            ideContainer.classList.add('pg-ide--dragging-v');
+        } else {
+            ideContainer.classList.add('pg-ide--dragging');
+        }
     });
 
     document.addEventListener('mousemove', function (e) {
         if (!draggingV) return;
         const rect = ide.getBoundingClientRect();
-        const pct = ((e.clientX - rect.left) / rect.width) * 100;
-        const clamped = Math.max(15, Math.min(85, pct));
-        editor.style.flex = '0 0 ' + clamped + '%';
-        preview.style.flex = '0 0 ' + (100 - clamped) + '%';
+        const isColumn = getComputedStyle(ide).flexDirection === 'column';
+        
+        if (isColumn) {
+            const pct = ((e.clientY - rect.top) / rect.height) * 100;
+            const clamped = Math.max(15, Math.min(85, pct));
+            editor.style.flex = '0 0 ' + clamped + '%';
+            preview.style.flex = '0 0 ' + (100 - clamped) + '%';
+            editor.style.width = '100%';
+            preview.style.width = '100%';
+        } else {
+            const pct = ((e.clientX - rect.left) / rect.width) * 100;
+            const clamped = Math.max(15, Math.min(85, pct));
+            editor.style.flex = '0 0 ' + clamped + '%';
+            preview.style.flex = '0 0 ' + (100 - clamped) + '%';
+            editor.style.height = '100%';
+            preview.style.height = '100%';
+        }
     });
 
     document.addEventListener('mouseup', function () {
         if (draggingV) {
             draggingV = false;
-            document.getElementById('playground-ide').classList.remove('pg-ide--dragging');
+            const ideContainer = document.getElementById('playground-ide');
+            ideContainer.classList.remove('pg-ide--dragging');
+            ideContainer.classList.remove('pg-ide--dragging-v');
         }
     });
 

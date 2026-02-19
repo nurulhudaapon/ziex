@@ -1,11 +1,30 @@
-const std = @import("std");
-
-pub fn bufferedPrint() !void {
-    var stdout_buffer: [1024]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
-    const stdout = &stdout_writer.interface;
-
-    try stdout.print("Run `zig build test` to run the tests.\n", .{});
-
-    try stdout.flush();
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    var _zx = @import("zx").allocInit(allocator);
+    return _zx.ele(
+        .main,
+        .{
+            .allocator = allocator,
+            .children = &.{
+                _zx.cmp(
+                    Button,
+                    .{},
+                    .{ .title = "Custom Button" },
+                ),
+            },
+        },
+    );
 }
+const ButtonProps = struct { title: []const u8 };
+pub fn Button(allocator: zx.Allocator, props: ButtonProps) zx.Component {
+    var _zx = @import("zx").allocInit(allocator);
+    return _zx.ele(
+        .button,
+        .{
+            .allocator = allocator,
+            .children = &.{
+                _zx.expr(props.title),
+            },
+        },
+    );
+}
+const zx = @import("zx");

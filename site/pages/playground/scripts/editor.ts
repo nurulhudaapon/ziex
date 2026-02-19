@@ -7,6 +7,7 @@ import { indentUnit } from "@codemirror/language";
 import { editorTheme, editorHighlightStyle } from "./theme.ts";
 import zigMainSource from './template/main.zig' with { type: "text" };
 import zigModSource from './template/mod.zig' with { type: "text" };
+import zxModSource from './template/mod.zx' with { type: "text" };
 
 export default class ZlsClient extends LspClient {
     public worker: Worker;
@@ -230,6 +231,11 @@ function renameFile(index: number) {
         state: createEditorState("mod.zig", zigModSource),
     });
 
+    files.push({
+        name: "mod.zx",
+        state: createEditorState("mod.zx", zxModSource),
+    });
+
     await switchFile(0);
 })();
 
@@ -264,13 +270,14 @@ function revealOutputWindow() {
 }
 
 let zigWorker = new Worker('/assets/playground/workers/zig.js');
+let zxWorker = new Worker('/assets/playground/workers/zx.js');
 
 function setRunButtonLoading(loading: boolean) {
     const btn = document.getElementById("pg-run-btn")!;
     if (loading) {
         btn.classList.add("pg-nav-btn--loading");
         btn.setAttribute("disabled", "true");
-        btn.innerHTML = '<span class="pg-spinner"></span> Compiling…';
+        btn.innerHTML = '<span class="pg-spinner"></span>';
     } else {
         btn.classList.remove("pg-nav-btn--loading");
         btn.removeAttribute("disabled");
@@ -304,6 +311,8 @@ function clearTerminal() {
 }
 
 zigWorker.onmessage = (ev: MessageEvent) => {
+    console.info("Build finished in", (performance.now() - build_start_time).toFixed(2), "ms");
+    
     if (ev.data.stderr) {
         // Append compiler stderr as error lines
         const lines = ev.data.stderr.split('\n').filter((l: string) => l.length > 0);
@@ -330,7 +339,28 @@ zigWorker.onmessage = (ev: MessageEvent) => {
                 }
                 revealOutputWindow();
                 return;
+            } else if (rev.data.preview) {
+                const viewport = document.getElementById("pg-browser-viewport")!;
+                let iframe = viewport.querySelector("iframe") as HTMLIFrameElement;
+                if (!iframe) {
+                    viewport.innerHTML = "";
+                    iframe = document.createElement("iframe");
+                    iframe.style.width = "100%";
+                    iframe.style.height = "100%";
+                    iframe.style.border = "none";
+                    iframe.style.backgroundColor = "white";
+                    viewport.appendChild(iframe);
+                    iframe.contentDocument?.open();
+                }
+                iframe.contentDocument?.write(rev.data.preview);
+                return;
             } else if (rev.data.done) {
+                const viewport = document.getElementById("pg-browser-viewport")!;
+                const iframe = viewport.querySelector("iframe") as HTMLIFrameElement;
+                if (iframe) {
+                    iframe.contentDocument?.close();
+                }
+
                 runnerWorker.terminate();
                 appendTerminalLine("Program exited.\n", "pg-terminal-muted");
                 setRunButtonLoading(false);
@@ -339,10 +369,20 @@ zigWorker.onmessage = (ev: MessageEvent) => {
     }
 }
 
+let build_start_time = performance.now();
+
+
 const outputsRun = document.getElementById("pg-run-btn")! as HTMLButtonElement;
 outputsRun.addEventListener("click", async () => {
     setRunButtonLoading(true);
     // appendTerminalLine("Compiling…", "pg-terminal-info");
+    clearTerminal();
+    const viewport = document.getElementById("pg-browser-viewport")!;
+    viewport.innerHTML = `
+        <div class="pg-browser-placeholder">
+            <div class="pg-browser-placeholder-icon">🌐</div>
+            Running…
+        </div>`;
     revealOutputWindow();
 
     const filesToSend: { [filename: string]: string } = {};
@@ -354,6 +394,11 @@ outputsRun.addEventListener("click", async () => {
         }
     });
 
+    zxWorker.postMessage({
+        files: filesToSend
+    });
+
+build_start_time = performance.now();
     zigWorker.postMessage({
         files: filesToSend
     });

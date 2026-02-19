@@ -1,16 +1,6 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
-    const a = ctx.arena;
-
-    // const line_numbers = comptime blk: {
-    //     var buf: []const u8 = "";
-    //     for (1..15) |i| {
-    //         buf = buf ++ std.fmt.comptimePrint("{d}\n", .{i});
-    //     }
-    //     break :blk buf;
-    // };
-
     return (
-        <div @allocator={a} class="pg-ide" id="playground-ide">
+        <div @allocator={ctx.arena} class="pg-ide" id="playground-ide">
             <style @escaping={.none}>
                 {@embedFile("../../assets/playground.css")}
             </style>
@@ -18,10 +8,8 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             // ── Top Navigation ──
             <nav class="pg-nav">
                 <a href="/" class="pg-nav-logo">Ziex</a>
-                <div class="pg-nav-actions">
-                    <a href="/learn" class="pg-nav-btn">Docs</a>
-                    <button class="pg-nav-btn pg-nav-btn--primary" id="pg-run-btn">▶ Run</button>
-                </div>
+                <ActionButtons @rendering={.client} />
+                <button class="pg-nav-btn pg-nav-btn--primary" id="pg-run-btn">▶ Run</button>
             </nav>
 
             // ── IDE Body ──
@@ -122,6 +110,35 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <script type="module" src="/assets/playground/editor.js"/>
         </div>
     );
+}
+
+pub fn ActionButtons(ctx: *zx.ComponentCtx(struct {})) zx.Component {
+    return (
+        <div @allocator={ctx.allocator} class="pg-nav-actions">
+            <a href="/learn" class="pg-nav-btn">Docs</a>
+            <button onclick={handleRunClick} class="pg-nav-btn pg-nav-btn--primary" id="pg-run-zx-btn">▶ Run ZX</button>
+        </div>
+    );
+}
+
+fn handleRunClick(ctx: zx.EventContext) void {
+    _ = ctx;
+
+    if (zx.platform != .browser) return;
+
+    const document = zx.client.Document.init(zx.client_allocator);
+
+    const editor_container = document.querySelector(".cm-content") catch unreachable;
+
+    const c = zx.client.Console.init();
+    c.log(.{editor_container.ref});
+    
+    const inner_text: []const u8 = editor_container.ref.getAlloc(zx.Client.js.String, zx.client_allocator, "innerText") catch "NA";
+    std.log.info("Run clicked {s}", .{inner_text});
+
+    // const zx_sourcez = zx.client_allocator.dupeZ(u8, inner_text) catch return;
+    // const ast =  zx.Ast.parse(zx.client_allocator, zx_sourcez, .{}) catch return;
+    // c.log(.{zx.client.js.String(ast.zig_source)});
 }
 
 const std = @import("std");

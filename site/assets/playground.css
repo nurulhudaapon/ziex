@@ -652,6 +652,13 @@ body {
     vertical-align: text-bottom;
     animation: blink 1s step-end infinite;
 }
+#pg-run-btn {
+    height: 28px;
+    width: 66px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
 
 @keyframes blink {
     0%, 100% { opacity: 1; }

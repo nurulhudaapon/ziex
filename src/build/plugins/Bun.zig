@@ -14,6 +14,11 @@ pub fn init(ctx: plugin.PluginCtx(BunPluginOptions)) ZxInitOptions.PluginOptions
         cmd.addPrefixedDirectoryArg("--outdir=", outdir);
     }
 
+    if (options.sourcemap) |sourcemap| {
+        cmd.addArg("--sourcemap");
+        cmd.addArg(@tagName(sourcemap));
+    }
+
     const steps = b.allocator.alloc(ZxInitOptions.PluginOptions.PluginStep, 1) catch @panic("OOM");
     steps[0] = .{
         .command = .{
@@ -33,10 +38,13 @@ const builtin = @import("builtin");
 const LazyPath = std.Build.LazyPath;
 
 const BunPluginOptions = struct {
+    pub const Sourcemap = enum { linked, @"inline", external, none };
+
     bin: ?LazyPath = null,
     sub_cmd: []const u8 = "build",
     inputs: []const LazyPath = &.{},
     outdir: ?LazyPath = null,
+    sourcemap: ?Sourcemap = null,
 };
 
 const ZxInitOptions = @import("../init/ZxInitOptions.zig");

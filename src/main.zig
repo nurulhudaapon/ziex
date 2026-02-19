@@ -1,4 +1,5 @@
 pub fn main() !void {
+    if (builtin.os.tag == .wasi) return try main_wasm();
     if (builtin.os.tag == .windows) _ = std.os.windows.kernel32.SetConsoleOutputCP(65001);
 
     var dbg = std.heap.DebugAllocator(.{}).init;
@@ -38,6 +39,53 @@ pub fn main() !void {
     };
 
     try stdout.flush();
+}
+
+fn main_wasm() !void {
+    var dbg = std.heap.DebugAllocator(.{}).init;
+    const allocator = dbg.allocator();
+    var args = try std.process.argsWithAllocator(allocator);
+    defer args.deinit();
+
+    // --- Flags --- //
+    // --introspect: Print the metadata to stdout and exit
+    var is_transpile = false;
+    var is_fmt = false;
+
+    _ = args.next();
+
+    const sub_cmd = args.next() orelse return error.InvalidCommand;
+    if (std.mem.eql(u8, sub_cmd, "transpile")) is_transpile = true;
+    if (std.mem.eql(u8, sub_cmd, "fmt")) is_fmt = true;
+
+    var files = std.ArrayList([]const u8).empty;
+
+    while (args.next()) |arg| {
+        try files.append(allocator, arg);
+    }
+
+    var cwd = try std.fs.openDirAbsolute("/codes", .{});
+    defer cwd.close();
+
+    // Transpile file_path.zx and write with file_path.zig
+    for (files.items) |file_path| {
+        const zx_source = try cwd.readFileAlloc(allocator, file_path, std.math.maxInt(usize));
+        const zx_sourcez = try allocator.dupeZ(u8, zx_source);
+
+        const ast = try zx.Ast.parse(allocator, zx_sourcez, .{});
+        const zig_source = ast.zig_source;
+        std.debug.print("{s}", .{zig_source});
+
+        const basename = std.fs.path.basename(file_path);
+        const ext = std.fs.path.extension(file_path);
+        if (!std.mem.eql(u8, ext, "zx")) continue;
+        const output_rel_path = try std.mem.concat(allocator, u8, &.{ basename[0 .. basename.len - (".zx").len], "zig" });
+
+        try std.fs.cwd().writeFile(.{
+            .data = zig_source,
+            .sub_path = output_rel_path,
+        });
+    }
 }
 
 const std = @import("std");

@@ -10,33 +10,16 @@ async function run(files: { [filename: string]: string }) {
     const zxDirectory = await getZxArchive();
     const libDirectory = await getLatestZigArchive();
 
-
     // -fno-llvm -fno-lld is set explicitly to ensure the native WASM backend is
     // used in preference to LLVM. This may be removable once the non-LLVM
     // backends become more mature.
     let args = [
-        "zig.wasm",
-        "build-exe",
-
-        // Old
-        // "main.zig",
-
-        // New ----
-        "--dep",
-        "zx",
-        "-Mroot=main.zig",
-        "-Mzx=zx/src/root.zig",
-
-        "--name",
-        "main",
-        // ----
-
-        "-fno-llvm",
-        "-fno-lld",
-        "-fno-ubsan-rt",
-        "-fno-entry", // prevent the native webassembly backend from adding a start function to the module 
+        "zx.wasm",
+        "transpile",
     ];
-    let env = [];
+
+    Object.keys(files).forEach(f => args.push("/codes/" + f));
+    let env: string []= [];
 
     const fileContents = new Map<string, Inode>();
     for (const [filename, content] of Object.entries(files)) {
@@ -48,15 +31,19 @@ async function run(files: { [filename: string]: string }) {
         new OpenFile(new File([])), // stdin
         stderrOutput(), // stdout
         stderrOutput(), // stderr
-        new PreopenDirectory(".", fileContents),
+        new PreopenDirectory("/codes", fileContents),
         new PreopenDirectory("/lib", libDirectory.contents),
         new PreopenDirectory("/cache", new Map()),
     ] satisfies Fd[];
     let wasi = new WASI(args, env, fds, { debug: false });
 
-    const { instance } = await WebAssembly.instantiateStreaming(fetch("/assets/playground/zig-out/bin/zig.wasm"), {
+    const { instance } = await WebAssembly.instantiateStreaming(fetch("/assets/playground/zig-out/bin/zx.wasm"), {
         "wasi_snapshot_preview1": wasi.wasiImport,
     });
+
+    // postMessage({
+    //     stderr: "Compiling...\n",
+    // });
 
     try {
         // @ts-ignore
