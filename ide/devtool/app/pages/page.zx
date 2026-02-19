@@ -1,62 +1,112 @@
 const components = [_]Component{
-    .{ .name = "Header", .has_children = true, .children = &[_]Component{
-        .{ .name = "VersionSelect", .has_children = false, .children = &[_]Component{} },
-        .{ .name = "VersionSelect", .has_children = false, .children = &[_]Component{} },
-        .{ .name = "Sun", .has_children = false, .children = &[_]Component{} },
-        .{ .name = "Moon", .has_children = false, .children = &[_]Component{} },
-        .{ .name = "Share", .has_children = false, .children = &[_]Component{} },
-        .{ .name = "Reload", .has_children = false, .children = &[_]Component{} },
-        .{ .name = "Download", .has_children = false, .children = &[_]Component{} },
-        .{ .name = "GitHub", .has_children = false, .children = &[_]Component{} },
-    } },
-    .{
-        .name = "Repl",
-        .has_children = true,
-        .children = &[_]Component{
-            .{
-                .name = "SplitPane",
-                .has_children = true,
-                .children = &[_]Component{
-                    .{ .name = "Panes", .has_children = false, .children = &[_]Component{} },
-                    .{ .name = "PanesTwo", .has_children = false, .children = &[_]Component{} },
-                    .{ .name = "PanesThree", .has_children = false, .children = &[_]Component{} },
+    .{ .name = "App", .has_children = true, .selected = true, .badge = "fragment", .children = &[_]Component{
+        .{ .name = "Header", .has_children = true, .children = &[_]Component{
+            .{ .name = "VersionSelect", .has_children = false, .children = &[_]Component{} },
+            .{ .name = "VersionSelect", .has_children = false, .children = &[_]Component{} },
+            .{ .name = "Sun", .has_children = false, .children = &[_]Component{} },
+            .{ .name = "Moon", .has_children = false, .children = &[_]Component{} },
+            .{ .name = "Share", .has_children = false, .children = &[_]Component{} },
+            .{ .name = "Reload", .has_children = false, .children = &[_]Component{} },
+            .{ .name = "Download", .has_children = false, .children = &[_]Component{} },
+            .{ .name = "GitHub", .has_children = false, .children = &[_]Component{} },
+        } },
+        .{
+            .name = "Repl",
+            .has_children = true,
+            .children = &[_]Component{
+                .{
+                    .name = "SplitPane",
+                    .has_children = true,
+                    .children = &[_]Component{
+                        .{ .name = "Panes", .has_children = false, .children = &[_]Component{} },
+                        .{ .name = "PanesTwo", .has_children = false, .children = &[_]Component{} },
+                        .{ .name = "PanesThree", .has_children = false, .children = &[_]Component{} },
+                    },
                 },
             },
         },
-    },
+    } },
+
+
+    
 };
 
 const setup_items = [_]StateItem{
-    .{ .arrow = "▶", .key = "replRef", .value = "Object", .meta = "(Ref)", .is_nested = false },
-    .{ .arrow = "", .key = "AUTO_SAVE_STORAGE_KEY", .value = "\"zx-sfc-playground-auto-save\"", .meta = "", .is_nested = false },
-    .{ .arrow = "", .key = "initAutoSave", .value = "true", .meta = "", .is_nested = false },
-    .{ .arrow = "", .key = "autoSave", .value = "true", .meta = "(Ref)", .is_nested = false },
-    .{ .arrow = "", .key = "productionMode", .value = "false", .meta = "(Ref)", .is_nested = false },
-    .{ .arrow = "", .key = "zxVersion", .value = "null", .meta = "(Ref)", .is_nested = false },
-    .{ .arrow = "▶", .key = "importMap", .value = "Object", .meta = "(Computed)", .is_nested = false },
-    .{ .arrow = "", .key = "hash", .value = "eNp9UU1LAzEQ/StjLqugXURPZVtQKaBgHFRW85FJ2p9vUBbKS2bWw7H93kqw1Q...", .meta = "", .is_nested = false },
-    .{ .arrow = "▶", .key = "sfcOptions", .value = "Object", .meta = "(Computed)", .is_nested = false },
-    .{ .arrow = "▼", .key = "store", .value = "Reactive", .meta = "", .is_nested = false },
-    .{ .arrow = "", .key = "theme", .value = "dark", .meta = "(Ref)", .is_nested = true },
-    .{ .arrow = "", .key = "isVaporSupported", .value = "false", .meta = "(Ref)", .is_nested = true },
-    .{ .arrow = "▶", .key = "previewOptions", .value = "Object", .meta = "(Computed)", .is_nested = false },
+    .{ .key = "replRef", .value = "Object", .meta = "(Ref)", .children = &[_]StateItem{
+        .{ .key = "value", .value = "null", .meta = "" },
+        .{ .key = "__v_isRef", .value = "true", .meta = "" },
+    } },
+    .{ .key = "AUTO_SAVE_STORAGE_KEY", .value = "\"zx-sfc-playground-auto-save\"", .meta = "" },
+    .{ .key = "initAutoSave", .value = "true", .meta = "" },
+    .{ .key = "autoSave", .value = "true", .meta = "(Ref)" },
+    .{ .key = "productionMode", .value = "false", .meta = "(Ref)" },
+    .{ .key = "zxVersion", .value = "null", .meta = "(Ref)" },
+    .{ .key = "importMap", .value = "Object", .meta = "(Computed)", .children = &[_]StateItem{
+        .{ .key = "imports", .value = "Object", .meta = "", .children = &[_]StateItem{
+            .{ .key = "zx", .value = "\"https://cdn.jsdelivr.net/npm/zx\"", .meta = "" },
+        } },
+    } },
+    .{ .key = "hash", .value = "eNp9UU1LAzEQ/StjLqugXURPZVtQKaBgHFRW85FJ2p9vUBbKS2bWw7H93kqw1Q...", .meta = "" },
+    .{ .key = "sfcOptions", .value = "Object", .meta = "(Computed)", .children = &[_]StateItem{
+        .{ .key = "script", .value = "Object", .meta = "" },
+        .{ .key = "template", .value = "Object", .meta = "" },
+    } },
+    .{ .key = "store", .value = "Reactive", .meta = "", .children = &[_]StateItem{
+        .{ .key = "theme", .value = "\"dark\"", .meta = "(Ref)" },
+        .{ .key = "isVaporSupported", .value = "false", .meta = "(Ref)" },
+    } },
+    .{ .key = "previewOptions", .value = "Object", .meta = "(Computed)", .children = &[_]StateItem{
+        .{ .key = "headHTML", .value = "\"\"", .meta = "" },
+    } },
 };
 
 const setup_other_items = [_]StateItem{
-    .{ .arrow = "", .key = "setVH", .value = "fn i()", .meta = "", .is_nested = false },
-    .{ .arrow = "", .key = "toggleProdMode", .value = "fn p()", .meta = "", .is_nested = false },
-    .{ .arrow = "", .key = "toggleSSR", .value = "fn f()", .meta = "", .is_nested = false },
-    .{ .arrow = "", .key = "toggleAutoSave", .value = "fn m()", .meta = "", .is_nested = false },
-    .{ .arrow = "", .key = "reloadPage", .value = "fn _()", .meta = "", .is_nested = false },
-    .{ .arrow = "", .key = "toggleTheme", .value = "fn y(I)", .meta = "", .is_nested = false },
-    .{ .arrow = "", .key = "Header", .value = "Header", .meta = "", .is_nested = false },
-    .{ .arrow = "▶", .key = "Repl", .value = "Object", .meta = "", .is_nested = false },
-    .{ .arrow = "▶", .key = "Monaco", .value = "Object", .meta = "", .is_nested = false },
+    .{ .key = "setVH", .value = "fn i()", .meta = "" },
+    .{ .key = "toggleProdMode", .value = "fn p()", .meta = "" },
+    .{ .key = "toggleSSR", .value = "fn f()", .meta = "" },
+    .{ .key = "toggleAutoSave", .value = "fn m()", .meta = "" },
+    .{ .key = "reloadPage", .value = "fn _()", .meta = "" },
+    .{ .key = "toggleTheme", .value = "fn y(I)", .meta = "" },
+    .{ .key = "Header", .value = "Header", .meta = "" },
+    .{ .key = "Repl", .value = "Object", .meta = "", .children = &[_]StateItem{
+        .{ .key = "setup", .value = "fn()", .meta = "" },
+        .{ .key = "render", .value = "fn()", .meta = "" },
+    } },
+    .{ .key = "Monaco", .value = "Object", .meta = "", .children = &[_]StateItem{
+        .{ .key = "editor", .value = "null", .meta = "(Ref)" },
+    } },
 };
 
 const template_refs_items = [_]StateItem{
-    .{ .arrow = "▶", .key = "replRef", .value = "Object", .meta = "", .is_nested = false },
+    .{ .key = "replRef", .value = "Object", .meta = "", .children = &[_]StateItem{
+        .{ .key = "$el", .value = "<div>", .meta = "" },
+    } },
 };
+
+
+var inputvalue: []const u8 = "hello";
+var inputvalue2= zx.Signal([]const u8).init("hello2");
+
+const ComponentSearchInputProps = struct {  };
+pub fn ComponentSearchInput(
+    ctx: *zx.ComponentCtx(ComponentSearchInputProps),
+) zx.Component {
+    return (
+        <div @allocator={ctx.allocator} class="search-input-wrapper">
+            <input @allocator={ctx.allocator} oninput={handleComponentSearchInput} type="text" placeholder="Find components..." class="search-input" />
+
+            // <h1>{inputvalue}</h1>
+            // <h1>{&inputvalue2}</h1>
+        </div>
+    );
+}
+
+pub fn handleComponentSearchInput(ctx: zx.EventContext) void {
+    std.log.info("Component search input changed: {s}", .{ctx.value() orelse ""});
+    inputvalue = ctx.value() orelse "";
+    inputvalue2.set(inputvalue);
+    // zx.requestRender();
+}
 
 const icons = @import("./components/icons.zx");
 
@@ -66,24 +116,21 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <div class="sidebar">
                 <div class="search-box">
                     <div class="search-wrapper">
-                        <input type="text" placeholder="Find components..." class="search-input" />
+                        <ComponentSearchInput @rendering={.client} />
                         {icons.Search(ctx.arena)}
                         <div class="search-shortcut">↲</div>
                     </div>
                 </div>
 
                 <div class="component-tree">
-                    <div class="component-root">
-                        <span class="tree-arrow">▼</span>
-                        <span class="component-name-root">{"<App>"}</span>
-                        <span class="component-badge">fragment</span>
-                    </div>
 
                     <div class="component-list">
-                        {for (components) |comp| (<ComponentItem allocator={ctx.arena} name={comp.name} has_children={comp.has_children} children={comp.children} />)}
+                        {for (components) |comp| (<ComponentItem allocator={ctx.arena} name={comp.name} has_children={comp.has_children} children={comp.children} depth={0} selected={comp.selected} badge={comp.badge} />)}
                     </div>
                 </div>
             </div>
+
+            <div class="devtools-resize-handle"></div>
 
             <div class="state-panel">
                 <div class="state-header">
@@ -113,42 +160,54 @@ const Component = struct {
     name: []const u8,
     has_children: bool,
     children: []const Component,
+    selected: bool = false,
+    badge: []const u8 = "",
 };
-const ComponentItemProps = struct { name: []const u8, has_children: bool, children: []const Component, depth: usize = 0 };
+const ComponentItemProps = struct { name: []const u8, has_children: bool, children: []const Component, depth: usize = 0, selected: bool = false, badge: []const u8 = "" };
 
 fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Component {
     const id = std.fmt.allocPrint(allocator, "comp-{d}-{s}", .{ props.depth, props.name }) catch "";
-    const padding = props.depth * 16 + 24;
+    const padding = props.depth * 24 + 16;
     const style_str = std.fmt.allocPrint(allocator, "padding-left: {d}px", .{padding}) catch "";
+    const item_class = if (props.selected) "component-root" else "component-item";
+    const name_class = if (props.selected) "component-name-root" else "component-name";
     return (
         <div @allocator={allocator} class="component-group">
             {if (props.has_children) (
                 <>
                     <input type="checkbox" id={id} class="component-toggle" checked />
-                    <label for={id} class="component-item" style={style_str}>
+                    <label for={id} class={item_class} style={style_str}>
                         <span class="tree-arrow"></span>
                         <span class="bracket">{"<"}</span>
-                        <span class="component-name">{props.name}</span>
+                        <span class={name_class}>{props.name}</span>
                         <span class="bracket">{">"}</span>
+                        {if (props.badge.len > 0) (<span class="component-badge">{props.badge}</span>) else ""}
                     </label>
                     <div class="component-children">
                         {for (props.children) |child| (
-                            <ComponentItem allocator={allocator} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} />
+                            <ComponentItem allocator={allocator} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} selected={child.selected} badge={child.badge} />
                         )}
                     </div>
                 </>
             ) else (
-                <div class="component-item" style={style_str}>
+                <div class={item_class} style={style_str}>
+                    <span class="tree-arrow-spacer"></span>
                     <span class="bracket">{"<"}</span>
-                    <span class="component-name">{props.name}</span>
+                    <span class={name_class}>{props.name}</span>
                     <span class="bracket">{">"}</span>
+                    {if (props.badge.len > 0) (<span class="component-badge">{props.badge}</span>) else ""}
                 </div>
             )}
         </div>
     );
 }
 
-const StateItem = struct { arrow: []const u8, key: []const u8, value: []const u8, meta: []const u8, is_nested: bool };
+const StateItem = struct {
+    key: []const u8,
+    value: []const u8,
+    meta: []const u8,
+    children: []const StateItem = &[_]StateItem{},
+};
 fn StateSection(allocator: zx.Allocator, props: struct { title: []const u8, items: []const StateItem }) zx.Component {
     const id = std.fmt.allocPrint(allocator, "state-section-{s}", .{props.title}) catch "";
     return (
@@ -167,46 +226,49 @@ fn StateSection(allocator: zx.Allocator, props: struct { title: []const u8, item
     );
 }
 
-fn StateItemRow(allocator: zx.Allocator, props: struct { item: StateItem }) zx.Component {
+fn StateItemRow(allocator: zx.Allocator, props: struct { item: StateItem, depth: usize = 0 }) zx.Component {
     const item = props.item;
-    const indent_class = if (item.is_nested) "state-item-nested" else "state-item";
-    const has_arrow = item.arrow.len > 0;
-    const id = std.fmt.allocPrint(allocator, "state-row-{s}", .{item.key}) catch "";
-    const key_color = getKeyColor(item.value);
-    const value_color_base = getValueColor(item.value);
-    const is_hash = std.mem.eql(u8, item.key, "hash");
-    const value_color = if (is_hash) "value-default hash-value" else value_color_base;
+    const has_children = item.children.len > 0;
+    const value_color = getValueColor(item.value);
+    const padding = props.depth * 18;
+    const style_str = std.fmt.allocPrint(allocator, "padding-left: {d}px", .{padding}) catch "";
+    const id = std.fmt.allocPrint(allocator, "sr-{d}-{s}", .{ props.depth, item.key }) catch "";
     return (
-        <div @allocator={allocator} class={indent_class}>
-            {if (has_arrow) (
+        <div @allocator={allocator} class="state-item-group" style={style_str}>
+            {if (has_children) (
                 <>
-                    <input type="checkbox" id={id} class="state-row-toggle" checked />
-                    <label for={id} class="item-arrow"></label>
+                    <input type="checkbox" id={id} class="state-row-toggle" />
+                    <label for={id} class="state-item">
+                        <span class="item-arrow"></span>
+                        <span class="key-default">{item.key}</span>
+                        <span class="item-colon">:</span>
+                        <span class={value_color}>{item.value}</span>
+                        {if (item.meta.len > 0) (<span class="item-meta">{item.meta}</span>) else ""}
+                    </label>
+                    <div class="state-item-children">
+                        {for (item.children) |child| (
+                            <StateItemRow allocator={allocator} item={child} depth={props.depth + 1} />
+                        )}
+                    </div>
                 </>
             ) else (
-                <span class="item-spacer"></span>
+                <div class="state-item">
+                    <span class="item-spacer"></span>
+                    <span class="key-default">{item.key}</span>
+                    <span class="item-colon">:</span>
+                    <span class={value_color}>{item.value}</span>
+                    {if (item.meta.len > 0) (<span class="item-meta">{item.meta}</span>) else ""}
+                </div>
             )}
-            <span class={key_color}>{item.key}</span>
-            <span class="item-colon">:</span>
-            <div class="state-row-value">
-                <span class={value_color}>{item.value}</span>
-                {if (item.meta.len > 0) (<span class="item-meta">{item.meta}</span>) else ""}
-            </div>
         </div>
     );
 }
 
-fn getKeyColor(value: []const u8) []const u8 {
-    if (std.mem.indexOf(u8, value, "fn") != null) return ("key-function");
-    if (std.mem.eql(u8, value, "true") or std.mem.eql(u8, value, "false")) return ("key-boolean");
-    return ("key-default");
-}
-
 fn getValueColor(value: []const u8) []const u8 {
-    if (std.mem.indexOf(u8, value, "fn") != null) return ("value-function");
-    if (std.mem.eql(u8, value, "true") or std.mem.eql(u8, value, "false")) return ("value-boolean");
-    if (std.mem.startsWith(u8, value, "\"")) return ("value-string");
-    return ("value-default");
+    if (std.mem.indexOf(u8, value, "fn") != null) return "value-function";
+    if (std.mem.eql(u8, value, "true") or std.mem.eql(u8, value, "false")) return "value-boolean";
+    if (std.mem.startsWith(u8, value, "\"")) return "value-string";
+    return "value-default";
 }
 
 const zx = @import("zx");

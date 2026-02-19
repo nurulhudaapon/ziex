@@ -1,0 +1,60 @@
+const routes = [_]struct { method: []const u8, path: []const u8 }{
+    .{ .method = "GET", .path = "/" },
+    .{ .method = "GET", .path = "/about" },
+    .{ .method = "GET", .path = "/contact" },
+    .{ .method = "GET", .path = "/api/users" },
+    .{ .method = "POST", .path = "/api/users" },
+    .{ .method = "GET", .path = "/api/posts" },
+    .{ .method = "GET", .path = "/docs" },
+    .{ .method = "GET", .path = "/settings" },
+};
+
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <div @allocator={ctx.arena} class="app-container">
+            <div class="content">
+                <div style="margin-bottom: 24px;">
+                    <div class="current-route-label">Current route</div>
+                    <div class="route-input-row">
+                        <span class="route-arrow">↳</span>
+                        <input type="text" value="/" class="route-input" />
+                    </div>
+                    <div class="route-hint">
+                        Press <strong>Enter</strong> to navigate <span class="no-match">(no match)</span>
+                    </div>
+                </div>
+                <div class="routes-section">
+                    <input type="checkbox" id="routes-toggle" class="routes-toggle" checked />
+                    <label for="routes-toggle" class="routes-section-row">
+                        {icons.Workflow(ctx.arena)}
+                        <span class="routes-section-title">All Routes</span>
+                        <span class="routes-section-arrow"></span>
+                    </label>
+                    <div class="routes-section-desc">
+                        <span class="routes-count">{std.fmt.allocPrint(ctx.arena, "{d}", .{routes.len}) catch "0"} routes registered in your application</span>
+                        <div class="routes-children">
+                            {for (routes) |route| (
+                                <div @allocator={ctx.arena} class="route-item">
+                                    <span class={getMethodClass(route.method)}>{route.method}</span>
+                                    <span class="route-path">{route.path}</span>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+fn getMethodClass(method: []const u8) []const u8 {
+    if (std.mem.eql(u8, method, "GET")) return "route-method method-get";
+    if (std.mem.eql(u8, method, "POST")) return "route-method method-post";
+    if (std.mem.eql(u8, method, "PUT")) return "route-method method-put";
+    if (std.mem.eql(u8, method, "DELETE")) return "route-method method-delete";
+    return "route-method";
+}
+
+const zx = @import("zx");
+const std = @import("std");
+const icons = @import("../components/icons.zx");
