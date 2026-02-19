@@ -6,8 +6,8 @@ import { indentWithTab } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
 import { editorTheme, editorHighlightStyle } from "./theme.ts";
 import zigMainSource from './template/main.zig' with { type: "text" };
-import zigModSource from './template/mod.zig' with { type: "text" };
-import zxModSource from './template/mod.zx' with { type: "text" };
+import zxModSource from './template/Playground.zx' with { type: "text" };
+import zxstylecss from './template/style.css' with { type: "text" };
 
 export default class ZlsClient extends LspClient {
     public worker: Worker;
@@ -70,6 +70,7 @@ let client = new ZlsClient(new Worker('/assets/playground/workers/zls.js'));
 interface PlaygroundFile {
     name: string;
     state: EditorState;
+    hidden?: boolean;
 }
 
 let files: PlaygroundFile[] = [];
@@ -106,6 +107,7 @@ function updateTabs() {
     tabsContainer.innerHTML = "";
 
     files.forEach((file, index) => {
+        if (file.hidden) return;
         const tab = document.createElement("button");
         tab.className = `pg-tab${index === activeFileIndex ? " pg-tab--active" : ""}`;
         tab.setAttribute("data-file", file.name);
@@ -221,20 +223,23 @@ function renameFile(index: number) {
 (async () => {
     await client.initialize();
 
+
+    files.push({
+        name: "Playground.zx",
+        state: createEditorState("Playground.zx", zxModSource),
+    });
+
     files.push({
         name: "main.zig",
+        hidden: true,
         state: createEditorState("main.zig", zigMainSource),
     });
 
     files.push({
-        name: "mod.zig",
-        state: createEditorState("mod.zig", zigModSource),
+        name: "style.css",
+        state: createEditorState("style.css", zxstylecss),
     });
 
-    files.push({
-        name: "mod.zx",
-        state: createEditorState("mod.zx", zxModSource),
-    });
 
     await switchFile(0);
 })();
@@ -310,9 +315,14 @@ function clearTerminal() {
     termBody.innerHTML = "";
 }
 
+zxWorker.onmessage = (ev: MessageEvent) => {
+    console.info("Transpiled finished in", (performance.now() - build_start_time).toFixed(2), "ms");
+    console.debug("ZX Worker ->>", ev.data);
+}
+
 zigWorker.onmessage = (ev: MessageEvent) => {
     console.info("Build finished in", (performance.now() - build_start_time).toFixed(2), "ms");
-    
+
     if (ev.data.stderr) {
         // Append compiler stderr as error lines
         const lines = ev.data.stderr.split('\n').filter((l: string) => l.length > 0);
@@ -369,13 +379,25 @@ zigWorker.onmessage = (ev: MessageEvent) => {
     }
 }
 
+
 let build_start_time = performance.now();
 
+// Helper to get current files as { [filename]: content }
+function getCurrentFilesMap(): { [filename: string]: string } {
+    const filesMap: { [filename: string]: string } = {};
+    files.forEach((file, index) => {
+        if (index === activeFileIndex && editorView) {
+            filesMap[file.name] = editorView.state.doc.toString();
+        } else {
+            filesMap[file.name] = file.state.doc.toString();
+        }
+    });
+    return filesMap;
+}
 
 const outputsRun = document.getElementById("pg-run-btn")! as HTMLButtonElement;
 outputsRun.addEventListener("click", async () => {
     setRunButtonLoading(true);
-    // appendTerminalLine("Compiling…", "pg-terminal-info");
     clearTerminal();
     const viewport = document.getElementById("pg-browser-viewport")!;
     viewport.innerHTML = `
@@ -385,21 +407,65 @@ outputsRun.addEventListener("click", async () => {
         </div>`;
     revealOutputWindow();
 
-    const filesToSend: { [filename: string]: string } = {};
-    files.forEach((file, index) => {
-        if (index === activeFileIndex && editorView) {
-            filesToSend[file.name] = editorView.state.doc.toString();
-        } else {
-            filesToSend[file.name] = file.state.doc.toString();
+    let filesMap = getCurrentFilesMap();
+    // Find all .zx files
+    const zxFiles = Object.entries(filesMap).filter(([name]) => name.endsWith('.zx'));
+    let transpiledZigFiles: { [filename: string]: string } = {};
+
+
+    // Helper to transpile a single .zx file and return a Promise
+    function transpileZxFile(zxName: string, zxContent: string): Promise<{ [filename: string]: string }> {
+        return new Promise((resolve, reject) => {
+            const handler = (ev: MessageEvent) => {
+                console.log('[DEBUG] zxWorker message:', ev.data);
+                if (ev.data && ev.data.filename && ev.data.transpiled) {
+                    zxWorker.removeEventListener('message', handler);
+                    resolve({ [ev.data.filename]: ev.data.transpiled });
+                } else if (ev.data && ev.data.failed) {
+                    zxWorker.removeEventListener('message', handler);
+                    appendTerminalLine(ev.data.stderr || "Transpile failed", "pg-terminal-error");
+                    setRunButtonLoading(false);
+                    reject(ev.data.stderr);
+                } else if (ev.data && ev.data.stderr) {
+                    // If only stderr is returned, treat as transpiled .zig content
+                    zxWorker.removeEventListener('message', handler);
+                    const zigName = zxName.replace(/\.zx$/, ".zig");
+                    console.log('[DEBUG] Treating stderr as transpiled .zig for', zigName);
+                    resolve({ [zigName]: ev.data.stderr });
+                }
+            };
+            zxWorker.addEventListener('message', handler);
+            console.log('[DEBUG] Posting to zxWorker:', zxName);
+            zxWorker.postMessage({ filename: zxName, content: zxContent });
+        });
+    }
+
+    // Transpile each .zx file sequentially
+    for (const [zxName, zxContent] of zxFiles) {
+        console.log('[DEBUG] Transpiling', zxName);
+        try {
+            transpiledZigFiles = await transpileZxFile(zxName, zxContent);
+            console.log('[DEBUG] Transpiled result:', transpiledZigFiles);
+            // Add transpiled .zig file to filesMap
+            Object.assign(filesMap, transpiledZigFiles);
+            // Also update files[] if .zig file exists in tabs, else add it as hidden
+            const zigName = Object.keys(transpiledZigFiles)[0];
+            const zigContent = transpiledZigFiles[zigName];
+            let zigFile = files.find(f => f.name === zigName);
+            if (zigFile) {
+                zigFile.state = createEditorState(zigName, zigContent);
+                zigFile.hidden = true;
+            } else {
+                files.push({ name: zigName, state: createEditorState(zigName, zigContent), hidden: true });
+            }
+        } catch (err) {
+            console.error('[DEBUG] Transpile error:', err);
+            return; // Stop further processing if transpile fails
         }
-    });
+    }
 
-    zxWorker.postMessage({
-        files: filesToSend
-    });
-
-build_start_time = performance.now();
-    zigWorker.postMessage({
-        files: filesToSend
-    });
+    // Now send all files (including transpiled .zig) to zigWorker
+    console.log('[DEBUG] Sending files to zigWorker:', Object.keys(filesMap));
+    build_start_time = performance.now();
+    zigWorker.postMessage({ files: filesMap });
 });
