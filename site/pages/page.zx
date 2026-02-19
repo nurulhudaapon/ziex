@@ -218,7 +218,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                             <li><a href={root.configs.example_url} class="nav-link">Examples</a></li>
                         </ul>
                         <div class="nav-social" role="group" aria-label="Community links">
-                            <a href="https://discord.gg/39UgnhgpUD" target="_blank" rel="noopener noreferrer" class="nav-social-link" aria-label="Discord">
+                            <a href="/r/discord" target="_blank" rel="noopener noreferrer" class="nav-social-link" aria-label="Discord">
                                 <DiscordIcon allocator={allocator} />
                                 <span class="nav-social-text">Discord</span>
                             </a>

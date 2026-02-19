@@ -7,9 +7,9 @@ pub fn build(b: *std.Build) void {
 
     // Dependencies
     const pg_dep = b.dependency("playground", .{});
-    const zls_dep = b.dependency("zls", .{ .target = wasm_target, .optimize = wasm_optimize });
+    const zls_dep = pg_dep.builder.dependency("zls", .{ .target = wasm_target, .optimize = wasm_optimize });
     const zx_dep = b.dependency("zx", .{ .target = wasm_target, .optimize = wasm_optimize });
-    const zig_dep = b.dependency("zig", .{
+    const zig_dep = pg_dep.builder.dependency("zig", .{
         .target = wasm_target,
         .optimize = wasm_optimize,
         .@"version-string" = @as([]const u8, "0.15.1"),
