@@ -130,6 +130,8 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 </div>
             </div>
 
+            <div class="devtools-resize-handle"></div>
+
             <div class="state-panel">
                 <div class="state-header">
                     <span class="state-title">{"<App>"}</span>

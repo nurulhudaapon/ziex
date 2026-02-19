@@ -735,8 +735,7 @@ input:checked+.slider:before {
 
 /* DevTools Page */
 .devtools-container {
-    display: grid;
-    grid-template-columns: 500px 1fr;
+    display: flex;
     height: 100vh;
     background-color: #000000;
     color: #cccccc;
@@ -745,13 +744,28 @@ input:checked+.slider:before {
     overflow: hidden;
 }
 
-.sidebar {
-    width: 100%;
-    border-right: 1px solid #333;
+.devtools-container > .sidebar {
+    width: 500px;
+    min-width: 200px;
+    border-right: none;
     display: flex;
     flex-direction: column;
     background: #000000;
     overflow: hidden;
+    flex-shrink: 0;
+}
+
+.devtools-resize-handle {
+    width: 4px;
+    cursor: col-resize;
+    background: #333;
+    flex-shrink: 0;
+    transition: background 0.15s;
+}
+
+.devtools-resize-handle:hover,
+.devtools-resize-handle.active {
+    background: #00d9ff;
 }
 
 .search-box {
@@ -914,6 +928,9 @@ input:checked+.slider:before {
     display: flex;
     flex-direction: column;
     background: #000000;
+    flex: 1;
+    min-width: 200px;
+    overflow: hidden;
 }
 
 .state-header {
