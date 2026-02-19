@@ -9,6 +9,7 @@ import zigMainSource from './template/main.zig' with { type: "text" };
 import zxModSource from './template/Playground.zx' with { type: "text" };
 import zxstylecss from './template/style.css' with { type: "text" };
 import { fileManager, PlaygroundFile } from "./file";
+import { html } from "@codemirror/lang-html";
 
 export default class ZlsClient extends LspClient {
     public worker: Worker;
@@ -81,16 +82,21 @@ let activeFileIndex = -1;
 let editorView: EditorView;
 
 function createEditorState(filename: string, content: string) {
+    const extensions = [
+        basicSetup,
+        editorTheme,
+        editorHighlightStyle,
+        indentUnit.of("    "),
+        client.createPlugin(`file:///${filename}`, "zig", true),
+        keymap.of([indentWithTab]),
+    ];
+    // Add HTML highlighting for .zx files
+    if (filename.endsWith(".zx")) {
+        extensions.push(html());
+    }
     return EditorState.create({
         doc: content,
-        extensions: [
-            basicSetup,
-            editorTheme,
-            editorHighlightStyle,
-            indentUnit.of("    "),
-            client.createPlugin(`file:///${filename}`, "zig", true),
-            keymap.of([indentWithTab]),
-        ],
+        extensions,
     });
 }
 
