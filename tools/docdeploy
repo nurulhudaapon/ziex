@@ -1,7 +1,36 @@
 #!/bin/bash
 
+set -e
+
 # Pre-requisites:
-(cd pkg/playground && zig build)
+# Playground build caching
+PLAYGROUND_HASH_FILE="tmp/.playground.hash"
+PLAYGROUND_CACHE_TAR="tmp/.playground.cache.tar.gz"
+PLAYGROUND_SRC="pkg/playground"
+PLAYGROUND_OUT="site/assets/playground"
+
+# Compute current hash of playground sources
+NEW_HASH=$(find "$PLAYGROUND_SRC" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')
+
+NEED_BUILD=1
+if [ -f "$PLAYGROUND_HASH_FILE" ] && [ -f "$PLAYGROUND_CACHE_TAR" ]; then
+	OLD_HASH=$(cat "$PLAYGROUND_HASH_FILE")
+	if [ "$NEW_HASH" = "$OLD_HASH" ]; then
+		echo "[playground] No changes detected, restoring from cache."
+		rm -rf "$PLAYGROUND_OUT"
+		mkdir -p "$PLAYGROUND_OUT"
+		tar -xzf "$PLAYGROUND_CACHE_TAR" -C "$PLAYGROUND_OUT" --strip-components=2 "site/assets/playground"
+		NEED_BUILD=0
+	fi
+fi
+
+if [ "$NEED_BUILD" -eq 1 ]; then
+	echo "[playground] Changes detected or no cache, building..."
+	(cd pkg/playground && zig build)
+	# Save new hash and cache
+	echo "$NEW_HASH" > "$PLAYGROUND_HASH_FILE"
+	tar -czf "$PLAYGROUND_CACHE_TAR" site/assets/playground
+fi
 cd site
 docker compose up -d --build
 docker network connect npm ziex.dev || true
