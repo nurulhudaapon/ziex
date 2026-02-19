@@ -1,0 +1,6 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (<Redirect link="https://discord.gg/39UgnhgpUD" @allocator={ctx.arena} />);
+}
+
+const Redirect = @import("../component.zx").Redirect;
+const zx = @import("zx");

@@ -1,0 +1,14 @@
+pub fn Redirect(ctx: *zx.ComponentCtx(struct { link: []const u8 })) zx.Component {
+    return (
+        <html @allocator={ctx.allocator} lang="en-US">
+            <head>
+                <meta charset="UTF-8" />
+                <meta http-equiv="refresh" content=`0; url={ctx.props.link}` />
+            </head>
+            <body>
+                If you are not redirected automatically, follow this <a href={ctx.props.link}>link to the new page</a>.
+            </body>
+        </html>
+    );
+}
+const zx = @import("zx");

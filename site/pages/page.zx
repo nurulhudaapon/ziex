@@ -268,7 +268,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     </div>
                 </section>
                 <BenchmarksSection
-                    eyebrow="Performance Benchmarks"
+                    eyebrow=""
                     title="Performance"
                     subtitle=`<a href='{zx.info.repository}/tree/main/bench' target='_blank' class='bench-label-link'>View benchmark →</a> <br/> Each framework runs in a Docker container limited to 2 CPU cores and 2 GB RAM.`
                     tabs={benchmark_tabs[0..]}
