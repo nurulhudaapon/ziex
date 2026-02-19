@@ -1,52 +1,72 @@
 const std = @import("std");
 
 pub fn build(b: *std.Build) void {
-    const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
+    // WASM target for playground artifacts
+    const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .wasi });
+    const wasm_optimize: std.builtin.OptimizeMode = .ReleaseSmall;
 
-    const mod = b.addModule("playground_module", .{
-        .root_source_file = b.path("src/root.zig"),
-        .target = target,
+    // Dependencies
+    const pg_dep = b.dependency("playground", .{});
+    const zls_dep = b.dependency("zls", .{ .target = wasm_target, .optimize = wasm_optimize });
+    const zx_dep = b.dependency("zx", .{ .target = wasm_target, .optimize = wasm_optimize });
+    const zig_dep = b.dependency("zig", .{
+        .target = wasm_target,
+        .optimize = wasm_optimize,
+        .@"version-string" = @as([]const u8, "0.15.1"),
+        .@"no-lib" = true,
+        .dev = "wasm",
     });
 
-    const exe = b.addExecutable(.{
-        .name = "playground",
+    // Executables
+    const zx_exe = zx_dep.artifact("zx");
+    const zls_exe = b.addExecutable(.{
+        .name = "zls",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("src/main.zig"),
-            .target = target,
-            .optimize = optimize,
+            .root_source_file = pg_dep.path("src/zls.zig"),
+            .target = wasm_target,
+            .optimize = wasm_optimize,
             .imports = &.{
-                .{ .name = "playground_mod", .module = mod },
+                .{ .name = "zls", .module = zls_dep.module("zls") },
             },
         }),
     });
+    zls_exe.entry = .disabled;
+    zls_exe.rdynamic = true;
+    const zig_exe = zig_dep.artifact("zig");
 
-    b.installArtifact(exe);
+    // -- zig.tar.gz
+    const run_tar = b.addSystemCommand(&.{ "tar", "-czf" });
+    const zig_tar_gz = run_tar.addOutputFileArg("zig.tar.gz");
+    run_tar.addArg("-C");
+    run_tar.addDirectoryArg(zig_dep.path("."));
+    run_tar.addArg("lib/std");
 
-    const run_step = b.step("run", "Run the app");
+    // -- zx.tar.gz
+    const run_zx_tar = b.addSystemCommand(&.{ "tar", "-czf" });
+    const zx_tar_gz = run_zx_tar.addOutputFileArg("zx.tar.gz");
+    run_zx_tar.addArg("-C");
+    run_zx_tar.addDirectoryArg(zx_dep.path("."));
+    run_zx_tar.addArg("src");
 
-    const run_cmd = b.addRunArtifact(exe);
-    run_step.dependOn(&run_cmd.step);
+    // All assets for the playground
+    const playground_assets = b.addNamedWriteFiles("playground_assets");
+    _ = playground_assets.addCopyFile(zls_exe.getEmittedBin(), "zls.wasm");
+    _ = playground_assets.addCopyFile(zig_exe.getEmittedBin(), "zig.wasm");
+    _ = playground_assets.addCopyFile(zx_exe.getEmittedBin(), "zx.wasm");
+    _ = playground_assets.addCopyFile(zig_tar_gz, "zig.tar.gz");
+    _ = playground_assets.addCopyFile(zx_tar_gz, "zx.tar.gz");
 
-    run_cmd.step.dependOn(b.getInstallStep());
+    // Install artifacts locally (for standalone builds)
+    // b.getInstallStep().dependOn(&b.addInstallArtifact(zls_exe, .{}).step);
+    // b.getInstallStep().dependOn(&b.addInstallArtifact(zig_exe, .{}).step);
+    // b.getInstallStep().dependOn(&b.addInstallArtifact(zx_exe, .{}).step);
+    // b.getInstallStep().dependOn(&b.addInstallFile(zig_tar_gz, "zig.tar.gz").step);
+    // b.getInstallStep().dependOn(&b.addInstallFile(zx_tar_gz, "zx.tar.gz").step);
 
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-
-    const mod_tests = b.addTest(.{
-        .root_module = mod,
-    });
-
-    const run_mod_tests = b.addRunArtifact(mod_tests);
-
-    const exe_tests = b.addTest(.{
-        .root_module = exe.root_module,
-    });
-
-    const run_exe_tests = b.addRunArtifact(exe_tests);
-
-    const test_step = b.step("test", "Run tests");
-    test_step.dependOn(&run_mod_tests.step);
-    test_step.dependOn(&run_exe_tests.step);
+    // Install in the site/assets/playground directory for the web playground to consume
+    b.getInstallStep().dependOn(&b.addInstallDirectory(.{
+        .source_dir = playground_assets.getDirectory(),
+        .install_dir = .{ .custom = "../../../site/assets/playground" },
+        .install_subdir = "",
+    }).step);
 }

@@ -2,7 +2,7 @@ import { untar } from "@andrewbranch/untar.js";
 import { Directory, File, ConsoleStdout, wasi as wasi_defs } from "@bjorn3/browser_wasi_shim";
 
 export async function getLatestZigArchive() {
-    const response = await fetch("/assets/playground/zig-out/zig.tar.gz");
+    const response = await fetch("/assets/playground/zig.tar.gz");
     let arrayBuffer = await response.arrayBuffer();
     const magicNumber = new Uint8Array(arrayBuffer).slice(0, 2);
     if (magicNumber[0] == 0x1F && magicNumber[1] == 0x8B) { // gzip
@@ -37,7 +37,7 @@ export async function getLatestZigArchive() {
 }
 
 export async function getZxArchive() {
-    const response = await fetch("/assets/playground/zig-out/zx.tar.gz");
+    const response = await fetch("/assets/playground/zx.tar.gz");
     let arrayBuffer = await response.arrayBuffer();
     const magicNumber = new Uint8Array(arrayBuffer).slice(0, 2);
     if (magicNumber[0] == 0x1F && magicNumber[1] == 0x8B) { // gzip

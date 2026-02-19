@@ -37,7 +37,7 @@ async function run(files: { [filename: string]: string }) {
     ] satisfies Fd[];
     let wasi = new WASI(args, env, fds, { debug: false });
 
-    const { instance } = await WebAssembly.instantiateStreaming(fetch("/assets/playground/zig-out/bin/zx.wasm"), {
+    const { instance } = await WebAssembly.instantiateStreaming(fetch("/assets/playground/zx.wasm"), {
         "wasi_snapshot_preview1": wasi.wasiImport,
     });
 

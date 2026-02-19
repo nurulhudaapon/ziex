@@ -56,7 +56,7 @@ onmessage = (event) => {
     ];
     let wasii = new WASI(args, env, fds, { debug: false });
 
-    const { instance: localInstance } = await WebAssembly.instantiateStreaming(fetch("/assets/playground/zig-out/bin/zls.wasm"), {
+    const { instance: localInstance } = await WebAssembly.instantiateStreaming(fetch("/assets/playground/zls.wasm"), {
         "wasi_snapshot_preview1": wasii.wasiImport,
     });
 
