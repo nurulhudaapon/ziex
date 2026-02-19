@@ -8,6 +8,7 @@ import { editorTheme, editorHighlightStyle } from "./theme.ts";
 import zigMainSource from './template/main.zig' with { type: "text" };
 import zxModSource from './template/Playground.zx' with { type: "text" };
 import zxstylecss from './template/style.css' with { type: "text" };
+import { fileManager, PlaygroundFile } from "./file";
 
 export default class ZlsClient extends LspClient {
     public worker: Worker;
@@ -67,13 +68,15 @@ export default class ZlsClient extends LspClient {
 
 let client = new ZlsClient(new Worker('/assets/playground/workers/zls.js'));
 
-interface PlaygroundFile {
+
+interface EditorFile {
     name: string;
     state: EditorState;
     hidden?: boolean;
+    locked?: boolean; // if true, file cannot be renamed or deleted
 }
 
-let files: PlaygroundFile[] = [];
+let files: EditorFile[] = [];
 let activeFileIndex = -1;
 let editorView: EditorView;
 
@@ -124,14 +127,25 @@ function updateTabs() {
         closeBtn.className = "pg-tab-close";
         closeBtn.setAttribute("aria-label", "Close tab");
         closeBtn.innerHTML = "×";
-        closeBtn.onclick = (e) => {
-            e.stopPropagation();
-            removeFile(index);
-        };
+        if (file.locked) {
+            closeBtn.style.opacity = "0.3";
+            closeBtn.style.pointerEvents = "none";
+            closeBtn.title = "Main playground file: cannot rename or close, and fn Playground must exist in it";
+        } else {
+            closeBtn.onclick = (e) => {
+                e.stopPropagation();
+                removeFile(index);
+            };
+        }
         tab.appendChild(closeBtn);
 
         tab.onclick = () => switchFile(index);
-        tab.ondblclick = () => renameFile(index);
+        if (!file.locked) {
+            tab.ondblclick = () => renameFile(index);
+        } else {
+            tab.ondblclick = null;
+            tab.title = "Main playground file: cannot rename or close, and fn Playground must exist in it";
+        }
 
         tabsContainer.appendChild(tab);
     });
@@ -156,6 +170,8 @@ async function switchFile(index: number) {
 
     if (activeFileIndex !== -1 && editorView) {
         files[activeFileIndex].state = editorView.state;
+        // Update fileManager content
+        fileManager.updateContent(files[activeFileIndex].name, editorView.state.doc.toString());
     }
 
     activeFileIndex = index;
@@ -176,12 +192,12 @@ async function switchFile(index: number) {
 function addFile() {
     let name = "untitled.zig";
     let counter = 0;
-    while (files.some(f => f.name === name)) {
+    while (fileManager.hasFile(name)) {
         counter++;
         name = `untitled${counter}.zig`;
     }
-
-    const newFile: PlaygroundFile = {
+    fileManager.addFile(name, "");
+    const newFile: EditorFile = {
         name,
         state: createEditorState(name, ""),
     };
@@ -190,8 +206,11 @@ function addFile() {
 }
 
 function removeFile(index: number) {
-    if (files[index].name === "main.zig") return;
-
+    if (files[index].locked) {
+        alert("This file is locked and cannot be deleted.");
+        return;
+    }
+    fileManager.removeFile(files[index].name);
     files.splice(index, 1);
     if (activeFileIndex >= files.length) {
         activeFileIndex = files.length - 1;
@@ -202,45 +221,50 @@ function removeFile(index: number) {
 
 function renameFile(index: number) {
     const file = files[index];
+    if (file.locked) {
+        alert("This file is locked and cannot be renamed.");
+        return;
+    }
     const newName = prompt("Rename file:", file.name);
     if (newName && newName !== file.name && newName.endsWith(".zig")) {
-        if (files.some(f => f.name === newName)) {
+        if (fileManager.hasFile(newName)) {
             alert("File already exists!");
             return;
         }
-
         const content = file.state.doc.toString();
-        file.name = newName;
-        file.state = createEditorState(newName, content);
-
-        if (index === activeFileIndex) {
-            editorView.setState(file.state);
+        if (fileManager.renameFile(file.name, newName)) {
+            file.name = newName;
+            file.state = createEditorState(newName, content);
+            if (index === activeFileIndex) {
+                editorView.setState(file.state);
+            }
+            updateTabs();
+        } else {
+            alert("Rename failed!");
         }
-        updateTabs();
     }
 }
+
+
 
 (async () => {
     await client.initialize();
 
+    // Initialize fileManager and files[]
+    fileManager.addFile("Playground.zx", zxModSource);
+    fileManager.addFile("main.zig", zigMainSource);
+    fileManager.addFile("style.css", zxstylecss);
 
-    files.push({
-        name: "Playground.zx",
-        state: createEditorState("Playground.zx", zxModSource),
+    files = fileManager.getAllFiles().map(f => {
+        return {
+            name: f.name,
+            state: createEditorState(f.name, f.content),
+            hidden: f.name === "main.zig",
+            locked: f.name === "Playground.zx" || f.name === "main.zig", // lock template files
+        };
     });
 
-    files.push({
-        name: "main.zig",
-        hidden: true,
-        state: createEditorState("main.zig", zigMainSource),
-    });
-
-    files.push({
-        name: "style.css",
-        state: createEditorState("style.css", zxstylecss),
-    });
-
-
+    updateTabs();
     await switchFile(0);
 })();
 
@@ -384,13 +408,13 @@ let build_start_time = performance.now();
 
 // Helper to get current files as { [filename]: content }
 function getCurrentFilesMap(): { [filename: string]: string } {
+    // Sync current editor state to fileManager
+    if (activeFileIndex !== -1 && editorView) {
+        fileManager.updateContent(files[activeFileIndex].name, editorView.state.doc.toString());
+    }
     const filesMap: { [filename: string]: string } = {};
-    files.forEach((file, index) => {
-        if (index === activeFileIndex && editorView) {
-            filesMap[file.name] = editorView.state.doc.toString();
-        } else {
-            filesMap[file.name] = file.state.doc.toString();
-        }
+    fileManager.getAllFiles().forEach(f => {
+        filesMap[f.name] = f.content;
     });
     return filesMap;
 }
@@ -448,14 +472,18 @@ outputsRun.addEventListener("click", async () => {
             console.log('[DEBUG] Transpiled result:', transpiledZigFiles);
             // Add transpiled .zig file to filesMap
             Object.assign(filesMap, transpiledZigFiles);
-            // Also update files[] if .zig file exists in tabs, else add it as hidden
+            // Also update fileManager and files[] if .zig file exists in tabs, else add it as hidden
             const zigName = Object.keys(transpiledZigFiles)[0];
             const zigContent = transpiledZigFiles[zigName];
-            let zigFile = files.find(f => f.name === zigName);
-            if (zigFile) {
-                zigFile.state = createEditorState(zigName, zigContent);
-                zigFile.hidden = true;
+            if (fileManager.hasFile(zigName)) {
+                fileManager.updateContent(zigName, zigContent);
+                let zigFile = files.find(f => f.name === zigName);
+                if (zigFile) {
+                    zigFile.state = createEditorState(zigName, zigContent);
+                    zigFile.hidden = true;
+                }
             } else {
+                fileManager.addFile(zigName, zigContent);
                 files.push({ name: zigName, state: createEditorState(zigName, zigContent), hidden: true });
             }
         } catch (err) {

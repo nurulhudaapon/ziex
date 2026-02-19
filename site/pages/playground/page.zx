@@ -38,12 +38,7 @@ pub fn EditorPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
             <div class="pg-tabs" id="pg-tabs">
                 <button class="pg-tab pg-tab--active" data-file="page.zx" id="pg-tab-0">
                     <span class="pg-tab-icon">⚡</span>
-                    page.zx
-                    <span class="pg-tab-close" aria-label="Close tab">×</span>
-                </button>
-                <button class="pg-tab" data-file="layout.zx" id="pg-tab-1">
-                    <span class="pg-tab-icon">⚡</span>
-                    layout.zx
+                    Playground.zx
                     <span class="pg-tab-close" aria-label="Close tab">×</span>
                 </button>
                 <button class="pg-tab" data-file="style.css" id="pg-tab-2">
