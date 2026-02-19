@@ -9,6 +9,8 @@ PLAYGROUND_CACHE_TAR="tmp/.playground.cache.tar.gz"
 PLAYGROUND_SRC="pkg/playground"
 PLAYGROUND_OUT="site/assets/playground"
 
+mkdir -p tmp
+
 # Compute current hash of playground sources
 NEW_HASH=$(find "$PLAYGROUND_SRC" -type f -print0 | sort -z | xargs -0 sha256sum | sha256sum | awk '{print $1}')
 
