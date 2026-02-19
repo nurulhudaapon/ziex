@@ -8,8 +8,7 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     const needs_js = !std.mem.eql(u8, path, "/");
 
     if (std.mem.eql(u8, path, "/overview") or
-        std.mem.eql(u8, path, "/time") or
-        std.mem.eql(u8, path, "/playground"))
+        std.mem.eql(u8, path, "/time"))
     {
         return (
             <html lang="en" @allocator={ctx.arena}>
@@ -59,11 +58,14 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
                 <meta name="twitter:description" content={description} />
                 <meta name="twitter:creator" content="@aspect_dev" />
 
+                <GtmHead />
+
                 <style @escaping={.none}>
                     {getCss(ctx)}
                 </style>
             </head>
             <body>
+                <GtmBody />
                 {children}
             </body>
         </html>
@@ -82,5 +84,7 @@ fn getCss(ctx: zx.LayoutContext) []const u8 {
         @embedFile("../assets/docs.css");
 }
 
+const GtmHead = @import("components/tags.zx").GtmHead;
+const GtmBody = @import("components/tags.zx").GtmBody;
 const zx = @import("zx");
 const std = @import("std");
