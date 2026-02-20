@@ -1,3 +1,4 @@
+import { appendTerminalLine, revealOutputWindow, setTerminalCollapsed, clearTerminal } from "./terminal.ts";
 import { EditorState } from "@codemirror/state"
 import { keymap } from "@codemirror/view"
 import { EditorView, basicSetup } from "codemirror"
@@ -10,6 +11,8 @@ import zxModSource from './template/Playground.zx' with { type: "text" };
 import zxstylecss from './template/style.css' with { type: "text" };
 import { fileManager, PlaygroundFile } from "./file";
 import { html } from "@codemirror/lang-html";
+import { css } from "@codemirror/lang-css";
+import { javascript } from "@codemirror/lang-javascript";
 
 export default class ZlsClient extends LspClient {
     public worker: Worker;
@@ -87,12 +90,22 @@ function createEditorState(filename: string, content: string) {
         editorTheme,
         editorHighlightStyle,
         indentUnit.of("    "),
-        client.createPlugin(`file:///${filename}`, "zig", true),
         keymap.of([indentWithTab]),
     ];
+
+    if (filename.endsWith('.zig') || filename.endsWith('.zx') || filename.endsWith('.zon')) {
+        extensions.push(client.createPlugin(`file:///${filename}`, "zig", true));
+    }
+
     // Add HTML highlighting for .zx files
-    if (filename.endsWith(".zx")) {
+    if (filename.endsWith(".zx") || filename.endsWith(".html")) {
         extensions.push(html());
+    } else if (filename.endsWith(".css")) {
+        extensions.push(css());
+    } else if (filename.endsWith(".js") || filename.endsWith(".jsx")) {
+        extensions.push(javascript({ jsx: true }));
+    } else if (filename.endsWith(".ts") || filename.endsWith(".tsx")) {
+        extensions.push(javascript({ jsx: true, typescript: true }));
     }
     return EditorState.create({
         doc: content,
@@ -100,13 +113,17 @@ function createEditorState(filename: string, content: string) {
     });
 }
 
-function getFileIcon(filename: string): string {
-    if (filename.endsWith('.zig')) return '⚡';
-    if (filename.endsWith('.zx')) return '⚡';
-    if (filename.endsWith('.css')) return '🎨';
-    if (filename.endsWith('.html')) return '📄';
-    if (filename.endsWith('.js') || filename.endsWith('.ts')) return '📜';
-    return '📄';
+function getFileClass(filename: string): string {
+    if (filename.endsWith('.zig')) return 'zig';
+    if (filename.endsWith('.zx')) return 'zx';
+    if (filename.endsWith('.css')) return 'css';
+    if (filename.endsWith('.html')) return 'html';
+    if (filename.endsWith('.md')) return 'md';
+    if (filename.endsWith('.jsx')) return 'jsx';
+    if (filename.endsWith('.tsx')) return 'tsx';
+    if (filename.endsWith('.js')) return 'js';
+    if (filename.endsWith('.ts')) return 'ts';
+    return 'file';
 }
 
 function updateTabs() {
@@ -123,8 +140,11 @@ function updateTabs() {
         tab.id = `pg-tab-${index}`;
 
         const iconSpan = document.createElement("span");
-        iconSpan.className = "pg-tab-icon";
-        iconSpan.textContent = getFileIcon(file.name);
+        iconSpan.className = `pg-tab-icon type-${getFileClass(file.name)}`;
+        const template = document.getElementById("pg-icons-template") as HTMLTemplateElement;
+        if (template) {
+            iconSpan.appendChild(template.content.cloneNode(true));
+        }
         tab.appendChild(iconSpan);
 
         tab.appendChild(document.createTextNode(file.name));
@@ -196,16 +216,25 @@ async function switchFile(index: number) {
 }
 
 function addFile() {
-    let name = "untitled.zig";
+    let name = "untitled.zx";
     let counter = 0;
     while (fileManager.hasFile(name)) {
         counter++;
-        name = `untitled${counter}.zig`;
+        name = `untitled${counter}.zx`;
     }
-    fileManager.addFile(name, "");
+    
+    const promptedName = prompt("File name:", name);
+    if (!promptedName) return;
+
+    if (fileManager.hasFile(promptedName)) {
+        alert("File already exists!");
+        return;
+    }
+
+    fileManager.addFile(promptedName, "");
     const newFile: EditorFile = {
-        name,
-        state: createEditorState(name, ""),
+        name: promptedName,
+        state: createEditorState(promptedName, ""),
     };
     files.push(newFile);
     switchFile(files.length - 1);
@@ -232,7 +261,7 @@ function renameFile(index: number) {
         return;
     }
     const newName = prompt("Rename file:", file.name);
-    if (newName && newName !== file.name && newName.endsWith(".zig")) {
+    if (newName && newName !== file.name) {
         if (fileManager.hasFile(newName)) {
             alert("File already exists!");
             return;
@@ -253,25 +282,141 @@ function renameFile(index: number) {
 
 
 
-(async () => {
-    await client.initialize();
+async function encodeFilesToQuery(filesMap: { [filename: string]: string }): Promise<string> {
+    const filtered: { [filename: string]: string } = {};
+    for (const [name, content] of Object.entries(filesMap)) {
+        filtered[name] = content;
+    }
+    const json = JSON.stringify(filtered);
+    const stream = new Blob([json]).stream().pipeThrough(new CompressionStream("deflate"));
+    const buffer = await new Response(stream).arrayBuffer();
+    
+    let binString = '';
+    const bytes = new Uint8Array(buffer);
+    const CHUNK_SIZE = 0x8000;
+    for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
+        binString += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK_SIZE)));
+    }
+    const b64 = btoa(binString);
+    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
 
-    // Initialize fileManager and files[]
+async function decodeFilesFromQuery(query: string): Promise<{ [filename: string]: string } | null> {
+    try {
+        let b64 = query.replace(/-/g, '+').replace(/_/g, '/');
+        while (b64.length % 4) {
+            b64 += '=';
+        }
+        const binString = atob(b64);
+        const bytes = Uint8Array.from(binString, (m) => m.codePointAt(0)!);
+
+        const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate"));
+        const text = await new Response(stream).text();
+        return JSON.parse(text);
+    } catch {
+        return null;
+    }
+}
+
+function copyToClipboard(text: string) {
+    if (navigator.clipboard) {
+        navigator.clipboard.writeText(text);
+    } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+    }
+}
+
+function showShareSuccess() {
+    const btn = document.getElementById("pg-share-btn");
+    if (!btn) return;
+    const orig = btn.innerHTML;
+    btn.innerHTML = '✅ Copied!';
+    setTimeout(() => { btn.innerHTML = orig; }, 1200);
+}
+
+document.getElementById("pg-share-btn")?.addEventListener("click", async () => {
+    const btn = document.getElementById("pg-share-btn");
+    const origHtml = btn ? btn.innerHTML : '';
+    if (btn) btn.innerHTML = '⌛'; // loading state
+
+    try {
+        const filesMap = getCurrentFilesMap();
+        const encoded = await encodeFilesToQuery(filesMap);
+        const url = `${location.origin}${location.pathname}#code=${encoded}`;
+        
+        if (url.length > 8000) {
+            alert(`Warning: This share link is ${url.length} characters long. Older browsers, proxies, or chat apps max out at 2,000–8,000 bytes and might truncate it, breaking the link.`);
+        }
+    
+        copyToClipboard(url);
+        showShareSuccess();
+    } finally {
+        if (btn) btn.innerHTML = origHtml;
+    }
+});
+
+function loadTemplateFiles() {
     fileManager.addFile("Playground.zx", zxModSource);
     fileManager.addFile("main.zig", zigMainSource);
     fileManager.addFile("style.css", zxstylecss);
+}
 
-    files = fileManager.getAllFiles().map(f => {
-        return {
-            name: f.name,
-            state: createEditorState(f.name, f.content),
-            hidden: f.name === "main.zig",
-            locked: f.name === "Playground.zx" || f.name === "main.zig", // lock template files
-        };
-    });
 
+window.addEventListener("DOMContentLoaded", async () => {
+    await client.initialize();
+
+    // Use hash fragment for code sharing
+    let code = null;
+    if (location.hash.startsWith("#code=")) {
+        code = location.hash.slice(6);
+    }
+    let initialFileIndex = 0;
+    if (code) {
+        const filesDecoded = await decodeFilesFromQuery(code);
+        if (filesDecoded) {
+            fileManager.getAllFiles().forEach(f => fileManager.removeFile(f.name));
+            Object.entries(filesDecoded).forEach(([name, content]) => fileManager.addFile(name, content));
+            const newFiles = fileManager.getAllFiles().map(f => ({
+                name: f.name,
+                state: createEditorState(f.name, f.content),
+                hidden: f.name === "main.zig",
+                locked: f.name === "Playground.zx" || f.name === "main.zig",
+            }));
+            files.length = 0;
+            files.push(...newFiles);
+            updateTabs();
+            await switchFile(initialFileIndex);
+            // Force re-setting the state to trigger LSP plugin
+            if (editorView && files[initialFileIndex]) {
+                editorView.setState(files[initialFileIndex].state);
+            }
+            return;
+        }
+    }
+    loadTemplateFiles();
+    const newFiles = fileManager.getAllFiles().map(f => ({
+        name: f.name,
+        state: createEditorState(f.name, f.content),
+        hidden: f.name === "main.zig",
+        locked: f.name === "Playground.zx" || f.name === "main.zig",
+    }));
+    files.length = 0;
+    files.push(...newFiles);
     updateTabs();
-    await switchFile(0);
+    await switchFile(initialFileIndex);
+    if (editorView && files[initialFileIndex]) {
+        editorView.setState(files[initialFileIndex].state);
+    }
+});
+
+// Only initialize client here, file loading is handled in DOMContentLoaded
+(async () => {
+    // await client.initialize();
 })();
 
 document.getElementById("pg-add-file")?.addEventListener("click", addFile);
@@ -294,15 +439,6 @@ tabsEl.addEventListener("scroll", updateTabsScrollShadow);
 new ResizeObserver(updateTabsScrollShadow).observe(tabsEl);
 new MutationObserver(updateTabsScrollShadow).observe(tabsEl, { childList: true });
 
-function revealOutputWindow() {
-    const outputs = document.getElementById("pg-terminal-body")!;
-    outputs.scrollTo(0, outputs.scrollHeight!);
-    const splitPane = document.getElementById("split-pane")!;
-    // const editorHeightPercent = parseFloat(splitPane.style.getPropertyValue("--editor-height-percent"));
-    // if (editorHeightPercent == 100) {
-    //     splitPane.style.setProperty("--editor-height-percent", `${resizeBarPreviousSize}%`);
-    // }
-}
 
 let zigWorker = new Worker('/assets/playground/workers/zig.js');
 let zxWorker = new Worker('/assets/playground/workers/zx.js');
@@ -320,30 +456,6 @@ function setRunButtonLoading(loading: boolean) {
     }
 }
 
-function appendTerminalLine(text: string, className?: string) {
-    const termBody = document.getElementById("pg-terminal-body")!;
-    const line = document.createElement("span");
-    line.className = "pg-terminal-line";
-
-    const prompt = document.createElement("span");
-    prompt.className = "pg-terminal-prompt";
-    prompt.textContent = "";
-    line.appendChild(prompt);
-
-    const content = document.createElement("span");
-    if (className) content.className = className;
-    content.textContent = text;
-    line.appendChild(content);
-    termBody.appendChild(line);
-
-
-
-}
-
-function clearTerminal() {
-    const termBody = document.getElementById("pg-terminal-body")!;
-    termBody.innerHTML = "";
-}
 
 zxWorker.onmessage = (ev: MessageEvent) => {
     console.info("Transpiled finished in", (performance.now() - build_start_time).toFixed(2), "ms");
@@ -359,27 +471,31 @@ zigWorker.onmessage = (ev: MessageEvent) => {
         for (const l of lines) {
             appendTerminalLine(l, "pg-terminal-error");
         }
+        setTerminalCollapsed(false);
         revealOutputWindow();
+        setRunButtonLoading(false);
         return;
     } else if (ev.data.failed) {
         appendTerminalLine("Compilation failed.", "pg-terminal-error");
+        setTerminalCollapsed(false);
+        revealOutputWindow();
         setRunButtonLoading(false);
     } else if (ev.data.compiled) {
-        // appendTerminalLine("Compiled successfully. Running…", "pg-terminal-success");
         let runnerWorker = new Worker('/assets/playground/workers/runner.js');
-
         runnerWorker.postMessage({ run: ev.data.compiled });
-
         runnerWorker.onmessage = (rev: MessageEvent) => {
             if (rev.data.stderr) {
-                appendTerminalLine("", "pg-terminal-info");
-                const lines = rev.data.stderr.split('\n').filter((l: string) => l.length > 0);
+                const lines = rev.data.stderr.split('\n').filter((l) => l.length > 0);
                 for (const l of lines) {
-                    appendTerminalLine(l, "pg-terminal-info");
+                    appendTerminalLine(l, "pg-terminal-error");
                 }
+                setTerminalCollapsed(false);
                 revealOutputWindow();
+                setRunButtonLoading(false);
                 return;
-            } else if (rev.data.preview) {
+            }
+            if (rev.data.preview) {
+                // Only show HTML output in the preview pane, not in the terminal
                 const viewport = document.getElementById("pg-browser-viewport")!;
                 let iframe = viewport.querySelector("iframe") as HTMLIFrameElement;
                 if (!iframe) {
@@ -394,18 +510,18 @@ zigWorker.onmessage = (ev: MessageEvent) => {
                 }
                 iframe.contentDocument?.write(rev.data.preview);
                 return;
-            } else if (rev.data.done) {
+            }
+            if (rev.data.done) {
                 const viewport = document.getElementById("pg-browser-viewport")!;
                 const iframe = viewport.querySelector("iframe") as HTMLIFrameElement;
                 if (iframe) {
                     iframe.contentDocument?.close();
                 }
-
                 runnerWorker.terminate();
-                appendTerminalLine("Program exited.\n", "pg-terminal-muted");
+                // appendTerminalLine("Program exited.\n", "pg-terminal-muted");
                 setRunButtonLoading(false);
             }
-        }
+        };
     }
 }
 
@@ -430,12 +546,16 @@ outputsRun.addEventListener("click", async () => {
     setRunButtonLoading(true);
     clearTerminal();
     const viewport = document.getElementById("pg-browser-viewport")!;
-    viewport.innerHTML = `
-        <div class="pg-browser-placeholder">
-            <div class="pg-browser-placeholder-icon">🌐</div>
-            Running…
-        </div>`;
-    revealOutputWindow();
+    // Only update innerHTML, do NOT reset flex/width/height styles
+    while (viewport.firstChild) viewport.removeChild(viewport.firstChild);
+    const placeholder = document.createElement("div");
+    placeholder.className = "pg-browser-placeholder";
+    const icon = document.createElement("div");
+    icon.className = "pg-browser-placeholder-icon";
+    icon.textContent = "🌐";
+    placeholder.appendChild(icon);
+    placeholder.appendChild(document.createTextNode("Building…"));
+    viewport.appendChild(placeholder);
 
     let filesMap = getCurrentFilesMap();
     // Find all .zx files
@@ -454,16 +574,20 @@ outputsRun.addEventListener("click", async () => {
                 } else if (ev.data && ev.data.failed) {
                     zxWorker.removeEventListener('message', handler);
                     appendTerminalLine(ev.data.stderr || "Transpile failed", "pg-terminal-error");
+                    setTerminalCollapsed(false);
+                    revealOutputWindow();
                     setRunButtonLoading(false);
                     reject(ev.data.stderr);
-                } else if (ev.data && ev.data.stderr) {
-                    // If only stderr is returned, treat as transpiled .zig content
+                } else if (ev.data && ev.data.stdout) {
+                    // If only stdout is returned, treat as transpiled .zig content
                     zxWorker.removeEventListener('message', handler);
                     const zigName = zxName.replace(/\.zx$/, ".zig");
-                    console.log('[DEBUG] Treating stderr as transpiled .zig for', zigName);
-                    resolve({ [zigName]: ev.data.stderr });
+                    console.log('[DEBUG] Treating stdout as transpiled .zig for', zigName);
+                    resolve({ [zigName]: ev.data.stdout });
                 }
             };
+
+            
             zxWorker.addEventListener('message', handler);
             console.log('[DEBUG] Posting to zxWorker:', zxName);
             zxWorker.postMessage({ filename: zxName, content: zxContent });

@@ -1,7 +1,9 @@
 import { WASI, PreopenDirectory, Fd, File, OpenFile, Inode } from "@bjorn3/browser_wasi_shim";
-import { getLatestZigArchive, getZxArchive, stderrOutput } from "../utils";
+import { getLatestZigArchive, getZxArchive, stderrOutput, fetchWithCache } from "../utils";
 
 let currentlyRunning = false;
+let compiledModule: WebAssembly.Module | null = null;
+
 async function run(files: { [filename: string]: string }) {
     if (currentlyRunning) return;
 
@@ -36,7 +38,7 @@ async function run(files: { [filename: string]: string }) {
         "-fno-ubsan-rt",
         "-fno-entry", // prevent the native webassembly backend from adding a start function to the module 
     ];
-    let env = [];
+    let env: string[] = [];
 
     const fileContents = new Map<string, Inode>();
     for (const [filename, content] of Object.entries(files)) {
@@ -54,7 +56,11 @@ async function run(files: { [filename: string]: string }) {
     ] satisfies Fd[];
     let wasi = new WASI(args, env, fds, { debug: false });
 
-    const { instance } = await WebAssembly.instantiateStreaming(fetch("/assets/playground/zig.wasm"), {
+    if (!compiledModule) {
+        const response = await fetchWithCache("/assets/playground/zig.wasm");
+        compiledModule = await WebAssembly.compileStreaming(response);
+    }
+    const instance = await WebAssembly.instantiate(compiledModule, {
         "wasi_snapshot_preview1": wasi.wasiImport,
     });
 

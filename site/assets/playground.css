@@ -1,3 +1,31 @@
+/* --- Collapsible Terminal --- */
+.pg-terminal.collapsed {
+    height: 36px !important;
+    min-height: 0 !important;
+    max-height: 36px !important;
+    flex: 0 0 36px !important;
+    overflow: hidden;
+    transition: height 0.2s, flex-basis 0.2s;
+}
+
+.pg-terminal.collapsed .pg-terminal-body {
+    display: none;
+}
+
+/* Ensure browser takes remaining space when terminal collapses */
+.pg-preview.terminal-collapsed #pg-browser {
+    flex: 1 1 100% !important;
+    height: auto !important;
+}
+
+.pg-preview.terminal-collapsed #pg-hsplitter {
+    display: none;
+}
+
+.pg-terminal-header {
+    cursor: pointer;
+}
+
 /* Playground IDE Styles — re-uses home.css design tokens */
 
 :root {
@@ -122,7 +150,9 @@ body {
 }
 
 @keyframes pg-spin {
-    to { transform: rotate(360deg); }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* ─── CodeMirror line numbers / gutter overrides ─── */
@@ -229,6 +259,25 @@ body {
     justify-content: center;
     color: var(--zx-primary);
     opacity: 0.7;
+}
+
+.pg-tab-icon .pg-icon {
+    display: none;
+    width: 100%;
+    height: 100%;
+}
+
+.pg-tab-icon.type-zx .pg-icon-zx,
+.pg-tab-icon.type-zig .pg-icon-zig,
+.pg-tab-icon.type-css .pg-icon-css,
+.pg-tab-icon.type-html .pg-icon-md,
+.pg-tab-icon.type-md .pg-icon-md,
+.pg-tab-icon.type-js .pg-icon-js,
+.pg-tab-icon.type-ts .pg-icon-ts,
+.pg-tab-icon.type-jsx .pg-icon-jsx,
+.pg-tab-icon.type-tsx .pg-icon-tsx,
+.pg-tab-icon.type-file .pg-icon-file {
+    display: block;
 }
 
 .pg-tab-close {
@@ -387,9 +436,17 @@ body {
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.5) inset;
 }
 
-.pg-browser-dots span:nth-child(1) { background: #ff5f57; }
-.pg-browser-dots span:nth-child(2) { background: #febc2e; }
-.pg-browser-dots span:nth-child(3) { background: #28c840; }
+.pg-browser-dots span:nth-child(1) {
+    background: #ff5f57;
+}
+
+.pg-browser-dots span:nth-child(2) {
+    background: #febc2e;
+}
+
+.pg-browser-dots span:nth-child(3) {
+    background: #28c840;
+}
 
 .pg-browser-nav {
     display: flex;
@@ -474,7 +531,6 @@ body {
 /* Browser viewport */
 .pg-browser-viewport {
     flex: 1;
-    background: #fff;
     position: relative;
     overflow: hidden;
 }
@@ -493,10 +549,9 @@ body {
     justify-content: center;
     height: 100%;
     gap: 1rem;
-    color: rgba(0, 0, 0, 0.25);
+    color: rgba(196, 193, 193, 0.25);
     font-size: 0.85rem;
     font-weight: 500;
-    background: #fff;
 }
 
 .pg-browser-placeholder-icon {
@@ -539,6 +594,7 @@ body {
 
 /* ─── Terminal ─── */
 .pg-terminal {
+    margin-bottom: -8px;
     height: 180px;
     min-height: 60px;
     display: flex;
@@ -552,14 +608,14 @@ body {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0.35rem 0.75rem;
+    padding: 0.1rem 0.75rem;
     background: rgba(16, 18, 23, 0.95);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     flex-shrink: 0;
 }
 
 .pg-terminal-title {
-    font-size: 0.68rem;
+    font-size: 0.5rem;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.55);
     text-transform: uppercase;
@@ -570,8 +626,8 @@ body {
 }
 
 .pg-terminal-title-dot {
-    width: 7px;
-    height: 7px;
+    width: 5px;
+    height: 5px;
     border-radius: 50%;
     background: #28c840;
     box-shadow: 0 0 6px rgba(40, 200, 64, 0.4);
@@ -652,6 +708,7 @@ body {
     vertical-align: text-bottom;
     animation: blink 1s step-end infinite;
 }
+
 #pg-run-btn {
     height: 28px;
     width: 66px;
@@ -661,19 +718,42 @@ body {
 }
 
 @keyframes blink {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0; }
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0;
+    }
 }
 
 /* ─── Syntax highlighting (same classes as home.css) ─── */
 .pg-code .attribute,
-.pg-code .property           { color: #f78c6c; }
-.pg-code .comment            { font-style: italic; color: #7a9aa8; }
+.pg-code .property {
+    color: #f78c6c;
+}
+
+.pg-code .comment {
+    font-style: italic;
+    color: #7a9aa8;
+}
+
 .pg-code .constant,
-.pg-code .constant.builtin   { color: #89ddff; }
-.pg-code .constructor        { color: #c792ea; }
+.pg-code .constant.builtin {
+    color: #89ddff;
+}
+
+.pg-code .constructor {
+    color: #c792ea;
+}
+
 .pg-code .function,
-.pg-code .function.builtin   { color: #82aaff; }
+.pg-code .function.builtin {
+    color: #82aaff;
+}
+
 .pg-code .keyword,
 .pg-code .keyword.function,
 .pg-code .keyword.return,
@@ -683,28 +763,75 @@ body {
 .pg-code .keyword.repeat,
 .pg-code .keyword.import,
 .pg-code .keyword.exception,
-.pg-code .keyword.coroutine  { color: #c792ea; }
-.pg-code .keyword.operator   { color: #89ddff; }
-.pg-code .module             { color: #c792ea; }
+.pg-code .keyword.coroutine {
+    color: #c792ea;
+}
+
+.pg-code .keyword.operator {
+    color: #89ddff;
+}
+
+.pg-code .module {
+    color: #c792ea;
+}
+
 .pg-code .number,
-.pg-code .number.float       { color: #f78c6c; }
-.pg-code .operator           { color: #89ddff; }
+.pg-code .number.float {
+    color: #f78c6c;
+}
+
+.pg-code .operator {
+    color: #89ddff;
+}
+
 .pg-code .punctuation,
 .pg-code .punctuation.bracket,
 .pg-code .punctuation.delimiter,
-.pg-code .punctuation.special { color: #89ddff; }
+.pg-code .punctuation.special {
+    color: #89ddff;
+}
+
 .pg-code .string,
-.pg-code .string.special     { color: #c3e88d; }
-.pg-code .string.escape      { color: #eeffff; }
-.pg-code .tag                { color: #f07178; }
+.pg-code .string.special {
+    color: #c3e88d;
+}
+
+.pg-code .string.escape {
+    color: #eeffff;
+}
+
+.pg-code .tag {
+    color: #f07178;
+}
+
 .pg-code .type,
-.pg-code .type.builtin       { color: #ffcb6b; }
-.pg-code .variable           { color: #eeffff; }
-.pg-code .variable.builtin   { color: #82aaff; }
-.pg-code .variable.parameter { color: #f78c6c; }
-.pg-code .variable.member    { color: #eeffff; }
-.pg-code .label              { color: #c792ea; }
-.pg-code .boolean            { color: #f78c6c; }
+.pg-code .type.builtin {
+    color: #ffcb6b;
+}
+
+.pg-code .variable {
+    color: #eeffff;
+}
+
+.pg-code .variable.builtin {
+    color: #82aaff;
+}
+
+.pg-code .variable.parameter {
+    color: #f78c6c;
+}
+
+.pg-code .variable.member {
+    color: #eeffff;
+}
+
+.pg-code .label {
+    color: #c792ea;
+}
+
+.pg-code .boolean {
+    color: #f78c6c;
+}
 
 /* ─── Scrollbars (matches home.css) ─── */
 .pg-code pre,
@@ -745,6 +872,11 @@ body {
 .pg-ide--dragging-v {
     user-select: none;
     cursor: row-resize;
+}
+
+.pg-ide--dragging iframe,
+.pg-ide--dragging-v iframe {
+    pointer-events: none;
 }
 
 /* ─── Status Bar ─── */
@@ -807,52 +939,53 @@ body {
 
 
 :root {
-  --code-background-color: #0b0f14;
-  --code-text-color: #eeffff;
+    --code-background-color: #0b0f14;
+    --code-text-color: #eeffff;
 }
 
 /* Comments */
 .st-comment {
-  color: #7a9aa8;
-  font-style: italic;
+    color: #7a9aa8;
+    font-style: italic;
 }
 
 /* Keywords */
 .st-keyword {
-  color: #c792ea;
-  font-weight: bold;
+    color: #c792ea;
+    font-weight: bold;
 }
 
 /* Numbers & keyword literals (true, false, null) */
-.st-number, .st-keywordLiteral {
-  color: #f78c6c;
+.st-number,
+.st-keywordLiteral {
+    color: #f78c6c;
 }
 
 /* Strings */
 .st-string {
-  color: #c3e88d;
+    color: #c3e88d;
 }
 
 /* Escape sequences */
 .st-escapeSequence {
-  color: #eeffff;
+    color: #eeffff;
 }
 
 /* Labels */
 .st-label {
-  color: #c792ea;
-  font-style: italic;
+    color: #c792ea;
+    font-style: italic;
 }
 
 /* Builtins (@import, @intCast, etc.) */
 .st-builtin {
-  color: #82aaff;
+    color: #82aaff;
 }
 
 /* Parameters */
 .st-parameter {
-  color: #f78c6c;
-  font-style: italic;
+    color: #f78c6c;
+    font-style: italic;
 }
 
 /* Types, type parameters, enums, classes, structs */
@@ -861,38 +994,38 @@ body {
 .st-enum,
 .st-class,
 .st-struct {
-  color: #ffcb6b;
-  font-weight: bold;
+    color: #ffcb6b;
+    font-weight: bold;
 }
 
 /* Functions */
 .st-function,
 .st-method {
-  color: #82aaff;
-  font-weight: bold;
+    color: #82aaff;
+    font-weight: bold;
 }
 
 /* Methods get italic */
 .st-method {
-  font-style: italic;
+    font-style: italic;
 }
 
 /* Operators */
 .st-operator {
-  color: #89ddff;
+    color: #89ddff;
 }
 
 /* Variables */
 .st-variable {
-  color: #eeffff;
+    color: #eeffff;
 }
 
 /* Tags (for ZX / HTML-in-Zig) */
 .st-tag {
-  color: #f07178;
+    color: #f07178;
 }
 
 /* Attributes */
 .st-attribute {
-  color: #f78c6c;
+    color: #f78c6c;
 }

@@ -74,14 +74,15 @@ fn main_wasm() !void {
 
         const ast = try zx.Ast.parse(allocator, zx_sourcez, .{});
         const zig_source = ast.zig_source;
-        std.debug.print("{s}", .{zig_source});
+        // std.debug.print("{s}", .{zig_source});
+        try std.fs.File.stdout().writeAll(zig_source);
 
         const basename = std.fs.path.basename(file_path);
         const ext = std.fs.path.extension(file_path);
         if (!std.mem.eql(u8, ext, "zx")) continue;
         const output_rel_path = try std.mem.concat(allocator, u8, &.{ basename[0 .. basename.len - (".zx").len], "zig" });
 
-        try std.fs.cwd().writeFile(.{
+        try cwd.writeFile(.{
             .data = zig_source,
             .sub_path = output_rel_path,
         });

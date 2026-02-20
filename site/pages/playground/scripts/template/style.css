@@ -1,39 +1,6 @@
 body {
-    font-family: sans-serif;
-    margin: 0;
-    min-height: 100vh;
     background: #111;
     color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.center {
-    text-align: center;
-}
-
-h1 {
-    font-size: 2.5em;
-    margin-bottom: 0.5em;
-    letter-spacing: 0.05em;
-}
-
-p {
-    font-size: 1.1em;
-    margin: 0.5em 0;
-    color: #ccc;
-}
-
-button {
-    font-size: 1em;
-    padding: 0.5em 1em;
-    border: 1px solid #bbb;
-    border-radius: 4px;
-    background: #fff;
-    cursor: pointer;
-}
-
-button:hover {
-    background: #f0f0f0;
+    display: grid;
+    place-items: center;
 }

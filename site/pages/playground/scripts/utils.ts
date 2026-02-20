@@ -1,8 +1,25 @@
 import { untar } from "@andrewbranch/untar.js";
 import { Directory, File, ConsoleStdout, wasi as wasi_defs } from "@bjorn3/browser_wasi_shim";
 
+export async function fetchWithCache(url: string): Promise<Response> {
+    const cache = await caches.open("zx-playground-cache-v1");
+    let response = await cache.match(url);
+    if (!response) {
+        response = await fetch(url);
+        if (response.ok) {
+            await cache.put(url, response.clone());
+        }
+    } else {
+        response = response.clone();
+    }
+    return response;
+}
+
+let _cachedZigRoot: TreeNode | null = null;
 export async function getLatestZigArchive() {
-    const response = await fetch("/assets/playground/zig.tar.gz");
+    if (_cachedZigRoot) return convert(_cachedZigRoot);
+
+    const response = await fetchWithCache("/assets/playground/zig.tar.gz");
     let arrayBuffer = await response.arrayBuffer();
     const magicNumber = new Uint8Array(arrayBuffer).slice(0, 2);
     if (magicNumber[0] == 0x1F && magicNumber[1] == 0x8B) { // gzip
@@ -33,11 +50,15 @@ export async function getLatestZigArchive() {
         c.set(splitPath[splitPath.length - 1], e.fileData);
     }
 
+    _cachedZigRoot = root;
     return convert(root);
 }
 
+let _cachedZxRoot: TreeNode | null = null;
 export async function getZxArchive() {
-    const response = await fetch("/assets/playground/zx.tar.gz");
+    if (_cachedZxRoot) return convert(_cachedZxRoot);
+
+    const response = await fetchWithCache("/assets/playground/zx.tar.gz");
     let arrayBuffer = await response.arrayBuffer();
     const magicNumber = new Uint8Array(arrayBuffer).slice(0, 2);
     if (magicNumber[0] == 0x1F && magicNumber[1] == 0x8B) { // gzip
@@ -70,6 +91,7 @@ export async function getZxArchive() {
         c.set(splitPath[splitPath.length - 1], e.fileData);
     }
 
+    _cachedZxRoot = root;
     return convert(root);
 }
 
@@ -96,6 +118,17 @@ export function stderrOutput(): ConsoleStdout {
         return { ret: wasi_defs.ERRNO_SPIPE, nwritten: 0 };
     }
     return stderr;
+}
+
+export function stdoutOutput(): ConsoleStdout {
+    const dec = new TextDecoder("utf-8", { fatal: false });
+    const stdout = new ConsoleStdout((buffer) => {
+        postMessage({ stdout: dec.decode(buffer, { stream: true }) });
+    });
+    stdout.fd_pwrite = (data, offset) => {
+        return { ret: wasi_defs.ERRNO_SPIPE, nwritten: 0 };
+    }
+    return stdout;
 }
 
 export function previewOutput(): ConsoleStdout {

@@ -26,7 +26,14 @@ pub fn TopNavigation(ctx: *zx.ComponentCtx(struct {})) zx.Component {
         <nav @allocator={ctx.allocator}  class="pg-nav">
             <a href="/" class="pg-nav-logo">Ziex</a>
             <ActionButtons @rendering={.client} />
-            <button class="pg-nav-btn pg-nav-btn--primary" id="pg-run-btn">▶ Run</button>
+            <div class="pg-nav-actions">
+                // <a href="/learn" class="pg-nav-btn">Docs</a>
+                <button class="pg-nav-btn pg-nav-btn--primary" id="pg-run-btn">▶ Run</button>
+                <button class="pg-nav-btn" id="pg-share-btn" title="Share playground" aria-label="Share">
+                    <span style="font-family:monospace;font-size:1.1em;vertical-align:middle;">{"</>"}</span> 
+                    Share
+                </button>
+            </div>
         </nav>
     );
 }
@@ -37,17 +44,20 @@ pub fn EditorPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
         <div @allocator={ctx.allocator}  class="pg-editor" id="pg-editor" style="flex: 1 1 55%;">
             <div class="pg-tabs" id="pg-tabs">
                 <button class="pg-tab pg-tab--active" data-file="page.zx" id="pg-tab-0">
-                    <span class="pg-tab-icon">⚡</span>
+                    <span class="pg-tab-icon type-zx"><AllFileIcons /></span>
                     Playground.zx
                     <span class="pg-tab-close" aria-label="Close tab">×</span>
                 </button>
                 <button class="pg-tab" data-file="style.css" id="pg-tab-2">
-                    <span class="pg-tab-icon">🎨</span>
+                    <span class="pg-tab-icon type-css"><AllFileIcons /></span>
                     style.css
                     <span class="pg-tab-close" aria-label="Close tab">×</span>
                 </button>
                 <button class="pg-tab-add" id="pg-add-file" aria-label="Add new file" title="New file">+</button>
             </div>
+            <template id="pg-icons-template">
+                <AllFileIcons />
+            </template>
             <div class="pg-code" id="pg-code-area">
             </div>
         </div>
@@ -57,7 +67,7 @@ pub fn EditorPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
 // ── Preview Pane Component ──
 pub fn PreviewPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
     return (
-        <div  @allocator={ctx.allocator} class="pg-preview" id="pg-preview" style="flex: 1 1 45%;">
+        <div  @allocator={ctx.allocator} class="pg-preview terminal-collapsed" id="pg-preview" style="flex: 1 1 45%;">
             <div class="pg-browser" id="pg-browser">
                 <BrowserToolbar />
                 <div class="pg-browser-viewport" id="pg-browser-viewport">
@@ -67,20 +77,20 @@ pub fn PreviewPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
                     </div>
                 </div>
             </div>
-            <div class="pg-hsplitter" id="pg-hsplitter" style="display: none;"></div>
-            <div class="pg-terminal" id="pg-terminal" style="display: none;">
-                <div class="pg-terminal-header">
+            <div class="pg-hsplitter" id="pg-hsplitter"></div>
+            <div class="pg-terminal collapsed" id="pg-terminal">
+                <div class="pg-terminal-header" id="pg-terminal-header">
                     <div class="pg-terminal-title">
                         <span class="pg-terminal-title-dot"></span>
                         Terminal
                     </div>
                     <div class="pg-terminal-actions">
+                        <button class="pg-terminal-action-btn" aria-label="Toggle terminal" id="pg-terminal-toggle" title="Show/Hide">▲</button>
                         <button class="pg-terminal-action-btn" aria-label="Clear terminal" id="pg-terminal-clear" title="Clear">⌫</button>
                     </div>
                 </div>
                 <div class="pg-terminal-body" id="pg-terminal-body">
-                    <span class="pg-terminal-line"><span class="pg-terminal-prompt">$ </span><span class="pg-terminal-muted">Ready. Click Run to compile and preview.</span></span>
-                    <span class="pg-terminal-line"><span class="pg-terminal-prompt">$ </span><span class="pg-terminal-cursor"></span></span>
+                    // <span class="pg-terminal-line"><span class="pg-terminal-prompt">$ </span><span class="pg-terminal-cursor"></span></span>
                 </div>
             </div>
         </div>
@@ -153,3 +163,4 @@ fn handleRunClick(ctx: zx.EventContext) void {
 
 const std = @import("std");
 const zx = @import("zx");
+const AllFileIcons = @import("../components/icons.zx").AllFileIcons;

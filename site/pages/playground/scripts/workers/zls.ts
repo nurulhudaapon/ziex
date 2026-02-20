@@ -1,5 +1,5 @@
 import { WASI, PreopenDirectory, Fd, ConsoleStdout } from "@bjorn3/browser_wasi_shim";
-import { getLatestZigArchive } from "../utils";
+import { getLatestZigArchive, fetchWithCache } from "../utils";
 
 class Stdio extends Fd {
     constructor() {
@@ -45,7 +45,7 @@ onmessage = (event) => {
     let libDirectory = await getLatestZigArchive();
 
     let args = ["zls.wasm"];
-    let env = [];
+    let env: string[] = [];
     let fds = [
         new Stdio(), // stdin
         new Stdio(), // stdout
@@ -56,7 +56,8 @@ onmessage = (event) => {
     ];
     let wasii = new WASI(args, env, fds, { debug: false });
 
-    const { instance: localInstance } = await WebAssembly.instantiateStreaming(fetch("/assets/playground/zls.wasm"), {
+    const response = await fetchWithCache("/assets/playground/zls.wasm");
+    const { instance: localInstance } = await WebAssembly.instantiateStreaming(response, {
         "wasi_snapshot_preview1": wasii.wasiImport,
     });
 

@@ -79,40 +79,5 @@
         }
     });
 
-    // ─ Tab switching ─
-    document.getElementById('pg-tabs').addEventListener('click', function (e) {
-        const tab = e.target.closest('.pg-tab');
-        if (!tab) return;
-        if (e.target.closest('.pg-tab-close')) {
-            if (document.querySelectorAll('.pg-tab').length > 1) {
-                const wasActive = tab.classList.contains('pg-tab--active');
-                tab.remove();
-                if (wasActive) {
-                    const first = document.querySelector('.pg-tab');
-                    if (first) first.classList.add('pg-tab--active');
-                }
-            }
-            return;
-        }
-        document.querySelectorAll('.pg-tab').forEach(function (t) { t.classList.remove('pg-tab--active'); });
-        tab.classList.add('pg-tab--active');
-    });
 
-    // ─ Add file ─
-    var fileCounter = 3;
-    document.getElementById('pg-add-file').addEventListener('click', function () {
-        var name = prompt('File name:', 'new_file.zx');
-        if (!name) return;
-        var btn = document.createElement('button');
-        btn.className = 'pg-tab';
-        btn.setAttribute('data-file', name);
-        btn.id = 'pg-tab-' + fileCounter++;
-        var ext = name.split('.').pop();
-        var icon = (ext === 'css') ? '🎨' : '⚡';
-        btn.innerHTML = '<span class="pg-tab-icon">' + icon + '</span>' + name + '<span class="pg-tab-close" aria-label="Close tab">×</span>';
-        var addBtn = document.getElementById('pg-add-file');
-        addBtn.parentNode.insertBefore(btn, addBtn);
-        document.querySelectorAll('.pg-tab').forEach(function (t) { t.classList.remove('pg-tab--active'); });
-        btn.classList.add('pg-tab--active');
-    });
 })();

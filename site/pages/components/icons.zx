@@ -109,4 +109,133 @@ pub fn Flow(allocator: zx.Allocator) zx.Component {
     );
 }
 
+pub fn ZxFileIcon(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg class="pg-icon pg-icon-zx project-tree-icon project-tree-icon-zx" viewBox="0 0 512 512" fill="none" @allocator={allocator}>
+            <rect x="16" y="16" width="480" height="480" rx="48" fill="#1a1a1a" />
+            <path d="M84.3185 358V335.031L188.722 185.287H83.7219V154.364H234.461V177.332L130.157 327.077H235.057V358H84.3185ZM301.577 154.364L346.421 228.938H348.012L393.054 154.364H435.114L372.373 256.182L436.108 358H393.353L348.012 283.923H346.421L301.08 358H258.523L322.855 256.182L259.319 154.364H301.577Z" fill="#f7931a" />
+        </svg>
+    );
+}
+
+pub fn ZigFileIcon(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg class="pg-icon pg-icon-zig project-tree-icon project-tree-icon-zig" viewBox="0 0 153 140" fill="currentColor" @allocator={allocator}>
+            <g>
+                <polygon points="46,22 28,44 19,30" />
+                <polygon points="46,22 33,33 28,44 22,44 22,95 31,95 20,100 12,117 0,117 0,22" />
+                <polygon points="31,95 12,117 4,106" />
+                <polygon points="56,22 62,36 37,44" />
+                <polygon points="56,22 111,22 111,44 37,44 56,32" />
+                <polygon points="116,95 97,117 90,104" />
+                <polygon points="116,95 100,104 97,117 42,117 42,95" />
+                <polygon points="150,0 52,117 3,140 101,22" />
+                <polygon points="141,22 140,40 122,45" />
+                <polygon points="153,22 153,117 106,117 120,105 125,95 131,95 131,45 122,45 132,36 141,22" />
+                <polygon points="125,95 130,110 106,117" />
+            </g>
+        </svg>
+    );
+}
+
+pub fn CssFileIcon(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg class="pg-icon pg-icon-css project-tree-icon project-tree-icon-css" viewBox="0 0 24 24" fill="none" @allocator={allocator}>
+            <path d="M4 3L5.5 19.5L12 21.5L18.5 19.5L20 3H4Z" fill="currentColor" opacity="0.2" />
+            <path d="M7 7H17L16.5 13L12 14.5L7.5 13L7.25 10H9.5L9.625 11.5L12 12.25L14.375 11.5L14.625 9H7.25L7 7Z" fill="currentColor" />
+        </svg>
+    );
+}
+
+pub fn MdFileIcon(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg class="pg-icon pg-icon-md project-tree-icon project-tree-icon-md" viewBox="0 0 24 24" fill="currentColor" @allocator={allocator}>
+            <path d="M20.56 18H3.44C2.65 18 2 17.37 2 16.59V7.41C2 6.63 2.65 6 3.44 6h17.12c.79 0 1.44.63 1.44 1.41v9.18c0 .78-.65 1.41-1.44 1.41M6.81 15.19v-3.66l1.92 2.35 1.92-2.35v3.66h1.93V8.81h-1.93l-1.92 2.35-1.92-2.35H4.89v6.38h1.92M19.69 12h-1.92V8.81h-1.92V12h-1.93l2.89 3.28L19.69 12z" />
+        </svg>
+    );
+}
+
+pub fn ImageFileIcon(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg class="pg-icon pg-icon-image project-tree-icon project-tree-icon-image" viewBox="0 0 24 24" fill="none" @allocator={allocator}>
+            <rect x="3" y="3" width="18" height="18" rx="2" fill="currentColor" opacity="0.2" />
+            <circle cx="8.5" cy="8.5" r="2" fill="currentColor" />
+            <path d="M21 15L16 10L11 15L8 12L3 17V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V15Z" fill="currentColor" />
+        </svg>
+    );
+}
+
+pub fn GenericFileIcon(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg class="pg-icon pg-icon-file project-tree-icon project-tree-icon-file" viewBox="0 0 24 24" fill="none" @allocator={allocator}>
+            <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" fill="currentColor" opacity="0.2" />
+            <path d="M14 2V8H20" fill="currentColor" />
+            <path d="M14 2L20 8V20C20 21.1 19.1 22 18 22H6C4.9 22 4 21.1 4 20V4C4 2.9 4.9 2 6 2H14Z" stroke="currentColor" stroke-width="1.5" fill="none" />
+        </svg>
+    );
+}
+
+pub fn JsFileIcon(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg class="pg-icon pg-icon-js project-tree-icon project-tree-icon-js" viewBox="0 0 24 24" fill="none" @allocator={allocator}>
+            <rect x="3" y="3" width="18" height="18" rx="2" fill="#F7DF1E" />
+            <path d="M11 14.5c0 1.5-.75 2.5-3 2.5h-1v-1.5h1c.8 0 1.25-.5 1.25-1.5v-5H11v5.5zm8 0c0 1.7-1.5 2.5-3.5 2.5s-3-1-3-2l1.5-.5c.25.75.75 1 1.5 1 1 0 1.5-.35 1.5-.95 0-.6-.75-.8-1.5-1.1-1.75-.6-2.5-1.5-2.5-2.5 0-1.5 1.5-2.5 3-2.5 1.5 0 2.5.5 3 1.5l-1.5.75c-.25-.6-.75-.85-1.5-.85-.8 0-1.25.35-1.25.95 0 .5.75.7 1.75 1.05 1.5.5 2.5 1.5 2.5 2.65z" fill="#000" />
+        </svg>
+    );
+}
+
+pub fn TsFileIcon(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg class="pg-icon pg-icon-ts project-tree-icon project-tree-icon-ts" viewBox="0 0 24 24" fill="none" @allocator={allocator}>
+            <rect x="3" y="3" width="18" height="18" rx="2" fill="#3178C6" />
+            <path d="M12.5 9h-5v1.5h1.75v8.5h1.75v-8.5h1.5V9zm8.5 6.5c0 1.7-1.5 2.5-3.5 2.5s-3-1-3-2l1.5-.5c.25.75.75 1 1.5 1 1 0 1.5-.35 1.5-.95 0-.6-.75-.8-1.5-1.1-1.75-.6-2.5-1.5-2.5-2.5 0-1.5 1.5-2.5 3-2.5 1.5 0 2.5.5 3 1.5l-1.5.75c-.25-.6-.75-.85-1.5-.85-.8 0-1.25.35-1.25.95 0 .5.75.7 1.75 1.05 1.5.5 2.5 1.5 2.5 2.65z" fill="#FFF" />
+        </svg>
+    );
+}
+
+pub fn JsxFileIcon(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg class="pg-icon pg-icon-jsx project-tree-icon project-tree-icon-jsx" viewBox="-11.5 -10.23174 23 20.46348" fill="#61DAFB" @allocator={allocator}>
+            <circle cx="0" cy="0" r="2.05" fill="#61DAFB"/>
+            <g stroke="#61DAFB" stroke-width="1" fill="none">
+                <ellipse rx="11" ry="4.2"/>
+                <ellipse rx="11" ry="4.2" transform="rotate(60)"/>
+                <ellipse rx="11" ry="4.2" transform="rotate(120)"/>
+            </g>
+        </svg>
+    );
+}
+
+pub fn TsxFileIcon(allocator: zx.Allocator) zx.Component {
+    // Actually the same React icon but maybe we can just map both jsx and tsx to JsxFileIcon? 
+    // Yes, we will just use the JsxFileIcon for TsxFileIcon but with TS colors.
+    return (
+        <svg class="pg-icon pg-icon-tsx project-tree-icon project-tree-icon-tsx" viewBox="-11.5 -10.23174 23 20.46348" fill="#3178C6" @allocator={allocator}>
+            <circle cx="0" cy="0" r="2.05" fill="#3178C6"/>
+            <g stroke="#3178C6" stroke-width="1" fill="none">
+                <ellipse rx="11" ry="4.2"/>
+                <ellipse rx="11" ry="4.2" transform="rotate(60)"/>
+                <ellipse rx="11" ry="4.2" transform="rotate(120)"/>
+            </g>
+        </svg>
+    );
+}
+
+pub fn AllFileIcons(allocator: zx.Allocator) zx.Component {
+    return (
+        <fragment @allocator={allocator}>
+            <ZxFileIcon />
+            <ZigFileIcon />
+            <CssFileIcon />
+            <MdFileIcon />
+            <ImageFileIcon />
+            <JsFileIcon />
+            <TsFileIcon />
+            <JsxFileIcon />
+            <TsxFileIcon />
+            <GenericFileIcon />
+        </fragment>
+    );
+}
+
 const zx = @import("zx");

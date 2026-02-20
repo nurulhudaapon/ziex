@@ -8,5 +8,4 @@ pub fn main() !void {
 
     try pg.Playground(allocator).render(&aw.writer);
     try std.fs.File.stdout().writeAll(aw.written());
-    std.debug.print("{s} {any}", .{ aw.written(), zx });
 }

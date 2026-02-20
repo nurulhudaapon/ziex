@@ -97,6 +97,9 @@ Contributions are welcome! Feel free to open issues or pull requests. For featur
 
 ## Links
 
-- [Ziex Documentation](https://ziex.dev)
-- [Ziex GitHub](https://github.com/nurulhudaapon/ziex)
+- [Documentation](https://ziex.dev)
+- [Discord](https://ziex.dev/r/discord)
+- [Topic on Ziggit](https://ziex.dev/r/ziggit)
+- [Project on Zig Discord Community](https://ziex.dev/r/zig-discord) (Join Zig Discord first: https://discord.gg/zig)
+- [GitHub](https://github.com/nurulhudaapon/ziex)
 - [Zig Language](https://ziglang.org/)

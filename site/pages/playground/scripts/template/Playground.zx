@@ -1,20 +1,15 @@
 pub fn Playground(allocator: zx.Allocator) zx.Component {
     return (
-        <html @allocator={allocator} lang="en-US">
-            <head>
-                <meta charset="UTF-8" />
-                <style @escaping={.none}>{@embedFile("style.css")}</style>
-            </head>
-            <body>
-                <div class="center">
-                    <h1>Ziex Playground</h1>
-                    <p>Welcome to the minimal Ziex Playground demo.</p>
-                    <p>Edit files and run your code!</p>
+        <div @{allocator}>
+            <style>{@embedFile("style.css")}</style>
 
-                    <button>Ziex</button>
-                </div>
-            </body>
-        </html>
+            <h1>Ziex Playground</h1>
+            <p>Welcome to the minimal Ziex Playground demo.</p>
+            <p>Edit files and run your code!</p>
+
+            {for ("Ziex") |c| (<i>{c}</i>)}
+        </div>
     );
 }
+
 const zx = @import("zx");
