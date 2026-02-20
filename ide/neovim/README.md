@@ -13,8 +13,9 @@ return {
     lazy = false,
     priority = 50,
     config = function()
-        vim.opt.runtimepath:prepend(vim.fn.stdpath("data") .. "/lazy/zx/ide/neovim")
+        vim.opt.runtimepath:prepend(vim.fn.stdpath("data") .. "/lazy/ziex/ide/neovim")
         vim.cmd("runtime! plugin/zx.lua")
     end,
 }
 ```
+
