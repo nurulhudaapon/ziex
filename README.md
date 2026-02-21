@@ -160,6 +160,7 @@ const zx = @import("zx");
 
 - ##### [VSCode](https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx)/[VSCode Forks](https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx) Extension
 - ##### [Neovim](/ide/neovim/)
+- ##### [Helix](/ide/helix/)
 - ##### [Zed](/ide/zed/)
 
 ## Community
