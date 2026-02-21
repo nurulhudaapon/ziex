@@ -4,8 +4,8 @@ set -e
 
 # Pre-requisites:
 # Playground build caching
-PLAYGROUND_HASH_FILE="tmp/.playground.hash"
-PLAYGROUND_CACHE_TAR="tmp/.playground.cache.tar.gz"
+PLAYGROUND_HASH_FILE="/tmp/.playground.hash"
+PLAYGROUND_CACHE_TAR="/tmp/.playground.cache.tar.gz"
 PLAYGROUND_SRC="pkg/playground"
 PLAYGROUND_OUT="site/assets/playground"
 
