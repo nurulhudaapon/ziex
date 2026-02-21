@@ -40,6 +40,19 @@ jobs:
 
       - name: Install Node Dependencies
         run: cd site && bun install
+
+      - name: Cache Playground Artifacts
+        id: cache-playground
+        uses: actions/cache@v4
+        with:
+          path: site/assets/playground
+          key: playground-assets-${{ hashFiles('pkg/playground/**') }}
+          restore-keys: |
+            playground-assets-
+
+      - name: Build Playground Artifacts
+        if: steps.cache-playground.outputs.cache-hit != 'true'
+        run: cd pkg/playground && zig build
         
       - name: Build Site
         run: zig build -Ddoc -Doptimize=ReleaseSmall

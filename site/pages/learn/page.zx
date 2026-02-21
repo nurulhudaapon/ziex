@@ -260,8 +260,8 @@ fn CreateProject(allocator: zx.Allocator, props: CreateProjectProps) zx.Componen
                         </div>
                     </div>
 
-                    <p>Update your <code>build.zig</code> to the following:</p>
-                    <CodeBlock code={props.build_manual_code} filename="build.zig" /> 
+                    <p>Update your <code translate="no">build.zig</code> to the following:</p>
+                    <CodeBlock code={props.build_manual_code} filename="build.zig" translate="no" /> 
 
                     <p style="margin-top: 1.5rem;">Then initialize the project with the default template:</p>
                     <div class="install-box install-box-simple">
@@ -325,6 +325,12 @@ fn EditorSetup(allocator: zx.Allocator) zx.Component {
                 <p>With <a href="https://github.com/folke/lazy.nvim" target="_blank" rel="noopener noreferrer">lazy.nvim</a>, add <code>nurulhudaapon/ziex</code> as a plugin with <code>nvim-treesitter</code> as a dependency.</p>
                 <p>See the <a href=`{zx.info.repository}/tree/main/ide/neovim` target="_blank" rel="noopener noreferrer">Neovim setup guide</a> for the full configuration.</p>
                 <p><strong>Features:</strong> Tree-sitter syntax highlighting, LSP support, and file icons.</p>
+            </section>
+
+            <section id="helix" class="section">
+                <h2>Helix</h2>
+                <p>See the <a href=`{zx.info.repository}/tree/main/ide/helix` target="_blank" rel="noopener noreferrer">Helix setup guide</a> for the full configuration.</p>
+                <p><strong>Features:</strong> Tree-sitter syntax highlighting, and LSP support.</p>
             </section>
 
             <section id="zed" class="section">

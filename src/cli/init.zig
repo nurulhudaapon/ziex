@@ -166,7 +166,7 @@ pub fn isDirEmpty(path: []const u8) !bool {
 }
 
 const TemplateFile = struct {
-    const Name = enum { default, react };
+    const Name = enum { default, react, docker };
 
     name: ?Name = null,
     path: []const u8,
@@ -194,16 +194,21 @@ const templates = [_]TemplateFile{
     .{ .path = ".gitattributes", .content = @embedFile(template_dir ++ "/.gitattributes") },
 
     // Default (SSR + CSR)
-    .{ .name = .default, .path = "app/pages/page.zx", .content = @embedFile(template_dir ++ "/app/pages/page+wasm.zx") },
+    .{ .name = .default, .path = "app/pages/page.zx", .content = @embedFile(template_dir ++ "/app/pages/page.zx") },
     .{ .name = .default, .path = "app/pages/client.zx", .content = @embedFile(template_dir ++ "/app/pages/client.zx") },
 
     // Ziex + React (SSR + CSR)
-    .{ .name = .react, .path = "app/pages/page.zx", .content = @embedFile(template_dir ++ "/app/pages/page+react_wasm.zx") },
+    .{ .name = .react, .path = "app/pages/page.zx", .content = @embedFile(template_dir ++ "/app/pages/page+react.zx") },
     .{ .name = .react, .path = "app/pages/client.zx", .content = @embedFile(template_dir ++ "/app/pages/client.zx") },
     .{ .name = .react, .path = "app/pages/client.tsx", .content = @embedFile(template_dir ++ "/app/pages/client.tsx") },
     .{ .name = .react, .path = "app/main.ts", .content = @embedFile(template_dir ++ "/app/main.ts"), .lines = &.{ .{ 1, 4 }, .{ 7, 7 }, .{ 11, 18 } } },
     .{ .name = .react, .path = "package.json", .content = @embedFile(template_dir ++ "/package.json") },
     .{ .name = .react, .path = "tsconfig.json", .content = @embedFile(template_dir ++ "/tsconfig.json") },
+
+    // Docker
+    .{ .name = .docker, .path = "compose.yml", .content = @embedFile(template_dir ++ "/compose.yml") },
+    .{ .name = .docker, .path = "Dockerfile", .content = @embedFile(template_dir ++ "/Dockerfile") },
+    .{ .name = .docker, .path = ".dockerignore", .content = @embedFile(template_dir ++ "/Dockerfile") },
 };
 
 const std = @import("std");

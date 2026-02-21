@@ -17,7 +17,6 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions)
         .cli_path = null,
         .site_outdir = null,
         .steps = .default,
-        .plugins = &.{},
         .copy_embedded_sources = false,
         .client = options.client,
     };
@@ -35,10 +34,6 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions)
         }
     }
 
-    if (options.plugins) |plugins| {
-        opts.plugins = plugins;
-    }
-
     return initInner(b, exe, zx_exe, zx_module, zx_wasm_module, opts);
 }
 
@@ -47,7 +42,6 @@ const InitInnerOptions = struct {
     cli_path: ?LazyPath,
     site_outdir: ?LazyPath,
     steps: ZxInitOptions.CliOptions.Steps,
-    plugins: []const ZxInitOptions.PluginOptions,
     copy_embedded_sources: bool,
     edge_path: ?LazyPath = null,
     client: ?ZxInitOptions.ClientOptions = null,
@@ -335,62 +329,19 @@ pub fn initInner(
         if (b.args) |args| bundle_cmd.addArgs(args);
     }
 
-    // --- Plugins --- //
-    for (opts.plugins) |*plugin| {
-        for (plugin.steps) |*step| {
-            switch (step.*) {
-                .command => {
-                    var run = step.command.run;
-                    // TODO: Fails when used with remote package, was added to supress the output of TW Plugin
-                    // But it tries to check for that before the plugin is run, so it fails.
-                    // _ = run.captureStdErr();
-                    run.setName(plugin.name);
-
-                    for (run.argv.items) |*arg| {
-                        switch (arg.*) {
-                            .lazy_path => |path| {
-                                // if path starts with placeholder, replace with the actual location
-                                const outdir_placeholder = "{outdir}";
-
-                                const template = path.lazy_path.getPath3(b, null).sub_path;
-
-                                if (std.mem.startsWith(u8, template, outdir_placeholder)) {
-                                    const sub_path = if (outdir_placeholder.len == template.len)
-                                        ""
-                                    else
-                                        template[outdir_placeholder.len + 1 ..];
-
-                                    const replaced = transpile_outdir.path(b, sub_path);
-
-                                    arg.* = .{
-                                        .lazy_path = .{
-                                            .prefix = path.prefix, // Preserve the original prefix (e.g. --outfile=)
-                                            .lazy_path = replaced,
-                                        },
-                                    };
-                                }
-                            },
-                            else => {},
-                        }
-                    }
-
-                    switch (step.command.type) {
-                        .before_transpile => transpile_cmd.step.dependOn(&run.step),
-                        .after_transpile => {
-                            run.step.dependOn(&transpile_cmd.step);
-                            exe.step.dependOn(&run.step);
-                        },
-                    }
-                },
-            }
-        }
-    }
-
     return .{
+        .build = b,
+        .cmd = .{
+            .transpile = transpile_cmd,
+        },
+        .outdir = transpile_outdir,
+        .assetsdir = transpile_outdir.path(b, "assets"),
         .zx = .{
             .exe = zx_exe,
         },
-
+        .server = .{
+            .exe = exe,
+        },
         .client = if (wasm_zx_meta_module != null) .{
             .exe = wasm_exe_opt.?,
             .root_module = wasm_zx_meta_module.?,
@@ -404,10 +355,53 @@ pub const Build = struct {
         root_module: *std.Build.Module,
     };
 
+    pub const BuildServer = struct {
+        exe: *std.Build.Step.Compile,
+    };
+
     pub const BuildZiex = struct {
         exe: *std.Build.Step.Compile,
     };
 
+    pub const BuildCommand = struct {
+        transpile: *std.Build.Step.Run,
+    };
+
+    build: *std.Build,
+
+    cmd: BuildCommand,
+
+    outdir: LazyPath,
+    assetsdir: LazyPath,
+
     zx: BuildZiex,
+
+    server: BuildServer,
     client: ?BuildClient,
+
+    pub fn addPlugin(b: *Build, plugin: ZxInitOptions.PluginOptions) void {
+        for (plugin.steps) |*step| {
+            switch (step.*) {
+                .command => {
+                    var run = step.command.run;
+
+                    // TODO: Fails when used with remote package, was added to supress the output of TW Plugin
+                    // But it tries to check for that before the plugin is run, so it fails.
+                    // _ = run.captureStdErr();
+                    // run.captured_stderr = null;
+                    run.setName(plugin.name);
+
+                    const transpile_cmd = b.cmd.transpile;
+                    const exe = b.server.exe;
+                    switch (step.command.type) {
+                        .before_transpile => transpile_cmd.step.dependOn(&run.step),
+                        .after_transpile => {
+                            run.step.dependOn(&transpile_cmd.step);
+                            exe.step.dependOn(&run.step);
+                        },
+                    }
+                },
+            }
+        }
+    }
 };

@@ -215,10 +215,10 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         <ul class="nav-links">
                             <li><a href="/learn" class="nav-link">Learn</a></li>
                             <li><a href="/docs" class="nav-link"><span class="nav-link-full">Reference</span><span class="nav-link-short">Ref</span></a></li>
-                            <li><a href={root.configs.example_url} class="nav-link">Examples</a></li>
+                            <li><a href="/examples" class="nav-link">Examples</a></li>
                         </ul>
                         <div class="nav-social" role="group" aria-label="Community links">
-                            <a href="https://discord.gg/39UgnhgpUD" target="_blank" rel="noopener noreferrer" class="nav-social-link" aria-label="Discord">
+                            <a href="/r/discord" target="_blank" rel="noopener noreferrer" class="nav-social-link" aria-label="Discord">
                                 <DiscordIcon allocator={allocator} />
                                 <span class="nav-social-text">Discord</span>
                             </a>
@@ -250,7 +250,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         </div>
                         <div class="hero-cta">
                             <a href="/learn" class="btn btn-primary">Get Started</a>
-                            <a href={root.configs.example_url} class="btn btn-secondary">Examples</a>
+                            <a href="/examples" class="btn btn-secondary">Examples</a>
                         </div>
                     </div>
                     <div class="hero-decoration">
@@ -268,8 +268,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     </div>
                 </section>
                 <BenchmarksSection
-                    allocator={allocator}
-                    eyebrow="Performance Benchmarks"
+                    eyebrow=""
                     title="Performance"
                     subtitle=`<a href='{zx.info.repository}/tree/main/bench' target='_blank' class='bench-label-link'>View benchmark →</a> <br/> Each framework runs in a Docker container limited to 2 CPU cores and 2 GB RAM.`
                     tabs={benchmark_tabs[0..]}

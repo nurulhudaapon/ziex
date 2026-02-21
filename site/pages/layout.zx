@@ -7,7 +7,9 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     const js_href = std.fmt.allocPrint(ctx.arena, "/assets/docs.js?v={s}", .{zx.info.version}) catch unreachable;
     const needs_js = !std.mem.eql(u8, path, "/");
 
-    if (std.mem.eql(u8, path, "/overview") or std.mem.eql(u8, path, "/time")) {
+    if (std.mem.eql(u8, path, "/overview") or
+        std.mem.eql(u8, path, "/time"))
+    {
         return (
             <html lang="en" @allocator={ctx.arena}>
                 <head>
@@ -19,6 +21,10 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
                 </body>
             </html>
         );
+    }
+
+    if (std.mem.startsWith(u8, path, "/r/")) {
+        return (<fragment @allocator={ctx.arena}>{children}</fragment>);
     }
 
     return (
@@ -52,11 +58,14 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
                 <meta name="twitter:description" content={description} />
                 <meta name="twitter:creator" content="@aspect_dev" />
 
+                <GtmHead />
+
                 <style @escaping={.none}>
                     {getCss(ctx)}
                 </style>
             </head>
             <body>
+                <GtmBody />
                 {children}
             </body>
         </html>
@@ -75,5 +84,7 @@ fn getCss(ctx: zx.LayoutContext) []const u8 {
         @embedFile("../assets/docs.css");
 }
 
+const GtmHead = @import("components/tags.zx").GtmHead;
+const GtmBody = @import("components/tags.zx").GtmBody;
 const zx = @import("zx");
 const std = @import("std");

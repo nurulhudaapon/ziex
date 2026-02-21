@@ -93,7 +93,7 @@ fn EntryRow(allocator: zx.Allocator, props: EntryRowProps) zx.Component {
     return (
         <>
             <div class="project-tree-row" style={indent} @allocator={allocator}>
-                <span class={if (is_folder) "project-tree-folder" else "project-tree-file"}>
+                <span class={if (is_folder) "project-tree-folder" else "project-tree-file"} translate="no">
                     {if (is_folder) (<FolderIcon />) else (<FileIcon name={entry.name} />)}
                     <span class="project-tree-name">{entry.name}{if (is_folder) "/" else ""}</span>
                 </span>
@@ -137,72 +137,28 @@ const FileIconProps = struct {
 
 fn FileIcon(allocator: zx.Allocator, props: FileIconProps) zx.Component {
     const ext = getExtension(props.name);
-    const is_zig = std.mem.eql(u8, ext, ".zig");
-    const is_zx = std.mem.eql(u8, ext, ".zx");
-    const is_css = std.mem.eql(u8, ext, ".css");
-    const is_md = std.mem.eql(u8, ext, ".md");
-    const is_zon = std.mem.eql(u8, ext, ".zon");
-    const is_ico = std.mem.eql(u8, ext, ".ico");
-
-    const icon_class = if (is_zig or is_zon)
-        "project-tree-icon project-tree-icon-zig"
-    else if (is_css)
-        "project-tree-icon project-tree-icon-css"
-    else if (is_md)
-        "project-tree-icon project-tree-icon-md"
-    else if (is_ico)
-        "project-tree-icon project-tree-icon-image"
-    else
-        "project-tree-icon project-tree-icon-file";
-
-    // ZX icon - based on the official ZX logo
-    return if (is_zx) (
-        <svg class="project-tree-icon project-tree-icon-zx" viewBox="0 0 512 512" fill="none" @allocator={allocator}>
-            <rect x="16" y="16" width="480" height="480" rx="48" fill="#1a1a1a" />
-            <path d="M84.3185 358V335.031L188.722 185.287H83.7219V154.364H234.461V177.332L130.157 327.077H235.057V358H84.3185ZM301.577 154.364L346.421 228.938H348.012L393.054 154.364H435.114L372.373 256.182L436.108 358H393.353L348.012 283.923H346.421L301.08 358H258.523L322.855 256.182L259.319 154.364H301.577Z" fill="#f7931a" />
-        </svg>
-    ) else if (is_zig or is_zon) (
-        // Official Zig logo from ziglang/logo
-        <svg class={icon_class} viewBox="0 0 153 140" fill="currentColor" @allocator={allocator}>
-            <g>
-                <polygon points="46,22 28,44 19,30" />
-                <polygon points="46,22 33,33 28,44 22,44 22,95 31,95 20,100 12,117 0,117 0,22" />
-                <polygon points="31,95 12,117 4,106" />
-                <polygon points="56,22 62,36 37,44" />
-                <polygon points="56,22 111,22 111,44 37,44 56,32" />
-                <polygon points="116,95 97,117 90,104" />
-                <polygon points="116,95 100,104 97,117 42,117 42,95" />
-                <polygon points="150,0 52,117 3,140 101,22" />
-                <polygon points="141,22 140,40 122,45" />
-                <polygon points="153,22 153,117 106,117 120,105 125,95 131,95 131,45 122,45 132,36 141,22" />
-                <polygon points="125,95 130,110 106,117" />
-            </g>
-        </svg>
-    ) else if (is_css) (
-        // Modern flat CSS3 icon
-        <svg class={icon_class} viewBox="0 0 24 24" fill="none" @allocator={allocator}>
-            <path d="M4 3L5.5 19.5L12 21.5L18.5 19.5L20 3H4Z" fill="currentColor" opacity="0.2" />
-            <path d="M7 7H17L16.5 13L12 14.5L7.5 13L7.25 10H9.5L9.625 11.5L12 12.25L14.375 11.5L14.625 9H7.25L7 7Z" fill="currentColor" />
-        </svg>
-    ) else if (is_md) (
-        <svg class={icon_class} viewBox="0 0 24 24" fill="currentColor" @allocator={allocator}>
-            <path d="M20.56 18H3.44C2.65 18 2 17.37 2 16.59V7.41C2 6.63 2.65 6 3.44 6h17.12c.79 0 1.44.63 1.44 1.41v9.18c0 .78-.65 1.41-1.44 1.41M6.81 15.19v-3.66l1.92 2.35 1.92-2.35v3.66h1.93V8.81h-1.93l-1.92 2.35-1.92-2.35H4.89v6.38h1.92M19.69 12h-1.92V8.81h-1.92V12h-1.93l2.89 3.28L19.69 12z" />
-        </svg>
-    ) else if (is_ico) (
-        // Modern flat image icon
-        <svg class={icon_class} viewBox="0 0 24 24" fill="none" @allocator={allocator}>
-            <rect x="3" y="3" width="18" height="18" rx="2" fill="currentColor" opacity="0.2" />
-            <circle cx="8.5" cy="8.5" r="2" fill="currentColor" />
-            <path d="M21 15L16 10L11 15L8 12L3 17V19C3 20.1 3.9 21 5 21H19C20.1 21 21 20.1 21 19V15Z" fill="currentColor" />
-        </svg>
-    ) else (
-        // Modern flat file icon
-        <svg class={icon_class} viewBox="0 0 24 24" fill="none" @allocator={allocator}>
-            <path d="M14 2H6C4.9 2 4 2.9 4 4V20C4 21.1 4.9 22 6 22H18C19.1 22 20 21.1 20 20V8L14 2Z" fill="currentColor" opacity="0.2" />
-            <path d="M14 2V8H20" fill="currentColor" />
-            <path d="M14 2L20 8V20C20 21.1 19.1 22 18 22H6C4.9 22 4 21.1 4 20V4C4 2.9 4.9 2 6 2H14Z" stroke="currentColor" stroke-width="1.5" fill="none" />
-        </svg>
-    );
+    
+    if (std.mem.eql(u8, ext, ".zig") or std.mem.eql(u8, ext, ".zon")) {
+        return icons.ZigFileIcon(allocator);
+    } else if (std.mem.eql(u8, ext, ".zx")) {
+        return icons.ZxFileIcon(allocator);
+    } else if (std.mem.eql(u8, ext, ".css")) {
+        return icons.CssFileIcon(allocator);
+    } else if (std.mem.eql(u8, ext, ".md") or std.mem.eql(u8, ext, ".html")) {
+        return icons.MdFileIcon(allocator);
+    } else if (std.mem.eql(u8, ext, ".ico")) {
+        return icons.ImageFileIcon(allocator);
+    } else if (std.mem.eql(u8, ext, ".js")) {
+        return icons.JsFileIcon(allocator);
+    } else if (std.mem.eql(u8, ext, ".ts")) {
+        return icons.TsFileIcon(allocator);
+    } else if (std.mem.eql(u8, ext, ".jsx")) {
+        return icons.JsxFileIcon(allocator);
+    } else if (std.mem.eql(u8, ext, ".tsx")) {
+        return icons.TsxFileIcon(allocator);
+    } else {
+        return icons.GenericFileIcon(allocator);
+    }
 }
 
 fn getExtension(name: []const u8) []const u8 {
@@ -217,3 +173,4 @@ fn getExtension(name: []const u8) []const u8 {
 
 const zx = @import("zx");
 const std = @import("std");
+const icons = @import("icons.zx");

@@ -2,14 +2,15 @@ const std = @import("std");
 const zx = @import("zx");
 
 pub fn build(b: *std.Build) !void {
-    const exe = b.addExecutable(.{ .name = "my-site" });
+    const exe = b.addExecutable(.{ .name = "my-app" });
 
-    try zx.init(b, exe, .{
-        .plugins = &.{
-            zx.plugins.tailwind(b, .{
-                .input = b.path("app/assets/styles.css"),
-                .output = b.path("{outdir}/assets/styles.css"),
-            }),
-        },
-    });
+    var zx_build = try zx.init(b, exe, .{});
+
+    var assetsdir = zx_build.assetsdir;
+    zx_build.addPlugin(
+        zx.plugins.tailwind(b, .{
+            .input = b.path("app/assets/style.css"),
+            .output = assetsdir.path(b, "style.css"),
+        }),
+    );
 }

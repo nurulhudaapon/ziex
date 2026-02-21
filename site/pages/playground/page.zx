@@ -1,0 +1,170 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <div @allocator={ctx.arena} class="pg-ide" id="playground-ide">
+            <style @escaping={.none}>
+                {@embedFile("../../assets/playground.css")}
+            </style>
+
+            <TopNavigation />
+            <div class="pg-ide-body" id="pg-ide-body">
+                <EditorPane />
+                <div class="pg-splitter" id="pg-splitter"></div>
+                <PreviewPane />
+            </div>
+            // <StatusBar />
+            <script @escaping={.none}>
+                {@embedFile("scripts/split.js")}
+            </script>
+            <script type="module" src="/assets/playground/editor.js"/>
+        </div>
+    );
+}
+
+// ── Top Navigation Component ──
+pub fn TopNavigation(ctx: *zx.ComponentCtx(struct {})) zx.Component {
+    return (
+        <nav @allocator={ctx.allocator}  class="pg-nav">
+            <a href="/" class="pg-nav-logo">Ziex</a>
+            <ActionButtons @rendering={.client} />
+            <div class="pg-nav-actions">
+                // <a href="/learn" class="pg-nav-btn">Docs</a>
+                <button class="pg-nav-btn pg-nav-btn--primary" id="pg-run-btn">▶ Run</button>
+                <button class="pg-nav-btn" id="pg-share-btn" title="Share playground" aria-label="Share">
+                    <span style="font-family:monospace;font-size:1em;">{"</> "}</span> 
+                    <span>
+                        <CheckIcon />
+                    </span> 
+                    Share
+                </button>
+            </div>
+        </nav>
+    );
+}
+
+// ── Editor Pane Component ──
+pub fn EditorPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
+    return (
+        <div @allocator={ctx.allocator}  class="pg-editor" id="pg-editor" style="flex: 1 1 55%;">
+            <div class="pg-tabs" id="pg-tabs">
+                <button class="pg-tab pg-tab--active" data-file="page.zx" id="pg-tab-0">
+                    <span class="pg-tab-icon type-zx"><AllFileIcons /></span>
+                    Playground.zx
+                    <span class="pg-tab-close" aria-label="Close tab">×</span>
+                </button>
+                <button class="pg-tab" data-file="style.css" id="pg-tab-2">
+                    <span class="pg-tab-icon type-css"><AllFileIcons /></span>
+                    style.css
+                    <span class="pg-tab-close" aria-label="Close tab">×</span>
+                </button>
+                <button class="pg-tab-add" id="pg-add-file" aria-label="Add new file" title="New file">+</button>
+            </div>
+            <template id="pg-icons-template">
+                <AllFileIcons />
+            </template>
+            <div class="pg-code" id="pg-code-area">
+            </div>
+        </div>
+    );
+}
+
+// ── Preview Pane Component ──
+pub fn PreviewPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
+    return (
+        <div  @allocator={ctx.allocator} class="pg-preview terminal-collapsed" id="pg-preview" style="flex: 1 1 45%;">
+            <div class="pg-browser" id="pg-browser">
+                <BrowserToolbar />
+                <div class="pg-browser-viewport" id="pg-browser-viewport">
+                    <div class="pg-browser-placeholder">
+                        <div class="pg-browser-placeholder-icon">🌐</div>
+                        Press Run to see preview
+                    </div>
+                </div>
+            </div>
+            <div class="pg-hsplitter" id="pg-hsplitter"></div>
+            <div class="pg-terminal collapsed" id="pg-terminal">
+                <div class="pg-terminal-header" id="pg-terminal-header">
+                    <div class="pg-terminal-title">
+                        <span class="pg-terminal-title-dot"></span>
+                        Terminal
+                    </div>
+                    <div class="pg-terminal-actions">
+                        <button class="pg-terminal-action-btn" aria-label="Toggle terminal" id="pg-terminal-toggle" title="Show/Hide">▲</button>
+                        <button class="pg-terminal-action-btn" aria-label="Clear terminal" id="pg-terminal-clear" title="Clear">⌫</button>
+                    </div>
+                </div>
+                <div class="pg-terminal-body" id="pg-terminal-body">
+                    // <span class="pg-terminal-line"><span class="pg-terminal-prompt">$ </span><span class="pg-terminal-cursor"></span></span>
+                </div>
+            </div>
+        </div>
+    );
+}
+
+// ── Status Bar Component ──
+pub fn StatusBar(ctx: *zx.ComponentCtx(struct {})) zx.Component {
+    return (
+        <div @allocator={ctx.allocator}  class="pg-status">
+            <div class="pg-status-left">
+                <span class="pg-status-item">⚡ Ziex Playground</span>
+                <span class="pg-status-item">Ln 1, Col 1</span>
+            </div>
+            <div class="pg-status-right">
+                <span class="pg-status-item">UTF-8</span>
+                <span class="pg-status-item">Zig</span>
+            </div>
+        </div>
+    );
+}
+
+pub fn BrowserToolbar(ctx: *zx.ComponentCtx(struct {})) zx.Component {
+    return (
+        <div @allocator={ctx.allocator} class="pg-browser-toolbar" style="display: none;">
+            <div class="pg-browser-dots">
+                <span></span><span></span><span></span>
+            </div>
+            <div class="pg-browser-nav">
+                <button class="pg-browser-nav-btn" aria-label="Back" id="pg-browser-back">◀</button>
+                <button class="pg-browser-nav-btn" aria-label="Forward" id="pg-browser-forward">▶</button>
+            </div>
+            <div class="pg-browser-url">
+                <span class="pg-browser-url-lock">🔒</span>
+                <input class="pg-browser-url-text" value="localhost:5588/" id="pg-browser-url-input" readonly="true" />
+            </div>
+            <button class="pg-browser-refresh-btn" aria-label="Refresh" id="pg-browser-refresh">⟳</button>
+        </div>
+    );
+}
+
+pub fn ActionButtons(ctx: *zx.ComponentCtx(struct {})) zx.Component {
+    return (
+        <div @allocator={ctx.allocator} class="pg-nav-actions" style="display: none;">
+            <a href="/learn" class="pg-nav-btn">Docs</a>
+            <button onclick={handleRunClick} class="pg-nav-btn pg-nav-btn--primary" id="pg-run-zx-btn">▶ Run ZX</button>
+        </div>
+    );
+}
+
+fn handleRunClick(ctx: zx.EventContext) void {
+    _ = ctx;
+
+    if (zx.platform != .browser) return;
+
+    const document = zx.client.Document.init(zx.client_allocator);
+
+    const editor_container = document.querySelector(".cm-content") catch unreachable;
+
+    const c = zx.client.Console.init();
+    c.log(.{editor_container.ref});
+    
+    const inner_text: []const u8 = editor_container.ref.getAlloc(zx.Client.js.String, zx.client_allocator, "innerText") catch "NA";
+    std.log.info("Run clicked {s}", .{inner_text});
+
+    // const zx_sourcez = zx.client_allocator.dupeZ(u8, inner_text) catch return;
+    // const ast =  zx.Ast.parse(zx.client_allocator, zx_sourcez, .{}) catch return;
+    // c.log(.{zx.client.js.String(ast.zig_source)});
+}
+
+const std = @import("std");
+const zx = @import("zx");
+const AllFileIcons = @import("../components/icons.zx").AllFileIcons;
+const CheckIcon = @import("../components/icons.zx").CheckIcon;

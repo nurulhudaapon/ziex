@@ -1,0 +1,6 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (<Redirect link="https://ziggit.dev/t/ziex-full-stack-web-framework-for-zig-like-next-js-react-but-for-zig/12848?u=nurulhudaapon" @allocator={ctx.arena} />);
+}
+
+const Redirect = @import("../component.zx").Redirect;
+const zx = @import("zx");

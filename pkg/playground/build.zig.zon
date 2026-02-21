@@ -1,0 +1,17 @@
+.{
+    .name = .playground,
+    .version = "0.0.0",
+    .fingerprint = 0xdc1888480bb73a54,
+    .minimum_zig_version = "0.15.2",
+    .dependencies = .{
+        .playground = .{
+            .url = "git+https://github.com/zigtools/playground.git#aee957d5adf39e0c6075696cd5f85cd4f1fcaf90",
+            .hash = "playground-0.0.0-iNkPNkONAQCpX8DVLyQVFizjYQw6b7bukdtfJyw_cT-U",
+        },
+        .zx = .{ .path = "../../" },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+    },
+}

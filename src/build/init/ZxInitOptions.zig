@@ -140,9 +140,9 @@ client: ?ClientOptions = .default,
 /// If `null`, all experimental features are disabled.
 experimental: ?ExperimentalOptions = null,
 
-/// Plugin configurations for extending the build process.
-///
-/// Plugins allow you to run custom commands (like CSS preprocessors, asset optimizers, etc.)
-/// at specific points in the ZX build lifecycle.
-/// If `null`, no plugins are registered.
-plugins: ?[]const PluginOptions = null,
+// /// Plugin configurations for extending the build process.
+// ///
+// /// Plugins allow you to run custom commands (like CSS preprocessors, asset optimizers, etc.)
+// /// at specific points in the ZX build lifecycle.
+// /// If `null`, no plugins are registered.
+// plugins: ?[]const PluginOptions = null,

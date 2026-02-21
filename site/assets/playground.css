@@ -1,0 +1,1048 @@
+/* --- Collapsible Terminal --- */
+.pg-terminal.collapsed {
+    height: 36px !important;
+    min-height: 0 !important;
+    max-height: 36px !important;
+    flex: 0 0 36px !important;
+    overflow: hidden;
+    transition: height 0.2s, flex-basis 0.2s;
+}
+
+.pg-terminal.collapsed .pg-terminal-body {
+    display: none;
+}
+
+/* Ensure browser takes remaining space when terminal collapses */
+.pg-preview.terminal-collapsed #pg-browser {
+    flex: 1 1 100% !important;
+    height: auto !important;
+}
+
+.pg-preview.terminal-collapsed #pg-hsplitter {
+    display: none;
+}
+
+.pg-terminal-header {
+    cursor: pointer;
+}
+
+/* Playground IDE Styles — re-uses home.css design tokens */
+
+:root {
+    --zx-primary: #00d9ff;
+    --zx-primary-dark: #00a8cc;
+    --zx-primary-light: #33e0ff;
+    --zx-secondary: #ff6b35;
+    --zx-accent: #ffd23f;
+    --zx-dark: #0a0a0a;
+    --zx-dark-light: #141414;
+    --zx-gray: #8b9299;
+    --zx-gray-light: #b0b8c1;
+    --zx-white: #ffffff;
+    --zx-bg: #000000;
+    --zx-bg-light: #0a0a0a;
+    --zx-card-bg: #111111;
+    --zx-border: #262626;
+    --zx-code-bg: #0b0f14;
+    --zx-text-muted: #a1a1a1;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto',
+        'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans',
+        'Helvetica Neue', sans-serif;
+    background: var(--zx-bg);
+    color: var(--zx-white);
+    line-height: 1.7;
+    overflow: hidden;
+    height: 100vh;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+}
+
+/* ─── Top Navigation ─── */
+.pg-nav {
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 1.25rem;
+    background: rgba(0, 0, 0, 0.85);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--zx-border);
+    flex-shrink: 0;
+}
+
+.pg-nav-logo {
+    font-size: 1.15rem;
+    font-weight: 800;
+    color: var(--zx-white);
+    text-decoration: none;
+    letter-spacing: -0.02em;
+}
+
+.pg-nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.pg-nav-btn {
+    padding: 0.3rem 0.8rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 6px;
+    border: 1px solid var(--zx-border);
+    background: transparent;
+    color: var(--zx-gray-light);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    text-decoration: none;
+}
+
+.pg-nav-btn:hover {
+    border-color: var(--zx-primary);
+    color: var(--zx-primary);
+    background: rgba(0, 217, 255, 0.06);
+}
+
+.pg-nav-btn--primary {
+    background: var(--zx-primary);
+    color: var(--zx-bg);
+    border-color: var(--zx-primary);
+}
+
+.pg-nav-btn--primary:hover {
+    background: var(--zx-primary-dark);
+    border-color: var(--zx-primary-dark);
+    box-shadow: 0 4px 12px rgba(0, 217, 255, 0.3);
+}
+
+/* Run button loading / disabled state */
+.pg-nav-btn--loading {
+    opacity: 0.7;
+    cursor: not-allowed;
+    pointer-events: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.pg-nav-btn--primary:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* Spinner */
+.pg-spinner {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border: 2px solid rgba(0, 0, 0, 0.25);
+    border-top-color: var(--zx-bg);
+    border-radius: 50%;
+    animation: pg-spin 0.6s linear infinite;
+}
+
+#pg-share-btn {
+    height: 32px;
+    width: 92px;
+}
+
+@keyframes pg-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ─── CodeMirror line numbers / gutter overrides ─── */
+.cm-editor .cm-gutters {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.18);
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    font-variant-numeric: tabular-nums;
+}
+
+.cm-editor .cm-gutter {
+    background: transparent;
+}
+
+.cm-editor .cm-lineNumbers .cm-gutterElement {
+    padding-left: 18px !important;
+    padding-right: 4px !important;
+    min-width: 24px !important;
+}
+
+.cm-editor .cm-foldGutter .cm-gutterElement {
+    padding-left: 2px !important;
+    padding-right: 8px !important;
+    width: 20px !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.cm-editor .cm-gutterElement {
+    color: rgba(255, 255, 255, 0.18);
+    font-size: 0.75rem;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+}
+
+.cm-editor .cm-activeLineGutter {
+    background: transparent;
+    color: rgba(255, 255, 255, 0.45);
+}
+
+/* ─── Main IDE Container ─── */
+.pg-ide {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+}
+
+.pg-ide-body {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+    position: relative;
+}
+
+/* ─── Editor Pane (left) ─── */
+.pg-editor {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 280px;
+    background: var(--zx-code-bg);
+    border-right: 1px solid var(--zx-border);
+}
+
+/* ─── Tab Bar ─── */
+.pg-tabs {
+    display: flex;
+    align-items: stretch;
+    background: rgba(16, 18, 23, 0.95);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    height: 36px;
+    flex-shrink: 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+}
+
+.pg-tabs::-webkit-scrollbar {
+    display: none;
+}
+
+.pg-tab {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0 0.85rem;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.5);
+    background: transparent;
+    border: none;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    letter-spacing: 0.01em;
+    position: relative;
+}
+
+.pg-tab:hover {
+    color: rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.pg-tab--active {
+    color: #e6edf3;
+    background: var(--zx-code-bg);
+    border-bottom: 2px solid var(--zx-primary);
+}
+
+.pg-tab-icon {
+    width: 14px;
+    height: 14px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--zx-primary);
+    opacity: 0.7;
+}
+
+.pg-tab-icon .pg-icon {
+    display: none;
+    width: 100%;
+    height: 100%;
+}
+
+.pg-tab-icon.type-zx .pg-icon-zx,
+.pg-tab-icon.type-zig .pg-icon-zig,
+.pg-tab-icon.type-css .pg-icon-css,
+.pg-tab-icon.type-html .pg-icon-md,
+.pg-tab-icon.type-md .pg-icon-md,
+.pg-tab-icon.type-js .pg-icon-js,
+.pg-tab-icon.type-ts .pg-icon-ts,
+.pg-tab-icon.type-jsx .pg-icon-jsx,
+.pg-tab-icon.type-tsx .pg-icon-tsx,
+.pg-tab-icon.type-file .pg-icon-file {
+    display: block;
+}
+
+.pg-tab-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    font-size: 0.6rem;
+    color: rgba(255, 255, 255, 0.3);
+    transition: all 0.15s ease;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    margin-left: 0.25rem;
+}
+
+.pg-tab-close:hover {
+    color: var(--zx-white);
+    background: rgba(255, 255, 255, 0.12);
+}
+
+/* Add-file button */
+.pg-tab-add {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    min-width: 32px;
+    color: rgba(255, 255, 255, 0.3);
+    font-size: 1rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: transparent;
+    border: none;
+    border-right: none;
+}
+
+.pg-tab-add:hover {
+    color: var(--zx-primary);
+    background: rgba(0, 217, 255, 0.06);
+}
+
+/* ─── Code Area ─── */
+.pg-code {
+    flex: 1;
+    overflow: auto;
+    background: linear-gradient(180deg, rgba(13, 16, 22, 0.98) 0%, rgba(10, 13, 18, 1) 100%);
+    position: relative;
+}
+
+.pg-code pre {
+    margin: 0;
+    padding: 1rem 1.25rem;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    font-size: 0.82rem;
+    line-height: 1.7;
+    color: rgba(230, 237, 243, 0.88);
+    min-height: 100%;
+}
+
+.pg-code code {
+    color: #e6edf3;
+}
+
+.cm-editor {
+    height: 100%;
+}
+
+/* Line numbers gutter */
+.pg-line-numbers {
+    display: inline-block;
+    text-align: right;
+    color: rgba(255, 255, 255, 0.18);
+    user-select: none;
+    padding-right: 1.25rem;
+    margin-right: 0.5rem;
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+    font-variant-numeric: tabular-nums;
+}
+
+/* ─── Resizer / Splitter ─── */
+.pg-splitter {
+    width: 5px;
+    cursor: col-resize;
+    background: var(--zx-border);
+    position: relative;
+    flex-shrink: 0;
+    z-index: 10;
+    transition: background 0.15s ease;
+}
+
+.pg-splitter::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 3px;
+    height: 32px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.15);
+    transition: all 0.2s ease;
+}
+
+.pg-splitter:hover {
+    background: var(--zx-primary);
+}
+
+.pg-splitter:hover::after {
+    background: rgba(255, 255, 255, 0.4);
+    height: 48px;
+}
+
+.pg-splitter:active {
+    background: var(--zx-primary);
+}
+
+/* ─── Preview Pane (right) ─── */
+.pg-preview {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-width: 280px;
+    background: var(--zx-code-bg);
+}
+
+/* ─── Browser Chrome ─── */
+.pg-browser {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.pg-browser-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.45rem 0.75rem;
+    background: rgba(16, 18, 23, 0.95);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+}
+
+.pg-browser-dots {
+    display: flex;
+    gap: 0.3rem;
+}
+
+.pg-browser-dots span {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35), 0 1px 2px rgba(0, 0, 0, 0.5) inset;
+}
+
+.pg-browser-dots span:nth-child(1) {
+    background: #ff5f57;
+}
+
+.pg-browser-dots span:nth-child(2) {
+    background: #febc2e;
+}
+
+.pg-browser-dots span:nth-child(3) {
+    background: #28c840;
+}
+
+.pg-browser-nav {
+    display: flex;
+    gap: 0.25rem;
+    margin-right: 0.25rem;
+}
+
+.pg-browser-nav-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 0.7rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: transparent;
+    border: none;
+}
+
+.pg-browser-nav-btn:hover {
+    color: var(--zx-white);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.pg-browser-url {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.3rem 0.65rem;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 6px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    font-size: 0.68rem;
+    color: rgba(255, 255, 255, 0.55);
+    transition: border-color 0.2s ease;
+}
+
+.pg-browser-url:focus-within {
+    border-color: rgba(0, 217, 255, 0.4);
+}
+
+.pg-browser-url-lock {
+    color: rgba(0, 217, 255, 0.6);
+    font-size: 0.6rem;
+}
+
+.pg-browser-url-text {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.7);
+    font-family: inherit;
+    font-size: inherit;
+    outline: none;
+}
+
+.pg-browser-refresh-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 0.65rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: transparent;
+    border: none;
+}
+
+.pg-browser-refresh-btn:hover {
+    color: var(--zx-white);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Browser viewport */
+.pg-browser-viewport {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.pg-browser-viewport iframe {
+    width: 100%;
+    height: 100%;
+    border: none;
+}
+
+/* Placeholder content when no preview */
+.pg-browser-placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    gap: 1rem;
+    color: rgba(196, 193, 193, 0.25);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.pg-browser-placeholder-icon {
+    font-size: 2.5rem;
+    opacity: 0.4;
+}
+
+/* ─── Horizontal Splitter (between browser and terminal) ─── */
+.pg-hsplitter {
+    height: 5px;
+    cursor: row-resize;
+    background: var(--zx-border);
+    position: relative;
+    flex-shrink: 0;
+    z-index: 10;
+    transition: background 0.15s ease;
+}
+
+.pg-hsplitter::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 32px;
+    height: 3px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.15);
+    transition: all 0.2s ease;
+}
+
+.pg-hsplitter:hover {
+    background: var(--zx-primary);
+}
+
+.pg-hsplitter:hover::after {
+    background: rgba(255, 255, 255, 0.4);
+    width: 48px;
+}
+
+/* ─── Terminal ─── */
+.pg-terminal {
+    margin-bottom: -8px;
+    height: 180px;
+    min-height: 60px;
+    display: flex;
+    flex-direction: column;
+    background: var(--zx-code-bg);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+}
+
+.pg-terminal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.1rem 0.75rem;
+    background: rgba(16, 18, 23, 0.95);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    flex-shrink: 0;
+}
+
+.pg-terminal-title {
+    font-size: 0.5rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.55);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.pg-terminal-title-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #28c840;
+    box-shadow: 0 0 6px rgba(40, 200, 64, 0.4);
+}
+
+.pg-terminal-actions {
+    display: flex;
+    gap: 0.25rem;
+}
+
+.pg-terminal-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    color: rgba(255, 255, 255, 0.35);
+    font-size: 0.65rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    background: transparent;
+    border: none;
+}
+
+.pg-terminal-action-btn:hover {
+    color: var(--zx-white);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+.pg-terminal-body {
+    flex: 1;
+    overflow: auto;
+    padding: 0.65rem 0.85rem;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    font-size: 0.75rem;
+    line-height: 1.6;
+    color: rgba(230, 237, 243, 0.8);
+    background: linear-gradient(180deg, rgba(13, 16, 22, 0.98) 0%, rgba(10, 13, 18, 1) 100%);
+}
+
+.pg-terminal-line {
+    display: block;
+    white-space: pre;
+}
+
+.pg-terminal-prompt {
+    color: var(--zx-primary-light);
+    font-weight: 600;
+}
+
+.pg-terminal-success {
+    color: #28c840;
+}
+
+.pg-terminal-info {
+    color: var(--zx-primary);
+}
+
+.pg-terminal-warn {
+    color: #febc2e;
+}
+
+.pg-terminal-error {
+    color: #ff5f57;
+}
+
+.pg-terminal-muted {
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.3);
+}
+
+.pg-terminal-cursor {
+    display: inline-block;
+    width: 7px;
+    height: 14px;
+    background: var(--zx-primary);
+    vertical-align: text-bottom;
+    animation: blink 1s step-end infinite;
+}
+
+#pg-run-btn {
+    height: 28px;
+    width: 66px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+@keyframes blink {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0;
+    }
+}
+
+/* ─── Syntax highlighting (same classes as home.css) ─── */
+.pg-code .attribute,
+.pg-code .property {
+    color: #f78c6c;
+}
+
+.pg-code .comment {
+    font-style: italic;
+    color: #7a9aa8;
+}
+
+.pg-code .constant,
+.pg-code .constant.builtin {
+    color: #89ddff;
+}
+
+.pg-code .constructor {
+    color: #c792ea;
+}
+
+.pg-code .function,
+.pg-code .function.builtin {
+    color: #82aaff;
+}
+
+.pg-code .keyword,
+.pg-code .keyword.function,
+.pg-code .keyword.return,
+.pg-code .keyword.modifier,
+.pg-code .keyword.type,
+.pg-code .keyword.conditional,
+.pg-code .keyword.repeat,
+.pg-code .keyword.import,
+.pg-code .keyword.exception,
+.pg-code .keyword.coroutine {
+    color: #c792ea;
+}
+
+.pg-code .keyword.operator {
+    color: #89ddff;
+}
+
+.pg-code .module {
+    color: #c792ea;
+}
+
+.pg-code .number,
+.pg-code .number.float {
+    color: #f78c6c;
+}
+
+.pg-code .operator {
+    color: #89ddff;
+}
+
+.pg-code .punctuation,
+.pg-code .punctuation.bracket,
+.pg-code .punctuation.delimiter,
+.pg-code .punctuation.special {
+    color: #89ddff;
+}
+
+.pg-code .string,
+.pg-code .string.special {
+    color: #c3e88d;
+}
+
+.pg-code .string.escape {
+    color: #eeffff;
+}
+
+.pg-code .tag {
+    color: #f07178;
+}
+
+.pg-code .type,
+.pg-code .type.builtin {
+    color: #ffcb6b;
+}
+
+.pg-code .variable {
+    color: #eeffff;
+}
+
+.pg-code .variable.builtin {
+    color: #82aaff;
+}
+
+.pg-code .variable.parameter {
+    color: #f78c6c;
+}
+
+.pg-code .variable.member {
+    color: #eeffff;
+}
+
+.pg-code .label {
+    color: #c792ea;
+}
+
+.pg-code .boolean {
+    color: #f78c6c;
+}
+
+/* ─── Scrollbars (matches home.css) ─── */
+.pg-code pre,
+.pg-terminal-body {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.2) var(--zx-code-bg);
+}
+
+.pg-code pre::-webkit-scrollbar,
+.pg-terminal-body::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.pg-code pre::-webkit-scrollbar-track,
+.pg-terminal-body::-webkit-scrollbar-track {
+    background: rgba(9, 12, 18, 0.9);
+}
+
+.pg-code pre::-webkit-scrollbar-thumb,
+.pg-terminal-body::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.14);
+    border-radius: 10px;
+    border: 2px solid rgba(9, 12, 18, 0.9);
+}
+
+.pg-code pre::-webkit-scrollbar-thumb:hover,
+.pg-terminal-body::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* ─── Selection state while dragging ─── */
+.pg-ide--dragging {
+    user-select: none;
+    cursor: col-resize;
+}
+
+.pg-ide--dragging-v {
+    user-select: none;
+    cursor: row-resize;
+}
+
+.pg-ide--dragging iframe,
+.pg-ide--dragging-v iframe {
+    pointer-events: none;
+}
+
+/* ─── Status Bar ─── */
+.pg-status {
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0.75rem;
+    background: rgba(0, 130, 190, 0.85);
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.9);
+    flex-shrink: 0;
+}
+
+.pg-status-left,
+.pg-status-right {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+}
+
+.pg-status-item {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    white-space: nowrap;
+}
+
+/* ─── Responsive adjustments ─── */
+@media (max-width: 768px) {
+    .pg-ide-body {
+        flex-direction: column;
+    }
+
+    .pg-editor {
+        min-height: 200px;
+        border-right: none;
+        border-bottom: 1px solid var(--zx-border);
+    }
+
+    .pg-splitter {
+        width: 100%;
+        height: 5px;
+        cursor: row-resize;
+    }
+
+    .pg-splitter::after {
+        width: 32px;
+        height: 3px;
+    }
+
+    .pg-preview {
+        min-height: 200px;
+    }
+}
+
+
+
+
+:root {
+    --code-background-color: #0b0f14;
+    --code-text-color: #eeffff;
+}
+
+/* Comments */
+.st-comment {
+    color: #7a9aa8;
+    font-style: italic;
+}
+
+/* Keywords */
+.st-keyword {
+    color: #c792ea;
+    font-weight: bold;
+}
+
+/* Numbers & keyword literals (true, false, null) */
+.st-number,
+.st-keywordLiteral {
+    color: #f78c6c;
+}
+
+/* Strings */
+.st-string {
+    color: #c3e88d;
+}
+
+/* Escape sequences */
+.st-escapeSequence {
+    color: #eeffff;
+}
+
+/* Labels */
+.st-label {
+    color: #c792ea;
+    font-style: italic;
+}
+
+/* Builtins (@import, @intCast, etc.) */
+.st-builtin {
+    color: #82aaff;
+}
+
+/* Parameters */
+.st-parameter {
+    color: #f78c6c;
+    font-style: italic;
+}
+
+/* Types, type parameters, enums, classes, structs */
+.st-type,
+.st-typeParameter,
+.st-enum,
+.st-class,
+.st-struct {
+    color: #ffcb6b;
+    font-weight: bold;
+}
+
+/* Functions */
+.st-function,
+.st-method {
+    color: #82aaff;
+    font-weight: bold;
+}
+
+/* Methods get italic */
+.st-method {
+    font-style: italic;
+}
+
+/* Operators */
+.st-operator {
+    color: #89ddff;
+}
+
+/* Variables */
+.st-variable {
+    color: #eeffff;
+}
+
+/* Tags (for ZX / HTML-in-Zig) */
+.st-tag {
+    color: #f07178;
+}
+
+/* Attributes */
+.st-attribute {
+    color: #f78c6c;
+}

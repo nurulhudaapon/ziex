@@ -15,6 +15,7 @@ pub const TestFileCache = struct {
 
         "control_flow/switch",
         "control_flow/switch_capture",
+        "control_flow/switch_multicaseval",
         "control_flow/switch_block",
 
         "control_flow/while",

@@ -78,7 +78,7 @@ fn dev(ctx: zli.CommandContext) !void {
         _ = try build_builder.wait();
     }
 
-    try build_args_array.appendSlice(allocator, &.{ "--watch", "--summary", "all" });
+    try build_args_array.appendSlice(allocator, &.{"--watch"});
 
     // Force color output even when piped (for error display)
     var env_map = try std.process.getEnvMap(allocator);

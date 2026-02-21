@@ -1,0 +1,144 @@
+#!/usr/bin/env python3
+import json
+import re
+import subprocess
+import sys
+import threading
+
+
+def _read_exact(stream, size):
+    buf = b""
+    while len(buf) < size:
+        chunk = stream.read(size - len(buf))
+        if not chunk:
+            return None
+        buf += chunk
+    return buf
+
+
+def _read_message(stream):
+    headers = {}
+    while True:
+        line = stream.readline()
+        if not line:
+            return None, None
+        if line in (b"\r\n", b"\n"):
+            break
+        key, _, value = line.partition(b":")
+        headers[key.strip().lower()] = value.strip()
+    length = int(headers.get(b"content-length", b"0"))
+    if length <= 0:
+        return headers, None
+    body = _read_exact(stream, length)
+    return headers, body
+
+
+def _write_message(stream, payload):
+    body = json.dumps(payload, separators=(",", ":"), ensure_ascii=True).encode("utf-8")
+    header = f"Content-Length: {len(body)}\r\n\r\n".encode("ascii")
+    stream.write(header + body)
+    stream.flush()
+
+
+def _write_raw_message(stream, body, content_type=None):
+    header = f"Content-Length: {len(body)}\r\n".encode("ascii")
+    if content_type:
+        header += b"Content-Type: " + content_type + b"\r\n"
+    header += b"\r\n"
+    stream.write(header + body)
+    stream.flush()
+
+
+def _filter_diagnostics(msg):
+    if not isinstance(msg, dict):
+        return msg
+    method = msg.get("method")
+    if method != "textDocument/publishDiagnostics":
+        return msg
+    params = msg.get("params")
+    if not isinstance(params, dict):
+        return msg
+    diags = params.get("diagnostics")
+    if not isinstance(diags, list):
+        return msg
+    filtered = []
+    for d in diags:
+        if not isinstance(d, dict):
+            filtered.append(d)
+            continue
+        message = d.get("message", "")
+        if isinstance(message, str) and re.search(r"expected expression, found '<'", message):
+            continue
+        filtered.append(d)
+    if filtered is not diags:
+        params["diagnostics"] = filtered
+    return msg
+
+
+def _forward_client_to_server(client_in, server_out):
+    while True:
+        headers, body = _read_message(client_in)
+        if headers is None:
+            break
+        if body is None:
+            continue
+        _write_raw_message(server_out, body, headers.get(b"content-type"))
+
+
+def _forward_server_to_client(server_in, client_out):
+    while True:
+        headers, body = _read_message(server_in)
+        if headers is None:
+            break
+        if body is None:
+            continue
+        try:
+            msg = json.loads(body.decode("utf-8"))
+        except json.JSONDecodeError:
+            _write_raw_message(client_out, body, headers.get(b"content-type"))
+            continue
+        if msg.get("method") != "textDocument/publishDiagnostics":
+            _write_raw_message(client_out, body, headers.get(b"content-type"))
+            continue
+        msg = _filter_diagnostics(msg)
+        _write_message(client_out, msg)
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("usage: zls-zx-proxy <zls> [args...]", file=sys.stderr)
+        return 2
+    proc = subprocess.Popen(
+        sys.argv[1:],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=sys.stderr,
+        bufsize=0,
+    )
+
+    t1 = threading.Thread(
+        target=_forward_client_to_server,
+        args=(sys.stdin.buffer, proc.stdin),
+        daemon=True,
+    )
+    t2 = threading.Thread(
+        target=_forward_server_to_client,
+        args=(proc.stdout, sys.stdout.buffer),
+        daemon=True,
+    )
+    t1.start()
+    t2.start()
+
+    try:
+        t1.join()
+        t2.join()
+    finally:
+        try:
+            proc.terminate()
+        except OSError:
+            pass
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

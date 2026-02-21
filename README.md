@@ -160,13 +160,14 @@ const zx = @import("zx");
 
 - ##### [VSCode](https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx)/[VSCode Forks](https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx) Extension
 - ##### [Neovim](/ide/neovim/)
+- ##### [Helix](/ide/helix/)
 - ##### [Zed](/ide/zed/)
 
 ## Community
 
-- [Discord](https://discord.gg/39UgnhgpUD)
-- [Topic on Ziggit](https://ziggit.dev/t/ziex-full-stack-web-framework-for-zig-like-next-js-react-but-for-zig/12848?u=nurulhudaapon)
-- [Project on Zig Discord Community](https://discord.com/channels/605571803288698900/1435764771428237485) (Join Zig Discord first: https://discord.gg/zig)
+- [Discord](https://ziex.dev/r/discord)
+- [Topic on Ziggit](https://ziex.dev/r/ziggit)
+- [Project on Zig Discord Community](https://ziex.dev/r/zig-discord) (Join Zig Discord first: https://discord.gg/zig)
 
 ## Similar Projects
 

@@ -49,6 +49,9 @@ pub fn build(b: *std.Build) !void {
     const zx_wasm_mod = b.addModule("zx_wasm", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize });
     const jsz_dep = b.dependency("zig_js", .{ .target = target, .optimize = optimize });
     zx_wasm_mod.addImport("js", jsz_dep.module("zig-js"));
+    // zx_wasm_mod.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
+    // zx_wasm_mod.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
+    // zx_wasm_mod.addImport("tree_sitter_mdzx", tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
     zx_wasm_mod.addOptions("zx_info", options);
     // Add stub meta for WASM builds (overridden in user projects with generated meta)
     zx_wasm_mod.addAnonymousImport("zx_meta", .{ .root_source_file = b.path("src/build/stub_meta.zig"), .imports = &.{.{ .name = "zx", .module = zx_wasm_mod }} });
@@ -90,7 +93,7 @@ pub fn build(b: *std.Build) !void {
             zx_docsite_exe.root_module.addImport("tree_sitter_mdzx", tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
             zx_docsite_exe.root_module.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
 
-            var zx_b = try buildlib.initlib.initInner(b, zx_docsite_exe, exe, mod, zx_wasm_mod, .{
+            var zx_build = try buildlib.initlib.initInner(b, zx_docsite_exe, exe, mod, zx_wasm_mod, .{
                 .cli_path = null,
                 .site_outdir = null,
                 .site_path = b.path("site"),
@@ -100,36 +103,52 @@ pub fn build(b: *std.Build) !void {
                 },
                 .steps = .{ .serve = "serve", .dev = "dev", .@"export" = "export", .bundle = "bundle" },
                 // .edge_path = b.path("site/edge.zig"),
-                .plugins = &.{
-                    plugins.esbuild(b, .{
-                        .bin = b.path("site/node_modules/.bin/esbuild"),
-                        .input = b.path("site/main.ts"),
-                        .output = b.path("{outdir}/assets/main.js"),
-                        .optimize = optimize,
-                    }),
-                    plugins.esbuild(b, .{
-                        .bin = b.path("site/node_modules/.bin/esbuild"),
-                        .input = b.path("site/scripts/docs.ts"),
-                        .output = b.path("{outdir}/assets/docs.js"),
-                        .optimize = optimize,
-                    }),
-                    plugins.esbuild(b, .{
-                        .bin = b.path("site/node_modules/.bin/esbuild"),
-                        .input = b.path("site/scripts/react.ts"),
-                        .output = b.path("{outdir}/assets/react.js"),
-                        .optimize = optimize,
-                    }),
-                    // plugins.tailwind(b, .{
-                    //     .bin = b.path("site/node_modules/.bin/tailwindcss"),
-                    //     .input = b.path("site/assets/docs.css"),
-                    //     .output = b.path("{outdir}/assets/docs.css"),
-                    //     .minify = true,
-                    //     .optimize = true,
-                    //     .map = false,
-                    // }),
-                },
             });
-            zx_b = zx_b;
+
+            var assetsdir = zx_build.assetsdir;
+
+            zx_build.addPlugin(
+                plugins.tailwind(b, .{
+                    .bin = b.path("site/node_modules/.bin/tailwindcss"),
+                    .input = b.path("site/assets/docs.css"),
+                    .output = assetsdir.path(b, "docs.css"),
+                    .minify = true,
+                    .optimize = true,
+                    .map = false,
+                }),
+            );
+            zx_build.addPlugin(plugins.esbuild(b, .{
+                .bin = b.path("site/node_modules/.bin/esbuild"),
+                .input = b.path("site/scripts/react.ts"),
+                .output = assetsdir.path(b, "react.js"),
+                .optimize = optimize,
+            }));
+            zx_build.addPlugin(plugins.esbuild(b, .{
+                .bin = b.path("site/node_modules/.bin/esbuild"),
+                .input = b.path("site/main.ts"),
+                .output = assetsdir.path(b, "main.js"),
+                .optimize = optimize,
+            }));
+            zx_build.addPlugin(plugins.esbuild(b, .{
+                .bin = b.path("site/node_modules/.bin/esbuild"),
+                .input = b.path("site/scripts/docs.ts"),
+                .output = assetsdir.path(b, "docs.js"),
+                .optimize = optimize,
+            }));
+
+            zx_build.addPlugin(plugins.Bun.init(.{
+                .build = b,
+                .options = .{
+                    .inputs = &.{
+                        b.path("site/pages/playground/scripts/editor.ts"),
+                        b.path("site/pages/playground/scripts/workers/runner.ts"),
+                        b.path("site/pages/playground/scripts/workers/zig.ts"),
+                        b.path("site/pages/playground/scripts/workers/zx.ts"),
+                        b.path("site/pages/playground/scripts/workers/zls.ts"),
+                    },
+                    .outdir = assetsdir.path(b, "playground/"),
+                },
+            }));
             // zx_b.step("serve", .serve);
         }
     }
