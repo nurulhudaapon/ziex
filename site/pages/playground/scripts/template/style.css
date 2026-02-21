@@ -3,4 +3,5 @@ body {
     color: #fff;
     display: grid;
     place-items: center;
+    height: 90vh;
 }

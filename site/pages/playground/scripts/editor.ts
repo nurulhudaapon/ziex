@@ -480,9 +480,9 @@ function setRunButtonLoading(loading: boolean) {
     }
 }
 
-
+let transpile_start_time: number | null = null;
 zxWorker.onmessage = (ev: MessageEvent) => {
-    console.info("Transpiled finished in", (performance.now() - build_start_time).toFixed(2), "ms");
+    console.info("Transpiled finished in", (performance.now() - transpile_start_time!).toFixed(2), "ms");
     console.debug("ZX Worker ->>", ev.data);
 }
 
@@ -611,6 +611,7 @@ outputsRun.addEventListener("click", async () => {
 
             zxWorker.addEventListener('message', handler);
             console.log('[DEBUG] Posting to zxWorker:', zxName);
+            transpile_start_time = performance.now();
             zxWorker.postMessage({ filename: zxName, content: zxContent });
         });
     }
