@@ -30,7 +30,10 @@ pub fn TopNavigation(ctx: *zx.ComponentCtx(struct {})) zx.Component {
                 // <a href="/learn" class="pg-nav-btn">Docs</a>
                 <button class="pg-nav-btn pg-nav-btn--primary" id="pg-run-btn">▶ Run</button>
                 <button class="pg-nav-btn" id="pg-share-btn" title="Share playground" aria-label="Share">
-                    <span style="font-family:monospace;font-size:1.1em;vertical-align:middle;">{"</>"}</span> 
+                    <span style="font-family:monospace;font-size:1em;">{"</> "}</span> 
+                    <span>
+                        <CheckIcon />
+                    </span> 
                     Share
                 </button>
             </div>
@@ -164,3 +167,4 @@ fn handleRunClick(ctx: zx.EventContext) void {
 const std = @import("std");
 const zx = @import("zx");
 const AllFileIcons = @import("../components/icons.zx").AllFileIcons;
+const CheckIcon = @import("../components/icons.zx").CheckIcon;

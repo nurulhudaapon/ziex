@@ -176,7 +176,6 @@ function updateTabs() {
         tabsContainer.appendChild(tab);
     });
 
-    // Re-append the add-file button at the end
     if (addBtn) {
         tabsContainer.appendChild(addBtn);
     } else {
@@ -196,7 +195,6 @@ async function switchFile(index: number) {
 
     if (activeFileIndex !== -1 && editorView) {
         files[activeFileIndex].state = editorView.state;
-        // Update fileManager content
         fileManager.updateContent(files[activeFileIndex].name, editorView.state.doc.toString());
     }
 
@@ -222,7 +220,7 @@ function addFile() {
         counter++;
         name = `untitled${counter}.zx`;
     }
-    
+
     const promptedName = prompt("File name:", name);
     if (!promptedName) return;
 
@@ -290,7 +288,7 @@ async function encodeFilesToQuery(filesMap: { [filename: string]: string }): Pro
     const json = JSON.stringify(filtered);
     const stream = new Blob([json]).stream().pipeThrough(new CompressionStream("deflate"));
     const buffer = await new Response(stream).arrayBuffer();
-    
+
     let binString = '';
     const bytes = new Uint8Array(buffer);
     const CHUNK_SIZE = 0x8000;
@@ -335,29 +333,22 @@ function showShareSuccess() {
     const btn = document.getElementById("pg-share-btn");
     if (!btn) return;
     const orig = btn.innerHTML;
-    btn.innerHTML = '✅ Copied!';
+    btn.innerHTML = '<span style="vertical-align:middle;display:inline-block;width:1em;height:1em;margin-right:0.3em;"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="1em" height="1em"><path fill-rule="evenodd" d="M16.704 6.29a1 1 0 0 1 0 1.42l-6.004 6a1 1 0 0 1-1.416 0l-2.996-3a1 1 0 1 1 1.416-1.42l2.288 2.29 5.296-5.29a1 1 0 0 1 1.416 0z" clip-rule="evenodd"/></svg></span>Copied!';
     setTimeout(() => { btn.innerHTML = orig; }, 1200);
 }
 
 document.getElementById("pg-share-btn")?.addEventListener("click", async () => {
-    const btn = document.getElementById("pg-share-btn");
-    const origHtml = btn ? btn.innerHTML : '';
-    if (btn) btn.innerHTML = '⌛'; // loading state
+    const filesMap = getCurrentFilesMap();
+    const encoded = await encodeFilesToQuery(filesMap);
+    const url = `${location.origin}${location.pathname}#code=${encoded}`;
 
-    try {
-        const filesMap = getCurrentFilesMap();
-        const encoded = await encodeFilesToQuery(filesMap);
-        const url = `${location.origin}${location.pathname}#code=${encoded}`;
-        
-        if (url.length > 8000) {
-            alert(`Warning: This share link is ${url.length} characters long. Older browsers, proxies, or chat apps max out at 2,000–8,000 bytes and might truncate it, breaking the link.`);
-        }
-    
-        copyToClipboard(url);
-        showShareSuccess();
-    } finally {
-        if (btn) btn.innerHTML = origHtml;
+    if (url.length > 8000) {
+        alert(`Warning: This share link is ${url.length} characters long. Older browsers, proxies, or chat apps max out at 2,000-8,000 bytes and might truncate it, breaking the link.`);
     }
+
+    copyToClipboard(url);
+    showShareSuccess();
+
 });
 
 function loadTemplateFiles() {
@@ -495,7 +486,6 @@ zigWorker.onmessage = (ev: MessageEvent) => {
                 return;
             }
             if (rev.data.preview) {
-                // Only show HTML output in the preview pane, not in the terminal
                 const viewport = document.getElementById("pg-browser-viewport")!;
                 let iframe = viewport.querySelector("iframe") as HTMLIFrameElement;
                 if (!iframe) {
@@ -528,14 +518,14 @@ zigWorker.onmessage = (ev: MessageEvent) => {
 
 let build_start_time = performance.now();
 
-// Helper to get current files as { [filename]: content }
 function getCurrentFilesMap(): { [filename: string]: string } {
-    // Sync current editor state to fileManager
     if (activeFileIndex !== -1 && editorView) {
         fileManager.updateContent(files[activeFileIndex].name, editorView.state.doc.toString());
     }
     const filesMap: { [filename: string]: string } = {};
     fileManager.getAllFiles().forEach(f => {
+        const fileObj = files.find(file => file.name === f.name);
+        if (fileObj && fileObj.hidden) return;
         filesMap[f.name] = f.content;
     });
     return filesMap;
@@ -546,7 +536,6 @@ outputsRun.addEventListener("click", async () => {
     setRunButtonLoading(true);
     clearTerminal();
     const viewport = document.getElementById("pg-browser-viewport")!;
-    // Only update innerHTML, do NOT reset flex/width/height styles
     while (viewport.firstChild) viewport.removeChild(viewport.firstChild);
     const placeholder = document.createElement("div");
     placeholder.className = "pg-browser-placeholder";
@@ -558,10 +547,11 @@ outputsRun.addEventListener("click", async () => {
     viewport.appendChild(placeholder);
 
     let filesMap = getCurrentFilesMap();
-    // Find all .zx files
+    if (!filesMap["main.zig"]) {
+        filesMap["main.zig"] = zigMainSource;
+    }
     const zxFiles = Object.entries(filesMap).filter(([name]) => name.endsWith('.zx'));
     let transpiledZigFiles: { [filename: string]: string } = {};
-
 
     // Helper to transpile a single .zx file and return a Promise
     function transpileZxFile(zxName: string, zxContent: string): Promise<{ [filename: string]: string }> {
@@ -579,7 +569,6 @@ outputsRun.addEventListener("click", async () => {
                     setRunButtonLoading(false);
                     reject(ev.data.stderr);
                 } else if (ev.data && ev.data.stdout) {
-                    // If only stdout is returned, treat as transpiled .zig content
                     zxWorker.removeEventListener('message', handler);
                     const zigName = zxName.replace(/\.zx$/, ".zig");
                     console.log('[DEBUG] Treating stdout as transpiled .zig for', zigName);
@@ -587,22 +576,18 @@ outputsRun.addEventListener("click", async () => {
                 }
             };
 
-            
             zxWorker.addEventListener('message', handler);
             console.log('[DEBUG] Posting to zxWorker:', zxName);
             zxWorker.postMessage({ filename: zxName, content: zxContent });
         });
     }
 
-    // Transpile each .zx file sequentially
     for (const [zxName, zxContent] of zxFiles) {
         console.log('[DEBUG] Transpiling', zxName);
         try {
             transpiledZigFiles = await transpileZxFile(zxName, zxContent);
             console.log('[DEBUG] Transpiled result:', transpiledZigFiles);
-            // Add transpiled .zig file to filesMap
             Object.assign(filesMap, transpiledZigFiles);
-            // Also update fileManager and files[] if .zig file exists in tabs, else add it as hidden
             const zigName = Object.keys(transpiledZigFiles)[0];
             const zigContent = transpiledZigFiles[zigName];
             if (fileManager.hasFile(zigName)) {
@@ -618,11 +603,10 @@ outputsRun.addEventListener("click", async () => {
             }
         } catch (err) {
             console.error('[DEBUG] Transpile error:', err);
-            return; // Stop further processing if transpile fails
+            return;
         }
     }
 
-    // Now send all files (including transpiled .zig) to zigWorker
     console.log('[DEBUG] Sending files to zigWorker:', Object.keys(filesMap));
     build_start_time = performance.now();
     zigWorker.postMessage({ files: filesMap });
