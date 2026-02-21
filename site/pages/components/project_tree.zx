@@ -93,7 +93,7 @@ fn EntryRow(allocator: zx.Allocator, props: EntryRowProps) zx.Component {
     return (
         <>
             <div class="project-tree-row" style={indent} @allocator={allocator}>
-                <span class={if (is_folder) "project-tree-folder" else "project-tree-file"}>
+                <span class={if (is_folder) "project-tree-folder" else "project-tree-file"} translate="no">
                     {if (is_folder) (<FolderIcon />) else (<FileIcon name={entry.name} />)}
                     <span class="project-tree-name">{entry.name}{if (is_folder) "/" else ""}</span>
                 </span>

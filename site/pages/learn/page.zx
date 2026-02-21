@@ -260,8 +260,8 @@ fn CreateProject(allocator: zx.Allocator, props: CreateProjectProps) zx.Componen
                         </div>
                     </div>
 
-                    <p>Update your <code>build.zig</code> to the following:</p>
-                    <CodeBlock code={props.build_manual_code} filename="build.zig" /> 
+                    <p>Update your <code translate="no">build.zig</code> to the following:</p>
+                    <CodeBlock code={props.build_manual_code} filename="build.zig" translate="no" /> 
 
                     <p style="margin-top: 1.5rem;">Then initialize the project with the default template:</p>
                     <div class="install-box install-box-simple">

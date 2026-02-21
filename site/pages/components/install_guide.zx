@@ -9,7 +9,7 @@ pub fn InstallCLI(allocator: zx.Allocator) zx.Component {
                     <label for="tab-windows" class="install-tab-label">Windows</label>
                 </div>
             </div>
-            <div class="install-box-content">
+            <div class="install-box-content" translate="no">
                 <div class="install-tab-content" id="content-unix">
                     <div class="install-code">
                         <span class="install-prompt">$ </span>
@@ -48,7 +48,7 @@ pub fn InstallZig(allocator: zx.Allocator) zx.Component {
             </div>
             <div class="install-box-content">
                 <div class="install-tab-content" id="content-zig-mac">
-                    <div class="install-code">
+                    <div class="install-code" translate="no">
                         <span class="install-prompt">$ </span>
                         <span class="function">brew</span>
                         <span class="operator"> install </span>
@@ -56,7 +56,7 @@ pub fn InstallZig(allocator: zx.Allocator) zx.Component {
                     </div>
                 </div>
                 <div class="install-tab-content" id="content-zig-win">
-                    <div class="install-code">
+                    <div class="install-code" translate="no">
                         <span class="install-prompt">{"> "}</span>
                         <span class="function">winget</span>
                         <span class="operator"> install -e --id </span>

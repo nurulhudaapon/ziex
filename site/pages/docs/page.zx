@@ -1162,7 +1162,7 @@ fn CLICommand(allocator: zx.Allocator, props: struct { command: CLICommandInfo }
 
             <div class="install-box install-box-simple">
                 <div class="install-box-content">
-                    <div class="install-code">
+                    <div class="install-code" translate="no">
                         <span class="install-prompt">$ </span>
                         {for (parts.items) |part| (
                             <span>
@@ -1197,7 +1197,7 @@ fn CLICommand(allocator: zx.Allocator, props: struct { command: CLICommandInfo }
 
             {if (command.note) |note| (
                 <div class="callout">
-                    <strong>Note:</strong> {note}
+                    <strong>Note: </strong> {note}
                 </div>
             )}
         </div>

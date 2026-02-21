@@ -8,7 +8,7 @@ pub fn CodeBlock(allocator: zx.Allocator, props: CodeBlockProps) zx.Component {
     const highlighted = util.highlightZx(allocator, props.code) catch props.code;
 
     return if (props.filename) |filename| (
-        <div class="sandbox" style="box-shadow: none;" @allocator={allocator}>
+        <div class="sandbox" style="box-shadow: none;" @allocator={allocator} translate="no">
             <div class="sandbox-editor-header">
                 <div class="sandbox-tab" style="cursor: default;">
                     <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
@@ -22,7 +22,7 @@ pub fn CodeBlock(allocator: zx.Allocator, props: CodeBlockProps) zx.Component {
             </div>
         </div>
     ) else (
-        <div class="sandbox" style="box-shadow: none; border-radius: 8px;" @allocator={allocator}>
+        <div class="sandbox" style="box-shadow: none; border-radius: 8px;" @allocator={allocator} translate="no">
             <div class="sandbox-code">
                 <pre class="sandbox-code-pre"><code class="hljs sandbox-code-lines" @escaping={.none}>{highlighted}</code></pre>
             </div>

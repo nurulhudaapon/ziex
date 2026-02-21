@@ -340,7 +340,7 @@ function showShareSuccess() {
 document.getElementById("pg-share-btn")?.addEventListener("click", async () => {
     const filesMap = getCurrentFilesMap();
     const encoded = await encodeFilesToQuery(filesMap);
-    const url = `${location.origin}${location.pathname}#code=${encoded}`;
+    const url = `${location.origin}${location.pathname}#data=${encoded}`;
 
     if (url.length > 8000) {
         alert(`Warning: This share link is ${url.length} characters long. Older browsers, proxies, or chat apps max out at 2,000-8,000 bytes and might truncate it, breaking the link.`);
@@ -360,10 +360,8 @@ function loadTemplateFiles() {
 
 window.addEventListener("DOMContentLoaded", async () => {
     await client.initialize();
-
-    // Use hash fragment for code sharing
     let code = null;
-    if (location.hash.startsWith("#code=")) {
+    if (location.hash.startsWith("#data=")) {
         code = location.hash.slice(6);
     }
     let initialFileIndex = 0;

@@ -60,29 +60,6 @@ pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Compon
         break :blk result;
     };
 
-    // Wrap HTML with dark mode styles for iframe
-    const dark_mode_style =
-        \\<style>
-        \\  * { 
-        \\    color-scheme: light dark; 
-        \\    margin: 0;
-        \\    padding: 0;
-        \\    box-sizing: border-box;
-        \\  }
-        \\  html, body {
-        \\    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        \\    line-height: 1.5;
-        \\    padding: 1rem;
-        \\  }
-        \\  @media (prefers-color-scheme: dark) {
-        \\    body { background: #16181d !important; color: #f6f7f9 !important; }
-        \\    * { color: inherit; }
-        \\  }
-        \\  @media (prefers-color-scheme: light) {
-        \\    body { background: #ffffff !important; color: #23272f !important; }
-        \\  }
-        \\</style>
-    ;
     const html_with_style = std.fmt.allocPrint(allocator, "{s}{s}", .{ dark_mode_style, props.html_code }) catch unreachable;
 
     const preview_id = std.fmt.allocPrint(allocator, "tab-{s}-preview", .{props.id}) catch unreachable;
@@ -114,7 +91,7 @@ pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Compon
                     </div>
                     {for (files) |file| (
                         <div @allocator={allocator} class="sandbox-code file-content" id={file.content_id}>
-                            <pre class="sandbox-code-pre"><code class="hljs sandbox-code-lines" @escaping={.none}>{file.highlighted}</code></pre>
+                            <pre translate="no" class="sandbox-code-pre"><code class="hljs sandbox-code-lines" @escaping={.none}>{file.highlighted}</code></pre>
                         </div>
                     )}
                 </div>
@@ -141,16 +118,40 @@ pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Compon
                         <iframe class="sandbox-preview-frame" srcdoc={html_with_style} title="Code example preview"></iframe>
                     </div>
                     <div class="sandbox-preview-content sandbox-code-content" id={html_content_id}>
-                        <pre><code class="language-markup">{props.html_code}</code></pre>
+                        <pre translate="no"><code class="language-markup">{props.html_code}</code></pre>
                     </div>
                     <div class="sandbox-preview-content sandbox-code-content" id={zig_content_id} style="display: none;">
-                        <pre><code class="language-zig">{props.zig_code}</code></pre>
+                        <pre translate="no"><code class="language-zig">{props.zig_code}</code></pre>
                     </div>
                 </div>
             </div>
         </div>
     );
 }
+
+// Wrap HTML with dark mode styles for iframe
+const dark_mode_style =
+    \\<style>
+    \\  * { 
+    \\    color-scheme: light dark; 
+    \\    margin: 0;
+    \\    padding: 0;
+    \\    box-sizing: border-box;
+    \\  }
+    \\  html, body {
+    \\    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    \\    line-height: 1.5;
+    \\    padding: 1rem;
+    \\  }
+    \\  @media (prefers-color-scheme: dark) {
+    \\    body { background: #16181d !important; color: #f6f7f9 !important; }
+    \\    * { color: inherit; }
+    \\  }
+    \\  @media (prefers-color-scheme: light) {
+    \\    body { background: #ffffff !important; color: #23272f !important; }
+    \\  }
+    \\</style>
+;
 
 const zx = @import("zx");
 const std = @import("std");
