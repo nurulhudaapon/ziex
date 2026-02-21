@@ -327,6 +327,12 @@ fn EditorSetup(allocator: zx.Allocator) zx.Component {
                 <p><strong>Features:</strong> Tree-sitter syntax highlighting, LSP support, and file icons.</p>
             </section>
 
+            <section id="helix" class="section">
+                <h2>Helix</h2>
+                <p>See the <a href=`{zx.info.repository}/tree/main/ide/helix` target="_blank" rel="noopener noreferrer">Helix setup guide</a> for the full configuration.</p>
+                <p><strong>Features:</strong> Tree-sitter syntax highlighting, and LSP support.</p>
+            </section>
+
             <section id="zed" class="section">
                 <h2>Zed</h2>
                 <p>Manual installation (pending marketplace approval):</p>

@@ -25,6 +25,7 @@ const categories = [_]SidebarProps.Category{
                 .items = &[_]SidebarProps.Link{
                     .{ .href = "/learn#vscode", .text = "VS Code / Cursor" },
                     .{ .href = "/learn#neovim", .text = "Neovim" },
+                    .{ .href = "/learn#helix", .text = "Helix" },
                     .{ .href = "/learn#zed", .text = "Zed" },
                 },
             },
