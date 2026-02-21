@@ -1,8 +1,9 @@
-# Helix Support for zx
 
-## Installation
+# Helix
 
-1) Add the language and grammar entries to your Helix `languages.toml`:
+## 1. Language & Grammar Setup
+
+Add the following entries to your Helix `~/.config/helix/languages.toml`:
 
 ```toml
 [[language]]
@@ -23,31 +24,35 @@ name = "zx"
 source = { git = "https://github.com/nurulhudaapon/ziex", rev = "main", subpath = "pkg/tree-sitter-zx" }
 ```
 
-2) Build the grammar:
+---
+
+## 2. Build Grammar
+
+Fetch and build the grammar:
 
 ```sh
 hx --grammar fetch
 hx --grammar build
 ```
 
-3) Copy the queries in `ide/helix/queries/ziex` into:
+---
 
-```
-~/.config/helix/runtime/queries/ziex
-```
-4) Configure LSP:
+## 3. Copy Queries
 
-`zls` reports `expected expression, found '<'` for zx tags. Helix cannot filter
-diagnostics, so this repo includes a small proxy that drops that error.
+Clone this repo, then copy the queries for zx:
 
-Copy:
-
-```
-ide/helix/scripts/zls-zx-proxy
+```sh
+cp -r ide/helix/queries/ziex/ ~/.config/helix/runtime/queries/ziex/
 ```
 
-to:
+---
 
-```
-~/.local/bin/zls-zx-proxy
+## 4. Configure LSP Proxy
+
+The zx language server (`zls`) reports `expected expression, found '<'` for zx tags. The proxy silences this error and allows LSP features to work correctly.
+
+Copy the proxy script:
+
+```sh
+cp ide/helix/scripts/zls-zx-proxy ~/.local/bin/zls-zx-proxy
 ```
