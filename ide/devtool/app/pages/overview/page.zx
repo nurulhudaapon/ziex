@@ -1,8 +1,7 @@
 const features = [_]Feature{
-    .{ .icon_fn = icons.Lightning, .title = "v1.0.0", .link = "overview.html" },
-    // .{ .icon_fn = icons.Shield, .title = "Compile-Time Safety", .description = "Zig's type system catches bugs at compile time. No runtime surprises, no memory leaks, no garbage collection." },
-    .{ .icon_fn = icons.Hive, .title = "29 components", .link = "index.html" },
-    .{ .icon_fn = icons.Workflow, .title = "8 Routes", .link = "routes" },
+    .{ .icon_fn = icons.Lightning, .title = data.version, .link = "overview" },
+    .{ .icon_fn = icons.Hive, .title = data.component_count_label, .link = "/" },
+    .{ .icon_fn = icons.Workflow, .title = data.route_count_label, .link = "routes" },
 };
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
@@ -20,7 +19,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     </p>
                     <p class="hero-description">
                         Developer Tools for Ziex Framework
-                        <code class="version-badge">v1.0.0</code>
+                        <code class="version-badge">{data.version}</code>
                     </p>
 
                     <div class="features-grid">
@@ -57,3 +56,4 @@ fn FeatureCard(allocator: zx.Allocator, props: Feature) zx.Component {
 
 const zx = @import("zx");
 const icons = @import("../components/icons.zx");
+const data = @import("../data.zig");
