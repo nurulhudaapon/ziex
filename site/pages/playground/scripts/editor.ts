@@ -316,16 +316,25 @@ async function decodeFilesFromQuery(query: string): Promise<{ [filename: string]
     }
 }
 
-function copyToClipboard(text: string) {
-    if (navigator.clipboard) {
-        navigator.clipboard.writeText(text);
-    } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = text;
-        document.body.appendChild(textarea);
-        textarea.select();
-        document.execCommand("copy");
-        document.body.removeChild(textarea);
+async function copyText(text: string): Promise<boolean> {
+    try {
+        await navigator.clipboard.writeText(text);
+        return true;
+    } catch {
+        const textArea = document.createElement('textarea');
+        textArea.value = text;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        try {
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+            return true;
+        } catch {
+            document.body.removeChild(textArea);
+            return false;
+        }
     }
 }
 
@@ -339,16 +348,42 @@ function showShareSuccess() {
 
 document.getElementById("pg-share-btn")?.addEventListener("click", async () => {
     const filesMap = getCurrentFilesMap();
-    const encoded = await encodeFilesToQuery(filesMap);
-    const url = `${location.origin}${location.pathname}#data=${encoded}`;
 
+    // Create the URL promise for ClipboardItem (Safari needs this pattern for async clipboard)
+    const urlPromise = encodeFilesToQuery(filesMap).then(encoded =>
+        `${location.origin}${location.pathname}#data=${encoded}`
+    );
+
+    // Try ClipboardItem with Promise first (Safari-friendly for async data)
+    let success = false;
+    if (navigator.clipboard && typeof ClipboardItem !== 'undefined') {
+        try {
+            const item = new ClipboardItem({
+                'text/plain': urlPromise.then(url => new Blob([url], { type: 'text/plain' }))
+            });
+            await navigator.clipboard.write([item]);
+            success = true;
+        } catch {
+            // Fall through to fallback
+        }
+    }
+
+    // Fallback: await the URL then use execCommand
+    if (!success) {
+        const url = await urlPromise;
+        success = await copyText(url);
+    }
+
+    const url = await urlPromise;
     if (url.length > 8000) {
         alert(`Warning: This share link is ${url.length} characters long. Older browsers, proxies, or chat apps max out at 2,000-8,000 bytes and might truncate it, breaking the link.`);
     }
 
-    copyToClipboard(url);
-    showShareSuccess();
-
+    if (success) {
+        showShareSuccess();
+    } else {
+        alert("Failed to copy link to clipboard. Please copy manually:\n\n" + url);
+    }
 });
 
 function loadTemplateFiles() {
