@@ -47,9 +47,9 @@ pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
                     // </form>
                     <div class="top-bar-right">
                         <nav class="top-bar-nav">
-                            <a link="/learn" href="/learn" class="top-bar-link">Learn</a>
-                            <a link="/docs" href="/docs" class="top-bar-link"><span class="top-bar-link-full">Reference</span><span class="top-bar-link-short">Ref</span></a>
-                            <a href={root.configs.example_url} class="top-bar-link">Examples</a>
+                            <a link={root.configs.ssg_url ++ "/learn"} href={root.configs.ssg_url ++ "/learn"} class="top-bar-link">Learn</a>
+                            <a link={root.configs.ssg_url ++ "/docs"} href={root.configs.ssg_url ++ "/docs"} class="top-bar-link"><span class="top-bar-link-full">Reference</span><span class="top-bar-link-short">Ref</span></a>
+                            <a href={root.configs.ssg_url ++ "/examples"} class="top-bar-link">Examples</a>
                         </nav>
                         <div class="top-bar-actions">
                             <a href="/r/discord" target="_blank" rel="noopener noreferrer" class="top-bar-icon" aria-label="Discord" title="ZX Discord">

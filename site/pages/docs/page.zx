@@ -260,7 +260,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const html_page_dynamic = @import("../examples/dynamic_route.zig").UserProfile(ctx);
     html_page_dynamic.render(&aw_dynamic.writer) catch unreachable;
     const html_example_dynamic = allocator.dupe(u8, aw_dynamic.written()) catch unreachable;
-    
+
     // API and WebSocket examples
     const zig_api_route = @embedFile("../examples/api-route/route.zig");
     const zig_websocket_route = @embedFile("../examples/api-route/ws/route.zig");
@@ -593,7 +593,7 @@ fn APIAndWebSockets(allocator: zx.Allocator, props: APIAndWebSocketsProps) zx.Co
             <h4 id="socket-context">SocketContext</h4>
             <p>Message handlers receive a <code>zx.SocketContext</code> (or others like <code>SocketOpenContext</code>):</p>
             <CodeBlock code={socket_ctx_example} />
-            
+
             <h4 id="pub-sub">Pub/Sub and Broadcasting</h4>
             <p>The <code>ctx.socket</code> interface provides a powerful pub/sub system for broadcasting messages to multiple clients:</p>
             <ul>
@@ -607,23 +607,29 @@ fn APIAndWebSockets(allocator: zx.Allocator, props: APIAndWebSocketsProps) zx.Co
 
 fn PluginsSection(allocator: zx.Allocator) zx.Component {
     // Embedded snippet files for plugin examples
-    const plugin_examples = @embedFile("../../assets/snippets/plugin_examples.zig");
-    const zx_init_options = @embedFile("../../assets/snippets/ZxInitOptions.zig");
+    // const plugin_examples = @embedFile("../../assets/snippets/plugin_examples.zig");
+    // const zx_init_options = @embedFile("../../assets/snippets/ZxInitOptions.zig");
+
+    const tailwind_full_example = @embedFile("../learn/examples/tailwind_plugin.zig");
+    const esbuild_full_example = @embedFile("../learn/examples/esbuild_plugin.zig");
 
     // Extract specific line ranges from the embedded snippets
-    const tailwind_full_example = util.extractLines(allocator, plugin_examples, &.{.{ 2, 29 }});
-    const esbuild_full_example = util.extractLines(allocator, plugin_examples, &.{.{ 32, 56 }});
-    const combined_example = util.extractLines(allocator, plugin_examples, &.{.{ 59, 70 }});
-    const custom_plugin_example = util.extractLines(allocator, plugin_examples, &.{.{ 73, 107 }});
-    const plugin_options_struct = util.extractLines(allocator, zx_init_options, &.{.{ 79, 107 }});
+    // const tailwind_full_example = util.extractLines(allocator, plugin_examples, &.{.{ 2, 29 }});
+    // const esbuild_full_example = util.extractLines(allocator, plugin_examples, &.{.{ 32, 56 }});
+    // const combined_example = util.extractLines(allocator, plugin_examples, &.{.{ 59, 70 }});
+    // const custom_plugin_example = util.extractLines(allocator, plugin_examples, &.{.{ 73, 107 }});
+    // const plugin_options_struct = util.extractLines(allocator, zx_init_options, &.{.{ 79, 107 }});
 
     return (
         <section id="plugins" class="section" @allocator={allocator}>
             <h2>Plugins</h2>
-            <p>ZX provides a plugin system to extend the build process with additional tools. Plugins run as build steps and integrate seamlessly with <code>zig build</code>.</p>
 
+               <div class="callout note">
+                <strong>Note: </strong>Plugin system is still experimental and subject to change.
+            </div>
+            <p>ZX provides a plugin system to extend the build process with additional tools. Plugins run as build steps and integrate seamlessly with <code>zig build</code>.</p>
             <h3 id="plugin-overview">Overview</h3>
-            <p>Plugins are configured in your <code>build.zig</code> file and passed to <code>zx.init()</code>. Each plugin adds build steps that run before or after ZX transpilation, allowing you to process CSS, bundle JavaScript, or run other tools.</p>
+            <p>Plugins are configured in your <code>build.zig</code> file via <code>zx_build.addPlugin</code>. Each plugin adds build steps that run before or after ZX transpilation, allowing you to process CSS, bundle JavaScript, or run other tools.</p>
             <p>ZX provides <strong>builtin plugins</strong> for common tasks, and you can also <strong>create custom plugins</strong> for your specific needs.</p>
 
             <h3 id="builtin-plugins">Builtin Plugins</h3>
@@ -795,20 +801,20 @@ fn PluginsSection(allocator: zx.Allocator) zx.Component {
             <h4>Example</h4>
             <CodeBlock code={esbuild_full_example} filename="build.zig" />
 
-            <h3 id="combining-plugins">Combining Plugins</h3>
-            <p>You can use multiple plugins together. They run in order after ZX transpilation:</p>
-            <CodeBlock code={combined_example} filename="build.zig" />
+            // <h3 id="combining-plugins">Combining Plugins</h3>
+            // <p>You can use multiple plugins together. They run in order after ZX transpilation:</p>
+            // <CodeBlock code={combined_example} filename="build.zig" />
 
-            <h3 id="custom-plugins">Creating Custom Plugins</h3>
-            <p>You can create your own plugins by returning a <code>zx.ZxInitOptions.PluginOptions</code> struct. This allows you to integrate any command-line tool into the ZX build process.</p>
+            // <h3 id="custom-plugins">Creating Custom Plugins</h3>
+            // <p>You can create your own plugins by returning a <code>zx.ZxInitOptions.PluginOptions</code> struct. This allows you to integrate any command-line tool into the ZX build process.</p>
 
-            <h4>Plugin Structure</h4>
-            <p>A plugin consists of a name and a list of steps. Each step specifies when to run (before or after transpilation) and what command to execute:</p>
-            <CodeBlock code={plugin_options_struct} />
+            // <h4>Plugin Structure</h4>
+            // <p>A plugin consists of a name and a list of steps. Each step specifies when to run (before or after transpilation) and what command to execute:</p>
+            // <CodeBlock code={plugin_options_struct} />
 
-            <h4>Example: Custom Image Optimizer Plugin</h4>
-            <p>Here's how to create a custom plugin that optimizes images during the build:</p>
-            <CodeBlock code={custom_plugin_example} filename="build.zig" />
+            // <h4>Example: Custom Image Optimizer Plugin</h4>
+            // <p>Here's how to create a custom plugin that optimizes images during the build:</p>
+            // <CodeBlock code={custom_plugin_example} filename="build.zig" />
 
             <h4>Plugin Lifecycle</h4>
             <ul>
@@ -983,7 +989,7 @@ fn CachingSection(allocator: zx.Allocator) zx.Component {
             </ul>
 
             <div class="callout tip">
-                <strong>Performance tip:</strong> Component caching is most effective for expensive-to-render components with stable output, such as markdown content, syntax-highlighted code blocks, or complex nested structures.
+                <strong>Performance tip:</strong> Component caching is most effective for expensive-to-render components with stable output.
             </div>
         </section>
     );
