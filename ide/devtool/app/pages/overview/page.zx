@@ -1,7 +1,18 @@
+fn countComponents(items: []const data.Component) comptime_int {
+    var total: comptime_int = 0;
+    for (items) |c| {
+        total += 1 + countComponents(c.children);
+    }
+    return total;
+}
+
+const component_count_label = std.fmt.comptimePrint("{d} components", .{countComponents(&data.components)});
+const route_count_label = std.fmt.comptimePrint("{d} Routes", .{data.routes.len});
+
 const features = [_]Feature{
-    .{ .icon_fn = icons.Lightning, .title = data.version, .link = "overview" },
-    .{ .icon_fn = icons.Hive, .title = data.component_count_label, .link = "/" },
-    .{ .icon_fn = icons.Workflow, .title = data.route_count_label, .link = "routes" },
+    .{ .icon_fn = icons.Lightning, .title = data.meta.version, .link = "overview" },
+    .{ .icon_fn = icons.Hive, .title = component_count_label, .link = "/" },
+    .{ .icon_fn = icons.Workflow, .title = route_count_label, .link = "routes" },
 };
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
@@ -19,7 +30,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     </p>
                     <p class="hero-description">
                         Developer Tools for Ziex Framework
-                        <code class="version-badge">{data.version}</code>
+                        <code class="version-badge">{data.meta.version}</code>
                     </p>
 
                     <div class="features-grid">
@@ -54,6 +65,7 @@ fn FeatureCard(allocator: zx.Allocator, props: Feature) zx.Component {
     );
 }
 
+const std = @import("std");
 const zx = @import("zx");
 const icons = @import("../components/icons.zx");
 const data = @import("../data.zig");

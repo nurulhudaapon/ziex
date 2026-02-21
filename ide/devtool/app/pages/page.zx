@@ -1,32 +1,7 @@
 const components = data.components;
-const setup_items = data.setup_items;
-const setup_other_items = data.setup_other_items;
-const template_refs_items = data.template_refs_items;
-
-
-var inputvalue: []const u8 = "hello";
-var inputvalue2= zx.Signal([]const u8).init("hello2");
-
-const ComponentSearchInputProps = struct {  };
-pub fn ComponentSearchInput(
-    ctx: *zx.ComponentCtx(ComponentSearchInputProps),
-) zx.Component {
-    return (
-        <div @allocator={ctx.allocator} class="search-input-wrapper">
-            <input @allocator={ctx.allocator} oninput={handleComponentSearchInput} type="text" placeholder="Find components..." class="search-input" />
-
-            // <h1>{inputvalue}</h1>
-            // <h1>{&inputvalue2}</h1>
-        </div>
-    );
-}
-
-pub fn handleComponentSearchInput(ctx: zx.EventContext) void {
-    std.log.info("Component search input changed: {s}", .{ctx.value() orelse ""});
-    inputvalue = ctx.value() orelse "";
-    inputvalue2.set(inputvalue);
-    // zx.requestRender();
-}
+const setup_items = data.meta.setup_items;
+const setup_other_items = data.meta.setup_other_items;
+const template_refs_items = data.meta.template_refs_items;
 
 
 var inputvalue: []const u8 = "hello";
@@ -101,17 +76,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     );
 }
 
-<<<<<<< HEAD
 const Component = data.Component;
-=======
-const Component = struct {
-    name: []const u8,
-    has_children: bool,
-    children: []const Component,
-    selected: bool = false,
-    badge: []const u8 = "",
-};
->>>>>>> upstream/main
 const ComponentItemProps = struct { name: []const u8, has_children: bool, children: []const Component, depth: usize = 0, selected: bool = false, badge: []const u8 = "" };
 
 fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Component {
@@ -151,16 +116,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
     );
 }
 
-<<<<<<< HEAD
 const StateItem = data.StateItem;
-=======
-const StateItem = struct {
-    key: []const u8,
-    value: []const u8,
-    meta: []const u8,
-    children: []const StateItem = &[_]StateItem{},
-};
->>>>>>> upstream/main
 fn StateSection(allocator: zx.Allocator, props: struct { title: []const u8, items: []const StateItem }) zx.Component {
     const id = std.fmt.allocPrint(allocator, "state-section-{s}", .{props.title}) catch "";
     return (
