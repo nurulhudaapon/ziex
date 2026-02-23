@@ -158,7 +158,7 @@ const zx = @import("zx");
 
 #### Editor Support
 
-- ##### [VSCode](https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx)/[VSCode Forks](https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx) Extension
+- ##### [VSCode](https://marketplace.visualstudio.com/items?itemName=ziex.ziex)/[VSCode Forks](https://open-vsx.org/extension/ziex/ziex) Extension
 - ##### [Neovim](/ide/neovim/)
 - ##### [Helix](/ide/helix/)
 - ##### [Zed](/ide/zed/)
@@ -201,8 +201,7 @@ const zx = @import("zx");
 
 * [Codeberg Mirror](https://codeberg.org/nurulhudaapon/ziex) - ZX repository mirror on Codeberg
 * [ziex.dev](https://github.com/nurulhudaapon/ziex/tree/main/site) - Official documentation site of ZX made using ZX.
-* [zx-example-portfolio](https://github.com/nurulhudaapon/zx-example-portfolio) - Demo portfolio web application built with ZX
-* [thegates.dev](https://github.com/nurulhudaapon/thegates.dev) - Example clone demonstrating ZX capabilities
+* [example-blog](https://github.com/ziex-dev/example-blog) - Demo blog web application built with ZX
 * [zx-numbers-game](https://github.com/Andrew-Velox/zx-numbers-game) - ZX numbers game
 
 ## Contributing

@@ -64,18 +64,17 @@ export function activate(context: ExtensionContext) {
   const serverCommand = getZLSPath(context);
 
   if (!serverCommand) {
-    window.showErrorMessage("Failed to start ZX Language Server: ZLS not found");
+    window.showErrorMessage("Failed to start Ziex Language Server: ZLS not found");
     return;
   }
 
   const serverOptions: ServerOptions = { command: serverCommand };
-  const outputChannel = window.createOutputChannel("ZX Language Server", { log: true });
+  const outputChannel = window.createOutputChannel("Ziex Language Server", { log: true });
   const workspaceRoot = workspace.workspaceFolders?.[0]?.uri.fsPath || "";
 
   const clientOptions: LanguageClientOptions = {
     documentSelector: [
       { scheme: "file", language: "zx" },
-      { scheme: "file", language: "zig" },
       { scheme: ZX_VIRTUAL_SCHEME, language: "zig" },
     ],
     traceOutputChannel: outputChannel,
@@ -175,7 +174,7 @@ export function activate(context: ExtensionContext) {
     },
   };
 
-  client = new LanguageClient("zx-language-server", "ZX Language Server", serverOptions, clientOptions);
+  client = new LanguageClient("zx-language-server", "Ziex Language Server", serverOptions, clientOptions);
   client.start();
 
   registerHtmlAutoCompletion(context, "zx");
@@ -230,7 +229,7 @@ async function showZxInstallationError(): Promise<void> {
       : "curl -fsSL https://ziex.dev/install | bash";
 
   const selection = await window.showErrorMessage(
-    "ZX CLI not found. Please install it to use code formatting.",
+    "Ziex CLI not found. Please install it to use code formatting.",
     "Install Now",
     "Copy Installation Script"
   );
@@ -239,7 +238,7 @@ async function showZxInstallationError(): Promise<void> {
     await vscode.env.clipboard.writeText(installCommand);
     window.showInformationMessage("Installation command copied to clipboard!");
   } else if (selection === "Install Now") {
-    const terminal = window.createTerminal("ZX CLI Installation");
+    const terminal = window.createTerminal("Ziex CLI Installation");
     terminal.sendText(installCommand);
     terminal.show();
   }
@@ -308,7 +307,7 @@ async function formatWithZxCli(
       await showZxInstallationError();
     } else {
       const commandStr = useZigBuild ? "zig build zx -- fmt" : "zx fmt";
-      window.showErrorMessage(`ZX: failed to format using '${commandStr}': ${message}`);
+      window.showErrorMessage(`Ziex: failed to format using '${commandStr}': ${message}`);
     }
 
     return null;

@@ -313,10 +313,10 @@ fn EditorSetup(allocator: zx.Allocator) zx.Component {
                 <p>Install the official ZX extension for the best development experience.</p>
                 <p>Install from:</p>
                 <ul>
-                    <li><a href="https://marketplace.visualstudio.com/items?itemName=nurulhudaapon.zx" target="_blank" rel="noopener noreferrer">VS Code Marketplace</a></li>
-                    <li><a href="https://open-vsx.org/extension/nurulhudaapon/zx" target="_blank" rel="noopener noreferrer">Open VSX Registry</a> (for Cursor and other forks)</li>
+                    <li><a href="https://marketplace.visualstudio.com/items?itemName=ziex.ziex" target="_blank" rel="noopener noreferrer">VS Code Marketplace</a></li>
+                    <li><a href="https://open-vsx.org/extension/ziex/ziex" target="_blank" rel="noopener noreferrer">Open VSX Registry</a> (for Cursor and other forks)</li>
                 </ul>
-                <p>Or from command palette: <code>ext install nurulhudaapon.zx</code></p>
+                <p>Or from command palette: <code>ext install ziex.ziex</code></p>
                 <p><strong>Features:</strong> Syntax highlighting, IntelliSense, error diagnostics, bracket matching, and code folding.</p>
             </section>
 
