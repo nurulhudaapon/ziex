@@ -49,7 +49,7 @@ pub fn EditorPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
                 <button class="pg-tab pg-tab--active" data-file="page.zx" id="pg-tab-0">
                     <span class="pg-tab-icon type-zx"><AllFileIcons /></span>
                     Playground.zx
-                    <span class="pg-tab-close" aria-label="Close tab">×</span>
+                    <span class="pg-tab-close" aria-label="Close tab" style="opacity: 0.3; pointer-events: none;">×</span>
                 </button>
                 <button class="pg-tab" data-file="style.css" id="pg-tab-2">
                     <span class="pg-tab-icon type-css"><AllFileIcons /></span>

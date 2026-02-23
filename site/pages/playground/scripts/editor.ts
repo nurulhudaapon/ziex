@@ -243,13 +243,24 @@ function removeFile(index: number) {
         alert("This file is locked and cannot be deleted.");
         return;
     }
+
+    const removedFileWasActive = (index === activeFileIndex);
     fileManager.removeFile(files[index].name);
     files.splice(index, 1);
-    if (activeFileIndex >= files.length) {
-        activeFileIndex = files.length - 1;
+
+    if (removedFileWasActive) {
+        activeFileIndex = -1;
+        let nextIndex = index;
+        if (nextIndex >= files.length) {
+            nextIndex = files.length - 1;
+        }
+        switchFile(nextIndex);
+    } else {
+        if (index < activeFileIndex) {
+            activeFileIndex--;
+        }
+        updateTabs();
     }
-    switchFile(activeFileIndex);
-    updateTabs();
 }
 
 function renameFile(index: number) {

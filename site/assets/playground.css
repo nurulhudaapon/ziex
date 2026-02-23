@@ -198,10 +198,11 @@ body {
 
 /* ─── CodeMirror line numbers / gutter overrides ─── */
 .cm-editor .cm-gutters {
-    background: transparent;
+    background: var(--zx-code-bg);
     color: rgba(255, 255, 255, 0.18);
     border-right: 1px solid rgba(255, 255, 255, 0.06);
     font-variant-numeric: tabular-nums;
+    z-index: 10;
 }
 
 .cm-editor .cm-gutter {
@@ -378,7 +379,7 @@ body {
 /* ─── Code Area ─── */
 .pg-code {
     flex: 1;
-    overflow: auto;
+    overflow: hidden;
     background: linear-gradient(180deg, rgba(13, 16, 22, 0.98) 0%, rgba(10, 13, 18, 1) 100%);
     position: relative;
 }

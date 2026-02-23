@@ -658,6 +658,7 @@ class LspPlugin implements PluginValue {
         if (params.uri !== this.documentUri) return;
 
         const diagnostics = params.diagnostics
+            .filter(d => d.message !== "expected expression, found '<'")
             .map(({ range, message, severity }) => ({
                 from: posToOffset(this.view.state.doc, range.start)!,
                 to: posToOffset(this.view.state.doc, range.end)!,
@@ -720,11 +721,11 @@ function formatContents(
     return renderMarkdown(result);
 }
 
-function renderMarkdown(md) {
+function renderMarkdown(md: string) {
     // Escape HTML
-    md = md.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    md = md.replace(/[&<>]/g, (c: string) => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c as '&' | '<' | '>']));
     // Code blocks (```...```) - render as <code> with line breaks, not <pre>
-    md = md.replace(/```([\s\S]*?)```/g, (m, code) => `<code>${code.replace(/\n/g,'<br>')}</code>`);
+    md = md.replace(/```(?:(\w+)\n)?([\s\S]*?)```/g, (_m: string, _lang: string | undefined, code: string) => `<code>${code.replace(/\n/g,'<br>')}</code>`);
     // Inline code (`...`)
     md = md.replace(/`([^`]+)`/g, '<code>$1</code>');
     // Bold (**...** or __...__)
