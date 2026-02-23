@@ -91,16 +91,16 @@ function createEditorState(filename: string, content: string) {
         editorHighlightStyle,
         indentUnit.of("    "),
         keymap.of([indentWithTab]),
-        // Always use // for Cmd+/ line comments regardless of language (HTML would default to <!-- -->)
-        Prec.highest(EditorState.languageData.of(() => [{ commentTokens: { line: "//" } }])),
     ];
 
     if (filename.endsWith('.zig') || filename.endsWith('.zx') || filename.endsWith('.zon')) {
         extensions.push(client.createPlugin(`file:///${filename}`, "zig", true));
     }
 
-    // Add HTML highlighting for .zx files
     if (filename.endsWith(".zx") || filename.endsWith(".html")) {
+        if (filename.endsWith(".zx")) {
+            extensions.push(Prec.highest(EditorState.languageData.of(() => [{ commentTokens: { line: "//" } }])));
+        }
         extensions.push(html());
     } else if (filename.endsWith(".css")) {
         extensions.push(css());
@@ -489,7 +489,7 @@ function setRunButtonLoading(loading: boolean) {
     } else {
         btn.classList.remove("pg-nav-btn--loading");
         btn.removeAttribute("disabled");
-        btn.innerHTML = '▶ Run';
+        btn.innerHTML = 'Run';
     }
 }
 
@@ -501,7 +501,7 @@ function resetPreviewPlaceholder() {
     placeholder.className = "pg-browser-placeholder";
     const icon = document.createElement("div");
     icon.className = "pg-browser-placeholder-icon";
-    icon.textContent = "🌐";
+    icon.textContent = "";
     placeholder.appendChild(icon);
     placeholder.appendChild(document.createTextNode("Press Run to see preview"));
     viewport.appendChild(placeholder);
@@ -518,199 +518,281 @@ function updatePreviewStatus(emoji: string, label: string, stepId: string) {
     if (textEl) textEl.textContent = label;
 }
 
+// ─── Content hash (fast djb2 variant) ───────────────────────────────────────
+function hashFiles(map: { [name: string]: string }): string {
+    const s = JSON.stringify(Object.entries(map).sort(([a], [b]) => a.localeCompare(b)));
+    let h = 5381;
+    for (let i = 0; i < s.length; i++) h = Math.imul(h, 33) ^ s.charCodeAt(i);
+    return (h >>> 0).toString(36);
+}
 
+// ─── In-memory LRU caches (max 8 entries each) ──────────────────────────────
+const MAX_CACHE = 8;
+function cachePut<V>(cache: Map<string, V>, key: string, value: V) {
+    if (cache.size >= MAX_CACHE) cache.delete(cache.keys().next().value!);
+    cache.set(key, value);
+}
+
+interface CacheEntry<V> {
+    value: V;
+    duration: number;
+    isPrefetch: boolean;
+}
+
+const transpileCache = new Map<string, CacheEntry<{ [name: string]: string }>>();
+const buildCache = new Map<string, CacheEntry<unknown>>();
+
+// ─── Promisified transpile ───────────────────────────────────────────────────
 let transpile_start_time: number | null = null;
-zxWorker.onmessage = (ev: MessageEvent) => {
-    console.info("Transpiled finished in", (performance.now() - transpile_start_time!).toFixed(2), "ms");
-    console.debug("ZX Worker ->>", ev.data);
-}
-
-zigWorker.onmessage = (ev: MessageEvent) => {
-    console.info("Build finished in", (performance.now() - build_start_time).toFixed(2), "ms");
-
-    if (ev.data.stderr) {
-        completeStatusStep('build', 'error');
-        const lines = ev.data.stderr.split('\n').filter((l: string) => l.length > 0);
-        for (const l of lines) {
-            appendTerminalLine(l, "pg-terminal-error");
+function transpileZxFileAsync(zxName: string, zxContent: string): Promise<{ [filename: string]: string }> {
+    return new Promise((resolve, reject) => {
+        function handler(ev: MessageEvent) {
+            const d = ev.data;
+            if (d && d.filename && d.transpiled) {
+                zxWorker.removeEventListener('message', handler);
+                resolve({ [d.filename]: d.transpiled });
+            } else if (d && d.failed) {
+                zxWorker.removeEventListener('message', handler);
+                reject({ stderr: d.stderr || 'Transpile failed' });
+            } else if (d && d.stdout) {
+                zxWorker.removeEventListener('message', handler);
+                resolve({ [zxName.replace(/\.zx$/, '.zig')]: d.stdout });
+            }
         }
-        setTerminalCollapsed(false);
-        revealOutputWindow();
-        setRunButtonLoading(false);
-        resetPreviewPlaceholder();
-        return;
-    } else if (ev.data.failed) {
-        completeStatusStep('build', 'error');
-        appendTerminalLine("Compilation failed.", "pg-terminal-error");
-        setTerminalCollapsed(false);
-        revealOutputWindow();
-        setRunButtonLoading(false);
-        resetPreviewPlaceholder();
-    } else if (ev.data.compiled) {
-        completeStatusStep('build', 'done');
-        appendStatusStep('run', 'Running…');
-        updatePreviewStatus('▶', 'Running…', 'run');
-        let runnerWorker = new Worker('/assets/playground/workers/runner.js');
-        runnerWorker.postMessage({ run: ev.data.compiled });
-        runnerWorker.onmessage = (rev: MessageEvent) => {
-            if (rev.data.stderr) {
-                completeStatusStep('run', 'error');
-                const lines = rev.data.stderr.split('\n').filter((l: string) => l.length > 0);
-                for (const l of lines) {
-                    appendTerminalLine(l, "pg-terminal-error");
-                }
-                setTerminalCollapsed(false);
-                revealOutputWindow();
-                setRunButtonLoading(false);
-                resetPreviewPlaceholder();
-                return;
-            }
-            if (rev.data.preview) {
-                const viewport = document.getElementById("pg-browser-viewport")!;
-                let iframe = viewport.querySelector("iframe") as HTMLIFrameElement;
-                if (!iframe) {
-                    viewport.innerHTML = "";
-                    iframe = document.createElement("iframe");
-                    iframe.style.width = "100%";
-                    iframe.style.height = "100%";
-                    iframe.style.border = "none";
-                    iframe.style.backgroundColor = "white";
-                    viewport.appendChild(iframe);
-                    iframe.contentDocument?.open();
-                }
-                iframe.contentDocument?.write(rev.data.preview);
-                return;
-            }
-            if (rev.data.done) {
-                completeStatusStep('run', 'done');
-                const viewport = document.getElementById("pg-browser-viewport")!;
-                const iframe = viewport.querySelector("iframe") as HTMLIFrameElement;
-                if (iframe) {
-                    iframe.contentDocument?.close();
-                }
-                runnerWorker.terminate();
-                setRunButtonLoading(false);
-            }
-        };
-    }
+        zxWorker.addEventListener('message', handler);
+        transpile_start_time = performance.now();
+        zxWorker.postMessage({ filename: zxName, content: zxContent });
+    });
 }
 
-
+// ─── Promisified build ───────────────────────────────────────────────────────
 let build_start_time = performance.now();
+function buildFilesAsync(filesMap: { [name: string]: string }): Promise<unknown> {
+    return new Promise((resolve, reject) => {
+        function handler(ev: MessageEvent) {
+            zigWorker.removeEventListener('message', handler);
+            const d = ev.data;
+            console.info('Build finished in', (performance.now() - build_start_time).toFixed(2), 'ms');
+            if (d.stderr)        reject({ type: 'stderr', stderr: d.stderr });
+            else if (d.failed)   reject({ type: 'failed' });
+            else if (d.compiled) resolve(d.compiled);
+        }
+        zigWorker.addEventListener('message', handler);
+        build_start_time = performance.now();
+        zigWorker.postMessage({ files: filesMap });
+    });
+}
 
+// ─── Run compiled binary ─────────────────────────────────────────────────────
+function runCompiled(compiled: unknown) {
+    appendStatusStep('run', 'Running\u2026');
+    updatePreviewStatus('', 'Running\u2026', 'run');
+
+    const runnerWorker = new Worker('/assets/playground/workers/runner.js');
+    runnerWorker.postMessage({ run: compiled });
+    runnerWorker.onmessage = (rev: MessageEvent) => {
+        if (rev.data.stderr) {
+            completeStatusStep('run', 'error');
+            const lines = rev.data.stderr.split('\n').filter((l: string) => l.length > 0);
+            for (const l of lines) appendTerminalLine(l, 'pg-terminal-error');
+            setTerminalCollapsed(false);
+            revealOutputWindow();
+            setRunButtonLoading(false);
+            resetPreviewPlaceholder();
+            return;
+        }
+        if (rev.data.preview) {
+            const vp = document.getElementById('pg-browser-viewport')!;
+            let iframe = vp.querySelector('iframe') as HTMLIFrameElement;
+            if (!iframe) {
+                vp.innerHTML = '';
+                iframe = document.createElement('iframe');
+                iframe.style.cssText = 'width:100%;height:100%;border:none;background-color:white';
+                vp.appendChild(iframe);
+                iframe.contentDocument?.open();
+            }
+            iframe.contentDocument?.write(rev.data.preview);
+            return;
+        }
+        if (rev.data.done) {
+            completeStatusStep('run', 'done');
+            const iframe = document.getElementById('pg-browser-viewport')!.querySelector('iframe') as HTMLIFrameElement;
+            if (iframe) iframe.contentDocument?.close();
+            runnerWorker.terminate();
+            setRunButtonLoading(false);
+        }
+    };
+}
+
+// ─── getCurrentFilesMap ──────────────────────────────────────────────────────
 function getCurrentFilesMap(): { [filename: string]: string } {
     if (activeFileIndex !== -1 && editorView) {
         fileManager.updateContent(files[activeFileIndex].name, editorView.state.doc.toString());
     }
-    const filesMap: { [filename: string]: string } = {};
+    const map: { [filename: string]: string } = {};
     fileManager.getAllFiles().forEach(f => {
-        const fileObj = files.find(file => file.name === f.name);
-        if (fileObj && fileObj.hidden) return;
-        filesMap[f.name] = f.content;
+        if (!files.find(x => x.name === f.name)?.hidden) map[f.name] = f.content;
     });
-    return filesMap;
+    return map;
 }
 
-const outputsRun = document.getElementById("pg-run-btn")! as HTMLButtonElement;
-outputsRun.addEventListener("click", async () => {
-    setRunButtonLoading(true);
-    clearTerminal();
-
-    const viewport = document.getElementById("pg-browser-viewport")!;
-    while (viewport.firstChild) viewport.removeChild(viewport.firstChild);
-    const placeholder = document.createElement("div");
-    placeholder.className = "pg-browser-placeholder pg-browser-placeholder--building";
-    const icon = document.createElement("div");
-    icon.className = "pg-browser-placeholder-icon";
-    icon.id = "pg-preview-step-icon";
-    icon.dataset.step = "build";
-    icon.textContent = "⚡";
-    placeholder.appendChild(icon);
-    const labelSpan = document.createElement("span");
-    labelSpan.id = "pg-preview-step-label";
-    labelSpan.textContent = "Transpiling…";
-    placeholder.appendChild(labelSpan);
-    viewport.appendChild(placeholder);
-
+// ─── Core pipeline (shared by Run click + silent prefetch) ───────────────────
+async function runTranspileAndBuild(visible: boolean): Promise<unknown | null> {
     let filesMap = getCurrentFilesMap();
-    if (!filesMap["main.zig"]) {
-        filesMap["main.zig"] = zigMainSource;
-    }
-    const zxFiles = Object.entries(filesMap).filter(([name]) => name.endsWith('.zx'));
-    let transpiledZigFiles: { [filename: string]: string } = {};
+    if (!filesMap['main.zig']) filesMap['main.zig'] = zigMainSource;
 
-    // Helper to transpile a single .zx file and return a Promise
-    function transpileZxFile(zxName: string, zxContent: string): Promise<{ [filename: string]: string }> {
-        return new Promise((resolve, reject) => {
-            const handler = (ev: MessageEvent) => {
-                console.log('[DEBUG] zxWorker message:', ev.data);
-                if (ev.data && ev.data.filename && ev.data.transpiled) {
-                    zxWorker.removeEventListener('message', handler);
-                    resolve({ [ev.data.filename]: ev.data.transpiled });
-                } else if (ev.data && ev.data.failed) {
-                    zxWorker.removeEventListener('message', handler);
+    const zxEntries = Object.entries(filesMap).filter(([n]) => n.endsWith('.zx'));
+
+    // ── Transpile ────────────────────────────────────────────────────────────
+    const zxHash = hashFiles(Object.fromEntries(zxEntries));
+    let transpiledFiles: { [name: string]: string } = {};
+
+    if (zxEntries.length > 0) {
+        const hit = transpileCache.get(zxHash);
+        if (hit) {
+            transpiledFiles = hit.value;
+            if (visible) {
+                appendStatusStep('transpile', 'Transpiling\u2026');
+                if (hit.isPrefetch) {
+                    completeStatusStep('transpile', 'prefetched', hit.duration);
+                    hit.isPrefetch = false; // Next run will just be 'cached'
+                } else {
+                    completeStatusStep('transpile', 'cached');
+                }
+                updatePreviewStatus('', 'Transpiling\u2026 (cached)', 'transpile');
+            }
+        } else {
+            if (visible) {
+                appendStatusStep('transpile', 'Transpiling\u2026');
+                updatePreviewStatus('', 'Transpiling\u2026', 'transpile');
+            }
+            const start = performance.now();
+            try {
+                for (const [name, content] of zxEntries) {
+                    const result = await transpileZxFileAsync(name, content);
+                    Object.assign(transpiledFiles, result);
+                }
+                const duration = performance.now() - start;
+                cachePut(transpileCache, zxHash, { value: { ...transpiledFiles }, duration, isPrefetch: !visible });
+                if (visible) completeStatusStep('transpile', 'done');
+            } catch (err: any) {
+                if (visible) {
                     completeStatusStep('transpile', 'error');
-                    appendTerminalLine(ev.data.stderr || "Transpile failed", "pg-terminal-error");
+                    appendTerminalLine(err.stderr || 'Transpile failed', 'pg-terminal-error');
                     setTerminalCollapsed(false);
                     revealOutputWindow();
-                    setRunButtonLoading(false);
                     resetPreviewPlaceholder();
-                    reject(ev.data.stderr);
-                } else if (ev.data && ev.data.stdout) {
-                    zxWorker.removeEventListener('message', handler);
-                    const zigName = zxName.replace(/\.zx$/, ".zig");
-                    console.log('[DEBUG] Treating stdout as transpiled .zig for', zigName);
-                    resolve({ [zigName]: ev.data.stdout });
+                    setRunButtonLoading(false);
                 }
-            };
-
-            zxWorker.addEventListener('message', handler);
-            console.log('[DEBUG] Posting to zxWorker:', zxName);
-            transpile_start_time = performance.now();
-            zxWorker.postMessage({ filename: zxName, content: zxContent });
-        });
-    }
-
-    if (zxFiles.length > 0) {
-        appendStatusStep('transpile', 'Transpiling…');
-        updatePreviewStatus('⚡', 'Transpiling…', 'transpile');
-    } else {
-        updatePreviewStatus('⚙', 'Building…', 'build');
-    }
-
-    for (const [zxName, zxContent] of zxFiles) {
-        console.log('[DEBUG] Transpiling', zxName);
-        try {
-            transpiledZigFiles = await transpileZxFile(zxName, zxContent);
-            console.log('[DEBUG] Transpiled result:', transpiledZigFiles);
-            Object.assign(filesMap, transpiledZigFiles);
-            const zigName = Object.keys(transpiledZigFiles)[0];
-            const zigContent = transpiledZigFiles[zigName];
-            if (fileManager.hasFile(zigName)) {
-                fileManager.updateContent(zigName, zigContent);
-                let zigFile = files.find(f => f.name === zigName);
-                if (zigFile) {
-                    zigFile.state = createEditorState(zigName, zigContent);
-                    zigFile.hidden = true;
-                }
-            } else {
-                fileManager.addFile(zigName, zigContent);
-                files.push({ name: zigName, state: createEditorState(zigName, zigContent), hidden: true });
+                return null;
             }
-        } catch (err) {
-            console.error('[DEBUG] Transpile error:', err);
-            return;
+        }
+    } else if (visible) {
+        updatePreviewStatus('', 'Building\u2026', 'build');
+    }
+
+    // Merge transpiled zig files into filesMap + file manager
+    for (const [zigName, zigContent] of Object.entries(transpiledFiles)) {
+        filesMap[zigName] = zigContent;
+        if (fileManager.hasFile(zigName)) {
+            fileManager.updateContent(zigName, zigContent);
+            const f = files.find(x => x.name === zigName);
+            if (f) { f.state = createEditorState(zigName, zigContent); f.hidden = true; }
+        } else {
+            fileManager.addFile(zigName, zigContent);
+            files.push({ name: zigName, state: createEditorState(zigName, zigContent), hidden: true });
         }
     }
 
-    if (zxFiles.length > 0) {
-        completeStatusStep('transpile', 'done');
+    // ── Build ─────────────────────────────────────────────────────────────────
+    const buildKey = hashFiles(filesMap);
+    const buildHit = buildCache.get(buildKey);
+    if (buildHit) {
+        if (visible) {
+            appendStatusStep('build', 'Building\u2026');
+            if (buildHit.isPrefetch) {
+                completeStatusStep('build', 'prefetched', buildHit.duration);
+                buildHit.isPrefetch = false;
+            } else {
+                completeStatusStep('build', 'cached');
+            }
+            updatePreviewStatus('', 'Building\u2026 (cached)', 'build');
+        }
+        return buildHit.value;
     }
 
-    appendStatusStep('build', 'Building…');
-    updatePreviewStatus('⚙', 'Building…', 'build');
+    if (visible) {
+        appendStatusStep('build', 'Building\u2026');
+        updatePreviewStatus('', 'Building\u2026', 'build');
+    }
+    const bStart = performance.now();
+    try {
+        const compiled = await buildFilesAsync(filesMap);
+        const bDuration = performance.now() - bStart;
+        cachePut(buildCache, buildKey, { value: compiled, duration: bDuration, isPrefetch: !visible });
+        if (visible) completeStatusStep('build', 'done');
+        return compiled;
+    } catch (err: any) {
+        if (visible) {
+            completeStatusStep('build', 'error');
+            if (err.stderr) {
+                const lines = err.stderr.split('\n').filter((l: string) => l.length > 0);
+                for (const l of lines) appendTerminalLine(l, 'pg-terminal-error');
+            } else {
+                appendTerminalLine('Compilation failed.', 'pg-terminal-error');
+            }
+            setTerminalCollapsed(false);
+            revealOutputWindow();
+            resetPreviewPlaceholder();
+            setRunButtonLoading(false);
+        }
+        return null;
+    }
+}
 
-    console.log('[DEBUG] Sending files to zigWorker:', Object.keys(filesMap));
-    build_start_time = performance.now();
-    zigWorker.postMessage({ files: filesMap });
+let prefetchPromise: Promise<void> | null = null;
+const outputsRun = document.getElementById('pg-run-btn')! as HTMLButtonElement;
+outputsRun.addEventListener('click', async () => {
+    setRunButtonLoading(true);
+    clearTerminal();
+
+    // Animated "building" preview placeholder
+    const viewport = document.getElementById('pg-browser-viewport')!;
+    while (viewport.firstChild) viewport.removeChild(viewport.firstChild);
+    const ph = document.createElement('div');
+    ph.className = 'pg-browser-placeholder pg-browser-placeholder--building';
+    const phIcon = document.createElement('div');
+    phIcon.className = 'pg-browser-placeholder-icon';
+    phIcon.id = 'pg-preview-step-icon';
+    phIcon.dataset.step = 'transpile';
+    phIcon.textContent = '';
+    ph.appendChild(phIcon);
+    const phLabel = document.createElement('span');
+    phLabel.id = 'pg-preview-step-label';
+    phLabel.textContent = 'Transpiling\u2026';
+    ph.appendChild(phLabel);
+    viewport.appendChild(ph);
+
+    // If a background prefetch is in flight, wait — result will be in cache
+    if (prefetchPromise) await prefetchPromise;
+
+    const compiled = await runTranspileAndBuild(true);
+    if (compiled == null) return;
+    runCompiled(compiled);
+});
+
+// ─── Background building on editor mouseleave ────────────────────────────────
+document.getElementById('pg-editor')?.addEventListener('mouseleave', () => {
+    if (prefetchPromise) return; // already prefetching
+
+    const snap = getCurrentFilesMap();
+    if (!snap['main.zig']) snap['main.zig'] = zigMainSource;
+    const zxEntries = Object.entries(snap).filter(([n]) => n.endsWith('.zx'));
+    const zxHash = hashFiles(Object.fromEntries(zxEntries));
+    const transpiled = transpileCache.get(zxHash) ?? (zxEntries.length === 0 ? { value: {} } : null);
+    if (transpiled !== null && buildCache.has(hashFiles({ ...snap, ...transpiled.value }))) return;
+
+    prefetchPromise = (async () => {
+        try { await runTranspileAndBuild(false); } catch { /* silent */ }
+    })().finally(() => { prefetchPromise = null; });
 });

@@ -83,8 +83,8 @@ export function appendStatusStep(stepId: string, label: string): void {
     revealOutputWindow();
 }
 
-/** Mark a pipeline step as done or errored, stamping elapsed time. */
-export function completeStatusStep(stepId: string, state: 'done' | 'error'): void {
+/** Mark a pipeline step as done, errored, cached, or prefetched. */
+export function completeStatusStep(stepId: string, state: 'done' | 'error' | 'cached' | 'prefetched', ms?: number): void {
     const line = document.getElementById(`pg-status-step-${stepId}`);
     if (!line) return;
 
@@ -92,9 +92,15 @@ export function completeStatusStep(stepId: string, state: 'done' | 'error'): voi
     line.classList.add(`pg-status-step--${state}`);
 
     const timeEl = line.querySelector(".pg-status-step-time") as HTMLElement | null;
-    if (timeEl && line.dataset.start) {
-        const elapsed = performance.now() - parseFloat(line.dataset.start);
-        timeEl.textContent = `${(elapsed / 1000).toFixed(2)}s`;
+    if (timeEl) {
+        if (state === 'cached') {
+            timeEl.textContent = "cached";
+        } else if (ms !== undefined) {
+            timeEl.textContent = `${(ms / 1000).toFixed(2)}s`;
+        } else if (line.dataset.start) {
+            const elapsed = performance.now() - parseFloat(line.dataset.start);
+            timeEl.textContent = `${(elapsed / 1000).toFixed(2)}s`;
+        }
     }
 }
 

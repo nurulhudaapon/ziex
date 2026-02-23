@@ -28,7 +28,7 @@ pub fn TopNavigation(ctx: *zx.ComponentCtx(struct {})) zx.Component {
             <ActionButtons @rendering={.client} />
             <div class="pg-nav-actions">
                 // <a href="/learn" class="pg-nav-btn">Docs</a>
-                <button class="pg-nav-btn pg-nav-btn--primary" id="pg-run-btn">▶ Run</button>
+                <button class="pg-nav-btn pg-nav-btn--primary" id="pg-run-btn">Run</button>
                 <button class="pg-nav-btn" id="pg-share-btn" title="Share playground" aria-label="Share">
                     <span style="font-family:monospace;font-size:1em;">{"</> "}</span> 
                     <span>
@@ -75,7 +75,7 @@ pub fn PreviewPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
                 <BrowserToolbar />
                 <div class="pg-browser-viewport" id="pg-browser-viewport">
                     <div class="pg-browser-placeholder">
-                        <div class="pg-browser-placeholder-icon">🌐</div>
+                        <div class="pg-browser-placeholder-icon"></div>
                         Press Run to see preview
                     </div>
                 </div>
