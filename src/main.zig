@@ -47,12 +47,11 @@ fn main_wasm() !void {
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
 
-    // --- Flags --- //
-    // --introspect: Print the metadata to stdout and exit
+    // --- Sub Command --- //
     var is_transpile = false;
     var is_fmt = false;
 
-    _ = args.next();
+    _ = args.next(); // Drop executable name
 
     const sub_cmd = args.next() orelse return error.InvalidCommand;
     if (std.mem.eql(u8, sub_cmd, "transpile")) is_transpile = true;
@@ -67,25 +66,14 @@ fn main_wasm() !void {
     var cwd = try std.fs.openDirAbsolute("/codes", .{});
     defer cwd.close();
 
-    // Transpile file_path.zx and write with file_path.zig
+    // Transpile/Fmt file_path.zx and write with file_path.zig
     for (files.items) |file_path| {
         const zx_source = try cwd.readFileAlloc(allocator, file_path, std.math.maxInt(usize));
         const zx_sourcez = try allocator.dupeZ(u8, zx_source);
 
         const ast = try zx.Ast.parse(allocator, zx_sourcez, .{});
-        const zig_source = ast.zig_source;
-        // std.debug.print("{s}", .{zig_source});
-        try std.fs.File.stdout().writeAll(zig_source);
-
-        const basename = std.fs.path.basename(file_path);
-        const ext = std.fs.path.extension(file_path);
-        if (!std.mem.eql(u8, ext, "zx")) continue;
-        const output_rel_path = try std.mem.concat(allocator, u8, &.{ basename[0 .. basename.len - (".zx").len], "zig" });
-
-        try cwd.writeFile(.{
-            .data = zig_source,
-            .sub_path = output_rel_path,
-        });
+        const output = if (is_transpile) ast.zig_source else ast.zx_source;
+        try std.fs.File.stdout().writeAll(output);
     }
 }
 

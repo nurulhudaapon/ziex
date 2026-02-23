@@ -90,7 +90,16 @@ function createEditorState(filename: string, content: string) {
         editorTheme,
         editorHighlightStyle,
         indentUnit.of("    "),
-        keymap.of([indentWithTab]),
+        keymap.of([
+            indentWithTab,
+            {
+                key: "F5",
+                run: () => {
+                    outputsRun.click();
+                    return true;
+                },
+            },
+        ]),
     ];
 
     if (filename.endsWith('.zig') || filename.endsWith('.zx') || filename.endsWith('.zon')) {
