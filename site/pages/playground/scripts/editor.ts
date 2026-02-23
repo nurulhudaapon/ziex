@@ -252,15 +252,16 @@ function removeFile(index: number) {
 
     if (removedFileWasActive) {
         activeFileIndex = -1;
+
+        // Find the next visible (non-hidden) file
         let nextIndex = index;
-        if (nextIndex >= files.length) {
-            nextIndex = files.length - 1;
-        }
-        switchFile(nextIndex);
+        if (nextIndex >= files.length)  nextIndex = files.length - 1;
+        while (nextIndex >= 0 && files[nextIndex]?.hidden) nextIndex--;
+        if (nextIndex >= 0) switchFile(nextIndex);
+        else updateTabs();
+        
     } else {
-        if (index < activeFileIndex) {
-            activeFileIndex--;
-        }
+        if (index < activeFileIndex) activeFileIndex--;
         updateTabs();
     }
 }
@@ -573,8 +574,8 @@ function buildFilesAsync(filesMap: { [name: string]: string }): Promise<unknown>
             zigWorker.removeEventListener('message', handler);
             const d = ev.data;
             console.info('Build finished in', (performance.now() - build_start_time).toFixed(2), 'ms');
-            if (d.stderr)        reject({ type: 'stderr', stderr: d.stderr });
-            else if (d.failed)   reject({ type: 'failed' });
+            if (d.stderr) reject({ type: 'stderr', stderr: d.stderr });
+            else if (d.failed) reject({ type: 'failed' });
             else if (d.compiled) resolve(d.compiled);
         }
         zigWorker.addEventListener('message', handler);
@@ -646,6 +647,20 @@ async function runTranspileAndBuild(visible: boolean): Promise<unknown | null> {
     // ── Transpile ────────────────────────────────────────────────────────────
     const zxHash = hashFiles(Object.fromEntries(zxEntries));
     let transpiledFiles: { [name: string]: string } = {};
+
+    // Check for empty zx files
+    const emptyZxFiles = zxEntries.filter(([_, content]) => !content.trim());
+    if (emptyZxFiles.length > 0) {
+        if (visible) {
+            completeStatusStep('transpile', 'error');
+            appendTerminalLine('One or more .zx files are empty. Please add code or remove the empty file(s).', 'pg-terminal-error');
+            setTerminalCollapsed(false);
+            revealOutputWindow();
+            resetPreviewPlaceholder();
+            setRunButtonLoading(false);
+        }
+        return null;
+    }
 
     if (zxEntries.length > 0) {
         const hit = transpileCache.get(zxHash);
