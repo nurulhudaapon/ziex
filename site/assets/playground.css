@@ -196,6 +196,20 @@ body {
     }
 }
 
+/* ─── CodeMirror selection color ─── */
+.cm-editor .cm-selectionBackground,
+.cm-editor.cm-focused .cm-selectionBackground {
+    background: rgba(0, 217, 255, 0.18) !important;
+}
+
+.cm-editor .cm-content ::selection {
+    background: rgba(0, 217, 255, 0.18);
+}
+
+.cm-editor .cm-line ::selection {
+    background: rgba(0, 217, 255, 0.18);
+}
+
 /* ─── CodeMirror line numbers / gutter overrides ─── */
 .cm-editor .cm-gutters {
     background: var(--zx-code-bg);
