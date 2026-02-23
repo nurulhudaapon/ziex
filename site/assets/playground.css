@@ -769,6 +769,83 @@ body {
     display: none;
 }
 
+/* ─── Build Pipeline Status Steps ─── */
+.pg-status-step {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.22rem 0;
+    font-size: 0.72rem;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    animation: pg-step-slide-in 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes pg-step-slide-in {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: translateX(0); }
+}
+
+/* ── Icon column ── */
+.pg-status-step-icon {
+    width: 14px;
+    flex-shrink: 0;
+    text-align: center;
+    font-size: 0.78rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Default icon per step type */
+.pg-status-step[data-step="transpile"] .pg-status-step-icon::before { content: "⚡"; }
+.pg-status-step[data-step="build"]     .pg-status-step-icon::before { content: "⚙"; }
+.pg-status-step[data-step="run"]       .pg-status-step-icon::before { content: "▶"; }
+
+/* Done / error — override icon */
+.pg-status-step--done  .pg-status-step-icon::before { content: "✓" !important; color: #28c840; }
+.pg-status-step--error .pg-status-step-icon::before { content: "✗" !important; color: #ff5f57; }
+
+/* ── Running animations per step ── */
+.pg-status-step--running[data-step="transpile"] .pg-status-step-icon {
+    color: #ffd23f;
+    animation: pg-glow-amber 0.85s ease-in-out infinite alternate;
+}
+
+.pg-status-step--running[data-step="build"] .pg-status-step-icon {
+    color: var(--zx-primary);
+    animation: pg-spin 1.1s linear infinite;
+}
+
+.pg-status-step--running[data-step="run"] .pg-status-step-icon {
+    color: #28c840;
+    animation: pg-pulse-green 0.65s ease-in-out infinite alternate;
+}
+
+@keyframes pg-glow-amber {
+    from { opacity: 0.45; filter: brightness(1); }
+    to   { opacity: 1;    filter: brightness(1.7) drop-shadow(0 0 4px #ffd23faa); }
+}
+
+@keyframes pg-pulse-green {
+    from { opacity: 0.4; transform: scale(0.88); }
+    to   { opacity: 1;   transform: scale(1.12); }
+}
+
+/* ── Label colours ── */
+.pg-status-step--running .pg-status-step-label { color: rgba(255,255,255,0.88); }
+.pg-status-step--done    .pg-status-step-label { color: rgba(255,255,255,0.3); }
+.pg-status-step--error   .pg-status-step-label { color: #ff5f57; }
+
+/* ── Elapsed time (right-aligned) ── */
+.pg-status-step-time {
+    margin-left: auto;
+    color: rgba(255,255,255,0.2);
+    font-size: 0.63rem;
+}
+.pg-status-step--done  .pg-status-step-time { color: rgba(255,255,255,0.28); }
+.pg-status-step--error .pg-status-step-time { color: rgba(255, 95, 87, 0.5); }
+
 
 .pg-terminal-prompt {
     color: var(--zx-primary-light);

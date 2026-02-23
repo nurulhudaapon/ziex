@@ -1,5 +1,5 @@
-import { appendTerminalLine, revealOutputWindow, setTerminalCollapsed, clearTerminal } from "./terminal.ts";
-import { EditorState } from "@codemirror/state"
+import { appendTerminalLine, revealOutputWindow, setTerminalCollapsed, clearTerminal, appendStatusStep, completeStatusStep } from "./terminal.ts";
+import { EditorState, Prec } from "@codemirror/state"
 import { keymap } from "@codemirror/view"
 import { EditorView, basicSetup } from "codemirror"
 import { JsonRpcMessage, LspClient } from "./lsp";
@@ -91,6 +91,8 @@ function createEditorState(filename: string, content: string) {
         editorHighlightStyle,
         indentUnit.of("    "),
         keymap.of([indentWithTab]),
+        // Always use // for Cmd+/ line comments regardless of language (HTML would default to <!-- -->)
+        Prec.highest(EditorState.languageData.of(() => [{ commentTokens: { line: "//" } }])),
     ];
 
     if (filename.endsWith('.zig') || filename.endsWith('.zx') || filename.endsWith('.zon')) {
@@ -505,6 +507,18 @@ function resetPreviewPlaceholder() {
     viewport.appendChild(placeholder);
 }
 
+/** Update the preview pane's in-progress placeholder to reflect the current pipeline step. */
+function updatePreviewStatus(emoji: string, label: string, stepId: string) {
+    const iconEl = document.getElementById("pg-preview-step-icon");
+    const textEl = document.getElementById("pg-preview-step-label");
+    if (iconEl) {
+        iconEl.textContent = emoji;
+        iconEl.dataset.step = stepId;
+    }
+    if (textEl) textEl.textContent = label;
+}
+
+
 let transpile_start_time: number | null = null;
 zxWorker.onmessage = (ev: MessageEvent) => {
     console.info("Transpiled finished in", (performance.now() - transpile_start_time!).toFixed(2), "ms");
@@ -515,7 +529,7 @@ zigWorker.onmessage = (ev: MessageEvent) => {
     console.info("Build finished in", (performance.now() - build_start_time).toFixed(2), "ms");
 
     if (ev.data.stderr) {
-        // Append compiler stderr as error lines
+        completeStatusStep('build', 'error');
         const lines = ev.data.stderr.split('\n').filter((l: string) => l.length > 0);
         for (const l of lines) {
             appendTerminalLine(l, "pg-terminal-error");
@@ -526,17 +540,22 @@ zigWorker.onmessage = (ev: MessageEvent) => {
         resetPreviewPlaceholder();
         return;
     } else if (ev.data.failed) {
+        completeStatusStep('build', 'error');
         appendTerminalLine("Compilation failed.", "pg-terminal-error");
         setTerminalCollapsed(false);
         revealOutputWindow();
         setRunButtonLoading(false);
         resetPreviewPlaceholder();
     } else if (ev.data.compiled) {
+        completeStatusStep('build', 'done');
+        appendStatusStep('run', 'Running…');
+        updatePreviewStatus('▶', 'Running…', 'run');
         let runnerWorker = new Worker('/assets/playground/workers/runner.js');
         runnerWorker.postMessage({ run: ev.data.compiled });
         runnerWorker.onmessage = (rev: MessageEvent) => {
             if (rev.data.stderr) {
-                const lines = rev.data.stderr.split('\n').filter((l) => l.length > 0);
+                completeStatusStep('run', 'error');
+                const lines = rev.data.stderr.split('\n').filter((l: string) => l.length > 0);
                 for (const l of lines) {
                     appendTerminalLine(l, "pg-terminal-error");
                 }
@@ -563,6 +582,7 @@ zigWorker.onmessage = (ev: MessageEvent) => {
                 return;
             }
             if (rev.data.done) {
+                completeStatusStep('run', 'done');
                 const viewport = document.getElementById("pg-browser-viewport")!;
                 const iframe = viewport.querySelector("iframe") as HTMLIFrameElement;
                 if (iframe) {
@@ -595,15 +615,21 @@ const outputsRun = document.getElementById("pg-run-btn")! as HTMLButtonElement;
 outputsRun.addEventListener("click", async () => {
     setRunButtonLoading(true);
     clearTerminal();
+
     const viewport = document.getElementById("pg-browser-viewport")!;
     while (viewport.firstChild) viewport.removeChild(viewport.firstChild);
     const placeholder = document.createElement("div");
-    placeholder.className = "pg-browser-placeholder";
+    placeholder.className = "pg-browser-placeholder pg-browser-placeholder--building";
     const icon = document.createElement("div");
     icon.className = "pg-browser-placeholder-icon";
-    icon.textContent = "🌐";
+    icon.id = "pg-preview-step-icon";
+    icon.dataset.step = "build";
+    icon.textContent = "⚡";
     placeholder.appendChild(icon);
-    placeholder.appendChild(document.createTextNode("Building…"));
+    const labelSpan = document.createElement("span");
+    labelSpan.id = "pg-preview-step-label";
+    labelSpan.textContent = "Transpiling…";
+    placeholder.appendChild(labelSpan);
     viewport.appendChild(placeholder);
 
     let filesMap = getCurrentFilesMap();
@@ -623,6 +649,7 @@ outputsRun.addEventListener("click", async () => {
                     resolve({ [ev.data.filename]: ev.data.transpiled });
                 } else if (ev.data && ev.data.failed) {
                     zxWorker.removeEventListener('message', handler);
+                    completeStatusStep('transpile', 'error');
                     appendTerminalLine(ev.data.stderr || "Transpile failed", "pg-terminal-error");
                     setTerminalCollapsed(false);
                     revealOutputWindow();
@@ -642,6 +669,13 @@ outputsRun.addEventListener("click", async () => {
             transpile_start_time = performance.now();
             zxWorker.postMessage({ filename: zxName, content: zxContent });
         });
+    }
+
+    if (zxFiles.length > 0) {
+        appendStatusStep('transpile', 'Transpiling…');
+        updatePreviewStatus('⚡', 'Transpiling…', 'transpile');
+    } else {
+        updatePreviewStatus('⚙', 'Building…', 'build');
     }
 
     for (const [zxName, zxContent] of zxFiles) {
@@ -668,6 +702,13 @@ outputsRun.addEventListener("click", async () => {
             return;
         }
     }
+
+    if (zxFiles.length > 0) {
+        completeStatusStep('transpile', 'done');
+    }
+
+    appendStatusStep('build', 'Building…');
+    updatePreviewStatus('⚙', 'Building…', 'build');
 
     console.log('[DEBUG] Sending files to zigWorker:', Object.keys(filesMap));
     build_start_time = performance.now();

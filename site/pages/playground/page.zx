@@ -94,7 +94,7 @@ pub fn PreviewPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
                 </div>
                 <div class="pg-terminal-body" id="pg-terminal-body">
                     <div class="pg-terminal-empty" id="pg-terminal-empty">
-                        Standard output (e.g. <code>print</code>) will appear here
+                        Build progress & program output will appear here
                     </div>
                 </div>
             </div>
