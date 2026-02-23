@@ -3,11 +3,18 @@ const setup_items = data.meta.setup_items;
 const setup_other_items = data.meta.setup_other_items;
 const template_refs_items = data.meta.template_refs_items;
 
+const header_setup_items = data.header_meta.setup_items;
+const header_setup_other_items = data.header_meta.setup_other_items;
+const header_template_refs_items = data.header_meta.template_refs_items;
 
 var inputvalue: []const u8 = "hello";
 var inputvalue2= zx.Signal([]const u8).init("hello2");
 
+var selected_component = zx.Signal([]const u8).init("App");
+
 const ComponentSearchInputProps = struct {  };
+const ComponentStateProps = struct {  };
+const ComponentTreeProps = struct {  };
 pub fn ComponentSearchInput(
     ctx: *zx.ComponentCtx(ComponentSearchInputProps),
 ) zx.Component {
@@ -20,12 +27,61 @@ pub fn ComponentSearchInput(
         </div>
     );
 }
+pub fn ComponentTree(
+    ctx: *zx.ComponentCtx(ComponentTreeProps),
+) zx.Component {
+    return (
+        <div @allocator={ctx.allocator} class="component-tree">
+            <div class="component-list">
+                {for (components) |comp| (<ComponentItem allocator={ctx.allocator} name={comp.name} has_children={comp.has_children} children={comp.children} depth={0} selected={comp.selected} badge={comp.badge} />)}
+            </div>
+        </div>
+    );
+}
+
+pub fn ComponentState(
+    ctx: *zx.ComponentCtx(ComponentStateProps),
+) zx.Component {
+    const sel = selected_component.get();
+    const is_app = std.mem.eql(u8, sel, "App");
+    const is_header = std.mem.eql(u8, sel, "Header");
+    return (
+        <div @allocator={ctx.allocator} class="component-state-wrapper">
+            {if (is_app) (
+                <div @allocator={ctx.allocator} class="state-content" id="state-app">
+                    <StateSection allocator={ctx.allocator} title="Props" items={&setup_items} />
+                    <StateSection allocator={ctx.allocator} title="Signals" items={&setup_other_items} />
+                    <StateSection allocator={ctx.allocator} title="Actions" items={&template_refs_items} />
+                </div>
+            ) else if (is_header) (
+                <div @allocator={ctx.allocator} class="state-content" id="state-header">
+                    <StateSection allocator={ctx.allocator} title="Props" items={&header_setup_items} />
+                    <StateSection allocator={ctx.allocator} title="Signals" items={&header_setup_other_items} />
+                    <StateSection allocator={ctx.allocator} title="Actions" items={&header_template_refs_items} />
+                </div>
+            ) else (
+                <div @allocator={ctx.allocator} class="state-content">
+                    <div class="state-empty">
+                        <h2>{sel}</h2>
+                        <p>{"No state data available for this component."}</p>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
 
 pub fn handleComponentSearchInput(ctx: zx.EventContext) void {
     std.log.info("Component search input changed: {s}", .{ctx.value() orelse ""});
     inputvalue = ctx.value() orelse "";
-    inputvalue2.set(inputvalue);
-    // zx.requestRender();
+    inputvalue2.set("apdpfd");
+    zx.requestRender();
+}
+
+pub fn handleComponentClick(ctx: zx.EventContext) void {
+    const name = ctx.value() orelse "App";
+    selected_component.set(name);
+    zx.requestRender();
 }
 
 const icons = @import("./components/icons.zx");
@@ -42,19 +98,14 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     </div>
                 </div>
 
-                <div class="component-tree">
-
-                    <div class="component-list">
-                        {for (components) |comp| (<ComponentItem allocator={ctx.arena} name={comp.name} has_children={comp.has_children} children={comp.children} depth={0} selected={comp.selected} badge={comp.badge} />)}
-                    </div>
-                </div>
+                <ComponentTree @rendering={.client} />
             </div>
 
             <div class="devtools-resize-handle"></div>
 
             <div class="state-panel">
                 <div class="state-header">
-                    <span class="state-title">{"<App>"}</span>
+                    <span class="state-title" id="state-title">{&selected_component}</span>
                     <div class="filter-wrapper">
                         <input type="text" placeholder="Filter State..." class="filter-input" />
                     </div>
@@ -66,11 +117,8 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     </div>
                 </div>
 
-                <div class="state-content">
-                    <StateSection allocator={ctx.arena} title="Props" items={&setup_items} />
-                    <StateSection allocator={ctx.arena} title="Signals" items={&setup_other_items} />
-                    <StateSection allocator={ctx.arena} title="Actions" items={&template_refs_items} />
-                </div>
+                <ComponentState @rendering={.client} />
+
             </div>
         </div>
     );
@@ -90,13 +138,17 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
             {if (props.has_children) (
                 <>
                     <input type="checkbox" id={id} class="component-toggle" checked />
-                    <label for={id} class={item_class} style={style_str}>
-                        <span class="tree-arrow"></span>
-                        <span class="bracket">{"<"}</span>
-                        <span class={name_class}>{props.name}</span>
-                        <span class="bracket">{">"}</span>
-                        {if (props.badge.len > 0) (<span class="component-badge">{props.badge}</span>) else ""}
-                    </label>
+                    <div class={item_class} style={style_str} >
+                        <button value={props.name} onclick={handleComponentClick} style="all:unset;color:inherit;cursor:pointer;font:inherit;display:inline-flex;align-items:center;flex:1">
+                        <label for={id} style="display:contents;cursor:pointer">
+                            <span class="tree-arrow"></span>
+                        </label>
+                            <span class="bracket">{"<"}</span>
+                            <button class={name_class} value={props.name} onclick={handleComponentClick} style="all:unset;color:inherit;cursor:pointer;font:inherit">{props.name}</button>
+                            <span class="bracket">{">"}</span>
+                            {if (props.badge.len > 0) (<span class="component-badge">{props.badge}</span>) else ""}
+                        </button>
+                    </div>
                     <div class="component-children">
                         {for (props.children) |child| (
                             <ComponentItem allocator={allocator} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} selected={child.selected} badge={child.badge} />
@@ -105,11 +157,13 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
                 </>
             ) else (
                 <div class={item_class} style={style_str}>
-                    <span class="tree-arrow-spacer"></span>
-                    <span class="bracket">{"<"}</span>
-                    <span class={name_class}>{props.name}</span>
-                    <span class="bracket">{">"}</span>
-                    {if (props.badge.len > 0) (<span class="component-badge">{props.badge}</span>) else ""}
+                    <button value={props.name} onclick={handleComponentClick} style="all:unset;color:inherit;cursor:pointer;font:inherit;display:flex;align-items:center;width:100%;text-align:left">
+                        <span class="tree-arrow-spacer"></span>
+                        <span class="bracket">{"<"}</span>
+                        <span class={name_class}>{props.name}</span>
+                        <span class="bracket">{">"}</span>
+                        {if (props.badge.len > 0) (<span class="component-badge">{props.badge}</span>) else ""}
+                    </button>
                 </div>
             )}
         </div>
@@ -126,6 +180,8 @@ fn StateSection(allocator: zx.Allocator, props: struct { title: []const u8, item
                 <span class="section-arrow"></span>
                 <span class="section-title">{props.title}</span>
             </label>
+            // <h1>{inputvalue}</h1>
+            // <h1>{&inputvalue2}</h1>
             <div class="section-items">
                 {for (props.items) |item| (
                     <StateItemRow allocator={allocator} item={item} />

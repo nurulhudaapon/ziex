@@ -1,6 +1,5 @@
 /// Centralized data for the devtool.
 /// Pure data only — no logic or computed values.
-
 pub const Component = struct {
     name: []const u8,
     has_children: bool,
@@ -111,6 +110,41 @@ pub const meta = .{
     .template_refs_items = [_]StateItem{
         .{ .key = "replRef", .value = "Object", .meta = "", .children = &[_]StateItem{
             .{ .key = "$el", .value = "<div>", .meta = "" },
+        } },
+    },
+};
+
+// -----------------------------
+
+pub const header_meta = .{
+    .version = "v1.0.0",
+    .setup_items = [_]StateItem{
+        .{ .key = "title", .value = "\"ZX Playground\"", .meta = "(Ref)" },
+        .{ .key = "showNav", .value = "true", .meta = "(Ref)" },
+        .{ .key = "theme", .value = "\"dark\"", .meta = "(Ref)" },
+        .{ .key = "logo", .value = "Object", .meta = "(Ref)", .children = &[_]StateItem{
+            .{ .key = "src", .value = "\"/assets/logo.svg\"", .meta = "" },
+            .{ .key = "alt", .value = "\"ZX Logo\"", .meta = "" },
+        } },
+        .{ .key = "navItems", .value = "Object", .meta = "(Computed)", .children = &[_]StateItem{
+            .{ .key = "docs", .value = "\"/docs\"", .meta = "" },
+            .{ .key = "playground", .value = "\"/playground\"", .meta = "" },
+            .{ .key = "github", .value = "\"https://github.com\"", .meta = "" },
+        } },
+        .{ .key = "version", .value = "\"v1.0.0\"", .meta = "(Computed)" },
+        .{ .key = "isMenuOpen", .value = "false", .meta = "(Ref)" },
+    },
+    .setup_other_items = [_]StateItem{
+        .{ .key = "toggleTheme", .value = "fn y(I)", .meta = "" },
+        .{ .key = "toggleMenu", .value = "fn m()", .meta = "" },
+        .{ .key = "VersionSelect", .value = "Object", .meta = "", .children = &[_]StateItem{
+            .{ .key = "setup", .value = "fn()", .meta = "" },
+            .{ .key = "render", .value = "fn()", .meta = "" },
+        } },
+    },
+    .template_refs_items = [_]StateItem{
+        .{ .key = "headerRef", .value = "Object", .meta = "", .children = &[_]StateItem{
+            .{ .key = "$el", .value = "<header>", .meta = "" },
         } },
     },
 };
