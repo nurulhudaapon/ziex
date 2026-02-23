@@ -92,12 +92,12 @@ export abstract class LspClient {
                         requests: {},
                         tokenTypes: Object.values(SemanticTokenTypes),
                         tokenModifiers: [],
-	                    formats: ["relative"],
+                        formats: ["relative"],
                         overlappingTokenSupport: true,
                     },
                     hover: {
                         dynamicRegistration: true,
-                        contentFormat: ['plaintext', 'markdown'],
+                        contentFormat: ['markdown'],
                     },
                     moniker: {},
                     synchronization: {
@@ -111,7 +111,7 @@ export abstract class LspClient {
                         completionItem: {
                             snippetSupport: false,
                             commitCharactersSupport: true,
-                            documentationFormat: ['plaintext', 'markdown'],
+                            documentationFormat: ['markdown'],
                             deprecatedSupport: false,
                             preselectSupport: false,
                         },
@@ -120,7 +120,7 @@ export abstract class LspClient {
                     signatureHelp: {
                         dynamicRegistration: true,
                         signatureInformation: {
-                            documentationFormat: ['plaintext', 'markdown'],
+                            documentationFormat: ['markdown'],
                         },
                     },
                     declaration: {
@@ -548,7 +548,7 @@ class LspPlugin implements PluginValue {
         if (pos === null) return null;
         return { pos, end, create () {
             const dom = document.createElement("div");
-            dom.textContent = formatContents(contents);
+            dom.innerHTML = formatContents(contents);
             return {dom};
         }, above: true };
     }
@@ -709,13 +709,37 @@ function offsetToPos(doc: Text, offset: number) {
 function formatContents(
     contents: LSP.MarkupContent | LSP.MarkedString | LSP.MarkedString[]
 ): string {
+    let result = '';
     if (Array.isArray(contents)) {
-        return contents.map((c) => formatContents(c) + '\n\n').join('');
+        result = contents.map((c) => formatContents(c)).join('\n\n');
     } else if (typeof contents === 'string') {
-        return contents;
+        result = contents;
     } else {
-        return contents.value;
+        result = contents.value;
     }
+    return renderMarkdown(result);
+}
+
+function renderMarkdown(md) {
+    // Escape HTML
+    md = md.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+    // Code blocks (```...```) - render as <code> with line breaks, not <pre>
+    md = md.replace(/```([\s\S]*?)```/g, (m, code) => `<code>${code.replace(/\n/g,'<br>')}</code>`);
+    // Inline code (`...`)
+    md = md.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // Bold (**...** or __...__)
+    md = md.replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>');
+    md = md.replace(/__([^_]+)__/g, '<b>$1</b>');
+    // Italic (*...* or _..._)
+    md = md.replace(/\*([^*]+)\*/g, '<i>$1</i>');
+    md = md.replace(/_([^_]+)_/g, '<i>$1</i>');
+    // Links [text](url)
+    md = md.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    // Lists
+    md = md.replace(/(^|\n)[ \t]*[-*+] (.*?)(?=\n|$)/g, '$1<ul><li>$2</li></ul>');
+    // Line breaks
+    md = md.replace(/\n/g, '<br>');
+    return md;
 }
 
 function toSet(chars: Set<string>) {

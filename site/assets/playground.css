@@ -1,3 +1,39 @@
+/* --- Tooltip markdown code block and inline code styling --- */
+.cm-tooltip code {
+    background: var(--zx-code-bg, #0b0f14);
+    color: var(--code-text-color, #eeffff);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    font-size: 0.97em;
+    white-space: pre;
+    display: inline-block;
+    margin: 0.2em 0;
+    border: 1px solid rgba(255,255,255,0.06);
+}
+.cm-tooltip a {
+    color: var(--zx-primary, #00d9ff);
+    text-decoration: underline;
+    word-break: break-all;
+}
+.cm-tooltip ul {
+    margin: 0.5em 0 0.5em 1.2em;
+    padding: 0;
+}
+.cm-tooltip li {
+    margin: 0.2em 0;
+    padding: 0;
+}
+/* --- Tooltip code block styling --- */
+.cm-tooltip code, .cm-tooltip .code {
+    background: var(--zx-code-bg, #0b0f14);
+    color: var(--code-text-color, #eeffff);
+    padding: 2px 5px;
+    border-radius: 4px;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    font-size: 0.95em;
+    white-space: pre;
+}
 /* --- Collapsible Terminal --- */
 .pg-terminal.collapsed {
     height: 36px !important;
