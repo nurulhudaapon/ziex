@@ -22,7 +22,10 @@ export function revealOutputWindow() {
 export function appendTerminalLine(text: string, className?: string) {
     const termBody = document.getElementById("pg-terminal-body");
     if (!termBody) return;
-    
+
+    // Hide the empty-state placeholder once we have output
+    document.getElementById("pg-terminal-empty")?.classList.add("hidden");
+
     const line = document.createElement("span");
     line.className = "pg-terminal-line";
 
@@ -40,7 +43,13 @@ export function appendTerminalLine(text: string, className?: string) {
 
 export function clearTerminal() {
     const termBody = document.getElementById("pg-terminal-body");
-    if (termBody) termBody.innerHTML = "";
+    if (!termBody) return;
+    // Remove all output lines but keep the empty-state element
+    Array.from(termBody.children).forEach(child => {
+        if (child.id !== "pg-terminal-empty") child.remove();
+    });
+    // Restore the empty-state placeholder
+    document.getElementById("pg-terminal-empty")?.classList.remove("hidden");
 }
 
 window.addEventListener("DOMContentLoaded", () => {

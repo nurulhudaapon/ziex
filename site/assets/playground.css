@@ -742,6 +742,34 @@ body {
     white-space: pre;
 }
 
+/* ─── Terminal empty state ─── */
+.pg-terminal-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: rgba(255, 255, 255, 0.18);
+    font-size: 0.72rem;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    user-select: none;
+    pointer-events: none;
+    text-align: center;
+}
+
+.pg-terminal-empty code {
+    background: rgba(255, 255, 255, 0.06);
+    color: rgba(255, 255, 255, 0.28);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-family: inherit;
+    font-size: inherit;
+}
+
+.pg-terminal-empty.hidden {
+    display: none;
+}
+
+
 .pg-terminal-prompt {
     color: var(--zx-primary-light);
     font-weight: 600;

@@ -491,6 +491,20 @@ function setRunButtonLoading(loading: boolean) {
     }
 }
 
+/** Restore the preview pane to the idle "Press Run" state. */
+function resetPreviewPlaceholder() {
+    const viewport = document.getElementById("pg-browser-viewport")!;
+    while (viewport.firstChild) viewport.removeChild(viewport.firstChild);
+    const placeholder = document.createElement("div");
+    placeholder.className = "pg-browser-placeholder";
+    const icon = document.createElement("div");
+    icon.className = "pg-browser-placeholder-icon";
+    icon.textContent = "🌐";
+    placeholder.appendChild(icon);
+    placeholder.appendChild(document.createTextNode("Press Run to see preview"));
+    viewport.appendChild(placeholder);
+}
+
 let transpile_start_time: number | null = null;
 zxWorker.onmessage = (ev: MessageEvent) => {
     console.info("Transpiled finished in", (performance.now() - transpile_start_time!).toFixed(2), "ms");
@@ -509,12 +523,14 @@ zigWorker.onmessage = (ev: MessageEvent) => {
         setTerminalCollapsed(false);
         revealOutputWindow();
         setRunButtonLoading(false);
+        resetPreviewPlaceholder();
         return;
     } else if (ev.data.failed) {
         appendTerminalLine("Compilation failed.", "pg-terminal-error");
         setTerminalCollapsed(false);
         revealOutputWindow();
         setRunButtonLoading(false);
+        resetPreviewPlaceholder();
     } else if (ev.data.compiled) {
         let runnerWorker = new Worker('/assets/playground/workers/runner.js');
         runnerWorker.postMessage({ run: ev.data.compiled });
@@ -527,6 +543,7 @@ zigWorker.onmessage = (ev: MessageEvent) => {
                 setTerminalCollapsed(false);
                 revealOutputWindow();
                 setRunButtonLoading(false);
+                resetPreviewPlaceholder();
                 return;
             }
             if (rev.data.preview) {
@@ -552,7 +569,6 @@ zigWorker.onmessage = (ev: MessageEvent) => {
                     iframe.contentDocument?.close();
                 }
                 runnerWorker.terminate();
-                // appendTerminalLine("Program exited.\n", "pg-terminal-muted");
                 setRunButtonLoading(false);
             }
         };
@@ -611,6 +627,7 @@ outputsRun.addEventListener("click", async () => {
                     setTerminalCollapsed(false);
                     revealOutputWindow();
                     setRunButtonLoading(false);
+                    resetPreviewPlaceholder();
                     reject(ev.data.stderr);
                 } else if (ev.data && ev.data.stdout) {
                     zxWorker.removeEventListener('message', handler);

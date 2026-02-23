@@ -37,9 +37,9 @@ const categories = [_]SidebarProps.Category{
         .title = "Example Applications",
         .sections = &[_]SidebarProps.Section{
             .{ .title = "Counter", .href = ssg ++ "/examples/wasm/simple" },
-            .{ .title = "Streaming", .href = ssr ++ "/examples/streaming" },
+            .{ .title = "Streaming", .href = ssg ++ "/examples/streaming" },
             .{ .title = "Todo App", .href = ssg ++ "/examples/wasm" },
-            .{ .title = "Async Timer", .href =  ssr ++ "/examples/wasm/async" },
+            .{ .title = "Async Timer", .href =  ssg ++ "/examples/wasm/async" },
             .{ .title = "React Integration", .href = ssg ++ "/examples/wasm/react" },
             .{ .title = "Hydration", .href = ssg ++ "/examples/wasm/hydration" },
             .{ .title = "Progress Bar", .href = ssr ++ "/examples/wasm/progress" },
