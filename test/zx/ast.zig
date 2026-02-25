@@ -78,6 +78,10 @@ test "for" {
 test "for_capture" {
     try test_render("control_flow/for_capture", @import("./../data/control_flow/for.zig").StructCapture);
 }
+test "for_range" {
+    if (true) return error.Todo;
+    try test_render("control_flow/for_range", @import("./../data/control_flow/for_range.zig").Page);
+}
 test "for_extra_capture" {
     try test_render("control_flow/for_extra_capture", @import("./../data/control_flow/for.zig").StructExtraCapture);
 }
@@ -491,6 +495,7 @@ fn getPageFn(comptime path: []const u8) ?fn (std.mem.Allocator) zx.Component {
         .{ "control_flow/for_block", @import("./../data/control_flow/for_block.zig") },
         .{ "control_flow/switch", @import("./../data/control_flow/switch.zig") },
         .{ "control_flow/switch_capture", @import("./../data/control_flow/switch_capture.zig") },
+        .{ "control_flow/for_range", @import("./../data/control_flow/for_range.zig") },
         .{ "control_flow/switch_multicaseval", @import("./../data/control_flow/switch_multicaseval.zig") },
         .{ "control_flow/switch_block", @import("./../data/control_flow/switch_block.zig") },
         .{ "control_flow/while", @import("./../data/control_flow/while.zig") },

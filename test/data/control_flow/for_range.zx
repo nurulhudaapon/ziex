@@ -1,0 +1,12 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            {for (0..10) |n| (
+                <span>{n}</span>
+            )}
+        </main>
+    );
+}
+
+const zx = @import("zx");
+const std = @import("std");
