@@ -10,7 +10,7 @@ const component_count_label = std.fmt.comptimePrint("{d} components", .{countCom
 const route_count_label = std.fmt.comptimePrint("{d} Routes", .{data.routes.len});
 
 const features = [_]Feature{
-    .{ .icon_fn = icons.Lightning, .title = data.meta.version, .link = "overview" },
+    .{ .icon_fn = icons.Lightning, .title = data.components[0].meta.?.version, .link = "overview" },
     .{ .icon_fn = icons.Hive, .title = component_count_label, .link = "/" },
     .{ .icon_fn = icons.Workflow, .title = route_count_label, .link = "routes" },
 };
@@ -30,7 +30,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     </p>
                     <p class="hero-description">
                         Developer Tools for Ziex Framework
-                        <code class="version-badge">{data.meta.version}</code>
+                        <code class="version-badge">{data.components[0].meta.?.version}</code>
                     </p>
 
                     <div class="features-grid">

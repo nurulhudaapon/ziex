@@ -1,5 +1,11 @@
 /// Centralized data for the devtool.
 /// Pure data only — no logic or computed values.
+pub const ComponentMeta = struct {
+    version: []const u8 = "v1.0.0",
+    setup_items: []const StateItem = &[_]StateItem{},
+    setup_other_items: []const StateItem = &[_]StateItem{},
+    template_refs_items: []const StateItem = &[_]StateItem{},
+};
 
 pub const Component = struct {
     name: []const u8,
@@ -7,6 +13,7 @@ pub const Component = struct {
     children: []const Component,
     selected: bool = false,
     badge: []const u8 = "",
+    meta: ?ComponentMeta = null,
 };
 
 pub const Route = struct {
@@ -22,8 +29,90 @@ pub const StateItem = struct {
 };
 
 pub const components = [_]Component{
-    .{ .name = "App", .has_children = true, .selected = true, .badge = "fragment", .children = &[_]Component{
-        .{ .name = "Header", .has_children = true, .children = &[_]Component{
+    .{ .name = "App", .has_children = true, .selected = true, .badge = "fragment", .meta = ComponentMeta{
+        .version = "v1.0.0",
+        .setup_items = &.{
+            .{ .key = "replRef", .value = "Object", .meta = "(Ref)", .children = &[_]StateItem{
+                .{ .key = "value", .value = "null", .meta = "" },
+                .{ .key = "__v_isRef", .value = "true", .meta = "" },
+            } },
+            .{ .key = "AUTO_SAVE_STORAGE_KEY", .value = "\"zx-sfc-playground-auto-save\"", .meta = "" },
+            .{ .key = "initAutoSave", .value = "true", .meta = "" },
+            .{ .key = "autoSave", .value = "true", .meta = "(Ref)" },
+            .{ .key = "productionMode", .value = "false", .meta = "(Ref)" },
+            .{ .key = "zxVersion", .value = "null", .meta = "(Ref)" },
+            .{ .key = "importMap", .value = "Object", .meta = "(Computed)", .children = &[_]StateItem{
+                .{ .key = "imports", .value = "Object", .meta = "", .children = &[_]StateItem{
+                    .{ .key = "zx", .value = "\"https://cdn.jsdelivr.net/npm/zx\"", .meta = "" },
+                } },
+            } },
+            .{ .key = "hash", .value = "eNp9UU1LAzEQ/StjLqugXURPZVtQKaBgHFRW85FJ2p9vUBbKS2bWw7H93kqw1Q...", .meta = "" },
+            .{ .key = "sfcOptions", .value = "Object", .meta = "(Computed)", .children = &[_]StateItem{
+                .{ .key = "script", .value = "Object", .meta = "" },
+                .{ .key = "template", .value = "Object", .meta = "" },
+            } },
+            .{ .key = "store", .value = "Reactive", .meta = "", .children = &[_]StateItem{
+                .{ .key = "theme", .value = "\"dark\"", .meta = "(Ref)" },
+                .{ .key = "isVaporSupported", .value = "false", .meta = "(Ref)" },
+            } },
+            .{ .key = "previewOptions", .value = "Object", .meta = "(Computed)", .children = &[_]StateItem{
+                .{ .key = "headHTML", .value = "\"\"", .meta = "" },
+            } },
+        },
+        .setup_other_items = &.{
+            .{ .key = "setVH", .value = "fn i()", .meta = "" },
+            .{ .key = "toggleProdMode", .value = "fn p()", .meta = "" },
+            .{ .key = "toggleSSR", .value = "fn f()", .meta = "" },
+            .{ .key = "toggleAutoSave", .value = "fn m()", .meta = "" },
+            .{ .key = "reloadPage", .value = "fn _()", .meta = "" },
+            .{ .key = "toggleTheme", .value = "fn y(I)", .meta = "" },
+            .{ .key = "Header", .value = "Header", .meta = "" },
+            .{ .key = "Repl", .value = "Object", .meta = "", .children = &[_]StateItem{
+                .{ .key = "setup", .value = "fn()", .meta = "" },
+                .{ .key = "render", .value = "fn()", .meta = "" },
+            } },
+            .{ .key = "Monaco", .value = "Object", .meta = "", .children = &[_]StateItem{
+                .{ .key = "editor", .value = "null", .meta = "(Ref)" },
+            } },
+        },
+        .template_refs_items = &.{
+            .{ .key = "replRef", .value = "Object", .meta = "", .children = &[_]StateItem{
+                .{ .key = "$el", .value = "<div>", .meta = "" },
+            } },
+        },
+    }, .children = &[_]Component{
+        .{ .name = "Header", .has_children = true, .meta = ComponentMeta{
+            .version = "v1.0.0",
+            .setup_items = &.{
+                .{ .key = "title", .value = "\"ZX Playground\"", .meta = "(Ref)" },
+                .{ .key = "showNav", .value = "true", .meta = "(Ref)" },
+                .{ .key = "theme", .value = "\"dark\"", .meta = "(Ref)" },
+                .{ .key = "logo", .value = "Object", .meta = "(Ref)", .children = &[_]StateItem{
+                    .{ .key = "src", .value = "\"/assets/logo.svg\"", .meta = "" },
+                    .{ .key = "alt", .value = "\"ZX Logo\"", .meta = "" },
+                } },
+                .{ .key = "navItems", .value = "Object", .meta = "(Computed)", .children = &[_]StateItem{
+                    .{ .key = "docs", .value = "\"/docs\"", .meta = "" },
+                    .{ .key = "playground", .value = "\"/playground\"", .meta = "" },
+                    .{ .key = "github", .value = "\"https://github.com\"", .meta = "" },
+                } },
+                .{ .key = "version", .value = "\"v1.0.0\"", .meta = "(Computed)" },
+                .{ .key = "isMenuOpen", .value = "false", .meta = "(Ref)" },
+            },
+            .setup_other_items = &.{
+                .{ .key = "toggleTheme", .value = "fn y(I)", .meta = "" },
+                .{ .key = "toggleMenu", .value = "fn m()", .meta = "" },
+                .{ .key = "VersionSelect", .value = "Object", .meta = "", .children = &[_]StateItem{
+                    .{ .key = "setup", .value = "fn()", .meta = "" },
+                    .{ .key = "render", .value = "fn()", .meta = "" },
+                } },
+            },
+            .template_refs_items = &.{
+                .{ .key = "headerRef", .value = "Object", .meta = "", .children = &[_]StateItem{
+                    .{ .key = "$el", .value = "<header>", .meta = "" },
+                } },
+            },
+        }, .children = &[_]Component{
             .{ .name = "VersionSelect", .has_children = false, .children = &[_]Component{} },
             .{ .name = "VersionSelect", .has_children = false, .children = &[_]Component{} },
             .{ .name = "Sun", .has_children = false, .children = &[_]Component{} },
@@ -60,57 +149,4 @@ pub const routes = [_]Route{
     .{ .method = "GET", .path = "/api/posts" },
     .{ .method = "GET", .path = "/docs" },
     .{ .method = "GET", .path = "/settings" },
-};
-
-pub const meta = .{
-    .version = "v1.0.0",
-    .setup_items = [_]StateItem{
-        .{ .key = "replRef", .value = "Object", .meta = "(Ref)", .children = &[_]StateItem{
-            .{ .key = "value", .value = "null", .meta = "" },
-            .{ .key = "__v_isRef", .value = "true", .meta = "" },
-        } },
-        .{ .key = "AUTO_SAVE_STORAGE_KEY", .value = "\"zx-sfc-playground-auto-save\"", .meta = "" },
-        .{ .key = "initAutoSave", .value = "true", .meta = "" },
-        .{ .key = "autoSave", .value = "true", .meta = "(Ref)" },
-        .{ .key = "productionMode", .value = "false", .meta = "(Ref)" },
-        .{ .key = "zxVersion", .value = "null", .meta = "(Ref)" },
-        .{ .key = "importMap", .value = "Object", .meta = "(Computed)", .children = &[_]StateItem{
-            .{ .key = "imports", .value = "Object", .meta = "", .children = &[_]StateItem{
-                .{ .key = "zx", .value = "\"https://cdn.jsdelivr.net/npm/zx\"", .meta = "" },
-            } },
-        } },
-        .{ .key = "hash", .value = "eNp9UU1LAzEQ/StjLqugXURPZVtQKaBgHFRW85FJ2p9vUBbKS2bWw7H93kqw1Q...", .meta = "" },
-        .{ .key = "sfcOptions", .value = "Object", .meta = "(Computed)", .children = &[_]StateItem{
-            .{ .key = "script", .value = "Object", .meta = "" },
-            .{ .key = "template", .value = "Object", .meta = "" },
-        } },
-        .{ .key = "store", .value = "Reactive", .meta = "", .children = &[_]StateItem{
-            .{ .key = "theme", .value = "\"dark\"", .meta = "(Ref)" },
-            .{ .key = "isVaporSupported", .value = "false", .meta = "(Ref)" },
-        } },
-        .{ .key = "previewOptions", .value = "Object", .meta = "(Computed)", .children = &[_]StateItem{
-            .{ .key = "headHTML", .value = "\"\"", .meta = "" },
-        } },
-    },
-    .setup_other_items = [_]StateItem{
-        .{ .key = "setVH", .value = "fn i()", .meta = "" },
-        .{ .key = "toggleProdMode", .value = "fn p()", .meta = "" },
-        .{ .key = "toggleSSR", .value = "fn f()", .meta = "" },
-        .{ .key = "toggleAutoSave", .value = "fn m()", .meta = "" },
-        .{ .key = "reloadPage", .value = "fn _()", .meta = "" },
-        .{ .key = "toggleTheme", .value = "fn y(I)", .meta = "" },
-        .{ .key = "Header", .value = "Header", .meta = "" },
-        .{ .key = "Repl", .value = "Object", .meta = "", .children = &[_]StateItem{
-            .{ .key = "setup", .value = "fn()", .meta = "" },
-            .{ .key = "render", .value = "fn()", .meta = "" },
-        } },
-        .{ .key = "Monaco", .value = "Object", .meta = "", .children = &[_]StateItem{
-            .{ .key = "editor", .value = "null", .meta = "(Ref)" },
-        } },
-    },
-    .template_refs_items = [_]StateItem{
-        .{ .key = "replRef", .value = "Object", .meta = "", .children = &[_]StateItem{
-            .{ .key = "$el", .value = "<div>", .meta = "" },
-        } },
-    },
 };
