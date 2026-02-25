@@ -1,16 +1,24 @@
 const components = data.components;
-const setup_items = data.meta.setup_items;
-const setup_other_items = data.meta.setup_other_items;
-const template_refs_items = data.meta.template_refs_items;
-
-const header_setup_items = data.header_meta.setup_items;
-const header_setup_other_items = data.header_meta.setup_other_items;
-const header_template_refs_items = data.header_meta.template_refs_items;
 
 var inputvalue: []const u8 = "hello";
-var inputvalue2= zx.Signal([]const u8).init("hello2");
+var inputvalue2 = zx.Signal([]const u8).init("hello2");
 
 var selected_component = zx.Signal([]const u8).init("App");
+
+// Helper function to find a component by name recursively
+fn findComponentByName(comps: []const data.Component, name: []const u8) ?data.Component {
+    for (comps) |comp| {
+        if (std.mem.eql(u8, comp.name, name)) {
+            return comp;
+        }
+        if (comp.has_children) {
+            if (findComponentByName(comp.children, name)) |found| {
+                return found;
+            }
+        }
+    }
+    return null;
+}
 
 const ComponentSearchInputProps = struct {  };
 const ComponentStateProps = struct {  };
@@ -43,30 +51,30 @@ pub fn ComponentState(
     ctx: *zx.ComponentCtx(ComponentStateProps),
 ) zx.Component {
     const sel = selected_component.get();
-    const is_app = std.mem.eql(u8, sel, "App");
-    const is_header = std.mem.eql(u8, sel, "Header");
-    return (
-        <div @allocator={ctx.allocator} class="component-state-wrapper">
-            {if (is_app) (
-                <div @allocator={ctx.allocator} class="state-content" id="state-app">
-                    <StateSection allocator={ctx.allocator} title="Props" items={&setup_items} />
-                    <StateSection allocator={ctx.allocator} title="Signals" items={&setup_other_items} />
-                    <StateSection allocator={ctx.allocator} title="Actions" items={&template_refs_items} />
-                </div>
-            ) else if (is_header) (
-                <div @allocator={ctx.allocator} class="state-content" id="state-header">
-                    <StateSection allocator={ctx.allocator} title="Props" items={&header_setup_items} />
-                    <StateSection allocator={ctx.allocator} title="Signals" items={&header_setup_other_items} />
-                    <StateSection allocator={ctx.allocator} title="Actions" items={&header_template_refs_items} />
-                </div>
-            ) else (
-                <div @allocator={ctx.allocator} class="state-content">
-                    <div class="state-empty">
-                        <h2>{sel}</h2>
-                        <p>{"No state data available for this component."}</p>
+    const maybe_component = findComponentByName(&components, sel);
+    
+    if (maybe_component) |comp| {
+        if (comp.meta) |metadata| {
+            return (
+                <div @allocator={ctx.allocator} class="component-state-wrapper">
+                    <div @allocator={ctx.allocator} class="state-content">
+                        <StateSection allocator={ctx.allocator} title="Props" items={metadata.setup_items} />
+                        <StateSection allocator={ctx.allocator} title="Signals" items={metadata.setup_other_items} />
+                        <StateSection allocator={ctx.allocator} title="Actions" items={metadata.template_refs_items} />
                     </div>
                 </div>
-            )}
+            );
+        }
+    }
+    
+    return (
+        <div @allocator={ctx.allocator} class="component-state-wrapper">
+            <div @allocator={ctx.allocator} class="state-content">
+                <div class="state-empty">
+                    <h2>{sel}</h2>
+                    <p>{"No state data available for this component."}</p>
+                </div>
+            </div>
         </div>
     );
 }
@@ -74,7 +82,7 @@ pub fn ComponentState(
 pub fn handleComponentSearchInput(ctx: zx.EventContext) void {
     std.log.info("Component search input changed: {s}", .{ctx.value() orelse ""});
     inputvalue = ctx.value() orelse "";
-    inputvalue2.set("apdpfd");
+    inputvalue2.set(inputvalue);
     zx.requestRender();
 }
 
