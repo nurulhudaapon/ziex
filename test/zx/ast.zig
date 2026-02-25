@@ -79,7 +79,7 @@ test "for_capture" {
     try test_render("control_flow/for_capture", @import("./../data/control_flow/for.zig").StructCapture);
 }
 test "for_range" {
-    if (true) return error.Todo;
+    try test_transpile("control_flow/for_range");
     try test_render("control_flow/for_range", @import("./../data/control_flow/for_range.zig").Page);
 }
 test "for_extra_capture" {

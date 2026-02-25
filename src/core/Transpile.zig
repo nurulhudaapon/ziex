@@ -1540,8 +1540,17 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         try ctx.write("const __zx_children_");
         try ctx.write(idx_str);
         try ctx.write(" = _zx.getAlloc().alloc(@import(\"zx\").Component, ");
-        try ctx.writeM(try self.getNodeText(first_iterable_node.?), first_iterable_node.?.startByte(), self);
-        try ctx.write(".len) catch unreachable;\n");
+        if (NodeKind.fromNode(first_iterable_node) == .range_expression) {
+            const left_node = first_iterable_node.?.childByFieldName("left").?;
+            const right_node = first_iterable_node.?.childByFieldName("right").?;
+            try ctx.writeM(try self.getNodeText(right_node), right_node.startByte(), self);
+            try ctx.write(" - ");
+            try ctx.writeM(try self.getNodeText(left_node), left_node.startByte(), self);
+        } else {
+            try ctx.writeM(try self.getNodeText(first_iterable_node.?), first_iterable_node.?.startByte(), self);
+            try ctx.write(".len");
+        }
+        try ctx.write(") catch unreachable;\n");
         try ctx.writeIndent();
         try ctx.write("for (");
         for (iterables.items, 0..) |it, it_idx| {
