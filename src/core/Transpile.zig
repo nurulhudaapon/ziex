@@ -1798,8 +1798,8 @@ pub fn transpileCase(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{Ou
     // switch_case structure: pattern [payload] '=>' value
     try ctx.writeIndent();
 
-    var pattern_nodes = std.ArrayList(ts.Node).empty;
-    defer pattern_nodes.deinit(ctx.allocator);
+    var first_pattern: ?ts.Node = null;
+    var last_pattern: ?ts.Node = null;
     var payload_node: ?ts.Node = null;
     var value_node: ?ts.Node = null;
     var seen_arrow = false;
@@ -1816,16 +1816,18 @@ pub fn transpileCase(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{Ou
             payload_node = child;
         } else if (!seen_arrow) {
             if (!std.mem.eql(u8, child_kind, ",")) {
-                try pattern_nodes.append(ctx.allocator, child);
+                if (first_pattern == null) first_pattern = child;
+                last_pattern = child;
             }
         } else if (seen_arrow and value_node == null) {
             value_node = child;
         }
     }
 
-    for (pattern_nodes.items, 0..) |p, idx| {
-        if (idx > 0) try ctx.write(", ");
-        try ctx.writeM(try self.getNodeText(p), p.startByte(), self);
+    if (first_pattern != null and last_pattern != null) {
+        const start = first_pattern.?.startByte();
+        const end = last_pattern.?.endByte();
+        try ctx.writeM(self.source[start..end], start, self);
     }
 
     try ctx.write(" => ");
