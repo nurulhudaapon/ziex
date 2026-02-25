@@ -823,8 +823,8 @@ input:checked+.slider:before {
 
 .component-root {
     display: flex;
-    align-items: center;
-    padding: 4px 0 4px 8px;
+    align-items: stretch;
+    padding: 0 0 0 8px;
     background-color: #10b981;
     color: white;
     cursor: default;
@@ -869,8 +869,8 @@ input:checked+.slider:before {
 
 .component-item {
     display: flex;
-    align-items: center;
-    padding: 4px 8px 4px 0;
+    align-items: stretch;
+    padding: 0 8px 0 0;
     /* Padding left set by inline style for indentation */
     color: #e5e5e5;
     cursor: pointer;
@@ -889,6 +889,43 @@ input:checked+.slider:before {
 
 .component-item .tree-arrow {
     font-size: 10px;
+}
+
+.component-toggle-label {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    align-self: stretch;
+    padding: 4px 0;
+}
+
+.component-select-btn {
+    all: unset;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    display: inline-flex;
+    align-items: center;
+    align-self: stretch;
+    flex: 1;
+    padding: 4px 0;
+}
+
+.component-select-btn-leaf {
+    all: unset;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    display: flex;
+    align-items: center;
+    width: 100%;
+    text-align: left;
+    padding: 4px 0;
+}
+
+.component-select-btn > *,
+.component-select-btn-leaf > * {
+    pointer-events: none;
 }
 
 .bracket {

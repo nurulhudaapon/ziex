@@ -147,12 +147,12 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
                 <>
                     <input type="checkbox" id={id} class="component-toggle" checked />
                     <div class={item_class} style={style_str} >
-                        <button value={props.name} onclick={handleComponentClick} style="all:unset;color:inherit;cursor:pointer;font:inherit;display:inline-flex;align-items:center;flex:1">
-                        <label for={id} style="display:contents;cursor:pointer">
+                        <label for={id} class="component-toggle-label">
                             <span class="tree-arrow"></span>
                         </label>
+                        <button value={props.name} onclick={handleComponentClick} class="component-select-btn">
                             <span class="bracket">{"<"}</span>
-                            <button class={name_class} value={props.name} onclick={handleComponentClick} style="all:unset;color:inherit;cursor:pointer;font:inherit">{props.name}</button>
+                            <span class={name_class}>{props.name}</span>
                             <span class="bracket">{">"}</span>
                             {if (props.badge.len > 0) (<span class="component-badge">{props.badge}</span>) else ""}
                         </button>
@@ -165,7 +165,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
                 </>
             ) else (
                 <div class={item_class} style={style_str}>
-                    <button value={props.name} onclick={handleComponentClick} style="all:unset;color:inherit;cursor:pointer;font:inherit;display:flex;align-items:center;width:100%;text-align:left">
+                    <button value={props.name} onclick={handleComponentClick} class="component-select-btn-leaf">
                         <span class="tree-arrow-spacer"></span>
                         <span class="bracket">{"<"}</span>
                         <span class={name_class}>{props.name}</span>
