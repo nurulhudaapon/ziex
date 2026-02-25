@@ -1603,7 +1603,8 @@ fn renderSwitchExpression(
 
         if (child_kind == .switch_case) {
             // Parse switch case: pattern [payload] '=>' value
-            var pattern_node: ?ts.Node = null;
+            var first_pattern: ?ts.Node = null;
+            var last_pattern: ?ts.Node = null;
             var payload_node: ?ts.Node = null;
             var value_node: ?ts.Node = null;
             var seen_arrow = false;
@@ -1618,15 +1619,20 @@ fn renderSwitchExpression(
                     seen_arrow = true;
                 } else if (std.mem.eql(u8, case_child_kind, "payload")) {
                     payload_node = case_child;
-                } else if (!seen_arrow and pattern_node == null) {
-                    pattern_node = case_child;
+                } else if (!seen_arrow) {
+                    if (!std.mem.eql(u8, case_child_kind, ",")) {
+                        if (first_pattern == null) first_pattern = case_child;
+                        last_pattern = case_child;
+                    }
                 } else if (seen_arrow and value_node == null) {
                     value_node = case_child;
                 }
             }
 
-            if (pattern_node) |p| {
-                const pattern_text = try self.getNodeText(p);
+            if (first_pattern != null and last_pattern != null) {
+                const start = first_pattern.?.startByte();
+                const end = last_pattern.?.endByte();
+                const pattern_text = self.source[start..end];
                 const payload_text = if (payload_node) |pl| try self.getNodeText(pl) else null;
                 if (value_node) |v| {
                     try cases.append(self.allocator, .{
@@ -1991,7 +1997,8 @@ fn renderSwitchExpressionInner(
 
         if (child_kind == .switch_case) {
             // Parse switch case: pattern [payload] '=>' value
-            var pattern_node: ?ts.Node = null;
+            var first_pattern: ?ts.Node = null;
+            var last_pattern: ?ts.Node = null;
             var payload_node: ?ts.Node = null;
             var value_node: ?ts.Node = null;
             var seen_arrow = false;
@@ -2006,15 +2013,20 @@ fn renderSwitchExpressionInner(
                     seen_arrow = true;
                 } else if (std.mem.eql(u8, case_child_kind, "payload")) {
                     payload_node = case_child;
-                } else if (!seen_arrow and pattern_node == null) {
-                    pattern_node = case_child;
+                } else if (!seen_arrow) {
+                    if (!std.mem.eql(u8, case_child_kind, ",")) {
+                        if (first_pattern == null) first_pattern = case_child;
+                        last_pattern = case_child;
+                    }
                 } else if (seen_arrow and value_node == null) {
                     value_node = case_child;
                 }
             }
 
-            if (pattern_node) |p| {
-                const pattern_text = try self.getNodeText(p);
+            if (first_pattern != null and last_pattern != null) {
+                const start = first_pattern.?.startByte();
+                const end = last_pattern.?.endByte();
+                const pattern_text = self.source[start..end];
                 const payload_text = if (payload_node) |pl| try self.getNodeText(pl) else null;
                 if (value_node) |v| {
                     try cases.append(self.allocator, .{

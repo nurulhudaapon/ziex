@@ -124,7 +124,6 @@ test "switch_capture" {
 }
 
 test "switch_multicaseval" {
-    if (true) return error.Todo;
     try test_transpile("control_flow/switch_multicaseval");
     try test_render("control_flow/switch_multicaseval", @import("./../data/control_flow/switch_multicaseval.zig").Page);
 }

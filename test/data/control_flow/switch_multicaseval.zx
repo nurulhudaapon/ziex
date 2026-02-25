@@ -8,7 +8,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                 .member, .member2, .member3 => ("Member"),
                 else => ("Guest"),
             }}
-            </main>
+        </main>
     );
 }
 
