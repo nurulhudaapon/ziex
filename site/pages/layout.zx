@@ -3,7 +3,7 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     const description = "A full-stack web framework for Zig. Write declarative UI components using familiar JSX patterns, transpiled to efficient Zig code.";
     const title = "Ziex - Full-stack Web Framework for Zig";
     const site_url = zx.info.homepage;
-    const keywords = "zig, zx, ziex, web framework, jsx, full-stack, ssr, ssg, wasm, components, server-side rendering, static site generation";
+    const keywords = "zig, zx, ziex, web framework, jsx, full-stack, ssr, ssg, wasm, components, server-side rendering, static site generation, zig web development, zig frameworks, zig tutorials, zig open source, zig web apps, zig SSR, zig SSG, zig WASM, zig cloud, zig hosting, zig deployment, zig frontend, zig backend, zig devtools, zig IDE, zig editor, zig playground, zig comparison, zig performance, zig reliability, zig security, zig async, zig concurrency, zig middleware, zig routing, zig template, zig spa, zig mpa, zig api, zig rest, zig graphql, zig docker, zig CI, zig CD, zig testing, zig lint, zig build, zig compile, zig package, zig module, zig dependency, zig version, zig release, zig changelog, zig community, zig forum, zig discord, zig github, zig git, zig code, zig software, zig examples, zig guide, zig docs, zig project, modern web, fast web, scalable web, open source web, developer tools, cloud hosting, web apps, frontend, backend";
     const js_href = std.fmt.allocPrint(ctx.arena, "/assets/docs.js?v={s}", .{zx.info.version}) catch unreachable;
     const needs_js = !std.mem.eql(u8, path, "/");
 
@@ -57,6 +57,21 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
                 <meta name="twitter:title" content={title} />
                 <meta name="twitter:description" content={description} />
                 <meta name="twitter:creator" content="@aspect_dev" />
+                <meta property="og:title" content="Ziex - Zig Web Framework" />
+                <meta property="og:description" content="Ziex is a modern web framework for Zig. Build fast, reliable, and scalable web applications with Zig and ziex." />
+                <meta property="og:type" content="website" />
+                <meta property="og:url" content="https://ziex.dev" />
+                <meta property="og:image" content="https://ziex.dev/assets/ziex-og-image.png" />
+                <script type="application/ld+json">
+                    {std.json.Stringify.valueAlloc(ctx.arena,.{
+                    .context = "https://schema.org",
+                    .@"type" = "WebSite",
+                    .name = "Ziex - Zig Web Framework",
+                    .url = "https://ziex.dev",
+                    .description = "Ziex is a modern web framework for Zig. Build fast, reliable, and scalable web applications with Zig and ziex.",
+                    .keywords = keywords,
+                    }, .{}) catch null}
+                </script>
 
                 <GtmHead />
 
