@@ -7,10 +7,16 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions)
     const optimize = exe.root_module.optimize;
     const build_zig = @import("../../build.zig");
     const zx_dep = b.dependencyFromBuildZig(build_zig, .{ .target = target, .optimize = optimize });
+    const zx_runner_dep = b.dependencyFromBuildZig(build_zig, .{
+        .optimize = optimize,
+        // Passing target here will cause it to compile for the target passed, but when the target is not the host machine we will try executing
+        // zx transpile with the binary for the target machine which will fail.
+        // .target = target,
+    });
 
     const zx_module = zx_dep.module("zx");
     const zx_wasm_module = zx_dep.module("zx_wasm");
-    const zx_exe = zx_dep.artifact("zx");
+    const zx_exe = zx_runner_dep.artifact("zx");
 
     var opts: InitInnerOptions = .{
         .site_path = b.path("app"),

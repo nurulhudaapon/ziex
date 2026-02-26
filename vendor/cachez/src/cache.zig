@@ -100,7 +100,7 @@ pub fn Cache(comptime T: type) type {
 
         fn getSegment(self: *const Self, key: []const u8) *Segment(T) {
             const hash_code = std.hash.Wyhash.hash(0, key);
-            return &self.segments[hash_code & self.segment_mask];
+            return &self.segments[@intCast(hash_code & self.segment_mask)];
         }
     };
 }

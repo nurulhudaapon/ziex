@@ -989,7 +989,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                                     _ = path_writer.write("/") catch break;
                                 }
                             }
-                            const parent_path = path_buf[0 .. path_stream.getPos() catch break];
+                            const parent_path = path_buf[0..@intCast(path_stream.getPos() catch break)];
 
                             // Find route with matching path
                             // Skip if this parent path matches the current route (avoid double application)
