@@ -3,20 +3,29 @@ const LazyPath = std.Build.LazyPath;
 pub const ZxInitOptions = @import("init/ZxInitOptions.zig");
 
 pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions) !Build {
-    // const target = exe.root_module.resolved_target;
+    const target = exe.root_module.resolved_target;
     const optimize = exe.root_module.optimize;
     const build_zig = @import("../../build.zig");
+    const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding, .abi = .none });
+
     const zx_dep = b.dependencyFromBuildZig(build_zig, .{
         .optimize = optimize,
+        .target = target,
+    });
 
-        // Passing target here will cause it to compile for the target passed, but when the target is not the host machine we will try executing
-        // zx transpile with the binary for the target machine which will fail.
-        // .target = target,
+    const zx_host_dep = b.dependencyFromBuildZig(build_zig, .{
+        .optimize = optimize,
+        // No target = host target, so zx CLI can execute during build
+    });
+
+    const zx_wasm_dep = b.dependencyFromBuildZig(build_zig, .{
+        .optimize = optimize,
+        .target = wasm_target,
     });
 
     const zx_module = zx_dep.module("zx");
-    const zx_wasm_module = zx_dep.module("zx_wasm");
-    const zx_exe = zx_dep.artifact("zx");
+    const zx_wasm_module = zx_wasm_dep.module("zx_wasm");
+    const zx_exe = zx_host_dep.artifact("zx");
 
     var opts: InitInnerOptions = .{
         .site_path = b.path("app"),
@@ -163,6 +172,7 @@ pub fn initInner(
     b.installArtifact(exe);
 
     // --- ZX WASM Main Executable --- //
+    const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding, .abi = .none });
     var wasm_exe_opt: ?*std.Build.Step.Compile = null;
     var wasm_zx_meta_module: ?*std.Build.Module = null;
     if (opts.client != null) {
@@ -170,7 +180,7 @@ pub fn initInner(
             .name = b.fmt("main", .{}),
             .root_module = b.createModule(.{
                 .root_source_file = exe.root_module.root_source_file,
-                .target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding, .abi = .none }),
+                .target = wasm_target,
                 .optimize = optimize,
             }),
         });
@@ -191,7 +201,7 @@ pub fn initInner(
 
         const site_wasm_module = b.createModule(.{
             .root_source_file = zx_wasm_module.root_source_file,
-            .target = zx_wasm_module.resolved_target,
+            .target = wasm_target,
             .optimize = zx_wasm_module.optimize,
             .imports = wasm_imports.items,
         });
@@ -224,14 +234,14 @@ pub fn initInner(
         b.default_step.dependOn(&post_transpile_cmd.step);
     }
 
-    // --- ZX WASM Main Executable --- //
+    // --- ZX WASM Edge Executable --- //
     var wasm_edge_exe_opt: ?*std.Build.Step.Compile = null;
     if (opts.client != null and opts.edge_path != null) {
         wasm_edge_exe_opt = b.addExecutable(.{
             .name = b.fmt("edge", .{}),
             .root_module = b.createModule(.{
                 .root_source_file = opts.edge_path,
-                .target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding, .abi = .none }),
+                .target = wasm_target,
                 .optimize = optimize,
             }),
         });
@@ -251,7 +261,7 @@ pub fn initInner(
 
         const site_wasm_module = b.createModule(.{
             .root_source_file = zx_wasm_module.root_source_file,
-            .target = zx_wasm_module.resolved_target,
+            .target = wasm_target,
             .optimize = zx_wasm_module.optimize,
             .imports = wasm_imports.items,
         });
