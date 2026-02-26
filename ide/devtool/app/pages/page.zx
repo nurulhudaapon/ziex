@@ -1,7 +1,7 @@
 const components = data.components;
 
-var inputvalue: []const u8 = "hello";
-var inputvalue2 = zx.Signal([]const u8).init("hello2");
+var inputvalue: []const u8 = "";
+var stateFilter: []const u8 = "";
 
 var selected_component = zx.Signal([]const u8).init("App");
 
@@ -23,15 +23,13 @@ fn findComponentByName(comps: []const data.Component, name: []const u8) ?data.Co
 const ComponentSearchInputProps = struct {  };
 const ComponentStateProps = struct {  };
 const ComponentTreeProps = struct {  };
+const ComponentStateFilterProps = struct {  };
 pub fn ComponentSearchInput(
     ctx: *zx.ComponentCtx(ComponentSearchInputProps),
 ) zx.Component {
     return (
         <div @allocator={ctx.allocator} class="search-input-wrapper">
             <input @allocator={ctx.allocator} oninput={handleComponentSearchInput} type="text" placeholder="Find components..." class="search-input" />
-
-            // <h1>{inputvalue}</h1>
-            // <h1>{&inputvalue2}</h1>
         </div>
     );
 }
@@ -80,10 +78,23 @@ pub fn ComponentState(
 }
 
 pub fn handleComponentSearchInput(ctx: zx.EventContext) void {
-    std.log.info("Component search input changed: {s}", .{ctx.value() orelse ""});
     inputvalue = ctx.value() orelse "";
-    inputvalue2.set(inputvalue);
     zx.requestRender();
+}
+
+pub fn handleStateFilterInput(ctx: zx.EventContext) void {
+    stateFilter = ctx.value() orelse "";
+    zx.requestRender();
+}
+
+pub fn ComponentStateFilter(
+    ctx: *zx.ComponentCtx(ComponentStateFilterProps),
+) zx.Component {
+    return (
+        <div @allocator={ctx.allocator} class="filter-wrapper">
+            <input @allocator={ctx.allocator} oninput={handleStateFilterInput} type="text" placeholder="Filter State..." class="filter-input" />
+        </div>
+    );
 }
 
 pub fn handleComponentClick(ctx: zx.EventContext) void {
@@ -114,9 +125,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <div class="state-panel">
                 <div class="state-header">
                     <span class="state-title" id="state-title">{&selected_component}</span>
-                    <div class="filter-wrapper">
-                        <input type="text" placeholder="Filter State..." class="filter-input" />
-                    </div>
+                    <ComponentStateFilter @rendering={.client} />
                     <div class="state-actions">
                         {icons.StateEye(ctx.arena)}
                         {icons.StateArrows(ctx.arena)}
@@ -141,8 +150,9 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
     const style_str = std.fmt.allocPrint(allocator, "padding-left: {d}px", .{padding}) catch "";
     const item_class = if (props.selected) "component-root" else "component-item";
     const name_class = if (props.selected) "component-name-root" else "component-name";
+    const group_class = getComponentGroupClass(props.name, props.has_children, props.children);
     return (
-        <div @allocator={allocator} class="component-group">
+        <div @allocator={allocator} class={group_class}>
             {if (props.has_children) (
                 <>
                     <input type="checkbox" id={id} class="component-toggle" checked />
@@ -188,8 +198,6 @@ fn StateSection(allocator: zx.Allocator, props: struct { title: []const u8, item
                 <span class="section-arrow"></span>
                 <span class="section-title">{props.title}</span>
             </label>
-            // <h1>{inputvalue}</h1>
-            // <h1>{&inputvalue2}</h1>
             <div class="section-items">
                 {for (props.items) |item| (
                     <StateItemRow allocator={allocator} item={item} />
@@ -206,8 +214,9 @@ fn StateItemRow(allocator: zx.Allocator, props: struct { item: StateItem, depth:
     const padding = props.depth * 18;
     const style_str = std.fmt.allocPrint(allocator, "padding-left: {d}px", .{padding}) catch "";
     const id = std.fmt.allocPrint(allocator, "sr-{d}-{s}", .{ props.depth, item.key }) catch "";
+    const group_class = getStateItemGroupClass(item);
     return (
-        <div @allocator={allocator} class="state-item-group" style={style_str}>
+        <div @allocator={allocator} class={group_class} style={style_str}>
             {if (has_children) (
                 <>
                     <input type="checkbox" id={id} class="state-row-toggle" />
@@ -235,6 +244,54 @@ fn StateItemRow(allocator: zx.Allocator, props: struct { item: StateItem, depth:
             )}
         </div>
     );
+}
+
+fn getComponentGroupClass(name: []const u8, has_children: bool, children: []const Component) []const u8 {
+    if (componentOrDescendantMatches(name, has_children, children)) return "component-group";
+    return "component-group component-group-hidden";
+}
+
+fn getStateItemGroupClass(item: StateItem) []const u8 {
+    if (stateItemOrDescendantMatches(item)) return "state-item-group";
+    return "state-item-group state-item-group-hidden";
+}
+
+fn stateItemOrDescendantMatches(item: StateItem) bool {
+    if (stateFilter.len == 0) return true;
+    if (containsIgnoreCase(item.key, stateFilter)) return true;
+    if (containsIgnoreCase(item.value, stateFilter)) return true;
+    if (item.meta.len > 0 and containsIgnoreCase(item.meta, stateFilter)) return true;
+    for (item.children) |child| {
+        if (stateItemOrDescendantMatches(child)) return true;
+    }
+    return false;
+}
+
+fn componentOrDescendantMatches(name: []const u8, has_children: bool, children: []const Component) bool {
+    if (inputvalue.len == 0) return true;
+    if (containsIgnoreCase(name, inputvalue)) return true;
+    if (has_children) {
+        for (children) |child| {
+            if (componentOrDescendantMatches(child.name, child.has_children, child.children)) return true;
+        }
+    }
+    return false;
+}
+
+fn containsIgnoreCase(haystack: []const u8, needle: []const u8) bool {
+    if (needle.len > haystack.len) return false;
+    var i: usize = 0;
+    while (i <= haystack.len - needle.len) : (i += 1) {
+        var match = true;
+        for (0..needle.len) |j| {
+            if (std.ascii.toLower(haystack[i + j]) != std.ascii.toLower(needle[j])) {
+                match = false;
+                break;
+            }
+        }
+        if (match) return true;
+    }
+    return false;
 }
 
 fn getValueColor(value: []const u8) []const u8 {
