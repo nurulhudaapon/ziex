@@ -54,6 +54,10 @@
     gap: 4px;
 }
 
+.state-item-group-hidden {
+    display: none;
+}
+
 .state-item-children {
     display: flex;
     flex-direction: column;
@@ -867,6 +871,10 @@ input:checked+.slider:before {
     flex-direction: column;
 }
 
+.component-group-hidden {
+    display: none;
+}
+
 .component-item {
     display: flex;
     align-items: stretch;
@@ -1244,6 +1252,10 @@ label.state-item {
 
 .route-item:hover {
   background: rgba(255, 255, 255, 0.05);
+}
+
+.route-item-hidden {
+  display: none;
 }
 
 .route-method {

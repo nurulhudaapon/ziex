@@ -8,31 +8,16 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     <div class="current-route-label">Current route</div>
                     <div class="route-input-row">
                         <span class="route-arrow">↳</span>
-                        <input type="text" value="/" class="route-input" />
+                        // <input type="text" value="/" class="route-input" />
+                        <ComponentSearchInput @rendering={.client} />
                     </div>
                     <div class="route-hint">
                         Press <strong>Enter</strong> to navigate <span class="no-match">(no match)</span>
                     </div>
                 </div>
-                <div class="routes-section">
-                    <input type="checkbox" id="routes-toggle" class="routes-toggle" checked />
-                    <label for="routes-toggle" class="routes-section-row">
-                        {icons.Workflow(ctx.arena)}
-                        <span class="routes-section-title">All Routes</span>
-                        <span class="routes-section-arrow"></span>
-                    </label>
-                    <div class="routes-section-desc">
-                        <span class="routes-count">{std.fmt.allocPrint(ctx.arena, "{d}", .{routes.len}) catch "0"} routes registered in your application</span>
-                        <div class="routes-children">
-                            {for (routes) |route| (
-                                <div @allocator={ctx.arena} class="route-item">
-                                    <span class={getMethodClass(route.method)}>{route.method}</span>
-                                    <span class="route-path">{route.path}</span>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
+
+                <ComponentRotes @rendering={.client} />
+                
             </div>
         </div>
     );
@@ -44,6 +29,85 @@ fn getMethodClass(method: []const u8) []const u8 {
     if (std.mem.eql(u8, method, "PUT")) return "route-method method-put";
     if (std.mem.eql(u8, method, "DELETE")) return "route-method method-delete";
     return "route-method";
+}
+
+const ComponentRoutesProps = struct {  };
+pub fn ComponentRotes(
+    ctx: *zx.ComponentCtx(ComponentRoutesProps),
+) zx.Component {
+    return (
+        <div @allocator={ctx.allocator} class="routes-section" >
+            <input type="checkbox" id="routes-toggle" class="routes-toggle" checked />
+            <label for="routes-toggle" class="routes-section-row">
+                {icons.Workflow(ctx.allocator)}
+                <span class="routes-section-title">All Routes</span>
+                <span class="routes-section-arrow"></span>
+            </label>
+            <div class="routes-section-desc">
+                <span class="routes-count">{getFilteredRouteCount(ctx.allocator)} routes registered in your application</span>
+                <div class="routes-children">
+                    {for (routes) |route| (
+                        <div @allocator={ctx.allocator} class={getRouteItemClass(route.path, route.method)}>
+                            <span class={getMethodClass(route.method)}>{route.method}</span>
+                            <span class="route-path">{route.path}</span>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
+
+var inputvalue: []const u8 = "";
+const ComponentSearchInputProps = struct {  };
+pub fn ComponentSearchInput(
+    ctx: *zx.ComponentCtx(ComponentSearchInputProps),
+) zx.Component {
+    return (
+        <input @allocator={ctx.allocator} oninput={handleComponentSearchInput} type="text" value="/" class="route-input" />
+    );
+}
+
+pub fn handleComponentSearchInput(ctx: zx.EventContext) void {
+    inputvalue = ctx.value() orelse "";
+    zx.requestRender();
+}
+
+fn routeMatchesSearch(path: []const u8, method: []const u8) bool {
+    if (inputvalue.len == 0) return true;
+    if (containsIgnoreCase(path, inputvalue)) return true;
+    if (containsIgnoreCase(method, inputvalue)) return true;
+    return false;
+}
+
+fn getRouteItemClass(path: []const u8, method: []const u8) []const u8 {
+    if (routeMatchesSearch(path, method)) return "route-item";
+    return "route-item route-item-hidden";
+}
+
+fn getFilteredRouteCount(allocator: std.mem.Allocator) []const u8 {
+    var count: usize = 0;
+    for (routes) |route| {
+        if (routeMatchesSearch(route.path, route.method)) count += 1;
+    }
+    return std.fmt.allocPrint(allocator, "{d}", .{count}) catch "0";
+}
+
+fn containsIgnoreCase(haystack: []const u8, needle: []const u8) bool {
+    if (needle.len > haystack.len) return false;
+    var i: usize = 0;
+    while (i <= haystack.len - needle.len) : (i += 1) {
+        var match = true;
+        for (0..needle.len) |j| {
+            if (std.ascii.toLower(haystack[i + j]) != std.ascii.toLower(needle[j])) {
+                match = false;
+                break;
+            }
+        }
+        if (match) return true;
+    }
+    return false;
 }
 
 const zx = @import("zx");
