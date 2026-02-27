@@ -1,24 +1,49 @@
-const components = data.components;
+var components: []const data.Component = &.{};
 
 var inputvalue: []const u8 = "";
 var stateFilter: []const u8 = "";
 
-var selected_component = zx.Signal([]const u8).init("App");
+var selected_component = zx.Signal([]const u8).init("0");
 
-// Helper function to find a component by name recursively
-fn findComponentByName(comps: []const data.Component, name: []const u8) ?data.Component {
+var fetched = false;
+// Helper function to find a component by ID recursively
+fn findComponentById(comps: []const data.Component, id: []const u8) ?data.Component {
+    fetch();
     for (comps) |comp| {
-        if (std.mem.eql(u8, comp.name, name)) {
+        if (std.mem.eql(u8, comp.id, id)) {
             return comp;
         }
         if (comp.has_children) {
-            if (findComponentByName(comp.children, name)) |found| {
+            if (findComponentById(comp.children, id)) |found| {
                 return found;
             }
         }
     }
     return null;
 }
+
+fn fetch() void {
+    if (fetched) return;
+    fetched = true;
+    _ = zx.fetch(.wasm(&onFetchText), zx.client_allocator, "http://localhost:5588/.well-known/_zx/devtool?path=/", .{ .method = .GET }) catch {};
+}
+
+fn onFetchText(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
+    if (res) |r| {
+        defer r.deinit();
+        if (r.text()) |p| {
+            const parsed = zx.prop.parse(zx.Component.Serializable, zx.client_allocator, p);
+            if (parsed.children) |sc| {
+                const mapped = data.fromSerializableSlice(zx.client_allocator, sc) catch unreachable;
+                std.log.info("Fetched {d} components", .{mapped.len});
+                components = mapped;
+            }
+        } else |_| {}
+    }
+    zx.requestRender();
+}
+
+
 
 const ComponentSearchInputProps = struct {  };
 const ComponentStateProps = struct {  };
@@ -36,10 +61,11 @@ pub fn ComponentSearchInput(
 pub fn ComponentTree(
     ctx: *zx.ComponentCtx(ComponentTreeProps),
 ) zx.Component {
+    const sel = selected_component.get();
     return (
         <div @allocator={ctx.allocator} class="component-tree">
             <div class="component-list">
-                {for (components) |comp| (<ComponentItem allocator={ctx.allocator} name={comp.name} has_children={comp.has_children} children={comp.children} depth={0} selected={comp.selected} badge={comp.badge} />)}
+                {for (components) |comp| (<ComponentItem allocator={ctx.allocator} id={comp.id} name={comp.name} has_children={comp.has_children} children={comp.children} depth={0} selected={std.mem.eql(u8, comp.id, sel)} badge={comp.badge} />)}
             </div>
         </div>
     );
@@ -49,16 +75,16 @@ pub fn ComponentState(
     ctx: *zx.ComponentCtx(ComponentStateProps),
 ) zx.Component {
     const sel = selected_component.get();
-    const maybe_component = findComponentByName(&components, sel);
+    const maybe_component = findComponentById(components, sel);
     
     if (maybe_component) |comp| {
         if (comp.meta) |metadata| {
             return (
                 <div @allocator={ctx.allocator} class="component-state-wrapper">
                     <div @allocator={ctx.allocator} class="state-content">
-                        <StateSection allocator={ctx.allocator} title="Props" items={metadata.setup_items} />
-                        <StateSection allocator={ctx.allocator} title="Signals" items={metadata.setup_other_items} />
-                        <StateSection allocator={ctx.allocator} title="Actions" items={metadata.template_refs_items} />
+                        <StateSection allocator={ctx.allocator} title="Props" items={metadata.prop_items} />
+                        <StateSection allocator={ctx.allocator} title="Signals" items={metadata.signal_items} />
+                        <StateSection allocator={ctx.allocator} title="Actions" items={metadata.action_items} />
                     </div>
                 </div>
             );
@@ -69,7 +95,7 @@ pub fn ComponentState(
         <div @allocator={ctx.allocator} class="component-state-wrapper">
             <div @allocator={ctx.allocator} class="state-content">
                 <div class="state-empty">
-                    <h2>{sel}</h2>
+                    <h2>{if (maybe_component) |c| c.name else sel}</h2>
                     <p>{"No state data available for this component."}</p>
                 </div>
             </div>
@@ -98,8 +124,8 @@ pub fn ComponentStateFilter(
 }
 
 pub fn handleComponentClick(ctx: zx.EventContext) void {
-    const name = ctx.value() orelse "App";
-    selected_component.set(name);
+    const id = ctx.value() orelse "0";
+    selected_component.set(id);
     zx.requestRender();
 }
 
@@ -142,25 +168,28 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 }
 
 const Component = data.Component;
-const ComponentItemProps = struct { name: []const u8, has_children: bool, children: []const Component, depth: usize = 0, selected: bool = false, badge: []const u8 = "" };
+const ComponentItemProps = struct { id: []const u8, name: []const u8, has_children: bool, children: []const Component, depth: usize = 0, selected: bool = false, badge: []const u8 = "" };
 
 fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Component {
-    const id = std.fmt.allocPrint(allocator, "comp-{d}-{s}", .{ props.depth, props.name }) catch "";
+    const sel = selected_component.get();
+    const dom_id = std.fmt.allocPrint(allocator, "comp-{s}", .{props.id}) catch "";
     const padding = props.depth * 24 + 16;
     const style_str = std.fmt.allocPrint(allocator, "padding-left: {d}px", .{padding}) catch "";
-    const item_class = if (props.selected) "component-root" else "component-item";
-    const name_class = if (props.selected) "component-name-root" else "component-name";
+    const is_selected = std.mem.eql(u8, props.id, sel);
+    const item_class = if (is_selected) "component-root" else "component-item";
+    const name_class = if (is_selected) "component-name-root" else "component-name";
     const group_class = getComponentGroupClass(props.name, props.has_children, props.children);
+    
     return (
         <div @allocator={allocator} class={group_class}>
             {if (props.has_children) (
                 <>
-                    <input type="checkbox" id={id} class="component-toggle" checked />
+                    <input type="checkbox" id={dom_id} class="component-toggle" checked />
                     <div class={item_class} style={style_str} >
-                        <label for={id} class="component-toggle-label">
+                        <label for={dom_id} class="component-toggle-label">
                             <span class="tree-arrow"></span>
                         </label>
-                        <button value={props.name} onclick={handleComponentClick} class="component-select-btn">
+                        <button value={props.id} onclick={handleComponentClick} class="component-select-btn">
                             <span class="bracket">{"<"}</span>
                             <span class={name_class}>{props.name}</span>
                             <span class="bracket">{">"}</span>
@@ -169,13 +198,13 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
                     </div>
                     <div class="component-children">
                         {for (props.children) |child| (
-                            <ComponentItem allocator={allocator} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} selected={child.selected} badge={child.badge} />
+                            <ComponentItem allocator={allocator} id={child.id} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} selected={std.mem.eql(u8, child.id, sel)} badge={child.badge} />
                         )}
                     </div>
                 </>
             ) else (
                 <div class={item_class} style={style_str}>
-                    <button value={props.name} onclick={handleComponentClick} class="component-select-btn-leaf">
+                    <button value={props.id} onclick={handleComponentClick} class="component-select-btn-leaf">
                         <span class="tree-arrow-spacer"></span>
                         <span class="bracket">{"<"}</span>
                         <span class={name_class}>{props.name}</span>
@@ -199,21 +228,21 @@ fn StateSection(allocator: zx.Allocator, props: struct { title: []const u8, item
                 <span class="section-title">{props.title}</span>
             </label>
             <div class="section-items">
-                {for (props.items) |item| (
-                    <StateItemRow allocator={allocator} item={item} />
+                {for (props.items, 0..) |item, i| (
+                    <StateItemRow allocator={allocator} item={item} path={std.fmt.allocPrint(allocator, "ss-{s}-{d}", .{props.title, i}) catch ""} />
                 )}
             </div>
         </div>
     );
 }
 
-fn StateItemRow(allocator: zx.Allocator, props: struct { item: StateItem, depth: usize = 0 }) zx.Component {
+fn StateItemRow(allocator: zx.Allocator, props: struct { item: StateItem, depth: usize = 0, path: []const u8 }) zx.Component {
     const item = props.item;
     const has_children = item.children.len > 0;
     const value_color = getValueColor(item.value);
     const padding = props.depth * 18;
     const style_str = std.fmt.allocPrint(allocator, "padding-left: {d}px", .{padding}) catch "";
-    const id = std.fmt.allocPrint(allocator, "sr-{d}-{s}", .{ props.depth, item.key }) catch "";
+    const id = std.fmt.allocPrint(allocator, "sr-{s}", .{ props.path }) catch "";
     const group_class = getStateItemGroupClass(item);
     return (
         <div @allocator={allocator} class={group_class} style={style_str}>
@@ -228,8 +257,8 @@ fn StateItemRow(allocator: zx.Allocator, props: struct { item: StateItem, depth:
                         {if (item.meta.len > 0) (<span class="item-meta">{item.meta}</span>) else ""}
                     </label>
                     <div class="state-item-children">
-                        {for (item.children) |child| (
-                            <StateItemRow allocator={allocator} item={child} depth={props.depth + 1} />
+                        {for (item.children, 0..) |child, i| (
+                            <StateItemRow allocator={allocator} item={child} depth={props.depth + 1} path={std.fmt.allocPrint(allocator, "{s}-{d}", .{props.path, i}) catch ""} />
                         )}
                     </div>
                 </>
@@ -245,6 +274,7 @@ fn StateItemRow(allocator: zx.Allocator, props: struct { item: StateItem, depth:
         </div>
     );
 }
+
 
 fn getComponentGroupClass(name: []const u8, has_children: bool, children: []const Component) []const u8 {
     if (componentOrDescendantMatches(name, has_children, children)) return "component-group";

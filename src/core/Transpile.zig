@@ -949,7 +949,10 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
         try ctx.writeM("_zx.cmp", node.startByte(), self);
         try ctx.write("(");
         try ctx.write(tag);
-        try ctx.write(", .{ .client = .{ .name = \"");
+        try ctx.write(", \"");
+        try ctx.write(tag);
+        try ctx.write("\", ");
+        try ctx.write(".{ .client = .{ .name = \"");
         try ctx.write(tag);
         // try ctx.write("\", .path = \"");
         // try ctx.write(full_path);
@@ -986,7 +989,9 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
         try ctx.writeM("_zx.cmp", node.startByte(), self);
         try ctx.write("(");
         try ctx.write(tag);
-        try ctx.write(", ");
+        try ctx.write(", \"");
+        try ctx.write(tag);
+        try ctx.write("\", ");
 
         var spreads = std.ArrayList(ZxAttribute){};
         defer spreads.deinit(ctx.output.allocator);

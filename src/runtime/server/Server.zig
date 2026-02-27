@@ -285,8 +285,10 @@ pub fn Server(comptime H: type) type {
             if (self.meta.cli_command == .dev) {
                 var router = try self.server.router(.{});
                 var zx_routes = router.group("/.well-known/_zx", .{});
+
                 zx_routes.get("/devsocket", HandlerType.devsocket, .{});
                 zx_routes.get("/devscript.js", HandlerType.devscript, .{});
+                zx_routes.all("/devtool", HandlerType.devtool, .{});
             }
 
             try stdout.flush();

@@ -940,6 +940,8 @@ pub fn Handler(comptime AppCtxType: type) type {
                         return self.uncaughtError(req, res, err);
                     };
 
+                    const is_devtool = is_dev_mode and std.mem.eql(u8, req.url.path, "/.well-known/_zx/devtool");
+
                     // Find and apply parent layouts based on path hierarchy
                     // Collect all parent layouts from root to this route
                     var layouts_to_apply: [10]App.Meta.LayoutHandler = undefined;
@@ -947,7 +949,8 @@ pub fn Handler(comptime AppCtxType: type) type {
 
                     // Build the path segments to traverse from root to current route
                     var path_segments = std.array_list.Managed([]const u8).init(pagectx.arena);
-                    var path_iter = std.mem.splitScalar(u8, req.url.path, '/');
+                    const segments_path = if (is_devtool) (try req.query()).get("path") orelse "/" else req.url.path;
+                    var path_iter = std.mem.splitScalar(u8, segments_path, '/');
                     while (path_iter.next()) |segment| {
                         if (segment.len > 0) {
                             path_segments.append(segment) catch break :blk;
@@ -1048,6 +1051,12 @@ pub fn Handler(comptime AppCtxType: type) type {
                         }
                     }
 
+                    if (is_devtool) {
+                        res.content_type = .JSON;
+                        try page_component.format(res.writer());
+                        return;
+                    }
+
                     // Check if streaming is enabled
                     const streaming_enabled = if (route.page_opts) |opts| opts.streaming else false;
 
@@ -1070,6 +1079,27 @@ pub fn Handler(comptime AppCtxType: type) type {
 
                 res.content_type = .HTML;
                 return;
+            }
+        }
+
+        pub fn devtool(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
+            // Add cors headers
+            res.header("Access-Control-Allow-Origin", "*");
+            res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+            res.header("Access-Control-Allow-Headers", "Content-Type");
+            if (req.method == .OPTIONS) {
+                res.status = 200;
+                return;
+            }
+
+            const query = try req.query();
+            const target_path = query.get("path") orelse "/";
+
+            if (self.findRoute(target_path, .{ .match = .exact })) |route| {
+                req.route_data = @constCast(route);
+                return self.page(req, res);
+            } else {
+                return self.notFound(req, res);
             }
         }
 

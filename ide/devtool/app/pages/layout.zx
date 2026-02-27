@@ -21,9 +21,9 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
                                 </a>
                             )}
                         </nav>
-                        <div class="sidebar-footer">
-                            v1.0.0
-                        </div>
+                        // <div class="sidebar-footer">
+                        //     {zx.info.version}
+                        // </div>
                     </aside>
                     <main class="main-content">
                         {children}
