@@ -127,11 +127,20 @@ export fn __zx_fetch_complete(
     // Copy body data
     const body_data = if (body_len > 0)
         allocator.dupe(u8, body_ptr[0..body_len]) catch {
+            if (comptime is_wasm) {
+                std.heap.wasm_allocator.free(body_ptr[0..body_len]);
+            }
             callback(null, error.OutOfMemory);
             return;
         }
     else
         @as([]const u8, "");
+
+    if (body_len > 0) {
+        if (comptime is_wasm) {
+            std.heap.wasm_allocator.free(body_ptr[0..body_len]);
+        }
+    }
 
     // Allocate Response on heap
     const response = allocator.create(Response) catch {

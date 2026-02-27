@@ -159,14 +159,35 @@ fn getWsId(ws: *WebSocket) ?u64 {
 
 /// Called by JS when WebSocket connection opens
 export fn __zx_ws_onopen(ws_id: u64, protocol_ptr: [*]const u8, protocol_len: usize) void {
-    const ws = getWebSocketById(ws_id) orelse return;
-    ws.protocol = protocol_ptr[0..protocol_len];
+    const ws = getWebSocketById(ws_id) orelse {
+        if (comptime is_wasm) {
+            if (protocol_len > 0) std.heap.wasm_allocator.free(protocol_ptr[0..protocol_len]);
+        }
+        return;
+    };
+    defer if (comptime is_wasm) {
+        if (protocol_len > 0) std.heap.wasm_allocator.free(protocol_ptr[0..protocol_len]);
+    };
+
+    // Dupe protocol string as it needs to persist
+    if (protocol_len > 0) {
+        ws.protocol = ws._allocator.dupe(u8, protocol_ptr[0..protocol_len]) catch "";
+    }
     ws._handleOpen();
 }
 
 /// Called by JS when a text message is received
 export fn __zx_ws_onmessage(ws_id: u64, data_ptr: [*]const u8, data_len: usize, is_binary: u8) void {
-    const ws = getWebSocketById(ws_id) orelse return;
+    const ws = getWebSocketById(ws_id) orelse {
+        if (comptime is_wasm) {
+            if (data_len > 0) std.heap.wasm_allocator.free(data_ptr[0..data_len]);
+        }
+        return;
+    };
+    defer if (comptime is_wasm) {
+        if (data_len > 0) std.heap.wasm_allocator.free(data_ptr[0..data_len]);
+    };
+
     const data = data_ptr[0..data_len];
 
     if (is_binary != 0) {
@@ -178,13 +199,30 @@ export fn __zx_ws_onmessage(ws_id: u64, data_ptr: [*]const u8, data_len: usize, 
 
 /// Called by JS when an error occurs
 export fn __zx_ws_onerror(ws_id: u64, msg_ptr: [*]const u8, msg_len: usize) void {
-    const ws = getWebSocketById(ws_id) orelse return;
+    const ws = getWebSocketById(ws_id) orelse {
+        if (comptime is_wasm) {
+            if (msg_len > 0) std.heap.wasm_allocator.free(msg_ptr[0..msg_len]);
+        }
+        return;
+    };
+    defer if (comptime is_wasm) {
+        if (msg_len > 0) std.heap.wasm_allocator.free(msg_ptr[0..msg_len]);
+    };
+
     ws._handleError(.{ .message = msg_ptr[0..msg_len] });
 }
 
 /// Called by JS when connection closes
 export fn __zx_ws_onclose(ws_id: u64, code: u16, reason_ptr: [*]const u8, reason_len: usize, was_clean: u8) void {
-    const ws = getWebSocketById(ws_id) orelse return;
+    const ws = getWebSocketById(ws_id) orelse {
+        if (comptime is_wasm) {
+            if (reason_len > 0) std.heap.wasm_allocator.free(reason_ptr[0..reason_len]);
+        }
+        return;
+    };
+    defer if (comptime is_wasm) {
+        if (reason_len > 0) std.heap.wasm_allocator.free(reason_ptr[0..reason_len]);
+    };
 
     ws._handleClose(.{
         .code = code,

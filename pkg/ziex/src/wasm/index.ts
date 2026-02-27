@@ -63,12 +63,16 @@ export class ZxBridge {
         this.#exports = exports;
     }
 
+    get #alloc(): ((size: number) => number) {
+        return this.#exports.__zx_alloc as ((size: number) => number);
+    }
+
     get #handler(): CallbackHandler | undefined {
         return this.#exports.__zx_cb as CallbackHandler | undefined;
     }
 
-    get #fetchCompleteHandler(): FetchCompleteHandler | undefined {
-        return this.#exports.__zx_fetch_complete as FetchCompleteHandler | undefined;
+    get #fetchCompleteHandler(): FetchCompleteHandler {
+        return this.#exports.__zx_fetch_complete as FetchCompleteHandler;
     }
 
     // WebSocket callback handlers
@@ -161,26 +165,13 @@ export class ZxBridge {
     /** Notify WASM that a fetch completed */
     #notifyFetchComplete(fetchId: bigint, statusCode: number, body: string, isError: boolean): void {
         const handler = this.#fetchCompleteHandler;
-        if (!handler) {
-            console.warn('__zx_fetch_complete not exported from WASM');
-            return;
-        }
 
         // Write the body to WASM memory
         const encoded = new TextEncoder().encode(body);
         
         // Allocate memory for body
-        const allocFn = this.#exports.__zx_alloc as ((size: number) => number) | undefined;
-        let ptr = 0;
-        
-        if (allocFn) {
-            ptr = allocFn(encoded.length);
-        } else {
-            // Fallback: use a fixed buffer area
-            const heapBase = (this.#exports.__heap_base as WebAssembly.Global)?.value ?? 0x10000;
-            ptr = heapBase + Number(fetchId % BigInt(256)) * 0x10000; // 64KB per request
-        }
-        
+        const ptr = this.#alloc(encoded.length);
+
         writeBytes(ptr, encoded);
         
         handler(fetchId, statusCode, ptr, encoded.length, isError ? 1 : 0);
@@ -337,19 +328,8 @@ export class ZxBridge {
         return this.#writeBytesToWasm(encoded);
     }
 
-    /** Write bytes to WASM memory, returning pointer and length */
     #writeBytesToWasm(data: Uint8Array): { ptr: number; len: number } {
-        const allocFn = this.#exports.__zx_alloc as ((size: number) => number) | undefined;
-        let ptr = 0;
-
-        if (allocFn) {
-            ptr = allocFn(data.length);
-        } else {
-            // Fallback: use a fixed buffer area based on current time
-            const heapBase = (this.#exports.__heap_base as WebAssembly.Global)?.value ?? 0x10000;
-            ptr = heapBase + (Date.now() % 256) * 0x1000; // 4KB per allocation
-        }
-
+        const ptr = this.#alloc(data.length);
         writeBytes(ptr, data);
         return { ptr, len: data.length };
     }

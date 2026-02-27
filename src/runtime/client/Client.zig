@@ -3,6 +3,7 @@ pub const Client = @This();
 const window = @import("window.zig");
 pub const reactivity = @import("reactivity.zig");
 pub const hydration = @import("hydration.zig");
+const is_wasm = window.is_wasm;
 
 /// Global instance counter for assigning unique IDs to component instances
 var instance_counter: u16 = 0;
@@ -443,10 +444,28 @@ export fn __zx_eventbridge(velement_id: u64, event_type_id: u8, event_ref: u64) 
 
 /// Handle async callbacks (setTimeout, setInterval, fetch) from JS bridge.
 export fn __zx_cb(callback_type: u8, callback_id: u64, data_ref: u64) void {
-    if (builtin.os.tag != .freestanding) return;
+    if (comptime !is_wasm) return;
+    const alloc = if (comptime is_wasm) std.heap.wasm_allocator else @as(std.mem.Allocator, undefined);
 
     const cb_type: window.CallbackType = @enumFromInt(callback_type);
-    _ = window.dispatchCallback(cb_type, callback_id, data_ref, std.heap.wasm_allocator);
+    _ = window.dispatchCallback(cb_type, callback_id, data_ref, alloc);
+}
+
+/// Allocate memory in WASM for JS to write into.
+export fn __zx_alloc(size: usize) ?[*]u8 {
+    if (comptime !is_wasm) return null;
+    const alloc = if (comptime is_wasm) std.heap.wasm_allocator else return null;
+    if (size == 0) return null;
+    const ptr = alloc.alloc(u8, size) catch return null;
+    return ptr.ptr;
+}
+
+/// Free memory in WASM that was allocated for JS interop.
+export fn __zx_free(ptr: [*]u8, size: usize) void {
+    if (comptime !is_wasm) return;
+    const alloc = if (comptime is_wasm) std.heap.wasm_allocator else return;
+    if (size == 0) return;
+    alloc.free(ptr[0..size]);
 }
 
 /// Custom log function for browser environment that outputs to console.

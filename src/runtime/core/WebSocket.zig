@@ -463,9 +463,12 @@ pub fn deinit(self: *WebSocket) void {
         server_impl.deinit(self);
     }
 
-    // Free owned URL
+    // Free owned URL and protocol
     if (self.url.len > 0) {
         self._allocator.free(self.url);
+    }
+    if (self.protocol.len > 0) {
+        self._allocator.free(self.protocol);
     }
 }
 
