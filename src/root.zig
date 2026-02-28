@@ -327,6 +327,7 @@ pub const Component = union(enum) {
         id: []const u8,
         props_ptr: ?*const anyopaque = null,
         writeProps: ?*const fn (*std.Io.Writer, *const anyopaque) anyerror!void = null,
+        getStateItems: ?*const fn (std.mem.Allocator, *const anyopaque) anyerror![]const devtool.ComponentSerializable.StateItem = null,
         /// SSR-rendered content of the component (for hydration)
         children: ?*const Component = null,
         /// Whether this is a React component (uses JSON) or Zig component (uses ZON)
@@ -337,6 +338,7 @@ pub const Component = union(enum) {
         propsPtr: ?*const anyopaque,
         callFn: *const fn (propsPtr: ?*const anyopaque, allocator: Allocator) anyerror!Component,
         writeProps: ?*const fn (*std.Io.Writer, *const anyopaque) anyerror!void = null,
+        getStateItems: ?*const fn (std.mem.Allocator, *const anyopaque) anyerror![]const devtool.ComponentSerializable.StateItem = null,
         allocator: Allocator,
         deinitFn: ?*const fn (propsPtr: ?*const anyopaque, allocator: Allocator) void,
         async_mode: BuiltinAttribute.Async = .sync,
@@ -458,30 +460,12 @@ pub const Component = union(enum) {
                         alloc.destroy(typed_p);
                     }
                 }
-
-                fn writeProps(writer: *std.Io.Writer, ptr: *const anyopaque) anyerror!void {
-                    if (first_is_allocator and param_count == 2) {
-                        const SecondPropType = FuncInfo.@"fn".params[1].type.?;
-                        const typed_p: *const SecondPropType = @ptrCast(@alignCast(ptr));
-                        try stringifySafe(SecondPropType, typed_p.*, writer);
-                    } else if (first_is_ctx_ptr) {
-                        const CtxType = @typeInfo(FirstPropType).pointer.child;
-                        const ctx_ptr: *const CtxType = @ptrCast(@alignCast(ptr));
-                        if (@hasField(CtxType, "props")) {
-                            const props_val = ctx_ptr.props;
-                            const PropsT = @TypeOf(props_val);
-                            if (PropsT != void) {
-                                try stringifySafe(PropsT, props_val, writer);
-                            }
-                        }
-                    }
-                }
             };
 
             return .{
                 .propsPtr = props_copy,
                 .callFn = Wrapper.call,
-                .writeProps = Wrapper.writeProps,
+                .getStateItems = devtool.createGetStateItemsFn(func),
                 .allocator = allocator,
                 .deinitFn = Wrapper.deinit,
                 .name = name,
