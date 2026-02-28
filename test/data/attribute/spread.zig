@@ -20,11 +20,13 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .children = &.{
                 _zx.cmp(
                     Input,
+                    "Input",
                     .{},
                     input_props,
                 ),
                 _zx.cmp(
                     Input,
+                    "Input",
                     .{},
                     _zx.propsM(input_props, .{ .extra = "override" }),
                 ),

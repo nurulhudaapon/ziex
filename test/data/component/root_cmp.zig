@@ -2,6 +2,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     var _zx = @import("zx").allocInit(allocator);
     return _zx.cmp(
         Button,
+        "Button",
         .{},
         .{},
     );

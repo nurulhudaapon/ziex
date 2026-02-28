@@ -8,11 +8,13 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .children = &.{
                 _zx.cmp(
                     MaybeContent,
+                    "MaybeContent",
                     .{},
                     .{ .show = true },
                 ),
                 _zx.cmp(
                     MaybeContent,
+                    "MaybeContent",
                     .{},
                     .{ .show = false },
                 ),

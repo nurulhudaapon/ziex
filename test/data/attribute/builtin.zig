@@ -8,11 +8,13 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .children = &.{
                 _zx.cmp(
                     ArgToBuiltin,
+                    "ArgToBuiltin",
                     .{},
                     .{},
                 ),
                 _zx.cmp(
                     StructToBuiltin,
+                    "StructToBuiltin",
                     .{},
                     .{},
                 ),

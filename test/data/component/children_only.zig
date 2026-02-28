@@ -7,6 +7,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .children = &.{
                 _zx.cmp(
                     Wrapper,
+                    "Wrapper",
                     .{},
                     .{ .children = _zx.ele(.fragment, .{ .children = &.{
                         _zx.ele(
@@ -21,6 +22,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                 ),
                 _zx.cmp(
                     Container,
+                    "Container",
                     .{},
                     .{ .children = _zx.ele(.fragment, .{ .children = &.{
                         _zx.ele(

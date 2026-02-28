@@ -19,11 +19,13 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .children = &.{
                 _zx.cmp(
                     ChildComponent,
+                    "ChildComponent",
                     .{},
                     .{ .children = hello_child },
                 ),
                 _zx.cmp(
                     ChildComponent,
+                    "ChildComponent",
                     .{},
                     .{ .children = _zx.ele(
                         .div,

@@ -7,6 +7,7 @@ pub fn Page(allocator: z.Allocator) z.Component {
             .children = &.{
                 _zx.cmp(
                     Button,
+                    "Button",
                     .{},
                     .{ .title = "Custom Button" },
                 ),

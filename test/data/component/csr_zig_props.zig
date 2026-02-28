@@ -8,16 +8,19 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .children = &.{
                 _zx.cmp(
                     Counter,
+                    "Counter",
                     .{ .client = .{ .name = "Counter", .id = "c24eadf" } },
                     .{ .initial = 5, .label = "Main Counter" },
                 ),
                 _zx.cmp(
                     Counter,
+                    "Counter",
                     .{ .client = .{ .name = "Counter", .id = "cd768fc" } },
                     .{ .initial = 10, .label = "Secondary" },
                 ),
                 _zx.cmp(
                     Counter,
+                    "Counter",
                     .{ .client = .{ .name = "Counter", .id = "c9e599a" } },
                     .{ .initial = 0 },
                 ),
