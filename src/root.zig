@@ -327,7 +327,7 @@ pub const Component = union(enum) {
         id: []const u8,
         props_ptr: ?*const anyopaque = null,
         writeProps: ?*const fn (*std.Io.Writer, *const anyopaque) anyerror!void = null,
-        getStateItems: ?*const fn (std.mem.Allocator, *const anyopaque) anyerror![]const devtool.ComponentSerializable.StateItem = null,
+        getStateItems: ?*const anyopaque = null,
         /// SSR-rendered content of the component (for hydration)
         children: ?*const Component = null,
         /// Whether this is a React component (uses JSON) or Zig component (uses ZON)
@@ -337,7 +337,7 @@ pub const Component = union(enum) {
     pub const ComponentFn = struct {
         propsPtr: ?*const anyopaque,
         callFn: *const fn (propsPtr: ?*const anyopaque, allocator: Allocator) anyerror!Component,
-        getStateItems: ?*const fn (std.mem.Allocator, *const anyopaque) anyerror![]const devtool.ComponentSerializable.StateItem = null,
+        getStateItems: ?*const anyopaque = null,
         allocator: Allocator,
         deinitFn: ?*const fn (propsPtr: ?*const anyopaque, allocator: Allocator) void,
         async_mode: BuiltinAttribute.Async = .sync,
@@ -464,7 +464,7 @@ pub const Component = union(enum) {
             return .{
                 .propsPtr = props_copy,
                 .callFn = Wrapper.call,
-                .getStateItems = devtool.createGetStateItemsFn(func),
+                .getStateItems = @ptrCast(devtool.ComponentSerializable.createGetStateItemsFn(func)),
                 .allocator = allocator,
                 .deinitFn = Wrapper.deinit,
                 .name = name,

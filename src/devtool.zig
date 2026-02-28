@@ -3,168 +3,6 @@ const zx = @import("root.zig");
 
 const Allocator = std.mem.Allocator;
 
-pub fn isSignalType(comptime T: type) bool {
-    const ti = @typeInfo(T);
-    if (ti == .pointer) {
-        const Child = ti.pointer.child;
-        if (@typeInfo(Child) == .@"struct") {
-            return @hasField(Child, "id") and
-                @hasField(Child, "value") and
-                @hasDecl(Child, "get") and
-                @hasDecl(Child, "set") and
-                @hasDecl(Child, "notifyChange");
-        }
-    }
-    return false;
-}
-
-pub fn isComputedType(comptime T: type) bool {
-    const ti = @typeInfo(T);
-    if (ti == .pointer) {
-        const Child = ti.pointer.child;
-        if (@typeInfo(Child) == .@"struct") {
-            return @hasField(Child, "id") and
-                @hasDecl(Child, "get") and
-                !@hasDecl(Child, "set");
-        }
-    }
-    return false;
-}
-
-pub fn toStateItems(allocator: Allocator, comptime T: type, value: T) anyerror![]const ComponentSerializable.StateItem {
-    const ti = @typeInfo(T);
-    if (ti != .@"struct") return &[_]ComponentSerializable.StateItem{};
-
-    const fields = ti.@"struct".fields;
-    var items = try allocator.alloc(ComponentSerializable.StateItem, fields.len);
-    inline for (fields, 0..) |field, i| {
-        items[i] = try toStateItem(allocator, field.type, field.name, @field(value, field.name), 0);
-    }
-    return items;
-}
-
-pub fn createGetStateItemsFn(comptime func: anytype) *const fn (Allocator, *const anyopaque) anyerror![]const ComponentSerializable.StateItem {
-    return struct {
-        fn getStateItems(alloc: Allocator, ptr: *const anyopaque) anyerror![]const ComponentSerializable.StateItem {
-            const FuncInfo = @typeInfo(@TypeOf(func));
-            const param_count = FuncInfo.@"fn".params.len;
-            if (param_count == 0) return &[_]ComponentSerializable.StateItem{};
-
-            const FirstPropType = FuncInfo.@"fn".params[0].type.?;
-            const first_is_allocator = FirstPropType == std.mem.Allocator;
-            const first_is_ctx_ptr = @typeInfo(FirstPropType) == .pointer and
-                @hasField(@typeInfo(FirstPropType).pointer.child, "allocator") and
-                @hasField(@typeInfo(FirstPropType).pointer.child, "children");
-
-            if (first_is_allocator and param_count == 2) {
-                const SecondPropType = FuncInfo.@"fn".params[1].type.?;
-                const typed_p: *const SecondPropType = @ptrCast(@alignCast(ptr));
-                return toStateItems(alloc, SecondPropType, typed_p.*);
-            } else if (first_is_ctx_ptr) {
-                const CtxType = @typeInfo(FirstPropType).pointer.child;
-                const ctx_ptr: *const CtxType = @ptrCast(@alignCast(ptr));
-                if (@hasField(CtxType, "props")) {
-                    const props_val = ctx_ptr.props;
-                    const PropsT = @TypeOf(props_val);
-                    if (PropsT != void) {
-                        return toStateItems(alloc, PropsT, props_val);
-                    }
-                }
-            }
-            return &[_]ComponentSerializable.StateItem{};
-        }
-    }.getStateItems;
-}
-
-pub fn toStateItem(allocator: Allocator, comptime T: type, key: []const u8, value: T, depth: usize) anyerror!ComponentSerializable.StateItem {
-    var item: ComponentSerializable.StateItem = .{
-        .key = key,
-        .value = "",
-        .meta = "",
-        .children = &[_]ComponentSerializable.StateItem{},
-    };
-
-    if (depth > 6) {
-        item.value = "...";
-        return item;
-    }
-
-    if (comptime isSignalType(T)) {
-        item.meta = "(Ref)";
-        // For signals, we show the value of the signal
-        const val = value.get();
-        const ValueT = @TypeOf(val);
-        const sub = try toStateItem(allocator, ValueT, key, val, depth + 1);
-        item.value = sub.value;
-        item.children = sub.children;
-        return item;
-    }
-
-    if (comptime isComputedType(T)) {
-        item.meta = "(Computed)";
-        // For computed, we show the value
-        const val = value.get();
-        const ValueT = @TypeOf(val);
-        const sub = try toStateItem(allocator, ValueT, key, val, depth + 1);
-        item.value = sub.value;
-        item.children = sub.children;
-        return item;
-    }
-
-    const ti = @typeInfo(T);
-    switch (ti) {
-        .@"struct" => |s| {
-            item.value = "Object";
-            var children = try allocator.alloc(ComponentSerializable.StateItem, s.fields.len);
-            inline for (s.fields, 0..) |field, i| {
-                children[i] = try toStateItem(allocator, field.type, field.name, @field(value, field.name), depth + 1);
-            }
-            item.children = children;
-        },
-        .pointer => |p| {
-            if (p.size == .slice and p.child == u8) {
-                item.value = try std.json.Stringify.valueAlloc(allocator, value, .{});
-            } else if (p.size == .slice) {
-                item.value = "Array";
-                var children = try allocator.alloc(ComponentSerializable.StateItem, value.len);
-                for (value, 0..) |v, i| {
-                    var buf: [32]u8 = undefined;
-                    const index_key = std.fmt.bufPrint(&buf, "{d}", .{i}) catch "item";
-                    children[i] = try toStateItem(allocator, p.child, try allocator.dupe(u8, index_key), v, depth + 1);
-                }
-                item.children = children;
-            } else {
-                item.value = "Pointer";
-            }
-        },
-        .optional => |opt| {
-            if (value) |v| {
-                return try toStateItem(allocator, opt.child, key, v, depth);
-            } else {
-                item.value = "null";
-            }
-        },
-        .int, .float, .bool => {
-            item.value = try std.json.Stringify.valueAlloc(allocator, value, .{});
-        },
-        .@"fn" => {
-            item.value = "fn()";
-        },
-        .error_union => {
-            if (value) |v| {
-                return try toStateItem(allocator, @TypeOf(v), key, v, depth);
-            } else |err| {
-                item.value = @errorName(err);
-            }
-        },
-        else => {
-            item.value = @typeName(T);
-        },
-    }
-
-    return item;
-}
-
 pub const ComponentSerializable = struct {
     pub const StateItem = struct {
         key: []const u8,
@@ -172,6 +10,166 @@ pub const ComponentSerializable = struct {
         meta: []const u8 = "",
         children: []const StateItem = &[_]StateItem{},
     };
+
+    pub fn isSignalType(comptime T: type) bool {
+        const ti = @typeInfo(T);
+        if (ti == .pointer) {
+            const Child = ti.pointer.child;
+            if (@typeInfo(Child) == .@"struct") {
+                return @hasField(Child, "id") and
+                    @hasField(Child, "value") and
+                    @hasDecl(Child, "get") and
+                    @hasDecl(Child, "set") and
+                    @hasDecl(Child, "notifyChange");
+            }
+        }
+        return false;
+    }
+
+    pub fn isComputedType(comptime T: type) bool {
+        const ti = @typeInfo(T);
+        if (ti == .pointer) {
+            const Child = ti.pointer.child;
+            if (@typeInfo(Child) == .@"struct") {
+                return @hasField(Child, "id") and
+                    @hasDecl(Child, "get") and
+                    !@hasDecl(Child, "set");
+            }
+        }
+        return false;
+    }
+
+    pub fn toStateItems(allocator: Allocator, comptime T: type, value: T) anyerror![]const StateItem {
+        const ti = @typeInfo(T);
+        if (ti != .@"struct") return &[_]StateItem{};
+
+        const fields = ti.@"struct".fields;
+        var items = try allocator.alloc(StateItem, fields.len);
+        inline for (fields, 0..) |field, i| {
+            items[i] = try toStateItem(allocator, field.type, field.name, @field(value, field.name), 0);
+        }
+        return items;
+    }
+
+    pub fn createGetStateItemsFn(comptime func: anytype) *const fn (Allocator, *const anyopaque) anyerror![]const StateItem {
+        return struct {
+            fn getStateItems(alloc: Allocator, ptr: *const anyopaque) anyerror![]const StateItem {
+                const FuncInfo = @typeInfo(@TypeOf(func));
+                const param_count = FuncInfo.@"fn".params.len;
+                if (param_count == 0) return &[_]StateItem{};
+
+                const FirstPropType = FuncInfo.@"fn".params[0].type.?;
+                const first_is_allocator = FirstPropType == std.mem.Allocator;
+                const first_is_ctx_ptr = @typeInfo(FirstPropType) == .pointer and
+                    @hasField(@typeInfo(FirstPropType).pointer.child, "allocator") and
+                    @hasField(@typeInfo(FirstPropType).pointer.child, "children");
+
+                if (first_is_allocator and param_count == 2) {
+                    const SecondPropType = FuncInfo.@"fn".params[1].type.?;
+                    const typed_p: *const SecondPropType = @ptrCast(@alignCast(ptr));
+                    return toStateItems(alloc, SecondPropType, typed_p.*);
+                } else if (first_is_ctx_ptr) {
+                    const CtxType = @typeInfo(FirstPropType).pointer.child;
+                    const ctx_ptr: *const CtxType = @ptrCast(@alignCast(ptr));
+                    if (@hasField(CtxType, "props")) {
+                        const props_val = ctx_ptr.props;
+                        const PropsT = @TypeOf(props_val);
+                        if (PropsT != void) {
+                            return toStateItems(alloc, PropsT, props_val);
+                        }
+                    }
+                }
+                return &[_]StateItem{};
+            }
+        }.getStateItems;
+    }
+
+    pub fn toStateItem(allocator: Allocator, comptime T: type, key: []const u8, value: T, depth: usize) anyerror!StateItem {
+        var item: StateItem = .{
+            .key = key,
+            .value = "",
+            .meta = "",
+            .children = &[_]StateItem{},
+        };
+
+        if (depth > 6) {
+            item.value = "...";
+            return item;
+        }
+
+        if (comptime isSignalType(T)) {
+            item.meta = "(Ref)";
+            const val = value.get();
+            const ValueT = @TypeOf(val);
+            const sub = try toStateItem(allocator, ValueT, key, val, depth + 1);
+            item.value = sub.value;
+            item.children = sub.children;
+            return item;
+        }
+
+        if (comptime isComputedType(T)) {
+            item.meta = "(Computed)";
+            const val = value.get();
+            const ValueT = @TypeOf(val);
+            const sub = try toStateItem(allocator, ValueT, key, val, depth + 1);
+            item.value = sub.value;
+            item.children = sub.children;
+            return item;
+        }
+
+        const ti = @typeInfo(T);
+        switch (ti) {
+            .@"struct" => |s| {
+                item.value = "Object";
+                var children = try allocator.alloc(StateItem, s.fields.len);
+                inline for (s.fields, 0..) |field, i| {
+                    children[i] = try toStateItem(allocator, field.type, field.name, @field(value, field.name), depth + 1);
+                }
+                item.children = children;
+            },
+            .pointer => |p| {
+                if (p.size == .slice and p.child == u8) {
+                    item.value = try std.json.Stringify.valueAlloc(allocator, value, .{});
+                } else if (p.size == .slice) {
+                    item.value = "Array";
+                    var children = try allocator.alloc(StateItem, value.len);
+                    for (value, 0..) |v, i| {
+                        var buf: [32]u8 = undefined;
+                        const index_key = std.fmt.bufPrint(&buf, "{d}", .{i}) catch "item";
+                        children[i] = try toStateItem(allocator, p.child, try allocator.dupe(u8, index_key), v, depth + 1);
+                    }
+                    item.children = children;
+                } else {
+                    item.value = "Pointer";
+                }
+            },
+            .optional => |opt| {
+                if (value) |v| {
+                    return try toStateItem(allocator, opt.child, key, v, depth);
+                } else {
+                    item.value = "null";
+                }
+            },
+            .int, .float, .bool => {
+                item.value = try std.json.Stringify.valueAlloc(allocator, value, .{});
+            },
+            .@"fn" => {
+                item.value = "fn()";
+            },
+            .error_union => {
+                if (value) |v| {
+                    return try toStateItem(allocator, @TypeOf(v), key, v, depth);
+                } else |err| {
+                    item.value = @errorName(err);
+                }
+            },
+            else => {
+                item.value = @typeName(T);
+            },
+        }
+
+        return item;
+    }
 
     /// Serializable attribute (excludes handler which is a function pointer)
     const AttributeSerializable = struct {
@@ -200,10 +198,11 @@ pub const ComponentSerializable = struct {
         return serializable;
     }
 
-    fn serializeProps(allocator: Allocator, getStateItems: ?*const fn (Allocator, *const anyopaque) anyerror![]const StateItem, props_ptr: ?*const anyopaque) !?[]const StateItem {
-        const gsi = getStateItems orelse return null;
+    fn serializeProps(allocator: Allocator, getStateItems: ?*const anyopaque, props_ptr: ?*const anyopaque) !?[]const StateItem {
+        const gsi_opaque = getStateItems orelse return null;
         const pp = props_ptr orelse return null;
 
+        const gsi: *const fn (Allocator, *const anyopaque) anyerror![]const StateItem = @ptrCast(@alignCast(gsi_opaque));
         return try gsi(allocator, pp);
     }
 
