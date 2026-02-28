@@ -1,7 +1,7 @@
 .{
     .name = .zx,
     .version = "0.1.0-dev.727",
-    .jsglue_version = "0.1.0-dev.628",
+    .jsglue_version = "0.1.0-dev.727",
     .description = "ZX is a framework for building web applications with Zig.",
     .repository = "https://github.com/nurulhudaapon/ziex",
     .homepage = "https://ziex.dev",
