@@ -863,43 +863,6 @@ pub const Component = union(enum) {
     }
 };
 
-fn stringifySafe(comptime T: type, value: T, writer: anytype) anyerror!void {
-    const i = @typeInfo(T);
-    if (i != .@"struct") {
-        if (comptime isJsonBad(T)) {
-            try writer.writeAll("\"[unsupported]\"");
-            return;
-        }
-        try std.json.Stringify.value(value, .{}, writer);
-        return;
-    }
-
-    try writer.writeByte('{');
-    var first = true;
-    inline for (i.@"struct".fields) |field| {
-        if (comptime !isJsonBad(field.type)) {
-            if (!first) try writer.writeByte(',');
-            first = false;
-            try std.json.Stringify.value(field.name, .{}, writer);
-            try writer.writeByte(':');
-            try stringifySafe(field.type, @field(value, field.name), writer);
-        }
-    }
-    try writer.writeByte('}');
-}
-
-fn isJsonBad(comptime T: type) bool {
-    return switch (@typeInfo(T)) {
-        .@"fn", .error_set, .type, .@"opaque", .@"union", .error_union => true,
-        .pointer => |p| {
-            if (p.size == .slice and p.child == u8) return false;
-            return true;
-        },
-        .optional => |opt| isJsonBad(opt.child),
-        else => false,
-    };
-}
-
 pub const Element = struct {
     pub const Attribute = struct {
         name: []const u8,
