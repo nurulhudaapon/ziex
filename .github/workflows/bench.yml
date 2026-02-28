@@ -127,9 +127,9 @@ jobs:
           {
             echo "## Benchmark Results"
             echo ""
-            echo "| Framework | Req/s | P50 (ms) | P99 (ms) | Idle (MB) | Peak (MB) |"
-            echo "|-----------|------:|---------:|---------:|----------:|----------:|"
-            tail -n +2 bench/result.csv | while IFS=',' read -r fw idle peak rps p50 p99; do
+            echo "| Framework | Req/s | P50 (ms) | P99 (ms) | Idle (MB) | Peak (MB) | Image (MB) | Cold Start (ms) | CPU Peak (%) | Build (s) |"
+            echo "|-----------|------:|---------:|---------:|----------:|----------:|-----------:|----------------:|-------------:|----------:|"
+            tail -n +2 bench/result.csv | while IFS=',' read -r fw idle peak build_time img_mb cold_ms cpu_peak rps p50 p99; do
               case "$fw" in
                 ziex) label="Ziex" ;;
                 leptos) label="Leptos" ;;
@@ -138,7 +138,7 @@ jobs:
                 nextjs) label="Next.js" ;;
                 *) label="$fw" ;;
               esac
-              printf "| %s | %.0f | %.2f | %.2f | %.1f | %.1f |\n" \
-                "$label" "$rps" "$p50" "$p99" "$idle" "$peak"
+              printf "| %s | %.0f | %.2f | %.2f | %.1f | %.1f | %.0f | %.0f | %.1f | %.0f |\n" \
+                "$label" "$rps" "$p50" "$p99" "$idle" "$peak" "$img_mb" "$cold_ms" "$cpu_peak" "$build_time"
             done
           } >> $GITHUB_STEP_SUMMARY

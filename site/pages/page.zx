@@ -10,7 +10,6 @@ const features = [_]Feature{
     .{ .icon_fn = icons.Wrench, .title = "Developer Tooling", .description = "CLI, hot reload, and editor extensions for the best DX." },
 };
 
-
 const benchmark_cwv_rows = [_]BenchmarkRow{
     .{ .label = "Ziex", .value = 98, .display = "98%", .url = "" },
     .{ .label = "Next.js", .value = 44, .display = "44%", .url = "https://nextjs.org" },
@@ -46,12 +45,12 @@ fn formatRequests(n: f64) []const u8 {
     if (int_val >= 10000) {
         const thousands = int_val / 1000;
         const remainder = int_val % 1000;
-        return std.fmt.comptimePrint("{d},{d:0>3}", .{thousands, remainder});
+        return std.fmt.comptimePrint("{d},{d:0>3}", .{ thousands, remainder });
     }
     if (int_val >= 1000) {
         const thousands = int_val / 1000;
         const remainder = int_val % 1000;
-        return std.fmt.comptimePrint("{d},{d}", .{thousands, remainder});
+        return std.fmt.comptimePrint("{d},{d}", .{ thousands, remainder });
     }
     return std.fmt.comptimePrint("{d}", .{int_val});
 }
@@ -59,6 +58,36 @@ fn formatRequests(n: f64) []const u8 {
 // Helper function to format latency in milliseconds
 fn formatLatency(ms: f64) []const u8 {
     return std.fmt.comptimePrint("{d:.2} ms", .{ms});
+}
+
+// Helper function to format build time in seconds
+fn formatBuildTime(s: f64) []const u8 {
+    const int_s = @as(u32, @intFromFloat(s));
+    if (int_s >= 60) {
+        const mins = int_s / 60;
+        const secs = int_s % 60;
+        return std.fmt.comptimePrint("{d}m {d}s", .{ mins, secs });
+    }
+    return std.fmt.comptimePrint("{d}s", .{int_s});
+}
+
+// Helper function to format image size (e.g., "18 MB", "1.0 GB")
+fn formatImageSize(mb: f64) []const u8 {
+    if (mb >= 1000) {
+        const gb = mb / 1000;
+        return std.fmt.comptimePrint("{d:.1} GB", .{gb});
+    }
+    return std.fmt.comptimePrint("{d} MB", .{@as(u32, @intFromFloat(mb))});
+}
+
+// Helper function to format cold start time in milliseconds
+fn formatColdStart(ms: f64) []const u8 {
+    return std.fmt.comptimePrint("{d} ms", .{@as(u32, @intFromFloat(ms))});
+}
+
+// Helper function to format CPU peak percentage
+fn formatCpuPeak(pct: f64) []const u8 {
+    return std.fmt.comptimePrint("{d:.1}%", .{pct});
 }
 
 // Map framework id to its website URL
@@ -125,8 +154,118 @@ fn buildMemoryRows() [bench_len]BenchmarkRow {
     return rows;
 }
 
+fn buildBuildTimeRows() [bench_len]BenchmarkRow {
+    @setEvalBranchQuota(10000);
+    var rows: [bench_len]BenchmarkRow = undefined;
+    const fields = @typeInfo(@TypeOf(bench_data)).@"struct".fields;
+    inline for (fields, 0..) |field, i| {
+        const d = @field(bench_data, field.name);
+        rows[i] = .{
+            .label = d.label,
+            .value = -d.build_time_s, // negative so lower build time = longer bar
+            .display = formatBuildTime(d.build_time_s),
+            .url = getFrameworkUrl(d.id),
+            .tooltip_metrics = &[_]TooltipMetric{
+                .{ .label = "Framework", .value = d.label },
+                .{ .label = "Build Time", .value = formatBuildTime(d.build_time_s) },
+            },
+        };
+    }
+    // Sort rows ascending by build time (lower is better, so -value is higher is better)
+    std.sort.insertion(BenchmarkRow, &rows, {}, struct {
+        fn lessThan(_: void, a: BenchmarkRow, b: BenchmarkRow) bool {
+            return a.value > b.value;
+        }
+    }.lessThan);
+    return rows;
+}
+
+fn buildColdStartRows() [bench_len]BenchmarkRow {
+    @setEvalBranchQuota(10000);
+    var rows: [bench_len]BenchmarkRow = undefined;
+    const fields = @typeInfo(@TypeOf(bench_data)).@"struct".fields;
+    inline for (fields, 0..) |field, i| {
+        const d = @field(bench_data, field.name);
+        rows[i] = .{
+            .label = d.label,
+            .value = -d.cold_start_ms, // negative so lower cold start = longer bar
+            .display = formatColdStart(d.cold_start_ms),
+            .url = getFrameworkUrl(d.id),
+            .tooltip_metrics = &[_]TooltipMetric{
+                .{ .label = "Framework", .value = d.label },
+                .{ .label = "Cold Start", .value = formatColdStart(d.cold_start_ms) },
+                .{ .label = "Image Size", .value = formatImageSize(d.image_mb) },
+            },
+        };
+    }
+    // Sort rows ascending by cold start (lower is better, so -value is higher is better)
+    std.sort.insertion(BenchmarkRow, &rows, {}, struct {
+        fn lessThan(_: void, a: BenchmarkRow, b: BenchmarkRow) bool {
+            return a.value > b.value;
+        }
+    }.lessThan);
+    return rows;
+}
+
+fn buildImageSizeRows() [bench_len]BenchmarkRow {
+    @setEvalBranchQuota(10000);
+    var rows: [bench_len]BenchmarkRow = undefined;
+    const fields = @typeInfo(@TypeOf(bench_data)).@"struct".fields;
+    inline for (fields, 0..) |field, i| {
+        const d = @field(bench_data, field.name);
+        rows[i] = .{
+            .label = d.label,
+            .value = -d.image_mb, // negative so smaller image = longer bar
+            .display = formatImageSize(d.image_mb),
+            .url = getFrameworkUrl(d.id),
+            .tooltip_metrics = &[_]TooltipMetric{
+                .{ .label = "Framework", .value = d.label },
+                .{ .label = "Image Size", .value = formatImageSize(d.image_mb) },
+            },
+        };
+    }
+    // Sort rows ascending by image size (lower is better, so -value is higher is better)
+    std.sort.insertion(BenchmarkRow, &rows, {}, struct {
+        fn lessThan(_: void, a: BenchmarkRow, b: BenchmarkRow) bool {
+            return a.value > b.value;
+        }
+    }.lessThan);
+    return rows;
+}
+
+fn buildCpuUsageRows() [bench_len]BenchmarkRow {
+    @setEvalBranchQuota(10000);
+    var rows: [bench_len]BenchmarkRow = undefined;
+    const fields = @typeInfo(@TypeOf(bench_data)).@"struct".fields;
+    inline for (fields, 0..) |field, i| {
+        const d = @field(bench_data, field.name);
+        rows[i] = .{
+            .label = d.label,
+            .value = -d.cpu_peak_pct, // negative so lower CPU = longer bar
+            .display = formatCpuPeak(d.cpu_peak_pct),
+            .url = getFrameworkUrl(d.id),
+            .tooltip_metrics = &[_]TooltipMetric{
+                .{ .label = "Framework", .value = d.label },
+                .{ .label = "Peak CPU", .value = formatCpuPeak(d.cpu_peak_pct) },
+                .{ .label = "Requests/sec", .value = formatRequests(d.requests_per_sec) },
+            },
+        };
+    }
+    // Sort rows ascending by CPU usage (lower is better, so -value is higher is better)
+    std.sort.insertion(BenchmarkRow, &rows, {}, struct {
+        fn lessThan(_: void, a: BenchmarkRow, b: BenchmarkRow) bool {
+            return a.value > b.value;
+        }
+    }.lessThan);
+    return rows;
+}
+
 const benchmark_ssr_rows = buildSsrRows();
 const benchmark_memory_rows = buildMemoryRows();
+const benchmark_build_time_rows = buildBuildTimeRows();
+const benchmark_cold_start_rows = buildColdStartRows();
+const benchmark_image_size_rows = buildImageSizeRows();
+const benchmark_cpu_usage_rows = buildCpuUsageRows();
 
 const benchmark_tabs = [_]BenchmarkTab{
     // .{
@@ -139,20 +278,53 @@ const benchmark_tabs = [_]BenchmarkTab{
     // },
     .{
         .id = "bench-tab-ssr",
-        .label = "SSR Throughput",
+        .label = "SSR",
         .metric = "Requests per second (higher is better)",
         .footnote = "Dockerized SSR endpoint hit with 10k requests at 50 concurrent connections, averaged over 3 runs.",
         .rows = benchmark_ssr_rows[0..],
         .checked = true,
     },
     .{
+        .id = "bench-tab-cpu",
+        .label = "CPU",
+        .metric = "Peak CPU usage during load (lower is better)",
+        .footnote = "Maximum CPU utilization during the load test. Lower means more efficient resource usage.",
+        .rows = benchmark_cpu_usage_rows[0..],
+        .checked = false,
+    },
+    .{
         .id = "bench-tab-memory",
         .label = "Memory",
-        .metric = "Peak memory under load",
+        .metric = "Peak memory under load (lower is better)",
         .footnote = "Peak container RSS during load test. Lower is better. Hover for idle memory.",
         .rows = benchmark_memory_rows[0..],
         .checked = false,
     },
+    .{
+        .id = "bench-tab-cold-start",
+        .label = "Cold Start",
+        .metric = "Cold start time in milliseconds (lower is better)",
+        .footnote = "Time for the container to start and become ready to serve requests. Lower is better.",
+        .rows = benchmark_cold_start_rows[0..],
+        .checked = false,
+    },
+    .{
+        .id = "bench-tab-image-size",
+        .label = "Size",
+        .metric = "Docker image size (lower is better)",
+        .footnote = "Size of the final Docker image. Smaller images are faster to deploy and use less storage.",
+        .rows = benchmark_image_size_rows[0..],
+        .checked = false,
+    },
+    // .{
+    //     .id = "bench-tab-build",
+    //     .label = "Build Time",
+    //     .metric = "Docker image build time in seconds (lower is better)",
+    //     .footnote = "Time to build each framework's Docker image from scratch on the host machine. Lower is better.",
+    //     .rows = benchmark_build_time_rows[0..],
+    //     .checked = false,
+    // },
+
 };
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
@@ -169,7 +341,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         allocator,
         @embedFile("./examples/feature_examples.zx"),
     );
-
 
     const control_tabs = [_]CodeTab{
         .{ .id = "control-tab-if", .label = "If", .section = "Control Flow: if", .code = "", .checked = true },
@@ -264,15 +435,10 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         <h2 class="section-title">Features</h2>
                     </div>
                     <div class="features-grid">
-                        {for (features) |f| (<FeatureCard  icon_fn={f.icon_fn} title={f.title} description={f.description} />)}
+                        {for (features) |f| (<FeatureCard icon_fn={f.icon_fn} title={f.title} description={f.description} />)}
                     </div>
                 </section>
-                <BenchmarksSection
-                    eyebrow=""
-                    title="Performance"
-                    subtitle=`<a href='{zx.info.repository}/tree/main/bench' target='_blank' class='bench-label-link'>View benchmark →</a> <br/> Each framework runs in a Docker container limited to 2 CPU cores and 2 GB RAM.`
-                    tabs={benchmark_tabs[0..]}
-                />
+                <BenchmarksSection eyebrow="" title="Performance" subtitle=`<a href='{zx.info.repository}/tree/main/bench' target='_blank' class='bench-label-link'>View benchmark →</a> <br/> Each framework runs in a Docker container limited to 2 CPU cores and 2 GB RAM.` tabs={benchmark_tabs[0..]} />
                 <section class="feature-examples">
                     <div class="feature-examples-header">
                         <h2 class="section-title">Feature Examples</h2>
@@ -408,11 +574,11 @@ fn BenchmarkRowView(allocator: zx.Allocator, props: BenchmarkRowViewProps) zx.Co
 
 fn roundToNiceValue(value: f64) f64 {
     if (value <= 0) return 1;
-    
+
     const log_val = std.math.log10(value);
     const magnitude = std.math.pow(f64, 10, @floor(log_val));
     const normalized = value / magnitude;
-    
+
     // Round up to nice values: 1, 2, 2.5, 3, 4, 5, 10
     // This ensures the highest bar fills to ~90% of space
     if (normalized <= 1) return magnitude;
@@ -426,9 +592,9 @@ fn roundToNiceValue(value: f64) f64 {
 
 fn normalizeValue(value: f64, rows: []const BenchmarkRow) f64 {
     const min_bar_value = 0.1; // 10% minimum bar size for visibility
-    
+
     if (rows.len == 0) return 0;
-    
+
     // Check if we're dealing with negative values (lower is better)
     const all_negative = blk: {
         for (rows) |row| {
@@ -436,7 +602,7 @@ fn normalizeValue(value: f64, rows: []const BenchmarkRow) f64 {
         }
         break :blk true;
     };
-    
+
     if (all_negative) {
         // For negative values: find min (most negative) and max (least negative)
         var min_value = rows[0].value;
@@ -475,10 +641,7 @@ fn BenchmarksPanel(allocator: zx.Allocator, tab: BenchmarkTab) zx.Component {
             <div class="benchmarks-metric">{tab.metric}</div>
             <div class="benchmarks-chart">
                 {for (tab.rows) |row| (
-                    <BenchmarkRowView
-                        row={row}
-                        normalized_value={normalizeValue(row.value, tab.rows)}
-                    />
+                    <BenchmarkRowView row={row} normalized_value={normalizeValue(row.value, tab.rows)} />
                 )}
             </div>
             <div class="benchmarks-footnote">{tab.footnote}</div>
@@ -516,7 +679,6 @@ fn BenchmarksSection(allocator: zx.Allocator, props: BenchmarksSectionProps) zx.
         </section>
     );
 }
-
 
 const FeatureExampleProps = struct {
     title: []const u8,

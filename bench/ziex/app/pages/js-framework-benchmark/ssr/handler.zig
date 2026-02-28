@@ -53,8 +53,6 @@ pub fn handleRequest(ctx: zx.PageContext) BenchState {
     const remove_id_str = qs.get("remove");
     const api_mode = qs.get("api"); // Check if this is an API call
 
-    std.debug.print("Method: {any}\n", .{ctx.request.method});
-
     mutex.lock();
     defer mutex.unlock();
 

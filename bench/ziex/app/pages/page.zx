@@ -4,6 +4,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <ol>
                 <li><a href="/js-framework-benchmark/csr">js-framework-benchmark | CSR</a></li>
                 <li><a href="/js-framework-benchmark/ssr">js-framework-benchmark | SSR</a></li>
+                <li><a href="/ssr-performance-showdown">SSR Performance Showdown</a></li>
                 <li><a href="/ssr">Generalized | SSR</a></li>
             </ol>
         </main>

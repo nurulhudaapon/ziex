@@ -19,15 +19,17 @@ ENV PATH="/.cargo/bin:$PATH"
 # Create the final bundle folder. Bundle with release build profile to enable optimizations.
 RUN dx bundle --web --release
 
-FROM chef AS runtime
-COPY --from=builder /app/target/dx/bench_dioxus/release/web/ /usr/local/app
+FROM debian:bookworm-slim AS runtime
+
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+COPY --from=builder /app/target/dx/bench_dioxus/release/web/ /app
 
 # set our port and make sure to listen for all connections
 ENV PORT=3000
 ENV IP=0.0.0.0
 
-# expose the port 8080
 EXPOSE 3000
 
-WORKDIR /usr/local/app
-ENTRYPOINT [ "/usr/local/app/bench_dioxus" ]
+ENTRYPOINT [ "/app/bench_dioxus" ]

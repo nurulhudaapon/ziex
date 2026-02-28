@@ -16,7 +16,7 @@ COPY . .
 
 RUN cargo leptos build --release -vv
 
-FROM rust:1.93-alpine AS runner
+FROM alpine:3.22.2 AS runner
 
 # Install curl for health checks
 RUN apk add --no-cache curl
