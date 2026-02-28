@@ -16,7 +16,7 @@ pub const PropsParser = struct {
         return self.parseValue(T, allocator);
     }
 
-    fn parseValue(self: *PropsParser, comptime T: type, allocator: std.mem.Allocator) !T {
+    fn parseValue(self: *PropsParser, comptime T: type, allocator: std.mem.Allocator) anyerror!T {
         const type_info = @typeInfo(T);
 
         switch (type_info) {

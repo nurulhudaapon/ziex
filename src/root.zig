@@ -2,13 +2,14 @@
 //! This module provides the core component system, rendering engine, and utilities
 //! for creating type-safe, high-performance web applications with server-side rendering.
 const std = @import("std");
+pub const devtool = @import("devtool.zig");
 pub const Ast = @import("core/Ast.zig");
 pub const Parse = @import("core/Parse.zig");
 /// Global cache for components and pages
 pub const cache = @import("runtime/core//Cache.zig");
 
 // HTML Tags
-const ElementTag = enum {
+pub const ElementTag = enum {
     aside,
     fragment,
     iframe,
@@ -302,95 +303,9 @@ fn coerceProps(comptime TargetType: type, props: anytype) TargetType {
     return result;
 }
 
-const ComponentSerializable = struct {
-    /// Serializable attribute (excludes handler which is a function pointer)
-    const AttributeSerializable = struct {
-        name: []const u8,
-        value: ?[]const u8 = null,
-    };
-
-    tag: ?ElementTag = null,
-    text: ?[]const u8 = null,
-    attributes: ?[]const AttributeSerializable = null,
-    children: ?[]ComponentSerializable = null,
-
-    /// Convert Element.Attribute slice to serializable form (strips handlers)
-    fn serializeAttributes(allocator: Allocator, attrs: ?[]const Element.Attribute) !?[]const AttributeSerializable {
-        const attributes = attrs orelse return null;
-        const serializable = try allocator.alloc(AttributeSerializable, attributes.len);
-        for (attributes, 0..) |attr, i| {
-            serializable[i] = .{
-                .name = attr.name,
-                .value = attr.value,
-                // handler is intentionally excluded - not serializable
-            };
-        }
-        return serializable;
-    }
-
-    pub fn init(allocator: Allocator, component: Component) !ComponentSerializable {
-        return switch (component) {
-            .text => |text| .{ .text = text },
-            .signal_text => |sig| .{ .text = sig.current_text },
-            .element => |element| blk: {
-                const children_serializable = if (element.children) |children| blk2: {
-                    const serializable = try allocator.alloc(ComponentSerializable, children.len);
-                    for (children, 0..) |child, i| {
-                        serializable[i] = try ComponentSerializable.init(allocator, child);
-                    }
-                    break :blk2 serializable;
-                } else null;
-                break :blk .{
-                    .tag = element.tag,
-                    .attributes = try serializeAttributes(allocator, element.attributes),
-                    .children = children_serializable,
-                };
-            },
-            .component_csr => |component_csr| blk: {
-                // Serialize the SSR children content (comments are not serializable)
-                if (component_csr.children) |children| {
-                    break :blk try ComponentSerializable.init(allocator, children.*);
-                }
-                break :blk .{};
-            },
-            .component_fn => |comp_fn| blk: {
-                // Resolve component_fn by calling it, then serialize the result
-                // This avoids serializing anyopaque fields
-                const resolved = try comp_fn.call();
-                const serialized = try ComponentSerializable.init(allocator, resolved);
-                break :blk serialized;
-            },
-        };
-    }
-
-    pub fn initChildren(allocator: Allocator, children: []const Component) ![]ComponentSerializable {
-        const children_serializable = try allocator.alloc(ComponentSerializable, children.len);
-        for (children, 0..) |child, i| {
-            children_serializable[i] = try ComponentSerializable.init(allocator, child);
-        }
-        return children_serializable;
-    }
-
-    pub fn serialize(self: ComponentSerializable, writer: *std.Io.Writer) !void {
-
-        // try std.zon.stringify.serializeArbitraryDepth(
-        //     self,
-        //     .{
-        //         .whitespace = true,
-        //         .emit_default_optional_fields = false,
-        //     },
-        //     writer,
-        // );
-
-        try std.json.Stringify.value(
-            self,
-            .{ .whitespace = .indent_2 },
-            writer,
-        );
-    }
-};
-
 pub const Component = union(enum) {
+    pub const Serializable = devtool.ComponentSerializable;
+
     none,
     text: []const u8,
     element: Element,
@@ -412,6 +327,7 @@ pub const Component = union(enum) {
         id: []const u8,
         props_ptr: ?*const anyopaque = null,
         writeProps: ?*const fn (*std.Io.Writer, *const anyopaque) anyerror!void = null,
+        getStateItems: ?*const anyopaque = null,
         /// SSR-rendered content of the component (for hydration)
         children: ?*const Component = null,
         /// Whether this is a React component (uses JSON) or Zig component (uses ZON)
@@ -421,13 +337,15 @@ pub const Component = union(enum) {
     pub const ComponentFn = struct {
         propsPtr: ?*const anyopaque,
         callFn: *const fn (propsPtr: ?*const anyopaque, allocator: Allocator) anyerror!Component,
+        getStateItems: ?*const anyopaque = null,
         allocator: Allocator,
         deinitFn: ?*const fn (propsPtr: ?*const anyopaque, allocator: Allocator) void,
         async_mode: BuiltinAttribute.Async = .sync,
         fallback: ?*const Component = null,
         caching: ?BuiltinAttribute.Caching = null,
+        name: []const u8,
 
-        pub fn init(comptime func: anytype, allocator: Allocator, props: anytype) ComponentFn {
+        pub fn init(comptime func: anytype, name: []const u8, allocator: Allocator, props: anytype) ComponentFn {
             const FuncInfo = @typeInfo(@TypeOf(func));
             const param_count = FuncInfo.@"fn".params.len;
             const fn_name = @typeName(@TypeOf(func));
@@ -546,8 +464,10 @@ pub const Component = union(enum) {
             return .{
                 .propsPtr = props_copy,
                 .callFn = Wrapper.call,
+                .getStateItems = @ptrCast(devtool.ComponentSerializable.createGetStateItemsFn(func)),
                 .allocator = allocator,
                 .deinitFn = Wrapper.deinit,
+                .name = name,
             };
         }
 
@@ -915,17 +835,31 @@ pub const Component = union(enum) {
         }
     }
 
-    // pub fn format(
-    //     self: *const Component,
-    //     w: *std.Io.Writer,
-    // ) error{WriteFailed}!void {
-    //     var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-    //     defer arena.deinit();
-    //     const allocator = arena.allocator();
+    pub const SerializeOptions = struct {
+        only_components: bool = true,
+        include_props: bool = true,
+        include_attributes: bool = true,
+    };
 
-    //     var serializable = ComponentSerializable.init(allocator, self.*) catch return error.WriteFailed;
-    //     try serializable.serialize(w);
-    // }
+    pub fn format(
+        self: *const Component,
+        w: *std.Io.Writer,
+    ) error{WriteFailed}!void {
+        self.formatWithOptions(w, .{}) catch return error.WriteFailed;
+    }
+
+    pub fn formatWithOptions(
+        self: *const Component,
+        w: *std.Io.Writer,
+        options: SerializeOptions,
+    ) anyerror!void {
+        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+        defer arena.deinit();
+        const allocator = arena.allocator();
+
+        var serializable = try devtool.ComponentSerializable.init(allocator, self.*, options);
+        try serializable.serialize(w);
+    }
 };
 
 pub const Element = struct {
@@ -965,6 +899,9 @@ const ZxOptions = struct {
     fallback: ?*const Component = null,
     caching: ?BuiltinAttribute.Caching = null,
     client: ?ComponentClientOptions = null,
+    /// Component name used for devtools / debugging.
+    /// Pass `null` (or omit) in release builds to reduce binary size.
+    name: ?[]const u8 = null,
 };
 
 pub fn zx(tag: ElementTag, options: ZxOptions) Component {
@@ -1528,13 +1465,14 @@ pub const ZxContext = struct {
             @hasField(@typeInfo(FirstPropType).pointer.child, "allocator") and
             @hasField(@typeInfo(FirstPropType).pointer.child, "children");
 
+        const name = options.name orelse "";
         // Context-based component or function with props parameter
         var comp_fn = if (first_is_ctx_ptr or param_count == 2) blk: {
             const PropsType = if (first_is_ctx_ptr) @TypeOf(props) else FuncInfo.@"fn".params[1].type.?;
             const coerced_props = coerceProps(PropsType, props);
-            break :blk Component.ComponentFn.init(func, allocator, coerced_props);
+            break :blk Component.ComponentFn.init(func, name, allocator, coerced_props);
         } else blk: {
-            break :blk Component.ComponentFn.init(func, allocator, props);
+            break :blk Component.ComponentFn.init(func, name, allocator, props);
         };
 
         // Apply builtin attributes from options

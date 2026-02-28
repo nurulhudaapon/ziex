@@ -7,11 +7,11 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .children = &.{
                 _zx.cmp(
                     Card,
-                    .{},
+                    .{ .name = "Card" },
                     .{ .title = "Welcome", .children = _zx.ele(.fragment, .{ .children = &.{
                         _zx.cmp(
                             Button,
-                            .{},
+                            .{ .name = "Button" },
                             .{ .label = "Click me" },
                         ),
                     } }) },

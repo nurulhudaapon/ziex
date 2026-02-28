@@ -7,27 +7,27 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .children = &.{
                 _zx.cmp(
                     Button,
-                    .{},
+                    .{ .name = "Button" },
                     .{ .title = "Submit" },
                 ),
                 _zx.cmp(
                     Button,
-                    .{},
+                    .{ .name = "Button" },
                     .{ .title = "Cancel" },
                 ),
                 _zx.cmp(
                     AsyncScore,
-                    .{},
+                    .{ .name = "AsyncScore" },
                     .{ .index = 1, .label = "Score" },
                 ),
                 _zx.cmp(
                     AsyncScore,
-                    .{},
+                    .{ .name = "AsyncScore" },
                     .{ .index = 2, .label = "Points" },
                 ),
                 _zx.cmp(
                     AsyncScore,
-                    .{},
+                    .{ .name = "AsyncScore" },
                     .{ .index = 3, .label = "Rating" },
                 ),
             },
