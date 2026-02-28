@@ -57,7 +57,7 @@ pub fn Server(comptime H: type) type {
             else
                 &self.app_ctx;
 
-            self.handler = try HandlerType.init(allocator, &self.meta, config.cache, app_ctx_ptr);
+            self.handler = try HandlerType.init(allocator, &self.meta, config, app_ctx_ptr);
             errdefer self.handler.deinit();
             self.server = try httpz.Server(*HandlerType).init(allocator, config.server, &self.handler);
 
@@ -273,7 +273,7 @@ pub fn Server(comptime H: type) type {
                 var aw = std.Io.Writer.Allocating.init(self.allocator);
                 defer aw.deinit();
 
-                var serilizable_meta = try SerilizableAppMeta.init(self.allocator, self);
+                var serilizable_meta = try SerilizableAppMeta.init(self.allocator, &self.meta, self.server.config);
                 defer serilizable_meta.deinit(self.allocator);
                 try serilizable_meta.serialize(&aw.writer);
 
@@ -289,6 +289,7 @@ pub fn Server(comptime H: type) type {
                 zx_routes.get("/devsocket", HandlerType.devsocket, .{});
                 zx_routes.get("/devscript.js", HandlerType.devscript, .{});
                 zx_routes.all("/devtool", HandlerType.devtool, .{});
+                zx_routes.all("/devtool", HandlerType.devtool, .{});
             }
 
             try stdout.flush();
@@ -297,6 +298,7 @@ pub fn Server(comptime H: type) type {
         pub const SerilizableAppMeta = struct {
             pub const Route = struct {
                 path: []const u8,
+                method: []const u8,
                 has_notfound: bool = false,
                 is_dynamic: bool = false,
             };
@@ -311,13 +313,14 @@ pub fn Server(comptime H: type) type {
             version: []const u8,
             cli_command: ?ServerMeta.CliCommand = null,
 
-            pub fn init(allocator: std.mem.Allocator, srv: *const Self) !SerilizableAppMeta {
-                var routes = try allocator.alloc(Route, srv.meta.routes.len);
+            pub fn init(allocator: std.mem.Allocator, meta: *ServerMeta, config: httpz.Config) !SerilizableAppMeta {
+                var routes = try allocator.alloc(Route, meta.routes.len);
 
-                for (srv.meta.routes, 0..) |route, i| {
+                for (meta.routes, 0..) |route, i| {
                     const is_dynamic = std.mem.indexOf(u8, route.path, ":") != null;
                     routes[i] = Route{
                         .path = try allocator.dupe(u8, route.path),
+                        .method = "NA",
                         .has_notfound = route.notfound != null,
                         .is_dynamic = is_dynamic,
                     };
@@ -326,11 +329,11 @@ pub fn Server(comptime H: type) type {
                 return SerilizableAppMeta{
                     .routes = routes,
                     .config = SerilizableAppMeta.Config{
-                        .server = srv.server.config,
+                        .server = config,
                     },
                     .version = Self.version,
-                    .rootdir = srv.meta.rootdir,
-                    .cli_command = srv.meta.cli_command,
+                    .rootdir = meta.rootdir,
+                    .cli_command = meta.cli_command,
                 };
             }
 
@@ -350,6 +353,9 @@ pub fn Server(comptime H: type) type {
                     .whitespace = true,
                     .emit_default_optional_fields = true,
                 }, writer);
+            }
+            pub fn serializeRoutes(self: SerilizableAppMeta, writer: anytype) !void {
+                try zx.prop.serialize([]const SerilizableAppMeta.Route, self.routes, writer);
             }
         };
     };

@@ -1167,6 +1167,7 @@ label.state-item {
   flex-direction: column;
   background: #000000;
   color: #e5e5e5;
+  overflow-y: auto;
 }
 
 .content {
@@ -1220,6 +1221,8 @@ label.state-item {
     border-radius: 5px;
     padding: 20px;
     transition: transform 0.3s;
+    max-height: calc(100vh - 150px);
+    overflow-y: auto;
 }
 
 .routes-section:hover {
@@ -1329,6 +1332,11 @@ label.state-item {
   color: #f93e3e;
   background: rgba(249, 62, 62, 0.1);
   border: 1px solid rgba(249, 62, 62, 0.3);
+}
+
+.routes-children {
+  flex: 1;
+  overflow-y: auto;
 }
 
 .route-path {

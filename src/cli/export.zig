@@ -80,6 +80,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
                     for (static_params.items) |expanded_path| {
                         const expanded_route = zx.App.SerilizableAppMeta.Route{
                             .path = expanded_path,
+                            .method = route.method,
                             .has_notfound = route.has_notfound,
                             .is_dynamic = false,
                         };

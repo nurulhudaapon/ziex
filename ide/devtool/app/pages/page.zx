@@ -118,7 +118,7 @@ pub fn ComponentStateFilter(
 ) zx.Component {
     return (
         <div @allocator={ctx.allocator} class="filter-wrapper">
-            <input @allocator={ctx.allocator} oninput={handleStateFilterInput} type="text" placeholder="Filter State..." class="filter-input" />
+            <input @allocator={ctx.allocator} oninput={handleStateFilterInput} type="text" placeholder="Search..." class="filter-input" />
         </div>
     );
 }
@@ -150,14 +150,14 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
             <div class="state-panel">
                 <div class="state-header">
-                    <span class="state-title" id="state-title">{&selected_component}</span>
+                    // <span class="state-title" id="state-title">{&selected_component}</span>
                     <ComponentStateFilter @rendering={.client} />
-                    <div class="state-actions">
-                        {icons.StateEye(ctx.arena)}
-                        {icons.StateArrows(ctx.arena)}
-                        {icons.StateList(ctx.arena)}
-                        {icons.StateExport(ctx.arena)}
-                    </div>
+                    // <div class="state-actions">
+                    //     {icons.StateEye(ctx.arena)}
+                    //     {icons.StateArrows(ctx.arena)}
+                    //     {icons.StateList(ctx.arena)}
+                    //     {icons.StateExport(ctx.arena)}
+                    // </div>
                 </div>
 
                 <ComponentState @rendering={.client} />
@@ -218,7 +218,8 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
 }
 
 const StateItem = data.StateItem;
-fn StateSection(allocator: zx.Allocator, props: struct { title: []const u8, items: []const StateItem }) zx.Component {
+fn StateSection(allocator: zx.Allocator, props: struct { title: []const u8, items: []const StateItem }) ?zx.Component {
+    if (props.items.len == 0) return null;
     const id = std.fmt.allocPrint(allocator, "state-section-{s}", .{props.title}) catch "";
     return (
         <div @allocator={allocator} class="state-section">

@@ -1,4 +1,4 @@
-const routes = data.routes;
+var routes: []const AppRoute = &[_]AppRoute{};
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
@@ -23,6 +23,32 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     );
 }
 
+var fetched = false;
+fn fetch() void {
+    if (fetched) return;
+    fetched = true;
+    _ = zx.fetch(.wasm(&onFetchText), zx.client_allocator, "http://localhost:5588/.well-known/_zx/devtool?meta=true", .{ .method = .GET }) catch {};
+}
+
+    pub const AppRoute = struct {
+        path: []const u8,
+        method: []const u8 = "NA",
+        has_notfound: bool = false,
+        is_dynamic: bool = false,
+    };
+
+
+fn onFetchText(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
+    if (res) |r| {
+        defer r.deinit();
+        if (r.text()) |p| {
+            routes = zx.prop.parse([]const AppRoute, zx.client_allocator, p);
+        } else |_| {}
+    }
+    zx.requestRender();
+}
+
+
 fn getMethodClass(method: []const u8) []const u8 {
     if (std.mem.eql(u8, method, "GET")) return "route-method method-get";
     if (std.mem.eql(u8, method, "POST")) return "route-method method-post";
@@ -35,6 +61,7 @@ const ComponentRoutesProps = struct {  };
 pub fn ComponentRotes(
     ctx: *zx.ComponentCtx(ComponentRoutesProps),
 ) zx.Component {
+    fetch();
     return (
         <div @allocator={ctx.allocator} class="routes-section" >
             <input type="checkbox" id="routes-toggle" class="routes-toggle" checked />

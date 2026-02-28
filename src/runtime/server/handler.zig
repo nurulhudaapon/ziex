@@ -280,11 +280,13 @@ pub fn Handler(comptime AppCtxType: type) type {
         const Self = @This();
 
         meta: *App.Meta,
+        config: App.Config,
         page_cache: PageCache,
         allocator: std.mem.Allocator,
         app_ctx: *AppCtxType,
 
-        pub fn init(allocator: std.mem.Allocator, meta: *App.Meta, cache_config: CacheConfig, app_ctx: *AppCtxType) !Self {
+        pub fn init(allocator: std.mem.Allocator, meta: *App.Meta, config: App.Config, app_ctx: *AppCtxType) !Self {
+            const cache_config = config.cache;
             // Initialize unified component cache
             try zx.cache.init(allocator, .{
                 .max_size = cache_config.max_size,
@@ -292,6 +294,7 @@ pub fn Handler(comptime AppCtxType: type) type {
 
             return Self{
                 .meta = meta,
+                .config = config,
                 .allocator = allocator,
                 .page_cache = try PageCache.init(allocator, cache_config),
                 .app_ctx = app_ctx,
@@ -1093,6 +1096,13 @@ pub fn Handler(comptime AppCtxType: type) type {
             }
 
             const query = try req.query();
+            const is_meta = query.get("meta") != null;
+            if (is_meta) {
+                const meta = try App.SerilizableAppMeta.init(req.arena, self.meta, self.config.server);
+                res.content_type = .JSON;
+                try meta.serializeRoutes(res.writer());
+                return;
+            }
             const target_path = query.get("path") orelse "/";
 
             if (self.findRoute(target_path, .{ .match = .exact })) |route| {
