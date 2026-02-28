@@ -7,14 +7,12 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .children = &.{
                 _zx.cmp(
                     None,
-                    "None",
-                    .{},
+                    .{ .name = "None" },
                     .{},
                 ),
                 _zx.cmp(
                     Null,
-                    "Null",
-                    .{},
+                    .{ .name = "Null" },
                     .{},
                 ),
             },

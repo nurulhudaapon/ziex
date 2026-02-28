@@ -32,8 +32,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                 ),
                 _zx.cmp(
                     Component,
-                    "Component",
-                    .{},
+                    .{ .name = "Component" },
                     .{ .text = _zx.propf("hello {s}", .{_zx.propv(count)}), .name = _zx.propf("test {s} {s} more-text", .{ _zx.propv(name), _zx.propv(getThemeClass(.dark)) }) },
                 ),
             },

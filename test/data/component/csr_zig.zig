@@ -7,20 +7,17 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .children = &.{
                 _zx.cmp(
                     CounterComponent,
-                    "CounterComponent",
-                    .{ .client = .{ .name = "CounterComponent", .id = "c8fee6a" } },
+                    .{ .name = "CounterComponent", .client = .{ .name = "CounterComponent", .id = "c8fee6a" } },
                     .{},
                 ),
                 _zx.cmp(
                     CounterComponent,
-                    "CounterComponent",
-                    .{},
+                    .{ .name = "CounterComponent" },
                     .{},
                 ),
                 _zx.cmp(
                     Button,
-                    "Button",
-                    .{ .client = .{ .name = "Button", .id = "cd02624" } },
+                    .{ .name = "Button", .client = .{ .name = "Button", .id = "cd02624" } },
                     .{ .title = "Custom Button" },
                 ),
             },

@@ -7,8 +7,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .children = &.{
                 _zx.cmp(
                     FragmentComponent,
-                    "FragmentComponent",
-                    .{},
+                    .{ .name = "FragmentComponent" },
                     .{},
                 ),
             },

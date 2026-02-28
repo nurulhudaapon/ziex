@@ -8,14 +8,12 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .children = &.{
                 _zx.cmp(
                     Fallible,
-                    "Fallible",
-                    .{},
+                    .{ .name = "Fallible" },
                     .{ .success = true },
                 ),
                 _zx.cmp(
                     FallibleCtx,
-                    "FallibleCtx",
-                    .{},
+                    .{ .name = "FallibleCtx" },
                     .{ .success = true },
                 ),
             },

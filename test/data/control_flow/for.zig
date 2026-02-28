@@ -150,8 +150,7 @@ pub fn StructCaptureToComponent(allocator: zx.Allocator) zx.Component {
                     for (users, 0..) |user, _zx_i_5| {
                         __zx_children_5[_zx_i_5] = _zx.cmp(
                             UserComponent,
-                            "UserComponent",
-                            .{},
+                            .{ .name = "UserComponent" },
                             .{ .name = user.name, .age = user.age },
                         );
                     }

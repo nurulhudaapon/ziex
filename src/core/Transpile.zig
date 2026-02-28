@@ -945,14 +945,14 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
         const client_cmp = try ClientComponentMetadata.init(ctx.allocator, tag, full_path, rendering_type, component_index);
         try ctx.client_components.append(ctx.allocator, client_cmp);
 
-        // Write _zx.cmp(Component, .{ .client = .{ .name = ..., .path = ..., .id = ... } }, .{ props })
+        // Write _zx.cmp(Component, .{ .name = ..., .client = .{ .name = ..., .id = ... } }, .{ props })
         try ctx.writeM("_zx.cmp", node.startByte(), self);
         try ctx.write("(");
         try ctx.write(tag);
-        try ctx.write(", \"");
+        try ctx.write(", ");
+        try ctx.write(".{ .name = \"");
         try ctx.write(tag);
-        try ctx.write("\", ");
-        try ctx.write(".{ .client = .{ .name = \"");
+        try ctx.write("\", .client = .{ .name = \"");
         try ctx.write(tag);
         // try ctx.write("\", .path = \"");
         // try ctx.write(full_path);
@@ -985,13 +985,11 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
     }
 
     {
-        // Regular cmp component: _zx.cmp(Func, .{ options }, .{ props })
+        // Regular cmp component: _zx.cmp(Func, .{ .name = ..., options }, .{ props })
         try ctx.writeM("_zx.cmp", node.startByte(), self);
         try ctx.write("(");
         try ctx.write(tag);
-        try ctx.write(", \"");
-        try ctx.write(tag);
-        try ctx.write("\", ");
+        try ctx.write(", ");
 
         var spreads = std.ArrayList(ZxAttribute){};
         defer spreads.deinit(ctx.output.allocator);
@@ -1017,9 +1015,11 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
         const has_regular_props = regular_props.items.len > 0;
         const has_children = children.len > 0;
 
-        // Write options parameter first (builtin attributes)
-        try ctx.write(".{");
-        try writeComponentBuiltinOptions(self, builtin_attrs.items, ctx);
+        // Write options parameter first (name + builtin attributes)
+        try ctx.write(".{ .name = \"");
+        try ctx.write(tag);
+        try ctx.write("\"");
+        try writeComponentBuiltinOptions(self, builtin_attrs.items, ctx, true);
         try ctx.write(" }, ");
 
         // Case 1: Single spread
@@ -1110,9 +1110,11 @@ fn writeCustomComponent(self: *Ast, node: ts.Node, tag: []const u8, attributes: 
     }
 }
 
-/// Write builtin options for component (cmp) calls
-fn writeComponentBuiltinOptions(self: *Ast, builtin_attrs: []const ZxAttribute, ctx: *TranspileContext) !void {
-    var first = true;
+/// Write builtin options for component (cmp) calls.
+/// `has_prior_field` should be true when a field (e.g. `.name`) was already written
+/// so the first builtin attr is prefixed with a comma separator.
+fn writeComponentBuiltinOptions(self: *Ast, builtin_attrs: []const ZxAttribute, ctx: *TranspileContext, has_prior_field: bool) !void {
+    var first = !has_prior_field;
     for (builtin_attrs) |attr| {
         // Skip @rendering which is handled separately for CSR components
         if (std.mem.eql(u8, attr.name, "@rendering")) continue;

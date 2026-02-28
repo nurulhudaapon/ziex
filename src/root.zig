@@ -899,6 +899,9 @@ const ZxOptions = struct {
     fallback: ?*const Component = null,
     caching: ?BuiltinAttribute.Caching = null,
     client: ?ComponentClientOptions = null,
+    /// Component name used for devtools / debugging.
+    /// Pass `null` (or omit) in release builds to reduce binary size.
+    name: ?[]const u8 = null,
 };
 
 pub fn zx(tag: ElementTag, options: ZxOptions) Component {
@@ -1452,7 +1455,7 @@ pub const ZxContext = struct {
         return result;
     }
 
-    pub fn cmp(self: *ZxContext, comptime func: anytype, name: []const u8, options: ZxOptions, props: anytype) Component {
+    pub fn cmp(self: *ZxContext, comptime func: anytype, options: ZxOptions, props: anytype) Component {
         const allocator = self.getAlloc();
 
         const FuncInfo = @typeInfo(@TypeOf(func));
@@ -1462,6 +1465,7 @@ pub const ZxContext = struct {
             @hasField(@typeInfo(FirstPropType).pointer.child, "allocator") and
             @hasField(@typeInfo(FirstPropType).pointer.child, "children");
 
+        const name = options.name orelse "";
         // Context-based component or function with props parameter
         var comp_fn = if (first_is_ctx_ptr or param_count == 2) blk: {
             const PropsType = if (first_is_ctx_ptr) @TypeOf(props) else FuncInfo.@"fn".params[1].type.?;

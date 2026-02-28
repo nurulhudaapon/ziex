@@ -7,14 +7,12 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .children = &.{
                 _zx.cmp(
                     Button,
-                    "Button",
-                    .{ .caching = comptime .tag("10s:button") },
+                    .{ .name = "Button", .caching = comptime .tag("10s:button") },
                     .{ .title = "Custom Button" },
                 ),
                 _zx.cmp(
                     Button,
-                    "Button",
-                    .{ .caching = comptime .tag("10s") },
+                    .{ .name = "Button", .caching = comptime .tag("10s") },
                     .{ .title = "Custom Button" },
                 ),
             },
