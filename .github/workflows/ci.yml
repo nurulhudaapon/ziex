@@ -31,17 +31,10 @@ jobs:
         ./zig-out/bin/zx --help || echo "Executable built successfully"
       shell: bash
 
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
-      with:
-        name: zx-${{ matrix.os }}
-        path: zig-out/
-        retention-days: 1
-
   test:
     name: Test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: build
+
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
@@ -54,16 +47,6 @@ jobs:
       uses: mlugg/setup-zig@v2
       with:
         version: 0.15.2
-
-    - name: Download build artifacts
-      uses: actions/download-artifact@v4
-      with:
-        name: zx-${{ matrix.os }}
-        path: zig-out/
-
-    - name: Make executable (Unix)
-      if: runner.os != 'Windows'
-      run: chmod +x zig-out/bin/zx
 
     - name: Run tests
       run: zig build test
