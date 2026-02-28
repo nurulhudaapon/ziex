@@ -43,6 +43,39 @@ pub fn toStateItems(allocator: Allocator, comptime T: type, value: T) anyerror![
     return items;
 }
 
+pub fn createGetStateItemsFn(comptime func: anytype) *const fn (Allocator, *const anyopaque) anyerror![]const ComponentSerializable.StateItem {
+    return struct {
+        fn getStateItems(alloc: Allocator, ptr: *const anyopaque) anyerror![]const ComponentSerializable.StateItem {
+            const FuncInfo = @typeInfo(@TypeOf(func));
+            const param_count = FuncInfo.@"fn".params.len;
+            if (param_count == 0) return &[_]ComponentSerializable.StateItem{};
+
+            const FirstPropType = FuncInfo.@"fn".params[0].type.?;
+            const first_is_allocator = FirstPropType == std.mem.Allocator;
+            const first_is_ctx_ptr = @typeInfo(FirstPropType) == .pointer and
+                @hasField(@typeInfo(FirstPropType).pointer.child, "allocator") and
+                @hasField(@typeInfo(FirstPropType).pointer.child, "children");
+
+            if (first_is_allocator and param_count == 2) {
+                const SecondPropType = FuncInfo.@"fn".params[1].type.?;
+                const typed_p: *const SecondPropType = @ptrCast(@alignCast(ptr));
+                return toStateItems(alloc, SecondPropType, typed_p.*);
+            } else if (first_is_ctx_ptr) {
+                const CtxType = @typeInfo(FirstPropType).pointer.child;
+                const ctx_ptr: *const CtxType = @ptrCast(@alignCast(ptr));
+                if (@hasField(CtxType, "props")) {
+                    const props_val = ctx_ptr.props;
+                    const PropsT = @TypeOf(props_val);
+                    if (PropsT != void) {
+                        return toStateItems(alloc, PropsT, props_val);
+                    }
+                }
+            }
+            return &[_]ComponentSerializable.StateItem{};
+        }
+    }.getStateItems;
+}
+
 pub fn toStateItem(allocator: Allocator, comptime T: type, key: []const u8, value: T, depth: usize) anyerror!ComponentSerializable.StateItem {
     var item: ComponentSerializable.StateItem = .{
         .key = key,
