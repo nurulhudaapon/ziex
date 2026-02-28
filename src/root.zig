@@ -337,7 +337,6 @@ pub const Component = union(enum) {
     pub const ComponentFn = struct {
         propsPtr: ?*const anyopaque,
         callFn: *const fn (propsPtr: ?*const anyopaque, allocator: Allocator) anyerror!Component,
-        writeProps: ?*const fn (*std.Io.Writer, *const anyopaque) anyerror!void = null,
         getStateItems: ?*const fn (std.mem.Allocator, *const anyopaque) anyerror![]const devtool.ComponentSerializable.StateItem = null,
         allocator: Allocator,
         deinitFn: ?*const fn (propsPtr: ?*const anyopaque, allocator: Allocator) void,
