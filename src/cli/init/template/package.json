@@ -1,13 +1,13 @@
 {
   "main": "app/main.ts",
   "devDependencies": {
-    "@types/react": "^19.2.8",
+    "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
-    "esbuild": "^0.27.2"
+    "esbuild": "^0.27.3"
   },
   "dependencies": {
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "ziex": "^0.1.0-dev.589"
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "ziex": "^0.1.0-dev.727"
   }
 }
