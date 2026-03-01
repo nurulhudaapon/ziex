@@ -316,14 +316,14 @@ const benchmark_tabs = [_]BenchmarkTab{
         .rows = benchmark_image_size_rows[0..],
         .checked = false,
     },
-    // .{
-    //     .id = "bench-tab-build",
-    //     .label = "Build Time",
-    //     .metric = "Docker image build time in seconds (lower is better)",
-    //     .footnote = "Time to build each framework's Docker image from scratch on the host machine. Lower is better.",
-    //     .rows = benchmark_build_time_rows[0..],
-    //     .checked = false,
-    // },
+    .{
+        .id = "bench-tab-build",
+        .label = "Build Time",
+        .metric = "Docker image build time in seconds (lower is better)",
+        .footnote = "Time to build each framework's Docker image from scratch on the host machine. Lower is better.",
+        .rows = benchmark_build_time_rows[0..],
+        .checked = false,
+    },
 
 };
 
