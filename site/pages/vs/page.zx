@@ -1,0 +1,250 @@
+
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    const allocator = ctx.arena;
+    const fastest = bestByRequests();
+    const quickest_boot = bestByColdStart();
+    const leanest_memory = bestByMemory();
+    const ranked = topByRequests();
+
+    const highlights = [_]MetricSummary{
+        .{
+            .label = "Fastest Throughput",
+            .value = std.fmt.allocPrint(allocator, "{s} · {s} req/s", .{ fastest.label, formatRequests(allocator, fastest.requests_per_sec) }) catch unreachable,
+            .note = "Measured with Dockerized SSR benchmark at 50 concurrent connections.",
+        },
+        .{
+            .label = "Fastest Cold Start",
+            .value = std.fmt.allocPrint(allocator, "{s} · {d:.0} ms", .{ quickest_boot.label, quickest_boot.cold_start_ms }) catch unreachable,
+            .note = "Container start-to-ready time under the same benchmark setup.",
+        },
+        .{
+            .label = "Lowest Peak Memory",
+            .value = std.fmt.allocPrint(allocator, "{s} · {s}", .{ leanest_memory.label, formatMemory(allocator, leanest_memory.peak_memory_mb) }) catch unreachable,
+            .note = "Peak memory usage while serving load.",
+        },
+    };
+
+    return (
+        <main @allocator={allocator} class="vs-main">
+            <style @escaping={.none}>
+                {@embedFile("style.css")}
+            </style>
+            <section class="vs-hero">
+                <span class="vs-badge">Comparison</span>
+                <h1 class="vs-title">Ziex vs Modern Web Frameworks</h1>
+                <p class="vs-subtitle">
+                     Compare throughput, latency, memory, build time, and cold start across Ziex, Next.js, SolidStart, Leptos, and Dioxus using benchmark data from this repository.
+                </p>
+                <div class="vs-cta">
+                    <a href="/playground" class="btn btn-primary">Try Playground</a>
+                    <a href=`{zx.info.repository}/tree/main/bench` target="_blank" rel="noopener noreferrer" class="btn btn-secondary">See Bench Setup</a>
+                </div>
+            </section>
+
+            <section class="vs-highlights">
+                {for (highlights) |item| (
+                    <article class="vs-highlight">
+                        <div class="vs-highlight-label">{item.label}</div>
+                        <div class="vs-highlight-value">{item.value}</div>
+                        <div class="vs-highlight-note">{item.note}</div>
+                    </article>
+                )}
+            </section>
+
+            <section>
+                <h2 class="vs-section-title">Framework Overview</h2>
+                <div class="vs-framework-grid">
+                    {for (ranked) |entry| (
+                        <article class="vs-framework-card">
+                            <div class="vs-framework-top">
+                                <h3 class="vs-framework-name">{entry.label}</h3>
+                                <span class="vs-framework-rps">{formatRequests(allocator, entry.requests_per_sec)} req/s</span>
+                            </div>
+                            <p class="vs-framework-tagline">{frameworkMetaFor(entry.id).tagline}</p>
+                            <div class="vs-framework-links">
+                                <a class="vs-framework-link" href={std.fmt.allocPrint(allocator, "/vs/{s}", .{entry.id}) catch unreachable}>View details →</a>
+                                {if (frameworkMetaFor(entry.id).href.len > 0) (
+                                    <a class="vs-framework-link" href={frameworkMetaFor(entry.id).href} target="_blank" rel="noopener noreferrer">Website ↗</a>
+                                )}
+                            </div>
+                        </article>
+                    )}
+                </div>
+            </section>
+
+            <section>
+                <h2 class="vs-section-title">Benchmark Snapshot</h2>
+                <div class="vs-table-wrap">
+                    <table class="vs-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Framework</th>
+                                <th>Req/s</th>
+                                <th>P50</th>
+                                <th>P99</th>
+                                <th>Peak Memory</th>
+                                <th>CPU Peak</th>
+                                <th>Build</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {for (ranked, 0..) |entry, i| (
+                                <tr>
+                                    <td class="vs-rank">#{i + 1}</td>
+                                    <td>{entry.label}</td>
+                                    <td>{formatRequests(allocator, entry.requests_per_sec)}</td>
+                                    <td>{formatMillis(allocator, entry.p50_latency_ms)}</td>
+                                    <td>{formatMillis(allocator, entry.p99_latency_ms)}</td>
+                                    <td>{formatMemory(allocator, entry.peak_memory_mb)}</td>
+                                    <td>{formatPercent(allocator, entry.cpu_peak_pct)}</td>
+                                    <td>{formatSeconds(allocator, entry.build_time_s)}</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+                <p class="vs-footnote">Benchmarks run in Docker containers with resource limits. Use this as directional data; workload characteristics can change relative rankings.</p>
+            </section>
+        </main>
+    );
+}
+
+
+const bench_data = @import("../bench.zon");
+const bench_len = @typeInfo(@TypeOf(bench_data)).@"struct".fields.len;
+const BenchEntry = struct {
+    id: []const u8,
+    label: []const u8,
+    idle_memory_mb: f64,
+    peak_memory_mb: f64,
+    build_time_s: f64,
+    image_mb: f64,
+    cold_start_ms: f64,
+    cpu_peak_pct: f64,
+    requests_per_sec: f64,
+    p50_latency_ms: f64,
+    p99_latency_ms: f64,
+};
+
+fn normalizedBenchData() [bench_len]BenchEntry {
+    @setEvalBranchQuota(10000);
+    var rows: [bench_len]BenchEntry = undefined;
+    const fields = @typeInfo(@TypeOf(bench_data)).@"struct".fields;
+
+    inline for (fields, 0..) |field, i| {
+        const d = @field(bench_data, field.name);
+        rows[i] = .{
+            .id = d.id,
+            .label = d.label,
+            .idle_memory_mb = d.idle_memory_mb,
+            .peak_memory_mb = d.peak_memory_mb,
+            .build_time_s = d.build_time_s,
+            .image_mb = d.image_mb,
+            .cold_start_ms = d.cold_start_ms,
+            .cpu_peak_pct = d.cpu_peak_pct,
+            .requests_per_sec = d.requests_per_sec,
+            .p50_latency_ms = d.p50_latency_ms,
+            .p99_latency_ms = d.p99_latency_ms,
+        };
+    }
+
+    return rows;
+}
+
+const bench_rows = normalizedBenchData();
+
+const MetricSummary = struct {
+    label: []const u8,
+    value: []const u8,
+    note: []const u8,
+};
+
+const FrameworkMeta = struct {
+    id: []const u8,
+    href: []const u8,
+    tagline: []const u8,
+};
+
+const framework_meta = [_]FrameworkMeta{
+    .{ .id = "ziex", .href = "https://ziex.dev", .tagline = "Native Zig SSR with tiny runtime overhead." },
+    .{ .id = "leptos", .href = "https://leptos.dev", .tagline = "Rust-first full-stack framework with fine-grained reactivity." },
+    .{ .id = "dioxus", .href = "https://dioxuslabs.com", .tagline = "Portable Rust UI framework for web, desktop, and mobile." },
+    .{ .id = "solidjs", .href = "https://start.solidjs.com", .tagline = "Reactive JavaScript UI with SolidStart server tooling." },
+    .{ .id = "nextjs", .href = "https://nextjs.org", .tagline = "Full-stack React framework with broad ecosystem support." },
+};
+
+fn frameworkMetaFor(id: []const u8) FrameworkMeta {
+    for (framework_meta) |meta| {
+        if (std.mem.eql(u8, meta.id, id)) return meta;
+    }
+    return .{ .id = id, .href = "", .tagline = "Modern web framework." };
+}
+
+fn formatRequests(allocator: zx.Allocator, value: f64) []const u8 {
+    const int_value = @as(u32, @intFromFloat(value));
+    if (int_value >= 1000) {
+        const thousands = int_value / 1000;
+        const remainder = int_value % 1000;
+        return std.fmt.allocPrint(allocator, "{d},{d:0>3}", .{ thousands, remainder }) catch unreachable;
+    }
+    return std.fmt.allocPrint(allocator, "{d}", .{int_value}) catch unreachable;
+}
+
+fn formatMillis(allocator: zx.Allocator, value: f64) []const u8 {
+    return std.fmt.allocPrint(allocator, "{d:.2} ms", .{value}) catch unreachable;
+}
+
+fn formatSeconds(allocator: zx.Allocator, value: f64) []const u8 {
+    return std.fmt.allocPrint(allocator, "{d:.0} s", .{value}) catch unreachable;
+}
+
+fn formatMemory(allocator: zx.Allocator, value: f64) []const u8 {
+    return std.fmt.allocPrint(allocator, "{d:.1} MB", .{value}) catch unreachable;
+}
+
+fn formatPercent(allocator: zx.Allocator, value: f64) []const u8 {
+    return std.fmt.allocPrint(allocator, "{d:.1}%", .{value}) catch unreachable;
+}
+
+fn bestByRequests() BenchEntry {
+    var best = bench_rows[0];
+    for (bench_rows[1..]) |entry| {
+        if (entry.requests_per_sec > best.requests_per_sec) best = entry;
+    }
+    return best;
+}
+
+fn bestByColdStart() BenchEntry {
+    var best = bench_rows[0];
+    for (bench_rows[1..]) |entry| {
+        if (entry.cold_start_ms < best.cold_start_ms) best = entry;
+    }
+    return best;
+}
+
+fn bestByMemory() BenchEntry {
+    var best = bench_rows[0];
+    for (bench_rows[1..]) |entry| {
+        if (entry.peak_memory_mb < best.peak_memory_mb) best = entry;
+    }
+    return best;
+}
+
+fn topByRequests() [bench_len]BenchEntry {
+    var sorted: [bench_len]BenchEntry = undefined;
+    for (bench_rows, 0..) |entry, i| {
+        sorted[i] = entry;
+    }
+
+    std.sort.insertion(BenchEntry, &sorted, {}, struct {
+        fn lessThan(_: void, a: BenchEntry, b: BenchEntry) bool {
+            return a.requests_per_sec > b.requests_per_sec;
+        }
+    }.lessThan);
+
+    return sorted;
+}
+
+const std = @import("std");
+const zx = @import("zx");

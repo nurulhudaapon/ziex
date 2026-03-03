@@ -1,0 +1,317 @@
+:root {
+    --zx-primary: #00d9ff;
+    --zx-primary-light: #33e0ff;
+    --zx-white: #ffffff;
+    --zx-border: #262626;
+    --zx-card-bg: #111111;
+    --zx-gray-light: #b0b8c1;
+    --zx-text-muted: #a1a1a1;
+}
+
+.vs-main {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 3rem 1.25rem 5rem;
+}
+
+.vs-hero {
+    border: 1px solid var(--zx-border);
+    border-radius: 18px;
+    padding: 2.2rem;
+    background: linear-gradient(145deg, rgba(0, 217, 255, 0.08), rgba(17, 17, 17, 0.92));
+    margin-bottom: 1.8rem;
+}
+
+.vs-badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--zx-primary-light);
+    margin-bottom: 0.85rem;
+}
+
+.vs-title {
+    font-size: clamp(2rem, 4.6vw, 3.4rem);
+    line-height: 1.1;
+    margin-bottom: 0.8rem;
+}
+
+.vs-subtitle {
+    color: var(--zx-text-muted);
+    font-size: 1.05rem;
+    max-width: 62ch;
+}
+
+.vs-cta {
+    display: flex;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+    margin-top: 1.35rem;
+}
+
+.btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.72rem 1.15rem;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    font-size: 0.92rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+}
+
+.btn-primary {
+    color: #001218;
+    background: linear-gradient(135deg, var(--zx-primary), #00ffd8);
+    border-color: transparent;
+}
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, var(--zx-primary-light), #3dffe3);
+}
+
+.btn-secondary {
+    color: var(--zx-white);
+    background: rgba(255, 255, 255, 0.02);
+    border-color: var(--zx-border);
+}
+
+.btn-secondary:hover {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.vs-highlights {
+    display: grid;
+    gap: 0.9rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-bottom: 1.8rem;
+}
+
+.vs-highlight {
+    border: 1px solid var(--zx-border);
+    border-radius: 14px;
+    padding: 1rem;
+    background: var(--zx-card-bg);
+}
+
+.vs-highlight-label {
+    font-size: 0.8rem;
+    color: var(--zx-gray-light);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+.vs-highlight-value {
+    font-size: 1.08rem;
+    font-weight: 700;
+    margin: 0.45rem 0;
+}
+
+.vs-highlight-note {
+    color: var(--zx-text-muted);
+    font-size: 0.9rem;
+}
+
+.vs-section-title {
+    font-size: 1.3rem;
+    margin: 1.8rem 0 1rem;
+}
+
+.vs-framework-grid {
+    display: grid;
+    gap: 0.95rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.vs-framework-card {
+    border: 1px solid var(--zx-border);
+    border-radius: 14px;
+    padding: 1rem;
+    background: linear-gradient(180deg, rgba(17, 17, 17, 0.95), rgba(13, 13, 13, 0.96));
+}
+
+.vs-framework-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+}
+
+.vs-framework-name {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
+.vs-framework-rps {
+    color: var(--zx-primary-light);
+    font-weight: 700;
+}
+
+.vs-framework-tagline {
+    color: var(--zx-text-muted);
+    margin: 0.6rem 0 0.9rem;
+    min-height: 2.6em;
+}
+
+.vs-framework-links {
+    display: flex;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+}
+
+.vs-framework-link {
+    color: var(--zx-primary-light);
+    text-decoration: none;
+    font-size: 0.92rem;
+}
+
+.vs-table-wrap {
+    border: 1px solid var(--zx-border);
+    border-radius: 14px;
+    overflow: hidden;
+    margin-top: 1.1rem;
+}
+
+.vs-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: rgba(10, 10, 10, 0.9);
+}
+
+.vs-table th,
+.vs-table td {
+    padding: 0.8rem 0.9rem;
+    border-bottom: 1px solid var(--zx-border);
+    text-align: left;
+    font-size: 0.93rem;
+}
+
+.vs-table th {
+    color: var(--zx-gray-light);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-size: 0.75rem;
+}
+
+.vs-table tr:last-child td {
+    border-bottom: none;
+}
+
+.vs-rank {
+    color: var(--zx-primary-light);
+    font-weight: 700;
+}
+
+.vs-footnote {
+    color: var(--zx-text-muted);
+    font-size: 0.9rem;
+    margin-top: 0.9rem;
+}
+
+.vs-framework-page,
+.vs-framework-wrap {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 3rem 1.25rem 5rem;
+}
+
+.vs-framework-hero {
+    border: 1px solid var(--zx-border);
+    border-radius: 16px;
+    padding: 2rem;
+    background: linear-gradient(145deg, rgba(0, 217, 255, 0.08), rgba(17, 17, 17, 0.95));
+}
+
+.vs-framework-eyebrow {
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--zx-primary-light);
+    margin-bottom: 0.75rem;
+}
+
+.vs-framework-title {
+    font-size: clamp(1.8rem, 4vw, 3rem);
+    margin-bottom: 0.65rem;
+}
+
+.vs-framework-subtitle {
+    color: var(--zx-text-muted);
+    max-width: 70ch;
+}
+
+.vs-quick-grid {
+    margin-top: 1rem;
+    display: grid;
+    gap: 0.85rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.vs-quick-card {
+    border: 1px solid var(--zx-border);
+    border-radius: 12px;
+    padding: 0.95rem;
+    background: var(--zx-card-bg);
+}
+
+.vs-quick-label {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    color: var(--zx-gray-light);
+    letter-spacing: 0.05em;
+}
+
+.vs-quick-value {
+    margin-top: 0.45rem;
+    font-weight: 600;
+}
+
+.vs-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.9rem;
+}
+
+.vs-note-card {
+    border: 1px solid var(--zx-border);
+    border-radius: 12px;
+    padding: 1rem;
+    background: linear-gradient(180deg, rgba(16, 16, 16, 0.95), rgba(12, 12, 12, 0.95));
+}
+
+.vs-note-card ul {
+    margin: 0.65rem 0 0 1.1rem;
+    color: var(--zx-text-muted);
+}
+
+.vs-note-card li + li {
+    margin-top: 0.45rem;
+}
+
+@media (max-width: 900px) {
+    .vs-highlights {
+        grid-template-columns: 1fr;
+    }
+
+    .vs-framework-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .vs-quick-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .vs-columns {
+        grid-template-columns: 1fr;
+    }
+}

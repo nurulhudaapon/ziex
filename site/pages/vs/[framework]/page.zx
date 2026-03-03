@@ -1,0 +1,229 @@
+const zx = @import("zx");
+const std = @import("std");
+const root = @import("root");
+
+const ComparisonRow = struct {
+    aspect: []const u8,
+    ziex: []const u8,
+    framework: []const u8,
+};
+
+const Framework = struct {
+    slug: []const u8,
+    name: []const u8,
+    tagline: []const u8,
+    homepage: []const u8,
+    docs: []const u8,
+    repository: []const u8,
+    language: []const u8,
+    license: []const u8,
+    routing: []const u8,
+    html_templating: []const u8,
+    api_default: []const u8,
+    tooling: []const u8,
+    middleware: []const u8,
+    database: []const u8,
+    strengths: []const []const u8,
+    considerations: []const []const u8,
+    comparisons: []const ComparisonRow,
+};
+
+const jetzig_comparisons = [_]ComparisonRow{
+    .{ .aspect = "Language", .ziex = "Zig + ZX component syntax", .framework = "Zig + Zmpl templates" },
+    .{ .aspect = "Routing", .ziex = "File-system routing for pages/layouts + co-located route handlers", .framework = "File-based view routing to Zig functions + custom routes" },
+    .{ .aspect = "HTML Rendering", .ziex = "Component-driven rendering with JSX-like syntax", .framework = "Zmpl templates with layouts/partials and static rendering support" },
+    .{ .aspect = "Response Defaults", .ziex = "Page rendering by default; API behavior via route handlers", .framework = "HTML default, with automatic JSON endpoints (.json/Accept header)" },
+    .{ .aspect = "Static Generation", .ziex = "Static export with options.static params/getParams", .framework = "Static content generation and static param definitions" },
+    .{ .aspect = "Middleware", .ziex = "Route/page middleware in app stack", .framework = "Custom middleware chain with built-in htmx middleware" },
+    .{ .aspect = "State/Auth", .ziex = "Cookie APIs + proxy state patterns for auth/session flows", .framework = "Built-in cookies and sessions" },
+    .{ .aspect = "Database", .ziex = "Bring your own data layer/integration", .framework = "JetQuery integration (PostgreSQL adapter available)" },
+    .{ .aspect = "Tooling", .ziex = "zx CLI (init/dev/serve/export/transpile) + editor integrations", .framework = "jetzig CLI (init/server/generate)" },
+};
+
+const frameworks = [_]Framework{
+    .{
+        .slug = "jetzig",
+        .name = "Jetzig",
+        .tagline = "MIT-licensed Zig web framework with file routing, Zmpl templates, middleware, and automatic HTML/JSON response modes.",
+        .homepage = "https://www.jetzig.dev/",
+        .docs = "https://www.jetzig.dev/documentation.html",
+        .repository = "https://github.com/jetzig-framework/jetzig",
+        .language = "Zig",
+        .license = "MIT",
+        .routing = "File-based RESTful routes + custom routes",
+        .html_templating = "Zmpl templates (layouts, partials, inheritance)",
+        .api_default = "HTML default + automatic JSON endpoints",
+        .tooling = "CLI project scaffolding + generators",
+        .middleware = "Custom middleware chain + built-in middleware",
+        .database = "JetQuery (PostgreSQL adapter available)",
+        .strengths = &.{
+            "Full Zig stack with a pragmatic MVC-like developer experience.",
+            "Automatic dual-mode responses (HTML and JSON) from the same view data model.",
+            "Mature docs, generators, and active community channels.",
+        },
+        .considerations = &.{
+            "Template-first architecture differs from component-oriented UI composition.",
+            "Main branch targets Zig nightly master, so teams should track compiler updates.",
+            "Database layer is opinionated around JetQuery patterns.",
+        },
+        .comparisons = jetzig_comparisons[0..],
+    },
+};
+
+fn frameworkBySlug(slug: []const u8) ?Framework {
+    for (frameworks) |framework| {
+        if (std.mem.eql(u8, framework.slug, slug)) return framework;
+    }
+    return null;
+}
+
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    const allocator = ctx.arena;
+    const slug = ctx.request.getParam("framework") orelse "";
+    const maybe_framework = frameworkBySlug(slug);
+
+    if (maybe_framework == null) {
+        return (
+            <main @allocator={allocator} class="vs-framework-page">
+                <style @escaping={.none}>
+                    {@embedFile("../style.css")}
+                </style>
+                <h1>Framework not found</h1>
+                <p>No comparison data exists for <strong>{slug}</strong> yet.</p>
+                <p>Available frameworks:</p>
+                <ul>
+                    {for (frameworks) |framework| (
+                        <li><a href={std.fmt.allocPrint(allocator, "/vs/{s}", .{framework.slug}) catch unreachable}>{framework.name}</a></li>
+                    )}
+                </ul>
+            </main>
+        );
+    }
+
+    const framework = maybe_framework.?;
+
+    return (
+        <main @allocator={allocator} class="vs-framework-wrap">
+            <style @escaping={.none}>
+                {@embedFile("../style.css")}
+            </style>
+            <section class="vs-framework-hero">
+                <div class="vs-framework-eyebrow">Framework Comparison</div>
+                <h1 class="vs-framework-title">Ziex vs {framework.name}</h1>
+                <p class="vs-framework-subtitle">{framework.tagline}</p>
+                <div class="vs-framework-links">
+                    <a class="btn btn-primary" href="/playground">Try Ziex Playground</a>
+                    <a class="btn btn-secondary" href={framework.homepage} target="_blank" rel="noopener noreferrer">Visit {framework.name}</a>
+                    <a class="btn btn-secondary" href={framework.docs} target="_blank" rel="noopener noreferrer">Read {framework.name} Docs</a>
+                </div>
+            </section>
+
+            <section class="vs-quick-grid">
+                <article class="vs-quick-card">
+                    <div class="vs-quick-label">Language</div>
+                    <div class="vs-quick-value">{framework.language}</div>
+                </article>
+                <article class="vs-quick-card">
+                    <div class="vs-quick-label">License</div>
+                    <div class="vs-quick-value">{framework.license}</div>
+                </article>
+                <article class="vs-quick-card">
+                    <div class="vs-quick-label">Routing</div>
+                    <div class="vs-quick-value">{framework.routing}</div>
+                </article>
+                <article class="vs-quick-card">
+                    <div class="vs-quick-label">Templating</div>
+                    <div class="vs-quick-value">{framework.html_templating}</div>
+                </article>
+                <article class="vs-quick-card">
+                    <div class="vs-quick-label">Default API Format</div>
+                    <div class="vs-quick-value">{framework.api_default}</div>
+                </article>
+                <article class="vs-quick-card">
+                    <div class="vs-quick-label">Database Layer</div>
+                    <div class="vs-quick-value">{framework.database}</div>
+                </article>
+            </section>
+
+            <section>
+                <h2 class="vs-section-title">Comparison Table</h2>
+                <div class="vs-table-wrap">
+                    <table class="vs-table">
+                        <thead>
+                            <tr>
+                                <th>Aspect</th>
+                                <th>Ziex</th>
+                                <th>{framework.name}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {for (framework.comparisons) |row| (
+                                <tr>
+                                    <td>{row.aspect}</td>
+                                    <td>{row.ziex}</td>
+                                    <td>{row.framework}</td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="vs-section-title">Practical Notes</h2>
+                <div class="vs-columns">
+                    <article class="vs-note-card">
+                        <h3>Where {framework.name} shines</h3>
+                        <ul>
+                            {for (framework.strengths) |item| (<li>{item}</li>)}
+                        </ul>
+                    </article>
+                    <article class="vs-note-card">
+                        <h3>What to consider</h3>
+                        <ul>
+                            {for (framework.considerations) |item| (<li>{item}</li>)}
+                        </ul>
+                    </article>
+                </div>
+            </section>
+
+            <section>
+                <h2 class="vs-section-title">Links</h2>
+                <div class="vs-columns">
+                    <article class="vs-note-card">
+                        <h3>{framework.name}</h3>
+                        <ul>
+                            <li><a href={framework.homepage} target="_blank" rel="noopener noreferrer">Homepage</a></li>
+                            <li><a href={framework.docs} target="_blank" rel="noopener noreferrer">Documentation</a></li>
+                            <li><a href={framework.repository} target="_blank" rel="noopener noreferrer">Source Code</a></li>
+                        </ul>
+                    </article>
+                    <article class="vs-note-card">
+                        <h3>Ziex</h3>
+                        <ul>
+                            <li><a href={root.configs.main_site_url}>Homepage</a></li>
+                            <li><a href="/learn">Documentation</a></li>
+                            <li><a href={zx.info.repository} target="_blank" rel="noopener noreferrer">Source Code</a></li>
+                        </ul>
+                    </article>
+                </div>
+            </section>
+        </main>
+    );
+}
+
+pub const options = zx.PageOptions{
+    .static = .{
+        .getParams = getStaticParams,
+    },
+};
+
+fn getStaticParams(allocator: zx.Allocator) ![]const []const zx.PageOptions.StaticParam {
+    var params = std.ArrayList([]const zx.PageOptions.StaticParam).empty;
+    for (frameworks) |framework| {
+        const sp = try allocator.alloc(zx.PageOptions.StaticParam, 1);
+        sp[0] = .{ .key = "framework", .value = framework.slug };
+        try params.append(allocator, sp);
+    }
+    return params.items;
+}
