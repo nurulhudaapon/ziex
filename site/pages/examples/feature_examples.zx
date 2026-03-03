@@ -262,6 +262,24 @@ pub fn SocketOpen(ctx: zx.SocketOpenContext) !void {
     try ctx.socket.write("Opened!");
 }
 
+// --- Client-side Rendering ---
+var count: zx.Signal(i32) = .init(0);
+pub fn Client(allocator: zx.Allocator) zx.Component {
+    return (<Counter @{allocator} @rendering={.client} />);
+}
+pub fn Counter(allocator: zx.Allocator) zx.Component {
+    return (
+        <div @allocator={allocator} class="counter">
+            <button onclick={increment}>
+                Click Me: {&count}
+            </button>
+        </div>
+    );
+}
+fn increment(_: zx.EventContext) void {
+    count.set(count.get() + 1);
+}
+
 // --- Imports ---
 pub fn RenderTest(allocator: zx.Allocator) zx.Component {
     return (
@@ -278,6 +296,7 @@ pub fn RenderTest(allocator: zx.Allocator) zx.Component {
             <Fragment />
             <SpreadProps />
             <DynamicAttr />
+            <Client />
         </div>
     );
 }

@@ -454,6 +454,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         <FeatureExample title="Dynamic Path" wide={false} child={(<CodeWindow title="pages/[id]/page.zx" section="Dynamic Path" source={feature_examples} code="" />)} />
                         <FeatureExample title="API Route" wide={false} child={(<CodeWindow title="route.zig" section="API Route" source={feature_examples} code="" />)} />
                         <FeatureExample title="WebSocket" wide={false} child={(<CodeWindow title="routes/ws/route.zig" section="WebSocket" source={feature_examples} code="" />)} />
+                        <FeatureExample title="Client-side Rendering" wide={true} child={(<CodePreviewExample title="counter.zx" section="Client-side Rendering" source={feature_examples} code="" preview={(<Examples.Client />)} />)} />
                     </div>
                 </section>
                 <section class="code-section">
@@ -765,6 +766,41 @@ const CodeWindowTabsProps = struct {
     source: []const u8,
 };
 
+const CodePreviewExampleProps = struct {
+    title: []const u8,
+    section: []const u8,
+    source: []const u8,
+    code: []const u8,
+    preview: zx.Component,
+};
+
+fn CodePreviewExample(allocator: zx.Allocator, props: CodePreviewExampleProps) zx.Component {
+    const highlighted = resolveCode(allocator, props.source, props.section, props.code);
+    return (
+        <div @allocator={allocator} class="code-preview-example code-example code-example--compact">
+            <div class="code-example-header">
+                <div class="code-example-dots">
+                    <span></span>
+                    <span></span>
+                    <span></span>
+                </div>
+                <div class="code-example-title">{props.title}</div>
+            </div>
+            <div class="code-preview-body">
+                <div class="code-preview-code">
+                    <pre><code class="hljs" @escaping={.none}>{highlighted}</code></pre>
+                </div>
+                <div class="code-preview-pane">
+                    <div class="code-preview-pane-header">Preview</div>
+                    <div class="code-preview-pane-content">
+                        {props.preview}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 fn buildTabStyles(allocator: zx.Allocator, container_id: []const u8, tabs: []const CodeTab) []const u8 {
     var out = std.array_list.Managed(u8).init(allocator);
     defer out.deinit();
@@ -836,4 +872,5 @@ const icons = @import("./components/icons.zx");
 const GitHubIcon = icons.GitHub;
 const DiscordIcon = icons.Discord;
 const InstallCLI = @import("./components/install_guide.zx").InstallCLI;
+const Examples = @import("./examples/feature_examples.zx");
 const root = @import("root");
