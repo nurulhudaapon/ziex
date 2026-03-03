@@ -2,7 +2,7 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     const allocator = ctx.arena;
 
     return (
-        <Sidebar @{allocator} categories={&categories} toc={&toc_links} tabs={&tabs}>
+        <Sidebar @{allocator} categories={&categories} toc={&toc_links} tabs={&tabs} active_path="/learn">
             {children}
         </Sidebar>
     );

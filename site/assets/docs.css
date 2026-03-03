@@ -205,6 +205,22 @@ body {
     color: var(--link-color);
 }
 
+.top-bar-link-active {
+    color: var(--link-color);
+    position: relative;
+}
+
+.top-bar-link-active::after {
+    content: '';
+    position: absolute;
+    bottom: -1px;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--link-color);
+    border-radius: 1px;
+}
+
 .top-bar-actions {
     display: flex;
     align-items: center;

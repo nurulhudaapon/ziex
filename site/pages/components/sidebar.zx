@@ -25,10 +25,16 @@ pub const SidebarProps = struct {
     links: []const Link = &.{}, // Legacy support
     toc: []const Link = &.{}, // Table of contents for right sidebar
     tabs: []const Tab = &.{}, // Sidebar top tabs (e.g. Learn / Reference)
+    active_path: []const u8 = "", // Current path for top-bar active state
     children: zx.Component,
 };
 
 pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
+    const nav_links = [_]struct { href: []const u8, label: []const u8 }{
+        .{ .href = "/playground", .label = "Playground" },
+        .{ .href = "/examples", .label = "Examples" },
+    };
+
     return (
         <div @allocator={allocator}>
             <header class="top-bar">
@@ -54,8 +60,10 @@ pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
                     // </form>
                     <div class="top-bar-right">
                         <nav class="top-bar-nav">
-                            <a link={root.configs.ssg_url ++ "/playground"} href={root.configs.ssg_url ++ "/playground"} class="top-bar-link">Playground</a>
-                            <a href={root.configs.ssg_url ++ "/examples"} class="top-bar-link">Examples</a>
+                            {for (nav_links) |nav| (
+                                <a link={nav.href} href={nav.href}
+                                    class={if (std.mem.eql(u8, props.active_path, nav.href)) "top-bar-link top-bar-link-active" else "top-bar-link"}>{nav.label}</a>
+                            )}
                         </nav>
                         <div class="top-bar-actions">
                             <a href="/r/discord" target="_blank" rel="noopener noreferrer" class="top-bar-icon" aria-label="Discord" title="ZX Discord">
