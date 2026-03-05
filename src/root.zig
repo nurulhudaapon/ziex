@@ -2,6 +2,8 @@
 //! This module provides the core component system, rendering engine, and utilities
 //! for creating type-safe, high-performance web applications with server-side rendering.
 const std = @import("std");
+const element = @import("Element.zig");
+
 pub const devtool = @import("devtool.zig");
 pub const Ast = @import("core/Ast.zig");
 pub const Parse = @import("core/Parse.zig");
@@ -9,208 +11,8 @@ pub const Parse = @import("core/Parse.zig");
 pub const cache = @import("runtime/core//Cache.zig");
 
 // HTML Tags
-pub const ElementTag = enum {
-    aside,
-    fragment,
-    iframe,
-    slot,
-    img,
-    html,
-    base,
-    head,
-    link,
-    meta,
-    script,
-    style,
-    title,
-    address,
-    article,
-    body,
-    h1,
-    h6,
-    footer,
-    header,
-    h2,
-    h3,
-    h4,
-    h5,
-    hgroup,
-    nav,
-    section,
-    dd,
-    dl,
-    dt,
-    div,
-    figcaption,
-    figure,
-    hr,
-    li,
-    ol,
-    ul,
-    menu,
-    main,
-    p,
-    picture,
-    pre,
-    a,
-    abbr,
-    b,
-    bdi,
-    bdo,
-    br,
-    cite,
-    code,
-    data,
-    time,
-    dfn,
-    em,
-    i,
-    kbd,
-    mark,
-    q,
-    blockquote,
-    rp,
-    ruby,
-    rt,
-    rtc,
-    rb,
-    s,
-    del,
-    ins,
-    samp,
-    small,
-    span,
-    strong,
-    sub,
-    sup,
-    u,
-    @"var",
-    wbr,
-    area,
-    map,
-    audio,
-    source,
-    track,
-    video,
-    embed,
-    object,
-    param,
-    canvas,
-    noscript,
-    caption,
-    table,
-    col,
-    colgroup,
-    tbody,
-    tr,
-    thead,
-    tfoot,
-    td,
-    th,
-    button,
-    datalist,
-    option,
-    fieldset,
-    label,
-    form,
-    input,
-    keygen,
-    legend,
-    meter,
-    optgroup,
-    select,
-    output,
-    progress,
-    textarea,
-    details,
-    dialog,
-    menuitem,
-    summary,
-    content,
-    element,
-    shadow,
-    template,
-    acronym,
-    applet,
-    basefont,
-    font,
-    big,
-    blink,
-    center,
-    command,
-    dir,
-    frame,
-    frameset,
-    isindex,
-    listing,
-    marquee,
-    noembed,
-    plaintext,
-    spacer,
-    strike,
-    tt,
-    xmp,
-    // SVG Tags
-    animate,
-    animateMotion,
-    animateTransform,
-    circle,
-    clipPath,
-    defs,
-    desc,
-    ellipse,
-    feBlend,
-    feColorMatrix,
-    feComponentTransfer,
-    feComposite,
-    feConvolveMatrix,
-    feDiffuseLighting,
-    feDisplacementMap,
-    feDistantLight,
-    feDropShadow,
-    feFlood,
-    feFuncA,
-    feFuncB,
-    feFuncG,
-    feFuncR,
-    feGaussianBlur,
-    feImage,
-    feMerge,
-    feMergeNode,
-    feMorphology,
-    feOffset,
-    fePointLight,
-    feSpecularLighting,
-    feSpotLight,
-    feTile,
-    feTurbulence,
-    filter,
-    foreignObject,
-    g,
-    image,
-    line,
-    linearGradient,
-    marker,
-    mask,
-    metadata,
-    mpath,
-    path,
-    pattern,
-    polygon,
-    polyline,
-    radialGradient,
-    rect,
-    set,
-    stop,
-    svg,
-    @"switch",
-    symbol,
-    text,
-    textPath,
-    tspan,
-    use,
-    view,
-};
+pub const ElementTag = element.Tag;
+
 const SELF_CLOSING_ONLY: []const ElementTag = &.{ .br, .hr, .img, .input, .link, .source, .track, .wbr };
 const NO_CHILDREN_ONLY: []const ElementTag = &.{ .meta, .link, .input };
 
@@ -1776,6 +1578,8 @@ pub fn allocInit(allocator: std.mem.Allocator) ZxContext {
 
 const routing = @import("runtime/core/routing.zig");
 const app_module = @import("runtime/server/Server.zig");
+// const opt = @import("options.zig");
+const opts = @import("options.zig");
 
 pub const routes = @import("zx_meta").routes;
 pub const components = @import("zx_meta").components.components;
@@ -1798,67 +1602,14 @@ pub const effect = Client.reactivity.effect;
 pub const effectDeferred = Client.reactivity.effectDeferred;
 pub const requestRender = Client.reactivity.requestRender;
 
-pub const PageMethod = enum {
-    GET,
-    POST,
-    PUT,
-    DELETE,
-    PATCH,
-    OPTIONS,
-    HEAD,
-    CONNECT,
-    TRACE,
-    ALL,
-};
-pub const PageOptions = struct {
-    pub const StaticParam = struct {
-        key: []const u8,
-        value: []const u8,
-    };
-
-    /// Options for static page generation during `zx export`
-    pub const Static = struct {
-        params: ?[]const []const StaticParam = null,
-        getParams: ?*const fn (std.mem.Allocator) anyerror![]const []const StaticParam = null,
-    };
-
-    rendering: ?BuiltinAttribute.Rendering = null,
-    caching: BuiltinAttribute.Caching = .none,
-    methods: []const PageMethod = &.{.GET},
-    static: ?Static = null,
-    /// Enable streaming SSR with async components
-    streaming: bool = false,
-};
-
-pub const LayoutOptions = struct {
-    rendering: ?BuiltinAttribute.Rendering = null,
-    caching: BuiltinAttribute.Caching = .none,
-};
-pub const NotFoundOptions = struct {
-    rendering: ?BuiltinAttribute.Rendering = null,
-    caching: BuiltinAttribute.Caching = .none,
-};
-pub const ErrorOptions = struct {};
-pub const RouteOptions = struct {
-    pub const StaticParam = struct {
-        key: []const u8,
-        value: []const u8,
-    };
-
-    pub const Static = struct {
-        params: ?[]const []const StaticParam = null,
-        getParams: ?*const fn (std.mem.Allocator) anyerror![]const []const StaticParam = null,
-    };
-
-    caching: BuiltinAttribute.Caching = .none,
-    static: ?Static = null,
-};
-
-/// Options for proxy middleware
-pub const ProxyOptions = struct {
-    /// Whether to continue to the next handler if proxy doesn't handle the request
-    pass_through: bool = true,
-};
+// --- Options --- //
+pub const PageMethod = opts.PageMethod;
+pub const PageOptions = opts.PageOptions;
+pub const LayoutOptions = opts.LayoutOptions;
+pub const NotFoundOptions = opts.NotFoundOptions;
+pub const ErrorOptions = opts.ErrorOptions;
+pub const RouteOptions = opts.RouteOptions;
+pub const ProxyOptions = opts.ProxyOptions;
 
 /// Context passed to proxy middleware functions.
 /// Use `state.set()` to pass typed data to downstream route/page handlers.
@@ -2101,100 +1852,7 @@ pub fn ActionResult(comptime T: type) type {
 
 pub const EventHandler = *const fn (event: EventContext) void;
 
-pub const BuiltinAttribute = struct {
-    pub const Rendering = enum {
-        /// Client-side React.js
-        react,
-        /// Client-side Zig
-        client,
-        /// Server-side rendering (default)
-        server,
-        /// Static rendering (pre-render the component/page/layout as static HTML and store in cache/cdn)
-        static,
-
-        pub fn from(value: []const u8) Rendering {
-            const v = if (std.mem.startsWith(u8, value, ".")) value[1..value.len] else value;
-            return std.meta.stringToEnum(Rendering, v) orelse .client;
-        }
-    };
-
-    pub const Escaping = enum {
-        /// HTML escaping (default behavior)
-        html,
-        /// No escaping; outputs raw HTML. Use with caution for trusted content only.
-        none, // no escaping
-    };
-
-    pub const Async = enum {
-        /// Render synchronously (default)
-        sync,
-        /// Render asynchronously, stream when ready with inline script replacement
-        stream,
-    };
-
-    pub const Caching = struct {
-        pub const none = Caching{ .seconds = 0 };
-
-        /// The number of seconds to cache the page for
-        seconds: u32,
-        /// The key to cache the page for
-        key: ?[]const u8 = null,
-
-        /// Examples:
-        ///
-        /// - `10s` → `{ .seconds = 10, .key = null }`
-        /// - `5m` → `{ .seconds = 300, .key = null }`
-        /// - `1h` → `{ .seconds = 3600, .key = null }`
-        /// - `1d` → `{ .seconds = 86400, .key = null }`
-        ///
-        /// With key:
-        /// - `10s:key` → `{ .seconds = 10, .key = "key" }`
-        /// - `5m:key` → `{ .seconds = 300, .key = "key" }`
-        /// - `1h:key` → `{ .seconds = 3600, .key = "key" }`
-        /// - `1d:key` → `{ .seconds = 86400, .key = "key" }`
-        pub fn tag(comptime tag_str: []const u8) Caching {
-            comptime {
-                var num_end: usize = 0;
-                while (num_end < tag_str.len) : (num_end += 1) {
-                    const c = tag_str[num_end];
-                    if (!std.ascii.isDigit(c)) break;
-                }
-                if (num_end == 0) @compileError("Invalid caching tag '" ++ tag_str ++ "': no number found");
-
-                const num_str = tag_str[0..num_end];
-                const rest = tag_str[num_end..];
-
-                var unit_end: usize = 0;
-                var key: ?[]const u8 = null;
-                for (rest, 0..) |c, i| {
-                    if (c == ':') {
-                        unit_end = i;
-                        key = rest[i + 1 ..];
-                        break;
-                    }
-                } else {
-                    unit_end = rest.len;
-                }
-                const unit_str = rest[0..unit_end];
-
-                const num_value = std.fmt.parseInt(u64, num_str, 10) catch @compileError("Invalid caching number '" ++ num_str ++ "'");
-                const unit_value = parseUnit(unit_str);
-
-                const seconds = num_value * unit_value;
-
-                return .{ .seconds = seconds, .key = key };
-            }
-        }
-
-        fn parseUnit(comptime unit: []const u8) comptime_int {
-            if (std.mem.eql(u8, unit, "s") or unit.len == 0) return 1;
-            if (std.mem.eql(u8, unit, "m")) return std.time.s_per_min;
-            if (std.mem.eql(u8, unit, "h")) return std.time.s_per_hour;
-            if (std.mem.eql(u8, unit, "d")) return std.time.s_per_day;
-            @compileError("Invalid caching unit '" ++ unit ++ "', supported units: s, m, h, d");
-        }
-    };
-};
+pub const BuiltinAttribute = @import("BuiltinAttribute.zig");
 
 const builtin = @import("builtin");
 pub const client_allocator = if (builtin.os.tag == .freestanding) std.heap.wasm_allocator else std.heap.page_allocator;
