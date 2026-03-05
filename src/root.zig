@@ -2,26 +2,19 @@
 //! This module provides the core component system, rendering engine, and utilities
 //! for creating type-safe, high-performance web applications with server-side rendering.
 const std = @import("std");
-const element = @import("Element.zig");
+const builtin = @import("builtin");
 
-pub const devtool = @import("devtool.zig");
+const element = @import("element.zig");
+const plfm = @import("platform.zig");
+
+// -- Core Language --//
 pub const Ast = @import("core/Ast.zig");
 pub const Parse = @import("core/Parse.zig");
-/// Global cache for components and pages
+
+pub const devtool = @import("devtool.zig");
 pub const cache = @import("runtime/core//Cache.zig");
 
 pub const ElementTag = element.Tag;
-
-const SELF_CLOSING_ONLY: []const ElementTag = &.{ .br, .hr, .img, .input, .link, .source, .track, .wbr };
-const NO_CHILDREN_ONLY: []const ElementTag = &.{ .meta, .link, .input };
-
-fn isSelfClosing(tag: ElementTag) bool {
-    return std.mem.indexOfScalar(ElementTag, SELF_CLOSING_ONLY, tag) != null;
-}
-
-fn isNoClosing(tag: ElementTag) bool {
-    return std.mem.indexOfScalar(ElementTag, NO_CHILDREN_ONLY, tag) != null;
-}
 
 /// Escapes: & < > " '
 fn escapeHtmlAttrVal(writer: *std.Io.Writer, value: []const u8) !void {
@@ -521,8 +514,8 @@ pub const Component = union(enum) {
                 // Opening tag
                 try writer.print("<{s}", .{@tagName(elem.tag)});
 
-                const is_self_closing = isSelfClosing(elem.tag);
-                const is_no_closing = isNoClosing(elem.tag);
+                const is_self_closing = elem.tag.isSelf();
+                const is_no_closing = elem.tag.isVoid();
 
                 // Handle attributes
                 if (elem.attributes) |attributes| {
@@ -1564,79 +1557,9 @@ fn isPropsSerializableImpl(comptime T: type, comptime visited: []const type) boo
     };
 }
 
-/// Initialize a ZxContext without an allocator
-/// The allocator must be provided via @allocator attribute on the parent element
-pub fn init() ZxContext {
-    return .{ .allocator = std.heap.page_allocator };
-}
-
-/// Initialize a ZxContext with an allocator (for backward compatibility with direct API usage)
-pub fn allocInit(allocator: std.mem.Allocator) ZxContext {
-    return .{ .allocator = allocator };
-}
-
-const routing = @import("runtime/core/routing.zig");
-const hydration = @import("runtime/client/hydration.zig");
-const app_module = @import("runtime/server/Server.zig");
-const opts = @import("options.zig");
-const ctxs = @import("contexts.zig");
-
-pub const routes = @import("zx_meta").routes;
-pub const components = @import("zx_meta").components.components;
-pub const meta = @import("zx_meta").meta;
-pub const info = @import("zx_info");
-
-pub const Allocator = std.mem.Allocator;
-pub const App = app_module.Server(void);
-pub const Server = app_module.Server;
-pub const Edge = @import("runtime/edge/Edge.zig").Edge;
-pub const Client = @import("runtime/client/Client.zig");
-pub const client = @import("runtime/client/window.zig");
-
-// --- Reactivity --- //
-pub const Signal = Client.reactivity.Signal;
-pub const SignalInstance = Client.reactivity.SignalInstance;
-pub const Computed = Client.reactivity.Computed;
-pub const Effect = Client.reactivity.Effect;
-pub const CleanupFn = Client.reactivity.CleanupFn;
-pub const effect = Client.reactivity.effect;
-pub const effectDeferred = Client.reactivity.effectDeferred;
-pub const requestRender = Client.reactivity.requestRender;
-
-// --- Options --- //
-pub const PageMethod = opts.PageMethod;
-pub const PageOptions = opts.PageOptions;
-pub const LayoutOptions = opts.LayoutOptions;
-pub const NotFoundOptions = opts.NotFoundOptions;
-pub const ErrorOptions = opts.ErrorOptions;
-pub const RouteOptions = opts.RouteOptions;
-pub const ProxyOptions = opts.ProxyOptions;
-
-/// --- Contexts --- //
-pub const ProxyContext = ctxs.ProxyContext;
-pub const AppCtx = routing.AppCtx;
-pub const PageContext = routing.PageContext;
-pub const PageCtx = routing.PageCtx;
-pub const LayoutContext = routing.LayoutContext;
-pub const LayoutCtx = routing.LayoutCtx;
-pub const NotFoundContext = routing.NotFoundContext;
-pub const NotFoundCtx = routing.NotFoundCtx;
-pub const ErrorContext = routing.ErrorContext;
-pub const RouteContext = routing.RouteContext;
-pub const RouteCtx = routing.RouteCtx;
-pub const SocketContext = routing.SocketContext;
-pub const SocketCtx = routing.SocketCtx;
-pub const SocketOpenContext = routing.SocketOpenContext;
-pub const SocketOpenCtx = routing.SocketOpenCtx;
-pub const SocketCloseContext = routing.SocketCloseContext;
-pub const SocketCloseCtx = routing.SocketCloseCtx;
-pub const SocketMessageType = routing.SocketMessageType;
-pub const Socket = routing.Socket;
-pub const SocketOptions = routing.SocketOptions;
-
 /// Compute the merged type of two structs for props spreading
 /// All fields from both structs are included in the result
-pub fn MergedPropsType(comptime BaseType: type, comptime OverrideType: type) type {
+fn MergedPropsType(comptime BaseType: type, comptime OverrideType: type) type {
     const base_info = @typeInfo(BaseType);
     const override_info = @typeInfo(OverrideType);
 
@@ -1712,8 +1635,78 @@ pub fn MergedPropsType(comptime BaseType: type, comptime OverrideType: type) typ
     });
 }
 
+/// Initialize a ZxContext without an allocator
+/// The allocator must be provided via @allocator attribute on the parent element
+pub fn init() ZxContext {
+    return .{ .allocator = std.heap.page_allocator };
+}
+
+/// Initialize a ZxContext with an allocator (for backward compatibility with direct API usage)
+pub fn allocInit(allocator: std.mem.Allocator) ZxContext {
+    return .{ .allocator = allocator };
+}
+
+const routing = @import("runtime/core/routing.zig");
+const hydration = @import("runtime/client/hydration.zig");
+const app_module = @import("runtime/server/Server.zig");
+const opts = @import("options.zig");
+const ctxs = @import("contexts.zig");
+
+pub const routes = @import("zx_meta").routes;
+pub const components = @import("zx_meta").components.components;
+pub const meta = @import("zx_meta").meta;
+pub const info = @import("zx_info");
+
+pub const Allocator = std.mem.Allocator;
+pub const App = app_module.Server(void);
+pub const Server = app_module.Server;
+pub const Edge = @import("runtime/edge/Edge.zig").Edge;
+pub const Client = @import("runtime/client/Client.zig");
+pub const client = @import("runtime/client/window.zig");
+
+// --- Reactivity --- //
+pub const Signal = Client.reactivity.Signal;
+pub const SignalInstance = Client.reactivity.SignalInstance;
+pub const Computed = Client.reactivity.Computed;
+pub const Effect = Client.reactivity.Effect;
+pub const CleanupFn = Client.reactivity.CleanupFn;
+pub const effect = Client.reactivity.effect;
+pub const effectDeferred = Client.reactivity.effectDeferred;
+pub const requestRender = Client.reactivity.requestRender;
+
+// --- Options --- //
+pub const PageMethod = opts.PageMethod;
+pub const PageOptions = opts.PageOptions;
+pub const LayoutOptions = opts.LayoutOptions;
+pub const NotFoundOptions = opts.NotFoundOptions;
+pub const ErrorOptions = opts.ErrorOptions;
+pub const RouteOptions = opts.RouteOptions;
+pub const ProxyOptions = opts.ProxyOptions;
+
+/// --- Contexts --- //
+pub const ProxyContext = ctxs.ProxyContext;
+pub const AppCtx = routing.AppCtx;
+pub const PageContext = routing.PageContext;
+pub const PageCtx = routing.PageCtx;
+pub const LayoutContext = routing.LayoutContext;
+pub const LayoutCtx = routing.LayoutCtx;
+pub const NotFoundContext = routing.NotFoundContext;
+pub const NotFoundCtx = routing.NotFoundCtx;
+pub const ErrorContext = routing.ErrorContext;
+pub const RouteContext = routing.RouteContext;
+pub const RouteCtx = routing.RouteCtx;
+pub const SocketContext = routing.SocketContext;
+pub const SocketCtx = routing.SocketCtx;
+pub const SocketOpenContext = routing.SocketOpenContext;
+pub const SocketOpenCtx = routing.SocketOpenCtx;
+pub const SocketCloseContext = routing.SocketCloseContext;
+pub const SocketCloseCtx = routing.SocketCloseCtx;
+pub const SocketMessageType = routing.SocketMessageType;
+pub const Socket = routing.Socket;
+pub const SocketOptions = routing.SocketOptions;
+
 /// Builder returned by ctx.Signal(T) - call .init(initial) to create the signal.
-pub fn SignalBuilder(comptime T: type) type {
+fn SignalBuilder(comptime T: type) type {
     return struct {
         const Self = @This();
         _id: u16,
@@ -1744,57 +1737,11 @@ pub fn ComponentCtx(comptime PropsType: type) type {
 }
 
 pub const ComponentContext = ComponentCtx(void);
-
-pub const EventContext = struct {
-    /// The JS event object reference (as a u64 NaN-boxed value)
-    event_ref: u64,
-
-    pub fn init(event_ref: u64) EventContext {
-        return .{ .event_ref = event_ref };
-    }
-
-    /// Get the underlying js.Object for the event
-    pub fn getEvent(self: EventContext) client.Event {
-        return client.Event.fromRef(self.event_ref);
-    }
-
-    /// Get the underlying js.Object with data loaded (value, key, etc)
-    pub fn getEventWithData(self: EventContext, allocator: Allocator) client.Event {
-        return client.Event.fromRefWithData(allocator, self.event_ref);
-    }
-
-    pub fn preventDefault(self: EventContext) void {
-        self.getEvent().preventDefault();
-    }
-
-    /// Get the input value from event.target.value
-    pub fn value(self: EventContext) ?[]const u8 {
-        if (platform != .browser) return null;
-        const real_js = @import("js");
-        const event = self.getEvent();
-        const target = event.ref.get(real_js.Object, "target") catch return null;
-        return target.getAlloc(real_js.String, client_allocator, "value") catch null;
-    }
-
-    /// Get the key from keyboard event
-    pub fn key(self: EventContext) ?[]const u8 {
-        if (platform != .browser) return null;
-        const real_js = @import("js");
-        const event = self.getEvent();
-        return event.ref.getAlloc(real_js.String, client_allocator, "key") catch null;
-    }
-};
-
-pub const ActionContext = struct {
-    request: Request,
-    response: Response,
-    allocator: Allocator,
-    arena: Allocator,
-    action_ref: u64,
-    pub fn init(action_ref: u64) ActionContext {
-        return .{ .action_ref = action_ref };
-    }
-};
+pub const EventContext = ctxs.EventContext;
+pub const ActionContext = ctxs.ActionContext;
+pub const EventHandler = *const fn (event: EventContext) void;
+pub const BuiltinAttribute = @import("Attribute.zig").Builtin;
+pub const Platform = plfm.Platform;
 
 pub fn ActionResult(comptime T: type) type {
     if (T == void) return void;
@@ -1804,62 +1751,16 @@ pub fn ActionResult(comptime T: type) type {
     };
 }
 
-pub const EventHandler = *const fn (event: EventContext) void;
-
-pub const BuiltinAttribute = @import("BuiltinAttribute.zig");
-
-const builtin = @import("builtin");
 pub const client_allocator = if (builtin.os.tag == .freestanding) std.heap.wasm_allocator else std.heap.page_allocator;
-pub const Platform = enum {
-    /// Browser environment (WASM)
-    browser,
-    /// Server environment
-    server,
-
-    /// Future - Android environment
-    android,
-    /// Future - iOS environment
-    ios,
-    /// Future - macOS environment
-    macos,
-    /// Future - Windows environment
-    windows,
-};
-
-/// The platform the code is running on
-/// - `browser` if running in a browser environment (WASM)
-/// - `server` if running on a server environment
-/// - `android` if running on an Android environment
-/// - `ios` if running on an iOS environment
-/// - `macos` if running on a macOS environment
-/// - `windows` if running on a Windows environment
-pub const platform: Platform = if (builtin.os.tag == .freestanding) .browser else .server;
+pub const platform: Platform = plfm.platform;
 
 pub const Headers = @import("runtime/core/Headers.zig");
 pub const Request = @import("runtime/core/Request.zig");
 pub const Response = @import("runtime/core/Response.zig");
 pub const Fetch = @import("runtime/core/Fetch.zig");
 pub const WebSocket = @import("runtime/core/WebSocket.zig");
-
-/// Io determines how fetch operations are executed.
-/// - `Io.blocking` - Blocks until complete (server-side)
-/// - `Io.wasm(&callback)` - Uses callback when complete (WASM)
 pub const Io = Fetch.Io;
 
-/// Perform an HTTP fetch request (works on both browser and server).
-///
-/// This is a convenience function that delegates to `Fetch.fetch()`.
-///
-/// **Example:**
-/// ```zig
-/// var response = try zx.fetch(allocator, "/api/users", .{});
-/// defer response.deinit();
-///
-/// if (response.ok()) {
-///     const user = try response.json(User);
-///     defer user.deinit();
-/// }
-/// ```
 pub const fetch = Fetch.fetch;
 
 /// Default std_options for zx apps.
