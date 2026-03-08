@@ -3,7 +3,7 @@ var components: []const data.Component = &.{};
 var inputvalue: []const u8 = "";
 var stateFilter: []const u8 = "";
 
-var selected_component = zx.Signal([]const u8).init("0");
+var selected_component = zx.signal([]const u8, "0");
 
 var fetched = false;
 // Helper function to find a component by ID recursively

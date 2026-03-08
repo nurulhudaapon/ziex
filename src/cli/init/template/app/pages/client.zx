@@ -1,10 +1,10 @@
-var count: zx.Signal(i128) = .init(0);
+var count = zx.signal(i128, 0);
 
-pub fn CounterComponent(allocator: zx.Allocator, props: struct { count: i128 }) zx.Component {
-    count.set(props.count);
+pub fn CounterComponent(ctx: *zx.ComponentCtx(struct { count: i128 })) zx.Component {
+    count.set(ctx.props.count);
 
     return (
-        <div @allocator={allocator}>
+        <div @allocator={ctx.allocator}>
             <button onclick={handleReset}>Reset</button>
             <h5>{&count}</h5>
             <button onclick={handleDecrement}>Decrement</button>
