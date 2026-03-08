@@ -1,19 +1,20 @@
 const std = @import("std");
 
 const zx = @import("root.zig");
+const prp = @import("props.zig");
 
 const ElementTag = zx.ElementTag;
 const Element = zx.Element;
 const Allocator = std.mem.Allocator;
 const BuiltinAttribute = zx.BuiltinAttribute;
-const prp = @import("props.zig");
 const devtool = zx.devtool;
 const cache = zx.cache;
 const Component = zx.Component;
 const ElementAttribute = zx.Element.Attribute;
-const Client = zx.Client;
+const reactivity = zx.client.reactivity;
 
 const platform = zx.platform;
+//TODO: Do not escape ahead of time, remove escaping from this place
 const escapHtmlTextNode = @import("runtime/server/render.zig").escapHtmlTextNode;
 
 pub const ClientComponentOptions = struct {
@@ -139,7 +140,7 @@ pub const ZxContext = struct {
             // Ensure the signal has a runtime ID for DOM binding
             val.ensureId();
             // Format the current value as text
-            const ValueType = Client.reactivity.SignalValueType(T);
+            const ValueType = reactivity.SignalValueType(T);
             const current_value = val.get();
             const text = formatSignalValue(ValueType, current_value, allocator);
             return .{ .signal_text = .{
@@ -288,7 +289,7 @@ pub const ZxContext = struct {
                     }
                     // Function pointer - treat as event handler
                     if (@typeInfo(ptr_info.child) == .@"fn") {
-                        break :blk .{ .name = name, .handler = val };
+                        break :blk .{ .name = name, .handler = zx.EventHandler.fromFn(val) };
                     }
                 }
                 @compileError("Unsupported pointer type for attribute: " ++ @typeName(T));
@@ -321,8 +322,14 @@ pub const ZxContext = struct {
             // Event handlers - store as function pointer
             .@"fn" => .{
                 .name = name,
-                .handler = val,
+                .handler = zx.EventHandler.fromFn(val),
             },
+            // Pre-built event handlers
+            .@"struct" => if (T == zx.EventHandler) .{
+                .name = name,
+                .handler = val,
+            } else @compileError("Unsupported struct type for attribute: " ++ @typeName(T)),
+
             else => @compileError("Unsupported type for attribute value: " ++ @typeName(T)),
         };
     }

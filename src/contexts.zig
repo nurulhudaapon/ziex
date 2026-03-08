@@ -6,10 +6,9 @@ const Request = @import("runtime/core/Request.zig");
 const Response = @import("runtime/core/Response.zig");
 const pltfm = @import("platform.zig");
 const client = @import("runtime/client/window.zig");
+const reactivity = client.reactivity;
 
 const Component = zx.Component;
-const Signal = zx.Signal;
-const SignalInstance = zx.SignalInstance;
 const Allocator = std.mem.Allocator;
 
 const platform = zx.platform;
@@ -115,33 +114,16 @@ pub const ActionContext = struct {
     }
 };
 
-/// Builder returned by ctx.Signal(T) - call .init(initial) to create the signal.
-fn SignalBuilder(comptime T: type) type {
-    return struct {
-        const Self = @This();
-        _id: u16,
-
-        /// Initialize the signal with an initial value.
-        /// Usage: `const count = ctx.Signal(i32).init(0);`
-        pub fn init(self: Self, initial: T) SignalInstance(T) {
-            return Signal(T).create(self._id, initial);
-        }
-    };
-}
-
 pub fn ComponentCtx(comptime PropsType: type) type {
     return struct {
         const Self = @This();
         props: PropsType,
         allocator: Allocator,
         children: ?Component = null,
-        /// Instance ID - automatically injected by Client.zig at runtime
         _id: u16 = 0,
 
-        /// Get a signal builder for this component instance.
-        /// Usage: `const count = ctx.Signal(i32).init(ctx.props.initial);`
-        pub fn Signal(self: Self, comptime T: type) SignalBuilder(T) {
-            return .{ ._id = self._id };
+        pub fn signal(self: Self, comptime T: type, initial: T) reactivity.SignalInstance(T) {
+            return reactivity.Signal(T).create(self._id, initial) catch @panic("Signal(T).create");
         }
     };
 }

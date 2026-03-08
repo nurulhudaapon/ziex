@@ -14,6 +14,7 @@ const hydration = @import("runtime/client/hydration.zig");
 const app_module = @import("runtime/server/Server.zig");
 const opts = @import("options.zig");
 const ctxs = @import("contexts.zig");
+const reactivity = @import("runtime/client/reactivity.zig");
 
 pub const devtool = @import("devtool.zig");
 pub const cache = @import("runtime/core//Cache.zig");
@@ -49,14 +50,15 @@ pub const prop = prp.prop;
 pub const client = @import("runtime/client/window.zig");
 
 // --- Reactivity --- //
-pub const Signal = Client.reactivity.Signal;
-pub const SignalInstance = Client.reactivity.SignalInstance;
-pub const Computed = Client.reactivity.Computed;
-pub const Effect = Client.reactivity.Effect;
-pub const CleanupFn = Client.reactivity.CleanupFn;
-pub const effect = Client.reactivity.effect;
-pub const effectDeferred = Client.reactivity.effectDeferred;
-pub const requestRender = Client.reactivity.requestRender;
+pub const Computed = reactivity.Computed;
+pub const Effect = reactivity.Effect;
+pub const CleanupFn = reactivity.CleanupFn;
+pub const EventHandler = reactivity.EventHandler;
+pub const signal = reactivity.signal;
+pub const effect = reactivity.effect;
+pub const effectDeferred = reactivity.effectDeferred;
+// TODO: this is currently VDom based re-render, remove this once signal system can trigger complex-re-render
+pub const rerender = reactivity.rerender;
 
 // --- Options --- //
 pub const PageMethod = opts.PageMethod;
@@ -92,7 +94,7 @@ pub const ComponentCtx = ctxs.ComponentCtx;
 pub const ComponentContext = ComponentCtx(void);
 pub const EventContext = ctxs.EventContext;
 pub const ActionContext = ctxs.ActionContext;
-pub const EventHandler = *const fn (event: EventContext) void;
+
 pub const BuiltinAttribute = @import("attributes.zig").builtin;
 pub const Platform = plfm.Platform;
 

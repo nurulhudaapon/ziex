@@ -93,7 +93,7 @@ fn addTodo(ctx: zx.EventContext) void {
     next_todo_id += 1;
     todos.append(todos_allocator, .{ .id = id, .text = text, .completed = false }) catch @panic("OOM");
     input.ref.set("value", js.string("")) catch return;
-    zx.requestRender();
+    zx.rerender();
 }
 
 fn handleInputChange(ctx: zx.EventContext) void {
@@ -126,12 +126,12 @@ fn toggleTodo(ctx: zx.EventContext) void {
             break;
         }
     }
-    zx.requestRender();
+    zx.rerender();
 }
 
 fn clearTodos(_: zx.EventContext) void {
     todos.clearRetainingCapacity();
-    zx.requestRender();
+    zx.rerender();
 }
 
 fn deleteTodo(ctx: zx.EventContext) void {
@@ -153,7 +153,7 @@ fn deleteTodo(ctx: zx.EventContext) void {
             break;
         }
     }
-    zx.requestRender();
+    zx.rerender();
 }
 
 fn countCompleted() u32 {

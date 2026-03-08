@@ -1,7 +1,6 @@
 pub const Client = @This();
 
 const window = @import("window.zig");
-pub const reactivity = @import("reactivity.zig");
 pub const hydration = @import("hydration.zig");
 const is_wasm = window.is_wasm;
 
@@ -244,7 +243,7 @@ pub fn getVElementById(self: *Client, id: u64) ?*vtree_mod.VElement {
 pub fn dispatchEvent(self: *Client, velement_id: u64, event_type: EventType, event_ref: u64) bool {
     if (self.getHandler(velement_id, event_type)) |handler| {
         const event_context = zx.EventContext.init(event_ref);
-        handler(event_context);
+        handler.callback(handler.context, event_context);
         return true;
     }
     return false;

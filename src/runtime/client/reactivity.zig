@@ -5,106 +5,24 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
-const is_wasm = builtin.os.tag == .freestanding;
+const Client = @import("Client.zig");
+const zx = @import("../../root.zig");
+const js = zx.client.js;
 
-const js = if (is_wasm) @import("js") else struct {
-    pub const Object = void;
-    pub fn string(_: []const u8) void {}
-};
+const BindingList = std.ArrayList(js.Object);
+const EffectList = std.ArrayList(EffectCallback);
 
-const JsObject = if (is_wasm) @import("js").Object else void;
-
+var signal_bindings = std.ArrayList(BindingList).empty;
+var effect_callbacks = std.ArrayList(EffectList).empty;
 var next_signal_id: u64 = 0;
 
-const MAX_BINDINGS_PER_SIGNAL: usize = 16;
-const MAX_SIGNALS: usize = 256;
-const MAX_EFFECTS_PER_SIGNAL: usize = 8;
+const is_wasm = builtin.os.tag == .freestanding;
+const allocator = zx.client_allocator;
 
-var signal_bindings: if (is_wasm) [MAX_SIGNALS][MAX_BINDINGS_PER_SIGNAL]?JsObject else void =
-    if (is_wasm) .{.{null} ** MAX_BINDINGS_PER_SIGNAL} ** MAX_SIGNALS else {};
-var binding_counts: [MAX_SIGNALS]usize = .{0} ** MAX_SIGNALS;
-
-const EffectCallback = struct {
-    context: *anyopaque,
-    run_fn: *const fn (*anyopaque) void,
-};
-
-var effect_callbacks: [MAX_SIGNALS][MAX_EFFECTS_PER_SIGNAL]?EffectCallback = .{.{null} ** MAX_EFFECTS_PER_SIGNAL} ** MAX_SIGNALS;
-var effect_counts: [MAX_SIGNALS]usize = .{0} ** MAX_SIGNALS;
-
-/// Register a text node binding for a signal (no-op on server).
-pub fn registerBinding(signal_id: u64, text_node: JsObject) void {
-    if (!is_wasm) return;
-    if (signal_id >= MAX_SIGNALS) return;
-    const idx = @as(usize, @intCast(signal_id));
-    const count = binding_counts[idx];
-    if (count < MAX_BINDINGS_PER_SIGNAL) {
-        signal_bindings[idx][count] = text_node;
-        binding_counts[idx] = count + 1;
-    }
+pub fn signal(comptime T: type, initial: T) Signal(T) {
+    return Signal(T).init(initial);
 }
 
-/// Clear all bindings for a signal (no-op on server).
-pub fn clearBindings(signal_id: u64) void {
-    if (!is_wasm) return;
-    if (signal_id >= MAX_SIGNALS) return;
-    const idx = @as(usize, @intCast(signal_id));
-    for (0..binding_counts[idx]) |i| {
-        if (signal_bindings[idx][i]) |node| {
-            node.deinit();
-        }
-        signal_bindings[idx][i] = null;
-    }
-    binding_counts[idx] = 0;
-}
-
-/// Register an effect callback for a signal.
-pub fn registerEffect(signal_id: u64, context: *anyopaque, run_fn: *const fn (*anyopaque) void) void {
-    if (signal_id >= MAX_SIGNALS) return;
-    const idx = @as(usize, @intCast(signal_id));
-    const count = effect_counts[idx];
-    if (count < MAX_EFFECTS_PER_SIGNAL) {
-        effect_callbacks[idx][count] = .{ .context = context, .run_fn = run_fn };
-        effect_counts[idx] = count + 1;
-    }
-}
-
-fn runEffects(signal_id: u64) void {
-    if (signal_id >= MAX_SIGNALS) return;
-    const idx = @as(usize, @intCast(signal_id));
-    const count = effect_counts[idx];
-    for (0..count) |i| {
-        if (effect_callbacks[idx][i]) |cb| {
-            cb.run_fn(cb.context);
-        }
-    }
-}
-
-const Client = @import("Client.zig");
-
-/// Request a full re-render of all components.
-pub fn requestRender() void {
-    if (!is_wasm) return;
-    if (Client.global_client) |client| {
-        client.renderAll();
-    }
-}
-
-/// Request a re-render of a specific component by ID.
-pub fn scheduleRender(component_id: []const u8) void {
-    if (!is_wasm) return;
-    if (Client.global_client) |client| {
-        for (client.components) |cmp| {
-            if (std.mem.eql(u8, cmp.id, component_id)) {
-                client.render(cmp) catch {};
-                return;
-            }
-        }
-    }
-}
-
-/// Reactive signal for fine-grained state management.
-/// When `set()` is called, bound DOM nodes update directly.
 pub fn Signal(comptime T: type) type {
     return struct {
         const Self = @This();
@@ -113,6 +31,7 @@ pub fn Signal(comptime T: type) type {
         id: u64,
         value: T,
         runtime_id_assigned: bool = false,
+        instance_idx: u32 = 0,
 
         pub fn init(initial: T) Self {
             return .{ .id = 0, .value = initial, .runtime_id_assigned = false };
@@ -163,17 +82,12 @@ pub fn Signal(comptime T: type) type {
         }
 
         // ============ Instance-based signal creation for ComponentCtx ============
-
-        const MAX_INSTANCES = 256;
-        var instances: [MAX_INSTANCES]Self = .{Self.init(undefined)} ** MAX_INSTANCES;
-        var initial_values: [MAX_INSTANCES]T = .{undefined} ** MAX_INSTANCES;
+        var instances = std.ArrayList(*Self).empty;
+        var initial_values = std.ArrayList(T).empty;
 
         /// Instance handle returned by create() - acts like Signal but with handler generation.
         pub const ComponentSignal = struct {
             signal: *Self,
-            _idx: u8,
-
-            const EventHandler = *const fn (zx.EventContext) void;
 
             /// Get the current value
             pub inline fn get(self: ComponentSignal) T {
@@ -191,46 +105,58 @@ pub fn Signal(comptime T: type) type {
             }
 
             /// Get a handler to reset to initial value
-            pub fn reset(self: ComponentSignal) EventHandler {
-                return switch (self._idx) {
-                    inline 0...MAX_INSTANCES - 1 => |i| &struct {
-                        fn handler(_: zx.EventContext) void {
-                            instances[i].set(initial_values[i]);
+            pub fn reset(self: ComponentSignal) zx.EventHandler {
+                return .{
+                    .callback = &struct {
+                        fn handler(ctx: *anyopaque, _: zx.EventContext) void {
+                            const sig_ptr: *Self = @ptrCast(@alignCast(ctx));
+                            sig_ptr.set(initial_values.items[sig_ptr.instance_idx]);
                         }
                     }.handler,
+                    .context = self.signal,
                 };
             }
 
             /// Create an event handler that updates the signal using a transform function.
             /// Usage: `<button onclick={count.bind(struct { fn f(x: i32) i32 { return x + 1; } }.f)}>+</button>`
-            /// TODO: Allow generic functions
-            pub fn bind(self: ComponentSignal, comptime transform: *const fn (T) T) EventHandler {
-                return switch (self._idx) {
-                    inline 0...MAX_INSTANCES - 1 => |i| &struct {
-                        fn handler(_: zx.EventContext) void {
-                            instances[i].set(transform(instances[i].get()));
+            pub fn bind(self: ComponentSignal, comptime transform: *const fn (T) T) zx.EventHandler {
+                return .{
+                    .callback = &struct {
+                        fn handler(ctx: *anyopaque, _: zx.EventContext) void {
+                            const sig_ptr: *Self = @ptrCast(@alignCast(ctx));
+                            sig_ptr.set(transform(sig_ptr.get()));
                         }
                     }.handler,
+                    .context = self.signal,
                 };
             }
         };
 
         /// Create an instance-aware signal for use in ComponentCtx.
         /// Each instance ID gets its own independent storage.
-        pub fn create(instance_id: u16, initial: T) ComponentSignal {
-            const idx: u8 = @intCast(instance_id % MAX_INSTANCES);
-            instances[idx] = Self.init(initial);
-            initial_values[idx] = initial;
+        pub fn create(instance_id: u16, initial: T) !ComponentSignal {
+            const idx = @as(usize, instance_id);
+
+            if (idx >= instances.items.len) {
+                try instances.ensureTotalCapacity(allocator, idx + 1);
+                while (instances.items.len <= idx) {
+                    const new_instance_ptr = try allocator.create(Self);
+                    new_instance_ptr.* = Self.init(undefined);
+                    try instances.append(allocator, new_instance_ptr);
+                    try initial_values.append(allocator, undefined);
+                }
+            }
+
+            instances.items[idx].* = Self.init(initial);
+            instances.items[idx].instance_idx = @intCast(idx);
+            initial_values.items[idx] = initial;
 
             return .{
-                .signal = &instances[idx],
-                ._idx = idx,
+                .signal = instances.items[idx],
             };
         }
     };
 }
-
-const zx = @import("../../root.zig");
 
 /// Top-level alias for Signal(T).Instance to improve IDE/ZLS type resolution.
 pub fn SignalInstance(comptime T: type) type {
@@ -256,21 +182,18 @@ fn formatValue(comptime T: type, value: T, buf: []u8) []const u8 {
 
 fn updateSignalNodes(signal_id: u64, value: anytype) void {
     if (!is_wasm) return;
-    if (signal_id >= MAX_SIGNALS) return;
-
     const T = @TypeOf(value);
     const idx = @as(usize, @intCast(signal_id));
-    const count = binding_counts[idx];
+    if (idx >= signal_bindings.items.len) return;
+    const count = signal_bindings.items[idx].items.len;
 
     if (count == 0) return;
 
     var buf: [256]u8 = undefined;
     const text = formatValue(T, value, &buf);
 
-    for (0..count) |i| {
-        if (signal_bindings[idx][i]) |node| {
-            node.set("nodeValue", @import("js").string(text)) catch {};
-        }
+    for (signal_bindings.items[idx].items) |node| {
+        node.set("nodeValue", js.string(text)) catch {};
     }
 }
 
@@ -367,6 +290,7 @@ pub fn Computed(comptime T: type, comptime SourceT: type) type {
 
         pub fn get(self: anytype) T {
             const mutable = @constCast(self);
+            mutable.subscribe();
             mutable.ensureInitialized();
             return mutable.value;
         }
@@ -377,8 +301,102 @@ pub fn Computed(comptime T: type, comptime SourceT: type) type {
     };
 }
 
+const EffectCallback = struct {
+    context: *anyopaque,
+    run_fn: *const fn (*anyopaque) void,
+};
+
+/// Register a text node binding for a signal (no-op on server).
+pub fn registerBinding(signal_id: u64, text_node: js.Object) void {
+    if (!is_wasm) return;
+    ensureSignalSlot(signal_id) catch return;
+    const idx = @as(usize, @intCast(signal_id));
+    signal_bindings.items[idx].append(allocator, text_node) catch {};
+}
+
+/// Clear all bindings for a signal (no-op on server).
+pub fn clearBindings(signal_id: u64) void {
+    if (!is_wasm) return;
+    const idx = @as(usize, @intCast(signal_id));
+    if (idx >= signal_bindings.items.len) return;
+
+    for (signal_bindings.items[idx].items) |node| {
+        node.deinit();
+    }
+    signal_bindings.items[idx].clearRetainingCapacity();
+}
+
+/// Register an effect callback for a signal.
+pub fn registerEffect(signal_id: u64, context: *anyopaque, run_fn: *const fn (*anyopaque) void) void {
+    ensureSignalSlot(signal_id) catch return;
+    const idx = @as(usize, @intCast(signal_id));
+    effect_callbacks.items[idx].append(allocator, .{ .context = context, .run_fn = run_fn }) catch {};
+}
+
+fn runEffects(signal_id: u64) void {
+    const idx = @as(usize, @intCast(signal_id));
+    if (idx >= effect_callbacks.items.len) return;
+
+    for (effect_callbacks.items[idx].items) |cb| {
+        cb.run_fn(cb.context);
+    }
+}
+
+/// Reset global reactivity state (useful for testing).
+pub fn reset() void {
+    if (is_wasm) {
+        for (signal_bindings.items) |*list| {
+            list.deinit(allocator);
+        }
+        signal_bindings.clearAndFree(allocator);
+    }
+    for (effect_callbacks.items) |*list| {
+        list.deinit(allocator);
+    }
+    effect_callbacks.clearAndFree(allocator);
+    next_signal_id = 0;
+}
+
+/// Re-render the whole page using VDOM diffing algorithm like react
+pub fn rerender() void {
+    if (!is_wasm) return;
+    if (Client.global_client) |client| {
+        client.renderAll();
+    }
+}
+
+/// Request a re-render of a specific component by ID.
+pub fn scheduleRender(component_id: []const u8) void {
+    if (!is_wasm) return;
+    if (Client.global_client) |client| {
+        for (client.components) |cmp| {
+            if (std.mem.eql(u8, cmp.id, component_id)) {
+                client.render(cmp) catch {};
+                return;
+            }
+        }
+    }
+}
+
 /// Cleanup function type for effects.
 pub const CleanupFn = *const fn () void;
+
+pub const EventHandler = struct {
+    callback: *const fn (ctx: *anyopaque, event: zx.EventContext) void,
+    context: *anyopaque,
+
+    /// Helper to create an EventHandler from a plain function pointer (no context)
+    pub fn fromFn(comptime func: *const fn (zx.EventContext) void) EventHandler {
+        return .{
+            .callback = &struct {
+                fn wrapper(_: *anyopaque, event: zx.EventContext) void {
+                    func(event);
+                }
+            }.wrapper,
+            .context = undefined,
+        };
+    }
+};
 
 /// Create an effect that runs when the source signal/computed changes.
 /// Like SolidJS/React, runs on mount AND on signal changes.
@@ -408,34 +426,12 @@ const EffectOptions = struct {
     skip_initial: bool = false,
 };
 
-fn effectWithOptions(source: anytype, comptime callback: anytype, options: EffectOptions) void {
-    const SourcePtrType = @TypeOf(source);
-    const source_info = @typeInfo(SourcePtrType);
-
-    if (source_info != .pointer) {
-        @compileError("effect source must be a pointer to a Signal or Computed");
-    }
-
-    const SourceType = source_info.pointer.child;
-
-    if (!@hasDecl(SourceType, "ValueType")) {
-        @compileError("effect source must be a Signal or Computed type");
-    }
-
-    if (!is_wasm) return;
-
-    const T = SourceType.ValueType;
-    Effect(T).init(source, callback, options.skip_initial);
-}
-
 /// Effect type (prefer `effect()` function for simpler API).
 pub fn Effect(comptime T: type) type {
     return struct {
         const Self = @This();
 
-        const MAX_AUTO_EFFECTS = 32;
-        var auto_effects: [MAX_AUTO_EFFECTS]Self = undefined;
-        var auto_effect_count: usize = 0;
+        var auto_effects = std.ArrayList(*Self).empty;
 
         source_ptr: *const anyopaque,
         source_get: *const fn (*const anyopaque) T,
@@ -496,15 +492,9 @@ pub fn Effect(comptime T: type) type {
 
             source.ensureId();
 
-            if (auto_effect_count >= MAX_AUTO_EFFECTS) {
-                _ = wrapped_callback(source.get());
-                return;
-            }
+            const effect_ptr = allocator.create(Self) catch @panic("OOM");
 
-            const idx = auto_effect_count;
-            auto_effect_count += 1;
-
-            auto_effects[idx] = .{
+            effect_ptr.* = .{
                 .source_ptr = @ptrCast(source),
                 .source_get = Wrapper.get,
                 .source_id_ptr = &@constCast(source).id,
@@ -516,7 +506,9 @@ pub fn Effect(comptime T: type) type {
                 .cleanup = null,
             };
 
-            auto_effects[idx].run();
+            auto_effects.append(allocator, effect_ptr) catch @panic("OOM");
+
+            effect_ptr.run();
         }
 
         fn runWrapper(ctx: *anyopaque) void {
@@ -558,4 +550,44 @@ pub fn Effect(comptime T: type) type {
             self.registered = false;
         }
     };
+}
+
+fn effectWithOptions(source: anytype, comptime callback: anytype, options: EffectOptions) void {
+    const SourcePtrType = @TypeOf(source);
+    const source_info = @typeInfo(SourcePtrType);
+
+    if (source_info != .pointer) {
+        @compileError("effect source must be a pointer to a Signal or Computed");
+    }
+
+    const SourceType = source_info.pointer.child;
+
+    if (!@hasDecl(SourceType, "ValueType")) {
+        @compileError("effect source must be a Signal or Computed type");
+    }
+
+    if (!is_wasm) return;
+
+    const T = SourceType.ValueType;
+    Effect(T).init(source, callback, options.skip_initial);
+}
+
+fn ensureSignalSlot(signal_id: u64) !void {
+    const idx = @as(usize, @intCast(signal_id));
+
+    if (is_wasm) {
+        if (idx >= signal_bindings.items.len) {
+            try signal_bindings.ensureTotalCapacity(allocator, idx + 1);
+            while (signal_bindings.items.len <= idx) {
+                try signal_bindings.append(allocator, BindingList.empty);
+            }
+        }
+    }
+
+    if (idx >= effect_callbacks.items.len) {
+        try effect_callbacks.ensureTotalCapacity(allocator, idx + 1);
+        while (effect_callbacks.items.len <= idx) {
+            try effect_callbacks.append(allocator, EffectList.empty);
+        }
+    }
 }

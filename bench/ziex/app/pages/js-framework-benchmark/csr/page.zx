@@ -77,7 +77,7 @@ var items = std.ArrayList(Item).empty;
 fn clearRows(_: zx.EventContext) void {
     items.clearRetainingCapacity();
     next_id = 1;
-    zx.requestRender();
+    zx.rerender();
 }
 
 fn swapRows(_: zx.EventContext) void {
@@ -85,7 +85,7 @@ fn swapRows(_: zx.EventContext) void {
         const tmp = items.items[1];
         items.items[1] = items.items[998];
         items.items[998] = tmp;
-        zx.requestRender();
+        zx.rerender();
     }
 }
 
@@ -96,7 +96,7 @@ fn updateRows(_: zx.EventContext) void {
         const new_text = std.fmt.allocPrint(zx.client_allocator, "{s} !!!", .{item.text}) catch @panic("OOM");
         item.text = new_text;
     }
-    zx.requestRender();
+    zx.rerender();
 }
 
 var seed: u32 = 12345;
@@ -154,7 +154,7 @@ fn BuildRows(count_to_add: u32, clear_first: bool) void {
     }
 
     std.log.info("Total items after BuildRows: {d}", .{items.items.len});
-    zx.requestRender();
+    zx.rerender();
     std.log.info("after: {d}", .{items.items.len});
     // count.set(@intCast(items.items.len));
 }

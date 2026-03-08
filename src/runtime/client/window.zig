@@ -10,7 +10,7 @@ const ext = @import("window/extern.zig");
 pub const is_wasm = builtin.cpu.arch == .wasm32 or builtin.cpu.arch == .wasm64;
 
 /// JS bindings - only available in WASM builds
-const js = if (is_wasm) @import("js") else struct {
+pub const js = if (is_wasm) @import("js") else struct {
     pub const Object = void;
     pub const String = []const u8;
     pub const global = struct {
@@ -286,3 +286,4 @@ pub fn dispatchCallback(callback_type: CallbackType, callback_id: u64, data_ref:
 
 /// Re-export the core WebSocket for client-side use
 pub const WebSocket = @import("../core/WebSocket.zig");
+pub const reactivity = @import("reactivity.zig");

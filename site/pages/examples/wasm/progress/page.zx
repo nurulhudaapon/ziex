@@ -43,7 +43,7 @@ fn start(_: zx.EventContext) void {
     progress = 0;
     fetch();
     interval_id = zx.client.setInterval(&fetch, 1200);
-    zx.requestRender();
+    zx.rerender();
 }
 
 fn stop(_: zx.EventContext) void {
@@ -51,7 +51,7 @@ fn stop(_: zx.EventContext) void {
         zx.client.clearInterval(id);
         interval_id = null;
         running = false;
-        zx.requestRender();
+        zx.rerender();
     }
 }
 
@@ -62,12 +62,12 @@ fn reset(_: zx.EventContext) void {
     }
     progress = 0;
     running = false;
-    zx.requestRender();
+    zx.rerender();
 }
 
 fn fetch() void {
     running = true;
-    zx.requestRender();
+    zx.rerender();
     _ = zx.fetch(.wasm(&onFetch), zx.client_allocator, "/examples/wasm/progress", .{ .method = .POST }) catch {};
 }
 
@@ -83,7 +83,7 @@ fn onFetch(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
             }
         } else |_| {}
     }
-    zx.requestRender();
+    zx.rerender();
 }
 
 const css =

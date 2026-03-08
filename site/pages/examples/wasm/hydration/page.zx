@@ -22,7 +22,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     );
 }
 
-var sharedCount = zx.Signal(i32).init(0);
+var sharedCount = zx.signal(i32, 0);
 
 /// Inner nested struct for testing deep nesting
 pub const InnerProps = struct {
@@ -69,7 +69,7 @@ pub const CounterProps = struct {
 pub const NestedCounterProps = CounterProps;
 
 pub fn Counter(ctx: *zx.ComponentCtx(CounterProps)) ?zx.Component {
-    const count = ctx.Signal(i32).init(ctx.props.initial);
+    const count = ctx.signal(i32, ctx.props.initial);
     const props = ctx.props;
 
     return (

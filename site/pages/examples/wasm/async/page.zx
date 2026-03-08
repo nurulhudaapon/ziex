@@ -69,12 +69,12 @@ fn toggleInterval(_: zx.EventContext) void {
         std.log.info("Interval started (every 1 second)", .{});
     }
 
-    zx.requestRender();
+    zx.rerender();
 }
 
 fn onIntervalTick() void {
     interval_count += 1;
-    zx.requestRender();
+    zx.rerender();
 }
 
 fn onTimeoutFired() void {

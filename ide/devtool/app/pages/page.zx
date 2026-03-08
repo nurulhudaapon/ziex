@@ -40,7 +40,7 @@ fn onFetchText(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
             }
         } else |_| {}
     }
-    zx.requestRender();
+    zx.rerender();
 }
 
 
@@ -105,12 +105,12 @@ pub fn ComponentState(
 
 pub fn handleComponentSearchInput(ctx: zx.EventContext) void {
     inputvalue = ctx.value() orelse "";
-    zx.requestRender();
+    zx.rerender();
 }
 
 pub fn handleStateFilterInput(ctx: zx.EventContext) void {
     stateFilter = ctx.value() orelse "";
-    zx.requestRender();
+    zx.rerender();
 }
 
 pub fn ComponentStateFilter(
@@ -126,7 +126,7 @@ pub fn ComponentStateFilter(
 pub fn handleComponentClick(ctx: zx.EventContext) void {
     const id = ctx.value() orelse "0";
     selected_component.set(id);
-    zx.requestRender();
+    zx.rerender();
 }
 
 const icons = @import("./components/icons.zx");

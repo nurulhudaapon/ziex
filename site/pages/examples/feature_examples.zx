@@ -263,7 +263,7 @@ pub fn SocketOpen(ctx: zx.SocketOpenContext) !void {
 }
 
 // --- Client-side Rendering ---
-var count: zx.Signal(i32) = .init(0);
+var count = zx.signal(i32, 0);
 pub fn Client(allocator: zx.Allocator) zx.Component {
     return (<Counter @{allocator} @rendering={.client} />);
 }
