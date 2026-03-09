@@ -26,7 +26,13 @@
   "extensionDependencies": [
     "ziglang.vscode-zig"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onLanguage:zig",
+    "onLanguage:zx",
+    "onCommand:zx.pasteInMultilineString",
+    "onCommand:zx.copyFromMultilineString",
+    "onCommand:zx.toggleMultilineStringLiteral"
+  ],
   "main": "./out/extension",
   "contributes": {
     "configurationDefaults": {
