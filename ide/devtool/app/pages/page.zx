@@ -49,6 +49,7 @@ const ComponentSearchInputProps = struct {  };
 const ComponentStateProps = struct {  };
 const ComponentTreeProps = struct {  };
 const ComponentStateFilterProps = struct {  };
+const NativeToggleProps = struct {};
 pub fn ComponentSearchInput(
     ctx: *zx.ComponentCtx(ComponentSearchInputProps),
 ) zx.Component {
@@ -61,11 +62,13 @@ pub fn ComponentSearchInput(
 pub fn ComponentTree(
     ctx: *zx.ComponentCtx(ComponentTreeProps),
 ) zx.Component {
+    data.loadSettings();
     const sel = selected_component.get();
+    const display_components = filterNativeElements(ctx.allocator, components);
     return (
         <div @allocator={ctx.allocator} class="component-tree">
             <div class="component-list">
-                {for (components) |comp| (<ComponentItem allocator={ctx.allocator} id={comp.id} name={comp.name} has_children={comp.has_children} children={comp.children} depth={0} selected={std.mem.eql(u8, comp.id, sel)} badge={comp.badge} />)}
+                {for (display_components) |comp| (<ComponentItem allocator={ctx.allocator} id={comp.id} name={comp.name} has_children={comp.has_children} children={comp.children} depth={0} selected={std.mem.eql(u8, comp.id, sel)} badge={comp.badge} is_native={comp.is_native} />)}
             </div>
         </div>
     );
@@ -131,6 +134,24 @@ pub fn handleComponentClick(ctx: zx.EventContext) void {
 
 const icons = @import("./components/icons.zx");
 
+pub fn NativeToggle(
+    ctx: *zx.ComponentCtx(NativeToggleProps),
+) zx.Component {
+    const active = data.show_native_elements;
+    const btn_class = if (active) "native-toggle-btn native-toggle-btn-on" else "native-toggle-btn native-toggle-btn-off";
+    return (
+        <button @allocator={ctx.allocator} onclick={handleToggleNative} class={btn_class} title="Toggle native elements">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6"></path><path d="M8 6l-6 6 6 6"></path></svg>
+        </button>
+    );
+}
+
+pub fn handleToggleNative(_: zx.EventContext) void {
+    data.show_native_elements = !data.show_native_elements;
+    data.saveSettings();
+    zx.rerender();
+}
+
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
         <div @allocator={ctx.arena} class="devtools-container">
@@ -139,6 +160,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     <div class="search-wrapper">
                         <ComponentSearchInput @rendering={.client} />
                         {icons.Search(ctx.arena)}
+                        <NativeToggle @rendering={.client} />
                         <div class="search-shortcut">↲</div>
                     </div>
                 </div>
@@ -168,7 +190,15 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 }
 
 const Component = data.Component;
-const ComponentItemProps = struct { id: []const u8, name: []const u8, has_children: bool, children: []const Component, depth: usize = 0, selected: bool = false, badge: []const u8 = "" };
+
+fn hasNativeChild(children: []const Component) bool {
+    for (children) |child| {
+        if (child.is_native) return true;
+    }
+    return false;
+}
+
+const ComponentItemProps = struct { id: []const u8, name: []const u8, has_children: bool, children: []const Component, depth: usize = 0, selected: bool = false, badge: []const u8 = "", is_native: bool = false };
 
 fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Component {
     const sel = selected_component.get();
@@ -179,30 +209,11 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
     const item_class = if (is_selected) "component-root" else "component-item";
     const name_class = if (is_selected) "component-name-root" else "component-name";
     const group_class = getComponentGroupClass(props.name, props.has_children, props.children);
-    
-    return (
-        <div @allocator={allocator} class={group_class}>
-            {if (props.has_children) (
-                <>
-                    <input type="checkbox" id={dom_id} class="component-toggle" checked />
-                    <div class={item_class} style={style_str} >
-                        <label for={dom_id} class="component-toggle-label">
-                            <span class="tree-arrow"></span>
-                        </label>
-                        <button value={props.id} onclick={handleComponentClick} class="component-select-btn">
-                            <span class="bracket">{"<"}</span>
-                            <span class={name_class}>{props.name}</span>
-                            <span class="bracket">{">"}</span>
-                            {if (props.badge.len > 0) (<span class="component-badge">{props.badge}</span>) else ""}
-                        </button>
-                    </div>
-                    <div class="component-children">
-                        {for (props.children) |child| (
-                            <ComponentItem allocator={allocator} id={child.id} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} selected={std.mem.eql(u8, child.id, sel)} badge={child.badge} />
-                        )}
-                    </div>
-                </>
-            ) else (
+
+    // Any leaf (native or not): flat item, no expand toggle, no arrow
+    if (!props.has_children) {
+        return (
+            <div @allocator={allocator} class={group_class}>
                 <div class={item_class} style={style_str}>
                     <button value={props.id} onclick={handleComponentClick} class="component-select-btn-leaf">
                         <span class="tree-arrow-spacer"></span>
@@ -212,7 +223,80 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
                         {if (props.badge.len > 0) (<span class="component-badge">{props.badge}</span>) else ""}
                     </button>
                 </div>
-            )}
+            </div>
+        );
+    }
+
+    // Native element with children: expandable but starts COLLAPSED (no `checked`)
+    if (props.is_native) {
+        return (
+            <div @allocator={allocator} class={group_class}>
+                <input type="checkbox" id={dom_id} class="component-toggle" />
+                <div class={item_class} style={style_str}>
+                    <label for={dom_id} class="component-toggle-label">
+                        <span class="tree-arrow"></span>
+                    </label>
+                    <button value={props.id} onclick={handleComponentClick} class="component-select-btn">
+                        <span class="bracket">{"<"}</span>
+                        <span class={name_class}>{props.name}</span>
+                        <span class="bracket">{">"}</span>
+                        {if (props.badge.len > 0) (<span class="component-badge">{props.badge}</span>) else ""}
+                    </button>
+                </div>
+                <div class="component-children">
+                    {for (props.children) |child| (
+                        <ComponentItem allocator={allocator} id={child.id} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} selected={std.mem.eql(u8, child.id, sel)} badge={child.badge} is_native={child.is_native} />
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    // Non-native component whose direct children are all user components: starts EXPANDED
+    if (!hasNativeChild(props.children)) {
+        return (
+            <div @allocator={allocator} class={group_class}>
+                <input type="checkbox" id={dom_id} class="component-toggle" checked />
+                <div class={item_class} style={style_str}>
+                    <label for={dom_id} class="component-toggle-label">
+                        <span class="tree-arrow"></span>
+                    </label>
+                    <button value={props.id} onclick={handleComponentClick} class="component-select-btn">
+                        <span class="bracket">{"<"}</span>
+                        <span class={name_class}>{props.name}</span>
+                        <span class="bracket">{">"}</span>
+                        {if (props.badge.len > 0) (<span class="component-badge">{props.badge}</span>) else ""}
+                    </button>
+                </div>
+                <div class="component-children">
+                    {for (props.children) |child| (
+                        <ComponentItem allocator={allocator} id={child.id} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} selected={std.mem.eql(u8, child.id, sel)} badge={child.badge} is_native={child.is_native} />
+                    )}
+                </div>
+            </div>
+        );
+    }
+
+    // Non-native component that directly contains native children: starts COLLAPSED
+    return (
+        <div @allocator={allocator} class={group_class}>
+            <input type="checkbox" id={dom_id} class="component-toggle" />
+            <div class={item_class} style={style_str}>
+                <label for={dom_id} class="component-toggle-label">
+                    <span class="tree-arrow"></span>
+                </label>
+                <button value={props.id} onclick={handleComponentClick} class="component-select-btn">
+                    <span class="bracket">{"<"}</span>
+                    <span class={name_class}>{props.name}</span>
+                    <span class="bracket">{">"}</span>
+                    {if (props.badge.len > 0) (<span class="component-badge">{props.badge}</span>) else ""}
+                </button>
+            </div>
+            <div class="component-children">
+                {for (props.children) |child| (
+                    <ComponentItem allocator={allocator} id={child.id} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} selected={std.mem.eql(u8, child.id, sel)} badge={child.badge} is_native={child.is_native} />
+                )}
+            </div>
         </div>
     );
 }
@@ -335,3 +419,20 @@ fn getValueColor(value: []const u8) []const u8 {
 const zx = @import("zx");
 const std = @import("std");
 const data = @import("data.zig");
+
+fn filterNativeElements(allocator: std.mem.Allocator, comps: []const Component) []const Component {
+    if (data.show_native_elements) return comps;
+    var list = std.ArrayList(Component).empty;
+    for (comps) |comp| {
+        if (comp.is_native) {
+            const promoted = filterNativeElements(allocator, comp.children);
+            list.appendSlice(allocator, promoted) catch {};
+        } else {
+            var filtered = comp;
+            filtered.children = filterNativeElements(allocator, comp.children);
+            filtered.has_children = filtered.children.len > 0;
+            list.append(allocator, filtered) catch {};
+        }
+    }
+    return list.toOwnedSlice(allocator) catch comps;
+}

@@ -13,6 +13,7 @@ pub const Component = struct {
     selected: bool = false,
     badge: []const u8 = "",
     meta: ?ComponentMeta = null,
+    is_native: bool = false,
 };
 
 pub const Route = struct {
@@ -21,6 +22,27 @@ pub const Route = struct {
 };
 
 pub const StateItem = zx.Component.Serializable.StateItem;
+
+const storage_key = "zx-devtool-show-native-elements";
+
+var _show_native_elements_loaded = false;
+pub var show_native_elements: bool = true;
+
+pub fn loadSettings() void {
+    if (_show_native_elements_loaded) return;
+    _show_native_elements_loaded = true;
+    // Returns 1.0 if stored "1" or not set, 0.0 if stored "0"
+    const result = zx.client.eval(f64, "+(localStorage.getItem('" ++ storage_key ++ "')??1)") catch return;
+    show_native_elements = result >= 1.0;
+}
+
+pub fn saveSettings() void {
+    const script = if (show_native_elements)
+        "localStorage.setItem('" ++ storage_key ++ "','1');"
+    else
+        "localStorage.setItem('" ++ storage_key ++ "','0');";
+    zx.client.eval(void, script) catch {};
+}
 
 pub const components = [_]Component{
     .{
@@ -217,9 +239,11 @@ pub const routes = [_]Route{
 pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.Component.Serializable, path: []const u8) anyerror!Component {
     var name: []const u8 = "unknown";
     var badge: []const u8 = "";
+    var is_native: bool = true;
 
     if (s.component) |c| {
         name = c;
+        is_native = false;
     } else if (s.tag) |t| {
         name = @tagName(t);
     } else if (s.text) |_| {
@@ -263,6 +287,7 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.Component.Serializab
         .has_children = children.len > 0,
         .badge = badge,
         .meta = meta,
+        .is_native = is_native,
     };
 }
 

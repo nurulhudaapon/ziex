@@ -976,6 +976,31 @@ input:checked+.slider:before {
     pointer-events: none;
 }
 
+.native-toggle-btn {
+    background: none;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 2px 6px;
+    display: flex;
+    align-items: center;
+    font-size: 11px;
+    gap: 4px;
+}
+
+.native-toggle-btn > * {
+    pointer-events: none;
+}
+
+.native-toggle-btn-on {
+    border: 1px solid #444;
+    color: #00d9ff;
+}
+
+.native-toggle-btn-off {
+    border: 1px solid #333;
+    color: #555;
+}
+
 .bracket {
     color: #666;
 }
@@ -1365,4 +1390,245 @@ label.state-item {
   font-size: 0.75rem;
   color: var(--text-muted);
   border-top: 1px solid var(--border-color);
+}
+
+/* ===== Settings Page ===== */
+
+.settings-page {
+    color: #e5e5e5;
+    font-family: system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    padding: 1rem 1.5rem;
+}
+
+.settings-header {
+    margin-bottom: 1.25rem;
+    max-width: 1000px;
+    padding: 0;
+    border-bottom: none;
+}
+
+.settings-title {
+    font-size: 1.125rem;
+    font-weight: 500;
+    color: #e5e5e5;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin: 0;
+}
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 3rem;
+    max-width: 1000px;
+}
+
+.settings-section {
+    margin-bottom: 2rem;
+}
+
+.settings-section-title {
+    font-size: 1rem;
+    font-weight: 500;
+    margin-bottom: 1rem;
+    color: #e5e5e5;
+}
+
+.settings-panel {
+    border: 1px solid #333;
+    border-radius: 6px;
+    overflow: hidden;
+    padding: 1rem;
+}
+
+.settings-tabs-panel {
+    border: 1px solid #333;
+    border-radius: 6px;
+    overflow: hidden;
+    padding: 0;
+}
+
+.settings-btn {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: transparent;
+    border: 1px solid #333;
+    border-radius: 4px;
+    color: #e5e5e5;
+    cursor: pointer;
+    font-size: 0.875rem;
+}
+
+.settings-btn-theme {
+    margin-bottom: 1.5rem;
+    width: fit-content;
+}
+
+.settings-divider-block {
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid #262626;
+    padding-bottom: 1.5rem;
+}
+
+.settings-label {
+    display: block;
+    font-weight: 400;
+    margin-bottom: 0.75rem;
+    font-size: 0.95rem;
+}
+
+.settings-select-wrap {
+    position: relative;
+    max-width: 150px;
+}
+
+.settings-select {
+    width: 100%;
+    padding: 0.5rem 2rem 0.5rem 0.75rem;
+    background: #0d0d0d;
+    border: 1px solid #333;
+    border-radius: 4px;
+    color: #e5e5e5;
+    font-size: 0.875rem;
+    cursor: pointer;
+    appearance: none;
+    outline: none;
+}
+
+.settings-select-arrow {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    pointer-events: none;
+}
+
+.settings-checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    cursor: pointer;
+}
+
+.settings-checkbox-row-mb {
+    margin-bottom: 0.75rem;
+}
+
+.settings-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: #00d9ff;
+}
+
+.settings-checkbox-label {
+    font-size: 0.9rem;
+    color: #e5e5e5;
+}
+
+.settings-tab-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.625rem 1rem;
+    border-bottom: 1px solid #262626;
+}
+
+.settings-row-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.settings-row-name {
+    font-weight: 400;
+    font-size: 0.95rem;
+}
+
+.settings-row-actions {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.settings-switch-input {
+    display: none;
+}
+
+.settings-switch-track {
+    width: 36px;
+    height: 20px;
+    background: #00d9ff;
+    border-radius: 99px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    cursor: pointer;
+}
+
+.settings-switch-knob {
+    width: 16px;
+    height: 16px;
+    background: white;
+    border-radius: 50%;
+    position: absolute;
+    right: 2px;
+}
+
+.settings-toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.625rem 1rem;
+    width: 100%;
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: inherit;
+}
+
+.settings-toggle-label {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    pointer-events: none;
+}
+
+.settings-toggle-track {
+    width: 36px;
+    height: 20px;
+    border-radius: 99px;
+    position: relative;
+    display: flex;
+    align-items: center;
+    pointer-events: none;
+}
+
+.settings-toggle-track-on {
+    background: #00d9ff;
+}
+
+.settings-toggle-track-off {
+    background: #555;
+}
+
+.settings-toggle-knob {
+    width: 16px;
+    height: 16px;
+    background: white;
+    border-radius: 50%;
+    position: absolute;
+    pointer-events: none;
+}
+
+.settings-toggle-knob-on {
+    right: 2px;
+}
+
+.settings-toggle-knob-off {
+    left: 2px;
 }

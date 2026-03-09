@@ -41,7 +41,7 @@ const menu = [_]MenuItem{
     .{ .href = "overview", .icon_fn = icons.Info, .label = "Overview", .active_match = "overview" },
     .{ .href = "/", .icon_fn = icons.Hive, .label = "Components", .active_match = "/" },
     .{ .href = "routes", .icon_fn = icons.Workflow, .label = "Routes", .active_match = "routes" },
-    // .{ .href = "settings", .icon_fn = icons.Settings, .label = "Settings", .active_match = "settings" },
+    .{ .href = "settings", .icon_fn = icons.Settings, .label = "Settings", .active_match = "settings" },
 };
 
 fn isActive(url: []const u8, match: []const u8) bool {
