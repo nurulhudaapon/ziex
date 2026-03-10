@@ -453,6 +453,7 @@ body {
     border-right: 1px solid var(--border-color);
     overflow-y: auto;
     scrollbar-gutter: stable;
+    scrollbar-width: thin;
 }
 
 .nav-menu {
@@ -467,7 +468,8 @@ body {
 
 /* Sidebar Tabs (Learn / Reference) */
 .sidebar-tabs {
-    width: calc(var(--sidebar-width) - 2px);
+    width: 100%;
+    box-sizing: border-box;
     display: flex;
     padding: 0.4rem 0.45rem 0;
     gap: 0.25rem;
