@@ -450,7 +450,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         <div class="hero-mascot">
                             <div class="hero-mascot-glow"></div>
                             // <div class="hero-mascot-glow hero-mascot-glow--inner"></div>
-                            <img src="https://raw.githubusercontent.com/ziex-dev/branding/main/scalled/ziex-ziguana.png" alt="Ziguana Mascot" />
+                            <img src="https://raw.githubusercontent.com/ziex-dev/branding/main/compressed/ziex-ziguana.webp" alt="Ziguana Mascot" />
                         </div>
                     </div>
                 </section>
