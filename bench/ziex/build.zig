@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
 
     // --- Options --- //
-    const is_csr_bench = true;
+    const is_csr_bench = false;
 
     // --- Ziex Setup (sets up ZX, dependencies, executables and `serve` step) ---
     const site_exe = b.addExecutable(.{

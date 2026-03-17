@@ -14,7 +14,7 @@ pub fn main() !void {
 }
 
 pub const config = .{
-    .csr = true,
+    .csr = false,
 };
 
 pub const std_options = zx.std_options;
