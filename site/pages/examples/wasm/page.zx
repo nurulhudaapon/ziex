@@ -7,52 +7,72 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 }
 
 const Todo = struct { id: u32, text: []const u8, completed: bool };
-pub fn TodoApp(allocator: zx.Allocator) zx.Component {
-    initTodos(todos_allocator);
-    if (builtin.cpu.arch != .wasm32) resetTodosForSSR(todos_allocator);
+const TodoList = std.ArrayListUnmanaged(Todo);
+
+pub fn TodoApp(ctx: *zx.ComponentCtx(void)) !zx.Component {
+    const todos_state = ctx.state(TodoList, blk: {
+        var list = TodoList{};
+        try list.appendSlice(ctx.allocator, &initial_todos);
+        break :blk list;
+    });
+    _ = ctx.state(u32, 4);
+
+    const todos_list = todos_state.get();
 
     return (
-        <div @{allocator} class="todo-app">
+        <div @allocator={ctx.allocator} class="todo-app">
             <div class="todo-header">
                 <h1 class="todo-title">ZX + WASM</h1>
                 <Counter />
-                <CounterCmp initial={0} />
+                // <CounterCmp initial={0} />
                 <p class="todo-subtitle">A demo todo app built with ZX Client Side Rendering</p>
             </div>
 
-            <form class="todo-input-section" onsubmit={addTodo}>
+            <form class="todo-input-section" onsubmit={ctx.bind(&addTodo)}>
                 <input type="text" class="todo-input" id="todo-input" placeholder="Add a new todo..." required />
                 <button class="todo-add-btn" type="submit">Add</button>
             </form>
 
             <div class="todo-stats">
-                <span class="todo-stat"><strong>{todos.items.len}</strong> total</span>
+                <span class="todo-stat"><strong>{todos_list.items.len}</strong> total</span>
                 <span class="todo-stat-divider">•</span>
-                <span class="todo-stat"><strong>{countCompleted()}</strong> done</span>
+                <span class="todo-stat"><strong>{countCompleted(todos_list)}</strong> done</span>
                 <span class="todo-stat-divider">•</span>
-                <span class="todo-stat"><strong>{todos.items.len - countCompleted()}</strong> left</span>
-                <button class="todo-clear-btn" onclick={clearTodos}>Clear All</button>
+                <span class="todo-stat"><strong>{todos_list.items.len - countCompleted(todos_list)}</strong> left</span>
+                <button class="todo-clear-btn" onclick={ctx.bind(&clearTodos)}>Clear All</button>
             </div>
 
             <ul class="todo-list">
-                {for (todos.items) |todo| (
-                    <TodoItem id={todo.id} text={todo.text} completed={todo.completed} />
+                {for (todos_list.items) |todo| (
+                    <TodoItem 
+                        id={todo.id} 
+                        text={todo.text} 
+                        completed={todo.completed} 
+                        onToggle={ctx.bind(&toggleTodo)}
+                        onDelete={ctx.bind(&deleteTodo)}
+                    />
                 )}
             </ul>
         </div>
     );
 }
 
-fn TodoItem(ctx: *zx.ComponentCtx(struct { id: u32, text: []const u8, completed: bool })) zx.Component {
+fn TodoItem(ctx: *zx.ComponentCtx(struct { 
+    id: u32, 
+    text: []const u8, 
+    completed: bool,
+    onToggle: zx.EventHandler,
+    onDelete: zx.EventHandler
+})) zx.Component {
     const class = if (ctx.props.completed) "todo-item todo-item-completed" else "todo-item";
     const key = ctx.props.id;
     const value = ctx.props.id;
 
     return (
         <li @allocator={ctx.allocator} {class} {key}>
-            <input type="button" class="todo-checkbox" {value} onclick={toggleTodo} />
+            <input type="button" class="todo-checkbox" {value} onclick={ctx.props.onToggle} />
             <span> {ctx.props.text} </span>
-            <button class="todo-delete-btn" {value} onclick={deleteTodo}>×</button>
+            <button class="todo-delete-btn" {value} onclick={ctx.props.onDelete}>×</button>
         </li>
     );
 }
@@ -62,104 +82,89 @@ const initial_todos = [_]Todo{
     .{ .id = 2, .text = "Implement server-side rendering", .completed = true },
     .{ .id = 3, .text = "Implement client-side rendering", .completed = false },
 };
-var next_todo_id: u32 = 4; // Start after initial todos (1, 2, 3)
-var initialized: bool = false;
-var todos = std.ArrayList(Todo).empty;
-var todos_allocator: std.mem.Allocator = if (builtin.cpu.arch == .wasm32) std.heap.wasm_allocator else std.heap.page_allocator;
 
-fn initTodos(allocator: zx.Allocator) void {
-    if (initialized) return;
-    initialized = true;
-    todos_allocator = allocator;
-    todos.appendSlice(allocator, &initial_todos) catch @panic("OOM");
-}
-
-fn resetTodosForSSR(allocator: zx.Allocator) void {
-    todos = std.ArrayList(Todo).empty;
-    todos_allocator = allocator;
-    todos.appendSlice(allocator, &initial_todos) catch @panic("OOM");
-}
-
-fn addTodo(ctx: zx.EventContext) void {
-    ctx.preventDefault();
+fn addTodo(e: *zx.EventContext) void {
+    e.preventDefault();
     if (comptime builtin.cpu.arch != .wasm32) return;
 
-    const document = zx.client.Document.init(todos_allocator);
-    const input = document.getElementById("todo-input") catch return;
+    const todos_state = e.state(TodoList);
+    const id_state = e.state(u32);
 
-    const text = input.ref.getAlloc(js.String, todos_allocator, "value") catch return;
+    const document = zx.client.Document.init(zx.client_allocator);
+    const input = document.getElementById("todo-input") catch return;
+    const text = input.ref.getAlloc(js.String, zx.client_allocator, "value") catch return;
     if (text.len == 0) return;
 
-    const id = next_todo_id;
-    next_todo_id += 1;
-    todos.append(todos_allocator, .{ .id = id, .text = text, .completed = false }) catch @panic("OOM");
+    const id = id_state.get();
+    id_state.set(id + 1);
+
+    var list = todos_state.get();
+    list.append(zx.client_allocator, .{ .id = id, .text = text, .completed = false }) catch return;
+    todos_state.set(list);
+
     input.ref.set("value", js.string("")) catch return;
-    zx.rerender();
 }
 
-fn handleInputChange(ctx: zx.EventContext) void {
-    const event = ctx.getEvent();
-    defer event.deinit();
-    const target = event.getTarget() orelse return;
-    defer target.deinit();
-    const value = target.getAlloc(js.String, todos_allocator, "value") catch return;
-
-    const id = next_todo_id;
-    next_todo_id += 1;
-    todos.append(todos_allocator, .{ .id = id, .text = value, .completed = false }) catch @panic("OOM");
-}
-fn toggleTodo(ctx: zx.EventContext) void {
+fn toggleTodo(e: *zx.EventContext) void {
     if (comptime builtin.cpu.arch != .wasm32) return;
+    const todos_state = e.state(TodoList);
+    _ = e.state(u32); // skip next_id
 
-    const event = ctx.getEvent();
+    const event = e.getEvent();
     defer event.deinit();
     var id: ?u32 = null;
     if (event.getTarget()) |target| {
         defer target.deinit();
-        if (target.getAlloc(js.String, todos_allocator, "value") catch null) |v| {
+        if (target.getAlloc(js.String, zx.client_allocator, "value") catch null) |v| {
             id = std.fmt.parseInt(u32, v, 10) catch null;
         }
     }
 
-    for (todos.items) |*todo| {
+    const list = todos_state.get();
+    for (list.items) |*todo| {
         if (todo.id == id) {
             todo.completed = !todo.completed;
             break;
         }
     }
-    zx.rerender();
+    todos_state.set(list);
 }
 
-fn clearTodos(_: zx.EventContext) void {
-    todos.clearRetainingCapacity();
-    zx.rerender();
+fn clearTodos(e: *zx.EventContext) void {
+    const todos_state = e.state(TodoList);
+    var list = todos_state.get();
+    list.items.len = 0;
+    todos_state.set(list);
 }
 
-fn deleteTodo(ctx: zx.EventContext) void {
+fn deleteTodo(e: *zx.EventContext) void {
     if (comptime builtin.cpu.arch != .wasm32) return;
+    const todos_state = e.state(TodoList);
+    _ = e.state(u32); // skip next_id
 
-    const event = ctx.getEvent();
+    const event = e.getEvent();
     defer event.deinit();
     var id: ?u32 = null;
     if (event.getTarget()) |target| {
         defer target.deinit();
-        if (target.getAlloc(js.String, todos_allocator, "value") catch null) |v| {
+        if (target.getAlloc(js.String, zx.client_allocator, "value") catch null) |v| {
             id = std.fmt.parseInt(u32, v, 10) catch null;
         }
     }
 
-    for (todos.items, 0..) |todo, i| {
+    var list = todos_state.get();
+    for (list.items, 0..) |todo, i| {
         if (todo.id == id) {
-            _ = todos.orderedRemove(i);
+            _ = list.orderedRemove(i);
             break;
         }
     }
-    zx.rerender();
+    todos_state.set(list);
 }
 
-fn countCompleted() u32 {
+fn countCompleted(list: TodoList) u32 {
     var count: u32 = 0;
-    for (todos.items) |todo| {
+    for (list.items) |todo| {
         if (todo.completed) count += 1;
     }
     return count;
