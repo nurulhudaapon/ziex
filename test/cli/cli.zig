@@ -240,8 +240,8 @@ test "bundle" {
         },
         .expected_files = &.{
             "bundle/zx_app" ++ (if (builtin.os.tag == .windows) ".exe" else ""),
-            "bundle/assets/style.css",
-            "bundle/public/favicon.ico",
+            "bundle/static/assets/style.css",
+            "bundle/static/favicon.ico",
         },
     });
 }
