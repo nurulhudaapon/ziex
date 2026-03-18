@@ -1,6 +1,6 @@
 FROM alpine:3.22.2 AS build
 
-# Install dependencies for Zig and Bun
+# Install deps for Zig and Bun
 RUN apk add --no-cache curl xz unzip bash libstdc++ libgcc nodejs
 
 # Install Zig
@@ -25,18 +25,22 @@ RUN zig build --fetch
 COPY site/package.json site/bun.lock ./site/
 RUN bun install --cwd ./site
 
-# ZX Exe
+# Ziex Exe
 COPY src ./src
 COPY vendor ./vendor
 COPY pkg ./pkg
-RUN zig build
 
-# ZX Docs
-COPY site/ ./site/
-RUN zig build -Ddoc -Doptimize=ReleaseSmall
-RUN zig build -Ddoc zx -- bundle
+# Ziex Site
+COPY site/build.zig site/build.zig.zon ./site/
+RUN cd site && zig build --fetch
+RUN cd site && zig build zx -- version
 
-# Run ZX Docs
-FROM alpine:3.22.2
-COPY --from=build /build/bundle /app
-ENTRYPOINT ["/app/zx_site", "--rootdir", "./app"]
+COPY site/app ./site/app
+RUN cd site && zig build -Doptimize=ReleaseSmall -Dtarget=$(uname -m)-linux-musl
+RUN cd site && zig build zx -- bundle
+
+# Run Ziex Site
+FROM scratch
+WORKDIR /app
+COPY --from=build /build/site/bundle /app
+ENTRYPOINT ["/app/ziex_dev", "--rootdir", "/app"]

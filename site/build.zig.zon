@@ -1,0 +1,16 @@
+.{
+    .name = .ziex_dev,
+    .version = "0.0.0",
+    .fingerprint = 0xaa5b5903916bf206,
+    .minimum_zig_version = "0.15.2",
+    .dependencies = .{
+        .zx = .{
+            .path = "../",
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "app",
+    },
+}

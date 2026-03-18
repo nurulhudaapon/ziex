@@ -1,0 +1,3 @@
+* text=auto eol=lf
+# Make .zx files be treated as .zig files on GitHub for syntax highlighting
+*.zx text eol=lf linguist-language=Zig

@@ -1,14 +1,26 @@
 {
-  "main": "site/main.ts",
+  "name": "ziex_dev",
+  "main": "app/main.ts",
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "start": "wrangler dev",
+    "test": "vitest",
+    "cf-typegen": "wrangler types"
+  },
   "devDependencies": {
     "@tailwindcss/cli": "4.1.18",
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
-    "esbuild": "0.27.2"
+    "esbuild": "0.27.2",
+    "@types/node": "^25.5.0",
+    "typescript": "^5.5.2",
+    "wrangler": "^4.73.0"
   },
   "dependencies": {
     "@andrewbranch/untar.js": "^1.0.3",
     "@bjorn3/browser_wasi_shim": "^0.4.2",
+    "@cloudflare/workers-wasi": "^0.0.5",
     "@codemirror/autocomplete": "^6.20.0",
     "@codemirror/commands": "^6.10.2",
     "@codemirror/lang-css": "^6.3.1",

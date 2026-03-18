@@ -66,7 +66,7 @@ pub fn build(b: *std.Build) void {
     // Install in the site/assets/playground directory for the web playground to consume
     b.getInstallStep().dependOn(&b.addInstallDirectory(.{
         .source_dir = playground_assets.getDirectory(),
-        .install_dir = .{ .custom = "../../../site/assets/playground" },
+        .install_dir = .{ .custom = "../../../site/app/assets/playground" },
         .install_subdir = "",
     }).step);
 }

@@ -14,7 +14,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions)
     });
 
     const zx_host_dep = b.dependencyFromBuildZig(build_zig, .{
-        .optimize = optimize,
+        .optimize = .ReleaseSafe, // Always in release mode for faster transpilation
         // No target = host target, so zx CLI can execute during build
     });
 

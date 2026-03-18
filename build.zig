@@ -77,82 +77,6 @@ pub fn build(b: *std.Build) !void {
     run_cmd.step.dependOn(b.getInstallStep());
     if (b.args) |args| run_cmd.addArgs(args);
 
-    // --- ZX Site (Docs, Example, sample) --- //
-    {
-        const is_zx_docsite = b.option(bool, "doc", "Build the ZX docsite") orelse false;
-        if (is_zx_docsite) {
-            const zx_docsite_exe = b.addExecutable(.{
-                .name = "zx_site",
-                .root_module = b.createModule(.{
-                    .root_source_file = b.path("site/main.zig"),
-                    .target = target,
-                    .optimize = optimize,
-                }),
-            });
-            zx_docsite_exe.root_module.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
-            zx_docsite_exe.root_module.addImport("tree_sitter_mdzx", tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
-            zx_docsite_exe.root_module.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
-
-            var zx_build = try buildlib.initlib.initInner(b, zx_docsite_exe, exe, mod, zx_wasm_mod, .{
-                .cli_path = null,
-                .site_outdir = null,
-                .site_path = b.path("site"),
-                .copy_embedded_sources = true,
-                .client = .{
-                    .jsglue_href = "/assets/main.js?=" ++ build_zon.version,
-                },
-                .steps = .{ .serve = "serve", .dev = "dev", .@"export" = "export", .bundle = "bundle" },
-                // .edge_path = b.path("site/edge.zig"),
-            });
-
-            var assetsdir = zx_build.assetsdir;
-
-            zx_build.addPlugin(
-                plugins.tailwind(b, .{
-                    .bin = b.path("site/node_modules/.bin/tailwindcss"),
-                    .input = b.path("site/assets/docs.css"),
-                    .output = assetsdir.path(b, "docs.css"),
-                    .minify = true,
-                    .optimize = true,
-                    .map = false,
-                }),
-            );
-            zx_build.addPlugin(plugins.esbuild(b, .{
-                .bin = b.path("site/node_modules/.bin/esbuild"),
-                .input = b.path("site/scripts/react.ts"),
-                .output = assetsdir.path(b, "react.js"),
-                .optimize = optimize,
-            }));
-            zx_build.addPlugin(plugins.esbuild(b, .{
-                .bin = b.path("site/node_modules/.bin/esbuild"),
-                .input = b.path("site/main.ts"),
-                .output = assetsdir.path(b, "main.js"),
-                .optimize = optimize,
-            }));
-            zx_build.addPlugin(plugins.esbuild(b, .{
-                .bin = b.path("site/node_modules/.bin/esbuild"),
-                .input = b.path("site/scripts/docs.ts"),
-                .output = assetsdir.path(b, "docs.js"),
-                .optimize = optimize,
-            }));
-
-            zx_build.addPlugin(plugins.Bun.init(.{
-                .build = b,
-                .options = .{
-                    .inputs = &.{
-                        b.path("site/pages/playground/scripts/editor.ts"),
-                        b.path("site/pages/playground/scripts/workers/runner.ts"),
-                        b.path("site/pages/playground/scripts/workers/zig.ts"),
-                        b.path("site/pages/playground/scripts/workers/zx.ts"),
-                        b.path("site/pages/playground/scripts/workers/zls.ts"),
-                    },
-                    .outdir = assetsdir.path(b, "playground/"),
-                },
-            }));
-            // zx_b.step("serve", .serve);
-        }
-    }
-
     // --- Steps: Test --- //
     {
         const mod_tests = b.addTest(.{ .root_module = mod });
@@ -180,6 +104,15 @@ pub fn build(b: *std.Build) !void {
         test_step.dependOn(&run_mod_tests.step);
         test_step.dependOn(&run_exe_tests.step);
         test_step.dependOn(&test_run.step);
+    }
+
+    // --- Steps: Dev (Runs dev step for site/) --- //
+    {
+        const dev_step = b.step("dev", "Run the site in development mode");
+        const dev_cmd = b.addSystemCommand(&.{ b.graph.zig_exe, "build", "dev" });
+        dev_cmd.setCwd(b.path("site"));
+        dev_step.dependOn(&dev_cmd.step);
+        if (b.args) |args| dev_cmd.addArgs(args);
     }
 
     // --- ZX Releases (Cross-compilation targets for all platforms) --- //

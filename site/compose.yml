@@ -1,6 +1,6 @@
-name: "zx"
+name: "ziex"
 services:
-  doc_site:
+  site:
     build:
       context: ../
       dockerfile: site/Dockerfile

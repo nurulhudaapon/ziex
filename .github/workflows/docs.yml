@@ -45,7 +45,7 @@ jobs:
         id: cache-playground
         uses: actions/cache@v4
         with:
-          path: site/assets/playground
+          path: site/app/assets/playground
           key: playground-assets-${{ hashFiles('pkg/playground/**') }}
           restore-keys: |
             playground-assets-
@@ -55,15 +55,15 @@ jobs:
         run: cd pkg/playground && zig build
         
       - name: Build Site
-        run: zig build -Ddoc -Doptimize=ReleaseSmall
+        run: cd site && zig build -Doptimize=ReleaseSmall
 
       - name: Export Site
-        run: zig build export -Ddoc -Doptimize=ReleaseSmall
+        run: cd site && zig build zx -- export
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./dist
+          path: ./site/dist
 
   deploy_ssg:
     environment:

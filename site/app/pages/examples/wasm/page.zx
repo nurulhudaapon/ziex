@@ -85,7 +85,7 @@ const initial_todos = [_]Todo{
 
 fn addTodo(e: *zx.EventContext) void {
     e.preventDefault();
-    if (comptime builtin.cpu.arch != .wasm32) return;
+    if (!zx.platform.isBrowser()) return;
 
     const todos_state = e.state(TodoList);
     const id_state = e.state(u32);
@@ -106,7 +106,7 @@ fn addTodo(e: *zx.EventContext) void {
 }
 
 fn toggleTodo(e: *zx.EventContext) void {
-    if (comptime builtin.cpu.arch != .wasm32) return;
+    if (!zx.platform.isBrowser()) return;
     const todos_state = e.state(TodoList);
     _ = e.state(u32); // skip next_id
 
@@ -138,7 +138,7 @@ fn clearTodos(e: *zx.EventContext) void {
 }
 
 fn deleteTodo(e: *zx.EventContext) void {
-    if (comptime builtin.cpu.arch != .wasm32) return;
+    if (!zx.platform.isBrowser()) return;
     const todos_state = e.state(TodoList);
     _ = e.state(u32); // skip next_id
 

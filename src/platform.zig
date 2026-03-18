@@ -17,6 +17,10 @@ pub const Platform = enum {
     macos,
     /// Future - Windows environment
     windows,
+
+    pub inline fn isBrowser(self: Platform) bool {
+        return self == .browser;
+    }
 };
 
 /// The platform the code is running on

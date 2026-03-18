@@ -1,3 +1,4 @@
+import { ZxBridge } from "../wasm";
 import { createKVImports } from "./kv";
 
 class ProcExit extends Error {
@@ -227,6 +228,7 @@ export async function run({
     module,
     kv: kvBindings,
     imports,
+    wasi,
 }: {
     request: Request;
     env?: unknown;
@@ -235,6 +237,7 @@ export async function run({
     /** KV namespace bindings — `{ default: env.KV, otherName: env.OTHER_KV }` */
     kv?: Record<string, import("./kv").KVNamespace>;
     imports?: (mem: () => WebAssembly.Memory) => Record<string, Record<string, unknown>>;
+    wasi?: WASI;
 }): Promise<Response> {
     const stdinData = request.body
         ? new Uint8Array(await request.arrayBuffer())
@@ -245,14 +248,20 @@ export async function run({
     let wasmMemory: WebAssembly.Memory = null!;
     const mem = () => wasmMemory;
 
+    const bridgeRef: { current: ZxBridge | null } = { current: null };
+    const bridgeImports = ZxBridge.createImportObject(bridgeRef);
+
     const instance = new WebAssembly.Instance(module, {
-        wasi_snapshot_preview1: wasiImport,
+        wasi_snapshot_preview1: {...wasi?.wasiImport, ...wasiImport},
         ...(kvBindings ? { __zx_kv: createKVImports(kvBindings, mem) } : {}),
         ...(imports ? imports(mem) : {}),
+        ...bridgeImports,
     } as WebAssembly.Imports);
 
     wasmMemory = instance.exports.memory as WebAssembly.Memory;
     setMemory(wasmMemory);
+    const bridge = new ZxBridge(instance.exports);
+    bridgeRef.current = bridge;
 
     const start = (WebAssembly as any).promising(instance.exports._start as Function);
     try {
@@ -391,4 +400,32 @@ export async function respond({
         status: meta.status,
         headers: meta.headers,
     });
+}
+
+
+type WASI = {
+    args?: Array<string>;
+    env?: Array<string>;
+    fds?: Array<unknown>;
+    inst?: {
+        exports: {
+            memory: WebAssembly.Memory;
+        };
+    };
+    wasiImport:Record<string, Function>| {
+        [key: string]: (...args: Array<any>) => unknown;
+        
+    };
+    start(instance: {
+        exports: {
+            memory: WebAssembly.Memory;
+            _start: () => unknown;
+        };
+    }): number;
+    initialize?(instance: {
+        exports: {
+            memory: WebAssembly.Memory;
+            _initialize?: () => unknown;
+        };
+    }): void;
 }
