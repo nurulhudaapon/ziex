@@ -173,6 +173,29 @@ pub fn getParam(self: *const Request, name: []const u8) ?[]const u8 {
     return null;
 }
 
+/// Returns a typed URL parameter by name (from route matching).
+///
+/// **Zig Note:** This is an extension method not present in the web standard Request.
+/// Used for accessing dynamic route parameters (e.g., /users/:id -> getParam("id")).
+pub fn getParamAs(self: *const Request, name: []const u8, comptime T: type) ?T {
+    const str = self.getParam(name) orelse return null;
+
+    return switch (@typeInfo(T)) {
+        .pointer => |p| switch (p.size) {
+            .Slice => if (p.child == u8 and p.is_const) str
+                      else @compileError("getParamAs: only []const u8 is supported, got " ++ @typeName(T)),
+            else => @compileError("getParamAs: only []const u8 is supported, got " ++ @typeName(T)),
+        },
+        .int   => std.fmt.parseInt(T, str, 10) catch return null,
+        .float => std.fmt.parseFloat(T, str) catch return null,
+        .bool  => if (std.mem.eql(u8, str, "true")  or std.mem.eql(u8, str, "1")) true
+             else if (std.mem.eql(u8, str, "false") or std.mem.eql(u8, str, "0")) false
+             else return null,
+        .@"enum"  => std.meta.stringToEnum(T, str) orelse return null,
+        else => @compileError("getParamAs: unsupported type " ++ @typeName(T)),
+    };
+}
+
 /// Returns a FormData object representing the URL-encoded form data of the request body.
 ///
 /// https://developer.mozilla.org/en-US/docs/Web/API/Request/formData
