@@ -1,0 +1,77 @@
+name: Sync Templates
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'templates/**'
+      - 'tools/template.sh'
+      - '.github/workflows/template-sync.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  get-templates:
+    runs-on: ubuntu-latest
+    outputs:
+      templates: ${{ steps.set-templates.outputs.templates }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: set-templates
+        run: |
+          # Get list of directories in templates/ except _base
+          TEMPLATES=$(ls -d templates/*/ | grep -v "_base" | xargs -n 1 basename | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          echo "templates=$TEMPLATES" >> $GITHUB_OUTPUT
+
+  sync:
+    needs: get-templates
+    runs-on: ubuntu-latest
+    if: needs.get-templates.outputs.templates != '[]'
+    strategy:
+      matrix:
+        template: ${{ fromJson(needs.get-templates.outputs.templates) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Populate and Sync
+        env:
+          GITHUB_TOKEN: ${{ secrets.SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          OWNER=$(echo $GITHUB_REPOSITORY | cut -d'/' -f1)
+          REPO_NAME="template-${{ matrix.template }}"
+          TEMP_DIR=$(mktemp -d)
+          
+          echo "Syncing ${{ matrix.template }} to $REPO_NAME"
+          
+          # Run the populate tool locally
+          # Note: The populate tool overwrites ignored files in the templates/ dir with base versions.
+          bash ./tools/template.sh populate ${{ matrix.template }}
+          
+          # Copy everything from the populated template directory to the temp dir
+          # Using -a to preserve permissions and -L if there are symlinks
+          cp -a templates/${{ matrix.template }}/. "$TEMP_DIR/"
+          
+          # Copy common files from root if they don't exist in template
+          [ ! -f "$TEMP_DIR/LICENSE" ] && [ -f LICENSE ] && cp LICENSE "$TEMP_DIR/"
+          
+          cd "$TEMP_DIR"
+          
+          # Initialize new repo for force push
+          git init -b main
+          git add .
+          git commit -m "sync: latest changes from ziex-dev/ziex@${GITHUB_SHA::7}"
+          
+          # Push to the target repository
+          REMOTE_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/$OWNER/$REPO_NAME.git"
+          git remote add origin "$REMOTE_URL"
+          git push -u origin main --force

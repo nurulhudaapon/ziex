@@ -1,0 +1,15 @@
+{
+  "name": "ziex_cloudflare",
+  "type": "module",
+  "scripts": {
+    "build": "wrangler build",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev"
+  },
+  "dependencies": {
+    "ziex": "^0.1.0-dev.804"
+  },
+  "devDependencies": {
+    "wrangler": "^4.73.0"
+  }
+}

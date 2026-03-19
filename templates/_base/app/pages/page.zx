@@ -1,0 +1,28 @@
+pub fn Page(ctx: zx.PageContext) !zx.Component {
+    const query = ctx.request.searchParams;
+
+    if (query.get("reset")) |_|
+        count = 0
+    else if (query.get("increment")) |_|
+        count += 1
+    else if (query.get("decrement")) |_|
+        count -= 1
+    else
+        count += 1;
+
+    return (
+        <main @allocator={ctx.arena}>
+            <p>Ziex is a framework for building web applications with Zig.</p>
+            <a href={zx.info.homepage} target="_blank">See Ziex Docs →</a>
+            <br />
+            <CounterComponent @rendering={.client} count={count} />
+            <br />
+            <hr />
+            <a href="/about">Navigate to About Page</a>
+        </main>
+    );
+}
+var count: i128 = 0;
+
+const zx = @import("zx");
+pub const CounterComponent = @import("./client.zig").CounterComponent;

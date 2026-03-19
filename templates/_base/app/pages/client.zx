@@ -1,0 +1,35 @@
+var count: *zx.State(i128) = undefined;
+
+pub fn CounterComponent(ctx: *zx.ComponentCtx(struct { count: i128 })) zx.Component {
+    count = ctx.state(i128, ctx.props.count);
+
+    return (
+        <div @allocator={ctx.allocator}>
+            <button onclick={reset}>Reset</button>
+            <h5>{&count}</h5>
+            <button onclick={decrement}>Decrement</button>
+            <button onclick={increment}>Increment</button>
+        </div>
+    );
+}
+
+fn increment() void {
+    count.set(count.get() + 1);
+    fetch("?increment=true");
+}
+
+fn decrement() void {
+    count.set(count.get() - 1);
+    fetch("?decrement=true");
+}
+
+fn reset(_: zx.EventContext) void {
+    count.set(0);
+    fetch("?reset=true");
+}
+
+fn fetch(url: []const u8) void {
+    _ = zx.fetch(.noop, zx.client_allocator, url, .{}) catch {};
+}
+
+const zx = @import("zx");
