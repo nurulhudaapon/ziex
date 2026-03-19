@@ -1,5 +1,5 @@
 <p align="center">
-    <img src="https://raw.githubusercontent.com/BakulBd/branding/main/banner.svg" alt="Ziex banner" width="100%" />
+    <img src="https://raw.githubusercontent.com/ziex-dev/branding/main/banner.svg" alt="Ziex banner" width="100%" />
 </p>
 
 A full-stack web framework for Zig. Write declarative UI components using familiar JSX patterns, transpiled to efficient Zig code.
