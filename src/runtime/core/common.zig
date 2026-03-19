@@ -114,23 +114,6 @@ pub const Cookies = struct {
         }
         return null;
     }
-
-    pub fn getJson(self: Cookies, name: []const u8, comptime T: type, allocator: std.mem.Allocator) ?T {
-        var it = std.mem.splitScalar(u8, self.header_value, ';');
-        while (it.next()) |kv| {
-            const trimmed = std.mem.trimLeft(u8, kv, " ");
-            if (name.len >= trimmed.len) continue;
-            if (!std.mem.startsWith(u8, trimmed, name)) continue;
-            if (trimmed[name.len] != '=') continue;
-            const str = trimmed[name.len + 1 ..];
-
-            return switch (@typeInfo(T)) {
-                .@"struct", .@"union" => (std.json.parseFromSlice(T, allocator, str, .{}) catch return null).value,
-                else => @compileError("Cookies.getJson: only struct/union types are supported, use getAs for everything else"),
-            };
-        }
-        return null;
-    }
 };
 
 /// Options for setting cookies.
