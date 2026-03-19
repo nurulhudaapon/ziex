@@ -75,7 +75,6 @@ pub const Protocol = Version;
 pub const Cookies = struct {
     header_value: []const u8,
 
-    /// Get a cookie value by name.
     pub fn get(self: Cookies, name: []const u8) ?[]const u8 {
         var it = std.mem.splitScalar(u8, self.header_value, ';');
         while (it.next()) |kv| {
@@ -84,6 +83,51 @@ pub const Cookies = struct {
             if (!std.mem.startsWith(u8, trimmed, name)) continue;
             if (trimmed[name.len] != '=') continue;
             return trimmed[name.len + 1 ..];
+        }
+        return null;
+    }
+
+    pub fn getAs(self: Cookies, name: []const u8, comptime T: type) ?T {
+        var it = std.mem.splitScalar(u8, self.header_value, ';');
+        while (it.next()) |kv| {
+            const trimmed = std.mem.trimLeft(u8, kv, " ");
+            if (name.len >= trimmed.len) continue;
+            if (!std.mem.startsWith(u8, trimmed, name)) continue;
+            if (trimmed[name.len] != '=') continue;
+            const str = trimmed[name.len + 1 ..];
+
+            return switch (@typeInfo(T)) {
+                .pointer => |p| switch (p.size) {
+                    .Slice => if (p.child == u8 and p.is_const) str
+                              else @compileError("Cookies.getAs: only []const u8 is supported, got " ++ @typeName(T)),
+                    else => @compileError("Cookies.getAs: only []const u8 is supported, got " ++ @typeName(T)),
+                },
+                .int   => std.fmt.parseInt(T, str, 10) catch return null,
+                .float => std.fmt.parseFloat(T, str) catch return null,
+                .bool  => if (std.mem.eql(u8, str, "true")  or std.mem.eql(u8, str, "1")) true
+                     else if (std.mem.eql(u8, str, "false") or std.mem.eql(u8, str, "0")) false
+                     else return null,
+                .@"enum"  => std.meta.stringToEnum(T, str) orelse return null,
+                .@"struct", .@"union" => @compileError("Cookies.getAs: use getJson for struct/union types"),
+                else => @compileError("Cookies.getAs: unsupported type " ++ @typeName(T)),
+            };
+        }
+        return null;
+    }
+
+    pub fn getJson(self: Cookies, name: []const u8, comptime T: type, allocator: std.mem.Allocator) ?T {
+        var it = std.mem.splitScalar(u8, self.header_value, ';');
+        while (it.next()) |kv| {
+            const trimmed = std.mem.trimLeft(u8, kv, " ");
+            if (name.len >= trimmed.len) continue;
+            if (!std.mem.startsWith(u8, trimmed, name)) continue;
+            if (trimmed[name.len] != '=') continue;
+            const str = trimmed[name.len + 1 ..];
+
+            return switch (@typeInfo(T)) {
+                .@"struct", .@"union" => (std.json.parseFromSlice(T, allocator, str, .{}) catch return null).value,
+                else => @compileError("Cookies.getJson: only struct/union types are supported, use getAs for everything else"),
+            };
         }
         return null;
     }
