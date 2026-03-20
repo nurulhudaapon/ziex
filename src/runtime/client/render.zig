@@ -123,12 +123,12 @@ pub fn applyPatches(
 /// are serialised, sent as `__zx_states`, and the response updates those states.
 const FormActionCtx = struct {
     vnode_id: u64,
-    bound_states: []const zx.EventHandler.BoundStateEntry = &.{},
+    bound_states: []const zx.EventHandler.Bound = &.{},
 };
 
 /// Callback context for stateful form action responses.
 const FormActionCallbackCtx = struct {
-    bound_states: []const zx.EventHandler.BoundStateEntry,
+    bound_states: []const zx.EventHandler.Bound,
 };
 
 /// Called when a stateful form action response arrives; applies state updates.
@@ -205,7 +205,7 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
             if (elem.attributes) |attrs| {
                 var has_action_handler = false;
                 var has_method = false;
-                var form_bound_states: []const zx.EventHandler.BoundStateEntry = &.{};
+                var form_bound_states: []const zx.EventHandler.Bound = &.{};
 
                 for (attrs) |attr| {
                     if (std.mem.eql(u8, attr.name, "key")) continue;

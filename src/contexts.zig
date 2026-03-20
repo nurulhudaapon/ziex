@@ -121,6 +121,7 @@ const BindSignMsg =
     \\ - fn(*zx.client.Event.Stateful) void
     \\ - fn(*zx.client.Event) void
     \\ - fn(*zx.server.Event.Stateful) void
+    \\ - fn(*zx.server.Event) void
     \\ - fn(ActionContext, *StateContext) void
     \\ - fn(struct, *StateContext) void
     \\
@@ -158,8 +159,8 @@ pub fn ComponentCtx(comptime PropsType: type) type {
                 @compileError("sbind: handler must be fn(*zx.server.Event.Stateful) void");
 
             const alloc = if (platform == .browser) client_allocator else self.allocator;
-            const bound_states = ServerEvent.buildBoundStates(alloc, states);
-            return ServerEvent.Stateful.createHandlerWithStates(handler, alloc, &self._handler_index, bound_states);
+            const bound_states = zx.EventHandler.buildStates(alloc, states);
+            return zx.EventHandler.serverSS(handler, alloc, &self._handler_index, bound_states);
         }
 
         pub fn bind(self: *Self, comptime handler: anytype) zx.EventHandler {
@@ -175,17 +176,21 @@ pub fn ComponentCtx(comptime PropsType: type) type {
 
             return switch (FnType) {
                 // Client
-                fn (*ClientEvent) void => ClientEvent.createHandler(handler),
-                fn (*ClientEvent.Stateful) void => ClientEvent.Stateful.createHandler(handler, alloc, self._component_id),
+                fn (*ClientEvent) void => zx.EventHandler.client(handler),
+                fn (*ClientEvent.Stateful) void => zx.EventHandler.clientS(handler, alloc, self._component_id),
 
                 // Server
-                fn (*ServerEvent.Stateful) void => ServerEvent.Stateful.createHandler(handler, alloc, self._component_id, self._state_index, &self._handler_index),
+                fn (*ServerEvent.Stateful) void => zx.EventHandler.serverS(handler, alloc, self._component_id, self._state_index, &self._handler_index),
+                fn (*ServerEvent) void => zx.EventHandler.server(handler, alloc, &self._handler_index),
 
                 // Server Actions
                 fn (ActionContext, *StateContext) void => actionBind(handler, alloc, self),
                 fn (*ActionContext) void => actionBind(handler, alloc, self),
 
                 else => blk: {
+                    if (comptime params.len == 1 and params[0].type.? == *ServerEvent) {
+                        break :blk zx.EventHandler.server(handler, alloc, &self._handler_index);
+                    }
                     if (comptime params.len == 2 and
                         @typeInfo(params[0].type.?) == .@"struct" and
                         params[0].type.? != ActionContext and
@@ -222,7 +227,7 @@ fn actionBind(comptime handler: anytype, alloc: Allocator, ctx: anytype) zx.Even
             }
         };
         return zx.EventHandler{
-            .callback = &reactivity.EventHandler.serverActionHandler,
+            .callback = &zx.EventHandler.actionHandler,
             .context = @as(*anyopaque, @ptrFromInt(1)),
             .action_fn = &FormActionWrapper.wrap,
             .bound_states = reactivity.collectStateBoundEntries(alloc, ctx._component_id, ctx._state_index),

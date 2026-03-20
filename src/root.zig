@@ -51,7 +51,7 @@ pub const util = @import("util.zig");
 pub const cache = @import("runtime/core//Cache.zig");
 
 // --- Reactivity --- //
-pub const EventHandler = reactivity.EventHandler;
+pub const EventHandler = @import("runtime/core/EventHandler.zig");
 pub const State = reactivity.State;
 
 // --- Options --- //

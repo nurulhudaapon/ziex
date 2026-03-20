@@ -276,9 +276,9 @@ pub const ZxContext = struct {
             .@"fn" => .{
                 .name = name,
                 .handler = if (comptime std.mem.eql(u8, name, "action"))
-                    zx.EventHandler.fromActionFn(val)
+                    zx.EventHandler.action(val)
                 else
-                    zx.EventHandler.fromFn(val),
+                    zx.EventHandler.wrap(val),
             },
             // Pre-built event handlers
             .@"struct" => if (T == zx.EventHandler) .{

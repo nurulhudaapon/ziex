@@ -52,18 +52,6 @@ pub fn key(self: Event) ?[]const u8 {
     return event.ref.getAlloc(real_js.String, gpa, "key") catch null;
 }
 
-/// Create an EventHandler for a stateless client event: `fn(*Event) void`.
-pub fn createHandler(comptime handler: anytype) zx.EventHandler {
-    return .{
-        .callback = &struct {
-            fn w(_: *anyopaque, event: Event) void {
-                var e = event;
-                handler(&e);
-            }
-        }.w,
-        .context = @as(*anyopaque, @ptrFromInt(1)),
-    };
-}
 
 // --- Stateful --- //
 
@@ -102,20 +90,4 @@ pub const Stateful = struct {
         return self._inner.key();
     }
 
-    /// Create an EventHandler for a stateful client event: `fn(*Event.Stateful) void`.
-    pub fn createHandler(comptime handler: anytype, alloc: std.mem.Allocator, component_id: []const u8) zx.EventHandler {
-        const cid = alloc.create([]const u8) catch @panic("OOM");
-        cid.* = alloc.dupe(u8, component_id) catch @panic("OOM");
-        return .{
-            .callback = &struct {
-                fn w(ctx: *anyopaque, event: Event) void {
-                    const p: *[]const u8 = @ptrCast(@alignCast(ctx));
-                    var e = event;
-                    var sf = Stateful{ ._inner = &e, ._component_id = p.* };
-                    handler(&sf);
-                }
-            }.w,
-            .context = @ptrCast(cid),
-        };
-    }
 };
