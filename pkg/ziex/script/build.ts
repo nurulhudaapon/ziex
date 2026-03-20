@@ -116,9 +116,10 @@ async function main() {
   writeFileSync(distPkgJsonPath, JSON.stringify(pkgJson, null, 2));
 
   // Copy README.md to dist
-  const distReadmePath = join(pkgDistDir, "README.md");
-  copyFileSync(rootReadmePath, distReadmePath);
-
+  copyFileSync(rootReadmePath, join(pkgDistDir, "README.md"));
+  copyFileSync(join(pkgDir, "build.zig.zon"), join(pkgDistDir, "build.zig.zon"));
+  copyFileSync(join(pkgDir, "build.zig"), join(pkgDistDir, "build.zig"));
+  
   console.log(`\x1b[32m✅ ${pkgName} - Done\x1b[0m\n`);
   builtPackages.push(pkgName);
 

@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) !void {
     var zx_build = try zx.init(b, exe, .{});
 
     var assetsdir = zx_build.assetsdir;
-    zx_build.addPlugin(
+    zx_build.plugin(
         zx.plugins.tailwind(b, .{
             .input = b.path("app/assets/style.css"),
             .output = assetsdir.path(b, "style.css"),

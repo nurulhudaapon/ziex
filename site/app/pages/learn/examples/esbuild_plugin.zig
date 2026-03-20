@@ -7,7 +7,7 @@ pub fn build(b: *std.Build) !void {
     var zx_build = try zx.init(b, exe, .{});
 
     var assetsdir = zx_build.assetsdir;
-    zx_build.addPlugin(
+    zx_build.plugin(
         zx.plugins.esbuild(b, .{
             .input = b.path("app/main.ts"),
             .output = assetsdir.path(b, "main.js"),

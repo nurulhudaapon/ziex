@@ -24,7 +24,7 @@ pub fn build(b: *std.Build) !void {
         .jsglue_href = if (is_csr_bench) "assets/main.js" else null,
     } });
 
-    zx_builder.addPlugin(zx.plugins.esbuild(b, .{
+    zx_builder.plugin(zx.plugins.esbuild(b, .{
         .input = b.path("app/main.ts"),
         .output = zx_builder.assetsdir.path(b, "main.js"),
         .optimize = optimize,

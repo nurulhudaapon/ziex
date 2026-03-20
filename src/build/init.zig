@@ -353,6 +353,8 @@ pub fn initInner(
 }
 
 pub const Build = struct {
+    pub const PluginRun = struct {};
+
     pub const BuildClient = struct {
         exe: *std.Build.Step.Compile,
         root_module: *std.Build.Module,
@@ -387,8 +389,8 @@ pub const Build = struct {
     /// Handle to the build options module
     zx_build_options: *std.Build.Step.Options,
 
-    pub fn addPlugin(self: *Build, plugin: ZxInitOptions.PluginOptions) void {
-        for (plugin.steps) |*step| {
+    pub fn addPlugin(self: *Build, opts: ZxInitOptions.PluginOptions) *PluginRun {
+        for (opts.steps) |*step| {
             switch (step.*) {
                 .command => {
                     var run = step.command.run;
@@ -397,7 +399,7 @@ pub const Build = struct {
                     // But it tries to check for that before the plugin is run, so it fails.
                     // _ = run.captureStdErr();
                     // run.captured_stderr = null;
-                    run.setName(plugin.name);
+                    run.setName(opts.name);
 
                     const transpile_cmd = self.cmd.transpile;
                     const exe = self.server.exe;
@@ -411,6 +413,13 @@ pub const Build = struct {
                 },
             }
         }
+
+        var plugin_run: PluginRun = .{};
+        return &plugin_run;
+    }
+
+    pub fn plugin(self: *Build, opts: ZxInitOptions.PluginOptions) void {
+        _ = self.addPlugin(opts);
     }
 
     pub fn addElement(self: *Build, options: AddElementOptions) void {

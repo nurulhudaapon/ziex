@@ -1,12 +1,12 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "buildCommand": "zig build -Dtarget=wasm32-wasi -Doptimize=ReleaseSmall && mkdir -p zig-out/pkg/ziex && cp -r node_modules/ziex/ zig-out/pkg/ziex/",
+  "buildCommand": "zig build -Dtarget=wasm32-wasi -Doptimize=ReleaseSmall",
   "outputDirectory": "zig-out/static",
   "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/api/nodejs"
+      "destination": "/api/index"
     }
   ]
 }

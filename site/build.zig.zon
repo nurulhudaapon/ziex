@@ -4,7 +4,7 @@
     .fingerprint = 0xaa5b5903916bf206,
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
-        .zx = .{ .path = "../" },
+        .ziex = .{ .path = "../" },
         .playground = .{ .path = "../pkg/playground" },
     },
     .paths = .{

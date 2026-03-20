@@ -629,7 +629,7 @@ fn PluginsSection(allocator: zx.Allocator) zx.Component {
             </div>
             <p>ZX provides a plugin system to extend the build process with additional tools. Plugins run as build steps and integrate seamlessly with <code>zig build</code>.</p>
             <h3 id="plugin-overview">Overview</h3>
-            <p>Plugins are configured in your <code>build.zig</code> file via <code>zx_build.addPlugin</code>. Each plugin adds build steps that run before or after ZX transpilation, allowing you to process CSS, bundle JavaScript, or run other tools.</p>
+            <p>Plugins are configured in your <code>build.zig</code> file via <code>zx_build.plugin</code>. Each plugin adds build steps that run before or after ZX transpilation, allowing you to process CSS, bundle JavaScript, or run other tools.</p>
             <p>ZX provides <strong>builtin plugins</strong> for common tasks, and you can also <strong>create custom plugins</strong> for your specific needs.</p>
 
             <h3 id="builtin-plugins">Builtin Plugins</h3>

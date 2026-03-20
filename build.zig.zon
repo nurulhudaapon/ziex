@@ -1,29 +1,34 @@
 .{
-    .name = .zx,
-    .version = "0.1.0-dev.804",
+    .name = .zx, // TODO: Rename to .ziex
+    .version = "0.1.0-dev.805",
     .jsglue_version = "0.1.0-dev.804",
-    .description = "ZX is a framework for building web applications with Zig.",
+    .description = "Ziex is a framework for building web applications with Zig.",
     .repository = "https://github.com/ziex-dev/ziex",
     .homepage = "https://ziex.dev",
     .fingerprint = 0xcad77a8d2a3389f2,
     .minimum_zig_version = "0.15.2",
     .dependencies = .{
-        // ZX App - Serves the rendered pages and assets
+        // Ziex JS - The JavaScript glue code for csr/wasi/cloudflare/aws-lambda/vercel/react
+        .ziex_js = .{
+            .url = "https://registry.npmjs.org/ziex/-/ziex-0.1.0-dev.805.tgz",
+            .hash = "ziex_js-0.1.0-dev.804-v1W0GcidAgBuHOWfnldUM6Ftmucf2fufYaGp2QUPL0fw",
+        },
+        // httpz - HTTP server for Ziex
         .httpz = .{
             .url = "git+https://github.com/nurulhudaapon/httpz.git#7268154f43f5827bf78668e8e79a00f2ebe4db13",
             .hash = "httpz-0.0.0-PNVzrBgtBwCVkSJyophIX6WHwDR0r8XhBGQr96Kk-1El",
         },
-        // // ZX LSP - Language Server Protocol for ZX
-        // .zls = .{
-        //     .url = "git+https://github.com/nurulhudaapon/lspz.git?ref=0.15.x#ce6c8f02c78e622421cfc2405c67c5222819ec03",
-        //     .hash = "zls-0.15.0-rmm5fkjqIwDZpmDHyKwxa9K2gcI3FPaGVFPwjYWFBM5B",
-        // },
         .zli = .{ .path = "vendor/cliz" },
         .zig_js = .{ .path = "vendor/jsz" },
         .tree_sitter = .{ .path = "vendor/zig-tree-sitter" },
         .tree_sitter_zx = .{ .path = "pkg/tree-sitter-zx" },
         .tree_sitter_mdzx = .{ .path = "pkg/tree-sitter-mdzx" },
         .cachez = .{ .path = "vendor/cachez" },
+        // Ziex Language Server utilities
+        // .zls = .{
+        //     .url = "git+https://github.com/nurulhudaapon/lspz.git?ref=0.15.x#ce6c8f02c78e622421cfc2405c67c5222819ec03",
+        //     .hash = "zls-0.15.0-rmm5fkjqIwDZpmDHyKwxa9K2gcI3FPaGVFPwjYWFBM5B",
+        // },
     },
     .paths = .{
         "build.zig",
