@@ -37,7 +37,6 @@ pub const meta = @import("zx_meta").meta;
 pub const info = @import("zx_info");
 
 pub const Allocator = std.mem.Allocator;
-pub const App = app_module.Server(void);
 pub const Server = app_module.Server;
 pub const Edge = @import("runtime/server/wasm/entrypoint.zig");
 pub const Client = @import("runtime/client/Client.zig");
@@ -57,7 +56,7 @@ pub const State = reactivity.State;
 pub const rerender = reactivity.rerender;
 
 // --- Options --- //
-pub const PageMethod = opts.PageMethod;
+pub const AppOptions = app_module.ServerConfig;
 pub const PageOptions = opts.PageOptions;
 pub const LayoutOptions = opts.LayoutOptions;
 pub const NotFoundOptions = opts.NotFoundOptions;

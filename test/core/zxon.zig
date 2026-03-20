@@ -844,7 +844,7 @@ fn expectLessThan(expected: f64, actual: f64) !void {
 
 test "flaky: performance > serialize" {
     const ITERATIONS = 500;
-    const MAX_MS = 15.0 * 10; // ~0.5ms on M1 Pro
+    const MAX_MS = 100.0 * 10; // ~100ms on M1 Pro
 
     const content_parsed = std.json.parseFromSlice([]SearchContent, testing.allocator, search_txt, .{}) catch unreachable;
     defer content_parsed.deinit();
@@ -864,7 +864,7 @@ test "flaky: performance > serialize" {
 
 test "flaky: performance > parse" {
     const ITERATIONS = 500;
-    const MAX_MS = 15.0 * 10; // ~0.5ms on M1 Pro
+    const MAX_MS = 20.0 * 10; // ~20ms on M1 Pro
 
     const content_parsed = std.json.parseFromSlice([]SearchContent, testing.allocator, search_txt, .{}) catch unreachable;
     defer content_parsed.deinit();

@@ -449,7 +449,7 @@ pub const ServerMeta = struct {
             const page_methods = if (@hasDecl(P, "options") and @hasField(@TypeOf(P.options), "methods"))
                 P.options.methods
             else
-                &[_]zx.PageMethod{.GET};
+                &[_]zx.PageOptions.Method{.GET};
 
             // Check for specific method conflicts
             inline for (page_methods) |method| {

@@ -20,6 +20,7 @@ pub const PageMethod = enum {
     ALL,
 };
 pub const PageOptions = struct {
+    pub const Method = PageMethod;
     pub const StaticParam = struct {
         key: []const u8,
         value: []const u8,
