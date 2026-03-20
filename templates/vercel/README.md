@@ -1,4 +1,4 @@
-# Ziex App — Vercel
+# Ziex App on Vercel
 
 > A starter template for building web applications with [Ziex](https://ziex.dev) deployed on [Vercel](https://vercel.com/).
 
@@ -38,6 +38,7 @@ winget install -e --id zig.zig  # Windows
 ```
 ├── api/
 │   └── index.ts        # Vercel Edge Function entrypoint
+│   └── nodejs.ts       # Vercel Node.js Function entrypoint
 ├── app/
 │   ├── assets/         # Static assets (CSS, images, etc)
 │   ├── main.zig        # Zig entrypoint
@@ -54,6 +55,8 @@ winget install -e --id zig.zig  # Windows
 
 ## Usage
 
+By default the app is configured to use Vercel Edge Functions. If you want to use Node.js runtime instead, update .vercelignore to remove `api/nodejs.ts` and update `vercel.json` to point to `api/nodejs.ts` as the entrypoint.
+
 ### Development
 
 ```bash
@@ -61,8 +64,6 @@ vercel dev
 ```
 
 App will be available at [`http://localhost:3000`](http://localhost:3000) with hot reload enabled.
-
-> **Note:** Run `vercel dev` at least once before opening the project in your editor — it triggers the build and generates type definitions under `zig-out/pkg/`.
 
 ### Deploy to Vercel
 

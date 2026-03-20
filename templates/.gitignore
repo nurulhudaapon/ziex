@@ -32,6 +32,7 @@ node_modules/
 !vercel/package.json
 !vercel/build.zig
 !vercel/api/index.ts
+!vercel/api/nodejs.ts
 !vercel/vercel.json
 !vercel/README.md
 !vercel/type.d.ts

@@ -29,4 +29,11 @@ pub fn build(b: *std.Build) !void {
                 .attributes = "src=\"https://cdn.jsdelivr.net/npm/ziex@0.1.0-dev.804/wasm/init.min.js\"",
             },
         });
+
+    // --- Assets -- //
+    b.installDirectory(.{
+        .source_dir = zx_build.ziex_js.dep.path("."),
+        .install_dir = .prefix,
+        .install_subdir = "pkg/ziex",
+    });
 }

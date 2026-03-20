@@ -2,15 +2,15 @@
 .zig-cache
 zig-out
 
-# ZX
+# Ziex
 /dist
 /bundle
 
 # Node.js
 node_modules
 
-# Cloudflare
-.wrangler/
-
-app/assets/playground/
+# Vercel
 .vercel
+
+# Vercel Node.js - Remove if you want to use Node.js runtime
+api/nodejs.ts 

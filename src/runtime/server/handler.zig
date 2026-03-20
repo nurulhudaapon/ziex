@@ -553,9 +553,9 @@ pub fn Handler(comptime AppCtxType: type) type {
                 injectScripts(req.arena, &component, .{ .dev = true });
             }
 
-            if (comptime zx_options.client_enabled) {
-                injectScripts(req.arena, &component, .{ .jsglue = true });
-            }
+            // if (comptime zx_options.client_enabled) {
+            injectScripts(req.arena, &component, .{ .jsglue = true });
+            // }
 
             // Render the final component
             const writer = res.writer();
@@ -1077,9 +1077,9 @@ pub fn Handler(comptime AppCtxType: type) type {
                                 injectScripts(pagectx.arena, &page_component, .{ .dev = true });
                                 injector = null; // Only inject once
                             }
-                            if (comptime zx_options.client_enabled) {
-                                injectScripts(pagectx.arena, &page_component, .{ .jsglue = true });
-                            }
+                            // if (comptime zx_options.client_enabled) {
+                            injectScripts(pagectx.arena, &page_component, .{ .jsglue = true });
+                            // }
                         }
                     }
 
@@ -1088,9 +1088,9 @@ pub fn Handler(comptime AppCtxType: type) type {
                         if (injector != null) {
                             injectScripts(pagectx.arena, &page_component, .{ .dev = true });
                         }
-                        if (comptime zx_options.client_enabled) {
-                            injectScripts(pagectx.arena, &page_component, .{ .jsglue = true });
-                        }
+                        // if (comptime zx_options.client_enabled) {
+                        injectScripts(pagectx.arena, &page_component, .{ .jsglue = true });
+                        // }
                     }
 
                     if (is_devtool) {

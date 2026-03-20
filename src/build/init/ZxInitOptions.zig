@@ -135,7 +135,7 @@ cli: CliOptions = .{},
 /// When enabled, ZX will compile a WebAssembly module for client-side
 /// interactivity and hydration. This generates additional build artifacts
 /// in the assets directory.
-client: ?ClientOptions = .default,
+client: ClientOptions = .default,
 
 /// Experimental features configuration.
 ///

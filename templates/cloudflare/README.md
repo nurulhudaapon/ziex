@@ -1,4 +1,4 @@
-# Ziex App — Cloudflare Workers
+# Ziex App on Cloudflare
 
 > A starter template for building web applications with [Ziex](https://ziex.dev) deployed on [Cloudflare Workers](https://workers.cloudflare.com/).
 

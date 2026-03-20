@@ -31,6 +31,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions)
     const zx_module = zx_dep.module("zx");
     const zx_wasm_module = zx_wasm_dep.module("zx_wasm");
     const zx_exe = zx_host_dep.artifact("zx");
+    const ziex_js_dep = zx_dep.builder.dependency("ziex_js", .{});
 
     var opts: InitInnerOptions = .{
         .site_path = b.path("app"),
@@ -41,6 +42,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: ZxInitOptions)
         .client = options.client,
         .static_path = options.static_path,
         .data_path = options.data_path,
+        .ziex_js_dep = ziex_js_dep,
     };
 
     if (options.app) |site_opts| {
@@ -63,9 +65,10 @@ const InitInnerOptions = struct {
     site_outdir: ?LazyPath,
     steps: ZxInitOptions.CliOptions.Steps,
     copy_embedded_sources: bool,
-    client: ?ZxInitOptions.ClientOptions = null,
+    client: ZxInitOptions.ClientOptions,
     static_path: ?LazyPath,
     data_path: ?LazyPath,
+    ziex_js_dep: *std.Build.Dependency,
     element_injections: []const AddElementOptions = &.{},
 };
 
@@ -115,8 +118,7 @@ pub fn initInner(
 
     // --- ZX Options --- //
     const zx_options = b.addOptions();
-    zx_options.addOption(bool, "client_enabled", opts.client != null);
-    zx_options.addOption(?[]const u8, "jsglue_href", if (opts.client) |client_opts| client_opts.jsglue_href else null);
+    zx_options.addOption(?[]const u8, "jsglue_href", opts.client.jsglue_href);
 
     const staticdir = if (opts.static_path) |p| p.getPath(b) else b.pathJoin(&.{ b.install_path, "static" });
     const datadir = if (opts.data_path) |p| p.getPath(b) else b.pathJoin(&.{ b.install_path, "data" });
@@ -217,66 +219,75 @@ pub fn initInner(
 
     // --- ZX WASM Main Executable --- //
     const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding, .abi = .none });
-    var wasm_exe_opt: ?*std.Build.Step.Compile = null;
-    var wasm_zx_meta_module: ?*std.Build.Module = null;
-    if (opts.client != null) {
-        wasm_exe_opt = b.addExecutable(.{
-            .name = b.fmt("main", .{}),
-            .root_module = b.createModule(.{
-                .root_source_file = exe.root_module.root_source_file,
-                .target = wasm_target,
-                .optimize = optimize,
-            }),
-        });
-        const wasm_exe = wasm_exe_opt.?;
-
-        wasm_exe.entry = .disabled;
-        wasm_exe.export_memory = true;
-        wasm_exe.rdynamic = true;
-
-        // Create a site-specific wasm module (same approach as server module)
-        var wasm_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
-        var wasm_import_it = zx_wasm_module.import_table.iterator();
-        while (wasm_import_it.next()) |entry| {
-            if (!std.mem.eql(u8, entry.key_ptr.*, "zx_meta")) {
-                try wasm_imports.append(.{ .name = entry.key_ptr.*, .module = entry.value_ptr.* });
-            }
-        }
-
-        const site_wasm_module = b.createModule(.{
-            .root_source_file = zx_wasm_module.root_source_file,
+    const wasm_exe = b.addExecutable(.{
+        .name = b.fmt("main", .{}),
+        .root_module = b.createModule(.{
+            .root_source_file = exe.root_module.root_source_file,
             .target = wasm_target,
-            .optimize = zx_wasm_module.optimize,
-            .imports = wasm_imports.items,
-        });
+            .optimize = optimize,
+        }),
+    });
 
-        // Build imports for wasm zx_meta
-        var wasm_meta_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
-        for (wasm_imports.items) |import| {
-            try wasm_meta_imports.append(import);
+    wasm_exe.entry = .disabled;
+    wasm_exe.export_memory = true;
+    wasm_exe.rdynamic = true;
+
+    // Create a site-specific wasm module (same approach as server module)
+    var wasm_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
+    var wasm_import_it = zx_wasm_module.import_table.iterator();
+    while (wasm_import_it.next()) |entry| {
+        if (!std.mem.eql(u8, entry.key_ptr.*, "zx_meta")) {
+            try wasm_imports.append(.{ .name = entry.key_ptr.*, .module = entry.value_ptr.* });
         }
-        try wasm_meta_imports.append(.{ .name = "zx", .module = site_wasm_module });
-
-        wasm_zx_meta_module = b.addModule("zx_meta", .{
-            .root_source_file = transpile_outdir.path(b, "meta.zig"),
-            .imports = wasm_meta_imports.items,
-        });
-
-        site_wasm_module.addImport("zx_meta", wasm_zx_meta_module.?);
-        wasm_exe.root_module.addImport("zx", site_wasm_module);
-        wasm_exe.step.dependOn(&transpile_cmd.step);
-
-        // --- CMD: ZX Post Transpile --- //
-        const post_transpile_cmd = getZxRun(b, zx_exe, opts);
-        post_transpile_cmd.addArgs(&.{"transpile"});
-        post_transpile_cmd.addFileArg(wasm_exe.getEmittedBin());
-        post_transpile_cmd.addArgs(&.{ "--copy-only", "--outdir" });
-        post_transpile_cmd.addDirectoryArg(transpile_outdir.path(b, "assets"));
-        post_transpile_cmd.expectExitCode(0);
-        post_transpile_cmd.step.dependOn(&transpile_cmd.step);
-        post_transpile_cmd.step.dependOn(&wasm_exe.step);
-        b.default_step.dependOn(&post_transpile_cmd.step);
     }
+
+    const site_wasm_module = b.createModule(.{
+        .root_source_file = zx_wasm_module.root_source_file,
+        .target = wasm_target,
+        .optimize = zx_wasm_module.optimize,
+        .imports = wasm_imports.items,
+    });
+
+    // Build imports for wasm zx_meta
+    var wasm_meta_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
+    for (wasm_imports.items) |import| {
+        try wasm_meta_imports.append(import);
+    }
+    try wasm_meta_imports.append(.{ .name = "zx", .module = site_wasm_module });
+
+    const wasm_zx_meta_module = b.addModule("zx_meta", .{
+        .root_source_file = transpile_outdir.path(b, "meta.zig"),
+        .imports = wasm_meta_imports.items,
+    });
+
+    site_wasm_module.addImport("zx_meta", wasm_zx_meta_module);
+    wasm_exe.root_module.addImport("zx", site_wasm_module);
+    wasm_exe.step.dependOn(&transpile_cmd.step);
+
+    const wasm_binpath = wasm_exe.getEmittedBin();
+    const install_wasm = b.addInstallFileWithDir(
+        wasm_binpath,
+        // TODO: move to using "static/assets/_/*" with hashed generated files
+        .{ .custom = "static/assets" },
+        "main.wasm",
+    );
+
+    // b.installDirectory(.{
+    //     .source_dir = wasm_exe.getEmittedBinDirectory(),
+    //     .install_dir = .prefix,
+    //     .install_subdir = "static/assets",
+    // });
+
+    const post_transpile_cmd = getZxRun(b, zx_exe, opts);
+    post_transpile_cmd.addArgs(&.{"transpile"});
+    post_transpile_cmd.addFileArg(wasm_binpath);
+    post_transpile_cmd.addArgs(&.{ "--copy-only", "--outdir" });
+    post_transpile_cmd.addDirectoryArg(transpile_outdir.path(b, "assets"));
+    post_transpile_cmd.expectExitCode(0);
+    post_transpile_cmd.step.dependOn(&transpile_cmd.step);
+    post_transpile_cmd.step.dependOn(&wasm_exe.step);
+    b.default_step.dependOn(&post_transpile_cmd.step);
+    b.default_step.dependOn(&install_wasm.step);
 
     // --- Steps: ZX (Root of ZX CLI) --- //
     {
@@ -343,12 +354,15 @@ pub fn initInner(
         .server = .{
             .exe = exe,
         },
-        .client = if (wasm_zx_meta_module != null) .{
-            .exe = wasm_exe_opt.?,
-            .root_module = wasm_zx_meta_module.?,
-        } else null,
+        .client = .{
+            .exe = wasm_exe,
+            .root_module = wasm_zx_meta_module,
+        },
         .injections_step = injections_step,
         .zx_build_options = zx_options,
+        .ziex_js = .{
+            .dep = opts.ziex_js_dep,
+        },
     };
 }
 
@@ -368,6 +382,10 @@ pub const Build = struct {
         exe: *std.Build.Step.Compile,
     };
 
+    pub const BuildZiexJs = struct {
+        dep: *std.Build.Dependency,
+    };
+
     pub const BuildCommand = struct {
         transpile: *std.Build.Step.Run,
     };
@@ -383,6 +401,8 @@ pub const Build = struct {
 
     server: BuildServer,
     client: ?BuildClient,
+
+    ziex_js: BuildZiexJs,
 
     /// Handle to the injections generator
     injections_step: *InjectionsGenStep,

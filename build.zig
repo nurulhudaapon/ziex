@@ -117,6 +117,15 @@ pub fn build(b: *std.Build) !void {
         if (b.args) |args| dev_cmd.addArgs(args);
     }
 
+    // --- Steps: Site (Runs build step for site/) --- //
+    {
+        const site_step = b.step("site", "Build the site");
+        const site_cmd = b.addSystemCommand(&.{ b.graph.zig_exe, "build" });
+        site_cmd.setCwd(b.path("site"));
+        site_step.dependOn(&site_cmd.step);
+        if (b.args) |args| site_cmd.addArgs(args);
+    }
+
     // --- ZX Releases (Cross-compilation targets for all platforms) --- //
     {
         const release_targets = [_]struct {
