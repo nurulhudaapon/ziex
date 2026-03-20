@@ -111,6 +111,14 @@ pub fn run() !void {
         .arena = allocator,
         .backend_ctx = @ptrCast(&wasi_res),
         .vtable = &WasiResponse.vtable,
+        .headers = .{
+            .backend_ctx = @ptrCast(&wasi_res),
+            .vtable = &WasiResponse.headers_vtable,
+        },
+        .cookies = .{
+            .backend_ctx = @ptrCast(&wasi_res),
+            .vtable = &WasiResponse.vtable,
+        },
     };
 
     // --- Route matching and unified proxy/handler/layout logic --- //
@@ -736,6 +744,12 @@ const WasiResponse = struct {
         .setCookie = &setCookie,
     };
 
+    const headers_vtable = zx.server.Response.Headers.HeadersVTable{
+        .get = &getHeader,
+        .set = &setHeader,
+        .add = &addHeader,
+    };
+
     fn init(alloc: std.mem.Allocator) WasiResponse {
         return .{
             .allocator = alloc,
@@ -783,6 +797,19 @@ const WasiResponse = struct {
                 return;
             }
         }
+        self.header_entries.append(self.allocator, .{ .name = name, .value = value }) catch {};
+    }
+
+    fn getHeader(ctx: *anyopaque, name: []const u8) ?[]const u8 {
+        const self: *WasiResponse = @ptrCast(@alignCast(ctx));
+        for (self.header_entries.items) |entry| {
+            if (std.ascii.eqlIgnoreCase(entry.name, name)) return entry.value;
+        }
+        return null;
+    }
+
+    fn addHeader(ctx: *anyopaque, name: []const u8, value: []const u8) void {
+        const self: *WasiResponse = @ptrCast(@alignCast(ctx));
         self.header_entries.append(self.allocator, .{ .name = name, .value = value }) catch {};
     }
 

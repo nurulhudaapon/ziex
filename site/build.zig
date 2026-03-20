@@ -55,11 +55,11 @@ pub fn build(b: *std.Build) !void {
             .map = false,
         }),
     );
-    // zx_build.addPlugin(zx.plugins.esbuild(b, .{
-    //     .input = b.path("app/scripts/react.ts"),
-    //     .output = assetsdir.path(b, "react.js"),
-    //     .optimize = optimize,
-    // }));
+    zx_build.addPlugin(zx.plugins.esbuild(b, .{
+        .input = b.path("app/scripts/react.ts"),
+        .output = assetsdir.path(b, "react.js"),
+        .optimize = optimize,
+    }));
     zx_build.addPlugin(zx.plugins.esbuild(b, .{
         .input = b.path("app/scripts/client.ts"),
         .output = assetsdir.path(b, "main.js"),
