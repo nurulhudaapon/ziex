@@ -1,4 +1,4 @@
-name: Sync Templates
+name: Templates
 
 on:
   push:
@@ -7,14 +7,14 @@ on:
     paths:
       - 'templates/**'
       - 'tools/template.sh'
-      - '.github/workflows/template-sync.yml'
+      - '.github/workflows/template.yml'
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  get-templates:
+  discover:
     runs-on: ubuntu-latest
     outputs:
       templates: ${{ steps.set-templates.outputs.templates }}
@@ -27,12 +27,12 @@ jobs:
           echo "templates=$TEMPLATES" >> $GITHUB_OUTPUT
 
   sync:
-    needs: get-templates
+    needs: discover
     runs-on: ubuntu-latest
-    if: needs.get-templates.outputs.templates != '[]'
+    if: needs.discover.outputs.templates != '[]'
     strategy:
       matrix:
-        template: ${{ fromJson(needs.get-templates.outputs.templates) }}
+        template: ${{ fromJson(needs.discover.outputs.templates) }}
     steps:
       - uses: actions/checkout@v4
         with:
