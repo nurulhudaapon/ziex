@@ -23,22 +23,28 @@ pub fn main() !void {
         _ = debug_allocator.deinit();
     };
 
+    @setEvalBranchQuota(100_000);
+
     // LSP implementations typically communicate over stdio (stdin and stdout)
     var read_buffer: [256]u8 = undefined;
     var stdio_transport: lsp.Transport.Stdio = .init(&read_buffer, .stdin(), .stdout());
     const transport: *lsp.Transport = &stdio_transport.transport;
 
+    // Resolve global_cache_path (e.g. ~/Library/Caches/zls on macOS, ~/.cache/zls on Linux)
+    // ZLS needs this to resolve build_runner_path and builtin_path
+    const global_cache_path: ?[]const u8 = blk: {
+        const home = std.posix.getenv("HOME") orelse break :blk null;
+        const cache_suffix = if (builtin.os.tag == .macos) "Library/Caches/zls" else ".cache/zls";
+        break :blk std.fs.path.join(gpa, &.{ home, cache_suffix }) catch null;
+    };
+    defer if (global_cache_path) |p| gpa.free(p);
+
+    var config = zls.Config{ .global_cache_path = global_cache_path };
+
     const zls_server = zls.Server.create(.{
         .allocator = gpa,
-        .transport = transport, // zls doesn't need transport, we just forward requests
-        .config = null,
-        // .config = &zls.Config{
-        //     .builtin_path = "/Users/nurulhudaapon/Library/Caches/zls/builtin.zig",
-        //     .zig_lib_path = "/Users/nurulhudaapon/.asdf/installs/zig/0.15.2/lib",
-        //     .zig_exe_path = "/Users/nurulhudaapon/.asdf/shims/zig",
-        //     .build_runner_path = "/Users/nurulhudaapon/Library/Caches/zls/build_runner/cf46548b062a7e79e448e80c05616097/build_runner.zig",
-        //     .global_cache_path = "/Users/nurulhudaapon/Library/Caches/zls",
-        // },
+        .transport = transport,
+        .config = &config,
     }) catch unreachable;
 
     // The handler is a user provided type that stores the state of the
@@ -46,14 +52,14 @@ pub fn main() !void {
     var handler: Handler = .init(gpa, zls_server);
     defer handler.deinit();
 
-    // try lsp.basic_server.run(
-    //     gpa,
-    //     transport,
-    //     &handler,
-    //     std.log.err,
-    // );
+    try lsp.basic_server.run(
+        gpa,
+        transport,
+        &handler,
+        std.log.err,
+    );
 
-    try zls_server.loop();
+    // try zls_server.loop();
 }
 
 pub const Handler = struct {
@@ -378,11 +384,15 @@ pub const Handler = struct {
     }
 
     /// We received a response message from the client/editor.
+    /// Forward responses to ZLS so it can handle workspace/configuration
+    /// responses and other client-to-server responses.
     pub fn onResponse(
-        _: *Handler,
+        handler: *Handler,
         _: std.mem.Allocator,
-        _: lsp.JsonRPCMessage.Response,
+        response: lsp.JsonRPCMessage.Response,
     ) void {
-        // zls handles responses internally
+        handler.zls.handleResponse(response) catch |err| {
+            std.log.err("zls handleResponse failed: {}", .{err});
+        };
     }
 };

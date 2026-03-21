@@ -25,10 +25,10 @@
         .tree_sitter_mdzx = .{ .path = "pkg/tree-sitter-mdzx" },
         .cachez = .{ .path = "vendor/cachez" },
         // Ziex Language Server utilities
-        // .zls = .{
-        //     .url = "git+https://github.com/nurulhudaapon/lspz.git?ref=0.15.x#ce6c8f02c78e622421cfc2405c67c5222819ec03",
-        //     .hash = "zls-0.15.0-rmm5fkjqIwDZpmDHyKwxa9K2gcI3FPaGVFPwjYWFBM5B",
-        // },
+        .zls = .{
+            .url = "git+https://github.com/nurulhudaapon/lspz.git?ref=0.15.x#f91b2e1e305e5d5bd3725aea90f9f9bfb3dce055",
+            .hash = "zls-0.15.1-rmm5fgQ2JADjDh84Ja3pDBZ1io_kKdHS2YhQyvBYz66r",
+        },
     },
     .paths = .{
         "build.zig",
