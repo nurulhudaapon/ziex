@@ -72,6 +72,17 @@ pub fn build(b: *std.Build) !void {
     const exe = b.addExecutable(.{ .name = "zx", .root_module = b.createModule(exe_rootmod_opts) });
     b.installArtifact(exe);
 
+    // --- ZXLS - LSP proxy for ZX files --- //
+    const zxls_exe = b.addExecutable(.{
+        .name = "zxls",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/lsp/proxy/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    b.installArtifact(zxls_exe);
+
     // --- Steps: Run --- //
     const run_step = b.step("run", "Run the app");
     const run_cmd = b.addRunArtifact(exe);
