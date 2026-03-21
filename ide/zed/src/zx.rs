@@ -22,7 +22,7 @@ impl zed::Extension for ZxExtension {
         };
 
         // Respect custom binary path from LSP settings
-        if let Ok(lsp_settings) = LspSettings::for_worktree("zls", worktree) {
+        if let Ok(lsp_settings) = LspSettings::for_worktree("zxls", worktree) {
             if let Some(binary) = lsp_settings.binary {
                 if let Some(path) = binary.path {
                     return Ok(zed::Command {
@@ -34,12 +34,19 @@ impl zed::Extension for ZxExtension {
             }
         }
 
-        // Use zls from PATH (provided by the Zig extension)
-        let path = worktree
-            .which("zls")
-            .ok_or("zls not found. Install the Zig extension or add zls to your PATH.")?;
-
-        Ok(zed::Command { command: path, args: vec![], env })
+        // Use `zx lsp` if zx is in PATH, otherwise fall back to `zig build zx -- lsp`
+        if let Some(zx_path) = worktree.which("zx") {
+            Ok(zed::Command { command: zx_path, args: vec!["lsp".into()], env })
+        } else {
+            let zig_path = worktree
+                .which("zig")
+                .ok_or("Neither zx nor zig found in PATH.")?;
+            Ok(zed::Command {
+                command: zig_path,
+                args: vec!["build".into(), "zx".into(), "--".into(), "lsp".into()],
+                env,
+            })
+        }
     }
 
     fn language_server_workspace_configuration(
@@ -47,7 +54,7 @@ impl zed::Extension for ZxExtension {
         _language_server_id: &zed::LanguageServerId,
         worktree: &zed::Worktree,
     ) -> Result<Option<serde_json::Value>> {
-        let settings = LspSettings::for_worktree("zls", worktree)
+        let settings = LspSettings::for_worktree("zxls", worktree)
             .ok()
             .and_then(|lsp_settings| lsp_settings.settings.clone())
             .unwrap_or_default();

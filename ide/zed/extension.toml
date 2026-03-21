@@ -6,8 +6,8 @@ schema_version = 1
 authors = ["Nurul Huda (Apon) <me@nurulhudaapon.com>"]
 repository = "https://github.com/ziex-dev/ziex"
 
-[language_servers.zls]
-name = "zls"
+[language_servers.zxls]
+name = "zxls"
 language = "ZX"
 
 [grammars.zx]

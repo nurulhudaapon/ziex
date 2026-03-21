@@ -64,17 +64,43 @@ function remapLocationsToZx(
   return result;
 }
 
-export function activate(context: ExtensionContext) {
-  const serverCommand = getZLSPath(context);
+
+export async function activate(context: ExtensionContext) {
+  // Determine the correct LSP command: prefer 'zx lsp', fallback to 'zig build zx -- lsp'
+  const cwd = workspace.workspaceFolders?.[0]?.uri.fsPath;
+  let serverCommand: string | undefined;
+  let serverArgs: string[] = [];
+
+  async function getLspCommand(): Promise<{ command: string; args: string[] }> {
+    // Try zx lsp first
+    try {
+      await execFile("zx", ["version"], {
+        cwd,
+        maxBuffer: 1024 * 1024,
+        timeout: 5000,
+      });
+      return { command: "zx", args: ["lsp"] };
+    } catch {
+      // Fallback to zig build zx -- lsp if available
+      if (cwd && (await hasZxBuildStep(cwd))) {
+        return { command: "zig", args: ["build", "zx", "--", "lsp"] };
+      }
+      return { command: "", args: [] };
+    }
+  }
+
+  const lspCmd = await getLspCommand();
+  serverCommand = lspCmd.command;
+  serverArgs = lspCmd.args;
 
   if (!serverCommand) {
     window.showErrorMessage(
-      "Failed to start Ziex Language Server: ZLS not found",
+      "Failed to start Ziex Language Server: zx executable or build step not found."
     );
     return;
   }
 
-  const serverOptions: ServerOptions = { command: serverCommand };
+  const serverOptions: ServerOptions = { command: serverCommand, args: serverArgs };
   const outputChannel = window.createOutputChannel("Ziex Language Server", {
     log: true,
   });
