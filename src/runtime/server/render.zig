@@ -275,7 +275,7 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
 
             // Inject hidden field so no-JS form submissions can be identified as action requests
             if (elem.tag == .form and has_action_handler) {
-                try writer.writeAll("<input type=\"hidden\" name=\"__zx_action\" value=\"1\">");
+                try writer.writeAll("<input type=\"hidden\" name=\"__$action\" value=\"1\">");
             }
 
             // Comptime element injection: emit pre-baked HTML right after the opening tag

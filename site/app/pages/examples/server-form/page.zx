@@ -1,30 +1,52 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
         <main @allocator={ctx.arena}>
+            <LoginForm @rendering={.client} />
             <EventForm @rendering={.client} />
         </main>
     );
 }
 
+pub fn LoginForm(ctx: *zx.ComponentContext) zx.Component {
+    const msg = ctx.state([]const u8, "Please log in");
+    return (
+        <form @allocator={ctx.allocator} action={handleLogin}>
+            <p>{msg}</p>
+            <input placeholder="Enter name" name="name" defaultValue="John Doe" required />
+            <input placeholder="Enter ID" name="id" defaultValue="123" required />
+            <input placeholder="Photo" type="file" name="file" />
+
+            <button>Submit</button>
+        </form>
+    );
+}
+
+const LoginInput = struct { name: []const u8, id: i32, file: []const u8 };
+
+fn handleLogin(data: LoginInput) void {
+    zx.log.info("\n\nName: {s}\nID: {d}\nFile: {s}\n", .{ data.name, data.id, data.file });
+}
+
+fn handleSubmit(data: LoginInput, sc: *zx.StateContext) void {
+    sc.state([]const u8).set(sc.fmt("Hello, {s}!", .{data.name}) catch "Err");
+    zx.log.info("\n\nName: {s}\nID: {d}\nFile: {s}\n", .{ data.name, data.id, data.file });
+}
+
 pub fn EventForm(ctx: *zx.ComponentContext) zx.Component {
     const count = ctx.state(i32, 1);
     return (
-        <button @allocator={ctx.allocator} value="btn" onclick={ctx.bind(onclick)}>
+        <button @allocator={ctx.allocator} onclick={ctx.bind(onclick)}>
             Click Me {count}
         </button>
     );
 }
 
 fn onclick(e: *zx.server.Event.Stateful) void {
+    const c = e.state(i32);
 
+    c.set(c.get() + 1);
 
-    zx.log.info("Clicked {s} \n", .{e.value() orelse "no value"});
-
-    // const c = e.state(i32);
-
-    // c.set(c.get() + 1);
-
-    // zx.log.info("Clicked - {d} \n", .{c.get()});
+    zx.log.info("{d} \n\n", .{c.get()});
 }
 
 pub const options: zx.PageOptions = .{
@@ -32,4 +54,3 @@ pub const options: zx.PageOptions = .{
 };
 
 const zx = @import("zx");
-const std = @import("std");

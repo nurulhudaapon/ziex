@@ -15,6 +15,8 @@ pub const DispatchResult = union(enum) {
     not_triggered,
     /// Handler was invoked successfully. `body` is serialized JSON state, or null if no state.
     ok: struct { body: ?[]u8 = null },
+    /// Action was invoked natively (form POST). Continue rendering the page.
+    ok_native,
     /// Handler was triggered but no registered handler was found after render.
     not_found,
     /// Page function raised an error during slow-path render.
@@ -22,14 +24,14 @@ pub const DispatchResult = union(enum) {
 };
 
 /// Returns true if the request is a server action request.
-/// Checks for the x-zx-action header (JS fetch) or __zx_action in the form body (no-JS form POST).
+/// Checks for the x-zx-action header (JS fetch) or __$action in the form body (no-JS form POST).
 pub fn isActionRequest(request: zx.server.Request) bool {
     if (request.headers.has("x-zx-action")) return true;
     const body = request.text() orelse return false;
     const ct = request.headers.get("content-type") orelse "";
-    return std.mem.indexOf(u8, body, "__zx_action=") != null or
+    return std.mem.indexOf(u8, body, "__$action=") != null or
         (std.mem.indexOf(u8, ct, "multipart/form-data") != null and
-            std.mem.indexOf(u8, body, "name=\"__zx_action\"") != null);
+            std.mem.indexOf(u8, body, "name=\"__$action\"") != null);
 }
 
 fn serializeStateOutputs(sc: anytype, allocator: std.mem.Allocator) !?[]u8 {
@@ -66,6 +68,8 @@ pub fn dispatchAction(
 ) !DispatchResult {
     if (!isActionRequest(request)) return .not_triggered;
 
+    const is_js = request.headers.has("x-zx-action");
+
     if (registry.get(route_path)) |action_fn| {
         var action_ctx = zx.ActionContext{
             .request = request,
@@ -75,7 +79,7 @@ pub fn dispatchAction(
         };
         action_fn(&action_ctx);
         const body = if (action_ctx._state_ctx) |sc| try serializeStateOutputs(sc, allocator) else null;
-        return .{ .ok = .{ .body = body } };
+        return if (is_js) .{ .ok = .{ .body = body } } else .ok_native;
     }
 
     // Slow path: render the page to populate the registry, then retry.
@@ -94,7 +98,7 @@ pub fn dispatchAction(
         };
         action_fn(&action_ctx);
         const body = if (action_ctx._state_ctx) |sc| try serializeStateOutputs(sc, allocator) else null;
-        return .{ .ok = .{ .body = body } };
+        return if (is_js) .{ .ok = .{ .body = body } } else .ok_native;
     }
 
     return .not_found;

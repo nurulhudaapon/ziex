@@ -54,7 +54,7 @@ export class ZxBridge extends ZxBridgeCore {
     /** Submit a form action with bound-state round-trip. */
     submitFormActionAsync(form: HTMLFormElement, statesJson: string, fetchId: bigint): void {
         const formData = new FormData(form);
-        formData.append('__zx_states', statesJson);
+        formData.append('__$states', statesJson);
         fetch(window.location.href, {
             method: 'POST',
             headers: { 'X-ZX-Action': '1' },

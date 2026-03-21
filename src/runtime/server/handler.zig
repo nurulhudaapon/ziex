@@ -936,7 +936,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                 const page_fn = route.page orelse return self.notFound(req, res);
 
                 // -- Server action dispatch --
-                // Triggered by JS fetch (x-zx-action header) or no-JS form POST (__zx_action body field).
+                // Triggered by JS fetch (x-zx-action header) or no-JS form POST (__$action body field).
                 switch (try server_dispatch.dispatchAction(abstract_req, abstract_res, allocator, req.arena, route.path, pagectx, page_fn)) {
                     .not_triggered => {},
                     .ok => |r| {
@@ -946,6 +946,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                         }
                         return;
                     },
+                    .ok_native => {},
                     .not_found => {
                         res.status = 400;
                         res.body = "No action handler registered for this route";
@@ -957,6 +958,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                 // -- Server event dispatch --
                 switch (try server_dispatch.dispatchServerEvent(abstract_req, allocator, req.arena, route.path, pagectx, page_fn)) {
                     .not_triggered => {},
+                    .ok_native => {},
                     .ok => |r| {
                         res.content_type = .JSON;
                         res.body = r.body orelse "{}";

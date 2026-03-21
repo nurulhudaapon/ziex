@@ -120,7 +120,7 @@ pub fn applyPatches(
 
 /// Context stored on the heap so formActionCallback can find the form by vnode_id.
 /// When `bound_states` is non-empty the submission is stateful: bound state values
-/// are serialised, sent as `__zx_states`, and the response updates those states.
+/// are serialised, sent as `__$states`, and the response updates those states.
 const FormActionCtx = struct {
     vnode_id: u64,
     bound_states: []const zx.EventHandler.Bound = &.{},
@@ -163,7 +163,7 @@ fn formActionCallback(ctx: *anyopaque, event: zx.client.Event) void {
         return;
     }
 
-    // Stateful: serialise bound-state values → JSON array → __zx_states field.
+    // Stateful: serialise bound-state values → JSON array → __$states field.
     const alloc = zx.client_allocator;
     var states_list = std.ArrayList([]const u8).empty;
     for (form_ctx.bound_states) |bs| {

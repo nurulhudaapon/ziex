@@ -215,7 +215,7 @@ fn actionBind(comptime handler: anytype, alloc: Allocator, ctx: anytype) zx.Even
         const FormActionWrapper = struct {
             fn wrap(action_ctx_ptr: *ActionContext) void {
                 const mfd = action_ctx_ptr.request.multiFormData();
-                const states_raw = mfd.getValue("__zx_states") orelse "[]";
+                const states_raw = mfd.getValue("__$states") orelse "[]";
                 const states = zx.util.zxon.parse([]const []const u8, action_ctx_ptr.arena, states_raw, .{}) catch return;
                 const sc = StateContext.init(action_ctx_ptr.arena, action_ctx_ptr.arena, states) orelse return;
                 action_ctx_ptr._state_ctx = sc;

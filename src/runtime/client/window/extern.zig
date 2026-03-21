@@ -62,7 +62,7 @@ pub extern "__zx" fn _getFormData(vnode_id: u64, buf_ptr: [*]u8, buf_len: usize)
 pub extern "__zx" fn _submitFormAction(vnode_id: u64) void;
 
 /// Like _submitFormAction but stateful: injects the serialised bound-state JSON
-/// as a `__zx_states` multipart field and calls __zx_fetch_complete(fetch_id,…)
+/// as a `__$states` multipart field and calls __zx_fetch_complete(fetch_id,…)
 /// when the response arrives so WASM can apply the returned state updates.
 pub extern "__zx" fn _submitFormActionAsync(
     vnode_id: u64,
