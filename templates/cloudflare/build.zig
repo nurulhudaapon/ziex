@@ -26,7 +26,7 @@ pub fn build(b: *std.Build) !void {
             .position = .ending,
             .element = .{
                 .tag = "script",
-                .attributes = "src=\"https://cdn.jsdelivr.net/npm/ziex@0.1.0-dev.804/wasm/init.min.js\"",
+                .attributes = "src=\"https://cdn.jsdelivr.net/npm/ziex@0.1.0-dev.852/wasm/init.min.js\"",
             },
         });
 }
