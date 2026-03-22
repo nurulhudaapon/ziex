@@ -20,10 +20,29 @@ jobs:
       templates: ${{ steps.set-templates.outputs.templates }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - id: set-templates
         run: |
-          # Get list of directories in templates/ except _base
-          TEMPLATES=$(ls -d templates/*/ | grep -v "_base" | xargs -n 1 basename | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          ALL_TEMPLATES=$(ls -d templates/*/ | grep -v "_base" | xargs -n 1 basename)
+
+          # On workflow_dispatch, sync all templates
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            TEMPLATES=$(echo "$ALL_TEMPLATES" | jq -R -s -c 'split("\n") | map(select(. != ""))')
+            echo "templates=$TEMPLATES" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+
+          # If _base, tools/template.sh, or the workflow itself changed, sync all templates
+          if echo "$CHANGED_FILES" | grep -qE '^(templates/_base/|tools/template\.sh|\.github/workflows/template\.yml)'; then
+            TEMPLATES=$(echo "$ALL_TEMPLATES" | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          else
+            # Only sync templates whose files changed
+            TEMPLATES=$(echo "$CHANGED_FILES" | grep '^templates/' | cut -d'/' -f2 | sort -u | grep -v '_base' | jq -R -s -c 'split("\n") | map(select(. != ""))')
+          fi
+
           echo "templates=$TEMPLATES" >> $GITHUB_OUTPUT
 
   sync:

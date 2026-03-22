@@ -39,8 +39,6 @@ node_modules/
 
 # starter template
 !starter/.gitignore
-!starter/package.json
-!starter/build.zig
 
 # database-pg template
 !database-pg/.gitignore
