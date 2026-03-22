@@ -12,6 +12,7 @@ pub fn main() !void {
     defer if (builtin.mode == .Debug) std.debug.assert(dbg.deinit() == .ok);
 
     var args = try std.process.argsWithAllocator(allocator);
+    defer args.deinit();
 
     _ = args.next();
     const subcmd = args.next();
