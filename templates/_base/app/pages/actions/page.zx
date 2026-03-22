@@ -1,0 +1,30 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <main @allocator={ctx.arena}>
+            <LoginForm @rendering={.client} name="Ziex Client" />
+            <LoginForm name="Ziex Server" />
+        </main>
+    );
+}
+
+const LoginInput = struct { name: []const u8, id: i32 = 123 };
+pub fn LoginForm(ctx: *zx.ComponentCtx(LoginInput)) zx.Component {
+    return (
+        <form @allocator={ctx.allocator} action={handleLogin}>
+            <input name="name" value={ctx.props.name} />
+            <input name="id" value={ctx.props.id} />
+
+            <button>Submit</button>
+        </form>
+    );
+}
+
+fn handleLogin(data: LoginInput) void {
+    zx.log.info("\n\nName: {s}\nID: {d}\n", .{ data.name, data.id });
+}
+
+pub const options: zx.PageOptions = .{
+    .methods = &.{.POST},
+};
+
+const zx = @import("zx");

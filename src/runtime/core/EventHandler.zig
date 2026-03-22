@@ -36,7 +36,7 @@ callback: *const fn (ctx: *anyopaque, event: zx.client.Event) void,
 context: *anyopaque,
 /// Non-null when created from a form `action={}` handler.
 /// Takes a pointer so the server wrapper can write `_state_ctx` back after the call.
-action_fn: ?*const fn (*zx.ActionContext) void = null,
+action_fn: ?*const fn (*zx.server.Action) void = null,
 /// Server-side handler; takes *ServerEventContext so the wrapper can set _state_ctx.
 server_event_fn: ?*const fn (*zx.server.Event) void = null,
 /// Unique ID for this handler instance on the current page.
@@ -52,13 +52,13 @@ pub fn wrap(comptime func: anytype) Self {
     const fn_info = @typeInfo(FnType);
     const params = fn_info.@"fn".params;
 
-    // Server action: fn (zx.ActionContext) void
+    // Server action: fn (zx.server.Action) void
     if (comptime params.len == 1) {
         const arg_type = params[0].type.?;
         switch (arg_type) {
-            zx.ActionContext => {
+            zx.server.Action => {
                 const Wrap = struct {
-                    fn w(ctx: *zx.ActionContext) void {
+                    fn w(ctx: *zx.server.Action) void {
                         func(ctx.*);
                     }
                 };
@@ -122,12 +122,12 @@ pub fn action(comptime func: anytype) Self {
     if (comptime params.len == 1) {
         const arg_type = params[0].type.?;
         if (comptime @typeInfo(arg_type) == .@"struct" and
-            arg_type != zx.ActionContext and
+            arg_type != zx.server.Action and
             arg_type != zx.client.Event and
             arg_type != zx.server.Event)
         {
             const DirectTyped = struct {
-                fn w(ctx: *zx.ActionContext) void {
+                fn w(ctx: *zx.server.Action) void {
                     func(ctx.data(arg_type));
                 }
             };
@@ -321,7 +321,11 @@ pub fn actionHandler(ctx: *anyopaque, event: zx.client.Event) void {
     client_fetch.fetchAsync(
         getGlobalAllocator(),
         "",
-        .{ .method = .GET, .headers = &headers, .body = "{}", },
+        .{
+            .method = .GET,
+            .headers = &headers,
+            .body = "{}",
+        },
         onActionResponse,
     );
 }

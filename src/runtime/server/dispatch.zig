@@ -71,7 +71,7 @@ pub fn dispatchAction(
     const is_js = request.headers.has("x-zx-action");
 
     if (registry.get(route_path)) |action_fn| {
-        var action_ctx = zx.ActionContext{
+        var action_ctx = zx.server.Action{
             .request = request,
             .response = response,
             .allocator = allocator,
@@ -90,7 +90,7 @@ pub fn dispatchAction(
     }
 
     if (registry.get(route_path)) |action_fn| {
-        var action_ctx = zx.ActionContext{
+        var action_ctx = zx.server.Action{
             .request = request,
             .response = response,
             .allocator = allocator,

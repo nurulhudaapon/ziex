@@ -151,6 +151,7 @@ pub fn run() !void {
         // --- Server Action Dispatch --- //
         switch (try server_dispatch.dispatchAction(request, response, allocator, allocator, route.path, pagectx, route.page)) {
             .not_triggered => {},
+            .ok_native => {},
             .ok => |r| {
                 if (r.body) |body| {
                     wasi_res.setContentTypeStr("application/json");
@@ -179,6 +180,7 @@ pub fn run() !void {
         // --- Server Event Dispatch --- //
         switch (try server_dispatch.dispatchServerEvent(request, allocator, allocator, route.path, pagectx, route.page)) {
             .not_triggered => {},
+            .ok_native => {},
             .ok => |r| {
                 wasi_res.setContentTypeStr("application/json");
                 wasi_res.body.deinit();
