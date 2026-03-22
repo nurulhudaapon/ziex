@@ -150,6 +150,7 @@ pub fn build(b: *std.Build) !void {
             const release_tree_sitter_dep = b.dependency("tree_sitter", .{ .target = resolved_target, .optimize = .ReleaseSafe });
             const release_tree_sitter_zx_dep = b.dependency("tree_sitter_zx", .{ .target = resolved_target, .optimize = .ReleaseSafe, .@"build-shared" = false });
             const release_tree_sitter_mdzx_dep = b.dependency("tree_sitter_mdzx", .{ .target = resolved_target, .optimize = .ReleaseSafe, .@"build-shared" = false });
+            const release_zls_dep = b.dependency("zls", .{ .target = resolved_target, .optimize = .ReleaseSafe });
             const release_mod = b.createModule(.{ .root_source_file = b.path("src/root.zig"), .target = resolved_target, .optimize = .ReleaseSafe });
 
             release_mod.addImport("httpz", httpz_dep.module("httpz"));
@@ -168,6 +169,7 @@ pub fn build(b: *std.Build) !void {
                     .imports = &.{
                         .{ .name = "zx", .module = release_mod },
                         .{ .name = "zli", .module = zli_dep.module("zli") },
+                        .{ .name = "zls", .module = release_zls_dep.module("zls") },
                     },
                 }),
             });
