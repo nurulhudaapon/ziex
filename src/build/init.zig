@@ -21,6 +21,12 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     const zx_host_dep = b.dependencyFromBuildZig(build_zig, .{
         .optimize = options.cli.optimize, // Always in release mode for faster transpilation
         // No target = host target, so zx CLI can execute during build
+        .@"exclude-lsp" = true, // Skip LSP for faster build-time transpilation
+    });
+
+    // Full CLI dep (includes LSP) for the `zig build zx` step
+    const zx_full_dep = b.dependencyFromBuildZig(build_zig, .{
+        .optimize = options.cli.optimize,
     });
 
     const zx_wasm_dep = b.dependencyFromBuildZig(build_zig, .{
@@ -31,6 +37,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     const zx_module = zx_dep.module("zx");
     const zx_wasm_module = zx_wasm_dep.module("zx_wasm");
     const zx_exe = zx_host_dep.artifact("zx");
+    const zx_full_exe = zx_full_dep.artifact("zx");
     const ziex_js_dep = zx_dep.builder.dependency("ziex_js", .{});
 
     var opts: InitInnerOptions = .{
@@ -56,7 +63,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         opts.steps = cli_steps;
     }
 
-    return initInner(b, exe, zx_exe, zx_module, zx_wasm_module, opts);
+    return initInner(b, exe, zx_exe, zx_full_exe, zx_module, zx_wasm_module, opts);
 }
 
 const InitInnerOptions = struct {
@@ -97,6 +104,7 @@ pub fn initInner(
     b: *std.Build,
     exe: *std.Build.Step.Compile,
     zx_exe: *std.Build.Step.Compile,
+    zx_full_exe: *std.Build.Step.Compile,
     zx_module: *std.Build.Module,
     zx_wasm_module: *std.Build.Module,
     opts: InitInnerOptions,
@@ -274,21 +282,8 @@ pub fn initInner(
         "main.wasm",
     );
 
-    // b.installDirectory(.{
-    //     .source_dir = wasm_exe.getEmittedBinDirectory(),
-    //     .install_dir = .prefix,
-    //     .install_subdir = "static/assets",
-    // });
+    install_wasm.step.name = b.fmt("install {s} - client", .{exe.name});
 
-    const post_transpile_cmd = getZxRun(b, zx_exe, opts);
-    post_transpile_cmd.addArgs(&.{"transpile"});
-    post_transpile_cmd.addFileArg(wasm_binpath);
-    post_transpile_cmd.addArgs(&.{ "--copy-only", "--outdir" });
-    post_transpile_cmd.addDirectoryArg(transpile_outdir.path(b, "assets"));
-    post_transpile_cmd.expectExitCode(0);
-    post_transpile_cmd.step.dependOn(&transpile_cmd.step);
-    post_transpile_cmd.step.dependOn(&wasm_exe.step);
-    b.default_step.dependOn(&post_transpile_cmd.step);
     b.default_step.dependOn(&install_wasm.step);
 
     // --- Steps: ZX (Root of ZX CLI) --- //
@@ -297,7 +292,7 @@ pub fn initInner(
             "zx",
             b.fmt("ZX CLI - \x1b[2m{s}\x1b[0m", .{"zig build zx -- <args>"}),
         );
-        const zx_cmd = b.addRunArtifact(zx_exe);
+        const zx_cmd = b.addRunArtifact(zx_full_exe);
         zx_step.dependOn(&zx_cmd.step);
         if (b.args) |args| zx_cmd.addArgs(args);
     }

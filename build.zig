@@ -17,6 +17,7 @@ pub const plugins = buildlib.plugins;
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const exclude_lsp = b.option(bool, "exclude-lsp", "Exclude the LSP server to speed up builds") orelse false;
 
     // --- ZX Meta Options --- //
     const options = b.addOptions();
@@ -68,10 +69,15 @@ pub fn build(b: *std.Build) !void {
         .imports = &.{
             .{ .name = "zx", .module = mod },
             .{ .name = "zli", .module = zli_dep.module("zli") },
-            .{ .name = "zls", .module = zls_dep.module("zls") },
         },
     };
+
+    const exe_build_options = b.addOptions();
+    exe_build_options.addOption(bool, "exclude_lsp", exclude_lsp);
+
     const exe = b.addExecutable(.{ .name = "zx", .root_module = b.createModule(exe_rootmod_opts) });
+    exe.root_module.addOptions("build_options", exe_build_options);
+    if (!exclude_lsp) exe.root_module.addImport("zls", zls_dep.module("zls"));
     b.installArtifact(exe);
 
     // --- Steps: Run --- //

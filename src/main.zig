@@ -11,14 +11,13 @@ pub fn main() !void {
 
     defer if (builtin.mode == .Debug) std.debug.assert(dbg.deinit() == .ok);
 
-    var args = try std.process.argsWithAllocator(allocator);
-    defer args.deinit();
+    if (comptime (!build_options.exclude_lsp)) {
+        var args = try std.process.argsWithAllocator(allocator);
+        defer args.deinit();
 
-    _ = args.next();
-    const subcmd = args.next();
-    if (std.mem.eql(u8, subcmd orelse "", "lsp")) {
-        try lsp.main();
-        return;
+        _ = args.next();
+        const subcmd = args.next();
+        if (std.mem.eql(u8, subcmd orelse "", "lsp")) return try lsp.main();
     }
 
     if (builtin.os.tag == .wasi) return try main_wasm();
@@ -91,11 +90,12 @@ fn main_wasm() !void {
 }
 
 const std = @import("std");
-const cli = @import("cli/root.zig");
 const builtin = @import("builtin");
+const build_options = @import("build_options");
 const zx = @import("zx");
+const cli = @import("cli/root.zig");
 const tui = @import("tui/main.zig");
-const lsp = @import("lsp/main.zig");
+const lsp = if (build_options.exclude_lsp) void else @import("lsp/main.zig");
 
 pub const std_options = std.Options{
     .log_scope_levels = &[_]std.log.ScopeLevel{
