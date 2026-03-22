@@ -49,9 +49,7 @@ pub const CliOptions = struct {
     /// Configuration for which build steps to create.
     ///
     /// If `null`, only the default "serve" step will be created.
-    steps: ?Steps = .{
-        .dev = "dev",
-    },
+    steps: ?Steps = .default,
 
     /// Optimize mode for the ZX CLI executable.
     optimize: ?std.builtin.OptimizeMode = .ReleaseFast,
