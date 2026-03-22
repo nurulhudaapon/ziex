@@ -6,6 +6,8 @@ on:
       - main
     paths:
       - 'site/**'
+      - '.github/workflows/docs.yml'
+      - 'src/runtime/**'
 
   workflow_dispatch:
 
@@ -21,6 +23,7 @@ concurrency:
 jobs:
   build_ssg:
     runs-on: ubuntu-latest
+    name: Build (SSG)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -58,6 +61,7 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     needs: build_ssg
+    name: Deploy (GH Pages)
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
@@ -68,6 +72,7 @@ jobs:
       name: ssr
       url: https://ssr.ziex.dev
     runs-on: self-hosted
+    name: Deploy (SSR)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -75,12 +80,12 @@ jobs:
       - name: Deploy ssr.ziex.dev
         run: bash tools/docdeploy
 
-  deploy:
+  deploy_edge:
     environment:
       name: edge
       url: https://site.ziex.workers.dev
     runs-on: ubuntu-latest
-    name: Deploy
+    name: Deploy (Edge)
     steps:
       - uses: actions/checkout@v4
 
@@ -94,11 +99,11 @@ jobs:
         with:
           bun-version: 1.3.5
 
-      - name: Setup Pages
-        uses: actions/configure-pages@v5
-
       - name: Install Node Dependencies
         run: cd site && bun install
+
+      - name: Build Site
+        run: cd site && zig build
 
       - name: Deploy to Edge
         uses: cloudflare/wrangler-action@v3
