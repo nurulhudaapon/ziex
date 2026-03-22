@@ -40,6 +40,13 @@ const copy_embedded_sources_flag = zli.Flag{
     .default_value = .{ .Bool = false },
 };
 
+const rootdir_flag = zli.Flag{
+    .name = "rootdir",
+    .description = "Root directory for the generated meta file (e.g., static dir)",
+    .type = .String,
+    .default_value = .{ .String = "" },
+};
+
 pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
     const cmd = try zli.Command.init(writer, reader, allocator, .{
         .name = "transpile",
@@ -51,6 +58,7 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
     try cmd.addFlag(flags.verbose_flag);
     try cmd.addFlag(map_flag);
     try cmd.addFlag(copy_embedded_sources_flag);
+    try cmd.addFlag(rootdir_flag);
     try cmd.addPositionalArg(.{
         .name = "path",
         .description = "Path to .zx file or directory",
@@ -66,6 +74,8 @@ fn transpile(ctx: zli.CommandContext) !void {
     const verbose = ctx.flag("verbose", bool);
     const sourcemap_str = ctx.flag("map", []const u8);
     const copy_embedded_sources = ctx.flag("copy-embedded-sources", bool);
+    const rootdir_str = ctx.flag("rootdir", []const u8);
+    const rootdir: ?[]const u8 = if (rootdir_str.len > 0) rootdir_str else null;
     const map: zx.Ast.ParseOptions.MapMode = if (std.mem.eql(u8, sourcemap_str, "inline"))
         .inlined
     else if (std.mem.eql(u8, sourcemap_str, "none"))
@@ -86,7 +96,6 @@ fn transpile(ctx: zli.CommandContext) !void {
     // std.debug.print("Copying only the files to the output directory: from {s} to {s} (copy_only: {any})\n", .{ path, outdir, copy_only });
     // We no longer copy assets/public here, as it's now handled by the Zig build system
 
-
     if (copy_only) return copyOnly(ctx, path, outdir) catch |err| {
         std.debug.print("Error: Could not copy path '{s} -> {s}': {}\n", .{ path, outdir, err });
         return err;
@@ -106,6 +115,7 @@ fn transpile(ctx: zli.CommandContext) !void {
                 .verbose = verbose,
                 .map = map,
                 .copy_embedded_sources = copy_embedded_sources,
+                .rootdir = rootdir,
             });
             return;
         },
@@ -190,6 +200,7 @@ fn transpile(ctx: zli.CommandContext) !void {
         .verbose = verbose,
         .map = map,
         .copy_embedded_sources = copy_embedded_sources,
+        .rootdir = rootdir,
     });
 }
 
@@ -673,7 +684,7 @@ const Route = struct {
     }
 };
 
-fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, verbose: bool) !void {
+fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, rootdir: ?[]const u8, verbose: bool) !void {
     var routes = std.array_list.Managed(Route).init(allocator);
     defer {
         for (routes.items) |*route| {
@@ -739,12 +750,15 @@ fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, verbose: bool
     }
     try writer.writeAll("};\n\n");
 
+    // Use rootdir if provided, otherwise fall back to output_dir
+    const meta_rootdir = rootdir orelse output_dir;
+
     // Convert to relative path using std.fs.path.relative and escape for Zig string literal
-    var path_to_use: []const u8 = output_dir;
+    var path_to_use: []const u8 = meta_rootdir;
     var path_allocated = false;
     if (std.fs.cwd().realpathAlloc(allocator, ".")) |cwd| {
         defer allocator.free(cwd);
-        if (std.fs.path.relative(allocator, cwd, output_dir)) |relative| {
+        if (std.fs.path.relative(allocator, cwd, meta_rootdir)) |relative| {
             path_to_use = relative;
             path_allocated = true;
         } else |_| {}
@@ -1412,6 +1426,7 @@ const TranspileOptions = struct {
     verbose: bool,
     map: zx.Ast.ParseOptions.MapMode = .none,
     copy_embedded_sources: bool = false,
+    rootdir: ?[]const u8 = null,
 };
 
 fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void {
@@ -1470,7 +1485,7 @@ fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void 
     }
 
     // Generate routes
-    genRoutes(allocator, opts.outdir, opts.verbose) catch |err| {
+    genRoutes(allocator, opts.outdir, opts.rootdir, opts.verbose) catch |err| {
         std.debug.print("Warning: Failed to generate meta.zig: {}\n", .{err});
     };
 

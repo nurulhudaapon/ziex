@@ -112,22 +112,12 @@ pub fn initInner(
     // const target = exe.root_module.resolved_target;
     const optimize = exe.root_module.optimize;
 
-    // --- ZX Transpilation ---
-    const transpile_cmd = getZxRun(b, zx_exe, opts);
-    transpile_cmd.setName("zx transpile");
-    transpile_cmd.addArg("transpile");
-    transpile_cmd.addDirectoryArg(opts.site_path);
-    transpile_cmd.addArg("--outdir");
-    const transpile_outdir = getTranspileOutdir(transpile_cmd, opts);
-    if (opts.copy_embedded_sources) {
-        transpile_cmd.addArg("--copy-embedded-sources");
-    }
-    transpile_cmd.expectExitCode(0);
-
     // --- ZX Options --- //
     const zx_options = b.addOptions();
     zx_options.addOption(?[]const u8, "jsglue_href", opts.client.jsglue_href);
+    zx_module.addOptions("zx_options", zx_options);
 
+    // --- Dirs Setup --- //
     const static_lazypath: LazyPath = if (opts.static_path) |p| p else .{ .cwd_relative = b.pathJoin(&.{ b.install_path, "static" }) };
     const staticdir = static_lazypath.getPath(b);
     const assetsdir = static_lazypath.path(b, "assets");
@@ -136,7 +126,19 @@ pub fn initInner(
     zx_options.addOption([]const u8, "staticdir", staticdir);
     zx_options.addOption([]const u8, "datadir", datadir);
 
-    zx_module.addOptions("zx_options", zx_options);
+    // --- ZX Transpilation ---
+    const transpile_cmd = getZxRun(b, zx_exe, opts);
+    transpile_cmd.setName("zx transpile");
+    transpile_cmd.addArg("transpile");
+    transpile_cmd.addDirectoryArg(opts.site_path);
+    transpile_cmd.addArg("--outdir");
+    const transpile_outdir = getTranspileOutdir(transpile_cmd, opts);
+    transpile_cmd.addArg("--rootdir");
+    transpile_cmd.addDirectoryArg(static_lazypath);
+    if (opts.copy_embedded_sources) {
+        transpile_cmd.addArg("--copy-embedded-sources");
+    }
+    transpile_cmd.expectExitCode(0);
 
     // --- ZX Injections --- //
     const injections_step = try InjectionsGenStep.create(b);

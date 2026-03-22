@@ -70,9 +70,10 @@ pub fn dispatchAction(
 
     const is_js = request.headers.has("x-zx-action");
 
-    const sr = request.multiFormData().getValue("__$states") orelse "null";
+    // TODO: cleanup
+    // const sr = request.multiFormData().getValue("__$states") orelse "null";
 
-    std.debug.print("IsJS: {}\nStates: {s}", .{ is_js, sr });
+    // std.debug.print("IsJS: {}\nStates: {s}", .{ is_js, sr });
 
     // Parse state inputs for stateful actions.
     // JS path (X-ZX-Action header): states are the entire JSON body.
