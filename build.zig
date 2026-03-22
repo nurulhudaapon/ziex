@@ -179,6 +179,9 @@ pub fn build(b: *std.Build) !void {
                     },
                 }),
             });
+            const release_exe_build_options = b.addOptions();
+            release_exe_build_options.addOption(bool, "exclude_lsp", true);
+            release_exe.root_module.addOptions("build_options", release_exe_build_options);
 
             const exe_ext = if (resolved_target.result.os.tag == .windows) ".exe" else "";
             const install_release = b.addInstallArtifact(release_exe, .{
