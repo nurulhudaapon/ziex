@@ -21,9 +21,24 @@ pub const DecodedMap = struct {
     /// Returns the closest mapping at or before the given source position.
     pub fn sourceToGenerated(self: DecodedMap, line: i32, column: i32) ?Mapping {
         var best: ?Mapping = null;
+        var is_exact = false;
+
         for (self.entries) |m| {
+            if (m.source_line == line and m.source_column == column) {
+                if (!is_exact or m.generated_line < best.?.generated_line or
+                    (m.generated_line == best.?.generated_line and m.generated_column < best.?.generated_column))
+                {
+                    best = m;
+                    is_exact = true;
+                }
+                continue;
+            }
+
+            if (is_exact) continue; // Exact matches are always better than "at or before"
+
             if (m.source_line > line) continue;
             if (m.source_line == line and m.source_column > column) continue;
+
             if (best) |b| {
                 if (m.source_line > b.source_line or
                     (m.source_line == b.source_line and m.source_column > b.source_column))
@@ -34,6 +49,7 @@ pub const DecodedMap = struct {
                 best = m;
             }
         }
+
         if (best) |b| {
             // Adjust the generated column by the offset from the exact mapping point
             const col_offset = if (b.source_line == line) column - b.source_column else 0;
@@ -50,20 +66,22 @@ pub const DecodedMap = struct {
     /// Map a generated (.zig) position back to the source (original .zx) position.
     /// Returns the closest mapping at or before the given generated position.
     pub fn generatedToSource(self: DecodedMap, line: i32, column: i32) ?Mapping {
+        var low: usize = 0;
+        var high: usize = self.entries.len;
         var best: ?Mapping = null;
-        for (self.entries) |m| {
-            if (m.generated_line > line) continue;
-            if (m.generated_line == line and m.generated_column > column) continue;
-            if (best) |b| {
-                if (m.generated_line > b.generated_line or
-                    (m.generated_line == b.generated_line and m.generated_column > b.generated_column))
-                {
-                    best = m;
-                }
-            } else {
+
+        while (low < high) {
+            const mid = low + (high - low) / 2;
+            const m = self.entries[mid];
+
+            if (m.generated_line < line or (m.generated_line == line and m.generated_column <= column)) {
                 best = m;
+                low = mid + 1;
+            } else {
+                high = mid;
             }
         }
+
         if (best) |b| {
             const col_offset = if (b.generated_line == line) column - b.generated_column else 0;
             return .{
