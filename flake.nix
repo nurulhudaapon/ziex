@@ -25,7 +25,7 @@
           text = ''
             tmp="$(mktemp -d)"
             trap 'rm -rf "$tmp"' EXIT
-            (cd "${src}" && ZIG_LOCAL_CACHE_DIR="$tmp" zig build -p "$tmp" -Doptimize=Debug)
+            (cd "${src}" && ZIG_LOCAL_CACHE_DIR="$tmp" zig build -p "$tmp" -Doptimize=Debug -Dexclude-lsp=true)
             "$tmp/bin/zx" "$@"
             '';
         }) + "/bin/zx";
