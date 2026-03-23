@@ -6,6 +6,8 @@
     .dependencies = .{
         .ziex = .{ .path = "../" },
         .playground = .{ .path = "../pkg/playground" },
+        .bunjs = .{ .path = "../pkg/plugin-bun" },
+        .tailwindcss = .{ .path = "../pkg/plugin-tailwindcss" },
     },
     .paths = .{
         "build.zig",

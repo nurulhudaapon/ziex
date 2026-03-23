@@ -1,0 +1,12 @@
+.{
+    .name = .bunjs_example,
+    .version = "0.0.1",
+    .dependencies = .{
+        .bunjs = .{
+            .path = "../",
+        },
+    },
+    .minimum_zig_version = "0.15.2",
+    .paths = .{""},
+    .fingerprint = 0xaffdac6f841f3572,
+}

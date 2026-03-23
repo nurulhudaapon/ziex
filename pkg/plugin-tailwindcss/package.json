@@ -1,0 +1,7 @@
+{
+  "name": "tailwindcss",
+  "module": "src/builder.ts",
+  "devDependencies": {
+    "@types/node": "latest"
+  }
+}

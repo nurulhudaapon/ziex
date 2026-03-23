@@ -333,7 +333,7 @@ pub fn initInner(
         "main.wasm",
     );
 
-    install_wasm.step.name = b.fmt("install {s} - client", .{exe.name});
+    install_wasm.step.name = b.fmt("install {s} {s}client{s}", .{ exe.name, colors.dim, colors.reset });
 
     b.default_step.dependOn(&install_wasm.step);
 
@@ -493,4 +493,9 @@ pub const Build = struct {
     pub fn addElement(self: *Build, options: AddElementOptions) void {
         self.injections_step.add(options);
     }
+};
+
+const colors = struct {
+    pub const dim: []const u8 = "\x1b[2m";
+    pub const reset: []const u8 = "\x1b[0m";
 };
