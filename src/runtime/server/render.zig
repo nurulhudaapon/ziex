@@ -1,10 +1,8 @@
 const std = @import("std");
 const zx = @import("../../root.zig");
 const registry = @import("registry.zig");
-const zx_options = @import("zx_options");
 const zx_injections = @import("zx_injections");
 
-// TODO: make the build system generate simple zon file matching our Component.Element struct and render comptime in here
 const ElementInjection = struct {
     const head_starting: []const u8 = zx_injections.head_starting;
     const head_ending: []const u8 = zx_injections.head_ending;
