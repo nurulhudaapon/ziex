@@ -44,34 +44,16 @@ const Item = struct { id: u32, label: []const u8 };
 const RowProps = struct { item: Item };
 
 fn Row(ctx: *zx.ComponentCtx(RowProps)) zx.Component {
-    const Handler = struct {
-        fn onSelect(h_ctx: *anyopaque, _: zx.client.Event) void {
-            selected = @intCast(@intFromPtr(h_ctx));
-            zx.rerender();
-        }
-        fn onRemove(h_ctx: *anyopaque, _: zx.client.Event) void {
-            const id: u32 = @intCast(@intFromPtr(h_ctx));
-            for (items.items, 0..) |item, i| {
-                if (item.id == id) {
-                    _ = items.orderedRemove(i);
-                    break;
-                }
-            }
-            zx.rerender();
-        }
-    };
-
     const is_selected = selected == ctx.props.item.id;
-    const ctx_ptr: *anyopaque = @ptrFromInt(ctx.props.item.id);
 
     return (
         <tr key={ctx.props.item.id} @allocator={ctx.allocator} class={if(is_selected) "danger" else ""}>
             <td class="col-md-1">{ctx.props.item.id}</td>
             <td class="col-md-4">
-                <a onclick={zx.EventHandler{ .callback = Handler.onSelect, .context = ctx_ptr }}>{ctx.props.item.label}</a>
+                <a onclick={ctx.bind(onSelect)}>{ctx.props.item.label}</a>
             </td>
             <td class="col-md-1">
-                <a onclick={zx.EventHandler{ .callback = Handler.onRemove, .context = ctx_ptr }}>
+                <a onclick={ctx.bind(onRemove)}>
                     <span class="glyphicon glyphicon-remove" aria-hidden="true" />
                 </a>
             </td>
@@ -80,7 +62,7 @@ fn Row(ctx: *zx.ComponentCtx(RowProps)) zx.Component {
     );
 }
 
-const ButtonProps = struct { onclick: *const fn (zx.client.Event) void, title: []const u8, id: []const u8 };
+const ButtonProps = struct { onclick: *const fn (*zx.client.Event) void, title: []const u8, id: []const u8, };
 
 fn Button(ctx: *zx.ComponentCtx(ButtonProps)) zx.Component {
     return (
@@ -96,29 +78,49 @@ var next_id: u32 = 1;
 var selected: u32 = 0;
 var items = std.ArrayList(Item).empty;
 
-fn clearRows(_: zx.client.Event) void {
+fn clearRows(_: *zx.client.Event) void {
     items.clearRetainingCapacity();
     selected = 0;
-    zx.rerender();
+    zx.client.rerender();
 }
 
-fn swapRows(_: zx.client.Event) void {
+fn swapRows(_: *zx.client.Event) void {
     if (items.items.len > 998) {
         const tmp = items.items[1];
         items.items[1] = items.items[998];
         items.items[998] = tmp;
-        zx.rerender();
+        zx.client.rerender();
     }
 }
 
-fn updateRows(_: zx.client.Event) void {
+fn updateRows(_: *zx.client.Event) void {
     var i: usize = 0;
     while (i < items.items.len) : (i += 10) {
         const item = &items.items[i];
         const new_label = std.fmt.allocPrint(zx.client_allocator, "{s} !!!", .{item.label}) catch @panic("OOM");
         item.label = new_label;
     }
-    zx.rerender();
+    zx.client.rerender();
+}
+
+fn onSelect(ctx: *zx.client.Event.Stateful) void {
+    const item_state = ctx.state(Item);
+    const current = item_state.get();
+    selected = current.id;
+}
+
+fn onRemove(ctx: *zx.client.Event.Stateful) void {
+    const item_state = ctx.state(Item);
+    const item = item_state.get();
+    const id = item.id;
+
+    for (items.items, 0..) |itm, i| {
+        if (itm.id == id) {
+            _ = items.orderedRemove(i);
+            break;
+        }
+    }
+    zx.client.rerender();
 }
 
 var seed: u32 = 12345;
@@ -178,17 +180,17 @@ fn BuildRows(count_to_add: u32, clear_first: bool) void {
         next_id += 1;
     }
 
-    zx.rerender();
+    zx.client.rerender();
 }
 
-fn create_rows(_: zx.client.Event) void {
+fn create_rows(_: *zx.client.Event) void {
     BuildRows(1000, true);
 }
-fn create_large_rows(_: zx.client.Event) void {
+fn create_large_rows(_: *zx.client.Event) void {
     BuildRows(10000, true);
 }
 
-fn append_rows(_: zx.client.Event) void {
+fn append_rows(_: *zx.client.Event) void {
     BuildRows(1000, false);
 }
 

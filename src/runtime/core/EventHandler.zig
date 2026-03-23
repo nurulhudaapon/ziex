@@ -154,6 +154,20 @@ pub fn runtime(func: *const fn (zx.client.Event) void) Self {
     };
 }
 
+/// Helper to create an EventHandler from a runtime function pointer with pointer receiver
+pub fn runtimePtr(func: *const fn (*zx.client.Event) void) Self {
+    return .{
+        .callback = &struct {
+            fn w(ctx: *anyopaque, event: zx.client.Event) void {
+                const f: *const fn (*zx.client.Event) void = @ptrCast(@alignCast(ctx));
+                var e = event;
+                f(&e);
+            }
+        }.w,
+        .context = @ptrCast(@constCast(func)),
+    };
+}
+
 /// Stateless client handler: fn(*zx.client.Event) void
 pub fn client(comptime handler: anytype) Self {
     const Wrap = struct {

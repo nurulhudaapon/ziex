@@ -62,12 +62,15 @@ fn main_wasm() !void {
     // --- Sub Command --- //
     var is_transpile = false;
     var is_fmt = false;
+    var is_lsp = false;
 
     _ = args.next(); // Drop executable name
 
     const sub_cmd = args.next() orelse return error.InvalidCommand;
     if (std.mem.eql(u8, sub_cmd, "transpile")) is_transpile = true;
     if (std.mem.eql(u8, sub_cmd, "fmt")) is_fmt = true;
+    if (std.mem.eql(u8, sub_cmd, "lsp")) is_lsp = true;
+    if (is_lsp) return try lsp.main();
 
     var files = std.ArrayList([]const u8).empty;
 

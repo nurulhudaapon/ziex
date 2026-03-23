@@ -146,6 +146,15 @@ pub fn initInner(
     for (opts.element_injections) |inj| {
         injections_step.add(inj);
     }
+    // Inject wasm preload link tag into head
+    injections_step.add(.{
+        .parent = .head,
+        .position = .ending,
+        .element = .{
+            .tag = "link",
+            .attributes = "id=\"__$wasmlink\" rel=\"preload\" as=\"fetch\" href=\"/assets/_/main.wasm?" ++ build_zon.version ++ "\" crossorigin",
+        },
+    });
     // Inject jsglue script tag via the build system
     injections_step.add(.{
         .parent = .body,
@@ -164,20 +173,27 @@ pub fn initInner(
 
     // --- Static Directory Setup --- //
     {
-        const install_static = b.addInstallDirectory(.{
-            .source_dir = opts.site_path.path(b, "public"),
-            .install_dir = .prefix,
-            .install_subdir = "static",
-        });
-        exe.step.dependOn(&install_static.step);
+        // Install public directory into static (only if the directory exists)
+        const public_abs_path = opts.site_path.path(b, "public").getPath(b);
+        if (std.fs.accessAbsolute(public_abs_path, .{})) |_| {
+            const install_static = b.addInstallDirectory(.{
+                .source_dir = opts.site_path.path(b, "public"),
+                .install_dir = .prefix,
+                .install_subdir = "static",
+            });
+            exe.step.dependOn(&install_static.step);
+        } else |_| {}
 
-        // Also install the generated assets into static/assets
-        const install_assets = b.addInstallDirectory(.{
-            .source_dir = transpile_outdir.path(b, "assets"),
-            .install_dir = .prefix,
-            .install_subdir = "static/assets",
-        });
-        exe.step.dependOn(&install_assets.step);
+        // Also install the generated assets into static/assets (only if the directory exists)
+        const assets_abs_path = opts.site_path.path(b, "assets").getPath(b);
+        if (std.fs.accessAbsolute(assets_abs_path, .{})) |_| {
+            const install_assets = b.addInstallDirectory(.{
+                .source_dir = opts.site_path.path(b, "assets"),
+                .install_dir = .prefix,
+                .install_subdir = "static/assets",
+            });
+            exe.step.dependOn(&install_assets.step);
+        } else |_| {}
 
         // Install jsglue (wasm/init.js) from ziex_js package to static/assets/_/main.js
         const install_jsglue = b.addInstallFileWithDir(
@@ -297,8 +313,7 @@ pub fn initInner(
     const wasm_binpath = wasm_exe.getEmittedBin();
     const install_wasm = b.addInstallFileWithDir(
         wasm_binpath,
-        // TODO: move to using "static/assets/_/*" with hashed generated files
-        .{ .custom = "static/assets" },
+        .{ .custom = "static/assets/_" },
         "main.wasm",
     );
 
