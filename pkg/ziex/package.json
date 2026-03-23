@@ -5,6 +5,10 @@
   "description": "ZX is a framework for building web applications with Zig.",
   "main": "src/index.ts",
   "type": "module",
+  "bin": {
+    "ziex": "bin/ziex",
+    "zx": "bin/ziex"
+  },
   "exports": {
     ".": "./index.js",
     "./react": "./react/index.js",
@@ -38,7 +42,8 @@
     "build": "bun run script/build.ts",
     "publish": "bun run build && cd dist && bun publish",
     "fmt": "prettier --write . '!test/files/**' '!README.md'",
-    "check": "tsc"
+    "check": "tsc",
+    "postinstall": "node install.js"
   },
   "devDependencies": {
     "@types/bun": "latest",
@@ -59,6 +64,14 @@
     "react-dom": {
       "optional": true
     }
+  },
+  "optionalDependencies": {
+    "@ziex/cli-darwin-arm64": "0.1.0-dev.805",
+    "@ziex/cli-darwin-x64": "0.1.0-dev.805",
+    "@ziex/cli-linux-x64": "0.1.0-dev.805",
+    "@ziex/cli-linux-arm64": "0.1.0-dev.805",
+    "@ziex/cli-win32-x64": "0.1.0-dev.805",
+    "@ziex/cli-win32-arm64": "0.1.0-dev.805"
   },
   "release": {
     "plugins": [

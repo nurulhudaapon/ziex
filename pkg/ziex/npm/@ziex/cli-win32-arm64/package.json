@@ -1,0 +1,17 @@
+{
+  "name": "@ziex/cli-win32-arm64",
+  "version": "0.0.0",
+  "description": "ziex CLI binary for Windows ARM64",
+  "os": ["win32"],
+  "cpu": ["arm64"],
+  "bin": {
+    "zx": "bin/zx.exe",
+    "ziex": "bin/zx.exe"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ziex-dev/ziex.git"
+  },
+  "license": "MIT",
+  "preferUnplugged": true
+}

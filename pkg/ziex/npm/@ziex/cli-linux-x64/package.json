@@ -1,0 +1,17 @@
+{
+  "name": "@ziex/cli-linux-x64",
+  "version": "0.0.0",
+  "description": "ziex CLI binary for Linux x64",
+  "os": ["linux"],
+  "cpu": ["x64"],
+  "bin": {
+    "zx": "bin/zx",
+    "ziex": "bin/zx"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ziex-dev/ziex.git"
+  },
+  "license": "MIT",
+  "preferUnplugged": true
+}

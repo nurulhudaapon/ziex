@@ -104,7 +104,7 @@ async function main() {
   pkgJson.repository = rootPackageJson.repository;
   pkgJson.author = rootPackageJson.author;
   pkgJson.license = rootPackageJson.license;
-  pkgJson.scripts = undefined;
+  pkgJson.scripts = { postinstall: "node install.js" };
   pkgJson.devDependencies = undefined;
   pkgJson.peerDependencies = undefined;
   pkgJson.private = undefined;
@@ -119,6 +119,11 @@ async function main() {
   copyFileSync(rootReadmePath, join(pkgDistDir, "README.md"));
   copyFileSync(join(pkgDir, "build.zig.zon"), join(pkgDistDir, "build.zig.zon"));
   copyFileSync(join(pkgDir, "build.zig"), join(pkgDistDir, "build.zig"));
+
+  // Copy CLI files to dist
+  mkdirSync(join(pkgDistDir, "bin"), { recursive: true });
+  copyFileSync(join(pkgDir, "install.js"), join(pkgDistDir, "install.js"));
+  copyFileSync(join(pkgDir, "bin/ziex"), join(pkgDistDir, "bin/ziex"));
   
   console.log(`\x1b[32m✅ ${pkgName} - Done\x1b[0m\n`);
   builtPackages.push(pkgName);

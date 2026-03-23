@@ -1,0 +1,24 @@
+#!/usr/bin/env node
+
+// This is a placeholder stub that gets replaced by the postinstall script
+// with the actual native binary. If you're seeing this, the postinstall
+// script didn't run. Try reinstalling: npm install -g ziex
+
+const { execFileSync } = require("child_process");
+const path = require("path");
+
+const exe = process.platform === "win32" ? "ziex.exe" : "ziex";
+const binPath = path.join(__dirname, exe);
+
+try {
+  execFileSync(binPath, process.argv.slice(2), { stdio: "inherit" });
+} catch (e) {
+  if (e.status !== undefined) {
+    process.exit(e.status);
+  }
+  console.error(
+    "Error: ziex native binary not found. The postinstall script may not have run.",
+  );
+  console.error("Try reinstalling: npm install -g ziex");
+  process.exit(1);
+}
