@@ -106,7 +106,7 @@ test "init -t react" {
 //     // Kill anything on that port (cross-platform)
 //     killPort(port) catch {};
 
-//     var build_child = std.process.Child.init(&.{ "zig", "build" }, allocator);
+//     var build_child = std.process.Child.init(&.{ cli_options.zig_exe, "build" }, allocator);
 //     build_child.cwd = test_dir_abs;
 //     build_child.stdout_behavior = .Ignore;
 //     build_child.stderr_behavior = .Ignore;
@@ -160,7 +160,7 @@ test "init → build" {
     defer build_zig_zon.close();
     try build_zig_zon.writeFile(.{ .sub_path = build_zig_zon_path, .data = local_zon_str });
 
-    var build_child = std.process.Child.init(&.{ "zig", "build" }, allocator);
+    var build_child = std.process.Child.init(&.{ cli_options.zig_exe, "build" }, allocator);
     build_child.cwd = test_dir_abs;
     // build_child.stdout_behavior = .Ignore;
     // build_child.stderr_behavior = .Ignore;
@@ -191,7 +191,7 @@ test "init → build -t react" {
 
     const wasm_path = try std.fs.path.join(allocator, &.{ test_dir_abs, "react" });
     defer allocator.free(wasm_path);
-    var build_child = std.process.Child.init(&.{ "zig", "build" }, allocator);
+    var build_child = std.process.Child.init(&.{ cli_options.zig_exe, "build" }, allocator);
     build_child.cwd = wasm_path;
     // build_child.stdout_behavior = .Ignore;
     // build_child.stderr_behavior = .Ignore;
@@ -488,4 +488,5 @@ const test_util = @import("./../util.zig");
 
 const std = @import("std");
 const zx = @import("zx");
+const cli_options = @import("cli_options");
 const builtin = @import("builtin");

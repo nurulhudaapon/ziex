@@ -57,7 +57,7 @@ fn dev(ctx: zli.CommandContext) !void {
     var build_args = std.mem.splitSequence(u8, build_args_str, " ");
 
     var build_args_array = std.ArrayList([]const u8).empty;
-    try build_args_array.appendSlice(allocator, &.{ "zig", "build" });
+    try build_args_array.appendSlice(allocator, &.{ cli_options.zig_exe, "build" });
     while (build_args.next()) |arg| {
         const trimmed_arg = std.mem.trim(u8, arg, " ");
         if (std.mem.eql(u8, trimmed_arg, "")) continue;
@@ -483,6 +483,7 @@ fn colorizeErrorLine(allocator: std.mem.Allocator, result: *std.ArrayList(u8), l
 const std = @import("std");
 const zli = @import("zli");
 const zx = @import("zx");
+const cli_options = @import("cli_options");
 const builtin = @import("builtin");
 
 const util = @import("shared/util.zig");

@@ -59,6 +59,10 @@ pub fn build(b: *std.Build) !void {
     zx_wasm_mod.addAnonymousImport("zx_meta", .{ .root_source_file = b.path("src/build/stub_meta.zig"), .imports = &.{.{ .name = "zx", .module = zx_wasm_mod }} });
     zx_wasm_mod.addAnonymousImport("zx_injections", .{ .root_source_file = b.path("src/build/stubs/injections.zig") });
 
+    // --- ZX CLI Options (Dev) --- //
+    const cli_options_dev = b.addOptions();
+    cli_options_dev.addOption([]const u8, "zig_exe", b.graph.zig_exe);
+
     // --- ZX CLI (Transpiler, Exporter, Dev Server) --- //
     const zli_dep = b.dependency("zli", .{ .target = target, .optimize = optimize });
     const zls_dep = b.dependency("zls", .{ .target = target, .optimize = optimize });
@@ -67,6 +71,7 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
+            .{ .name = "cli_options", .module = cli_options_dev.createModule() },
             .{ .name = "zx", .module = mod },
             .{ .name = "zli", .module = zli_dep.module("zli") },
         },
@@ -100,6 +105,7 @@ pub fn build(b: *std.Build) !void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
+                .{ .name = "cli_options", .module = cli_options_dev.createModule() },
                 .{ .name = "zx", .module = mod },
             },
         });
@@ -150,6 +156,10 @@ pub fn build(b: *std.Build) !void {
 
         const release_step = b.step("release", "Build release binaries for all targets");
 
+        // --- ZX CLI Options (Release) --- //
+        const cli_options_rel = b.addOptions();
+        cli_options_rel.addOption([]const u8, "zig_exe", "zig");
+
         for (release_targets) |release_target| {
             const resolved_target = b.resolveTargetQuery(release_target.target);
 
@@ -173,6 +183,7 @@ pub fn build(b: *std.Build) !void {
                     .target = resolved_target,
                     .optimize = .ReleaseSafe,
                     .imports = &.{
+                        .{ .name = "cli_options", .module = cli_options_rel.createModule() },
                         .{ .name = "zx", .module = release_mod },
                         .{ .name = "zli", .module = zli_dep.module("zli") },
                         .{ .name = "zls", .module = release_zls_dep.module("zls") },

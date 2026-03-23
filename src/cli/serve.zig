@@ -30,7 +30,7 @@ fn serve(ctx: zli.CommandContext) !void {
     const binpath = ctx.flag("binpath", []const u8);
 
     var build_args = std.ArrayList([]const u8).empty;
-    try build_args.appendSlice(ctx.allocator, &.{ "zig", "build", "serve" });
+    try build_args.appendSlice(ctx.allocator, &.{ cli_options.zig_exe, "build", "serve" });
 
     var i_build_args = std.mem.splitSequence(u8, ctx.flag("build-args", []const u8), " ");
     while (i_build_args.next()) |arg| {
@@ -66,4 +66,5 @@ const zli = @import("zli");
 const util = @import("shared/util.zig");
 const flags = @import("shared/flag.zig");
 const jsutil = @import("shared/js.zig");
+const cli_options = @import("cli_options");
 const log = std.log.scoped(.cli);
