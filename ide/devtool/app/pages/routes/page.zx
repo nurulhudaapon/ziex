@@ -45,7 +45,7 @@ fn onFetchText(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
             routes = zx.util.zxon.parse([]const AppRoute, zx.client_allocator, p, .{}) catch return;
         } else |_| {}
     }
-    zx.rerender();
+    zx.client.rerender();
 }
 
 
@@ -98,7 +98,7 @@ pub fn ComponentSearchInput(
 
 pub fn handleComponentSearchInput(ctx: zx.client.Event) void {
     inputvalue = ctx.value() orelse "";
-    zx.rerender();
+    zx.client.rerender();
 }
 
 fn routeMatchesSearch(path: []const u8, method: []const u8) bool {

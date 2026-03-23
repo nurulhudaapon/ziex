@@ -115,7 +115,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
 
     log.debug("Copying public directory! {s}", .{appoutdir});
 
-    util.copydirs(ctx.allocator, appoutdir, &.{ "public", "assets" }, outdir, true, &printer) catch |err| {
+    util.copydirs(ctx.allocator, appoutdir, &.{"."}, outdir, false, &printer) catch |err| {
         std.log.err("Failed to copy public directory: {any}", .{err});
         // return err;
     };

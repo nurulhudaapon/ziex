@@ -41,9 +41,16 @@ pub fn build(b: *std.Build) void {
     run_tar.addDirectoryArg(zig_dep.path("."));
     run_tar.addArg("lib/std");
 
-    // -- zx.tar.gz
+    // -- zx.tar.gz (only include files needed for playground compilation)
     const run_zx_tar = b.addSystemCommand(&.{ "tar", "-czf" });
     const zx_tar_gz = run_zx_tar.addOutputFileArg("zx.tar.gz");
+    run_zx_tar.addArgs(&.{
+        "--exclude", "src/cli",
+        "--exclude", "src/lsp",
+        "--exclude", "src/tui",
+        "--exclude", "src/build",
+        "--exclude", "src/main.zig",
+    });
     run_zx_tar.addArg("-C");
     run_zx_tar.addDirectoryArg(zx_dep.path("."));
     run_zx_tar.addArg("src");

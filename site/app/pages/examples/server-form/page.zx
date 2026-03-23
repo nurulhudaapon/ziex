@@ -10,7 +10,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 pub fn LoginForm(ctx: *zx.ComponentContext) zx.Component {
     const msg = ctx.state([]const u8, "Please log in");
     return (
-        <form @allocator={ctx.allocator} action={handleLogin}>
+        <form @allocator={ctx.allocator} action={ctx.bind(handleSubmit)}>
             <p>{msg}</p>
             <input placeholder="Enter name" name="name" defaultValue="John Doe" required />
             <input placeholder="Enter ID" name="id" defaultValue="123" required />

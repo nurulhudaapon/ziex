@@ -1,0 +1,10 @@
+.{
+    .name = .tailwindcss_example,
+    .version = "0.0.0",
+    .dependencies = .{
+        .tailwindcss = .{ .path = "../" },
+    },
+    .minimum_zig_version = "0.15.2",
+    .paths = .{""},
+    .fingerprint = 0xcd7026e9d9cdd9ae,
+}

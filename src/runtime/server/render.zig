@@ -1,19 +1,6 @@
 const std = @import("std");
 const zx = @import("../../root.zig");
 const registry = @import("registry.zig");
-const zx_options = @import("zx_options");
-const zx_injections = @import("zx_injections");
-
-// TODO: make the build system generate simple zon file matching our Component.Element struct and render comptime in here
-const ElementInjection = struct {
-    const head_starting: []const u8 = zx_injections.head_starting;
-    const head_ending: []const u8 = zx_injections.head_ending;
-    const body_starting: []const u8 = zx_injections.body_starting;
-    const body_ending: []const u8 = zx_injections.body_ending;
-
-    const has_injections: bool = head_starting.len > 0 or head_ending.len > 0 or
-        body_starting.len > 0 or body_ending.len > 0;
-};
 
 /// Set by handler.zig before calling render/stream so that any ActionContext
 /// handlers encountered during the render pass are registered for this route.
@@ -278,17 +265,6 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
                 try writer.writeAll("<input type=\"hidden\" name=\"__$action\" value=\"1\">");
             }
 
-            // Comptime element injection: emit pre-baked HTML right after the opening tag
-            if (comptime ElementInjection.has_injections) {
-                if (elem.tag == .head) {
-                    if (comptime ElementInjection.head_starting.len > 0)
-                        try writer.writeAll(ElementInjection.head_starting);
-                } else if (elem.tag == .body) {
-                    if (comptime ElementInjection.body_starting.len > 0)
-                        try writer.writeAll(ElementInjection.body_starting);
-                }
-            }
-
             // Render children (recursively collect slots if needed)
             if (elem.children) |children| {
                 // Use element's escaping setting if set, otherwise inherit from parent
@@ -300,17 +276,6 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
                 };
                 for (children) |child| {
                     try renderInner(child, writer, child_options);
-                }
-            }
-
-            // Comptime element injection: emit pre-baked HTML right before the closing tag
-            if (comptime ElementInjection.has_injections) {
-                if (elem.tag == .head) {
-                    if (comptime ElementInjection.head_ending.len > 0)
-                        try writer.writeAll(ElementInjection.head_ending);
-                } else if (elem.tag == .body) {
-                    if (comptime ElementInjection.body_ending.len > 0)
-                        try writer.writeAll(ElementInjection.body_ending);
                 }
             }
 

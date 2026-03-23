@@ -201,5 +201,5 @@ pub fn NativeElementsSetting(
 pub fn handleNativeElementsToggle(_: zx.client.Event) void {
     data.show_native_elements = !data.show_native_elements;
     data.saveSettings();
-    zx.rerender();
+    zx.client.rerender();
 }

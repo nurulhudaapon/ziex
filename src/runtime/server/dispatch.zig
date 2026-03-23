@@ -70,12 +70,29 @@ pub fn dispatchAction(
 
     const is_js = request.headers.has("x-zx-action");
 
+    // TODO: cleanup
+    // const sr = request.multiFormData().getValue("__$states") orelse "null";
+
+    // std.debug.print("IsJS: {}\nStates: {s}", .{ is_js, sr });
+
+    // Parse state inputs for stateful actions.
+    // JS path (X-ZX-Action header): states are the entire JSON body.
+    // Form path (_submitFormActionAsync): states are in the __$states multipart field.
+    const action_inputs: ?[]const []const u8 = if (false) blk: {
+        const body_text = request.text() orelse break :blk null;
+        break :blk zx.util.zxon.parse([]const []const u8, arena, body_text, .{}) catch null;
+    } else blk: {
+        const states_raw = request.multiFormData().getValue("__$states") orelse break :blk null;
+        break :blk zx.util.zxon.parse([]const []const u8, arena, states_raw, .{}) catch null;
+    };
+
     if (registry.get(route_path)) |action_fn| {
-        var action_ctx = zx.ActionContext{
+        var action_ctx = zx.server.Action{
             .request = request,
             .response = response,
             .allocator = allocator,
             .arena = arena,
+            ._inputs = action_inputs,
         };
         action_fn(&action_ctx);
         const body = if (action_ctx._state_ctx) |sc| try serializeStateOutputs(sc, allocator) else null;
@@ -90,11 +107,12 @@ pub fn dispatchAction(
     }
 
     if (registry.get(route_path)) |action_fn| {
-        var action_ctx = zx.ActionContext{
+        var action_ctx = zx.server.Action{
             .request = request,
             .response = response,
             .allocator = allocator,
             .arena = arena,
+            ._inputs = action_inputs,
         };
         action_fn(&action_ctx);
         const body = if (action_ctx._state_ctx) |sc| try serializeStateOutputs(sc, allocator) else null;

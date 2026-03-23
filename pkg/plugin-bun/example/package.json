@@ -1,0 +1,8 @@
+{
+  "name": "plugin-bun-example",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

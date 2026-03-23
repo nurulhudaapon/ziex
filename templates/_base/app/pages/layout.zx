@@ -3,6 +3,7 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
         <html @allocator={ctx.arena} lang="en-US">
             <head>
                 <meta charset="UTF-8" />
+                <meta name="viewport" content="width=device-width, initial-scale=1.0" />
                 <title>Ziex</title>
                 <link rel="stylesheet" href="/assets/style.css" />
             </head>

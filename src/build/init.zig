@@ -21,6 +21,12 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     const zx_host_dep = b.dependencyFromBuildZig(build_zig, .{
         .optimize = options.cli.optimize, // Always in release mode for faster transpilation
         // No target = host target, so zx CLI can execute during build
+        .@"exclude-lsp" = true, // Skip LSP for faster build-time transpilation
+    });
+
+    // Full CLI dep (includes LSP) for the `zig build zx` step
+    const zx_full_dep = b.dependencyFromBuildZig(build_zig, .{
+        .optimize = options.cli.optimize,
     });
 
     const zx_wasm_dep = b.dependencyFromBuildZig(build_zig, .{
@@ -31,6 +37,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     const zx_module = zx_dep.module("zx");
     const zx_wasm_module = zx_wasm_dep.module("zx_wasm");
     const zx_exe = zx_host_dep.artifact("zx");
+    const zx_full_exe = zx_full_dep.artifact("zx");
     const ziex_js_dep = zx_dep.builder.dependency("ziex_js", .{});
 
     var opts: InitInnerOptions = .{
@@ -43,6 +50,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         .static_path = options.static_path,
         .data_path = options.data_path,
         .ziex_js_dep = ziex_js_dep,
+        .version = options.version,
     };
 
     if (options.app) |site_opts| {
@@ -56,7 +64,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         opts.steps = cli_steps;
     }
 
-    return initInner(b, exe, zx_exe, zx_module, zx_wasm_module, opts);
+    return initInner(b, exe, zx_exe, zx_full_exe, zx_module, zx_wasm_module, opts);
 }
 
 const InitInnerOptions = struct {
@@ -70,6 +78,7 @@ const InitInnerOptions = struct {
     data_path: ?LazyPath,
     ziex_js_dep: *std.Build.Dependency,
     element_injections: []const AddElementOptions = &.{},
+    version: ?[]const u8 = null,
 };
 
 fn getZxRun(b: *std.Build, zx_exe: *std.Build.Step.Compile, opts: InitInnerOptions) *std.Build.Step.Run {
@@ -97,12 +106,28 @@ pub fn initInner(
     b: *std.Build,
     exe: *std.Build.Step.Compile,
     zx_exe: *std.Build.Step.Compile,
+    zx_full_exe: *std.Build.Step.Compile,
     zx_module: *std.Build.Module,
     zx_wasm_module: *std.Build.Module,
     opts: InitInnerOptions,
 ) !Build {
     // const target = exe.root_module.resolved_target;
     const optimize = exe.root_module.optimize;
+    const build_zon = @import("../../build.zig.zon");
+
+    // --- ZX Options --- //
+    const zx_options = b.addOptions();
+    zx_options.addOption(?[]const u8, "jsglue_href", opts.client.jsglue_href);
+    zx_module.addOptions("zx_options", zx_options);
+
+    // --- Dirs Setup --- //
+    const static_lazypath: LazyPath = if (opts.static_path) |p| p else .{ .cwd_relative = b.pathJoin(&.{ b.install_path, "static" }) };
+    const staticdir = static_lazypath.getPath(b);
+    const assetsdir = static_lazypath.path(b, "assets");
+    const datadir = if (opts.data_path) |p| p.getPath(b) else b.pathJoin(&.{ b.install_path, "data" });
+
+    zx_options.addOption([]const u8, "staticdir", staticdir);
+    zx_options.addOption([]const u8, "datadir", datadir);
 
     // --- ZX Transpilation ---
     const transpile_cmd = getZxRun(b, zx_exe, opts);
@@ -111,52 +136,89 @@ pub fn initInner(
     transpile_cmd.addDirectoryArg(opts.site_path);
     transpile_cmd.addArg("--outdir");
     const transpile_outdir = getTranspileOutdir(transpile_cmd, opts);
+    transpile_cmd.addArg("--rootdir");
+    transpile_cmd.addDirectoryArg(static_lazypath);
     if (opts.copy_embedded_sources) {
         transpile_cmd.addArg("--copy-embedded-sources");
     }
     transpile_cmd.expectExitCode(0);
 
-    // --- ZX Options --- //
-    const zx_options = b.addOptions();
-    zx_options.addOption(?[]const u8, "jsglue_href", opts.client.jsglue_href);
+    const zxjs_default_href = "/assets/_/main.js";
+    var zxjs_href = opts.client.jsglue_href orelse zxjs_default_href;
+    // --- Static Directory Setup --- //
+    {
+        // Install public directory into static (only if the directory exists)
+        const public_abs_path = opts.site_path.path(b, "public").getPath(b);
+        if (std.fs.accessAbsolute(public_abs_path, .{})) |_| {
+            const install_static = b.addInstallDirectory(.{
+                .source_dir = opts.site_path.path(b, "public"),
+                .install_dir = .prefix,
+                .install_subdir = "static",
+            });
+            exe.step.dependOn(&install_static.step);
+        } else |_| {}
 
-    const staticdir = if (opts.static_path) |p| p.getPath(b) else b.pathJoin(&.{ b.install_path, "static" });
-    const datadir = if (opts.data_path) |p| p.getPath(b) else b.pathJoin(&.{ b.install_path, "data" });
+        // Also install the generated assets into static/assets (only if the directory exists)
+        const assets_abs_path = opts.site_path.path(b, "assets").getPath(b);
+        if (std.fs.accessAbsolute(assets_abs_path, .{})) |_| {
+            const install_assets = b.addInstallDirectory(.{
+                .source_dir = opts.site_path.path(b, "assets"),
+                .install_dir = .prefix,
+                .install_subdir = "static/assets",
+            });
+            exe.step.dependOn(&install_assets.step);
+        } else |_| {}
 
-    zx_options.addOption([]const u8, "staticdir", staticdir);
-    zx_options.addOption([]const u8, "datadir", datadir);
+        var local_zxjs_path: ?LazyPath = opts.ziex_js_dep.path("wasm/init.js");
 
-    zx_module.addOptions("zx_options", zx_options);
+        if (opts.client.jsglue_href) |jsglue_href| {
+            const is_remote = std.mem.startsWith(u8, jsglue_href, "http://") or std.mem.startsWith(u8, jsglue_href, "https://");
+            if (is_remote) {
+                local_zxjs_path = null;
+                zxjs_href = jsglue_href;
+            }
+        }
+
+        if (local_zxjs_path) |local_path| {
+            // Install jsglue (wasm/init.js) from ziex_js package to static/assets/_/main.js
+            const install_jsglue = b.addInstallFileWithDir(
+                local_path,
+                .prefix,
+                "static" ++ zxjs_default_href,
+            );
+            exe.step.dependOn(&install_jsglue.step);
+        }
+    }
 
     // --- ZX Injections --- //
+    const version = opts.version orelse build_zon.version;
     const injections_step = try InjectionsGenStep.create(b);
     for (opts.element_injections) |inj| {
         injections_step.add(inj);
     }
+    // Inject wasm preload link tag into head
+    injections_step.add(.{
+        .parent = .head,
+        .position = .ending,
+        .element = .{
+            .tag = "link",
+            .attributes = b.fmt(
+                "id=\"__$wasmlink\" rel=\"preload\" as=\"fetch\" href=\"/assets/_/main.wasm?{s}\" crossorigin",
+                .{version},
+            ),
+        },
+    });
+    // Inject jsglue script tag via the build system
+    injections_step.add(.{ .parent = .body, .position = .ending, .element = .{
+        .tag = "script",
+        .attributes = b.fmt("src=\"{s}?{s}\"", .{ zxjs_href, version }),
+    } });
     zx_module.addAnonymousImport("zx_injections", .{
         .root_source_file = injections_step.getOutput(),
     });
     zx_wasm_module.addAnonymousImport("zx_injections", .{
         .root_source_file = injections_step.getOutput(),
     });
-
-    // --- Static Directory Setup --- //
-    {
-        const install_static = b.addInstallDirectory(.{
-            .source_dir = opts.site_path.path(b, "public"),
-            .install_dir = .prefix,
-            .install_subdir = "static",
-        });
-        exe.step.dependOn(&install_static.step);
-
-        // Also install the generated assets into static/assets
-        const install_assets = b.addInstallDirectory(.{
-            .source_dir = transpile_outdir.path(b, "assets"),
-            .install_dir = .prefix,
-            .install_subdir = "static/assets",
-        });
-        exe.step.dependOn(&install_assets.step);
-    }
 
     // --- ZX File Cache Invalidator ---
     watch: {
@@ -267,26 +329,12 @@ pub fn initInner(
     const wasm_binpath = wasm_exe.getEmittedBin();
     const install_wasm = b.addInstallFileWithDir(
         wasm_binpath,
-        // TODO: move to using "static/assets/_/*" with hashed generated files
-        .{ .custom = "static/assets" },
+        .{ .custom = "static/assets/_" },
         "main.wasm",
     );
 
-    // b.installDirectory(.{
-    //     .source_dir = wasm_exe.getEmittedBinDirectory(),
-    //     .install_dir = .prefix,
-    //     .install_subdir = "static/assets",
-    // });
+    install_wasm.step.name = b.fmt("install {s} {s}client{s}", .{ exe.name, colors.dim, colors.reset });
 
-    const post_transpile_cmd = getZxRun(b, zx_exe, opts);
-    post_transpile_cmd.addArgs(&.{"transpile"});
-    post_transpile_cmd.addFileArg(wasm_binpath);
-    post_transpile_cmd.addArgs(&.{ "--copy-only", "--outdir" });
-    post_transpile_cmd.addDirectoryArg(transpile_outdir.path(b, "assets"));
-    post_transpile_cmd.expectExitCode(0);
-    post_transpile_cmd.step.dependOn(&transpile_cmd.step);
-    post_transpile_cmd.step.dependOn(&wasm_exe.step);
-    b.default_step.dependOn(&post_transpile_cmd.step);
     b.default_step.dependOn(&install_wasm.step);
 
     // --- Steps: ZX (Root of ZX CLI) --- //
@@ -295,7 +343,7 @@ pub fn initInner(
             "zx",
             b.fmt("ZX CLI - \x1b[2m{s}\x1b[0m", .{"zig build zx -- <args>"}),
         );
-        const zx_cmd = b.addRunArtifact(zx_exe);
+        const zx_cmd = b.addRunArtifact(zx_full_exe);
         zx_step.dependOn(&zx_cmd.step);
         if (b.args) |args| zx_cmd.addArgs(args);
     }
@@ -347,7 +395,7 @@ pub fn initInner(
             .transpile = transpile_cmd,
         },
         .outdir = transpile_outdir,
-        .assetsdir = transpile_outdir.path(b, "assets"),
+        .assetsdir = assetsdir,
         .zx = .{
             .exe = zx_exe,
         },
@@ -445,4 +493,9 @@ pub const Build = struct {
     pub fn addElement(self: *Build, options: AddElementOptions) void {
         self.injections_step.add(options);
     }
+};
+
+const colors = struct {
+    pub const dim: []const u8 = "\x1b[2m";
+    pub const reset: []const u8 = "\x1b[0m";
 };

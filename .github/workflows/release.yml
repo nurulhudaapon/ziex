@@ -122,3 +122,78 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  sync-templates:
+    name: Sync & Release Templates
+    runs-on: ubuntu-latest
+    needs: create-release
+    if: github.event_name == 'release'
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+
+      - name: Setup Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync and release all templates
+        env:
+          GITHUB_TOKEN: ${{ secrets.SYNC_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          OWNER=$(echo $GITHUB_REPOSITORY | cut -d'/' -f1)
+          TAG="${{ github.event.release.tag_name }}"
+
+          # Update _base build.zig.zon to point to the release tag
+          cd templates/_base
+          zig fetch --save "git+https://github.com/ziex-dev/ziex#${TAG}"
+          cd ../..
+
+          ALL_TEMPLATES=$(ls -d templates/*/ | grep -v "_base" | xargs -n 1 basename)
+
+          for TEMPLATE in $ALL_TEMPLATES; do
+            REPO_NAME="template-${TEMPLATE}"
+            TEMP_DIR=$(mktemp -d)
+
+            echo "Syncing and releasing ${TEMPLATE} to ${REPO_NAME} at ${TAG}"
+
+            # Populate template with base files
+            bash ./tools/template.sh populate "${TEMPLATE}"
+
+            # Copy populated template to temp dir
+            cp -a "templates/${TEMPLATE}/." "$TEMP_DIR/"
+            [ ! -f "$TEMP_DIR/LICENSE" ] && [ -f LICENSE ] && cp LICENSE "$TEMP_DIR/"
+
+            cd "$TEMP_DIR"
+
+            # Initialize and push to main
+            git init -b main
+            git add .
+            git commit -m "release: ${TAG} from ziex-dev/ziex"
+
+            REMOTE_URL="https://x-access-token:${GITHUB_TOKEN}@github.com/$OWNER/$REPO_NAME.git"
+            git remote add origin "$REMOTE_URL"
+            git push -u origin main --force
+
+            # Create the release tag
+            git tag "$TAG"
+            git push origin "$TAG" --force
+
+            # Create a GitHub release for the template repo
+            gh release create "$TAG" \
+              --repo "$OWNER/$REPO_NAME" \
+              --title "$TAG" \
+              --notes "Release ${TAG} — synced from [ziex-dev/ziex@${TAG}](https://github.com/ziex-dev/ziex/releases/tag/${TAG})" \
+              || echo "Release $TAG may already exist for $REPO_NAME, skipping..."
+
+            cd -
+            rm -rf "$TEMP_DIR"
+          done
+

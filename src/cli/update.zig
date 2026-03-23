@@ -17,7 +17,7 @@ fn update(ctx: zli.CommandContext) !void {
     const fetch_uri = try std.fmt.allocPrint(ctx.allocator, "git+{s}{s}", .{ zx.info.repository, version_str });
     defer ctx.allocator.free(fetch_uri);
 
-    var system = std.process.Child.init(&.{ "zig", "fetch", "--save", fetch_uri }, ctx.allocator);
+    var system = std.process.Child.init(&.{ cli_options.zig_exe, "fetch", "--save", fetch_uri }, ctx.allocator);
     try system.spawn();
 
     const term = try system.wait();
@@ -35,3 +35,4 @@ const version_flag = zli.Flag{
 const std = @import("std");
 const zli = @import("zli");
 const zx = @import("zx");
+const cli_options = @import("cli_options");

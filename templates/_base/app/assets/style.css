@@ -53,3 +53,11 @@ button {
     width: 70px;
     display: inline-block;
 }
+
+.link-row {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+    margin: 20px;
+}

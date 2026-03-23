@@ -106,7 +106,7 @@ test "init -t react" {
 //     // Kill anything on that port (cross-platform)
 //     killPort(port) catch {};
 
-//     var build_child = std.process.Child.init(&.{ "zig", "build" }, allocator);
+//     var build_child = std.process.Child.init(&.{ cli_options.zig_exe, "build" }, allocator);
 //     build_child.cwd = test_dir_abs;
 //     build_child.stdout_behavior = .Ignore;
 //     build_child.stderr_behavior = .Ignore;
@@ -160,7 +160,7 @@ test "init → build" {
     defer build_zig_zon.close();
     try build_zig_zon.writeFile(.{ .sub_path = build_zig_zon_path, .data = local_zon_str });
 
-    var build_child = std.process.Child.init(&.{ "zig", "build" }, allocator);
+    var build_child = std.process.Child.init(&.{ cli_options.zig_exe, "build" }, allocator);
     build_child.cwd = test_dir_abs;
     // build_child.stdout_behavior = .Ignore;
     // build_child.stderr_behavior = .Ignore;
@@ -191,7 +191,7 @@ test "init → build -t react" {
 
     const wasm_path = try std.fs.path.join(allocator, &.{ test_dir_abs, "react" });
     defer allocator.free(wasm_path);
-    var build_child = std.process.Child.init(&.{ "zig", "build" }, allocator);
+    var build_child = std.process.Child.init(&.{ cli_options.zig_exe, "build" }, allocator);
     build_child.cwd = wasm_path;
     // build_child.stdout_behavior = .Ignore;
     // build_child.stderr_behavior = .Ignore;
@@ -352,15 +352,29 @@ fn test_cmd(options: TestCmdOptions) !void {
     }
 
     for (options.expected_stderr_strings) |expected_string| {
-        try std.testing.expect(std.mem.indexOf(u8, stderr.items, expected_string) != null);
+        if (std.mem.indexOf(u8, stderr.items, expected_string) == null) {
+            std.debug.print("\nExpected stderr to contain: '{s}'\nActual stderr:\n{s}\n", .{ expected_string, stderr.items });
+            return error.TestExpectedEqual;
+        }
     }
     for (options.expected_stdout_strings) |expected_string| {
-        try std.testing.expect(std.mem.indexOf(u8, stdout.items, expected_string) != null);
+        if (std.mem.indexOf(u8, stdout.items, expected_string) == null) {
+            std.debug.print("\nExpected stdout to contain: '{s}'\nActual stdout:\n{s}\n", .{ expected_string, stdout.items });
+            return error.TestExpectedEqual;
+        }
     }
     const exit_code = try child.wait();
     switch (exit_code) {
-        .Exited => |code| try std.testing.expectEqual(code, options.expected_exit_code),
-        else => try std.testing.expect(false),
+        .Exited => |code| {
+            if (code != options.expected_exit_code) {
+                std.debug.print("\nExpected exit code: {d}, got: {d}\nstderr:\n{s}\nstdout:\n{s}\n", .{ options.expected_exit_code, code, stderr.items, stdout.items });
+                return error.TestExpectedEqual;
+            }
+        },
+        else => {
+            std.debug.print("\nProcess terminated abnormally\nstderr:\n{s}\nstdout:\n{s}\n", .{ stderr.items, stdout.items });
+            return error.TestExpectedEqual;
+        },
     }
 
     for (options.expected_files) |expected_file| {
@@ -474,4 +488,5 @@ const test_util = @import("./../util.zig");
 
 const std = @import("std");
 const zx = @import("zx");
+const cli_options = @import("cli_options");
 const builtin = @import("builtin");

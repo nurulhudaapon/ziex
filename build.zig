@@ -17,6 +17,7 @@ pub const plugins = buildlib.plugins;
 pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+    const exclude_lsp = b.option(bool, "exclude-lsp", "Exclude the LSP server to speed up builds") orelse false;
 
     // --- ZX Meta Options --- //
     const options = b.addOptions();
@@ -58,6 +59,10 @@ pub fn build(b: *std.Build) !void {
     zx_wasm_mod.addAnonymousImport("zx_meta", .{ .root_source_file = b.path("src/build/stub_meta.zig"), .imports = &.{.{ .name = "zx", .module = zx_wasm_mod }} });
     zx_wasm_mod.addAnonymousImport("zx_injections", .{ .root_source_file = b.path("src/build/stubs/injections.zig") });
 
+    // --- ZX CLI Options (Dev) --- //
+    const cli_options_dev = b.addOptions();
+    cli_options_dev.addOption([]const u8, "zig_exe", b.graph.zig_exe);
+
     // --- ZX CLI (Transpiler, Exporter, Dev Server) --- //
     const zli_dep = b.dependency("zli", .{ .target = target, .optimize = optimize });
     const zls_dep = b.dependency("zls", .{ .target = target, .optimize = optimize });
@@ -66,12 +71,18 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
+            .{ .name = "cli_options", .module = cli_options_dev.createModule() },
             .{ .name = "zx", .module = mod },
             .{ .name = "zli", .module = zli_dep.module("zli") },
-            .{ .name = "zls", .module = zls_dep.module("zls") },
         },
     };
+
+    const exe_build_options = b.addOptions();
+    exe_build_options.addOption(bool, "exclude_lsp", exclude_lsp);
+
     const exe = b.addExecutable(.{ .name = "zx", .root_module = b.createModule(exe_rootmod_opts) });
+    exe.root_module.addOptions("build_options", exe_build_options);
+    if (!exclude_lsp) exe.root_module.addImport("zls", zls_dep.module("zls"));
     b.installArtifact(exe);
 
     // --- Steps: Run --- //
@@ -94,6 +105,7 @@ pub fn build(b: *std.Build) !void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
+                .{ .name = "cli_options", .module = cli_options_dev.createModule() },
                 .{ .name = "zx", .module = mod },
             },
         });
@@ -144,12 +156,17 @@ pub fn build(b: *std.Build) !void {
 
         const release_step = b.step("release", "Build release binaries for all targets");
 
+        // --- ZX CLI Options (Release) --- //
+        const cli_options_rel = b.addOptions();
+        cli_options_rel.addOption([]const u8, "zig_exe", "zig");
+
         for (release_targets) |release_target| {
             const resolved_target = b.resolveTargetQuery(release_target.target);
 
             const release_tree_sitter_dep = b.dependency("tree_sitter", .{ .target = resolved_target, .optimize = .ReleaseSafe });
             const release_tree_sitter_zx_dep = b.dependency("tree_sitter_zx", .{ .target = resolved_target, .optimize = .ReleaseSafe, .@"build-shared" = false });
             const release_tree_sitter_mdzx_dep = b.dependency("tree_sitter_mdzx", .{ .target = resolved_target, .optimize = .ReleaseSafe, .@"build-shared" = false });
+            const release_zls_dep = b.dependency("zls", .{ .target = resolved_target, .optimize = .ReleaseSafe });
             const release_mod = b.createModule(.{ .root_source_file = b.path("src/root.zig"), .target = resolved_target, .optimize = .ReleaseSafe });
 
             release_mod.addImport("httpz", httpz_dep.module("httpz"));
@@ -166,11 +183,16 @@ pub fn build(b: *std.Build) !void {
                     .target = resolved_target,
                     .optimize = .ReleaseSafe,
                     .imports = &.{
+                        .{ .name = "cli_options", .module = cli_options_rel.createModule() },
                         .{ .name = "zx", .module = release_mod },
                         .{ .name = "zli", .module = zli_dep.module("zli") },
+                        .{ .name = "zls", .module = release_zls_dep.module("zls") },
                     },
                 }),
             });
+            const release_exe_build_options = b.addOptions();
+            release_exe_build_options.addOption(bool, "exclude_lsp", true);
+            release_exe.root_module.addOptions("build_options", release_exe_build_options);
 
             const exe_ext = if (resolved_target.result.os.tag == .windows) ".exe" else "";
             const install_release = b.addInstallArtifact(release_exe, .{

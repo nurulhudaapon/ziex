@@ -11,13 +11,13 @@ pub fn main() !void {
 
     defer if (builtin.mode == .Debug) std.debug.assert(dbg.deinit() == .ok);
 
-    var args = try std.process.argsWithAllocator(allocator);
+    if (comptime (!build_options.exclude_lsp)) {
+        var args = try std.process.argsWithAllocator(allocator);
+        defer args.deinit();
 
-    _ = args.next();
-    const subcmd = args.next();
-    if (std.mem.eql(u8, subcmd orelse "", "lsp")) {
-        try lsp.main();
-        return;
+        _ = args.next();
+        const subcmd = args.next();
+        if (std.mem.eql(u8, subcmd orelse "", "lsp")) return try lsp.main();
     }
 
     if (builtin.os.tag == .wasi) return try main_wasm();
@@ -62,12 +62,15 @@ fn main_wasm() !void {
     // --- Sub Command --- //
     var is_transpile = false;
     var is_fmt = false;
+    var is_lsp = false;
 
     _ = args.next(); // Drop executable name
 
     const sub_cmd = args.next() orelse return error.InvalidCommand;
     if (std.mem.eql(u8, sub_cmd, "transpile")) is_transpile = true;
     if (std.mem.eql(u8, sub_cmd, "fmt")) is_fmt = true;
+    if (std.mem.eql(u8, sub_cmd, "lsp")) is_lsp = true;
+    if (is_lsp) return try lsp.main();
 
     var files = std.ArrayList([]const u8).empty;
 
@@ -90,11 +93,12 @@ fn main_wasm() !void {
 }
 
 const std = @import("std");
-const cli = @import("cli/root.zig");
 const builtin = @import("builtin");
+const build_options = @import("build_options");
 const zx = @import("zx");
+const cli = @import("cli/root.zig");
 const tui = @import("tui/main.zig");
-const lsp = @import("lsp/main.zig");
+const lsp = if (build_options.exclude_lsp) void else @import("lsp/main.zig");
 
 pub const std_options = std.Options{
     .log_scope_levels = &[_]std.log.ScopeLevel{

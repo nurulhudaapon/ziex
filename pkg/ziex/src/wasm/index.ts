@@ -580,11 +580,11 @@ export type InitOptions = {
     importObject?: WebAssembly.Imports;
 };
 
-const DEFAULT_URL = "/assets/main.wasm";
+const DEFAULT_URL = "/assets/_/main.wasm";
 
 /** Initialize WASM with the ZX Bridge */
 export async function init(options: InitOptions = {}): Promise<{ source: WebAssembly.WebAssemblyInstantiatedSource; bridge: ZxBridge }> {
-    const url = options.url ?? DEFAULT_URL;
+    const url = options.url ?? (document.getElementById("__$wasmlink") as HTMLLinkElement | null)?.href ?? DEFAULT_URL;
     const bridgeRef: { current: ZxBridge | null } = { current: null };
 
     const importObject = Object.assign(

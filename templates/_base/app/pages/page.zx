@@ -18,7 +18,12 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
             <CounterComponent @rendering={.client} count={count} />
             <br />
             <hr />
-            <a href="/about">Navigate to About Page</a>
+            <div class="link-row">
+                <a href="/form">Server State</a>
+                <a href="/actions">Server Action</a>
+                <a href="/actions/client">Client Action</a>
+                <a href="/actions/server">Server Event</a>
+            </div>
         </main>
     );
 }

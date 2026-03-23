@@ -212,63 +212,6 @@ pub const Component = union(enum) {
 
     /// Recursively search for an element by tag name
     /// Returns a mutable pointer to the Component if found, null otherwise
-    /// Note: Resolves component_fn lazily during search
-    /// Note: Requires allocator to make children mutable if needed
-    pub fn getElementByName(self: *Component, allocator: std.mem.Allocator, tag: ElementTag) ?*Component {
-        switch (self.*) {
-            .element => |*elem| {
-                if (elem.tag == tag) {
-                    return self;
-                }
-                // Search in children - need to make children mutable first if they're const
-                if (elem.children) |children| {
-                    // Allocate mutable copy of children for searching
-                    const mutable_children = allocator.alloc(Component, children.len) catch return null;
-                    @memcpy(mutable_children, children);
-                    elem.children = mutable_children;
-
-                    for (0..mutable_children.len) |i| {
-                        var child_mut = &mutable_children[i];
-                        if (child_mut.getElementByName(allocator, tag)) |found| {
-                            return found;
-                        }
-                    }
-                }
-                return null;
-            },
-            .component_fn => |*func| {
-                // Resolve the component function and replace self with the result
-                const resolved = func.call() catch return null;
-                self.* = resolved;
-                // Now search the resolved component
-                return self.getElementByName(allocator, tag);
-            },
-            .none, .text, .component_csr => return null,
-        }
-    }
-
-    /// Append a child component to an element
-    /// Only works if this Component is an element variant
-    /// Note: Allocates a new array since children may be const
-    pub fn appendChild(self: *Component, allocator: std.mem.Allocator, child: Component) !void {
-        switch (self.*) {
-            .element => |*elem| {
-                if (elem.children) |existing_children| {
-                    // Allocate new array and copy existing children + new child
-                    const new_children = try allocator.alloc(Component, existing_children.len + 1);
-                    @memcpy(new_children[0..existing_children.len], existing_children);
-                    new_children[existing_children.len] = child;
-                    elem.children = new_children;
-                } else {
-                    // Allocate new array
-                    const new_children = try allocator.alloc(Component, 1);
-                    new_children[0] = child;
-                    elem.children = new_children;
-                }
-            },
-            else => return error.NotAnElement,
-        }
-    }
 
     pub const SerializeOptions = struct {
         only_components: bool = true,

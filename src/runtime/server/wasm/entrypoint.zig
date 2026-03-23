@@ -4,9 +4,30 @@ const kv = @import("kv.zig");
 const render = @import("../../server/render.zig");
 const server_dispatch = @import("../../server/dispatch.zig");
 const ext = @import("extern.zig");
+const zx_injections = @import("zx_injections");
+const tree = @import("../../core/tree.zig");
 
 const Router = zx.Router;
 const Component = zx.Component;
+
+fn injectZxInjections(allocator: std.mem.Allocator, page: *Component) void {
+    if (zx_injections.head_starting.len > 0) {
+        if (tree.getElementByName(page, allocator, .head)) |el|
+            tree.prependChild(el, allocator, .{ .text = zx_injections.head_starting }) catch {};
+    }
+    if (zx_injections.head_ending.len > 0) {
+        if (tree.getElementByName(page, allocator, .head)) |el|
+            tree.appendChild(el, allocator, .{ .text = zx_injections.head_ending }) catch {};
+    }
+    if (zx_injections.body_starting.len > 0) {
+        if (tree.getElementByName(page, allocator, .body)) |el|
+            tree.prependChild(el, allocator, .{ .text = zx_injections.body_starting }) catch {};
+    }
+    if (zx_injections.body_ending.len > 0) {
+        if (tree.getElementByName(page, allocator, .body)) |el|
+            tree.appendChild(el, allocator, .{ .text = zx_injections.body_ending }) catch {};
+    }
+}
 
 pub fn run() !void {
     kv.use();
@@ -151,6 +172,7 @@ pub fn run() !void {
         // --- Server Action Dispatch --- //
         switch (try server_dispatch.dispatchAction(request, response, allocator, allocator, route.path, pagectx, route.page)) {
             .not_triggered => {},
+            .ok_native => {},
             .ok => |r| {
                 if (r.body) |body| {
                     wasi_res.setContentTypeStr("application/json");
@@ -179,6 +201,7 @@ pub fn run() !void {
         // --- Server Event Dispatch --- //
         switch (try server_dispatch.dispatchServerEvent(request, allocator, allocator, route.path, pagectx, route.page)) {
             .not_triggered => {},
+            .ok_native => {},
             .ok => |r| {
                 wasi_res.setContentTypeStr("application/json");
                 wasi_res.body.deinit();
@@ -286,6 +309,7 @@ pub fn run() !void {
             };
 
             page_component = Router.applyLayouts(route, pathname, layoutctx, page_component);
+            injectZxInjections(allocator, &page_component);
 
             wasi_res.setContentTypeStr("text/html");
 

@@ -91,7 +91,7 @@ fn bundle(ctx: zli.CommandContext) !void {
         const static_outdir = try std.fs.path.join(ctx.allocator, &.{ outdir, "static" });
         defer ctx.allocator.free(static_outdir);
         log.debug("Copying static directory! {s}", .{appoutdir});
-        util.copydirs(ctx.allocator, appoutdir, &.{ "public", "assets" }, static_outdir, true, &printer) catch |err| {
+        util.copydirs(ctx.allocator, appoutdir, &.{"."}, static_outdir, false, &printer) catch |err| {
             std.log.err("Failed to copy static directories: {any}", .{err});
         };
 

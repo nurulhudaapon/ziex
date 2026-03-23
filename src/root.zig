@@ -88,7 +88,6 @@ pub const ComponentCtx = ctxs.ComponentCtx;
 pub const ComponentContext = ComponentCtx(void);
 pub const StateContext = @import("runtime/core/Event.zig").StateContext;
 pub const StateHandle = @import("runtime/core/Event.zig").StateHandle;
-pub const ActionContext = ctxs.ActionContext;
 
 pub const BuiltinAttribute = @import("attributes.zig").builtin;
 pub const Platform = plfm.Platform;

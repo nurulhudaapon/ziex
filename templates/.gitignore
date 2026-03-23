@@ -21,7 +21,6 @@ node_modules/
 !cloudflare/.gitignore
 !cloudflare/package.json
 !cloudflare/wrangler.jsonc
-!cloudflare/build.zig
 !cloudflare/app/main.ts
 !cloudflare/type.d.ts
 !cloudflare/README.md
@@ -30,7 +29,6 @@ node_modules/
 !vercel/.gitignore
 !vercel/.vercelignore
 !vercel/package.json
-!vercel/build.zig
 !vercel/api/index.ts
 !vercel/api/nodejs.ts
 !vercel/vercel.json
@@ -39,8 +37,6 @@ node_modules/
 
 # starter template
 !starter/.gitignore
-!starter/package.json
-!starter/build.zig
 
 # database-pg template
 !database-pg/.gitignore

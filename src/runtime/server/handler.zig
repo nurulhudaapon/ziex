@@ -1,33 +1,22 @@
 const httpz = @import("httpz");
-const module_config = @import("zx_info");
 const log = std.log.scoped(.app);
+const zx_injections = @import("zx_injections");
+const tree = @import("../core/tree.zig");
 
 /// ElementInjector handles injecting elements into component trees
 const ElementInjector = struct {
     allocator: std.mem.Allocator,
 
     /// Inject a script element into the body of a component
-    /// Returns true if injection was successful, false if body element not found
     pub fn injectScriptIntoBody(self: ElementInjector, page: *Component, script_src: []const u8) bool {
-        if (page.getElementByName(self.allocator, .body)) |body_element| {
-            // Allocate attributes array properly (not a pointer to stack memory)
+        if (tree.getElementByName(page, self.allocator, .body)) |body_element| {
             const attributes = self.allocator.alloc(zx.Element.Attribute, 1) catch {
                 std.debug.print("Error allocating attributes: OOM\n", .{});
                 return false;
             };
-            attributes[0] = .{
-                .name = "src",
-                .value = script_src,
-            };
-
-            const script_element = Component{
-                .element = .{
-                    .tag = .script,
-                    .attributes = attributes,
-                },
-            };
-
-            body_element.appendChild(self.allocator, script_element) catch |err| {
+            attributes[0] = .{ .name = "src", .value = script_src };
+            const script_element = Component{ .element = .{ .tag = .script, .attributes = attributes } };
+            tree.appendChild(body_element, self.allocator, script_element) catch |err| {
                 std.debug.print("Error appending script to body: {}\n", .{err});
                 self.allocator.free(attributes);
                 return false;
@@ -35,6 +24,25 @@ const ElementInjector = struct {
             return true;
         }
         return false;
+    }
+
+    pub fn injectZxInjections(self: ElementInjector, page: *Component) void {
+        if (zx_injections.head_starting.len > 0) {
+            if (tree.getElementByName(page, self.allocator, .head)) |el|
+                tree.prependChild(el, self.allocator, .{ .text = zx_injections.head_starting }) catch {};
+        }
+        if (zx_injections.head_ending.len > 0) {
+            if (tree.getElementByName(page, self.allocator, .head)) |el|
+                tree.appendChild(el, self.allocator, .{ .text = zx_injections.head_ending }) catch {};
+        }
+        if (zx_injections.body_starting.len > 0) {
+            if (tree.getElementByName(page, self.allocator, .body)) |el|
+                tree.prependChild(el, self.allocator, .{ .text = zx_injections.body_starting }) catch {};
+        }
+        if (zx_injections.body_ending.len > 0) {
+            if (tree.getElementByName(page, self.allocator, .body)) |el|
+                tree.appendChild(el, self.allocator, .{ .text = zx_injections.body_ending }) catch {};
+        }
     }
 };
 
@@ -356,8 +364,11 @@ pub fn Handler(comptime AppCtxType: type) type {
 
         /// Paths to ignore in dev logging (browser probes, internal routes)
         fn isNoisyPath(path: []const u8) bool {
-            return std.mem.startsWith(u8, path, "/.well-known/") or
-                std.mem.eql(u8, path, "/favicon.ico");
+            if (std.mem.startsWith(u8, path, "/.well-known/")) return true;
+            if (std.mem.startsWith(u8, path, "/assets/_/")) return true; // Generated assets directory
+            if (std.mem.eql(u8, path, "/favicon.ico")) return true;
+
+            return false;
         }
 
         pub fn notFound(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
@@ -443,22 +454,9 @@ pub fn Handler(comptime AppCtxType: type) type {
             fallback_message: []const u8 = "Internal Server Error",
         };
 
-        const InjectScriptsOptions = struct {
-            dev: bool = false,
-            jsglue: bool = false,
-        };
-
-        fn injectScripts(arena: Allocator, component: *Component, comptime opts: InjectScriptsOptions) void {
+        fn injectDevScript(arena: Allocator, component: *Component) void {
             const inj = ElementInjector{ .allocator = arena };
-
-            if (opts.dev) _ = inj.injectScriptIntoBody(component, "/.well-known/_zx/devscript.js");
-            if (opts.jsglue) {
-                const jsglue_cdn_href =
-                    std.fmt.comptimePrint("https://cdn.jsdelivr.net/npm/ziex@{s}/wasm/init.min.js", .{module_config.jsglue_version});
-                const jsglue_href = if (zx_options.jsglue_href) |href| href else jsglue_cdn_href;
-
-                _ = inj.injectScriptIntoBody(component, jsglue_href);
-            }
+            _ = inj.injectScriptIntoBody(component, "/.well-known/_zx/devscript.js");
         }
 
         /// Shared method to render error/notfound pages wrapped in parent layouts
@@ -543,19 +541,19 @@ pub fn Handler(comptime AppCtxType: type) type {
                 component = layouts_to_apply[j](layoutctx, component);
                 // In dev mode, inject dev script into body element of root layout (last one applied, j == 0)
                 if (j == 0 and injector != null) {
-                    injectScripts(req.arena, &component, .{ .dev = true });
+                    injectDevScript(req.arena, &component);
                     injector = null;
                 }
             }
 
             // If no layouts were applied but we're in dev mode, still try to inject
             if (layouts_count == 0 and is_dev_mode) {
-                injectScripts(req.arena, &component, .{ .dev = true });
+                injectDevScript(req.arena, &component);
             }
 
-            // if (comptime zx_options.client_enabled) {
-            injectScripts(req.arena, &component, .{ .jsglue = true });
-            // }
+            // Inject build-time HTML (scripts, styles, etc.) into head/body
+            const inj = ElementInjector{ .allocator = req.arena };
+            inj.injectZxInjections(&component);
 
             // Render the final component
             const writer = res.writer();
@@ -1076,24 +1074,21 @@ pub fn Handler(comptime AppCtxType: type) type {
                         // In dev mode, inject dev script into body element of root layout (last one applied, i == 0)
                         if (i == 0) {
                             if (injector != null) {
-                                injectScripts(pagectx.arena, &page_component, .{ .dev = true });
+                                injectDevScript(pagectx.arena, &page_component);
                                 injector = null; // Only inject once
                             }
-                            // if (comptime zx_options.client_enabled) {
-                            injectScripts(pagectx.arena, &page_component, .{ .jsglue = true });
-                            // }
                         }
                     }
 
                     // Handle root route's own layout - inject dev script since it's the most parent
                     if (is_root_route) {
                         if (injector != null) {
-                            injectScripts(pagectx.arena, &page_component, .{ .dev = true });
+                            injectDevScript(pagectx.arena, &page_component);
                         }
-                        // if (comptime zx_options.client_enabled) {
-                        injectScripts(pagectx.arena, &page_component, .{ .jsglue = true });
-                        // }
                     }
+
+                    // Inject build-time HTML (scripts, styles, etc.) into head/body
+                    (ElementInjector{ .allocator = pagectx.arena }).injectZxInjections(&page_component);
 
                     if (is_devtool) {
                         res.content_type = .JSON;
@@ -1524,7 +1519,7 @@ const rndr = @import("render.zig");
 const ctxs = @import("../../contexts.zig");
 const registry = @import("registry.zig");
 const server_dispatch = @import("dispatch.zig");
-
+const render = @import("render.zig");
 const Allocator = std.mem.Allocator;
 const Component = zx.Component;
 const App = zx.Server(void);

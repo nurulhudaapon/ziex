@@ -40,7 +40,7 @@ fn onFetchText(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
             }
         } else |_| {}
     }
-    zx.rerender();
+    zx.client.rerender();
 }
 
 
@@ -108,12 +108,12 @@ pub fn ComponentState(
 
 pub fn handleComponentSearchInput(ctx: zx.client.Event) void {
     inputvalue = ctx.value() orelse "";
-    zx.rerender();
+    zx.client.rerender();
 }
 
 pub fn handleStateFilterInput(ctx: zx.client.Event) void {
     stateFilter = ctx.value() orelse "";
-    zx.rerender();
+    zx.client.rerender();
 }
 
 pub fn ComponentStateFilter(
@@ -129,7 +129,7 @@ pub fn ComponentStateFilter(
 pub fn handleComponentClick(ctx: zx.client.Event) void {
     const id = ctx.value() orelse "0";
     selected_component = id;
-    zx.rerender();
+    zx.client.rerender();
 }
 
 const icons = @import("./components/icons.zx");
@@ -149,7 +149,7 @@ pub fn NativeToggle(
 pub fn handleToggleNative(_: zx.client.Event) void {
     data.show_native_elements = !data.show_native_elements;
     data.saveSettings();
-    zx.rerender();
+    zx.client.rerender();
 }
 
 pub fn Page(ctx: zx.PageContext) zx.Component {

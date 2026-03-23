@@ -1,0 +1,48 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <main @allocator={ctx.arena}>
+            <AuthForm @rendering={.client} />
+        </main>
+    );
+}
+
+const AuthState = struct { msg: []const u8, id: i32 = 0, name: ?[]const u8 = null };
+const AuthInput = struct { name: []const u8, id: i32 };
+
+pub fn AuthForm(ctx: *zx.ComponentContext) zx.Component {
+    const auth = ctx.state(AuthState, .{ .msg = "Please log in."}).get();
+
+    return (
+        <form @allocator={ctx.allocator} action={ctx.bind(handleSubmit)}>
+            {if (auth.id != 0) (
+                <p>Welcome back, {auth.name}!</p>
+            )}
+            <p>{auth.msg}</p>
+            <input placeholder="Enter name" name="name" required />
+            <input placeholder="Enter ID (10-100)" name="id" required />
+
+            <button>Submit</button>
+        </form>
+    );
+}
+
+
+fn handleSubmit(ctx: *zx.server.Action.Stateful) void {
+    const auth = ctx.state(AuthState);
+    const input = ctx.data(AuthInput);
+
+    if (input.id < 10 or input.id > 100)
+        return auth.set(.{ .msg = "ID must be between 10 and 100." });
+
+    auth.set(.{
+        .id = input.id,
+        .name = input.name,
+        .msg = ctx.fmt("Hi {s}! You can register again!", .{input.name}) catch "Err",
+    });
+}
+
+pub const options: zx.PageOptions = .{
+    .methods = &.{.POST},
+};
+
+const zx = @import("zx");

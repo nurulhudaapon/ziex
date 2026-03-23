@@ -36,7 +36,7 @@ callback: *const fn (ctx: *anyopaque, event: zx.client.Event) void,
 context: *anyopaque,
 /// Non-null when created from a form `action={}` handler.
 /// Takes a pointer so the server wrapper can write `_state_ctx` back after the call.
-action_fn: ?*const fn (*zx.ActionContext) void = null,
+action_fn: ?*const fn (*zx.server.Action) void = null,
 /// Server-side handler; takes *ServerEventContext so the wrapper can set _state_ctx.
 server_event_fn: ?*const fn (*zx.server.Event) void = null,
 /// Unique ID for this handler instance on the current page.
@@ -52,13 +52,13 @@ pub fn wrap(comptime func: anytype) Self {
     const fn_info = @typeInfo(FnType);
     const params = fn_info.@"fn".params;
 
-    // Server action: fn (zx.ActionContext) void
+    // Server action: fn (zx.server.Action) void
     if (comptime params.len == 1) {
         const arg_type = params[0].type.?;
         switch (arg_type) {
-            zx.ActionContext => {
+            zx.server.Action => {
                 const Wrap = struct {
-                    fn w(ctx: *zx.ActionContext) void {
+                    fn w(ctx: *zx.server.Action) void {
                         func(ctx.*);
                     }
                 };
@@ -122,12 +122,12 @@ pub fn action(comptime func: anytype) Self {
     if (comptime params.len == 1) {
         const arg_type = params[0].type.?;
         if (comptime @typeInfo(arg_type) == .@"struct" and
-            arg_type != zx.ActionContext and
+            arg_type != zx.server.Action and
             arg_type != zx.client.Event and
             arg_type != zx.server.Event)
         {
             const DirectTyped = struct {
-                fn w(ctx: *zx.ActionContext) void {
+                fn w(ctx: *zx.server.Action) void {
                     func(ctx.data(arg_type));
                 }
             };
@@ -148,6 +148,20 @@ pub fn runtime(func: *const fn (zx.client.Event) void) Self {
             fn w(ctx: *anyopaque, event: zx.client.Event) void {
                 const f: *const fn (zx.client.Event) void = @ptrCast(@alignCast(ctx));
                 f(event);
+            }
+        }.w,
+        .context = @ptrCast(@constCast(func)),
+    };
+}
+
+/// Helper to create an EventHandler from a runtime function pointer with pointer receiver
+pub fn runtimePtr(func: *const fn (*zx.client.Event) void) Self {
+    return .{
+        .callback = &struct {
+            fn w(ctx: *anyopaque, event: zx.client.Event) void {
+                const f: *const fn (*zx.client.Event) void = @ptrCast(@alignCast(ctx));
+                var e = event;
+                f(&e);
             }
         }.w,
         .context = @ptrCast(@constCast(func)),
@@ -229,6 +243,36 @@ pub fn serverSS(
     return finalizeServer(alloc, handler_index, &wrap_fn, bound_states);
 }
 
+/// Stateful action handler: fn(*zx.server.Action.Stateful) void (auto-binds states from component)
+pub fn actionStateful(
+    comptime handler: anytype,
+    alloc: Allocator,
+    component_id: []const u8,
+    state_index: u32,
+    handler_index: *u32,
+) Self {
+    const ActionWrap = struct {
+        fn wrap(ctx: *zx.server.Action) void {
+            const sc = zx.StateContext.init(ctx.allocator, ctx.arena, ctx._inputs orelse &.{}) orelse return;
+            ctx._state_ctx = sc;
+            var sf = zx.server.Action.Stateful{ ._inner = ctx, ._state_ctx = sc };
+            handler(&sf);
+        }
+    };
+    const bound = reactivity.collectStateBoundEntries(alloc, component_id, state_index);
+    handler_index.* += 1;
+    const h_id = handler_index.*;
+    const ec = alloc.create(Context) catch @panic("OOM");
+    ec.* = .{ .handler_id = h_id, .bound_states = bound };
+    return .{
+        .callback = &actionHandler,
+        .context = @ptrCast(ec),
+        .action_fn = &ActionWrap.wrap,
+        .handler_id = h_id,
+        .bound_states = bound,
+    };
+}
+
 /// Build Bound vtable for explicitly listed states.
 pub fn buildStates(alloc: Allocator, states: anytype) []const Bound {
     const state_fields = @typeInfo(@TypeOf(states)).@"struct".fields;
@@ -307,23 +351,55 @@ pub fn init(
 }
 
 pub fn actionHandler(ctx: *anyopaque, event: zx.client.Event) void {
-    _ = ctx;
     if (!is_wasm) return;
     event.preventDefault();
     const client_fetch = @import("../client/fetch.zig");
     const CoreFetch = @import("Fetch.zig");
+
+    const bound_states: []const Bound = if (@intFromPtr(ctx) == 1)
+        &.{}
+    else blk: {
+        const ec: *Context = @ptrCast(@alignCast(ctx));
+        break :blk ec.bound_states;
+    };
 
     const headers = [_]CoreFetch.RequestInit.Header{
         .{ .name = "Content-Type", .value = "application/json" },
         .{ .name = "X-ZX-Action", .value = "1" },
     };
 
-    client_fetch.fetchAsync(
-        getGlobalAllocator(),
-        "",
-        .{ .method = .GET, .headers = &headers, .body = "{}", },
-        onActionResponse,
-    );
+    if (bound_states.len > 0) {
+        var state_jsons = std.ArrayList([]const u8).empty;
+        for (bound_states) |bs| {
+            const json = bs.getJson(getGlobalAllocator(), bs.state_ptr);
+            state_jsons.append(getGlobalAllocator(), json) catch {};
+        }
+
+        var aw = std.Io.Writer.Allocating.init(getGlobalAllocator());
+        zx.util.zxon.serialize(state_jsons.items, &aw.writer, .{}) catch {};
+        const payload_buf = aw.written();
+
+        const cb_ctx = getGlobalAllocator().create(Context) catch return;
+        cb_ctx.* = .{ .bound_states = bound_states };
+        client_fetch.fetchAsyncCtx(
+            getGlobalAllocator(),
+            "",
+            .{ .method = .POST, .headers = &headers, .body = payload_buf },
+            @ptrCast(cb_ctx),
+            onEventResponse,
+        );
+    } else {
+        client_fetch.fetchAsync(
+            getGlobalAllocator(),
+            "",
+            .{
+                .method = .GET,
+                .headers = &headers,
+                .body = "{}",
+            },
+            onActionResponse,
+        );
+    }
 }
 
 fn eventHandler(ctx: *anyopaque, event: zx.client.Event) void {
