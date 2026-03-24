@@ -122,7 +122,7 @@ async function main() {
 
   // Copy CLI files to dist
   mkdirSync(join(pkgDistDir, "bin"), { recursive: true });
-  copyFileSync(join(pkgDir, "install.js"), join(pkgDistDir, "install.js"));
+  copyFileSync(join(pkgDir, "install.cjs"), join(pkgDistDir, "install.cjs"));
   copyFileSync(join(pkgDir, "bin/ziex"), join(pkgDistDir, "bin/ziex"));
   
   console.log(`\x1b[32m✅ ${pkgName} - Done\x1b[0m\n`);

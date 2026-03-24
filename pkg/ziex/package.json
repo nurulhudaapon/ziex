@@ -43,7 +43,7 @@
     "publish": "bun run build && cd dist && bun publish",
     "fmt": "prettier --write . '!test/files/**' '!README.md'",
     "check": "tsc",
-    "postinstall": "node install.js"
+    "postinstall": "node install.cjs"
   },
   "devDependencies": {
     "@types/bun": "latest",

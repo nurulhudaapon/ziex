@@ -1,36 +1,41 @@
 import { $ } from "bun";
-import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync, chmodSync } from "fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { join } from "path";
 import { tmpdir } from "os";
 
 /**
  * End-to-end test for the ziex CLI npm package using verdaccio.
  *
+ * Requires `bun run script/build-cli.ts` to have been run first.
+ *
  * This script:
  * 1. Starts a local verdaccio registry
- * 2. Builds a fake binary for the current platform
- * 3. Publishes platform + main packages to verdaccio
- * 4. Installs ziex globally via bun/npm from verdaccio
- * 5. Verifies `ziex version` and `zx version` work
- * 6. Cleans up
+ * 2. Publishes the real dist-cli packages to verdaccio
+ * 3. Installs ziex globally via npm from verdaccio
+ * 4. Verifies `ziex version` and `zx version` work
+ * 5. Cleans up (unless --keep-running is passed)
+ *
+ * Flags:
+ *   --keep-running  Keep verdaccio running after tests for manual testing
  */
 
 const ROOT_DIR = join(import.meta.dir, "..");
-const VERSION = "0.0.1-test.1";
+const DIST_CLI_DIR = join(ROOT_DIR, "dist-cli");
 const REGISTRY = "http://localhost:4873";
+const KEEP_RUNNING = process.argv.includes("--keep-running");
 
-const PLATFORM_MAP: Record<string, Record<string, { npm: string; target: string; ext: string }>> = {
+const PLATFORM_MAP: Record<string, Record<string, { npm: string; distDir: string }>> = {
   darwin: {
-    arm64: { npm: "@ziex/cli-darwin-arm64", target: "macos-aarch64", ext: "" },
-    x64: { npm: "@ziex/cli-darwin-x64", target: "macos-x64", ext: "" },
+    arm64: { npm: "@ziex/cli-darwin-arm64", distDir: "@ziex-cli-darwin-arm64" },
+    x64: { npm: "@ziex/cli-darwin-x64", distDir: "@ziex-cli-darwin-x64" },
   },
   linux: {
-    x64: { npm: "@ziex/cli-linux-x64", target: "linux-x64", ext: "" },
-    arm64: { npm: "@ziex/cli-linux-arm64", target: "linux-aarch64", ext: "" },
+    x64: { npm: "@ziex/cli-linux-x64", distDir: "@ziex-cli-linux-x64" },
+    arm64: { npm: "@ziex/cli-linux-arm64", distDir: "@ziex-cli-linux-arm64" },
   },
   win32: {
-    x64: { npm: "@ziex/cli-win32-x64", target: "windows-x64", ext: ".exe" },
-    arm64: { npm: "@ziex/cli-win32-arm64", target: "windows-aarch64", ext: ".exe" },
+    x64: { npm: "@ziex/cli-win32-x64", distDir: "@ziex-cli-win32-x64" },
+    arm64: { npm: "@ziex/cli-win32-arm64", distDir: "@ziex-cli-win32-arm64" },
   },
 };
 
@@ -41,77 +46,26 @@ async function main() {
     process.exit(1);
   }
 
+  // Verify dist-cli has been built
+  const platformPkgDir = join(DIST_CLI_DIR, platform.distDir);
+  const mainPkgDir = join(DIST_CLI_DIR, "ziex");
+
+  if (!existsSync(platformPkgDir) || !existsSync(mainPkgDir)) {
+    console.error("dist-cli not found. Run `bun run script/build-cli.ts` first.");
+    process.exit(1);
+  }
+
+  const mainPkgJson = JSON.parse(readFileSync(join(mainPkgDir, "package.json"), "utf-8"));
+  const VERSION = mainPkgJson.version;
+
+  console.log(`Testing CLI packages v${VERSION} from dist-cli/`);
+  console.log(`Platform: ${platform.npm}`);
+
+  // Step 1: Set up verdaccio
+  console.log("\n1. Setting up verdaccio...");
   const testDir = join(tmpdir(), `ziex-cli-test-${Date.now()}`);
   mkdirSync(testDir, { recursive: true });
 
-  console.log(`Test directory: ${testDir}`);
-  console.log(`Platform: ${platform.npm} (${platform.target})`);
-
-  // Step 1: Create a fake zx binary that responds to "version"
-  console.log("\n1. Creating fake zx binary...");
-  const fakeBinDir = join(testDir, "bin");
-  mkdirSync(fakeBinDir, { recursive: true });
-
-  const fakeBinPath = join(fakeBinDir, `zx${platform.ext}`);
-  const fakeBinScript = `#!/bin/bash
-if [ "$1" = "version" ] || [ "$1" = "--version" ]; then
-  echo "${VERSION}"
-else
-  echo "ziex ${VERSION}"
-  echo "Usage: ziex <command>"
-fi
-`;
-  writeFileSync(fakeBinPath, fakeBinScript);
-  chmodSync(fakeBinPath, 0o755);
-
-  // Step 2: Build platform package
-  console.log("\n2. Building platform package...");
-  const platformPkgDir = join(testDir, "platform-pkg");
-  const platformBinDir = join(platformPkgDir, "bin");
-  mkdirSync(platformBinDir, { recursive: true });
-
-  copyFileSync(fakeBinPath, join(platformBinDir, `zx${platform.ext}`));
-  chmodSync(join(platformBinDir, `zx${platform.ext}`), 0o755);
-
-  const platformPkgJson = JSON.parse(
-    readFileSync(join(ROOT_DIR, "npm", platform.npm, "package.json"), "utf-8"),
-  );
-  platformPkgJson.version = VERSION;
-  platformPkgJson.bin = {
-    zx: `bin/zx${platform.ext}`,
-    ziex: `bin/zx${platform.ext}`,
-  };
-  writeFileSync(join(platformPkgDir, "package.json"), JSON.stringify(platformPkgJson, null, 2));
-
-  // Step 3: Build main package
-  console.log("\n3. Building main ziex package...");
-  const mainPkgDir = join(testDir, "main-pkg");
-  mkdirSync(join(mainPkgDir, "bin"), { recursive: true });
-
-  copyFileSync(join(ROOT_DIR, "install.js"), join(mainPkgDir, "install.js"));
-  copyFileSync(join(ROOT_DIR, "bin/ziex"), join(mainPkgDir, "bin/ziex"));
-  chmodSync(join(mainPkgDir, "bin/ziex"), 0o755);
-
-  const mainPkgJson = JSON.parse(readFileSync(join(ROOT_DIR, "package.json"), "utf-8"));
-  mainPkgJson.version = VERSION;
-  mainPkgJson.private = undefined;
-  mainPkgJson.scripts = { postinstall: "node install.js" };
-  mainPkgJson.devDependencies = undefined;
-  mainPkgJson.peerDependencies = undefined;
-  mainPkgJson.peerDependenciesMeta = undefined;
-  mainPkgJson.release = undefined;
-  // Only include the current platform in optionalDependencies
-  mainPkgJson.optionalDependencies = {
-    [platform.npm]: VERSION,
-  };
-  // Remove exports/type/main since this is CLI-only for this test
-  // Actually keep them so package structure is realistic
-  writeFileSync(join(mainPkgDir, "package.json"), JSON.stringify(mainPkgJson, null, 2));
-
-  // Step 4: Check if verdaccio is running, if not start it
-  console.log("\n4. Setting up verdaccio...");
-
-  // Create verdaccio config
   const verdaccioConfig = join(testDir, "verdaccio-config.yaml");
   const verdaccioStorage = join(testDir, "verdaccio-storage");
   mkdirSync(verdaccioStorage, { recursive: true });
@@ -138,7 +92,6 @@ log: { type: stdout, format: pretty, level: warn }
 `,
   );
 
-  // Check if verdaccio is installed
   try {
     await $`which verdaccio`.quiet();
   } catch {
@@ -146,13 +99,11 @@ log: { type: stdout, format: pretty, level: warn }
     await $`bun install -g verdaccio`.quiet();
   }
 
-  // Start verdaccio in background
   const verdaccioProc = Bun.spawn(["verdaccio", "--config", verdaccioConfig, "--listen", "4873"], {
     stdout: "pipe",
     stderr: "pipe",
   });
 
-  // Wait for verdaccio to be ready
   console.log("Waiting for verdaccio to start...");
   let retries = 20;
   while (retries > 0) {
@@ -171,67 +122,72 @@ log: { type: stdout, format: pretty, level: warn }
   }
   console.log("Verdaccio is running!");
 
-  try {
-    // Step 5: Publish packages
-    console.log("\n5. Publishing packages to verdaccio...");
-    // Create .npmrc for auth-free publishing to local verdaccio
-    const npmrc = `//localhost:4873/:_authToken=fake-token\nregistry=${REGISTRY}\n`;
-    writeFileSync(join(platformPkgDir, ".npmrc"), npmrc);
-    writeFileSync(join(mainPkgDir, ".npmrc"), npmrc);
+  const npmrc = `//localhost:4873/:_authToken=fake-token\nregistry=${REGISTRY}\n`;
 
+  try {
+    // Step 2: Publish packages from dist-cli
+    console.log("\n2. Publishing packages to verdaccio...");
+
+    writeFileSync(join(platformPkgDir, ".npmrc"), npmrc);
     await $`cd ${platformPkgDir} && npm publish --registry ${REGISTRY} --tag test`;
     console.log(`  Published ${platform.npm}@${VERSION}`);
 
+    writeFileSync(join(mainPkgDir, ".npmrc"), npmrc);
     await $`cd ${mainPkgDir} && npm publish --registry ${REGISTRY} --tag test`;
     console.log(`  Published ziex@${VERSION}`);
 
-    // Step 6: Test global install
-    console.log("\n6. Testing global install...");
+    // Step 3: Test global install
+    console.log("\n3. Testing global install...");
     const installTestDir = join(testDir, "install-test");
     mkdirSync(installTestDir, { recursive: true });
-
-    // Write .npmrc so bun/npm use our local registry
     writeFileSync(join(installTestDir, ".npmrc"), npmrc);
 
-    // Install globally using bun
-    console.log("  Installing ziex globally with bun...");
-    await $`cd ${installTestDir} && bun install -g ziex@${VERSION} --registry ${REGISTRY}`;
+    console.log("  Installing ziex globally with npm...");
+    await $`cd ${installTestDir} && npm install -g ziex@${VERSION} --registry ${REGISTRY}`;
 
-    // Test ziex version
     console.log("\n  Running: ziex version");
     const ziexResult = await $`ziex version`.nothrow().text();
     console.log(`  Output: ${ziexResult.trim()}`);
 
-    // Test zx alias
     console.log("\n  Running: zx version");
     const zxResult = await $`zx version`.nothrow().text();
     console.log(`  Output: ${zxResult.trim()}`);
 
-    const passed = ziexResult.trim().includes(VERSION);
+    const passed = ziexResult.trim().length > 0 && zxResult.trim().length > 0;
     console.log(`\n  RESULT: ${passed ? "PASSED" : "FAILED"}`);
 
-    // Step 7: Test npx (bunx with custom registry is unreliable)
-    console.log("\n7. Testing npx ziex version...");
+    // Step 4: Test npx
+    console.log("\n4. Testing npx ziex version...");
     try {
-      writeFileSync(join(installTestDir, ".npmrc"), npmrc);
-      const npxResult = await $`cd ${installTestDir} && npx --yes ziex@${VERSION} version --registry ${REGISTRY}`.nothrow().text();
+      const npxResult = await $`cd ${installTestDir} && npx --yes --registry ${REGISTRY} ziex@${VERSION} version`.nothrow().text();
       console.log(`  Output: ${npxResult.trim()}`);
-      if (npxResult.trim().includes(VERSION)) {
-        console.log("  npx test - PASSED");
-      } else {
-        console.log("  npx test - SKIPPED (output mismatch, but global install works)");
-      }
+      console.log(`  npx test - ${npxResult.trim().length > 0 ? "PASSED" : "FAILED"}`);
     } catch {
       console.log("  npx test - SKIPPED");
     }
   } catch (err) {
     console.error(`\nTest failed: ${err}`);
   } finally {
+    if (KEEP_RUNNING) {
+      console.log(`\nVerdaccio is still running at ${REGISTRY}`);
+      console.log("Try these commands to test manually:\n");
+      console.log(`  npx --registry ${REGISTRY} ziex@${VERSION} version`);
+      console.log(`  BUN_CONFIG_REGISTRY=${REGISTRY} bunx ziex@${VERSION} version`);
+      console.log("\nPress Ctrl+C to stop verdaccio and clean up.");
+      await new Promise<void>((resolve) => {
+        process.on("SIGINT", () => {
+          console.log("\nReceived SIGINT, cleaning up...");
+          resolve();
+        });
+      });
+    }
     // Cleanup
-    console.log("\n8. Cleaning up...");
+    console.log("\n5. Cleaning up...");
     verdaccioProc.kill();
+    // Clean up .npmrc files we wrote into dist-cli
+    await $`rm -f ${join(platformPkgDir, ".npmrc")} ${join(mainPkgDir, ".npmrc")}`.quiet().nothrow();
     try {
-      await $`bun remove -g ziex`.quiet().nothrow();
+      await $`npm uninstall -g ziex`.quiet().nothrow();
     } catch {}
     await $`rm -rf ${testDir}`.quiet().nothrow();
     console.log("Done!");

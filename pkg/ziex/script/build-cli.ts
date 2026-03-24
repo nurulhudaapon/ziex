@@ -102,7 +102,7 @@ async function main() {
   mkdirSync(join(mainDistDir, "bin"), { recursive: true });
 
   // Copy install.js
-  copyFileSync(join(rootDir, "install.js"), join(mainDistDir, "install.js"));
+  copyFileSync(join(rootDir, "install.cjs"), join(mainDistDir, "install.cjs"));
 
   // Copy bin stub
   copyFileSync(join(rootDir, "bin/ziex"), join(mainDistDir, "bin/ziex"));
@@ -111,8 +111,11 @@ async function main() {
   const mainPkgJson = { ...pkgJson };
   mainPkgJson.version = version;
   mainPkgJson.private = undefined;
-  mainPkgJson.scripts = { postinstall: "node install.js" };
+  mainPkgJson.scripts = { postinstall: "node install.cjs" };
   mainPkgJson.devDependencies = undefined;
+  mainPkgJson.peerDependencies = undefined;
+  mainPkgJson.peerDependenciesMeta = undefined;
+  mainPkgJson.release = undefined;
 
   // Update optionalDependencies versions
   if (mainPkgJson.optionalDependencies) {
