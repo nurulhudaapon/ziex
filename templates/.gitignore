@@ -38,17 +38,18 @@ node_modules/
 # starter template
 !starter/.gitignore
 
-# database-pg template
-!database-pg/.gitignore
-!database-pg/build.zig
-!database-pg/build.zig.zon
-!database-pg/README.md
-!database-pg/app/Context.zig
-!database-pg/app/db/**/*
-!database-pg/app/main.zig
-!database-pg/app/pages/page.zx
+# database template
+!database/.gitignore
+!database/build.zig
+!database/build.zig.zon
+!database/README.md
+!database/app/Context.zig
+!database/app/db/**/*
+!database/app/main.zig
+!database/app/pages/page.zx
 
 
 # node template
 !node/.gitignore
 !node/package.json
+!node/README.md
