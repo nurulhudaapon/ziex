@@ -1,6 +1,6 @@
 {
   "name": "@zigc/linux-arm64",
-  "version": "0.15.2",
+  "version": "0.15.20",
   "description": "Zig compiler binary for Linux ARM64",
   "os": [
     "linux"

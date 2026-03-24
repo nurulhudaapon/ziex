@@ -21,6 +21,32 @@ if [[ "$ZIG_VER" == *"-dev"* ]] && [ -f "$SCRIPT_DIR/index.json" ]; then
   ZIG_FULL_VER=$(node -p "require('$SCRIPT_DIR/index.json').master.version")
 fi
 
+# Update version in all workspace package.json files
+echo "Updating package versions to $ZIG_VER..."
+for pkg in lib cli darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64 win32-arm64; do
+  pkg_json="$SCRIPT_DIR/$pkg/package.json"
+  [ -f "$pkg_json" ] || continue
+  node -e "
+    const fs = require('fs');
+    const p = JSON.parse(fs.readFileSync('$pkg_json', 'utf8'));
+    p.version = '$ZIG_VER';
+    // Update any @zigc/* refs in dependencies / optionalDependencies
+    for (const key of ['dependencies', 'optionalDependencies']) {
+      if (!p[key]) continue;
+      for (const dep of Object.keys(p[key])) {
+        if (dep.startsWith('@zigc/')) p[key][dep] = '$ZIG_VER';
+      }
+    }
+    fs.writeFileSync('$pkg_json', JSON.stringify(p, null, 2) + '\n');
+  "
+done
+
+# --version: only sync package versions, skip downloads
+if [[ "${1:-}" == "--version" ]]; then
+  echo "Done."
+  exit 0
+fi
+
 # Dev builds use /builds/, releases use /download/<ver>/
 if [[ "$ZIG_FULL_VER" == *"-dev"* ]]; then
   OFFICIAL_BASE="https://ziglang.org/builds"
@@ -53,24 +79,11 @@ print('\n'.join(lines))
 SHUFFLED_MIRRORS="${SHUFFLED_MIRRORS}
 ${OFFICIAL_BASE}"
 
-# Update version in all workspace package.json files
-echo "Updating package versions to $ZIG_VER..."
-for pkg in lib cli darwin-arm64 darwin-x64 linux-x64 linux-arm64 win32-x64 win32-arm64; do
-  pkg_json="$SCRIPT_DIR/$pkg/package.json"
-  node -e "
-    const fs = require('fs');
-    const p = JSON.parse(fs.readFileSync('$pkg_json', 'utf8'));
-    p.version = '$ZIG_VER';
-    // Update any @zigc/* refs in dependencies / optionalDependencies
-    for (const key of ['dependencies', 'optionalDependencies']) {
-      if (!p[key]) continue;
-      for (const dep of Object.keys(p[key])) {
-        if (dep.startsWith('@zigc/')) p[key][dep] = '$ZIG_VER';
-      }
-    }
-    fs.writeFileSync('$pkg_json', JSON.stringify(p, null, 2) + '\n');
-  "
-done
+# --version: only sync package versions, skip downloads
+if [[ "${1:-}" == "--version" ]]; then
+  echo "Done."
+  exit 0
+fi
 
 echo "Downloading Zig $ZIG_FULL_VER for all platforms..."
 
@@ -86,8 +99,9 @@ if [ -n "$OLD_VER" ] && [ "$OLD_VER" != "$ZIG_FULL_VER" ]; then
   echo "  Version changed ($OLD_VER -> $ZIG_VER), cleaning old binaries..."
   rm -rf "$SCRIPT_DIR"/darwin-arm64/bin "$SCRIPT_DIR"/darwin-x64/bin \
          "$SCRIPT_DIR"/linux-x64/bin "$SCRIPT_DIR"/linux-arm64/bin \
-         "$SCRIPT_DIR"/win32-x64/bin "$SCRIPT_DIR"/win32-arm64/bin \
-         "$LIB_DIR"
+         "$SCRIPT_DIR"/win32-x64/bin "$SCRIPT_DIR"/win32-arm64/bin
+  # Remove lib contents but preserve package.json
+  find "$LIB_DIR" -mindepth 1 -not -name 'package.json' -delete 2>/dev/null || true
 fi
 
 # platform-dir  zig-target           archive-ext

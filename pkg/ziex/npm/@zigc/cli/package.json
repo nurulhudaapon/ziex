@@ -1,6 +1,6 @@
 {
   "name": "@zigc/cli",
-  "version": "0.15.2",
+  "version": "0.15.20",
   "description": "Zig compiler CLI via npm - run `bunx @zigc/cli` or `npx @zigc/cli`",
   "bin": {
     "zig": "bin/zig"
@@ -12,14 +12,14 @@
   "license": "MIT",
   "preferUnplugged": true,
   "dependencies": {
-    "@zigc/lib": "0.15.2"
+    "@zigc/lib": "0.15.20"
   },
   "optionalDependencies": {
-    "@zigc/darwin-arm64": "0.15.2",
-    "@zigc/darwin-x64": "0.15.2",
-    "@zigc/linux-x64": "0.15.2",
-    "@zigc/linux-arm64": "0.15.2",
-    "@zigc/win32-x64": "0.15.2",
-    "@zigc/win32-arm64": "0.15.2"
+    "@zigc/darwin-arm64": "0.15.20",
+    "@zigc/darwin-x64": "0.15.20",
+    "@zigc/linux-x64": "0.15.20",
+    "@zigc/linux-arm64": "0.15.20",
+    "@zigc/win32-x64": "0.15.20",
+    "@zigc/win32-arm64": "0.15.20"
   }
 }
