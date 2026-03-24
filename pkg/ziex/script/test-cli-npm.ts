@@ -122,17 +122,19 @@ log: { type: stdout, format: pretty, level: warn }
   }
   console.log("Verdaccio is running!");
 
-  const npmrc = `//localhost:4873/:_authToken=fake-token\nregistry=${REGISTRY}\n`;
+  const npmrcContent = `//localhost:4873/:_authToken=fake-token\nregistry=${REGISTRY}\n`;
 
   try {
     // Step 2: Publish packages from dist-cli
     console.log("\n2. Publishing packages to verdaccio...");
 
-    writeFileSync(join(platformPkgDir, ".npmrc"), npmrc);
+    // Write .npmrc into each package dir for auth
+    writeFileSync(join(platformPkgDir, ".npmrc"), npmrcContent);
+    writeFileSync(join(mainPkgDir, ".npmrc"), npmrcContent);
+
     await $`cd ${platformPkgDir} && npm publish --registry ${REGISTRY} --tag test`;
     console.log(`  Published ${platform.npm}@${VERSION}`);
 
-    writeFileSync(join(mainPkgDir, ".npmrc"), npmrc);
     await $`cd ${mainPkgDir} && npm publish --registry ${REGISTRY} --tag test`;
     console.log(`  Published ziex@${VERSION}`);
 
@@ -140,7 +142,7 @@ log: { type: stdout, format: pretty, level: warn }
     console.log("\n3. Testing global install...");
     const installTestDir = join(testDir, "install-test");
     mkdirSync(installTestDir, { recursive: true });
-    writeFileSync(join(installTestDir, ".npmrc"), npmrc);
+    writeFileSync(join(installTestDir, ".npmrc"), npmrcContent);
 
     console.log("  Installing ziex globally with npm...");
     await $`cd ${installTestDir} && npm install -g ziex@${VERSION} --registry ${REGISTRY}`;
@@ -184,7 +186,6 @@ log: { type: stdout, format: pretty, level: warn }
     // Cleanup
     console.log("\n5. Cleaning up...");
     verdaccioProc.kill();
-    // Clean up .npmrc files we wrote into dist-cli
     await $`rm -f ${join(platformPkgDir, ".npmrc")} ${join(mainPkgDir, ".npmrc")}`.quiet().nothrow();
     try {
       await $`npm uninstall -g ziex`.quiet().nothrow();
