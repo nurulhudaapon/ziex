@@ -1,5 +1,4 @@
-import { $ } from "bun";
-import { existsSync, readdirSync, readFileSync, writeFileSync } from "fs";
+import { existsSync, readdirSync, readFileSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 
 /**
@@ -32,6 +31,16 @@ function parseArgs() {
     }
   }
   return { tag, registry, dryRun, otp };
+}
+
+function spawn(cmd: string, args: string[], cwd: string) {
+  const proc = Bun.spawnSync(cmd === "npm" ? [cmd, ...args] : [cmd, ...args], {
+    cwd,
+    stdin: "inherit",
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  return proc.exitCode;
 }
 
 async function main() {
@@ -69,22 +78,22 @@ async function main() {
   }
   console.log();
 
-  // Build npm publish args
-  const publishArgs = ["npm", "publish", "--workspaces", "--tag", tag, "--registry", registry];
+  // Build npm publish args — use interactive spawn so npm can open browser for 2FA
+  const publishArgs = ["publish", "--workspaces", "--tag", tag, "--registry", registry];
   if (dryRun) publishArgs.push("--dry-run");
   if (otp) publishArgs.push("--otp", otp);
 
-  // Publish all at once via workspaces
-  try {
-    await $`cd ${DIST_CLI_DIR} && ${publishArgs}`;
-    console.log(`\nAll packages published successfully!`);
-  } catch (err) {
-    console.error(`\nPublish failed: ${err}`);
-    process.exit(1);
-  } finally {
-    // Clean up the generated workspace package.json
-    await $`rm -f ${join(DIST_CLI_DIR, "package.json")}`.quiet().nothrow();
+  const exitCode = spawn("npm", publishArgs, DIST_CLI_DIR);
+
+  // Clean up the generated workspace package.json
+  try { rmSync(join(DIST_CLI_DIR, "package.json")); } catch {}
+
+  if (exitCode !== 0) {
+    console.error(`\nPublish failed with exit code ${exitCode}`);
+    process.exit(exitCode ?? 1);
   }
+
+  console.log(`\nAll packages published successfully!`);
 }
 
 main();
