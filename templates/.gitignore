@@ -48,3 +48,7 @@ node_modules/
 !database-pg/app/main.zig
 !database-pg/app/pages/page.zx
 
+
+# node template
+!node/.gitignore
+!node/package.json
