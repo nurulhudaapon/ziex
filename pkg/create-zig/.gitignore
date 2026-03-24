@@ -1,0 +1,6 @@
+# Zig
+.zig-cache
+
+# Nodejs
+node_modules
+dist

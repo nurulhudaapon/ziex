@@ -1,6 +1,6 @@
 {
   "name": "@zigc/win32-x64",
-  "version": "0.15.2",
+  "version": "0.15.20",
   "description": "Zig compiler binary for Windows x64",
   "os": [
     "win32"

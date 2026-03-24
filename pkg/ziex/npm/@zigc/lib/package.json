@@ -1,6 +1,6 @@
 {
   "name": "@zigc/lib",
-  "version": "0.15.2",
+  "version": "0.15.20",
   "description": "Zig standard library and libc headers (shared across all platforms)",
   "repository": {
     "type": "git",

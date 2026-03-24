@@ -104,7 +104,7 @@ async function main() {
   pkgJson.repository = rootPackageJson.repository;
   pkgJson.author = rootPackageJson.author;
   pkgJson.license = rootPackageJson.license;
-  pkgJson.scripts = { postinstall: "node install.js" };
+  pkgJson.scripts = { postinstall: "node install.cjs" };
   pkgJson.devDependencies = undefined;
   pkgJson.peerDependencies = undefined;
   pkgJson.private = undefined;
