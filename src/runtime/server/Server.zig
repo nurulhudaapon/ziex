@@ -155,12 +155,12 @@ pub fn Server(comptime H: type) type {
 
             // When running under the dev proxy, bind to the inner port on
             // loopback only - the proxy owns the user-facing port.
-            if (std.posix.getenv("ZIEX_INNER_PORT")) |port_str| {
+            if (std.process.getEnvVarOwned(self.allocator, "ZIEX_INNER_PORT")) |port_str| {
                 if (std.fmt.parseInt(u16, port_str, 10) catch null) |inner_port| {
                     self.server.config.port = inner_port;
                     self.server.config.address = "127.0.0.1";
                 }
-            }
+            } else {}
 
             self.server.listen() catch |err| {
                 self._is_listening = false;
