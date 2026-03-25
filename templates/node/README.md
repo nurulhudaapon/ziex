@@ -6,43 +6,14 @@ This project can be used without having to installe Zig or Ziex globally, it wor
 
 **[Documentation →](https://ziex.dev)**
 
-## Getting Started
 
-### 1. Install ZX CLI
+## Install Dependencies
 
-#### Linux/macOS
+You can use `bun`/`npm`/`yarn`/`pnpm` or any other Node package manager, the following guides uses Bun as an example.
+
+
 ```bash
-curl -fsSL https://ziex.dev/install | bash
-```
-
-#### Windows
-```powershell
-powershell -c "irm ziex.dev/install.ps1 | iex"
-```
-
-### 2. Install Zig
-```bash
-brew install zig # macOS
-winget install -e --id zig.zig # Windows
-```
-[_Other platforms →_](https://ziglang.org/learn/getting-started/)
-
-
-## Project
-
-```
-├── app/
-│   ├── assets/         # Static assets (CSS, images, etc)
-│   ├── main.zig        # Zig entrypoint
-│   ├── pages/          # Pages (Zig/ZX)
-│   │   ├── layout.zx   # Root layout
-│   │   ├── page.zx     # Home page
-│   │   ├── client.zx   # Client side counter component
-│   │   └── ...
-│   └── public/         # Public static files (favicon, etc)
-├── build.zig           # Zig build script
-├── build.zig.zon       # Zig package manager config
-└── README.md           # Project info
+bun install
 ```
 
 ## Usage
@@ -78,9 +49,9 @@ This will create a `bundle/` directory with the binary and static assets needed 
 bun zx [command] [options]
 ```
 
-All ZX CLI commands are available under `zig build zx -- [command]`. For example, to run auto formatter:
+All ZX CLI commands are available under `bun zx [command]`. For example, to run auto formatter:
 ```bash
-bun build fmt .
+bun zx fmt .
 ```
 
 ## Contributing
