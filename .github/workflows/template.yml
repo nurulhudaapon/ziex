@@ -40,7 +40,8 @@ jobs:
             TEMPLATES=$(echo "$ALL_TEMPLATES" | jq -R -s -c 'split("\n") | map(select(. != ""))')
           else
             # Only sync templates whose files changed
-            TEMPLATES=$(echo "$CHANGED_FILES" | grep '^templates/' | cut -d'/' -f2 | sort -u | grep -v '_base' | jq -R -s -c 'split("\n") | map(select(. != ""))')
+            CHANGED_TEMPLATES=$(echo "$CHANGED_FILES" | grep '^templates/' | cut -d'/' -f2 | sort -u | grep -v '_base')
+            TEMPLATES=$(comm -12 <(echo "$ALL_TEMPLATES" | sort) <(echo "$CHANGED_TEMPLATES" | sort) | jq -R -s -c 'split("\n") | map(select(. != ""))')
           fi
 
           echo "templates=$TEMPLATES" >> $GITHUB_OUTPUT
@@ -66,6 +67,11 @@ jobs:
         run: |
           cd templates/_base
           zig fetch --save "git+https://github.com/ziex-dev/ziex#${{ github.sha }}"
+          # If this template tracks its own build.zig.zon, update it too
+          if git ls-files --error-unmatch "templates/${{ matrix.template }}/build.zig.zon" 2>/dev/null; then
+            cd "$OLDPWD/templates/${{ matrix.template }}"
+            zig fetch --save "git+https://github.com/ziex-dev/ziex#${{ github.sha }}"
+          fi
 
       - name: Populate template
         run: bash ./tools/template.sh populate ${{ matrix.template }}
@@ -101,6 +107,11 @@ jobs:
         run: |
           cd templates/_base
           zig fetch --save "git+https://github.com/ziex-dev/ziex#${{ github.sha }}"
+          # If this template tracks its own build.zig.zon, update it too
+          if git ls-files --error-unmatch "templates/${{ matrix.template }}/build.zig.zon" 2>/dev/null; then
+            cd "$OLDPWD/templates/${{ matrix.template }}"
+            zig fetch --save "git+https://github.com/ziex-dev/ziex#${{ github.sha }}"
+          fi
 
       - name: Populate and Sync
         env:

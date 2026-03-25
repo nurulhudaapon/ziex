@@ -1,0 +1,61 @@
+#!/usr/bin/env node
+
+// Stub that delegates to the native zx binary.
+// The postinstall script copies it to bin/zx, but if that hasn't run
+// (e.g. bunx), we resolve the platform package's binary directly.
+
+import { execFileSync } from "child_process";
+import { existsSync } from "fs";
+import { createRequire } from "module";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
+const isWindows = process.platform === "win32";
+const ext = isWindows ? ".exe" : "";
+
+function findBinary() {
+  // 1. Check if postinstall already placed the binary
+  const localBin = join(__dirname, `zx${ext}`);
+  if (existsSync(localBin)) return localBin;
+
+  // 2. Resolve from the platform-specific optional dependency
+  const platformPkgs = {
+    "darwin-arm64": "@ziex/cli-darwin-arm64",
+    "darwin-x64": "@ziex/cli-darwin-x64",
+    "linux-x64": "@ziex/cli-linux-x64",
+    "linux-arm64": "@ziex/cli-linux-arm64",
+    "win32-x64": "@ziex/cli-win32-x64",
+    "win32-arm64": "@ziex/cli-win32-arm64",
+  };
+
+  const pkg = platformPkgs[`${process.platform}-${process.arch}`];
+  if (pkg) {
+    try {
+      const pkgDir = dirname(require.resolve(`${pkg}/package.json`));
+      const bin = join(pkgDir, "bin", `zx${ext}`);
+      if (existsSync(bin)) return bin;
+    } catch {}
+  }
+
+  return null;
+}
+
+const bin = findBinary();
+if (!bin) {
+  console.error(
+    "Error: ziex native binary not found. The postinstall script may not have run.",
+  );
+  console.error("Try reinstalling: npm install -g ziex");
+  process.exit(1);
+}
+
+try {
+  execFileSync(bin, process.argv.slice(2), { stdio: "inherit" });
+} catch (e) {
+  if (e.status !== undefined) {
+    process.exit(e.status);
+  }
+  throw e;
+}

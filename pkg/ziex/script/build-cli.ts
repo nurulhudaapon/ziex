@@ -98,7 +98,7 @@ async function main() {
 
   // Build main package dist with updated optionalDependencies versions
   console.log(`\n  Building main ziex package...`);
-  const mainDistDir = join(distDir, "ziex");
+  const mainDistDir = join(distDir, "@ziex-cli");
   mkdirSync(join(mainDistDir, "bin"), { recursive: true });
 
   // Copy install.js
@@ -116,6 +116,7 @@ async function main() {
   mainPkgJson.peerDependencies = undefined;
   mainPkgJson.peerDependenciesMeta = undefined;
   mainPkgJson.release = undefined;
+  mainPkgJson.name = "@ziex/cli";
 
   // Update optionalDependencies versions
   if (mainPkgJson.optionalDependencies) {

@@ -1,0 +1,14 @@
+{
+  "scripts": {
+    "dev": "zx dev",
+    "build": "zig build",
+    "serve": "zx serve",
+    "export": "zx export",
+    "bundle": "zx bundle",
+    "fmt": "zx fmt"
+  },
+  "dependencies": {
+    "@ziex/cli": "0.1.0-dev.8640",
+    "@zigc/cli": "0.15.20"
+  }
+}
