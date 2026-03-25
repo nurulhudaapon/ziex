@@ -153,10 +153,12 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
         }
         if (data.units.percentage) try prop_union.addField(fa, "", "percent_", "[4]f32", null);
         if (data.units.color) try prop_union.addField(fa, "", "hex_", "u32", null);
-        try prop_union.addField(fa, "", "calc_", "CalcExpr", null);
-
-        const calc_sig = try std.fmt.allocPrint(fa, "(expr: CalcExpr) {s}", .{final_type_name});
-        _ = try prop_union.addMethod(fa, "", "calc", calc_sig, "return .{ .calc_ = expr };");
+        const has_calc = data.units.length or data.units.percentage or data.units.angle or data.units.time;
+        if (has_calc) {
+            try prop_union.addField(fa, "", "calc_", "CalcExpr", null);
+            const calc_sig = try std.fmt.allocPrint(fa, "(expr: CalcExpr) {s}", .{final_type_name});
+            _ = try prop_union.addMethod(fa, "", "calc", calc_sig, "return .{ .calc_ = expr };");
+        }
 
         if (data.units.length) {
             const px_sig = try std.fmt.allocPrint(fa, "(v: f32) {s}", .{final_type_name});

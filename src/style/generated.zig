@@ -7,42 +7,67 @@ const core = @import("core.zig");
 
 pub const CalcExpr = struct {
     const Self = @This();
-    pub const Unit = enum { px, em, rem, percent };
-    pub const Op = enum { add, sub, mul, div };
-    pub const Kind = enum { unit, number, raw, op };
-
-    pub const Node = struct {
-        kind: Kind,
-        unit: Unit = .px,
-        value: f32 = 0,
-        text: []const u8 = "",
-        lhs: u8 = 0,
-        rhs: u8 = 0,
-        op: Op = .add,
+    pub const Unit = enum {
+        px,
+        em,
+        rem,
+        percent,
+        pub fn toString(self: Unit) []const u8 {
+            return switch (self) {
+                .percent => "%",
+                else => @tagName(self),
+            };
+        }
     };
 
-    nodes: [32]Node = undefined,
-    len: u8 = 0,
-    root: u8 = 0,
+    pub const Op = enum {
+        add,
+        sub,
+        mul,
+        div,
+        pub fn toString(self: Op) []const u8 {
+            return switch (self) {
+                .add => "+",
+                .sub => "-",
+                .mul => "*",
+                .div => "/",
+            };
+        }
+    };
 
-    fn leaf(node: Node) Self {
+    buf: [64]u8 = undefined,
+    len: u8 = 0,
+
+    fn init(t: []const u8) Self {
         var self: Self = undefined;
-        self.nodes[0] = node;
-        self.len = 1;
-        self.root = 0;
+        if (t.len > self.buf.len) @panic("calc expression too complex");
+        std.mem.copyForwards(u8, self.buf[0..t.len], t);
+        self.len = @intCast(t.len);
         return self;
     }
 
+    fn text(self: Self) []const u8 {
+        return self.buf[0..self.len];
+    }
+
+    fn leaf(value: []const u8) Self {
+        return init(value);
+    }
+
     fn unitLeaf(unit: Unit, value: f32) Self {
-        return leaf(.{ .kind = .unit, .unit = unit, .value = value });
+        var temp: [64]u8 = undefined;
+        const written = std.fmt.bufPrint(&temp, "{d}{s}", .{ value, unit.toString() }) catch @panic("calc expression too complex");
+        return leaf(written);
     }
 
     fn numberLeaf(value: f32) Self {
-        return leaf(.{ .kind = .number, .value = value });
+        var temp: [64]u8 = undefined;
+        const written = std.fmt.bufPrint(&temp, "{d}", .{value}) catch @panic("calc expression too complex");
+        return leaf(written);
     }
 
-    fn rawLeaf(text: []const u8) Self {
-        return leaf(.{ .kind = .raw, .text = text });
+    fn rawLeaf(value: []const u8) Self {
+        return leaf(value);
     }
 
     pub fn px(value: f32) Self {
@@ -61,8 +86,8 @@ pub const CalcExpr = struct {
         return unitLeaf(.percent, value);
     }
 
-    pub fn raw(text: []const u8) Self {
-        return rawLeaf(text);
+    pub fn raw(value: []const u8) Self {
+        return rawLeaf(value);
     }
 
     pub fn number(value: f32) Self {
@@ -70,16 +95,30 @@ pub const CalcExpr = struct {
     }
 
     fn combine(self: Self, other: Self, op: Op) Self {
-        var out = self;
-        if (out.len + other.len + 1 > out.nodes.len) @panic("calc expression too complex");
+        var temp: [64]u8 = undefined;
+        const lhs = self.text();
+        const rhs = other.text();
+        const op_text = op.toString();
+        const needed = lhs.len + rhs.len + op_text.len + 4;
+        if (needed > temp.len) @panic("calc expression too complex");
+
         var i: usize = 0;
-        while (i < other.len) : (i += 1) out.nodes[out.len + i] = other.nodes[i];
-        const lhs: u8 = out.root;
-        const rhs: u8 = @intCast(out.len + other.root);
-        out.nodes[out.len + other.len] = .{ .kind = .op, .op = op, .lhs = lhs, .rhs = rhs };
-        out.len = @intCast(out.len + other.len + 1);
-        out.root = out.len - 1;
-        return out;
+        temp[i] = '(';
+        i += 1;
+        std.mem.copyForwards(u8, temp[i..][0..lhs.len], lhs);
+        i += lhs.len;
+        temp[i] = ' ';
+        i += 1;
+        std.mem.copyForwards(u8, temp[i..][0..op_text.len], op_text);
+        i += op_text.len;
+        temp[i] = ' ';
+        i += 1;
+        std.mem.copyForwards(u8, temp[i..][0..rhs.len], rhs);
+        i += rhs.len;
+        temp[i] = ')';
+        i += 1;
+
+        return init(temp[0..i]);
     }
 
     pub fn add(self: Self, other: Self) Self {
@@ -98,32 +137,8 @@ pub const CalcExpr = struct {
         return self.combine(numberLeaf(factor), .div);
     }
 
-    fn renderNode(self: Self, index: u8, w: *std.io.Writer) !void {
-        const node = self.nodes[index];
-        switch (node.kind) {
-            .unit => switch (node.unit) {
-                .percent => try w.print("{d}%", .{node.value}),
-                else => try w.print("{d}{s}", .{ node.value, @tagName(node.unit) }),
-            },
-            .number => try w.print("{d}", .{node.value}),
-            .raw => try w.writeAll(node.text),
-            .op => {
-                try w.writeByte('(');
-                try self.renderNode(node.lhs, w);
-                try w.print(" {s} ", .{switch (node.op) {
-                    .add => "+",
-                    .sub => "-",
-                    .mul => "*",
-                    .div => "/",
-                }});
-                try self.renderNode(node.rhs, w);
-                try w.writeByte(')');
-            },
-        }
-    }
-
     pub fn format(self: Self, w: *std.io.Writer) !void {
-        try self.renderNode(self.root, w);
+        try w.writeAll(self.text());
     }
 };
 
@@ -153,11 +168,7 @@ pub const WebkitAlignContent = union(enum) {
     end,
     flex_start,
     flex_end,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitAlignContent {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitAlignContent, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -186,11 +197,7 @@ pub const WebkitAlignItems = union(enum) {
     self_end,
     flex_start,
     flex_end,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitAlignItems {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitAlignItems, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -220,11 +227,7 @@ pub const WebkitAlignSelf = union(enum) {
     first,
     last,
     baseline,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitAlignSelf {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitAlignSelf, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -299,11 +302,7 @@ pub const WebkitAnimationDirection = union(enum) {
     reverse,
     alternate,
     alternate_reverse,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitAnimationDirection {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitAnimationDirection, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -340,11 +339,7 @@ pub const WebkitAnimationFillMode = union(enum) {
     forwards,
     backwards,
     both,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitAnimationFillMode {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitAnimationFillMode, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -360,11 +355,7 @@ pub const WebkitAnimationIterationCount = union(enum) {
     revert_layer,
     unset,
     infinite,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitAnimationIterationCount {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitAnimationIterationCount, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -379,11 +370,7 @@ pub const WebkitAnimationName = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitAnimationName {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitAnimationName, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -400,11 +387,7 @@ pub const WebkitAnimationPlayState = union(enum) {
     unset,
     running,
     paused,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitAnimationPlayState {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitAnimationPlayState, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -426,11 +409,7 @@ pub const WebkitAnimationTimingFunction = union(enum) {
     ease_in_out,
     step_start,
     step_end,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitAnimationTimingFunction {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitAnimationTimingFunction, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -459,11 +438,7 @@ pub const WebkitAppearance = union(enum) {
     button,
     textfield,
     menulist_button,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitAppearance {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitAppearance, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -480,11 +455,7 @@ pub const WebkitBackfaceVisibility = union(enum) {
     unset,
     visible,
     hidden,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitBackfaceVisibility {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitBackfaceVisibility, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -502,11 +473,7 @@ pub const WebkitBackgroundClip = union(enum) {
     content_box,
     padding_box,
     border_box,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitBackgroundClip {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitBackgroundClip, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -524,11 +491,7 @@ pub const WebkitBackgroundOrigin = union(enum) {
     content_box,
     padding_box,
     border_box,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitBackgroundOrigin {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitBackgroundOrigin, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -846,11 +809,7 @@ pub const WebkitBoxAlign = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitBoxAlign {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitBoxAlign, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -865,11 +824,7 @@ pub const WebkitBoxFlex = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitBoxFlex {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitBoxFlex, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -884,11 +839,7 @@ pub const WebkitBoxOrdinalGroup = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitBoxOrdinalGroup {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitBoxOrdinalGroup, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -903,11 +854,7 @@ pub const WebkitBoxOrient = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitBoxOrient {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitBoxOrient, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -922,11 +869,7 @@ pub const WebkitBoxPack = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitBoxPack {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitBoxPack, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -986,11 +929,7 @@ pub const WebkitBoxSizing = union(enum) {
     unset,
     content_box,
     border_box,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitBoxSizing {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitBoxSizing, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1005,11 +944,7 @@ pub const WebkitFilter = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitFilter {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitFilter, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1024,11 +959,7 @@ pub const WebkitFlex = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitFlex {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitFlex, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1044,11 +975,7 @@ pub const WebkitFlexBasis = union(enum) {
     revert_layer,
     unset,
     content,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitFlexBasis {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitFlexBasis, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1067,11 +994,7 @@ pub const WebkitFlexDirection = union(enum) {
     row_reverse,
     column,
     column_reverse,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitFlexDirection {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitFlexDirection, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1086,11 +1009,7 @@ pub const WebkitFlexFlow = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitFlexFlow {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitFlexFlow, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1105,11 +1024,7 @@ pub const WebkitFlexGrow = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitFlexGrow {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitFlexGrow, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1124,11 +1039,7 @@ pub const WebkitFlexShrink = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitFlexShrink {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitFlexShrink, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1146,11 +1057,7 @@ pub const WebkitFlexWrap = union(enum) {
     nowrap,
     wrap,
     wrap_reverse,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitFlexWrap {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitFlexWrap, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1179,11 +1086,7 @@ pub const WebkitJustifyContent = union(enum) {
     flex_end,
     left,
     right,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitJustifyContent {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitJustifyContent, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1198,11 +1101,7 @@ pub const WebkitLineClamp = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitLineClamp {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitLineClamp, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1399,11 +1298,7 @@ pub const WebkitMaskBoxImageRepeat = union(enum) {
     repeat,
     round,
     space,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitMaskBoxImageRepeat {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitMaskBoxImageRepeat, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1445,11 +1340,7 @@ pub const WebkitMaskBoxImageSource = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitMaskBoxImageSource {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitMaskBoxImageSource, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1522,11 +1413,7 @@ pub const WebkitMaskClip = union(enum) {
     stroke_box,
     view_box,
     no_clip,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitMaskClip {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitMaskClip, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1545,11 +1432,7 @@ pub const WebkitMaskComposite = union(enum) {
     subtract,
     intersect,
     exclude,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitMaskComposite {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitMaskComposite, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1564,11 +1447,7 @@ pub const WebkitMaskImage = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitMaskImage {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitMaskImage, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1589,11 +1468,7 @@ pub const WebkitMaskOrigin = union(enum) {
     fill_box,
     stroke_box,
     view_box,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitMaskOrigin {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitMaskOrigin, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1681,11 +1556,7 @@ pub const WebkitMaskRepeat = union(enum) {
     space,
     round,
     no_repeat,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitMaskRepeat {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitMaskRepeat, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -1753,11 +1624,7 @@ pub const WebkitOrder = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitOrder {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitOrder, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -2073,11 +1940,7 @@ pub const WebkitTextFillColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitTextFillColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) WebkitTextFillColor {
         return .{ .hex_ = v };
     }
@@ -2558,11 +2421,7 @@ pub const WebkitTextStrokeColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitTextStrokeColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) WebkitTextStrokeColor {
         return .{ .hex_ = v };
     }
@@ -2627,11 +2486,7 @@ pub const WebkitTransform = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitTransform {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitTransform, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -2703,11 +2558,7 @@ pub const WebkitTransformStyle = union(enum) {
     unset,
     flat,
     preserve_3d,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitTransformStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitTransformStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -2790,11 +2641,7 @@ pub const WebkitTransitionProperty = union(enum) {
     revert_layer,
     unset,
     all,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitTransitionProperty {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitTransitionProperty, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -2816,11 +2663,7 @@ pub const WebkitTransitionTimingFunction = union(enum) {
     ease_in_out,
     step_start,
     step_end,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitTransitionTimingFunction {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitTransitionTimingFunction, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -2839,11 +2682,7 @@ pub const WebkitUserSelect = union(enum) {
     text,
     contain,
     all,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WebkitUserSelect {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WebkitUserSelect, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3053,11 +2892,7 @@ pub const AccentColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) AccentColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) AccentColor {
         return .{ .hex_ = v };
     }
@@ -3091,11 +2926,7 @@ pub const AlignContent = union(enum) {
     end,
     flex_start,
     flex_end,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) AlignContent {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: AlignContent, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3126,11 +2957,7 @@ pub const AlignItems = union(enum) {
     flex_end,
     /// The new anchor-center value makes this case extremely simple: if the positioned box has a default anchor box, then it is centered (insofar as possible) over the default anchor box in the relevant axis. Additionally:
     anchor_center,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) AlignItems {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: AlignItems, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3165,11 +2992,7 @@ pub const AlignSelf = union(enum) {
     baseline,
     /// The new anchor-center value makes this case extremely simple: if the positioned box has a default anchor box, then it is centered (insofar as possible) over the default anchor box in the relevant axis. Additionally:
     anchor_center,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) AlignSelf {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: AlignSelf, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3194,11 +3017,7 @@ pub const AlignmentBaseline = union(enum) {
     mathematical,
     hanging,
     text_top,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) AlignmentBaseline {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: AlignmentBaseline, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3215,11 +3034,7 @@ pub const All = union(enum) {
     unset,
     /// The revert-rule CSS-wide keyword rolls back the cascade similar to revert and revert-layer, except it works by style rule rather than cascade origin or cascade layer.
     revert_rule,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) All {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: All, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3234,11 +3049,7 @@ pub const AnchorName = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) AnchorName {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: AnchorName, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3255,11 +3066,7 @@ pub const AnchorScope = union(enum) {
     unset,
     /// Specifies that all anchor names defined by this element or its descendants—​whose scope is not already limited by a descendant using anchor-scope—​to be in scope only for this element’s descendants; and limits descendants to only match anchor names to anchor elements within this subtree. This value only affects anchor names in the same tree scope, as if it were a strictly matched tree-scoped name. (That is, anchor-scope: all acts identically to anchor-scope: --foo, --bar, ..., listing all relevant anchor names.)
     all,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) AnchorScope {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: AnchorScope, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3314,11 +3121,7 @@ pub const AnimationComposition = union(enum) {
     replace,
     add_,
     accumulate,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) AnimationComposition {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: AnimationComposition, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3360,11 +3163,7 @@ pub const AnimationDirection = union(enum) {
     alternate,
     /// The animation cycle iterations that are odd counts are played in the reverse direction, and the animation cycle iterations that are even counts are played in a normal direction.
     alternate_reverse,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) AnimationDirection {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: AnimationDirection, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3406,11 +3205,7 @@ pub const AnimationFillMode = union(enum) {
     backwards,
     /// The effects of both forwards and backwards fill apply.
     both,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) AnimationFillMode {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: AnimationFillMode, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3427,11 +3222,7 @@ pub const AnimationIterationCount = union(enum) {
     unset,
     /// The animation will repeat forever.
     infinite,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) AnimationIterationCount {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: AnimationIterationCount, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3446,11 +3237,7 @@ pub const AnimationName = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) AnimationName {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: AnimationName, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3469,11 +3256,7 @@ pub const AnimationPlayState = union(enum) {
     running,
     /// While this property is set to paused, the animation is paused. The animation continues to apply to the element with the progress it had made before being paused. When unpaused (set back to running), it restarts from where it left off, as if the "clock" that controls the animation had stopped and started again. If the property is set to paused during the delay phase of the animation, the delay clock is also paused and resumes as soon as animation-play-state is set back to running.
     paused,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) AnimationPlayState {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: AnimationPlayState, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3488,11 +3271,7 @@ pub const AnimationRange = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) AnimationRange {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: AnimationRange, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3690,11 +3469,7 @@ pub const AnimationTimingFunction = union(enum) {
     ease_in_out,
     step_start,
     step_end,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) AnimationTimingFunction {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: AnimationTimingFunction, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3709,11 +3484,7 @@ pub const AnimationTrigger = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) AnimationTrigger {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: AnimationTrigger, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3745,11 +3516,7 @@ pub const Appearance = union(enum) {
     button,
     textfield,
     menulist_button,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Appearance {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Appearance, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3766,11 +3533,7 @@ pub const AspectRatio = union(enum) {
     unset,
     /// Replaced elements with a natural aspect ratio use that aspect ratio; otherwise the box has no preferred aspect ratio. Size calculations involving the aspect ratio work with the content box dimensions always.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) AspectRatio {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: AspectRatio, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3785,11 +3548,7 @@ pub const BackdropFilter = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BackdropFilter {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BackdropFilter, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3806,11 +3565,7 @@ pub const BackfaceVisibility = union(enum) {
     unset,
     visible,
     hidden,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BackfaceVisibility {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BackfaceVisibility, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3915,11 +3670,7 @@ pub const BackgroundAttachment = union(enum) {
     fixed,
     /// The background is fixed with regard to the box’s contents: if the box has a scrolling mechanism, the background scrolls with the box’s contents, and the background painting area and background positioning area are relative to the scrollable overflow area of the box rather than to the border framing them. Because the scrollable overflow area does not include the border area, for scroll containers the border-box value of background-clip may be treated the same as padding-box.
     local,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BackgroundAttachment {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BackgroundAttachment, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3934,11 +3685,7 @@ pub const BackgroundBlendMode = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BackgroundBlendMode {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BackgroundBlendMode, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -3961,11 +3708,7 @@ pub const BackgroundClip = union(enum) {
     border_box,
     border_area,
     text,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BackgroundClip {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BackgroundClip, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -4173,11 +3916,7 @@ pub const BackgroundColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BackgroundColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) BackgroundColor {
         return .{ .hex_ = v };
     }
@@ -4195,11 +3934,7 @@ pub const BackgroundImage = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BackgroundImage {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BackgroundImage, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -4220,11 +3955,7 @@ pub const BackgroundOrigin = union(enum) {
     padding_box,
     /// The position is relative to the border box.
     border_box,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BackgroundOrigin {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BackgroundOrigin, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -4541,11 +4272,7 @@ pub const BackgroundRepeat = union(enum) {
     round,
     /// The image is placed once and not repeated in this direction.
     no_repeat,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BackgroundRepeat {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BackgroundRepeat, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -4568,11 +4295,7 @@ pub const BackgroundRepeatBlock = union(enum) {
     round,
     /// The image is placed once and not repeated in the given direction.
     no_repeat,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BackgroundRepeatBlock {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BackgroundRepeatBlock, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -4595,11 +4318,7 @@ pub const BackgroundRepeatInline = union(enum) {
     round,
     /// The image is placed once and not repeated in the given direction.
     no_repeat,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BackgroundRepeatInline {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BackgroundRepeatInline, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -4622,11 +4341,7 @@ pub const BackgroundRepeatX = union(enum) {
     round,
     /// The image is placed once and not repeated in the given direction.
     no_repeat,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BackgroundRepeatX {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BackgroundRepeatX, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -4649,11 +4364,7 @@ pub const BackgroundRepeatY = union(enum) {
     round,
     /// The image is placed once and not repeated in the given direction.
     no_repeat,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BackgroundRepeatY {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BackgroundRepeatY, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -4874,11 +4585,7 @@ pub const BaselineSource = union(enum) {
     first,
     /// Specifies last-baseline alignment.
     last,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BaselineSource {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BaselineSource, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -4897,11 +4604,7 @@ pub const BlockEllipsis = union(enum) {
     no_ellipsis,
     /// Render an ellipsis character (U+2026)—​or a more typographically-appropriate equivalent—​as the block overflow ellipsis at the end of the affected line box. UAs should use the conventions of the content language, writing system, and writing mode to determine the most appropriate ellipsis string.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BlockEllipsis {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BlockEllipsis, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -4916,11 +4619,7 @@ pub const BlockSize = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BlockSize {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BlockSize, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -4935,11 +4634,7 @@ pub const BlockStep = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BlockStep {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BlockStep, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -4962,11 +4657,7 @@ pub const BlockStepAlign = union(enum) {
     start,
     /// Any extra space resulting from a block-step-size-induced adjustment is inserted on the start side of the box.
     end,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BlockStepAlign {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BlockStepAlign, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -4987,11 +4678,7 @@ pub const BlockStepInsert = union(enum) {
     padding_box,
     /// Any extra space resulting from a block-step-size-induced adjustment is inserted inside the box’s border by increasing the height of the content area.
     content_box,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BlockStepInsert {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BlockStepInsert, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -5009,11 +4696,7 @@ pub const BlockStepRound = union(enum) {
     up,
     down,
     nearest,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BlockStepRound {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BlockStepRound, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -5076,11 +4759,7 @@ pub const BookmarkLabel = union(enum) {
     close_quote,
     no_open_quote,
     no_close_quote,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BookmarkLabel {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BookmarkLabel, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -5095,11 +4774,7 @@ pub const BookmarkLevel = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BookmarkLevel {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BookmarkLevel, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -5118,11 +4793,7 @@ pub const BookmarkState = union(enum) {
     open,
     /// Subsequent bookmarks of bookmark-level greater than the given bookmark are not displayed, until reaching another bookmark of the same level or lower.
     closed,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BookmarkState {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BookmarkState, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -6013,11 +5684,7 @@ pub const BorderBlockEndColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderBlockEndColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) BorderBlockEndColor {
         return .{ .hex_ = v };
     }
@@ -6094,11 +5761,7 @@ pub const BorderBlockEndStyle = union(enum) {
     ridge,
     inset,
     outset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderBlockEndStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BorderBlockEndStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -6655,11 +6318,7 @@ pub const BorderBlockStartColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderBlockStartColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) BorderBlockStartColor {
         return .{ .hex_ = v };
     }
@@ -6736,11 +6395,7 @@ pub const BorderBlockStartStyle = union(enum) {
     ridge,
     inset,
     outset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderBlockStartStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BorderBlockStartStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -7383,11 +7038,7 @@ pub const BorderBottomColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderBottomColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) BorderBottomColor {
         return .{ .hex_ = v };
     }
@@ -7564,11 +7215,7 @@ pub const BorderBottomStyle = union(enum) {
     ridge,
     inset,
     outset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderBottomStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BorderBottomStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -7632,11 +7279,7 @@ pub const BorderBoundary = union(enum) {
     unset,
     parent,
     display,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderBoundary {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BorderBoundary, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -7696,11 +7339,7 @@ pub const BorderCollapse = union(enum) {
     unset,
     separate,
     collapse,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderCollapse {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BorderCollapse, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -7908,11 +7547,7 @@ pub const BorderColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) BorderColor {
         return .{ .hex_ = v };
     }
@@ -8124,11 +7759,7 @@ pub const BorderImageRepeat = union(enum) {
     round,
     /// The image is tiled (repeated) to fill its corresponding region. If it does not fill the region with a whole number of tiles, the extra space is distributed around the tiles.
     space,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderImageRepeat {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BorderImageRepeat, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -8171,11 +7802,7 @@ pub const BorderImageSource = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderImageSource {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BorderImageSource, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -8866,11 +8493,7 @@ pub const BorderInlineEndColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderInlineEndColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) BorderInlineEndColor {
         return .{ .hex_ = v };
     }
@@ -8947,11 +8570,7 @@ pub const BorderInlineEndStyle = union(enum) {
     ridge,
     inset,
     outset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderInlineEndStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BorderInlineEndStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -9508,11 +9127,7 @@ pub const BorderInlineStartColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderInlineStartColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) BorderInlineStartColor {
         return .{ .hex_ = v };
     }
@@ -9589,11 +9204,7 @@ pub const BorderInlineStartStyle = union(enum) {
     ridge,
     inset,
     outset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderInlineStartStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BorderInlineStartStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -10236,11 +9847,7 @@ pub const BorderLeftColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderLeftColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) BorderLeftColor {
         return .{ .hex_ = v };
     }
@@ -10317,11 +9924,7 @@ pub const BorderLeftStyle = union(enum) {
     ridge,
     inset,
     outset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderLeftStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BorderLeftStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -10992,11 +10595,7 @@ pub const BorderRightColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderRightColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) BorderRightColor {
         return .{ .hex_ = v };
     }
@@ -11073,11 +10672,7 @@ pub const BorderRightStyle = union(enum) {
     ridge,
     inset,
     outset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderRightStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BorderRightStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -11147,11 +10742,7 @@ pub const BorderShape = union(enum) {
     fill_box,
     stroke_box,
     view_box,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BorderShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -11847,11 +11438,7 @@ pub const BorderTopColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderTopColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) BorderTopColor {
         return .{ .hex_ = v };
     }
@@ -12028,11 +11615,7 @@ pub const BorderTopStyle = union(enum) {
     ridge,
     inset,
     outset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BorderTopStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BorderTopStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -12193,11 +11776,7 @@ pub const BoxDecorationBreak = union(enum) {
     slice,
     /// Each box fragment is independently wrapped with the border, padding, and margin. The border-radius and border-image and box-shadow, if any, are applied to each fragment independently. The background is drawn independently in each fragment of the element. A no-repeat background image will thus be rendered once in each fragment of the element.
     clone,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BoxDecorationBreak {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BoxDecorationBreak, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -12491,11 +12070,7 @@ pub const BoxShadowColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BoxShadowColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) BoxShadowColor {
         return .{ .hex_ = v };
     }
@@ -12560,11 +12135,7 @@ pub const BoxShadowPosition = union(enum) {
     outset,
     /// Causes the drop shadow to be an inner box-shadow. That means, one that shadows the canvas onto the box, as if the box were cut out of the canvas and shifted behind it.
     inset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BoxShadowPosition {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BoxShadowPosition, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -12626,11 +12197,7 @@ pub const BoxSizing = union(enum) {
     content_box,
     /// Sizes specified on sizing properties as <length-percentage> represent the box’s visually-apparent sizes, including the borders/padding (but not margin): they are applied to the border box. The padding and border of the box are laid out and drawn inside the specified width and height, with the content box sized to fill the remaining space, floored at zero. The content width and height are calculated by subtracting the border and padding widths of the respective sides from the specified <length-percentage>. As the content width and height cannot be negative, this computation is floored at zero. Used values, as exposed for instance through getComputedStyle(), also refer to the border box.
     border_box,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BoxSizing {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BoxSizing, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -12655,11 +12222,7 @@ pub const BoxSnap = union(enum) {
     baseline,
     /// The last line box’s dominant baseline is snapped to the nearest grid line.
     last_baseline,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BoxSnap {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BoxSnap, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -12702,11 +12265,7 @@ pub const BreakAfter = union(enum) {
     avoid_region,
     /// Always force a region break before/after the principal box.
     region,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BreakAfter {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BreakAfter, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -12749,11 +12308,7 @@ pub const BreakBefore = union(enum) {
     avoid_region,
     /// Always force a region break before/after the principal box.
     region,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BreakBefore {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BreakBefore, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -12778,11 +12333,7 @@ pub const BreakInside = union(enum) {
     avoid_column,
     /// Avoid a region break within the box.
     avoid_region,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) BreakInside {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: BreakInside, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -12801,11 +12352,7 @@ pub const CaptionSide = union(enum) {
     top,
     /// Positions the caption box below the table grid box.
     bottom,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CaptionSide {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CaptionSide, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -12820,11 +12367,7 @@ pub const Caret = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Caret {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Caret, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -12843,11 +12386,7 @@ pub const CaretAnimation = union(enum) {
     auto,
     /// The UA must not animate the caret.
     manual,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CaretAnimation {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CaretAnimation, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -13056,11 +12595,7 @@ pub const CaretColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CaretColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) CaretColor {
         return .{ .hex_ = v };
     }
@@ -13086,11 +12621,7 @@ pub const CaretShape = union(enum) {
     block,
     /// The UA must render the insertion caret as a thin line under (as defined in [CSS-WRITING-MODES-3]) the next visible character following the insertion point. If there is no visible character after the insertion point, the UA must render the caret after the last visible character.
     underscore,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CaretShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CaretShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -13127,11 +12658,7 @@ pub const Clear = union(enum) {
     both_block,
     /// Behave like both-inline.
     both,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Clear {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Clear, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -13147,11 +12674,7 @@ pub const Clip = union(enum) {
     revert_layer,
     unset,
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Clip {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Clip, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -13177,11 +12700,7 @@ pub const ClipPath = union(enum) {
     stroke_box,
     /// Uses the nearest SVG viewport as reference box. If a viewBox attribute is specified for the SVG viewport creating element: The reference box is positioned at the origin of the coordinate system established by the viewBox attribute. The dimension of the reference box is set to the width and height values of the viewBox attribute.
     view_box,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ClipPath {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ClipPath, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -13200,11 +12719,7 @@ pub const ClipRule = union(enum) {
     nonzero,
     /// See description of fill-rule property [SVG11].
     evenodd,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ClipRule {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ClipRule, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -13219,11 +12734,7 @@ pub const ColorAdjust = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ColorAdjust {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ColorAdjust, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -13241,11 +12752,7 @@ pub const ColorInterpolation = union(enum) {
     auto,
     sRGB,
     linearRGB,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ColorInterpolation {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ColorInterpolation, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -13266,11 +12773,7 @@ pub const ColorInterpolationFilters = union(enum) {
     sRGB,
     /// Indicates that filter effects color operations should occur in the linear-light sRGB color space.
     linearRGB,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ColorInterpolationFilters {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ColorInterpolationFilters, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -13293,11 +12796,7 @@ pub const ColorScheme = union(enum) {
     dark,
     /// Forbids the user agent from overriding the color scheme for the element.
     only,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ColorScheme {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ColorScheme, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -13314,11 +12813,7 @@ pub const ColumnCount = union(enum) {
     unset,
     /// means that the number of columns will be determined by other properties (e.g., column-width, if it has a non-auto value).
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ColumnCount {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ColumnCount, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -13339,11 +12834,7 @@ pub const ColumnFill = union(enum) {
     balance,
     /// Balance content equally between columns, as far as possible. In fragmented contexts, all fragments are balanced.
     balance_all,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ColumnFill {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ColumnFill, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -13716,11 +13207,7 @@ pub const ColumnRuleBreak = union(enum) {
     normal,
     /// Gap decorations start and end at visible "T" and "cross" intersections.
     intersection,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ColumnRuleBreak {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ColumnRuleBreak, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -13929,11 +13416,7 @@ pub const ColumnRuleColor = union(enum) {
     WindowText,
     auto,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ColumnRuleColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) ColumnRuleColor {
         return .{ .hex_ = v };
     }
@@ -14101,11 +13584,7 @@ pub const ColumnRuleInset = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ColumnRuleInset {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ColumnRuleInset, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -14380,11 +13859,7 @@ pub const ColumnRuleStyle = union(enum) {
     inset,
     outset,
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ColumnRuleStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ColumnRuleStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -14405,11 +13880,7 @@ pub const ColumnRuleVisibilityItems = union(enum) {
     around,
     /// Paint decorations in a gap segment if both adjacent areas are occupied by items.
     between,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ColumnRuleVisibilityItems {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ColumnRuleVisibilityItems, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -14476,11 +13947,7 @@ pub const ColumnSpan = union(enum) {
     all,
     /// The number of columns spanned by the element depends on its min-content outer size in the inline direction of the multi-column container. If it is smaller than the used value of column-width, this is the same as if column-span: none had been specified. Otherwise, the number of columns spanned is the smallest positive integer n for which n × column-width + (n - 1) × column-gap is larger than the min-content outer size. If this would be larger than the number of columns, the number of columns spanned will be the same as if column-span: all had been specified. If column-span: 1 does not do the same as column-span: none, should this behave as column-span: 1 or as column-span: none when the element is small enough?
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ColumnSpan {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ColumnSpan, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -14550,11 +14017,7 @@ pub const ColumnWrap = union(enum) {
     nowrap,
     /// Overflow columns create a new multicol row in the block direction.
     wrap,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ColumnWrap {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ColumnWrap, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -14569,11 +14032,7 @@ pub const Columns = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Columns {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Columns, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -14602,11 +14061,7 @@ pub const Contain = union(enum) {
     style,
     /// This value turns on paint containment for the element. This ensures that the descendants of the containment box don’t display outside its bounds, so if an element is off-screen or otherwise not visible, its descendants are also guaranteed to be not visible.
     paint,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Contain {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Contain, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -14856,11 +14311,7 @@ pub const Container = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Container {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Container, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -14875,11 +14326,7 @@ pub const ContainerName = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ContainerName {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ContainerName, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -14902,11 +14349,7 @@ pub const ContainerType = union(enum) {
     inline_size,
     /// Establishes a query container for container scroll-state queries
     scroll_state,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ContainerType {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ContainerType, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -14928,11 +14371,7 @@ pub const Content = union(enum) {
     close_quote,
     no_open_quote,
     no_close_quote,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Content {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Content, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -14953,11 +14392,7 @@ pub const ContentVisibility = union(enum) {
     auto,
     /// The element skips its contents. The skipped contents must not be accessible to user-agent features, such as find-in-page, tab-order navigation, etc., nor be selectable or focusable.
     hidden,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ContentVisibility {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ContentVisibility, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -14986,11 +14421,7 @@ pub const Continue = union(enum) {
     paginate,
     /// content that doesn’t fit causes the element to copy itself and continue laying out. See fragment overflow.
     fragments,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Continue {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Continue, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -15008,11 +14439,7 @@ pub const CopyInto = union(enum) {
     element,
     content,
     text,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CopyInto {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CopyInto, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -15113,11 +14540,7 @@ pub const CornerBlockEndShape = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CornerBlockEndShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CornerBlockEndShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -15175,11 +14598,7 @@ pub const CornerBlockStartShape = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CornerBlockStartShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CornerBlockStartShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -15286,11 +14705,7 @@ pub const CornerBottomLeftShape = union(enum) {
     notch,
     square,
     squircle,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CornerBottomLeftShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CornerBottomLeftShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -15354,11 +14769,7 @@ pub const CornerBottomRightShape = union(enum) {
     notch,
     square,
     squircle,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CornerBottomRightShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CornerBottomRightShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -15373,11 +14784,7 @@ pub const CornerBottomShape = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CornerBottomShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CornerBottomShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -15441,11 +14848,7 @@ pub const CornerEndEndShape = union(enum) {
     notch,
     square,
     squircle,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CornerEndEndShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CornerEndEndShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -15509,11 +14912,7 @@ pub const CornerEndStartShape = union(enum) {
     notch,
     square,
     squircle,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CornerEndStartShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CornerEndStartShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -15571,11 +14970,7 @@ pub const CornerInlineEndShape = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CornerInlineEndShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CornerInlineEndShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -15633,11 +15028,7 @@ pub const CornerInlineStartShape = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CornerInlineStartShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CornerInlineStartShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -15695,11 +15086,7 @@ pub const CornerLeftShape = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CornerLeftShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CornerLeftShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -15757,11 +15144,7 @@ pub const CornerRightShape = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CornerRightShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CornerRightShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -15776,11 +15159,7 @@ pub const CornerShape = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CornerShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CornerShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -15844,11 +15223,7 @@ pub const CornerStartEndShape = union(enum) {
     notch,
     square,
     squircle,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CornerStartEndShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CornerStartEndShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -15912,11 +15287,7 @@ pub const CornerStartStartShape = union(enum) {
     notch,
     square,
     squircle,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CornerStartStartShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CornerStartStartShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16023,11 +15394,7 @@ pub const CornerTopLeftShape = union(enum) {
     notch,
     square,
     squircle,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CornerTopLeftShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CornerTopLeftShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16091,11 +15458,7 @@ pub const CornerTopRightShape = union(enum) {
     notch,
     square,
     squircle,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CornerTopRightShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CornerTopRightShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16110,11 +15473,7 @@ pub const CornerTopShape = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CornerTopShape {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CornerTopShape, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16129,11 +15488,7 @@ pub const CounterIncrement = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CounterIncrement {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CounterIncrement, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16148,11 +15503,7 @@ pub const CounterReset = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CounterReset {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CounterReset, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16167,11 +15518,7 @@ pub const CounterSet = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CounterSet {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CounterSet, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16186,11 +15533,7 @@ pub const Cue = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Cue {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Cue, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16205,11 +15548,7 @@ pub const CueAfter = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CueAfter {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CueAfter, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16224,11 +15563,7 @@ pub const CueBefore = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) CueBefore {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: CueBefore, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16313,11 +15648,7 @@ pub const Cursor = union(enum) {
     zoom_in,
     /// Indicates that something can be zoomed (magnified) in or out, and often rendered as a magnifying glass with a "+" or "-" in the center of the glass, for zoom-in and zoom-out respectively.
     zoom_out,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Cursor {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Cursor, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16432,11 +15763,7 @@ pub const D = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) D {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: D, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16455,11 +15782,7 @@ pub const Direction = union(enum) {
     ltr,
     /// This value sets inline base direction (bidi directionality) to line-right-to-line-left.
     rtl,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Direction {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Direction, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16512,11 +15835,7 @@ pub const Display = union(enum) {
     /// This value causes an element to generate an inline-level grid lanes container box.
     inline_grid_lanes,
     math,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Display {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Display, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16549,11 +15868,7 @@ pub const DominantBaseline = union(enum) {
     hanging,
     /// Use the text-over baselines.
     text_top,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) DominantBaseline {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: DominantBaseline, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16574,11 +15889,7 @@ pub const DynamicRangeLimit = union(enum) {
     no_limit,
     /// The highest peak luminance that is displayed is somewhat greater than HDR reference white, i.e. the CSS color white, such that a mix of SDR and HDR content can be comfortably viewed together.
     constrained,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) DynamicRangeLimit {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: DynamicRangeLimit, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16595,11 +15906,7 @@ pub const EmptyCells = union(enum) {
     unset,
     show,
     hide,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) EmptyCells {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: EmptyCells, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16614,11 +15921,7 @@ pub const EventTrigger = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) EventTrigger {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: EventTrigger, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16633,11 +15936,7 @@ pub const EventTriggerName = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) EventTriggerName {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: EventTriggerName, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16657,11 +15956,7 @@ pub const EventTriggerSource = union(enum) {
     click,
     touch,
     dblclick,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) EventTriggerSource {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: EventTriggerSource, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16680,11 +15975,7 @@ pub const FieldSizing = union(enum) {
     fixed,
     /// The UA must determine the element’s intrinsic size based on its content, and must ignore any default preferred size defined by the host language for that element. If the element is an element with default preferred size and is listed in compressible replaced elements, the UA must stop treating the element as a replaced element for min-content contribution.
     content,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FieldSizing {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FieldSizing, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16700,11 +15991,7 @@ pub const Fill = union(enum) {
     revert_layer,
     unset,
     child,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Fill {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Fill, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16722,11 +16009,7 @@ pub const FillBreak = union(enum) {
     bounding_box,
     slice,
     clone,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FillBreak {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FillBreak, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16934,11 +16217,7 @@ pub const FillColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FillColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) FillColor {
         return .{ .hex_ = v };
     }
@@ -16957,11 +16236,7 @@ pub const FillImage = union(enum) {
     revert_layer,
     unset,
     child,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FillImage {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FillImage, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -16976,11 +16251,7 @@ pub const FillOpacity = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FillOpacity {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FillOpacity, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17007,11 +16278,7 @@ pub const FillOrigin = union(enum) {
     padding_box,
     /// Use the box’s own content-box/padding-box/border-box as the fill positioning area. For SVG shapes, content-box and padding-box are treated as fill-box, while border-box is treated as stroke-box.
     border_box,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FillOrigin {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FillOrigin, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17099,11 +16366,7 @@ pub const FillRepeat = union(enum) {
     space,
     round,
     no_repeat,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FillRepeat {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FillRepeat, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17122,11 +16385,7 @@ pub const FillRule = union(enum) {
     nonzero,
     /// This rule determines the “insideness” of a point on the canvas by drawing a ray from that point to infinity in any direction and counting the number of path segments from the given shape that the ray crosses. If this number is odd, the point is inside; if even, the point is outside. The effect of an evenodd fill rule on paths with self-intersections and enclosed subpaths.
     evenodd,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FillRule {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FillRule, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17194,11 +16453,7 @@ pub const Filter = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Filter {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Filter, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17213,11 +16468,7 @@ pub const Flex = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Flex {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Flex, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17234,11 +16485,7 @@ pub const FlexBasis = union(enum) {
     unset,
     /// Indicates an automatic size based on the flex item’s content. (This is typically equivalent to the max-content size, but with adjustments to handle preferred aspect ratios, intrinsic sizing constraints, and orthogonal flows; see details in § 9 Flex Layout Algorithm.)
     content,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FlexBasis {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FlexBasis, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17261,11 +16508,7 @@ pub const FlexDirection = union(enum) {
     column,
     /// Same as column, except the main-start and main-end directions are swapped.
     column_reverse,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FlexDirection {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FlexDirection, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17280,11 +16523,7 @@ pub const FlexFlow = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FlexFlow {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FlexFlow, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17299,11 +16538,7 @@ pub const FlexGrow = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FlexGrow {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FlexGrow, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17318,11 +16553,7 @@ pub const FlexShrink = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FlexShrink {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FlexShrink, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17343,11 +16574,7 @@ pub const FlexWrap = union(enum) {
     wrap,
     /// Same as wrap.
     wrap_reverse,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FlexWrap {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FlexWrap, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17384,11 +16611,7 @@ pub const Float = union(enum) {
     bottom,
     /// each footnote element is placed in the footnote area of the page
     footnote,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Float {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Float, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17404,11 +16627,7 @@ pub const FloatDefer = union(enum) {
     revert_layer,
     unset,
     last,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FloatDefer {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FloatDefer, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17481,11 +16700,7 @@ pub const FloatReference = union(enum) {
     region,
     /// The float reference of the float is the page within which the float anchor is placed. If the float anchor is not inside a page, the float reference is the line box of the float anchor. The float containing block formatting context is a new block formatting context with the same dimensions and placement as the float reference. The float is a page float.
     page,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FloatReference {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FloatReference, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17693,11 +16908,7 @@ pub const FloodColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FloodColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) FloodColor {
         return .{ .hex_ = v };
     }
@@ -17715,11 +16926,7 @@ pub const FloodOpacity = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FloodOpacity {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FloodOpacity, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17734,11 +16941,7 @@ pub const FlowFrom = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FlowFrom {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FlowFrom, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17755,11 +16958,7 @@ pub const FlowInto = union(enum) {
     unset,
     element,
     content,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FlowInto {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FlowInto, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17850,11 +17049,7 @@ pub const Font = union(enum) {
     small_caption,
     /// The font used in window status bars.
     status_bar,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Font {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Font, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17880,11 +17075,7 @@ pub const FontFamily = union(enum) {
     ui_sans_serif,
     ui_monospace,
     ui_rounded,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontFamily {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontFamily, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17903,11 +17094,7 @@ pub const FontFeatureSettings = union(enum) {
     normal,
     on,
     off,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontFeatureSettings {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontFeatureSettings, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17926,11 +17113,7 @@ pub const FontKerning = union(enum) {
     auto,
     /// Specifies that kerning is applied
     normal,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontKerning {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontKerning, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17946,11 +17129,7 @@ pub const FontLanguageOverride = union(enum) {
     revert_layer,
     unset,
     normal,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontLanguageOverride {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontLanguageOverride, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17967,11 +17146,7 @@ pub const FontOpticalSizing = union(enum) {
     unset,
     /// The user agent may modify the shape of glyphs based on the font-size and the pixel density of the screen. For OpenType and TrueType fonts using font variations, this is often done by using the "opsz" font variation.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontOpticalSizing {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontOpticalSizing, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -17992,11 +17167,7 @@ pub const FontPalette = union(enum) {
     light,
     /// Some color font formats include metadata marking certain palettes as applicable on a dark (close to black) background. This keyword causes the user-agent to use the first available palette in the font file marked this way. If the font file format does not account for this metadata, or no palette in the font is marked this way, this value behaves as normal.
     dark,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontPalette {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontPalette, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18085,11 +17256,7 @@ pub const FontSizeAdjust = union(enum) {
     ic_height,
     /// Computes to the <number> corresponding to the specified metric of the first available font, if it exists. Otherwise, the same as none.
     from_font,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontSizeAdjust {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontSizeAdjust, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18171,11 +17338,7 @@ pub const FontSynthesis = union(enum) {
     style,
     small_caps,
     position,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontSynthesis {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontSynthesis, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18192,11 +17355,7 @@ pub const FontSynthesisPosition = union(enum) {
     unset,
     /// Synthesis of superscript and subscript forms is required
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontSynthesisPosition {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontSynthesisPosition, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18213,11 +17372,7 @@ pub const FontSynthesisSmallCaps = union(enum) {
     unset,
     /// Synthesis of small caps faces is allowed
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontSynthesisSmallCaps {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontSynthesisSmallCaps, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18236,11 +17391,7 @@ pub const FontSynthesisStyle = union(enum) {
     auto,
     /// Synthesis of oblique faces is allowed, but they must not be used as fallback if italic is specified
     oblique_only,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontSynthesisStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontSynthesisStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18257,11 +17408,7 @@ pub const FontSynthesisWeight = union(enum) {
     unset,
     /// Synthesis of bold faces is allowed
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontSynthesisWeight {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontSynthesisWeight, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18315,11 +17462,7 @@ pub const FontVariant = union(enum) {
     text,
     emoji,
     unicode,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontVariant {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontVariant, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18338,11 +17481,7 @@ pub const FontVariantAlternates = union(enum) {
     normal,
     /// Enables display of historical forms (OpenType feature: hist).
     historical_forms,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontVariantAlternates {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontVariantAlternates, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18371,11 +17510,7 @@ pub const FontVariantCaps = union(enum) {
     unicase,
     /// Enables display of titling capitals (OpenType feature: titl). Uppercase letter glyphs are often designed for use with lowercase letters. When used in all uppercase titling sequences they can appear too strong. Titling capitals are designed specifically for this situation.
     titling_caps,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontVariantCaps {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontVariantCaps, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18410,11 +17545,7 @@ pub const FontVariantEastAsian = union(enum) {
     proportional_width,
     /// Enables display of ruby variant glyphs (OpenType feature: ruby). Since ruby text is generally smaller than the associated body text, font designers can design special glyphs for use with ruby that are more readable than scaled down versions of the default glyphs. Only glyph selection is affected, there is no associated font scaling or other change that affects line layout. The red ruby text below is shown with default glyphs (top) and with ruby variant glyphs (bottom). Note the slight difference in stroke thickness.
     ruby,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontVariantEastAsian {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontVariantEastAsian, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18437,11 +17568,7 @@ pub const FontVariantEmoji = union(enum) {
     emoji,
     /// Code points are rendered in accordance with [UTS51] as either emoji-default, text-default, or text-only, depending on the values of the Emoji and Emoji_Presentation properties for each Emoji Presentation Participating Code Point. If present, FE0E VARIATION SELECTOR-15 and U+FE0F VARIATION SELECTOR-16 will override the default presentation of individual Emoji Presentation Participating Code Points.
     unicode,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontVariantEmoji {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontVariantEmoji, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18474,11 +17601,7 @@ pub const FontVariantLigatures = union(enum) {
     contextual,
     /// Disables display of contextual alternates (OpenType feature: calt).
     no_contextual,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontVariantLigatures {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontVariantLigatures, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18511,11 +17634,7 @@ pub const FontVariantNumeric = union(enum) {
     ordinal,
     /// Enables display of slashed zeros (OpenType feature: zero).
     slashed_zero,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontVariantNumeric {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontVariantNumeric, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18536,11 +17655,7 @@ pub const FontVariantPosition = union(enum) {
     sub_,
     /// Enables display of superscript variants (OpenType feature: sups).
     super,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontVariantPosition {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontVariantPosition, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18556,11 +17671,7 @@ pub const FontVariationSettings = union(enum) {
     revert_layer,
     unset,
     normal,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontVariationSettings {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontVariationSettings, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18583,11 +17694,7 @@ pub const FontWeight = union(enum) {
     bolder,
     /// Specifies a lighter weight than the inherited value. See § 2.2.1 Relative Weights.
     lighter,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FontWeight {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FontWeight, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18643,11 +17750,7 @@ pub const FootnoteDisplay = union(enum) {
     @"inline",
     /// The user agent determines whether a given footnote element is placed as a block element or an inline element. If two or more footnotes could fit on the same line in the footnote area, they should be placed inline.
     compact,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FootnoteDisplay {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FootnoteDisplay, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18668,11 +17771,7 @@ pub const FootnotePolicy = union(enum) {
     line,
     /// As with line, except a forced page break is introduced before the paragraph that contains the footnote.
     block,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) FootnotePolicy {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: FootnotePolicy, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18691,11 +17790,7 @@ pub const ForcedColorAdjust = union(enum) {
     auto,
     /// In forced colors mode, if the color property inherits from its parent (i.e. there is no cascaded value or the cascaded value is currentColor, inherit, or another keyword that inherits from the parent), then it computes to the used color of its parent’s color value. In all other respects, behaves the same as none.
     preserve_parent_color,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ForcedColorAdjust {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ForcedColorAdjust, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18710,11 +17805,7 @@ pub const Gap = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Gap {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Gap, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18731,11 +17822,7 @@ pub const GlyphOrientationVertical = union(enum) {
     unset,
     auto,
     @"0",
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) GlyphOrientationVertical {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: GlyphOrientationVertical, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18752,11 +17839,7 @@ pub const Grid = union(enum) {
     unset,
     auto_flow,
     dense,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Grid {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Grid, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18773,11 +17856,7 @@ pub const GridArea = union(enum) {
     unset,
     auto,
     span,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) GridArea {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: GridArea, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18851,11 +17930,7 @@ pub const GridAutoFlow = union(enum) {
     column,
     /// If specified, the auto-placement algorithm uses a “dense” packing algorithm, which attempts to fill in holes earlier in the grid if smaller items come up later. This may cause items to appear out-of-order, when doing so would fill in holes left by larger items. If omitted, a “sparse” algorithm is used, where the placement algorithm only ever moves “forward” in the grid when placing items, never backtracking to fill holes. This ensures that all of the auto-placed items appear “in order”, even if this leaves holes that could have been filled by later items.
     dense,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) GridAutoFlow {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: GridAutoFlow, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18925,11 +18000,7 @@ pub const GridColumn = union(enum) {
     unset,
     auto,
     span,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) GridColumn {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: GridColumn, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -18946,11 +18017,7 @@ pub const GridColumnEnd = union(enum) {
     unset,
     auto,
     span,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) GridColumnEnd {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: GridColumnEnd, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19022,11 +18089,7 @@ pub const GridColumnStart = union(enum) {
     unset,
     auto,
     span,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) GridColumnStart {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: GridColumnStart, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19041,11 +18104,7 @@ pub const GridGap = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) GridGap {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: GridGap, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19062,11 +18121,7 @@ pub const GridRow = union(enum) {
     unset,
     auto,
     span,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) GridRow {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: GridRow, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19083,11 +18138,7 @@ pub const GridRowEnd = union(enum) {
     unset,
     auto,
     span,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) GridRowEnd {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: GridRowEnd, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19159,11 +18210,7 @@ pub const GridRowStart = union(enum) {
     unset,
     auto,
     span,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) GridRowStart {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: GridRowStart, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19231,11 +18278,7 @@ pub const GridTemplateAreas = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) GridTemplateAreas {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: GridTemplateAreas, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19376,11 +18419,7 @@ pub const HangingPunctuation = union(enum) {
     allow_end,
     /// A closing bracket or quote at the end of the last formatted line of an element hangs. This applies to all characters in the Unicode categories Pe, Pf, Pi plus the ASCII quote marks U+0027 ' APOSTROPHE and U+0022 " QUOTATION MARK.
     last,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) HangingPunctuation {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: HangingPunctuation, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19459,11 +18498,7 @@ pub const HyphenateCharacter = union(enum) {
     unset,
     /// Specifies that the user agent should find an appropriate string based on the content language’s typographic conventions, possibly from the same source as the hyphenation dictionary.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) HyphenateCharacter {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: HyphenateCharacter, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19480,11 +18515,7 @@ pub const HyphenateLimitChars = union(enum) {
     unset,
     /// If three values are specified, the first value is the required minimum for the total characters in a word, the second value is the minimum for characters before the hyphenation point, and the third value is the minimum for characters after the hyphenation point. If the third value is missing, it is the same as the second. If the second value is missing, then it is auto. The auto value means that the UA chooses a value that adapts to the current layout.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) HyphenateLimitChars {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: HyphenateLimitChars, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19503,11 +18534,7 @@ pub const HyphenateLimitLast = union(enum) {
     column,
     page,
     spread,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) HyphenateLimitLast {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: HyphenateLimitLast, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19523,11 +18550,7 @@ pub const HyphenateLimitLines = union(enum) {
     revert_layer,
     unset,
     no_limit,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) HyphenateLimitLines {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: HyphenateLimitLines, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19596,11 +18619,7 @@ pub const Hyphens = union(enum) {
     manual,
     /// Words may be broken at hyphenation opportunities determined automatically by a language-appropriate hyphenation resource in addition to those indicated explicitly by a conditional hyphen. Automatic hyphenation opportunities elsewhere within a word must be ignored if the word contains a conditional hyphen (&shy; or U+00AD SOFT HYPHEN), in favor of the conditional hyphen(s). However, if, even after breaking at such opportunities, a portion of that word is still too long to fit on one line, an automatic hyphenation opportunity may be used.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Hyphens {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Hyphens, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19623,11 +18642,7 @@ pub const ImageAnimation = union(enum) {
     stopped,
     /// Like normal, the animation of animated images is run normally, as determined by the image format and the host language. However, animation timelines are scoped per element: among the content image and decorative images of a single element, any animated images with the same absolute URL, the same image data, and with an image-animation computed value of running must be rendered synchronized to the same timeline as a group, distinct from the timeline of images in other elements. If images are added to the element while the computed value is running, the timeline starts at the time of the least recent addition to the group. If the element is created or made visible after having previously been set to display: none, with images already added and with image-animation already set to running, the timeline starts when the element is included in the layout. If this property is switched to running from another value, the beginnig of this timeline is set so that the animation continues from the state that was displayed at the timem of the switch.
     running,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ImageAnimation {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ImageAnimation, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19674,11 +18689,7 @@ pub const ImageRendering = union(enum) {
     pixelated,
     /// The image is scaled in a way that preserves contrast and edges, and which avoids smoothing colors or introducing blur to the image in the process. This is intended for images such as line drawings. The image may be scaled using nearest neighbor or any other UA-chosen algorithm that does not blur edges or blend colors from the source image. It can, however, detect diagonal or curved lines and render them as such (rather than as jagged-looking “giant pixels”).
     crisp_edges,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ImageRendering {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ImageRendering, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19697,11 +18708,7 @@ pub const ImageResolution = union(enum) {
     from_image,
     /// If the "snap" keyword is provided, the computed <resolution> (if any) is the specified resolution rounded to the nearest value that would map one image pixel to an integer number of device pixels. If the resolution is taken from the image, then the used natural resolution is the image’s native resolution similarly adjusted.
     snap,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ImageResolution {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ImageResolution, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19722,11 +18729,7 @@ pub const InitialLetter = union(enum) {
     drop,
     /// Computes to an initial letter sink of 1.
     raise,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) InitialLetter {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: InitialLetter, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19751,11 +18754,7 @@ pub const InitialLetterAlign = union(enum) {
     hanging,
     /// Use the over/under half-leading edges (i.e. ascent/descent + half-leading) of the surrounding text to align the initial letter.
     leading,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) InitialLetterAlign {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: InitialLetterAlign, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19826,11 +18825,7 @@ pub const InlineSize = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) InlineSize {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: InlineSize, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19849,11 +18844,7 @@ pub const InlineSizing = union(enum) {
     normal,
     /// Once the line box has been sized and its contents positioned as for normal, the inline box’s box edges are shifted such that its over/under margin edges coincide with the corresponding line box’s edges, stretching the inline box’s inner logical height so that its block-axis outer size fills the line box. (The sizes and positions of its in-flow contents are not affected.)
     stretch,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) InlineSizing {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: InlineSizing, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19870,11 +18861,7 @@ pub const InputSecurity = union(enum) {
     unset,
     /// The UA should obscure the text in the control, so that it cannot be read by the user.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) InputSecurity {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: InputSecurity, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19889,11 +18876,7 @@ pub const Inset = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Inset {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Inset, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -19908,11 +18891,7 @@ pub const InsetBlock = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) InsetBlock {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: InsetBlock, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -20031,11 +19010,7 @@ pub const InsetInline = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) InsetInline {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: InsetInline, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -20158,11 +19133,7 @@ pub const Interactivity = union(enum) {
     auto,
     /// The element is inert.
     inert,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Interactivity {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Interactivity, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -20177,11 +19148,7 @@ pub const InterestDelay = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) InterestDelay {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: InterestDelay, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -20242,11 +19209,7 @@ pub const InterpolateSize = union(enum) {
     numeric_only,
     /// Two values can also be interpolated if one of them is an <intrinsic-size-keyword> and the other is a <length-percentage>. This is done by treating the <intrinsic-size-keyword> keyword as though it is calc-size(keyword, size) and applying the rules in § 11.3 Interpolating calc-size(). In other cases, an <intrinsic-size-keyword> still cannot be interpolated.
     allow_keywords,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) InterpolateSize {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: InterpolateSize, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -20263,11 +19226,7 @@ pub const Isolation = union(enum) {
     unset,
     auto,
     isolate,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Isolation {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Isolation, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -20299,11 +19258,7 @@ pub const JustifyContent = union(enum) {
     left,
     /// Aligns the alignment subject to be flush with the alignment container’s line-right or physical right edge, whichever is in the appropriate axis. If the property’s axis is not parallel with either left↔right axis, this value behaves as start. Currently, the only case where the property’s axis is not parallel with either left↔right axis is in a column flexbox.
     right,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) JustifyContent {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: JustifyContent, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -20340,11 +19295,7 @@ pub const JustifyItems = union(enum) {
     legacy,
     /// The new anchor-center value makes this case extremely simple: if the positioned box has a default anchor box, then it is centered (insofar as possible) over the default anchor box in the relevant axis. Additionally:
     anchor_center,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) JustifyItems {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: JustifyItems, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -20383,11 +19334,7 @@ pub const JustifySelf = union(enum) {
     baseline,
     /// The new anchor-center value makes this case extremely simple: if the positioned box has a default anchor box, then it is centered (insofar as possible) over the default anchor box in the relevant axis. Additionally:
     anchor_center,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) JustifySelf {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: JustifySelf, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -20699,11 +19646,7 @@ pub const LightingColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) LightingColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) LightingColor {
         return .{ .hex_ = v };
     }
@@ -20731,11 +19674,7 @@ pub const LineBreak = union(enum) {
     strict,
     /// There is a soft wrap opportunity around every typographic character unit, including around any punctuation character or preserved white spaces, or in the middle of words, disregarding any prohibition against line breaks, even those introduced by characters with the GL, WJ, or ZWJ line breaking classes or mandated by the word-break property. [UAX14] The different wrapping opportunities must not be prioritized. Hyphenation is not applied.
     anywhere,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) LineBreak {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: LineBreak, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -20752,11 +19691,7 @@ pub const LineClamp = union(enum) {
     unset,
     /// Sets continue to -webkit-legacy.
     webkit_legacy,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) LineClamp {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: LineClamp, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -20785,11 +19720,7 @@ pub const LineFitEdge = union(enum) {
     ex,
     /// Use the alphabetic baseline as the under edge.
     alphabetic,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) LineFitEdge {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: LineFitEdge, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -20808,11 +19739,7 @@ pub const LineGrid = union(enum) {
     match_parent,
     /// Box creates a new line grid using its own font and line layout settings, including any adjustment to the line height caused by the line-height-step property. The line grid consists of a series of horizontal lines corresponding to all the baselines (alphabetic, text-top, text-bottom, mathematic, central, hanging, etc.) and to the line-over and line-under edges, positioned where they would fall if the contents of this element consisted entirely of line boxes filled with text (no sub-elements) using the first available font. If the box is paginated, the line grid is restarted on each page; since line boxes cannot be fragmented, no page begins with the bottom part of a line’s grid.
     create,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) LineGrid {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: LineGrid, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -20969,11 +19896,7 @@ pub const LineSnap = union(enum) {
     baseline,
     /// Two baselines are used to align the line box: the line box is snapped so that its central baseline is centered between one of the line grid’s text-over-edge baselines and a subsequent (but not necessarily consecutive) text-under-edge baseline.
     contain,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) LineSnap {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: LineSnap, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -20988,11 +19911,7 @@ pub const LinkParameters = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) LinkParameters {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: LinkParameters, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -21007,11 +19926,7 @@ pub const ListStyle = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ListStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ListStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -21026,11 +19941,7 @@ pub const ListStyleImage = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ListStyleImage {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ListStyleImage, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -21049,11 +19960,7 @@ pub const ListStylePosition = union(enum) {
     inside,
     /// If the list item is a block container: the marker box is a block container and is placed outside the principal block box; however, the position of the list-item marker adjacent to floats is undefined. CSS does not specify the precise location of the marker box or its position in the painting order, but does require that it be placed on the inline-start side of the box, using the writing mode of the box indicated by marker-side. The marker box is fixed with respect to the principal block box’s border and does not scroll with the principal box’s content. A UA may hide the marker if the element’s overflow is other than visible. (This allowance may change in the future.) The size or contents of the marker box may affect the height of the principal block box and/or the height of its first line box, and in some cases may cause the creation of a new line box; this interaction is also not defined. This is handwavey nonsense from CSS2, and needs a real definition. If the list item is an inline box: this value is equivalent to inside. Alternatively, outside could lay out the marker as a previous sibling of the principal inline box.
     outside,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ListStylePosition {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ListStylePosition, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -21068,11 +19975,7 @@ pub const ListStyleType = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ListStyleType {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ListStyleType, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -21316,11 +20219,7 @@ pub const MarginBreak = union(enum) {
     keep,
     /// Margins adjoining a fragmentation break are always truncated, including at the start and end of a fragmentation context.
     discard,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MarginBreak {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MarginBreak, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -21629,11 +20528,7 @@ pub const MarginTrim = union(enum) {
     block_end,
     /// Computes to block-start block-end.
     inline_end,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MarginTrim {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MarginTrim, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -21648,11 +20543,7 @@ pub const Marker = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Marker {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Marker, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -21667,11 +20558,7 @@ pub const MarkerEnd = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MarkerEnd {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MarkerEnd, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -21686,11 +20573,7 @@ pub const MarkerMid = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MarkerMid {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MarkerMid, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -21709,11 +20592,7 @@ pub const MarkerSide = union(enum) {
     match_self,
     /// The marker box is positioned using the directionality of the ::marker’s originating element’s parent element.
     match_parent,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MarkerSide {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MarkerSide, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -21728,11 +20607,7 @@ pub const MarkerStart = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MarkerStart {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MarkerStart, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -21886,11 +20761,7 @@ pub const MaskBorderMode = union(enum) {
     luminance,
     /// A value of alpha indicates that the alpha values of the mask border image should be used as the mask values. See Calculating mask values.
     alpha,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MaskBorderMode {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MaskBorderMode, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -21952,11 +20823,7 @@ pub const MaskBorderRepeat = union(enum) {
     repeat,
     round,
     space,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MaskBorderRepeat {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MaskBorderRepeat, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -21999,11 +20866,7 @@ pub const MaskBorderSource = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MaskBorderSource {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MaskBorderSource, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22083,11 +20946,7 @@ pub const MaskClip = union(enum) {
     view_box,
     /// The painted content is not restricted (not clipped).
     no_clip,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MaskClip {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MaskClip, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22110,11 +20969,7 @@ pub const MaskComposite = union(enum) {
     intersect,
     /// The non-overlapping regions of source and destination are combined. (See Porter-Duff compositing operator XOR.)
     exclude,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MaskComposite {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MaskComposite, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22129,11 +20984,7 @@ pub const MaskImage = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MaskImage {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MaskImage, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22154,11 +21005,7 @@ pub const MaskMode = union(enum) {
     luminance,
     /// If the <mask-reference> of the mask-image property is of type <mask-source> the value specified by the referenced mask element’s mask-type property must be used. If the <mask-reference> of the mask-image property is of type <image> the alpha values of the mask layer image should be used as the mask values.
     match_source,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MaskMode {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MaskMode, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22185,11 +21032,7 @@ pub const MaskOrigin = union(enum) {
     stroke_box,
     /// Uses the nearest SVG viewport as reference box. If a viewBox attribute is specified for the SVG viewport creating element: The reference box is positioned at the origin of the coordinate system established by the viewBox attribute. The dimension of the reference box is set to the width and height values of the viewBox attribute.
     view_box,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MaskOrigin {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MaskOrigin, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22277,11 +21120,7 @@ pub const MaskRepeat = union(enum) {
     space,
     round,
     no_repeat,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MaskRepeat {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MaskRepeat, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22353,11 +21192,7 @@ pub const MaskType = union(enum) {
     luminance,
     /// Indicates that the alpha values of the mask should be used.
     alpha,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MaskType {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MaskType, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22373,11 +21208,7 @@ pub const MathDepth = union(enum) {
     revert_layer,
     unset,
     auto_add,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MathDepth {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MathDepth, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22394,11 +21225,7 @@ pub const MathShift = union(enum) {
     unset,
     normal,
     compact,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MathShift {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MathShift, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22415,11 +21242,7 @@ pub const MathStyle = union(enum) {
     unset,
     normal,
     compact,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MathStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MathStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22434,11 +21257,7 @@ pub const MaxBlockSize = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MaxBlockSize {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MaxBlockSize, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22513,11 +21332,7 @@ pub const MaxInlineSize = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MaxInlineSize {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MaxInlineSize, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22532,11 +21347,7 @@ pub const MaxLines = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MaxLines {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MaxLines, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22611,11 +21422,7 @@ pub const MinBlockSize = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MinBlockSize {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MinBlockSize, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22692,11 +21499,7 @@ pub const MinInlineSize = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MinInlineSize {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MinInlineSize, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22717,11 +21520,7 @@ pub const MinIntrinsicSizing = union(enum) {
     zero_if_scroll,
     /// The box’s min-content contribution is “compressed” if has an extrinsic preferred or maximum size.
     zero_if_extrinsic,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MinIntrinsicSizing {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MinIntrinsicSizing, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22815,11 +21614,7 @@ pub const MixBlendMode = union(enum) {
     color,
     luminosity,
     plus_lighter,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) MixBlendMode {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: MixBlendMode, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22837,11 +21632,7 @@ pub const NavDown = union(enum) {
     auto,
     current,
     root,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) NavDown {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: NavDown, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22859,11 +21650,7 @@ pub const NavLeft = union(enum) {
     auto,
     current,
     root,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) NavLeft {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: NavLeft, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22881,11 +21668,7 @@ pub const NavRight = union(enum) {
     auto,
     current,
     root,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) NavRight {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: NavRight, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22903,11 +21686,7 @@ pub const NavUp = union(enum) {
     auto,
     current,
     root,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) NavUp {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: NavUp, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -22930,11 +21709,7 @@ pub const ObjectFit = union(enum) {
     cover,
     /// Equivalent to contain scale-down.
     scale_down,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ObjectFit {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ObjectFit, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -23014,11 +21789,7 @@ pub const ObjectViewBox = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ObjectViewBox {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ObjectViewBox, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -23033,11 +21804,7 @@ pub const Offset = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Offset {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Offset, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -23175,11 +21942,7 @@ pub const OffsetPath = union(enum) {
     fill_box,
     stroke_box,
     view_box,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) OffsetPath {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: OffsetPath, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -23312,11 +22075,7 @@ pub const Order = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Order {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Order, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -23331,11 +22090,7 @@ pub const Orphans = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Orphans {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Orphans, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -23350,11 +22105,7 @@ pub const Outline = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Outline {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Outline, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -23466,11 +22217,7 @@ pub const OutlineStyle = union(enum) {
     ridge,
     inset,
     outset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) OutlineStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: OutlineStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -23532,11 +22279,7 @@ pub const Overflow = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Overflow {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Overflow, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -23553,11 +22296,7 @@ pub const OverflowAnchor = union(enum) {
     unset,
     /// Declares that the element is potentially eligible to participate in the anchor node selection algorithm for any scrolling box created by the element or an ancestor.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) OverflowAnchor {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: OverflowAnchor, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -23577,11 +22316,7 @@ pub const OverflowBlock = union(enum) {
     clip,
     scroll,
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) OverflowBlock {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: OverflowBlock, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -24107,11 +22842,7 @@ pub const OverflowInline = union(enum) {
     clip,
     scroll,
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) OverflowInline {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: OverflowInline, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -24132,11 +22863,7 @@ pub const OverflowWrap = union(enum) {
     break_word,
     /// An otherwise unbreakable sequence of characters may be broken at an arbitrary point if there are no otherwise-acceptable break points in the line. Shaping characters are still shaped as if the word were not broken, and grapheme clusters must stay together as one unit. No hyphenation character is inserted at the break point. Soft wrap opportunities introduced by anywhere are considered when calculating min-content intrinsic sizes. In the case of word-break: auto-phrase, these additional soft wrap opportunities are only introduced if relaxing the restrictions introduced by word-break: auto-phrase as described in overflow-wrap: normal is insufficient to prevent overflow.
     anywhere,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) OverflowWrap {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: OverflowWrap, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -24161,11 +22888,7 @@ pub const OverflowX = union(enum) {
     scroll,
     /// Like scroll when the box has scrollable overflow; like hidden otherwise. Thus, if the user agent uses a scrolling mechanism that is visible on the screen (such as a scroll bar or a panner), that mechanism will only be displayed if there is overflow.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) OverflowX {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: OverflowX, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -24190,11 +22913,7 @@ pub const OverflowY = union(enum) {
     scroll,
     /// Like scroll when the box has scrollable overflow; like hidden otherwise. Thus, if the user agent uses a scrolling mechanism that is visible on the screen (such as a scroll bar or a panner), that mechanism will only be displayed if there is overflow.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) OverflowY {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: OverflowY, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -24211,11 +22930,7 @@ pub const Overlay = union(enum) {
     unset,
     /// The element is rendered in the top layer if it is in the top layer. Rather than generating boxes as part of its normal position in the document, it generates boxes as a sibling of the root element, rendered "above" it.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Overlay {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Overlay, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -24234,11 +22949,7 @@ pub const OverscrollBehavior = union(enum) {
     contain,
     /// This value indicates that the user agent should perform the usual boundary default action with respect to scroll chaining, overscroll and navigation gestures.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) OverscrollBehavior {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: OverscrollBehavior, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -24257,11 +22968,7 @@ pub const OverscrollBehaviorBlock = union(enum) {
     contain,
     /// This value indicates that the user agent should perform the usual boundary default action with respect to scroll chaining, overscroll and navigation gestures.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) OverscrollBehaviorBlock {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: OverscrollBehaviorBlock, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -24280,11 +22987,7 @@ pub const OverscrollBehaviorInline = union(enum) {
     contain,
     /// This value indicates that the user agent should perform the usual boundary default action with respect to scroll chaining, overscroll and navigation gestures.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) OverscrollBehaviorInline {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: OverscrollBehaviorInline, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -24303,11 +23006,7 @@ pub const OverscrollBehaviorX = union(enum) {
     contain,
     /// This value indicates that the user agent should perform the usual boundary default action with respect to scroll chaining, overscroll and navigation gestures.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) OverscrollBehaviorX {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: OverscrollBehaviorX, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -24326,11 +23025,7 @@ pub const OverscrollBehaviorY = union(enum) {
     contain,
     /// This value indicates that the user agent should perform the usual boundary default action with respect to scroll chaining, overscroll and navigation gestures.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) OverscrollBehaviorY {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: OverscrollBehaviorY, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -24847,11 +23542,7 @@ pub const Page = union(enum) {
     revert_layer,
     unset,
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Page {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Page, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -24876,11 +23567,7 @@ pub const PageBreakAfter = union(enum) {
     left,
     /// Force one or two page breaks before (after) the generated box so that the next page is formatted as a right page.
     right,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PageBreakAfter {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PageBreakAfter, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -24905,11 +23592,7 @@ pub const PageBreakBefore = union(enum) {
     left,
     /// Force one or two page breaks before (after) the generated box so that the next page is formatted as a right page.
     right,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PageBreakBefore {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PageBreakBefore, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -24928,11 +23611,7 @@ pub const PageBreakInside = union(enum) {
     avoid,
     /// Neither force nor forbid a page break before (after, inside) the generated box.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PageBreakInside {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PageBreakInside, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -24951,11 +23630,7 @@ pub const PaintOrder = union(enum) {
     fill,
     stroke,
     markers,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PaintOrder {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PaintOrder, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -24970,11 +23645,7 @@ pub const Pause = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Pause {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Pause, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25160,11 +23831,7 @@ pub const PlaceContent = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PlaceContent {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PlaceContent, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25179,11 +23846,7 @@ pub const PlaceItems = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PlaceItems {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PlaceItems, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25198,11 +23861,7 @@ pub const PlaceSelf = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PlaceSelf {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PlaceSelf, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25227,11 +23886,7 @@ pub const PointerEvents = union(enum) {
     fill,
     stroke,
     all,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PointerEvents {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PointerEvents, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25246,11 +23901,7 @@ pub const PointerTimeline = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PointerTimeline {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PointerTimeline, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25273,11 +23924,7 @@ pub const PointerTimelineAxis = union(enum) {
     x,
     /// Specifies to use the measure of progress along the vertical axis of the pointer range.
     y,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PointerTimelineAxis {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PointerTimelineAxis, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25292,11 +23939,7 @@ pub const PointerTimelineName = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PointerTimelineName {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PointerTimelineName, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25321,11 +23964,7 @@ pub const Position = union(enum) {
     sticky,
     /// Same as absolute, except the box is positioned and sized relative to a fixed positioning containing block (usually the viewport in continuous media, or the page area in paged media). The box’s position is fixed with respect to this reference rectangle: when attached to the viewport it does not move when the document is scrolled, and when attached to the page area is replicated on every page when the document is paginated. This positioning scheme is called fixed positioning and is considered a subset of absolute positioning. Authors may wish to specify fixed in a media-dependent way. For instance, an author may want a box to remain at the top of the viewport on the screen, but not at the top of each printed page. The two specifications may be separated by using an '@media' rule, as in: @media screen { h1#first { position: fixed } } @media print { h1#first { position: static } }
     fixed,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Position {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Position, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25344,11 +23983,7 @@ pub const PositionAnchor = union(enum) {
     normal,
     /// Use the implicit anchor element if it exists; otherwise the box has no default anchor element.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PositionAnchor {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PositionAnchor, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25413,11 +24048,7 @@ pub const PositionArea = union(enum) {
     self_end,
     span_self_start,
     span_self_end,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PositionArea {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PositionArea, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25432,11 +24063,7 @@ pub const PositionTry = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PositionTry {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PositionTry, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25511,11 +24138,7 @@ pub const PositionTryFallbacks = union(enum) {
     self_end,
     span_self_start,
     span_self_end,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PositionTryFallbacks {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PositionTryFallbacks, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25540,11 +24163,7 @@ pub const PositionTryOrder = union(enum) {
     most_block_size,
     /// For each entry in the position options list, apply that position option to the box, and find the inset-modified containing block size that results from those styles (treating auto inset values as zero). Stably sort the position options list according to this size, with the largest coming first. Logical directions are resolved against the writing mode of the containing block.
     most_inline_size,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PositionTryOrder {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PositionTryOrder, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25567,11 +24186,7 @@ pub const PositionVisibility = union(enum) {
     anchors_visible,
     /// If the box overflows its inset-modified containing block even after applying position-try, the box’s visibility property computes to force-hidden.
     no_overflow,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PositionVisibility {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PositionVisibility, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25590,11 +24205,7 @@ pub const PrintColorAdjust = union(enum) {
     economy,
     /// This value indicates that the page is using color and styling on the specified element in a way which is important and significant, and which should not be tweaked or changed except at the user’s request. For example, a mapping website offering printed directions might "zebra-stripe" the steps in the directions, alternating between white and light gray backgrounds. Losing this zebra-striping and having a pure-white background would make the directions harder to read with a quick glance when distracted in a car.
     exact,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) PrintColorAdjust {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: PrintColorAdjust, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25613,11 +24224,7 @@ pub const Quotes = union(enum) {
     auto,
     /// Specifies the same quotation mark system as the parent. In general this is equivalent to inheriting the parent’s computed value, except that auto it resolves using the same content language that the parent used. Two possible approaches here, currently speccing the latter: a) this computes to the relevant string values, and inherits as such. b) this value effectively inherits as a keyword + a language code, meaning auto, but with this language.
     match_parent,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Quotes {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Quotes, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25696,11 +24303,7 @@ pub const ReadingFlow = union(enum) {
     grid_columns,
     /// Only takes effect on grid containers. Follows the order-modified document order. Therefore, as normal unless the order property has been used to change the order of items.
     grid_order,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ReadingFlow {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ReadingFlow, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25715,11 +24318,7 @@ pub const ReadingOrder = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ReadingOrder {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ReadingOrder, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25736,11 +24335,7 @@ pub const RegionFragment = union(enum) {
     unset,
     auto,
     @"break",
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RegionFragment {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RegionFragment, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25760,11 +24355,7 @@ pub const Resize = union(enum) {
     vertical,
     block,
     @"inline",
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Resize {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Resize, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -25779,11 +24370,7 @@ pub const Rest = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Rest {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Rest, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -26246,11 +24833,7 @@ pub const RowRuleBreak = union(enum) {
     normal,
     /// Gap decorations start and end at visible "T" and "cross" intersections.
     intersection,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RowRuleBreak {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RowRuleBreak, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -26459,11 +25042,7 @@ pub const RowRuleColor = union(enum) {
     WindowText,
     auto,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RowRuleColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) RowRuleColor {
         return .{ .hex_ = v };
     }
@@ -26631,11 +25210,7 @@ pub const RowRuleInset = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RowRuleInset {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RowRuleInset, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -26910,11 +25485,7 @@ pub const RowRuleStyle = union(enum) {
     inset,
     outset,
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RowRuleStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RowRuleStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -26935,11 +25506,7 @@ pub const RowRuleVisibilityItems = union(enum) {
     around,
     /// Paint decorations in a gap segment if both adjacent areas are occupied by items.
     between,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RowRuleVisibilityItems {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RowRuleVisibilityItems, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27010,11 +25577,7 @@ pub const RubyAlign = union(enum) {
     space_between,
     /// As for space-between except that there exists an extra justification opportunities whose space is distributed half before and half after the ruby content. space-around ruby distribution
     space_around,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RubyAlign {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RubyAlign, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27035,11 +25598,7 @@ pub const RubyMerge = union(enum) {
     merge,
     /// The user agent may use any algorithm to determine how each ruby annotation box is rendered to its corresponding base box, with the intention that if all annotations fit over their respective bases, the result is identical to separate, but if some annotations are wider than their bases the space is shared in some way to avoid imposing space between bases. ruby-merge: auto with center alignment
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RubyMerge {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RubyMerge, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27056,11 +25615,7 @@ pub const RubyOverhang = union(enum) {
     unset,
     /// When a ruby annotation container is longer than its corresponding ruby base container, the ruby annotation container may partially overlap adjacent boxes. Whether, how much, and under which conditions to overhang are determined by the UA.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RubyOverhang {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RubyOverhang, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27083,11 +25638,7 @@ pub const RubyPosition = union(enum) {
     under,
     /// If the writing mode of the enclosing ruby container is vertical, this value has the same effect as over. Otherwise, the ruby annotation becomes an inter-character annotation. The annotation appears on the right of the base in horizontal text. This forces the computed value of writing-mode of the ruby annotation children of this ruby annotation container to be vertical-rl. This value is provided for the special case of traditional Chinese as used especially in Taiwan: ruby (made of bopomofo glyphs) in that context appears vertically along the right side of the base glyph, even when the layout of the base characters is horizontal: “Bopomofo” ruby in traditional Chinese (ruby annotation shown in blue for clarity) in horizontal layout
     inter_character,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RubyPosition {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RubyPosition, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27102,11 +25653,7 @@ pub const Rule = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Rule {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Rule, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27121,11 +25668,7 @@ pub const RuleBreak = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RuleBreak {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RuleBreak, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27140,11 +25683,7 @@ pub const RuleColor = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RuleColor {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RuleColor, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27159,11 +25698,7 @@ pub const RuleEdgeInset = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RuleEdgeInset {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RuleEdgeInset, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27178,11 +25713,7 @@ pub const RuleInset = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RuleInset {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RuleInset, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27197,11 +25728,7 @@ pub const RuleInsetEnd = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RuleInsetEnd {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RuleInsetEnd, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27216,11 +25743,7 @@ pub const RuleInsetStart = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RuleInsetStart {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RuleInsetStart, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27235,11 +25758,7 @@ pub const RuleInteriorInset = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RuleInteriorInset {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RuleInteriorInset, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27258,11 +25777,7 @@ pub const RuleOverlap = union(enum) {
     row_over_column,
     /// Column-direction decorations are painted above row-direction decorations.
     column_over_row,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RuleOverlap {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RuleOverlap, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27277,11 +25792,7 @@ pub const RuleStyle = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RuleStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RuleStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27296,11 +25807,7 @@ pub const RuleVisibilityItems = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RuleVisibilityItems {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RuleVisibilityItems, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27315,11 +25822,7 @@ pub const RuleWidth = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) RuleWidth {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: RuleWidth, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27466,11 +25969,7 @@ pub const ScrollBehavior = union(enum) {
     auto,
     /// The scroll container is scrolled in a smooth fashion using a user-agent-defined timing function over a user-agent-defined period of time. User agents should follow platform conventions, if any.
     smooth,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ScrollBehavior {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ScrollBehavior, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27487,11 +25986,7 @@ pub const ScrollInitialTarget = union(enum) {
     unset,
     /// The element is potentially an initial scroll target for its nearest scroll container ancestor.
     nearest,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ScrollInitialTarget {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ScrollInitialTarget, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -27987,11 +26482,7 @@ pub const ScrollMarkerGroup = union(enum) {
     links,
     /// The generated ::scroll-marker-group operates in "tabs" mode, functioning like a tablist.
     tabs,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ScrollMarkerGroup {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ScrollMarkerGroup, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -28580,11 +27071,7 @@ pub const ScrollSnapAlign = union(enum) {
     end,
     /// Center alignment of this box’s scroll snap area within the scroll container’s snapport is a snap position in the specified axis.
     center,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ScrollSnapAlign {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ScrollSnapAlign, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -28603,11 +27090,7 @@ pub const ScrollSnapStop = union(enum) {
     normal,
     /// The scroll container must not pass over a snap position defined by this element during the execution of a scrolling operation; it must instead snap to the first of this element’s snap positions.
     always,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ScrollSnapStop {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ScrollSnapStop, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -28636,11 +27119,7 @@ pub const ScrollSnapType = union(enum) {
     mandatory,
     /// If specified on a scroll container, the scroll container may snap to a snap position at the termination of a scroll, at the discretion of the UA given the parameters of the scroll.
     proximity,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ScrollSnapType {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ScrollSnapType, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -28657,11 +27136,7 @@ pub const ScrollTargetGroup = union(enum) {
     unset,
     /// The element establishes a scroll marker group container forming a scroll marker group containing all of the scroll marker elements for which this is the nearest ancestor scroll marker group container.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ScrollTargetGroup {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ScrollTargetGroup, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -28676,11 +27151,7 @@ pub const ScrollTimeline = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ScrollTimeline {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ScrollTimeline, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -28703,11 +27174,7 @@ pub const ScrollTimelineAxis = union(enum) {
     x,
     /// Specifies to use the measure of progress along the vertical axis of the scroll container.
     y,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ScrollTimelineAxis {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ScrollTimelineAxis, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -28722,11 +27189,7 @@ pub const ScrollTimelineName = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ScrollTimelineName {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ScrollTimelineName, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -28936,11 +27399,7 @@ pub const ScrollbarColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ScrollbarColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) ScrollbarColor {
         return .{ .hex_ = v };
     }
@@ -28964,11 +27423,7 @@ pub const ScrollbarGutter = union(enum) {
     stable,
     /// If a scrollbar gutter would be present on one of the inline start edge or the inline end edge of the box, another scrollbar gutter must be present on the opposite edge as well.
     both_edges,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ScrollbarGutter {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ScrollbarGutter, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -28987,11 +27442,7 @@ pub const ScrollbarWidth = union(enum) {
     auto,
     /// Implementations should use thinner scrollbars than auto. This may mean a thin variant of scrollbar provided by the platform, or a custom scrollbar thinner than the default platform scrollbar. The scrollbar must nonetheless remain wide enough to be usable. (Implementers may wish to consult WCAG 2.1 SC 2.5.5 Target Size. [WCAG21]) User agents may disregard this value and treat it as auto, for instance when the user has indicated discomfort for thin scrollbars through some UA or OS setting. (User agents are encouraged to provide such a setting.)
     thin,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ScrollbarWidth {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ScrollbarWidth, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29039,11 +27490,7 @@ pub const ShapeInside = union(enum) {
     shape_box,
     /// The shape is computed based on the shape of the display as described in css-round-display.
     display,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ShapeInside {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ShapeInside, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29113,11 +27560,7 @@ pub const ShapeOutside = union(enum) {
     border_box,
     margin_box,
     half_border_box,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ShapeOutside {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ShapeOutside, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29186,11 +27629,7 @@ pub const ShapeRendering = union(enum) {
     optimizeSpeed,
     crispEdges,
     geometricPrecision,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ShapeRendering {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ShapeRendering, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29205,11 +27644,7 @@ pub const ShapeSubtract = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ShapeSubtract {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ShapeSubtract, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29234,11 +27669,7 @@ pub const SliderOrientation = union(enum) {
     top_to_bottom,
     /// The slider-like control is rendered vertically and ::slider-fill is bottom-aligned within the control.
     bottom_to_top,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) SliderOrientation {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: SliderOrientation, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29259,11 +27690,7 @@ pub const SpatialNavigationAction = union(enum) {
     focus,
     /// If the currently focused element is not itself a scroll container, this value on an ancestor scroll container has the same effect as auto. If the currently focused element is a scroll container, it is scrolled in the direction requested without changing which element is in focus, regardless of the presence of focusable descendants.
     scroll,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) SpatialNavigationAction {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: SpatialNavigationAction, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29282,11 +27709,7 @@ pub const SpatialNavigationContain = union(enum) {
     auto,
     /// The element establishes a spatial navigation container
     contain,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) SpatialNavigationContain {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: SpatialNavigationContain, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29305,11 +27728,7 @@ pub const SpatialNavigationFunction = union(enum) {
     normal,
     /// Moves the focus to the element which is aligned most in the navigation direction. If there are more than one aligned candidates in the navigation direction, select the element with the closest distance along the axis which corresponds to the navigation direction. In case of multiple elements with the same distance, select the element with the minimum amount of alignment. Else if there isn’t any aligned candidate in a given direction, select the element with the closest distance along the axis which corresponds to the navigation direction. In case of multiple elements with the same distance, select the element with the minimum distance along the axis which is orthogonal to the navigation direction.
     grid,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) SpatialNavigationFunction {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: SpatialNavigationFunction, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29330,11 +27749,7 @@ pub const Speak = union(enum) {
     never,
     /// The element is rendered aurally (regardless of its display value, or the display or speak values of its ancestors).
     always,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Speak {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Speak, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29359,11 +27774,7 @@ pub const SpeakAs = union(enum) {
     literal_punctuation,
     /// Punctuation is not rendered: neither spoken nor rendered as pauses.
     no_punctuation,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) SpeakAs {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: SpeakAs, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29378,11 +27789,7 @@ pub const StopColor = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) StopColor {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: StopColor, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29397,11 +27804,7 @@ pub const StopOpacity = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) StopOpacity {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: StopOpacity, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29416,11 +27819,7 @@ pub const StringSet = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) StringSet {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: StringSet, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29436,11 +27835,7 @@ pub const Stroke = union(enum) {
     revert_layer,
     unset,
     child,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Stroke {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Stroke, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29461,11 +27856,7 @@ pub const StrokeAlign = union(enum) {
     inset,
     /// The stroke for each subpath lies on the “outside” of the outline (outside the fill area).
     outset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) StrokeAlign {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: StrokeAlign, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29483,11 +27874,7 @@ pub const StrokeAlignment = union(enum) {
     center,
     inner,
     outer,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) StrokeAlignment {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: StrokeAlignment, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29505,11 +27892,7 @@ pub const StrokeBreak = union(enum) {
     bounding_box,
     slice,
     clone,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) StrokeBreak {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: StrokeBreak, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29717,11 +28100,7 @@ pub const StrokeColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) StrokeColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) StrokeColor {
         return .{ .hex_ = v };
     }
@@ -29790,11 +28169,7 @@ pub const StrokeDashJustify = union(enum) {
     dashes,
     /// Indicates that when a dash pattern is to be stretched or compressed, the length of the gaps will be adjusted.
     gaps,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) StrokeDashJustify {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: StrokeDashJustify, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29813,11 +28188,7 @@ pub const StrokeDashadjust = union(enum) {
     compress,
     dashes,
     gaps,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) StrokeDashadjust {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: StrokeDashadjust, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -29976,11 +28347,7 @@ pub const StrokeImage = union(enum) {
     revert_layer,
     unset,
     child,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) StrokeImage {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: StrokeImage, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30001,11 +28368,7 @@ pub const StrokeLinecap = union(enum) {
     round,
     /// At the end of each subpath, the stroke is extended by a rectangle with the same width as the stroke width and whose length is half of the stroke width. (The stroke for a zero-length subpath is a square with side length equal to the stroke width, centered at the subpath’s point, and oriented such that two of its sides are parallel to the effective tangent at that subpath’s point. See § 4.6 Computing the Shape of the Stroke for details on how to determine the tangent at a zero-length subpath.) Adding a rectangle to the end of dashes on a curved outline looks bad. It should just extend the dash by stroke-width/2, following the outline.
     square,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) StrokeLinecap {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: StrokeLinecap, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30032,11 +28395,7 @@ pub const StrokeLinejoin = union(enum) {
     round,
     /// When the stroke-miterlimit is exceeded, this behaves as if crop bevel were specified. Can we just remove fallback? It’s a stupid value, useful only because we didn’t have the clip-at-miterlimit behavior in SVG1. Question is if people are mostly just *accidentally* getting the bevel behavior right now, and would be okay with their joins extending up to the miterlimit and only getting the excess corners clipped, or if they actually wanted the discontinuous behavior currently specified. The breakpoint is between 29 and 30 degrees.
     fallback,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) StrokeLinejoin {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: StrokeLinejoin, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30051,11 +28410,7 @@ pub const StrokeMiterlimit = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) StrokeMiterlimit {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: StrokeMiterlimit, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30070,11 +28425,7 @@ pub const StrokeOpacity = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) StrokeOpacity {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: StrokeOpacity, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30101,11 +28452,7 @@ pub const StrokeOrigin = union(enum) {
     padding_box,
     /// Use the box’s own content-box/padding-box/border-box as the stroke positioning area. For SVG shapes, content-box and padding-box are treated as fill-box, while border-box is treated as stroke-box.
     border_box,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) StrokeOrigin {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: StrokeOrigin, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30193,11 +28540,7 @@ pub const StrokeRepeat = union(enum) {
     space,
     round,
     no_repeat,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) StrokeRepeat {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: StrokeRepeat, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30360,11 +28703,7 @@ pub const TableLayout = union(enum) {
     unset,
     auto,
     fixed,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TableLayout {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TableLayout, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30395,11 +28734,7 @@ pub const TextAlign = union(enum) {
     match_parent,
     /// Sets both text-align-all and text-align-last to justify, forcing the last line to justify as well.
     justify_all,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextAlign {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextAlign, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30421,11 +28756,7 @@ pub const TextAlignAll = union(enum) {
     center,
     justify,
     match_parent,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextAlignAll {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextAlignAll, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30449,11 +28780,7 @@ pub const TextAlignLast = union(enum) {
     center,
     justify,
     match_parent,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextAlignLast {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextAlignLast, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30471,11 +28798,7 @@ pub const TextAnchor = union(enum) {
     start,
     middle,
     end,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextAnchor {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextAnchor, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30506,11 +28829,7 @@ pub const TextAutospace = union(enum) {
     replace,
     /// The user agent chooses a set of typographically high quality spacing values. Different user agents running on different platforms may pick different values.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextAutospace {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextAutospace, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30527,11 +28846,7 @@ pub const TextBox = union(enum) {
     unset,
     /// If the single keyword normal is specified, it sets text-box-trim to none and text-box-edge to auto. Otherwise, omitting the text-box-trim value sets it to trim-both (not the initial value), while omitting the text-box-edge value sets it to auto (the initial value).
     normal,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextBox {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextBox, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30554,11 +28869,7 @@ pub const TextBoxEdge = union(enum) {
     cap,
     ex,
     alphabetic,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextBoxEdge {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextBoxEdge, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30579,11 +28890,7 @@ pub const TextBoxTrim = union(enum) {
     trim_end,
     /// Specifies the behavior of trim-start and trim-end simultaneously.
     trim_both,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextBoxTrim {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextBoxTrim, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30601,11 +28908,7 @@ pub const TextCombineUpright = union(enum) {
     /// Attempt to typeset horizontally all consecutive typographic character units within the box and text run such that they take up the space of a single typographic character unit within the vertical line box.
     all,
     digits,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextCombineUpright {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextCombineUpright, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30620,11 +28923,7 @@ pub const TextDecoration = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextDecoration {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextDecoration, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30832,11 +29131,7 @@ pub const TextDecorationColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextDecorationColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) TextDecorationColor {
         return .{ .hex_ = v };
     }
@@ -30911,11 +29206,7 @@ pub const TextDecorationLine = union(enum) {
     spelling_error,
     /// This value indicates the type of text decoration used by the user agent to highlight grammar mistakes. Its appearance is UA defined, and may be platform-dependent.
     grammar_error,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextDecorationLine {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextDecorationLine, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30932,11 +29223,7 @@ pub const TextDecorationSkip = union(enum) {
     unset,
     /// The text-decoration-skip property and its sub-properties (text-decoration-skip-self, text-decoration-skip-box, text-decoration-skip-spaces, text-decoration-skip-ink) control interruptions in line decorations for which the element or an ancestor is the decorating box. The none value sets all sub-properties to none, and the auto value sets all sub-properties to their initial values.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextDecorationSkip {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextDecorationSkip, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30953,11 +29240,7 @@ pub const TextDecorationSkipBox = union(enum) {
     unset,
     /// When drawing text decoration lines applied to an ancestor decorating box, skip over the box’s own margin, border, and padding areas and only draw line decorations within its content area. This value only has an effect for decorations imposed by an ancestor; a decorating box never draws over its own box decoration.
     all,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextDecorationSkipBox {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextDecorationSkipBox, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -30976,11 +29259,7 @@ pub const TextDecorationSkipInk = union(enum) {
     auto,
     /// UAs must interrupt underlines and overlines where the line would cross glyph ink and to some distance to either side of the glyph outline.
     all,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextDecorationSkipInk {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextDecorationSkipInk, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -31007,11 +29286,7 @@ pub const TextDecorationSkipSelf = union(enum) {
     skip_line_through,
     /// Line decorations from ancestor decorating boxes are applied to this box unconditionally: drawn across it as if it were text if it is an atomic inline, or propagated to it according to the usual rules if it is not.
     no_skip,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextDecorationSkipSelf {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextDecorationSkipSelf, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -31032,11 +29307,7 @@ pub const TextDecorationSkipSpaces = union(enum) {
     start,
     /// Skip all spacers, plus any adjacent letter-spacing or word-spacing, when located at the end of the line.
     end,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextDecorationSkipSpaces {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextDecorationSkipSpaces, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -31057,11 +29328,7 @@ pub const TextDecorationStyle = union(enum) {
     dashed,
     /// Values have the same meaning as for the border-style properties [CSS-BACKGROUNDS-3]. wavy indicates a wavy line.
     wavy,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextDecorationStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextDecorationStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -31134,11 +29401,7 @@ pub const TextEmphasis = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextEmphasis {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextEmphasis, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -31346,11 +29609,7 @@ pub const TextEmphasisColor = union(enum) {
     WindowFrame,
     WindowText,
     hex_: u32,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextEmphasisColor {
-        return .{ .calc_ = expr };
-    }
     pub fn hex(v: u32) TextEmphasisColor {
         return .{ .hex_ = v };
     }
@@ -31376,11 +29635,7 @@ pub const TextEmphasisPosition = union(enum) {
     right,
     /// Draw marks to the left of the text in vertical typographic modes.
     left,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextEmphasisPosition {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextEmphasisPosition, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -31403,11 +29658,7 @@ pub const TextEmphasisSkip = union(enum) {
     symbols,
     /// Skip characters where the East_Asian_Width property [UAX11] of the Unicode database [UAX44] is not F (Fullwidth) or W (Wide).
     narrow,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextEmphasisSkip {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextEmphasisSkip, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -31435,11 +29686,7 @@ pub const TextEmphasisStyle = union(enum) {
     triangle,
     /// Display sesames as marks. The filled sesame is U+FE45 '﹅', and the open sesame is U+FE46 '﹆'.
     sesame,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextEmphasisStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextEmphasisStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -31464,11 +29711,7 @@ pub const TextGroupAlign = union(enum) {
     right,
     /// Inline-level content is group-aligned to the center, by padding both sides of each line box, half the spacing to each side.
     center,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextGroupAlign {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextGroupAlign, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -31547,11 +29790,7 @@ pub const TextJustify = union(enum) {
     ruby,
     /// Justification must not compress spacing controlled by text-spacing-trim or text-autospace. (If this value is not specified, the justification process may reduce such spacing except when the spacing is at the start or end of the line.) This keyword used to be part of text-spacing; it might need renaming to be more specific now that it’s here, as it implies that e.g. U+0020 cannot be compressed. [Issue #7079]
     no_compress,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextJustify {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextJustify, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -31572,11 +29811,7 @@ pub const TextOrientation = union(enum) {
     upright,
     /// Causes all text to be typeset sideways, as if in a horizontal layout, but rotated 90° clockwise.
     sideways,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextOrientation {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextOrientation, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -31597,11 +29832,7 @@ pub const TextOverflow = union(enum) {
     ellipsis,
     /// Same as fade(), but the distance over which the fading effect is applied is determined by the UA. 1em is suggested as a reasonable value.
     fade,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextOverflow {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextOverflow, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -31620,11 +29851,7 @@ pub const TextRendering = union(enum) {
     optimizeSpeed,
     optimizeLegibility,
     geometricPrecision,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextRendering {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextRendering, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -31921,11 +30148,7 @@ pub const TextSpacing = union(enum) {
     punctuation,
     insert,
     replace,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextSpacing {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextSpacing, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -31954,11 +30177,7 @@ pub const TextSpacingTrim = union(enum) {
     trim_all,
     /// The user agent chooses a set of typographically high quality spacing values. Different user agents running on different platforms may pick different values. Do we need auto? It would be weird for the author to choose platform-dependent behavior at the start of the first line, and it should otherwise use trim-both.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextSpacingTrim {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextSpacingTrim, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -31985,11 +30204,7 @@ pub const TextTransform = union(enum) {
     full_size_kana,
     /// See MathML Core § 4.2 The math-auto transform.
     math_auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextTransform {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextTransform, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32066,11 +30281,7 @@ pub const TextUnderlinePosition = union(enum) {
     left,
     /// In vertical typographic modes, the underline is aligned as for under, except it is always aligned to the right edge of the text. If this causes the underline to be drawn on the "over" side of the text, then an overline also switches sides and is drawn on the "under" side.
     right,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextUnderlinePosition {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextUnderlinePosition, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32085,11 +30296,7 @@ pub const TextWrap = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextWrap {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextWrap, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32108,11 +30315,7 @@ pub const TextWrapMode = union(enum) {
     wrap,
     /// Inline-level content does not break across lines; content that does not fit within the block container overflows it.
     nowrap,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextWrapMode {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextWrapMode, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32137,11 +30340,7 @@ pub const TextWrapStyle = union(enum) {
     pretty,
     /// Specifies the UA should avoid excessively short last lines, and is expected to consider more than one line when making break decisions (for example, to avoid "fixing" an orphan by making the previous line too short). The user agent may decide against improving the last line when it would make some prior line(s) substantially unbalanced. The user agent should not attempt to improve other aspects of the layout beyond what auto if those improvements come at a significant performance cost. For instance, with the given line length, the following test would be wrapped with a single word on the last line, which could be judged too short. ἄνδρα μοι ἔννεπε, μοῦσα, πολύτροπον, ὃς μάλα πολλὰ πλάγχθη, ἐπεὶ Τροίης ἱερὸν πτολίεθρον ἔπερσεν. Applying text-wrap-style: avoid-orphans could yield something like this instead, which is arguably more pleasing: ἄνδρα μοι ἔννεπε, μοῦσα, πολύτροπον, ὃς μάλα πολλὰ πλάγχθη, ἐπεὶ Τροίης ἱερὸν πτολίεθρον ἔπερσεν. However, the following fragment is more vexing: Circumnavigating the Mississippi river An attempt to make the last line less short by wrapping the previous line earlier would result in the following: Circumnavigating the Mississippi river While the last line would indeed no longer be short, the penultimate line would be unsightly. In such cases, user agents are expected to prefer the first rendering despite text-wrap-style: avoid-orphans being set.
     avoid_orphans,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TextWrapStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TextWrapStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32158,11 +30357,7 @@ pub const TimelineScope = union(enum) {
     unset,
     /// Specifies that all timeline names defined by this element or its flat tree descendants—​whose scope is not already limited by a descendant using timeline-scope—​to be in scope only for this element’s flat tree descendants; and limits descendants to only match timeline names to elements within this subtree.
     all,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TimelineScope {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TimelineScope, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32177,11 +30372,7 @@ pub const TimelineTrigger = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TimelineTrigger {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TimelineTrigger, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32196,11 +30387,7 @@ pub const TimelineTriggerActivationRange = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TimelineTriggerActivationRange {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TimelineTriggerActivationRange, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32317,11 +30504,7 @@ pub const TimelineTriggerActiveRange = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TimelineTriggerActiveRange {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TimelineTriggerActiveRange, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32442,11 +30625,7 @@ pub const TimelineTriggerName = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TimelineTriggerName {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TimelineTriggerName, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32542,11 +30721,7 @@ pub const TouchAction = union(enum) {
     pan_down,
     pinch_zoom,
     manipulation,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TouchAction {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TouchAction, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32561,11 +30736,7 @@ pub const Transform = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Transform {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Transform, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32590,11 +30761,7 @@ pub const TransformBox = union(enum) {
     stroke_box,
     /// Uses the nearest SVG viewport as reference box.
     view_box,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TransformBox {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TransformBox, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32671,11 +30838,7 @@ pub const TransformStyle = union(enum) {
     unset,
     flat,
     preserve_3d,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TransformStyle {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TransformStyle, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32721,11 +30884,7 @@ pub const TransitionBehavior = union(enum) {
     unset,
     normal,
     allow_discrete,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TransitionBehavior {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TransitionBehavior, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32780,11 +30939,7 @@ pub const TransitionProperty = union(enum) {
     unset,
     /// A value of none means that no property will transition. Otherwise, a list of properties to be transitioned, or the keyword all which indicates that all properties are to be transitioned, is given.
     all,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TransitionProperty {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TransitionProperty, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32806,11 +30961,7 @@ pub const TransitionTimingFunction = union(enum) {
     ease_in_out,
     step_start,
     step_end,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TransitionTimingFunction {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TransitionTimingFunction, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32877,11 +31028,7 @@ pub const TriggerScope = union(enum) {
     unset,
     /// Specifies that all trigger names defined by this element or its descendants—​whose scope is not already limited by a descendant using trigger-scope—​to be in scope only for this element’s flat tree descendants; and limits descendants to only match trigger names to triggers within this subtree. This value only affects trigger names in the same tree scope, as if it were a strictly matched tree-scoped name. (That is, trigger-scope: all acts identically to trigger-scope: --foo, --bar, ..., listing all relevant trigger names.)
     all,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) TriggerScope {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: TriggerScope, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32908,11 +31055,7 @@ pub const UnicodeBidi = union(enum) {
     isolate_override,
     /// This value behaves as isolate except that for the purposes of the Unicode bidirectional algorithm, the base directionality of each of the box’s bidi paragraphs (if a block container) or isolated sequences (if an inline) is determined by following the heuristic in rules P2 and P3 of the Unicode bidirectional algorithm (rather than by using the direction property of the box).
     plaintext,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) UnicodeBidi {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: UnicodeBidi, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32935,11 +31078,7 @@ pub const UserSelect = union(enum) {
     contain,
     /// The content of the element must be selected atomically: If a selection would contain part of the element, then the selection must contain the entire element including all its descendants. If the element is selected and the used value of user-select on its parent is all, then the parent must be included in the selection, recursively. If this element has descendants on which the used value of user-select is not all and if a selection is entirely contained in these descendants, then the selection is not extended to include this whole element.
     all,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) UserSelect {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: UserSelect, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32958,11 +31097,7 @@ pub const VectorEffect = union(enum) {
     non_scaling_size,
     non_rotation,
     fixed_position,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) VectorEffect {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: VectorEffect, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -32981,11 +31116,7 @@ pub const VerticalAlign = union(enum) {
     first,
     /// Specifies last-baseline alignment.
     last,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) VerticalAlign {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: VerticalAlign, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33000,11 +31131,7 @@ pub const ViewTimeline = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ViewTimeline {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ViewTimeline, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33027,11 +31154,7 @@ pub const ViewTimelineAxis = union(enum) {
     x,
     /// Specifies to use the measure of progress along the vertical axis of the scroll container.
     y,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ViewTimelineAxis {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ViewTimelineAxis, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33098,11 +31221,7 @@ pub const ViewTimelineName = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ViewTimelineName {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ViewTimelineName, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33117,11 +31236,7 @@ pub const ViewTransitionClass = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ViewTransitionClass {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ViewTransitionClass, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33142,11 +31257,7 @@ pub const ViewTransitionGroup = union(enum) {
     contain,
     /// The view-transition-group() pseudo-element generated by this element is a child of the view-transition-group-children() pseudo-element generated by this element’s nearest view-transition-group() generating flat tree ancestor element, if any. If no such element is present, the view-transition-group() pseudo-element generated by this element is a direct child of the ::view-transition pseudo-element associated with this view transition.
     nearest,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ViewTransitionGroup {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ViewTransitionGroup, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33161,11 +31272,7 @@ pub const ViewTransitionName = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ViewTransitionName {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ViewTransitionName, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33181,11 +31288,7 @@ pub const ViewTransitionScope = union(enum) {
     revert_layer,
     unset,
     all,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ViewTransitionScope {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ViewTransitionScope, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33208,11 +31311,7 @@ pub const Visibility = union(enum) {
     force_hidden,
     /// Indicates that the box is collapsed, which can cause it to take up less space than otherwise in a formatting-context–specific way. See dynamic row and column effects in tables [CSS2] and collapsed flex items in flex layout [CSS-FLEXBOX-1]. In all other cases, however, (i.e. unless otherwise specified) this simply makes the box invisible, just like hidden.
     collapse,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Visibility {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Visibility, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33237,11 +31336,7 @@ pub const VoiceBalance = union(enum) {
     leftwards,
     /// Moves the sound to the right, by adding 20 to the inherited voice-balance value (and by clamping the resulting number to 100).
     rightwards,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) VoiceBalance {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: VoiceBalance, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33279,11 +31374,7 @@ pub const VoiceFamily = union(enum) {
     unset,
     /// Indicates that the voice-family value gets inherited and used regardless of any potential language change within the content markup (see the section below about voice selection and language handling). This value behaves as inherit when applied to the root element. Note: Descendants of the element automatically inherit the preserve value, unless it is explicitly overridden by other voice-family values (e.g. name, gender, age).
     preserve,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) VoiceFamily {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: VoiceFamily, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33420,11 +31511,7 @@ pub const VoiceStress = union(enum) {
     moderate,
     /// Effectively the opposite of emphasizing a word.
     reduced,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) VoiceStress {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: VoiceStress, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33451,11 +31538,7 @@ pub const VoiceVolume = union(enum) {
     loud,
     /// This sequence of keywords corresponds to monotonically non-decreasing volume levels, mapped to implementation-dependent values that meet the listener’s requirements with regards to perceived loudness. These audio levels are typically provided via a preference mechanism that allow users to calibrate sound options according to their auditory environment. The keyword x-soft maps to the user’s minimum audible volume level, x-loud maps to the user’s maximum tolerable volume level, medium maps to the user’s preferred volume level, soft and loud map to intermediary values.
     x_loud,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) VoiceVolume {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: VoiceVolume, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33478,11 +31561,7 @@ pub const WhiteSpace = union(enum) {
     pre_wrap,
     /// Like normal, this value collapses consecutive white space characters and allows wrapping, but it preserves segment breaks in the source as forced line breaks.
     pre_line,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WhiteSpace {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WhiteSpace, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33509,11 +31588,7 @@ pub const WhiteSpaceCollapse = union(enum) {
     preserve_spaces,
     /// The behavior is identical to that of preserve, except that: Any sequence of preserved white space or other space separators always takes up space, including at the end of the line. A soft wrap opportunity exists after every preserved white space character and after every other space separator (including between adjacent spaces).
     break_spaces,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WhiteSpaceCollapse {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WhiteSpaceCollapse, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33534,11 +31609,7 @@ pub const WhiteSpaceTrim = union(enum) {
     discard_after,
     /// For block containers this value directs UAs to discard all whitespace at the beginning of the element up to and including the last segment break before the first non-white-space character in the element as well as to discard all white space at the end of the element starting with the first segment break after the last non-white-space character in the element. For other elements this value directs UAs to discard all whitespace at the beginning and end of the element.
     discard_inner,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WhiteSpaceTrim {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WhiteSpaceTrim, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33553,11 +31624,7 @@ pub const Widows = union(enum) {
     revert,
     revert_layer,
     unset,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) Widows {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: Widows, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33640,11 +31707,7 @@ pub const WillChange = union(enum) {
     scroll_position,
     /// Indicates that the author expects to animate or change something about the element’s contents in the near future. For example, browsers often “cache” rendering of elements over time, because most things don’t change very often, or only change their position. However, if an element does change its contents continually, producing and maintaining this cache is a waste of time. A browser might take this value as a signal to cache less aggressively on the element, or avoid caching at all and just continually re-render the element from scratch. This value is mostly intended to help browsers optimize JS-based animations of content, which change aspects of an element’s contents many times per second. This kind of optimization, when possible, is already done automatically by browsers when declarative animations are used.
     contents,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WillChange {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WillChange, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33671,11 +31734,7 @@ pub const WordBreak = union(enum) {
     auto_phrase,
     /// For compatibility with legacy content, the word-break property also supports a deprecated break-word keyword. When specified, this has the same effect as word-break: normal and overflow-wrap: anywhere, regardless of the actual value of the overflow-wrap property.
     break_word,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WordBreak {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WordBreak, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33696,11 +31755,7 @@ pub const WordSpaceTransform = union(enum) {
     ideographic_space,
     /// If the content language is known and the user agent supports linguistic analysis for this language, the user agent must detect phrase boundaries. If a word-separator character, other space separator, or U+200B ZERO WIDTH SPACE character does not already occur at that boundary, then the UA must insert a virtual expandable separator. If this value is omitted, or if the content language is unknown, or if the user agent does not support detecting phrase boundaries for that language, there are no virtual expandable separator.
     auto_phrase,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WordSpaceTransform {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WordSpaceTransform, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33770,11 +31825,7 @@ pub const WordWrap = union(enum) {
     normal,
     break_word,
     anywhere,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WordWrap {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WordWrap, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33801,11 +31852,7 @@ pub const WrapAfter = union(enum) {
     line,
     /// Force a flex line break immediately before/after the box if the box is a flex item in a multi-line flex container.
     flex,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WrapAfter {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WrapAfter, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33832,11 +31879,7 @@ pub const WrapBefore = union(enum) {
     line,
     /// Force a flex line break immediately before/after the box if the box is a flex item in a multi-line flex container.
     flex,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WrapBefore {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WrapBefore, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33865,11 +31908,7 @@ pub const WrapFlow = union(enum) {
     maximum,
     /// Inline flow content can only flow before and after the exclusion in the flow content’s block direction and must leave the areas next to the start and end edges of the exclusion empty.
     clear,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WrapFlow {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WrapFlow, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33888,11 +31927,7 @@ pub const WrapInside = union(enum) {
     auto,
     /// Line breaking is suppressed within the box: the UA may only break within the box if there are no other valid break points in the line. If the text breaks, line-breaking restrictions are honored as for auto. If boxes with avoid are nested and the UA must break within these boxes, a break in an outer box must be used before a break within an inner box may be used.
     avoid,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WrapInside {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WrapInside, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33909,11 +31944,7 @@ pub const WrapThrough = union(enum) {
     unset,
     /// The element inherits its parent node’s wrapping context. Its descendant inline content wraps around exclusions defined outside the element.
     wrap,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WrapThrough {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WrapThrough, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -33938,11 +31969,7 @@ pub const WritingMode = union(enum) {
     sideways_rl,
     /// Left-to-right block flow direction. The writing mode is vertical, while the typographic mode is horizontal.
     sideways_lr,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) WritingMode {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: WritingMode, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }
@@ -34059,11 +32086,7 @@ pub const ZIndex = union(enum) {
     unset,
     /// The stack level of the generated box in the current stacking context is 0. The box does not establish a new stacking context unless it is the root element.
     auto,
-    calc_: CalcExpr,
 
-    pub fn calc(expr: CalcExpr) ZIndex {
-        return .{ .calc_ = expr };
-    }
     pub fn format(self: ZIndex, w: *std.io.Writer) std.io.Writer.Error!void {
         return core.formatValue(self, w);
     }

@@ -8,42 +8,67 @@ pub fn calcExprSource(allocator: std.mem.Allocator) ![]const u8 {
     try w.writeAll(
         \\pub const CalcExpr = struct {
         \\    const Self = @This();
-        \\    pub const Unit = enum { px, em, rem, percent };
-        \\    pub const Op = enum { add, sub, mul, div };
-        \\    pub const Kind = enum { unit, number, raw, op };
-        \\
-        \\    pub const Node = struct {
-        \\        kind: Kind,
-        \\        unit: Unit = .px,
-        \\        value: f32 = 0,
-        \\        text: []const u8 = "",
-        \\        lhs: u8 = 0,
-        \\        rhs: u8 = 0,
-        \\        op: Op = .add,
+        \\    pub const Unit = enum {
+        \\        px,
+        \\        em,
+        \\        rem,
+        \\        percent,
+        \\        pub fn toString(self: Unit) []const u8 {
+        \\            return switch (self) {
+        \\                .percent => "%",
+        \\                else => @tagName(self),
+        \\            };
+        \\        }
         \\    };
         \\
-        \\    nodes: [32]Node = undefined,
-        \\    len: u8 = 0,
-        \\    root: u8 = 0,
+        \\    pub const Op = enum {
+        \\        add,
+        \\        sub,
+        \\        mul,
+        \\        div,
+        \\        pub fn toString(self: Op) []const u8 {
+        \\            return switch (self) {
+        \\                .add => "+",
+        \\                .sub => "-",
+        \\                .mul => "*",
+        \\                .div => "/",
+        \\            };
+        \\        }
+        \\    };
         \\
-        \\    fn leaf(node: Node) Self {
+        \\    buf: [64]u8 = undefined,
+        \\    len: u8 = 0,
+        \\
+        \\    fn init(t: []const u8) Self {
         \\        var self: Self = undefined;
-        \\        self.nodes[0] = node;
-        \\        self.len = 1;
-        \\        self.root = 0;
+        \\        if (t.len > self.buf.len) @panic("calc expression too complex");
+        \\        std.mem.copyForwards(u8, self.buf[0..t.len], t);
+        \\        self.len = @intCast(t.len);
         \\        return self;
         \\    }
         \\
+        \\    fn text(self: Self) []const u8 {
+        \\        return self.buf[0..self.len];
+        \\    }
+        \\
+        \\    fn leaf(value: []const u8) Self {
+        \\        return init(value);
+        \\    }
+        \\
         \\    fn unitLeaf(unit: Unit, value: f32) Self {
-        \\        return leaf(.{ .kind = .unit, .unit = unit, .value = value });
+        \\        var temp: [64]u8 = undefined;
+        \\        const written = std.fmt.bufPrint(&temp, "{d}{s}", .{ value, unit.toString() }) catch @panic("calc expression too complex");
+        \\        return leaf(written);
         \\    }
         \\
         \\    fn numberLeaf(value: f32) Self {
-        \\        return leaf(.{ .kind = .number, .value = value });
+        \\        var temp: [64]u8 = undefined;
+        \\        const written = std.fmt.bufPrint(&temp, "{d}", .{value}) catch @panic("calc expression too complex");
+        \\        return leaf(written);
         \\    }
         \\
-        \\    fn rawLeaf(text: []const u8) Self {
-        \\        return leaf(.{ .kind = .raw, .text = text });
+        \\    fn rawLeaf(value: []const u8) Self {
+        \\        return leaf(value);
         \\    }
         \\
         \\    pub fn px(value: f32) Self {
@@ -62,8 +87,8 @@ pub fn calcExprSource(allocator: std.mem.Allocator) ![]const u8 {
         \\        return unitLeaf(.percent, value);
         \\    }
         \\
-        \\    pub fn raw(text: []const u8) Self {
-        \\        return rawLeaf(text);
+        \\    pub fn raw(value: []const u8) Self {
+        \\        return rawLeaf(value);
         \\    }
         \\
         \\    pub fn number(value: f32) Self {
@@ -71,16 +96,30 @@ pub fn calcExprSource(allocator: std.mem.Allocator) ![]const u8 {
         \\    }
         \\
         \\    fn combine(self: Self, other: Self, op: Op) Self {
-        \\        var out = self;
-        \\        if (out.len + other.len + 1 > out.nodes.len) @panic("calc expression too complex");
+        \\        var temp: [64]u8 = undefined;
+        \\        const lhs = self.text();
+        \\        const rhs = other.text();
+        \\        const op_text = op.toString();
+        \\        const needed = lhs.len + rhs.len + op_text.len + 4;
+        \\        if (needed > temp.len) @panic("calc expression too complex");
+        \\
         \\        var i: usize = 0;
-        \\        while (i < other.len) : (i += 1) out.nodes[out.len + i] = other.nodes[i];
-        \\        const lhs: u8 = out.root;
-        \\        const rhs: u8 = @intCast(out.len + other.root);
-        \\        out.nodes[out.len + other.len] = .{ .kind = .op, .op = op, .lhs = lhs, .rhs = rhs };
-        \\        out.len = @intCast(out.len + other.len + 1);
-        \\        out.root = out.len - 1;
-        \\        return out;
+        \\        temp[i] = '(';
+        \\        i += 1;
+        \\        std.mem.copyForwards(u8, temp[i..][0..lhs.len], lhs);
+        \\        i += lhs.len;
+        \\        temp[i] = ' ';
+        \\        i += 1;
+        \\        std.mem.copyForwards(u8, temp[i..][0..op_text.len], op_text);
+        \\        i += op_text.len;
+        \\        temp[i] = ' ';
+        \\        i += 1;
+        \\        std.mem.copyForwards(u8, temp[i..][0..rhs.len], rhs);
+        \\        i += rhs.len;
+        \\        temp[i] = ')';
+        \\        i += 1;
+        \\
+        \\        return init(temp[0..i]);
         \\    }
         \\
         \\    pub fn add(self: Self, other: Self) Self {
@@ -99,27 +138,8 @@ pub fn calcExprSource(allocator: std.mem.Allocator) ![]const u8 {
         \\        return self.combine(numberLeaf(factor), .div);
         \\    }
         \\
-        \\    fn renderNode(self: Self, index: u8, w: *std.io.Writer) !void {
-        \\        const node = self.nodes[index];
-        \\        switch (node.kind) {
-        \\            .unit => switch (node.unit) {
-        \\                .percent => try w.print("{d}%", .{node.value}),
-        \\                else => try w.print("{d}{s}", .{ node.value, @tagName(node.unit) }),
-        \\            },
-        \\            .number => try w.print("{d}", .{node.value}),
-        \\            .raw => try w.writeAll(node.text),
-        \\            .op => {
-        \\                try w.writeByte('(');
-        \\                try self.renderNode(node.lhs, w);
-        \\                try w.print(" {s} ", .{switch (node.op) { .add => "+", .sub => "-", .mul => "*", .div => "/" }});
-        \\                try self.renderNode(node.rhs, w);
-        \\                try w.writeByte(')');
-        \\            },
-        \\        }
-        \\    }
-        \\
         \\    pub fn format(self: Self, w: *std.io.Writer) !void {
-        \\        try self.renderNode(self.root, w);
+        \\        try w.writeAll(self.text());
         \\    }
         \\};
     );

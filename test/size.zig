@@ -17,7 +17,7 @@ test "Style size" {
     const s: zx.Style = .{
         .display = .flex,
         .background_color = .hex(0xff0000),
-        .margin_top = .calc("10px + 5%"),
+        .margin_top = .calc(zx.style.Calc.percent(5).sub(.px(10))),
     };
 
     try std.testing.expect(s.display == .flex);
