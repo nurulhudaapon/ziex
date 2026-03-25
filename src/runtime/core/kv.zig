@@ -23,7 +23,7 @@ var _ctx: *anyopaque = @ptrCast(&_stateless);
 var _vtable: *const VTable = if (builtin.cpu.arch == .wasm32) &noop_vtable else &filesystem_vtable;
 
 /// Override the active backend. Called once at startup by platform adapters.
-pub fn impl(ctx: *anyopaque, vtable: *const VTable) void {
+pub fn adapter(ctx: *anyopaque, vtable: *const VTable) void {
     _ctx = ctx;
     _vtable = vtable;
 }

@@ -21,7 +21,7 @@ test "db api: module surface compiles" {
     _ = named;
     _ = db.open;
     _ = db.deserialize;
-    _ = db.impl;
+    _ = db.adapter;
     _ = db.Database.open;
     _ = db.Database.init;
     _ = db.Database.deserialize;

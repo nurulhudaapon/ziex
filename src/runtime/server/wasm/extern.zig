@@ -37,6 +37,55 @@ pub extern "__zx_kv" fn kv_list(
     buf_max: usize,
 ) i32;
 
+pub extern "__zx_db" fn db_open(
+    ns_ptr: [*]const u8,
+    ns_len: usize,
+) i32;
+
+pub extern "__zx_db" fn db_run(
+    ns_ptr: [*]const u8,
+    ns_len: usize,
+    sql_ptr: [*]const u8,
+    sql_len: usize,
+    bindings_ptr: [*]const u8,
+    bindings_len: usize,
+    buf_ptr: [*]u8,
+    buf_max: usize,
+) i32;
+
+pub extern "__zx_db" fn db_get(
+    ns_ptr: [*]const u8,
+    ns_len: usize,
+    sql_ptr: [*]const u8,
+    sql_len: usize,
+    bindings_ptr: [*]const u8,
+    bindings_len: usize,
+    buf_ptr: [*]u8,
+    buf_max: usize,
+) i32;
+
+pub extern "__zx_db" fn db_all(
+    ns_ptr: [*]const u8,
+    ns_len: usize,
+    sql_ptr: [*]const u8,
+    sql_len: usize,
+    bindings_ptr: [*]const u8,
+    bindings_len: usize,
+    buf_ptr: [*]u8,
+    buf_max: usize,
+) i32;
+
+pub extern "__zx_db" fn db_values(
+    ns_ptr: [*]const u8,
+    ns_len: usize,
+    sql_ptr: [*]const u8,
+    sql_len: usize,
+    bindings_ptr: [*]const u8,
+    bindings_len: usize,
+    buf_ptr: [*]u8,
+    buf_max: usize,
+) i32;
+
 // ---------------------------------------------------------------------------
 // WebSocket WASI bridge — Cloudflare Worker binding
 // ---------------------------------------------------------------------------

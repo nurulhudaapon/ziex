@@ -1,6 +1,7 @@
 import { run } from "./runtime";
 import type { DurableObjectNamespace } from "./runtime";
 import type { KVNamespace } from "./kv";
+import type { D1Database } from "./db";
 import type { WASI } from "./wasi";
 
 /**
@@ -58,6 +59,7 @@ type KVKey<Env> = { [K in keyof Env]: Env[K] extends KVNamespace ? K : never }[k
 
 /** Keys of `Env` whose value extends {@link DurableObjectNamespace}. */
 type DOKey<Env> = { [K in keyof Env]: Env[K] extends DurableObjectNamespace ? K : never }[keyof Env];
+type DBKey<Env> = { [K in keyof Env]: Env[K] extends D1Database ? K : never }[keyof Env];
 
 type ZiexOptions<Env> = {
     /** WASM module — accepts any {@link WasmInput}. Resolved and cached on first request. */
@@ -82,6 +84,13 @@ type ZiexOptions<Env> = {
      * ```
      */
     kv?: KVKey<Env> | Record<string, KVKey<Env>>;
+    /**
+     * D1 database bindings. Same shape as `kv`:
+     *
+     * - `"DB"` maps `env.DB` to the `"default"` database binding.
+     * - `{ default: "DB", analytics: "ANALYTICS_DB" }` maps multiple bindings.
+     */
+    db?: DBKey<Env> | Record<string, DBKey<Env>>;
     /**
      * Env key whose value is a `DurableObjectNamespace` for WebSocket pub/sub.
      * Requires `createWebSocketDO` export on the worker.
@@ -158,6 +167,19 @@ export class Ziex<Env = Record<string, unknown>> {
         return { default: env[kv as keyof Env] as unknown as KVNamespace };
     }
 
+    private resolveDB(env: Env): Record<string, D1Database> | undefined {
+        const { db } = this.options;
+        if (db === undefined) return undefined;
+        if (typeof db === "object" && db !== null) {
+            const result: Record<string, D1Database> = {};
+            for (const [name, key] of Object.entries(db)) {
+                result[name] = env[key as keyof Env] as unknown as D1Database;
+            }
+            return result;
+        }
+        return { default: env[db as keyof Env] as unknown as D1Database };
+    }
+
     /**
      * Fetch handler called by the runtime on every request.
      *
@@ -179,6 +201,7 @@ export class Ziex<Env = Record<string, unknown>> {
             wasi,
             imports,
             kv: this.resolveKV(env),
+            db: this.resolveDB(env),
             websocket: websocket !== undefined ? env[websocket as keyof Env] as unknown as DurableObjectNamespace : undefined,
         });
     };

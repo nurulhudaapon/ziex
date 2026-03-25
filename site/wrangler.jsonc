@@ -22,6 +22,11 @@
 		"directory": "./zig-out/static",
 		"binding": "ASSETS"
 	},
+	"d1_databases": [
+		{
+			"binding": "DB", // available in your Worker on env.DB
+		}
+	],
 	// 	"durable_objects": {
 	//     "bindings": [
 	//       {

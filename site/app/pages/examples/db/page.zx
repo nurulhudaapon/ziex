@@ -1,0 +1,50 @@
+pub fn Page(ctx: zx.PageContext) !zx.Component {
+    var database = try zx.db.Database.open(null, .{});
+    defer database.deinit();
+
+    _ = try database.run(
+        \\CREATE TABLE IF NOT EXISTS page_visits (
+        \\  id INTEGER PRIMARY KEY AUTOINCREMENT,
+        \\  page TEXT NOT NULL,
+        \\  created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        \\)
+    , .empty);
+
+    _ = try database.run(
+        \\INSERT INTO page_visits (page) VALUES ('/examples/db')
+    , .empty);
+
+    var statement = try database.query(
+        \\SELECT
+        \\  COUNT(*) AS total_visits,
+        \\  MAX(created_at) AS latest_visit
+        \\FROM page_visits
+        \\WHERE page = '/examples/db'
+    );
+    defer statement.deinit();
+
+    const row = (try statement.get(ctx.arena, .empty)).?;
+
+    const total_visits: i64 = switch (row.get("total_visits") orelse .null) {
+        .integer => |value| value,
+        .float => |value| @intFromFloat(value),
+        else => 0,
+    };
+
+    const latest_visit: []const u8 = switch (row.get("latest_visit") orelse .null) {
+        .text => |value| value,
+        else => "n/a",
+    };
+
+    return (
+        <main @allocator={ctx.arena} lang="en">
+            <h1>Database Example</h1>
+            <p>This page writes a row into a D1 table on every request.</p>
+            <p>Total visits recorded: {total_visits}</p>
+            <p>Latest visit: {latest_visit}</p>
+            <p><a href="/examples/db/comprehensive">Open the comprehensive DB example</a></p>
+        </main>
+    );
+}
+
+const zx = @import("zx");

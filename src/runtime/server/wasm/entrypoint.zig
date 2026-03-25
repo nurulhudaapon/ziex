@@ -1,5 +1,6 @@
 const std = @import("std");
 const zx = @import("../../../root.zig");
+const db = @import("db.zig");
 const kv = @import("kv.zig");
 const render = @import("../../server/render.zig");
 const server_dispatch = @import("../../server/dispatch.zig");
@@ -30,6 +31,7 @@ fn injectZxInjections(allocator: std.mem.Allocator, page: *Component) void {
 }
 
 pub fn run() !void {
+    db.use();
     kv.use();
     const allocator = std.heap.wasm_allocator;
 

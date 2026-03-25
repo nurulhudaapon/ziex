@@ -1,9 +1,11 @@
 import { ZxBridge } from "../wasm";
 import { createKVImports, createMemoryKV } from "../kv";
+import { createD1Imports } from "../db";
 import { createWasiImports } from "../wasi";
 import { buildWsImports, attachWebSocket } from "../runtime";
 import type { WsState } from "../runtime";
 import type { KVNamespace } from "../kv";
+import type { D1Database } from "../db";
 
 type ConnState = WsState & { topics: Set<string> };
 
@@ -41,6 +43,7 @@ export function createWebSocketDO(
          * ```
          */
         kv?: (env: any) => Record<string, KVNamespace>;
+        db?: (env: any) => Record<string, D1Database>;
         imports?: (mem: () => WebAssembly.Memory) => Record<string, Record<string, unknown>>;
     },
 ) {
@@ -117,12 +120,14 @@ export function createWebSocketDO(
             const wsImports = buildWsImports(jspi ? Suspending : null, mem, decoder, connState);
 
             const kvBindings = options?.kv?.(this.env);
+            const dbBindings = options?.db?.(this.env);
 
             const instance = new WebAssembly.Instance(module, {
                 wasi_snapshot_preview1: wasiImport,
                 __zx_sys: sysImports,
                 __zx_ws: wsImports,
                 __zx_kv: createKVImports(kvBindings ?? { default: createMemoryKV() }, mem),
+                __zx_db: createD1Imports(dbBindings ?? {}, mem),
                 ...(options?.imports ? options.imports(mem) : {}),
                 ...bridgeImports,
             } as WebAssembly.Imports);
