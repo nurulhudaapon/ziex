@@ -94,6 +94,8 @@ fn transpile(ctx: zli.CommandContext) !void {
     const rootdir: ?[]const u8 = if (rootdir_str.len > 0) rootdir_str else null;
     const depfile_str = ctx.flag("dep-file", []const u8);
     const dep_file: ?[]const u8 = if (depfile_str.len > 0) depfile_str else null;
+    const cache_dir_str = ctx.flag("cache-dir", []const u8);
+    const cache_dir: ?[]const u8 = if (cache_dir_str.len > 0) cache_dir_str else null;
     const map: zx.Ast.ParseOptions.MapMode = if (std.mem.eql(u8, sourcemap_str, "inline"))
         .inlined
     else if (std.mem.eql(u8, sourcemap_str, "none"))
@@ -135,6 +137,7 @@ fn transpile(ctx: zli.CommandContext) !void {
                 .copy_embedded_sources = copy_embedded_sources,
                 .rootdir = rootdir,
                 .dep_file = dep_file,
+                .cache_dir = cache_dir,
             });
             return;
         },
@@ -221,6 +224,7 @@ fn transpile(ctx: zli.CommandContext) !void {
         .copy_embedded_sources = copy_embedded_sources,
         .rootdir = rootdir,
         .dep_file = dep_file,
+        .cache_dir = cache_dir,
     });
 }
 
@@ -1433,36 +1437,56 @@ fn transpileDirectory(
                 try allocator.dupe(u8, input_path);
             try input_files.append(abs_input);
 
+            const cache_base = opts.cache_dir orelse opts.outdir;
+            const cache_out_path = try std.fs.path.join(allocator, &.{ cache_base, output_rel_path });
+            defer allocator.free(cache_out_path);
+
             // Cache file alongside the .zig output (not .zig extension so compiler ignores it)
-            const cache_path = try std.mem.concat(allocator, u8, &.{ output_path, ".zxcache" });
+            const cache_path = try std.mem.concat(allocator, u8, &.{ cache_out_path, ".zxcache" });
             defer allocator.free(cache_path);
 
             // Check if output is up-to-date (mtime comparison + cache file existence)
             const should_skip = blk: {
                 const input_stat = std.fs.cwd().statFile(input_path) catch break :blk false;
-                const output_stat = std.fs.cwd().statFile(output_path) catch break :blk false;
+                const cache_stat = std.fs.cwd().statFile(cache_out_path) catch break :blk false;
                 std.fs.cwd().access(cache_path, .{}) catch break :blk false;
-                break :blk output_stat.mtime >= input_stat.mtime;
+                break :blk cache_stat.mtime >= input_stat.mtime;
             };
 
             if (should_skip) {
                 readComponentCache(allocator, cache_path, global_components) catch |err| {
                     std.debug.print("Warning: Failed to read component cache for {s}: {}\n", .{ input_path, err });
                 };
+                if (opts.cache_dir) |_| {
+                    if (std.fs.path.dirname(output_path)) |parent_dir| {
+                        std.fs.cwd().makePath(parent_dir) catch {};
+                    }
+                    std.fs.cwd().copyFile(cache_out_path, std.fs.cwd(), output_path, .{}) catch |err| {
+                        std.debug.print("Warning: Failed to copy cached file {s} to {s}: {}\n", .{ cache_out_path, output_path, err });
+                    };
+                }
                 if (opts.verbose) std.debug.print("Skipped (up-to-date): {s}\n", .{input_path});
-                continue;
+            } else {
+                const components_before = global_components.items.len;
+                transpileFile(allocator, global_components, opts, input_path, output_path) catch |err| {
+                    global_components.items.len = components_before;
+                    std.debug.print("Error transpiling {s}: {}\n", .{ input_path, err });
+                    continue;
+                };
+
+                if (opts.cache_dir) |_| {
+                    if (std.fs.path.dirname(cache_out_path)) |parent_dir| {
+                        std.fs.cwd().makePath(parent_dir) catch {};
+                    }
+                    std.fs.cwd().copyFile(output_path, std.fs.cwd(), cache_out_path, .{}) catch |err| {
+                        std.debug.print("Warning: Failed to update cache file {s}: {}\n", .{ cache_out_path, err });
+                    };
+                }
+
+                writeComponentCache(allocator, cache_path, global_components.items[components_before..]) catch |err| {
+                    std.debug.print("Warning: Failed to write component cache for {s}: {}\n", .{ input_path, err });
+                };
             }
-
-            const components_before = global_components.items.len;
-            transpileFile(allocator, global_components, opts, input_path, output_path) catch |err| {
-                global_components.items.len = components_before;
-                std.debug.print("Error transpiling {s}: {}\n", .{ input_path, err });
-                continue;
-            };
-
-            writeComponentCache(allocator, cache_path, global_components.items[components_before..]) catch |err| {
-                std.debug.print("Warning: Failed to write component cache for {s}: {}\n", .{ input_path, err });
-            };
 
             // Also copy the original .zx file if copy_embedded_sources is enabled
             if (opts.copy_embedded_sources) {
@@ -1541,6 +1565,7 @@ const TranspileOptions = struct {
     copy_embedded_sources: bool = false,
     rootdir: ?[]const u8 = null,
     dep_file: ?[]const u8 = null,
+    cache_dir: ?[]const u8 = null,
 };
 
 fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void {

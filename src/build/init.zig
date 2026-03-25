@@ -145,6 +145,8 @@ pub fn initInner(
     }
     // Always generate inlined sourcemaps so dev mode can remap errors to .zx files
     transpile_cmd.addArgs(&.{ "--map", "inline" });
+    const cache_path_arg = b.pathJoin(&.{ b.cache_root.path orelse ".zig-cache", "zx_transpile" });
+    transpile_cmd.addArgs(&.{ "--cache-dir", cache_path_arg });
     transpile_cmd.expectExitCode(0);
 
     const zxjs_default_href = "/assets/_/main.js";

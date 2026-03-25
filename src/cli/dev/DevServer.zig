@@ -252,7 +252,7 @@ fn serveRequest(ds: *DevServer, req: *http.Server.Request, client_stream: std.ne
         }
 
         if (std.mem.indexOf(u8, target, "open-in-editor") != null) {
-            log.info("open-in-editor matched: {s}", .{target});
+            log.debug("open-in-editor matched: {s}", .{target});
             handleOpenInEditor(ds, target) catch |err| {
                 log.debug("handleOpenInEditor failed: {s}", .{@errorName(err)});
             };
