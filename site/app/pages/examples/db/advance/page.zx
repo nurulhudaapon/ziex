@@ -1,0 +1,85 @@
+pub fn Page(ctx: zx.PageContext) !zx.Component {
+    var database = try zx.db.Database.open(null, .{});
+    defer database.deinit();
+
+    try query.init(&database);
+    try query.seed(&database);
+
+    const stats = try query.dashboard(&database, ctx.arena);
+    const revenue = @divTrunc(stats.total_revenue_cents, 100);
+    const cents = @mod(stats.total_revenue_cents, 100);
+    const revenue_text = try ctx.fmt("${d}.{d:0>2}", .{ revenue, cents });
+
+    return (
+        <main @allocator={ctx.arena} style={s.container}>
+            <div style={s.shell}>
+                <section style={s.hero}>
+                    <p style={s.eyebrow}>Ziex DB Example</p>
+                    <h1 style={s.hero_title}>Cloudflare D1 dashboard with query code separated into <code>query.zig</code></h1>
+                    <p style={s.hero_text}>
+                        This page creates tables, seeds a few records, and renders aggregate metrics from a single query.
+                        The page handles orchestration and UI, while the SQL lives beside it in a small query module.
+                    </p>
+                </section>
+
+                <section style={s.stats_grid}>
+                    <article style={s.stat_card}>
+                        <p style={s.stat_label}>Customers</p>
+                        <p style={s.stat_value}>{stats.total_customers}</p>
+                        <p style={s.stat_hint}>Unique customer rows in the demo dataset.</p>
+                    </article>
+
+                    <article style={s.stat_card_top}>
+                        <p style={s.stat_label}>Orders</p>
+                        <p style={s.stat_value}>{stats.total_orders}</p>
+                        <p style={s.stat_hint}>All inserted orders, regardless of status.</p>
+                    </article>
+
+                    <article style={s.stat_card_top}>
+                        <p style={s.stat_label}>Paid Orders</p>
+                        <p style={s.stat_value}>{stats.paid_orders}</p>
+                        <p style={s.stat_hint}>Subset filtered directly in SQL.</p>
+                    </article>
+
+                    <article style={s.stat_card_top}>
+                        <p style={s.stat_label}>Revenue</p>
+                        <p style={s.stat_value}>{revenue_text}</p>
+                        <p style={s.stat_hint}>Summed from <span style={s.accent}>amount_cents</span>.</p>
+                    </article>
+                </section>
+
+                <section style={s.content_grid}>
+                    <article style={s.panel}>
+                        <h2 style={s.panel_title}>What This Route Demonstrates</h2>
+                        <p style={s.panel_text}>
+                            It is meant to show a practical structure for DB-powered pages: keep the SQL in a local helper
+                            module, expose small query functions, and let the page focus on composing the result into UI.
+                        </p>
+                        <ul style={s.list}>
+                            <li style={s.list_item}>Initializes <code>customers</code> and <code>orders</code> tables.</li>
+                            <li style={s.list_item_top}>Seeds a compact dashboard dataset.</li>
+                            <li style={s.list_item_top}>Uses one aggregate query to load all summary metrics.</li>
+                            <li style={s.list_item_top}>Formats the returned values into a simple admin-like view.</li>
+                        </ul>
+                    </article>
+
+                    <article style={s.panel_top}>
+                        <h2 style={s.panel_title}>Latest Snapshot</h2>
+                        <p style={s.panel_text}>
+                            The query also asks for the latest order timestamp so the page can display one more real field
+                            coming back from D1.
+                        </p>
+                        <div style={s.code_block}>
+                            <strong>latest_order_at</strong>: {stats.latest_order_at}
+                        </div>
+                    </article>
+                </section>
+            </div>
+        </main>
+    );
+}
+
+
+const zx = @import("zx");
+const query = @import("query.zig");
+const s = @import("style.zig");
