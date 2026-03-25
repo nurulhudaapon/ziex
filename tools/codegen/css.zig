@@ -29,13 +29,7 @@ pub fn main() !void {
 }
 
 pub fn writeFile(allocator: std.mem.Allocator, path: []const u8) !void {
-    const source = generate(allocator) catch |err| {
-        if (err == error.InvalidGeneratedSource) {
-            // We can't easily get the raw buffer from File here without changes,
-            // but we can try to catch it in generate() or just look at what's happening.
-        }
-        return err;
-    };
+    const source = try generate(allocator);
     defer allocator.free(source);
 
     const file = try std.fs.cwd().createFile(path, .{});
@@ -59,26 +53,12 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
     const types_json = root.get("types").?.array;
     const selectors = root.get("selectors").?.array;
 
-    var function_names = std.StringArrayHashMap(void).init(a);
-    defer function_names.deinit();
-    var used_names = std.StringArrayHashMap(void).init(a);
-    defer used_names.deinit();
-    for (properties.items) |prop| {
-        const name = prop.object.get("name").?.string;
-        const clean = try cleanName(a, name, .snake);
-        if (clean.len > 0 and !used_names.contains(clean)) try used_names.put(clean, {});
-    }
-
     var type_map = TypeMap.init(a);
     defer type_map.deinit();
     for (types_json.items) |t| {
         const name = t.object.get("name").?.string;
         const syntax = if (t.object.get("syntax")) |s| s.string else "";
         try type_map.put(name, syntax);
-        try collectFunctionNamesFromText(a, syntax, &function_names);
-        if (t.object.get("value")) |val| {
-            try collectFunctionNamesFromText(a, val.string, &function_names);
-        }
     }
 
     var prose_map = std.StringHashMap([]const u8).init(a);
@@ -110,20 +90,6 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
                         }
                     }
                     try kw_prose_map.put(name, kmap);
-                }
-                if (std.mem.endsWith(u8, name, "()")) {
-                    const fn_name = try functionNameFromCss(a, name);
-                    if (fn_name.len > 0) {
-                        const safe_name = try safeGeneratedName(a, fn_name);
-                        if (!function_names.contains(safe_name) and !used_names.contains(safe_name)) try function_names.put(safe_name, {});
-                    }
-                }
-
-                if (prop.object.get("syntax")) |syn| {
-                    try collectFunctionNamesFromText(a, syn.string, &function_names);
-                }
-                if (prop.object.get("value")) |val| {
-                    try collectFunctionNamesFromText(a, val.string, &function_names);
                 }
             }
         }
@@ -232,20 +198,16 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
         _ = try prop_union.addMethod(fa, "", "format", format_sig, "return core.formatValue(self, w);");
     }
 
-    const style_property = try file.addUnion("StyleProperty", "enum(u32)");
+    const style = try file.addStruct("Style");
     for (properties.items) |prop| {
         const name = prop.object.get("name").?.string;
+        const data = prop_data.get(name).?;
         const type_name_raw = try cleanName(a, name, .pascal);
         const final_type_name = if (std.mem.eql(u8, type_name_raw, "Color")) "CssColor" else type_name_raw;
         const clean_p = try cleanName(a, name, .snake);
         if (clean_p.len == 0) continue;
-        try style_property.addField(fa, "", clean_p, final_type_name, null);
-
-        // Constructor helper
-        const helper_sig = try std.fmt.allocPrint(fa, "(v: {s}) StyleProperty", .{final_type_name});
-        const helper_body = try std.fmt.allocPrint(fa, "return .{{ .{s} = v }};", .{clean_p});
-        if (!used_names.contains(clean_p)) try used_names.put(clean_p, {});
-        _ = try file.addFn(clean_p, helper_sig, helper_body);
+        const field_doc = try docText(fa, name, data.prose, data.href);
+        try style.addField(fa, field_doc, clean_p, final_type_name, ".none");
     }
 
     var selector_tags = std.StringArrayHashMap(void).init(a);
@@ -253,6 +215,8 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
     for (selectors.items) |sel| {
         const name = sel.object.get("name").?.string;
         if (std.mem.indexOf(u8, name, "(") != null) continue;
+        const href = sel.object.get("href").?.string;
+        const prose = if (sel.object.get("prose")) |p| p.string else "";
         const clean_s = try cleanName(a, name, .snake);
         if (clean_s.len == 0) continue;
         if (selector_tags.contains(clean_s)) continue;
@@ -269,85 +233,43 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
         if (is_duplicate) continue;
 
         try selector_tags.put(clean_s, {});
-        try style_property.addField(fa, "", clean_s, "Style", null);
-
-        const helper_sig = try std.fmt.allocPrint(fa, "(v: Style) StyleProperty", .{});
-        const helper_body = try std.fmt.allocPrint(fa, "return .{{ .{s} = v }};", .{clean_s});
-        if (!used_names.contains(clean_s)) try used_names.put(clean_s, {});
-        _ = try file.addFn(clean_s, helper_sig, helper_body);
+        const selector_doc = try docText(fa, name, prose, href);
+        try style.addField(fa, selector_doc, clean_s, "?*const Style", "null");
     }
 
-    try style_property.addField(fa, "", "sm", "Style", null);
-    try style_property.addField(fa, "", "md", "Style", null);
-    try style_property.addField(fa, "", "lg", "Style", null);
-    try style_property.addField(fa, "", "xl", "Style", null);
-    try style_property.addField(fa, "", "extra", "[]const u8", null);
+    try style.addField(fa, "", "sm", "?*const Style", "null");
+    try style.addField(fa, "", "md", "?*const Style", "null");
+    try style.addField(fa, "", "lg", "?*const Style", "null");
+    try style.addField(fa, "", "xl", "?*const Style", "null");
+    try style.addField(fa, "", "extra", "[]const u8", "\"\"");
 
-    // Helpers for media queries and extra
-    _ = try file.addFn("sm", "(v: Style) StyleProperty", "return .{ .sm = v };");
-    _ = try file.addFn("md", "(v: Style) StyleProperty", "return .{ .md = v };");
-    _ = try file.addFn("lg", "(v: Style) StyleProperty", "return .{ .lg = v };");
-    _ = try file.addFn("xl", "(v: Style) StyleProperty", "return .{ .xl = v };");
-    _ = try file.addFn("extra", "(v: []const u8) StyleProperty", "return .{ .extra = v };");
+    _ = try style.addMethod(fa, "", "format", "(self: Style, w: *std.io.Writer) std.io.Writer.Error!void",
+        \\@setEvalBranchQuota(20000);
+        \\inline for (std.meta.fields(Style)) |f| {
+        \\    const T = f.type;
+        \\    if (comptime std.mem.eql(u8, f.name, "extra")) continue;
+        \\    if (comptime @typeInfo(T) == .@"union") {
+        \\        const val = @field(self, f.name);
+        \\        if (val != .none) {
+        \\            try core.formatKebab(f.name, w);
+        \\            try w.writeAll(": ");
+        \\            try val.format(w);
+        \\            try w.writeAll("; ");
+        \\        }
+        \\    }
+        \\}
+        \\if (self.extra.len > 0) try w.writeAll(self.extra);
+    );
 
-    var fn_it = function_names.iterator();
-    while (fn_it.next()) |entry| {
-        const name = entry.key_ptr.*;
-        const clean = try cleanName(a, name, .snake);
-        var safe_name = if (clean.len == 0) name else clean;
-        if (used_names.contains(safe_name) or isZigKeyword(safe_name)) safe_name = try std.mem.concat(a, u8, &.{ safe_name, "_" });
-        const sig = try std.fmt.allocPrint(fa, "(value: []const u8) []const u8", .{});
-        if (used_names.contains(safe_name)) safe_name = try std.mem.concat(a, u8, &.{ safe_name, "_" });
-        if (!used_names.contains(safe_name)) try used_names.put(safe_name, {});
-        _ = try file.addFn(safe_name, sig, "return value;");
-    }
-
-    // Compatibility exports
-    _ = try file.addConst("Calc", "", "CalcExpr");
-    _ = try file.addConst("styleInit", "", "core.init");
-    _ = try file.addConst("Style", "", "core.StyleOutput");
-    _ = try file.addConst("StyleUnit", "", "core.Unit");
-    _ = try file.addConst("StyleDimension", "", "core.Dimension");
-    _ = try file.addConst("StyleColor", "", "core.Color");
+    _ = try style.addMethod(fa, "", "toString", "(self: Style, allocator: std.mem.Allocator) ![]const u8",
+        \\var list: std.ArrayList(u8) = .empty;
+        \\defer list.deinit(allocator);
+        \\const w = list.writer(allocator);
+        \\try self.format(w);
+        \\return list.toOwnedSlice(allocator);
+    );
 
     return try file.finish();
-}
-
-fn collectFunctionNamesFromText(allocator: std.mem.Allocator, text: []const u8, names: *std.StringArrayHashMap(void)) !void {
-    var i: usize = 0;
-    while (i < text.len) {
-        if (text[i] == '<') {
-            var j = i + 1;
-            while (j < text.len and text[j] != '>') : (j += 1) {}
-            if (j < text.len and j > i + 1) {
-                const inner = text[i + 1 .. j];
-                if (std.mem.endsWith(u8, inner, "()")) {
-                    const fn_name = try functionNameFromCss(allocator, inner);
-                    if (fn_name.len > 0) {
-                        const safe_name = try safeGeneratedName(allocator, fn_name);
-                        if (!names.contains(safe_name)) try names.put(safe_name, {});
-                    }
-                }
-            }
-            i = j;
-        }
-        i += 1;
-    }
-}
-
-fn functionNameFromCss(allocator: std.mem.Allocator, name: []const u8) ![]const u8 {
-    const trimmed = std.mem.trim(u8, name, " \t\r\n");
-    if (!std.mem.endsWith(u8, trimmed, "()")) return "";
-    const base = trimmed[0 .. trimmed.len - 2];
-    const clean = try cleanName(allocator, base, .snake);
-    if (clean.len == 0) return "";
-    return clean;
-}
-
-fn safeGeneratedName(allocator: std.mem.Allocator, name: []const u8) ![]const u8 {
-    if (name.len == 0) return name;
-    if (isZigKeyword(name)) return try std.mem.concat(allocator, u8, &.{ name, "_" });
-    return name;
 }
 
 fn cleanName(allocator: std.mem.Allocator, name: []const u8, case: enum { pascal, camel, snake }) ![]const u8 {
@@ -487,7 +409,7 @@ fn isZigKeyword(name: []const u8) bool {
         "const",     "continue",    "defer", "else",   "enum",        "errdefer",       "error",     "export",   "extern",
         "fn",        "for",         "if",    "inline", "noalias",     "noinline",       "nosuspend", "opaque",   "or",
         "orelse",    "packed",      "pub",   "resume", "return",      "linksection",    "struct",    "suspend",  "switch",
-        "test",      "threadlocal", "try",   "type",   "union",      "unreachable",   "usingnamespace", "var",       "volatile", "while",
+        "test",      "threadlocal", "try",   "union",  "unreachable", "usingnamespace", "var",       "volatile", "while",
     };
     for (keywords) |kw| {
         if (std.mem.eql(u8, name, kw)) return true;

@@ -114,5 +114,5 @@ pub const platform: Platform = plfm.platform;
 pub const std_options: std.Options = opts.std_options;
 
 // --- StyleSheet --- //
-pub const style = @import("style/generated.zig");
+pub const style = @import("style/root.zig");
 pub const Style = style.Style;

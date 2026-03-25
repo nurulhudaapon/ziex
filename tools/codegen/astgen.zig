@@ -165,17 +165,9 @@ pub const File = struct {
         @memcpy(sentinel[0..raw.len], raw);
         sentinel[raw.len] = 0;
 
-        var tree = std.zig.Ast.parse(final_allocator, sentinel[0..raw.len :0], .zig) catch |err| {
-            std.debug.print("AST parse error: {any}\n", .{err});
-            return err;
-        };
+        var tree = try std.zig.Ast.parse(final_allocator, sentinel[0..raw.len :0], .zig);
         defer tree.deinit(final_allocator);
-        if (tree.errors.len != 0) {
-            const f = try std.fs.cwd().createFile("ast_error.zig", .{});
-            defer f.close();
-            try f.writeAll(raw);
-            return error.InvalidGeneratedSource;
-        }
+        if (tree.errors.len != 0) return error.InvalidGeneratedSource;
 
         return try tree.renderAlloc(final_allocator);
     }

@@ -1,30 +1,11 @@
 const std = @import("std");
 
 pub const Unit = enum {
-    px,
-    em,
-    rem,
-    vh,
-    vw,
-    vmin,
-    vmax,
-    @"%",
-    pt,
-    pc,
-    in,
-    cm,
-    mm,
-    deg,
-    rad,
-    grad,
-    turn,
-    s,
-    ms,
-    Hz,
-    kHz,
-    dpi,
-    dpcm,
-    dppx,
+    px, em, rem, vh, vw, vmin, vmax, @"%", pt, pc, in, cm, mm,
+    deg, rad, grad, turn,
+    s, ms,
+    Hz, kHz,
+    dpi, dpcm, dppx,
 
     pub fn toString(self: Unit) []const u8 {
         return switch (self) {
@@ -46,18 +27,10 @@ pub const Color = union(enum) {
     rgba_: struct { r: u8, g: u8, b: u8, a: f32 },
     keyword_: []const u8,
 
-    pub fn hex(val: u32) Color {
-        return .{ .hex_ = val };
-    }
-    pub fn rgb(r: u8, g: u8, b: u8) Color {
-        return .{ .rgb_ = .{ .r = r, .g = g, .b = b } };
-    }
-    pub fn rgba(r: u8, g: u8, b: u8, a: f32) Color {
-        return .{ .rgba_ = .{ .r = r, .g = g, .b = b, .a = a } };
-    }
-    pub fn kw(k: []const u8) Color {
-        return .{ .keyword_ = k };
-    }
+    pub fn hex(val: u32) Color { return .{ .hex_ = val }; }
+    pub fn rgb(r: u8, g: u8, b: u8) Color { return .{ .rgb_ = .{ .r = r, .g = g, .b = b } }; }
+    pub fn rgba(r: u8, g: u8, b: u8, a: f32) Color { return .{ .rgba_ = .{ .r = r, .g = g, .b = b, .a = a } }; }
+    pub fn kw(k: []const u8) Color { return .{ .keyword_ = k }; }
 
     pub fn format(self: Color, w: *std.io.Writer) std.io.Writer.Error!void {
         switch (self) {
@@ -70,7 +43,7 @@ pub const Color = union(enum) {
     }
 };
 
-pub fn formatKebab(name: []const u8, w: *std.io.Writer) std.io.Writer.Error!void {
+pub fn formatKebab(name: []const u8, w: anytype) !void {
     const prefixes = [_][]const u8{ "webkit", "moz", "ms", "apple", "epub", "hp", "atsc", "rim", "ro", "tc", "xhtml" };
     for (prefixes) |p| {
         if (std.mem.startsWith(u8, name, p) and name.len > p.len and (name[p.len] == '_' or std.ascii.isUpper(name[p.len]))) {
@@ -92,7 +65,7 @@ pub fn formatKebab(name: []const u8, w: *std.io.Writer) std.io.Writer.Error!void
     }
 }
 
-fn formatShorthand(v: [4]f32, unit: []const u8, w: *std.io.Writer) std.io.Writer.Error!void {
+fn formatShorthand(v: [4]f32, unit: []const u8, w: anytype) !void {
     if (v[0] == v[1] and v[1] == v[2] and v[2] == v[3]) {
         try w.print("{d}{s}", .{ v[0], unit });
     } else if (v[0] == v[2] and v[1] == v[3]) {
@@ -124,156 +97,30 @@ pub fn formatValue(value: anytype, w: *std.io.Writer) std.io.Writer.Error!void {
                 try w.writeAll(@field(value, f.name));
                 return;
             }
-
+            
             if (comptime std.mem.eql(u8, f.name, "percent_")) {
                 try formatShorthand(@field(value, f.name), "%", w);
                 return;
             }
-            if (comptime std.mem.eql(u8, f.name, "px_")) {
-                try formatShorthand(@field(value, f.name), "px", w);
-                return;
-            }
-            if (comptime std.mem.eql(u8, f.name, "em_")) {
-                try formatShorthand(@field(value, f.name), "em", w);
-                return;
-            }
-            if (comptime std.mem.eql(u8, f.name, "rem_")) {
-                try formatShorthand(@field(value, f.name), "rem", w);
-                return;
-            }
-
+            if (comptime std.mem.eql(u8, f.name, "px_")) { try formatShorthand(@field(value, f.name), "px", w); return; }
+            if (comptime std.mem.eql(u8, f.name, "em_")) { try formatShorthand(@field(value, f.name), "em", w); return; }
+            if (comptime std.mem.eql(u8, f.name, "rem_")) { try formatShorthand(@field(value, f.name), "rem", w); return; }
+            
             if (comptime std.mem.eql(u8, f.name, "calc_")) {
                 try w.writeAll("calc(");
                 try @field(value, f.name).format(w);
                 try w.writeAll(")");
                 return;
             }
-
-            if (comptime std.mem.eql(u8, f.name, "vh_")) {
-                try w.print("{d}vh", .{@field(value, f.name)});
-                return;
-            }
-            if (comptime std.mem.eql(u8, f.name, "vw_")) {
-                try w.print("{d}vw", .{@field(value, f.name)});
-                return;
-            }
-            if (comptime std.mem.eql(u8, f.name, "vmin_")) {
-                try w.print("{d}vmin", .{@field(value, f.name)});
-                return;
-            }
-            if (comptime std.mem.eql(u8, f.name, "vmax_")) {
-                try w.print("{d}vmax", .{@field(value, f.name)});
-                return;
-            }
-
+            
+            if (comptime std.mem.eql(u8, f.name, "vh_")) { try w.print("{d}vh", .{@field(value, f.name)}); return; }
+            if (comptime std.mem.eql(u8, f.name, "vw_")) { try w.print("{d}vw", .{@field(value, f.name)}); return; }
+            if (comptime std.mem.eql(u8, f.name, "vmin_")) { try w.print("{d}vmin", .{@field(value, f.name)}); return; }
+            if (comptime std.mem.eql(u8, f.name, "vmax_")) { try w.print("{d}vmax", .{@field(value, f.name)}); return; }
+            
             // Keywords
             try formatKebab(f.name, w);
             return;
         }
     }
-}
-
-pub const StyleOutput = struct {
-    class: []const u8,
-    css: []const u8,
-};
-
-pub fn formatProperty(prop: anytype, w: *std.io.Writer) std.io.Writer.Error!void {
-    const T = @TypeOf(prop);
-    
-    // Support direct StyleOutput for composition/merging
-    if (comptime T == StyleOutput) {
-        try w.writeAll(prop.css);
-        return;
-    }
-
-    const info = @typeInfo(T).@"union";
-    const tag = @as(info.tag_type.?, prop);
-
-    inline for (info.fields) |f| {
-        if (tag == @field(info.tag_type.?, f.name)) {
-            const val = @field(prop, f.name);
-            const ValType = @TypeOf(val);
-
-            // Special case for selectors (pseudo-classes, breakpoints, extra)
-            if (comptime std.mem.eql(u8, f.name, "extra")) {
-                try w.writeAll(val);
-                return;
-            }
-
-            // Regular property or selector
-            if (comptime ValType == StyleOutput or ValType == *const StyleOutput or ValType == ?*const StyleOutput) {
-                const nested_opt: ?*const StyleOutput = switch (ValType) {
-                    StyleOutput => &val,
-                    *const StyleOutput => val,
-                    ?*const StyleOutput => val,
-                    else => unreachable,
-                };
-
-                if (nested_opt) |nested| {
-                    try formatKebab(f.name, w);
-                    try w.print(" {{ {s} }} ", .{nested.css});
-                }
-                return;
-            }
-
-            try formatKebab(f.name, w);
-            try w.writeAll(": ");
-            if (comptime @hasDecl(ValType, "format")) {
-                try val.format(w);
-            } else {
-                try formatValue(val, w);
-            }
-            try w.writeAll("; ");
-            return;
-        }
-    }
-}
-
-pub fn init(comptime args: anytype) StyleOutput {
-    return comptime blk: {
-        const ArgsType = @TypeOf(args);
-        const args_info = @typeInfo(ArgsType);
-        
-        var css_buf: []const u8 = "";
-
-        // Handle both tuple and direct arguments
-        if (args_info == .@"struct" and args_info.@"struct".is_tuple) {
-            var seen_props: []const []const u8 = &.{};
-
-            for (args) |prop| {
-                const T = @TypeOf(prop);
-                if (T == StyleOutput) {
-                    css_buf = css_buf ++ prop.css;
-                    continue;
-                }
-
-                const tag_name = @tagName(prop);
-                for (seen_props) |seen| {
-                    if (std.mem.eql(u8, seen, tag_name)) {
-                        @compileError("Property '" ++ tag_name ++ "' is already defined in this style.");
-                    }
-                }
-                seen_props = seen_props ++ [_][]const u8{tag_name};
-
-                var buf: [2048]u8 = undefined;
-                var w = std.io.Writer.fixed(&buf);
-                formatProperty(prop, &w) catch @panic("OOM in style.init");
-                css_buf = css_buf ++ w.buffer[0..w.end];
-            }
-        } else {
-            var buf: [2048]u8 = undefined;
-            var w = std.io.Writer.fixed(&buf);
-            formatProperty(args, &w) catch @panic("OOM in style.init");
-            css_buf = css_buf ++ w.buffer[0..w.end];
-        }
-
-        const hash = std.hash.Wyhash.hash(0, css_buf);
-        const class_name = std.fmt.comptimePrint("zx-{x}", .{hash});
-
-        break :blk .{
-            .class = class_name,
-            .css = css_buf,
-        };
-    };
 }

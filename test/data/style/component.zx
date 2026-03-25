@@ -1,14 +1,21 @@
-pub fn Page(allocator: std.mem.Allocator) zx.Component {
-    const style = zx.style.styleInit(.{
-        zx.style.color(.hex(0x0000ff)),
-        zx.style.margin_top(.px(20)),
-    });
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const style: zx.Style = .{
+        .color = .hex(0x0000ff),
+    };
     return (
-        <div @allocator={allocator} style={style}>
-            Component style
+        <StyledCard @allocator={allocator} style={style}>
+             Hello Component 
+        </StyledCard>
+    );
+}
+
+const StyledCardProps = struct { style: zx.Style, children: zx.Component };
+fn StyledCard(allocator: zx.Allocator, props: StyledCardProps) zx.Component {
+    return (
+        <div @allocator={allocator} class="card" style={props.style}>
+            {props.children}
         </div>
     );
 }
 
-const std = @import("std");
 const zx = @import("zx");

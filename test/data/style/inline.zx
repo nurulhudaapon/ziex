@@ -1,12 +1,9 @@
-pub fn Page(allocator: std.mem.Allocator) zx.Component {
-    const s = zx.style;
+pub fn Page(allocator: zx.Allocator) zx.Component {
     return (
-        <div @allocator={allocator} style={s.styleInit(.{ s.display(.flex), s.row_gap(.px(10)) })}>
-            <span>Item 1</span>
-            <span>Item 2</span>
+        <div @allocator={allocator} style={zx.Style{ .display = .flex, .row_gap = .px(10) }}>
+             Inline Style 
         </div>
     );
 }
 
-const std = @import("std");
 const zx = @import("zx");

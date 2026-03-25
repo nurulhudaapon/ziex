@@ -1,9 +1,6 @@
 const std = @import("std");
 
-pub const zx = @import("root.zig");
-pub const style = zx.style.styleInit;
-pub const StyleProperty = zx.style.StyleProperty;
-
+const zx = @import("root.zig");
 const prp = @import("props.zig");
 
 const ElementTag = zx.ElementTag;
@@ -29,11 +26,10 @@ pub const ComponentClientOptions = struct {
     id: []const u8,
 };
 
-pub const ZxOptions = struct {
+const ZxOptions = struct {
     children: ?[]const Component = null,
     attributes: ?[]const Element.Attribute = null,
     allocator: ?std.mem.Allocator = null,
-    style: ?zx.Style = null,
     escaping: ?BuiltinAttribute.Escaping = .html,
     rendering: ?BuiltinAttribute.Rendering = .server,
     async: ?BuiltinAttribute.Async = .sync,
@@ -56,12 +52,11 @@ pub fn allocInit(allocator: std.mem.Allocator) ZxContext {
     return .{ .allocator = allocator };
 }
 
-pub fn x(tag: ElementTag, options: anytype) Component {
-    const OptsType = @TypeOf(options);
+pub fn x(tag: ElementTag, options: ZxOptions) Component {
     return .{ .element = .{
         .tag = tag,
-        .children = if (comptime @hasField(OptsType, "children")) options.children else null,
-        .attributes = if (comptime @hasField(OptsType, "attributes")) options.attributes else null,
+        .children = options.children,
+        .attributes = options.attributes,
     } };
 }
 
@@ -81,6 +76,17 @@ pub const ZxContext = struct {
         return self.allocator orelse @panic("Allocator not set. Please provide @allocator attribute to the parent element.");
     }
 
+    /// Check if a Style has any pseudo-states or media queries
+    fn hasSelectors(style_obj: zx.Style) bool {
+        const fields = std.meta.fields(zx.Style);
+        inline for (fields) |f| {
+            if (f.type == ?*const zx.Style) {
+                if (@field(style_obj, f.name) != null) return true;
+            }
+        }
+        return false;
+    }
+
     fn escapeHtml(self: *ZxContext, text: []const u8) []const u8 {
         // On browser, DOM APIs (textContent) handle escaping automatically
         // We only need to escape when generating HTML strings on the server
@@ -96,103 +102,36 @@ pub const ZxContext = struct {
         return allocator.dupe(u8, aw.written()) catch @panic("OOM");
     }
 
-    fn ListValue(comptime T: type) type {
-        return struct {
-            items: ?[]const T = null,
-            owned: ?[]T = null,
-        };
-    }
-
-    fn normalizeList(self: *ZxContext, comptime T: type, value: anytype) ListValue(T) {
-        const V = @TypeOf(value);
-        switch (@typeInfo(V)) {
-            .optional => if (value) |inner| return self.normalizeList(T, inner) else return .{},
-            .pointer => |ptr_info| switch (ptr_info.size) {
-                .one => switch (@typeInfo(ptr_info.child)) {
-                    .array => return .{ .items = value[0..] },
-                    else => return self.normalizeList(T, value.*),
-                },
-                .many => return .{ .items = std.mem.span(value) },
-                .slice => return .{ .items = value },
-                else => @compileError("Unsupported pointer type for list normalization: " ++ @typeName(V)),
-            },
-            .array => {
-                const slice: []const T = value[0..];
-                const copy = self.getAlloc().alloc(T, slice.len) catch @panic("OOM");
-                @memcpy(copy, slice);
-                return .{ .items = copy, .owned = copy };
-            },
-            .@"struct" => |info| {
-                if (!info.is_tuple) @compileError("Unsupported struct type for list normalization: " ++ @typeName(V));
-                const copy = self.getAlloc().alloc(T, info.fields.len) catch @panic("OOM");
-                inline for (info.fields, 0..) |field, i| {
-                    copy[i] = @field(value, field.name);
-                }
-                return .{ .items = copy, .owned = copy };
-            },
-            else => @compileError("Unsupported list type: " ++ @typeName(V)),
-        }
-    }
-
-    pub fn ele(self: *ZxContext, tag: ElementTag, options: anytype) Component {
-        const OptsType = @TypeOf(options);
-
-        if (comptime @hasField(OptsType, "allocator")) {
-            const maybe_allocator = @field(options, "allocator");
-            if (comptime @typeInfo(@TypeOf(maybe_allocator)) == .optional) {
-                if (maybe_allocator) |allocator| {
-                    self.allocator = allocator;
-                }
-            } else {
-                self.allocator = maybe_allocator;
-            }
+    pub fn ele(self: *ZxContext, tag: ElementTag, options: ZxOptions) Component {
+        // Set allocator from @allocator option if provided
+        if (options.allocator) |allocator| {
+            self.allocator = allocator;
         }
 
         const allocator = self.getAlloc();
 
-        const children = if (comptime @hasField(OptsType, "children")) self.normalizeList(Component, @field(options, "children")).items else null;
-        var attributes_list = if (comptime @hasField(OptsType, "attributes")) self.normalizeList(Element.Attribute, @field(options, "attributes")) else ListValue(Element.Attribute){};
+        // Allocate and copy children if provided
+        const children_copy = if (options.children) |children| blk: {
+            const copy = allocator.alloc(Component, children.len) catch @panic("OOM");
+            @memcpy(copy, children);
+            break :blk copy;
+        } else null;
 
-        if (comptime @hasField(OptsType, "style")) {
-            const val = @field(options, "style");
-            const ValType = @TypeOf(val);
-            const style_val_opt: ?zx.Style = if (comptime @typeInfo(ValType) == .optional) val else val;
-
-            if (style_val_opt) |style_val| {
-                const style_attr = self.attr("style", style_val);
-                if (style_attr) |sa| {
-                    if (attributes_list.items) |existing| {
-                        const new_attrs = allocator.alloc(Element.Attribute, existing.len + 1) catch @panic("OOM");
-                        @memcpy(new_attrs[0..existing.len], existing);
-                        new_attrs[existing.len] = sa;
-                        if (attributes_list.owned) |owned| allocator.free(owned);
-                        attributes_list = .{ .items = new_attrs, .owned = new_attrs };
-                    } else {
-                        const new_attrs = allocator.alloc(Element.Attribute, 1) catch @panic("OOM");
-                        new_attrs[0] = sa;
-                        attributes_list = .{ .items = new_attrs, .owned = new_attrs };
-                    }
-                }
-            }
-        }
+        // Allocate and copy attributes if provided
+        const attributes_copy = if (options.attributes) |attributes| blk: {
+            const copy = allocator.alloc(Element.Attribute, attributes.len) catch @panic("OOM");
+            @memcpy(copy, attributes);
+            break :blk copy;
+        } else null;
 
         return .{ .element = .{
             .tag = tag,
-            .children = children,
-            .attributes = attributes_list.items,
-            .escaping = if (comptime @hasField(OptsType, "escaping")) blk: {
-                const v = @field(options, "escaping");
-                break :blk if (comptime @typeInfo(@TypeOf(v)) == .optional) v orelse .html else v;
-            } else .html,
-            .rendering = if (comptime @hasField(OptsType, "rendering")) blk: {
-                const v = @field(options, "rendering");
-                break :blk if (comptime @typeInfo(@TypeOf(v)) == .optional) v orelse .server else v;
-            } else .server,
-            .async = if (comptime @hasField(OptsType, "async")) blk: {
-                const v = @field(options, "async");
-                break :blk if (comptime @typeInfo(@TypeOf(v)) == .optional) v orelse .sync else v;
-            } else .sync,
-            .fallback = if (comptime @hasField(OptsType, "fallback")) @field(options, "fallback") else null,
+            .children = children_copy,
+            .attributes = attributes_copy,
+            .escaping = options.escaping,
+            .rendering = options.rendering,
+            .async = options.async,
+            .fallback = options.fallback,
         } };
     }
 
@@ -365,37 +304,37 @@ pub const ZxContext = struct {
             .@"struct" => if (T == zx.EventHandler) .{
                 .name = name,
                 .handler = val,
-            } else if (T == zx.style.Style) blk: {
+            } else if (T == zx.Style) blk: {
                 if (comptime std.mem.eql(u8, name, "style")) {
-                    // Register style if registry exists
-                    if (self.style_registry) |reg| {
-                        if (!reg.contains(val.class)) {
-                            reg.put(val.class, val.css) catch @panic("OOM");
-                        }
+                    if (hasSelectors(val)) {
+                        // We need a deterministic hash of the style
+                        // For now, let's just use the formatted string as the key
+                        const style_str = self.printf("{f}", .{val});
                         
-                        // Return class attribute instead of style
-                        break :blk .{
-                            .name = "class",
-                            .value = val.class,
-                        };
+                        // Register style if registry exists
+                        if (self.style_registry) |reg| {
+                            const hash = std.hash.Wyhash.hash(0, style_str);
+                            const class_name = self.printf("zx-{x}", .{hash});
+                            
+                            if (!reg.contains(class_name)) {
+                                // Important: We store the Style object itself or its string representation.
+                                // For now, storing the string is easier for the final flush.
+                                reg.put(class_name, style_str) catch @panic("OOM");
+                            }
+                            
+                            // Return class attribute instead of style
+                            break :blk .{
+                                .name = "class",
+                                .value = class_name,
+                            };
+                        }
                     }
                 }
                 break :blk .{
                     .name = name,
-                    .value = val.css,
+                    .value = self.printf("{f}", .{val}),
                 };
             } else @compileError("Unsupported struct type for attribute: " ++ @typeName(T)),
-
-            .@"union" => if (T == @import("style/generated.zig").StyleProperty) blk: {
-                var buf: [1024]u8 = undefined;
-                var fbs = std.io.fixedBufferStream(&buf);
-                var w = fbs.writer();
-                @import("style/core.zig").formatProperty(val, &w) catch @panic("OOM");
-                break :blk .{
-                    .name = name,
-                    .value = self.printf("{s}", .{fbs.getWritten()}),
-                };
-            } else @compileError("Unsupported union type for attribute: " ++ @typeName(T)),
 
             else => @compileError("Unsupported type for attribute value: " ++ @typeName(T)),
         };
