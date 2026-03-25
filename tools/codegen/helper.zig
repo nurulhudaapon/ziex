@@ -5,122 +5,124 @@ pub fn calcExprSource(allocator: std.mem.Allocator) ![]const u8 {
     defer out.deinit(allocator);
     const w = out.writer(allocator);
 
-    try w.writeAll("pub const CalcExpr = struct {\n");
-    try w.writeAll("    const Self = @This();\n");
-    try w.writeAll("    pub const Unit = enum { px, em, rem, percent };\n");
-    try w.writeAll("    pub const Op = enum { add, sub, mul, div };\n");
-    try w.writeAll("    pub const Kind = enum { unit, number, raw, op };\n");
-    try w.writeAll("\n");
-    try w.writeAll("    pub const Node = struct {\n");
-    try w.writeAll("        kind: Kind,\n");
-    try w.writeAll("        unit: Unit = .px,\n");
-    try w.writeAll("        value: f32 = 0,\n");
-    try w.writeAll("        text: []const u8 = \"\",\n");
-    try w.writeAll("        lhs: u8 = 0,\n");
-    try w.writeAll("        rhs: u8 = 0,\n");
-    try w.writeAll("        op: Op = .add,\n");
-    try w.writeAll("    };\n");
-    try w.writeAll("\n");
-    try w.writeAll("    nodes: [32]Node = undefined,\n");
-    try w.writeAll("    len: u8 = 0,\n");
-    try w.writeAll("    root: u8 = 0,\n");
-    try w.writeAll("\n");
-    try w.writeAll("    fn leaf(node: Node) Self {\n");
-    try w.writeAll("        var self: Self = undefined;\n");
-    try w.writeAll("        self.nodes[0] = node;\n");
-    try w.writeAll("        self.len = 1;\n");
-    try w.writeAll("        self.root = 0;\n");
-    try w.writeAll("        return self;\n");
-    try w.writeAll("    }\n");
-    try w.writeAll("\n");
-    try w.writeAll("    fn unitLeaf(unit: Unit, value: f32) Self {\n");
-    try w.writeAll("        return leaf(.{ .kind = .unit, .unit = unit, .value = value });\n");
-    try w.writeAll("    }\n");
-    try w.writeAll("\n");
-    try w.writeAll("    fn numberLeaf(value: f32) Self {\n");
-    try w.writeAll("        return leaf(.{ .kind = .number, .value = value });\n");
-    try w.writeAll("    }\n");
-    try w.writeAll("\n");
-    try w.writeAll("    fn rawLeaf(text: []const u8) Self {\n");
-    try w.writeAll("        return leaf(.{ .kind = .raw, .text = text });\n");
-    try w.writeAll("    }\n");
-    try w.writeAll("\n");
-    try w.writeAll("    pub fn px(value: f32) Self {\n");
-    try w.writeAll("        return unitLeaf(.px, value);\n");
-    try w.writeAll("    }\n");
-    try w.writeAll("\n");
-    try w.writeAll("    pub fn em(value: f32) Self {\n");
-    try w.writeAll("        return unitLeaf(.em, value);\n");
-    try w.writeAll("    }\n");
-    try w.writeAll("\n");
-    try w.writeAll("    pub fn rem(value: f32) Self {\n");
-    try w.writeAll("        return unitLeaf(.rem, value);\n");
-    try w.writeAll("    }\n");
-    try w.writeAll("\n");
-    try w.writeAll("    pub fn percent(value: f32) Self {\n");
-    try w.writeAll("        return unitLeaf(.percent, value);\n");
-    try w.writeAll("    }\n");
-    try w.writeAll("\n");
-    try w.writeAll("    pub fn raw(text: []const u8) Self {\n");
-    try w.writeAll("        return rawLeaf(text);\n");
-    try w.writeAll("    }\n");
-    try w.writeAll("\n");
-    try w.writeAll("    pub fn number(value: f32) Self {\n");
-    try w.writeAll("        return numberLeaf(value);\n");
-    try w.writeAll("    }\n");
-    try w.writeAll("\n");
-    try w.writeAll("    fn combine(self: Self, other: Self, op: Op) Self {\n");
-    try w.writeAll("        var out = self;\n");
-    try w.writeAll("        if (out.len + other.len + 1 > out.nodes.len) @panic(\"calc expression too complex\");\n");
-    try w.writeAll("        var i: usize = 0;\n");
-    try w.writeAll("        while (i < other.len) : (i += 1) out.nodes[out.len + i] = other.nodes[i];\n");
-    try w.writeAll("        const lhs: u8 = out.root;\n");
-    try w.writeAll("        const rhs: u8 = @intCast(out.len + other.root);\n");
-    try w.writeAll("        out.nodes[out.len + other.len] = .{ .kind = .op, .op = op, .lhs = lhs, .rhs = rhs };\n");
-    try w.writeAll("        out.len = @intCast(out.len + other.len + 1);\n");
-    try w.writeAll("        out.root = out.len - 1;\n");
-    try w.writeAll("        return out;\n");
-    try w.writeAll("    }\n");
-    try w.writeAll("\n");
-    try w.writeAll("    pub fn add(self: Self, other: Self) Self {\n");
-    try w.writeAll("        return self.combine(other, .add);\n");
-    try w.writeAll("    }\n");
-    try w.writeAll("\n");
-    try w.writeAll("    pub fn sub(self: Self, other: Self) Self {\n");
-    try w.writeAll("        return self.combine(other, .sub);\n");
-    try w.writeAll("    }\n");
-    try w.writeAll("\n");
-    try w.writeAll("    pub fn mul(self: Self, factor: f32) Self {\n");
-    try w.writeAll("        return self.combine(numberLeaf(factor), .mul);\n");
-    try w.writeAll("    }\n");
-    try w.writeAll("\n");
-    try w.writeAll("    pub fn div(self: Self, factor: f32) Self {\n");
-    try w.writeAll("        return self.combine(numberLeaf(factor), .div);\n");
-    try w.writeAll("    }\n");
-    try w.writeAll("\n");
-    try w.writeAll("    fn renderNode(self: Self, index: u8, w: *std.io.Writer) !void {\n");
-    try w.writeAll("        const node = self.nodes[index];\n");
-    try w.writeAll("        switch (node.kind) {\n");
-    try w.writeAll("            .unit => switch (node.unit) {\n");
-    try w.writeAll("                .percent => try w.print(\"{d}%\", .{node.value}),\n");
-    try w.writeAll("                else => try w.print(\"{d}{s}\", .{ node.value, @tagName(node.unit) }),\n");
-    try w.writeAll("            },\n");
-    try w.writeAll("            .number => try w.print(\"{d}\", .{node.value}),\n");
-    try w.writeAll("            .raw => try w.writeAll(node.text),\n");
-    try w.writeAll("            .op => {\n");
-    try w.writeAll("                try w.writeByte('(');\n");
-    try w.writeAll("                try self.renderNode(node.lhs, w);\n");
-    try w.writeAll("                try w.print(\" {s} \", .{switch (node.op) { .add => \"+\", .sub => \"-\", .mul => \"*\", .div => \"/\" }});\n");
-    try w.writeAll("                try self.renderNode(node.rhs, w);\n");
-    try w.writeAll("                try w.writeByte(')');\n");
-    try w.writeAll("            },\n");
-    try w.writeAll("        }\n");
-    try w.writeAll("    }\n");
-    try w.writeAll("\n");
-    try w.writeAll("    pub fn format(self: Self, w: *std.io.Writer) !void {\n");
-    try w.writeAll("        try self.renderNode(self.root, w);\n");
-    try w.writeAll("    }\n");
-    try w.writeAll("};\n");
+    try w.writeAll(
+        \\pub const CalcExpr = struct {
+        \\    const Self = @This();
+        \\    pub const Unit = enum { px, em, rem, percent };
+        \\    pub const Op = enum { add, sub, mul, div };
+        \\    pub const Kind = enum { unit, number, raw, op };
+        \\
+        \\    pub const Node = struct {
+        \\        kind: Kind,
+        \\        unit: Unit = .px,
+        \\        value: f32 = 0,
+        \\        text: []const u8 = "",
+        \\        lhs: u8 = 0,
+        \\        rhs: u8 = 0,
+        \\        op: Op = .add,
+        \\    };
+        \\
+        \\    nodes: [32]Node = undefined,
+        \\    len: u8 = 0,
+        \\    root: u8 = 0,
+        \\
+        \\    fn leaf(node: Node) Self {
+        \\        var self: Self = undefined;
+        \\        self.nodes[0] = node;
+        \\        self.len = 1;
+        \\        self.root = 0;
+        \\        return self;
+        \\    }
+        \\
+        \\    fn unitLeaf(unit: Unit, value: f32) Self {
+        \\        return leaf(.{ .kind = .unit, .unit = unit, .value = value });
+        \\    }
+        \\
+        \\    fn numberLeaf(value: f32) Self {
+        \\        return leaf(.{ .kind = .number, .value = value });
+        \\    }
+        \\
+        \\    fn rawLeaf(text: []const u8) Self {
+        \\        return leaf(.{ .kind = .raw, .text = text });
+        \\    }
+        \\
+        \\    pub fn px(value: f32) Self {
+        \\        return unitLeaf(.px, value);
+        \\    }
+        \\
+        \\    pub fn em(value: f32) Self {
+        \\        return unitLeaf(.em, value);
+        \\    }
+        \\
+        \\    pub fn rem(value: f32) Self {
+        \\        return unitLeaf(.rem, value);
+        \\    }
+        \\
+        \\    pub fn percent(value: f32) Self {
+        \\        return unitLeaf(.percent, value);
+        \\    }
+        \\
+        \\    pub fn raw(text: []const u8) Self {
+        \\        return rawLeaf(text);
+        \\    }
+        \\
+        \\    pub fn number(value: f32) Self {
+        \\        return numberLeaf(value);
+        \\    }
+        \\
+        \\    fn combine(self: Self, other: Self, op: Op) Self {
+        \\        var out = self;
+        \\        if (out.len + other.len + 1 > out.nodes.len) @panic("calc expression too complex");
+        \\        var i: usize = 0;
+        \\        while (i < other.len) : (i += 1) out.nodes[out.len + i] = other.nodes[i];
+        \\        const lhs: u8 = out.root;
+        \\        const rhs: u8 = @intCast(out.len + other.root);
+        \\        out.nodes[out.len + other.len] = .{ .kind = .op, .op = op, .lhs = lhs, .rhs = rhs };
+        \\        out.len = @intCast(out.len + other.len + 1);
+        \\        out.root = out.len - 1;
+        \\        return out;
+        \\    }
+        \\
+        \\    pub fn add(self: Self, other: Self) Self {
+        \\        return self.combine(other, .add);
+        \\    }
+        \\
+        \\    pub fn sub(self: Self, other: Self) Self {
+        \\        return self.combine(other, .sub);
+        \\    }
+        \\
+        \\    pub fn mul(self: Self, factor: f32) Self {
+        \\        return self.combine(numberLeaf(factor), .mul);
+        \\    }
+        \\
+        \\    pub fn div(self: Self, factor: f32) Self {
+        \\        return self.combine(numberLeaf(factor), .div);
+        \\    }
+        \\
+        \\    fn renderNode(self: Self, index: u8, w: *std.io.Writer) !void {
+        \\        const node = self.nodes[index];
+        \\        switch (node.kind) {
+        \\            .unit => switch (node.unit) {
+        \\                .percent => try w.print("{d}%", .{node.value}),
+        \\                else => try w.print("{d}{s}", .{ node.value, @tagName(node.unit) }),
+        \\            },
+        \\            .number => try w.print("{d}", .{node.value}),
+        \\            .raw => try w.writeAll(node.text),
+        \\            .op => {
+        \\                try w.writeByte('(');
+        \\                try self.renderNode(node.lhs, w);
+        \\                try w.print(" {s} ", .{switch (node.op) { .add => "+", .sub => "-", .mul => "*", .div => "/" }});
+        \\                try self.renderNode(node.rhs, w);
+        \\                try w.writeByte(')');
+        \\            },
+        \\        }
+        \\    }
+        \\
+        \\    pub fn format(self: Self, w: *std.io.Writer) !void {
+        \\        try self.renderNode(self.root, w);
+        \\    }
+        \\};
+    );
 
     return try out.toOwnedSlice(allocator);
 }
