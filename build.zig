@@ -147,7 +147,7 @@ pub fn build(b: *std.Build) !void {
         const css_gen_exe = b.addExecutable(.{
             .name = "cssgen",
             .root_module = b.createModule(.{
-                .root_source_file = b.path("tools/cssgen.zig"),
+                .root_source_file = b.path("tools/codegen/css.zig"),
                 .target = target,
                 .optimize = optimize,
             }),

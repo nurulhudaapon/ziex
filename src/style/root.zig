@@ -6,4 +6,3 @@ pub const Dimension = core.Dimension;
 pub const Color = core.Color;
 
 pub const Style = generated.Style;
-pub const Property = generated.Property;
