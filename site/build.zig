@@ -78,7 +78,7 @@ pub fn build(b: *std.Build) !void {
     //     .outfile = assetsdir.path(b, "docs.js"),
     // } });
     const bi = bunjs.addBuild(b, .{
-        .name = "pg-assets",
+        .name = "playground_scripts",
         .config = .{
             .entrypoints = &.{
                 b.path("app/pages/playground/scripts/editor.ts"),
@@ -94,7 +94,7 @@ pub fn build(b: *std.Build) !void {
     b.installDirectory(.{
         .source_dir = bi.dir,
         .install_dir = .prefix,
-        .install_subdir = "static/test/playground",
+        .install_subdir = "static/assets/playground",
     });
 }
 
