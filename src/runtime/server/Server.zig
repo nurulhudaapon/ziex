@@ -203,9 +203,9 @@ pub fn Server(comptime H: type) type {
         /// Print the server info to the console
         /// ZX - v{version} | http://localhost:{port}
         pub fn info(self: *Self) void {
-            const display_port: u16 = if (std.posix.getenv("ZIEX_OUTER_PORT")) |s|
+            const display_port: u16 = if (std.process.getEnvVarOwned(self.allocator, "ZIEX_OUTER_PORT")) |s|
                 std.fmt.parseInt(u16, s, 10) catch self.server.config.port.?
-            else
+            else |_|
                 self.server.config.port.?;
             std.debug.print("{s}ZX{s} {s}- v{s}{s} | http://localhost:{d}\n", .{ colors.bold, colors.reset_all, colors.dim, Self.version, colors.reset_all, display_port });
         }
