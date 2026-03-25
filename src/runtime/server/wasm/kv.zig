@@ -38,5 +38,5 @@ const vtable = kv.VTable{
 var _ctx: u8 = 0;
 
 pub fn use() void {
-    kv.impl(@ptrCast(&_ctx), &vtable);
+    kv.adapter(@ptrCast(&_ctx), &vtable);
 }

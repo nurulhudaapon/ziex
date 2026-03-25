@@ -455,6 +455,8 @@ pub const ServerMeta = struct {
     /// Comptime function to build RouteHandlers from a route module
     /// Optionally takes a page module to validate for method conflicts
     pub fn route(comptime T: type, comptime PageModule: ?type) RouteHandlers {
+        @setEvalBranchQuota(20_000);
+
         // Validate for method conflicts when page module is provided
         if (PageModule) |P| {
             const page_methods = if (@hasDecl(P, "options") and @hasField(@TypeOf(P.options), "methods"))

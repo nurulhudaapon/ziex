@@ -1,8 +1,10 @@
 import { ZxWasiBridge } from "./wasm/wasi";
 import { createKVImports, createMemoryKV } from "./kv";
+import { createD1Imports } from "./db";
 import { createWasiImports, ProcExit, mergeUint8Arrays } from "./wasi";
 import type { WASI } from "./wasi";
 import type { KVNamespace } from "./kv";
+import type { D1Database } from "./db";
 
 /** Minimal Durable Object namespace shape needed for WebSocket routing. */
 export type DurableObjectNamespace = {
@@ -207,6 +209,7 @@ export async function run({
     ctx,
     module,
     kv: kvBindings,
+    db: dbBindings,
     imports,
     wasi,
     websocket: doNamespace,
@@ -217,6 +220,8 @@ export async function run({
     module: WebAssembly.Module;
     /** KV namespace bindings — `{ default: env.KV, otherName: env.OTHER_KV }` */
     kv?: Record<string, KVNamespace>;
+    /** D1 bindings — `{ default: env.DB, analytics: env.ANALYTICS_DB }` */
+    db?: Record<string, D1Database>;
     imports?: (mem: () => WebAssembly.Memory) => Record<string, Record<string, unknown>>;
     wasi?: WASI;
     /**
@@ -274,6 +279,7 @@ export async function run({
         __zx_sys: buildSysImports(jspi, Suspending),
         __zx_ws: buildWsImports(jspi ? Suspending : null, mem, new TextDecoder(), wsState),
         __zx_kv: createKVImports(kvBindings ?? { default: createMemoryKV() }, mem),
+        __zx_db: createD1Imports(dbBindings ?? {}, mem),
         ...(imports ? imports(mem) : {}),
         ...ZxWasiBridge.createImportObject(bridgeRef),
     } as WebAssembly.Imports);

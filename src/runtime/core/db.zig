@@ -110,7 +110,7 @@ var _ctx: *anyopaque = @ptrCast(&_stateless);
 var _vtable: *const DriverVTable = &noop_driver_vtable;
 
 /// Override the active database backend. Called once at startup by platform adapters.
-pub fn impl(ctx: *anyopaque, vtable: *const DriverVTable) void {
+pub fn adapter(ctx: *anyopaque, vtable: *const DriverVTable) void {
     _ctx = ctx;
     _vtable = vtable;
 }
