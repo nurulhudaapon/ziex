@@ -1,9 +1,10 @@
 const window = @import("client/window.zig");
 
 pub const Event = @import("client/Event.zig");
-const reactivity = @import("client/reactivity.zig");
+pub const jsx = @import("client/jsx.zig");
 
 // Legacy --- may get removed/renamed
+const reactivity = @import("client/reactivity.zig");
 pub const Document = window.Document;
 pub const js = window.js;
 pub const clearInterval = window.clearInterval;
