@@ -138,9 +138,13 @@ pub fn initInner(
     const transpile_outdir = getTranspileOutdir(transpile_cmd, opts);
     transpile_cmd.addArg("--rootdir");
     transpile_cmd.addDirectoryArg(static_lazypath);
+    transpile_cmd.addArg("--dep-file");
+    _ = transpile_cmd.addDepFileOutputArg("transpile.d");
     if (opts.copy_embedded_sources) {
         transpile_cmd.addArg("--copy-embedded-sources");
     }
+    // Always generate inlined sourcemaps so dev mode can remap errors to .zx files
+    transpile_cmd.addArgs(&.{ "--map", "inline" });
     transpile_cmd.expectExitCode(0);
 
     const zxjs_default_href = "/assets/_/main.js";
@@ -277,6 +281,7 @@ pub fn initInner(
     exe.root_module.addImport("zx", site_zx_module);
 
     exe.step.dependOn(&transpile_cmd.step);
+    exe.step.name = b.fmt("install {s}server{s} {s}", .{ colors.dim, colors.reset, exe.name });
     b.installArtifact(exe);
 
     // --- ZX WASM Main Executable --- //
@@ -333,7 +338,7 @@ pub fn initInner(
         "main.wasm",
     );
 
-    install_wasm.step.name = b.fmt("install {s} {s}client{s}", .{ exe.name, colors.dim, colors.reset });
+    install_wasm.step.name = b.fmt("install {s}client{s} {s}", .{ colors.dim, colors.reset, exe.name });
 
     b.default_step.dependOn(&install_wasm.step);
 

@@ -1,6 +1,7 @@
 {
   "name": "@zigc/cli",
   "version": "0.15.20",
+  "type": "module",
   "description": "Zig compiler CLI via npm - run `bunx @zigc/cli` or `npx @zigc/cli`",
   "bin": {
     "zig": "bin/zig"

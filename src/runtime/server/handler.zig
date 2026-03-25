@@ -1121,6 +1121,7 @@ pub fn Handler(comptime AppCtxType: type) type {
             }
         }
 
+        // TODO: Move to DevServer
         pub fn devtool(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
             // Add cors headers
             res.header("Access-Control-Allow-Origin", "*");
@@ -1314,48 +1315,6 @@ pub fn Handler(comptime AppCtxType: type) type {
 
             res.body = body;
             res.content_type = httpz.ContentType.forFile(req.url.path);
-        }
-
-        const DevSocketContext = struct {
-            const heartbeat_interval_ns = 30 * std.time.ns_per_s;
-            fn handle(self: DevSocketContext, stream: std.net.Stream) void {
-                _ = self;
-                // Set retry interval to 100ms for fast reconnection when server restarts
-                stream.writeAll("retry: 100\n\n") catch return;
-
-                // Send periodic heartbeats to keep connection alive
-                while (true) {
-                    std.Thread.sleep(heartbeat_interval_ns);
-                    stream.writeAll(":heartbeat\n\n") catch return;
-                }
-            }
-        };
-
-        pub fn devsocket(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
-            _ = self;
-            _ = req;
-
-            res.header("X-Accel-Buffering", "no");
-
-            // On windows there is a bug where the event stream is not working, so we just keep the connection alive
-            if (builtin.os.tag == .windows) {
-                res.content_type = .EVENTS;
-                res.headers.add("Cache-Control", "no-cache");
-                res.headers.add("Connection", "keep-alive");
-
-                // res.writer().writeAll("retry: 100\n\n") catch return;
-                // while (true) {
-                //     std.Thread.sleep(DevSocketContext.heartbeat_interval_ns);
-                //     res.writer().writeAll(":heartbeat\n\n") catch return;
-                // }
-            } else try res.startEventStream(DevSocketContext{}, DevSocketContext.handle);
-        }
-
-        /// Serve the dev script for hot reload
-        pub fn devscript(_: *Self, _: *httpz.Request, res: *httpz.Response) !void {
-            res.content_type = .JS;
-            res.headers.add("Cache-Control", "no-cache");
-            res.body = @embedFile("../../cli/transpile/template/devscript.js");
         }
 
         /// Context passed when upgrading to WebSocket

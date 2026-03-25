@@ -47,6 +47,20 @@ const rootdir_flag = zli.Flag{
     .default_value = .{ .String = "" },
 };
 
+const depfile_flag = zli.Flag{
+    .name = "dep-file",
+    .description = "Write a Make-format dependency file listing all transpiled input files",
+    .type = .String,
+    .default_value = .{ .String = "" },
+};
+
+const cachedir_flag = zli.Flag{
+    .name = "cache-dir",
+    .description = "Persistent directory for content-hash-keyed transpile cache (survives zig-cache invalidation)",
+    .type = .String,
+    .default_value = .{ .String = "" },
+};
+
 pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
     const cmd = try zli.Command.init(writer, reader, allocator, .{
         .name = "transpile",
@@ -59,6 +73,8 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
     try cmd.addFlag(map_flag);
     try cmd.addFlag(copy_embedded_sources_flag);
     try cmd.addFlag(rootdir_flag);
+    try cmd.addFlag(depfile_flag);
+    try cmd.addFlag(cachedir_flag);
     try cmd.addPositionalArg(.{
         .name = "path",
         .description = "Path to .zx file or directory",
@@ -76,6 +92,8 @@ fn transpile(ctx: zli.CommandContext) !void {
     const copy_embedded_sources = ctx.flag("copy-embedded-sources", bool);
     const rootdir_str = ctx.flag("rootdir", []const u8);
     const rootdir: ?[]const u8 = if (rootdir_str.len > 0) rootdir_str else null;
+    const depfile_str = ctx.flag("dep-file", []const u8);
+    const dep_file: ?[]const u8 = if (depfile_str.len > 0) depfile_str else null;
     const map: zx.Ast.ParseOptions.MapMode = if (std.mem.eql(u8, sourcemap_str, "inline"))
         .inlined
     else if (std.mem.eql(u8, sourcemap_str, "none"))
@@ -116,6 +134,7 @@ fn transpile(ctx: zli.CommandContext) !void {
                 .map = map,
                 .copy_embedded_sources = copy_embedded_sources,
                 .rootdir = rootdir,
+                .dep_file = dep_file,
             });
             return;
         },
@@ -201,6 +220,7 @@ fn transpile(ctx: zli.CommandContext) !void {
         .map = map,
         .copy_embedded_sources = copy_embedded_sources,
         .rootdir = rootdir,
+        .dep_file = dep_file,
     });
 }
 
@@ -209,6 +229,67 @@ fn base64Encode(allocator: std.mem.Allocator, data: []const u8) ![]const u8 {
     const encoded = try allocator.alloc(u8, encoded_len);
     _ = base64.Encoder.encode(encoded, data);
     return encoded;
+}
+
+// ---- Dep File ---- //
+
+fn writeDepFile(allocator: std.mem.Allocator, path: []const u8, target: []const u8, deps: []const []const u8) !void {
+    var buf = std.ArrayList(u8).empty;
+    defer buf.deinit(allocator);
+    try buf.appendSlice(allocator, target);
+    try buf.appendSlice(allocator, ":");
+    for (deps) |dep| {
+        try buf.appendSlice(allocator, " ");
+        for (dep) |c| {
+            if (c == ' ') {
+                try buf.appendSlice(allocator, "\\ ");
+            } else {
+                try buf.append(allocator, c);
+            }
+        }
+    }
+    try buf.appendSlice(allocator, "\n");
+    const f = try std.fs.cwd().createFile(path, .{});
+    defer f.close();
+    try f.writeAll(buf.items);
+}
+
+// ---- Component Cache (per-file incremental) ---- //
+
+fn writeComponentCache(
+    allocator: std.mem.Allocator,
+    cache_path: []const u8,
+    components: []const ClientComponentSerializable,
+) !void {
+    const json = try std.json.Stringify.valueAlloc(allocator, components, .{});
+    defer allocator.free(json);
+    try std.fs.cwd().writeFile(.{ .sub_path = cache_path, .data = json });
+}
+
+fn readComponentCache(
+    allocator: std.mem.Allocator,
+    cache_path: []const u8,
+    global_components: *std.array_list.Managed(ClientComponentSerializable),
+) !void {
+    const json = try std.fs.cwd().readFileAlloc(allocator, cache_path, 4 * 1024 * 1024);
+    defer allocator.free(json);
+    const parsed = try std.json.parseFromSlice(
+        []const ClientComponentSerializable,
+        allocator,
+        json,
+        .{},
+    );
+    defer parsed.deinit();
+    for (parsed.value) |component| {
+        try global_components.append(.{
+            .type = component.type,
+            .id = try allocator.dupe(u8, component.id),
+            .name = try allocator.dupe(u8, component.name),
+            .path = try allocator.dupe(u8, component.path),
+            .import = try allocator.dupe(u8, component.import),
+            .route = try allocator.dupe(u8, component.route),
+        });
+    }
 }
 
 fn copyOnly(ctx: zli.CommandContext, source_path: []const u8, dest_dir: []const u8) !void {
@@ -1293,6 +1374,7 @@ fn transpileFile(
 fn transpileDirectory(
     allocator: std.mem.Allocator,
     global_components: *std.array_list.Managed(ClientComponentSerializable),
+    input_files: *std.array_list.Managed([]const u8),
     opts: TranspileOptions,
     progress: std.Progress.Node,
 ) !void {
@@ -1346,9 +1428,40 @@ fn transpileDirectory(
             const output_path = try std.fs.path.join(allocator, &.{ opts.outdir, output_rel_path });
             defer allocator.free(output_path);
 
+            // Track this input for the dep file (absolute path for Make format)
+            const abs_input = std.fs.cwd().realpathAlloc(allocator, input_path) catch
+                try allocator.dupe(u8, input_path);
+            try input_files.append(abs_input);
+
+            // Cache file alongside the .zig output (not .zig extension so compiler ignores it)
+            const cache_path = try std.mem.concat(allocator, u8, &.{ output_path, ".zxcache" });
+            defer allocator.free(cache_path);
+
+            // Check if output is up-to-date (mtime comparison + cache file existence)
+            const should_skip = blk: {
+                const input_stat = std.fs.cwd().statFile(input_path) catch break :blk false;
+                const output_stat = std.fs.cwd().statFile(output_path) catch break :blk false;
+                std.fs.cwd().access(cache_path, .{}) catch break :blk false;
+                break :blk output_stat.mtime >= input_stat.mtime;
+            };
+
+            if (should_skip) {
+                readComponentCache(allocator, cache_path, global_components) catch |err| {
+                    std.debug.print("Warning: Failed to read component cache for {s}: {}\n", .{ input_path, err });
+                };
+                if (opts.verbose) std.debug.print("Skipped (up-to-date): {s}\n", .{input_path});
+                continue;
+            }
+
+            const components_before = global_components.items.len;
             transpileFile(allocator, global_components, opts, input_path, output_path) catch |err| {
+                global_components.items.len = components_before;
                 std.debug.print("Error transpiling {s}: {}\n", .{ input_path, err });
                 continue;
+            };
+
+            writeComponentCache(allocator, cache_path, global_components.items[components_before..]) catch |err| {
+                std.debug.print("Warning: Failed to write component cache for {s}: {}\n", .{ input_path, err });
             };
 
             // Also copy the original .zx file if copy_embedded_sources is enabled
@@ -1427,6 +1540,7 @@ const TranspileOptions = struct {
     map: zx.Ast.ParseOptions.MapMode = .none,
     copy_embedded_sources: bool = false,
     rootdir: ?[]const u8 = null,
+    dep_file: ?[]const u8 = null,
 };
 
 fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void {
@@ -1446,6 +1560,12 @@ fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void 
         all_client_cmps.deinit();
     }
 
+    var input_files = std.array_list.Managed([]const u8).init(allocator);
+    defer {
+        for (input_files.items) |f| allocator.free(f);
+        input_files.deinit();
+    }
+
     const stat = std.fs.cwd().statFile(opts.path) catch |err| switch (err) {
         error.IsDir => std.fs.File.Stat{ .kind = .directory, .size = 0, .mode = 0, .atime = 0, .mtime = 0, .ctime = 0, .inode = 0 },
         else => {
@@ -1456,7 +1576,7 @@ fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void 
 
     switch (stat.kind) {
         .directory => {
-            try transpileDirectory(allocator, &all_client_cmps, opts, progress);
+            try transpileDirectory(allocator, &all_client_cmps, &input_files, opts, progress);
         },
         .file => {
             const is_zx = std.mem.endsWith(u8, opts.path, ".zx");
@@ -1482,6 +1602,13 @@ fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void 
             std.debug.print("Error: Path must be a file or directory\n", .{});
             return error.InvalidPath;
         },
+    }
+
+    // Write dep file (Make format) so zig build can track .zx inputs for caching
+    if (opts.dep_file) |dep_file_path| {
+        writeDepFile(allocator, dep_file_path, dep_file_path, input_files.items) catch |err| {
+            std.debug.print("Warning: Failed to write dep file: {}\n", .{err});
+        };
     }
 
     // Generate routes

@@ -153,6 +153,15 @@ pub fn Server(comptime H: type) type {
             if (self._is_listening) return;
             self._is_listening = true;
 
+            // When running under the dev proxy, bind to the inner port on
+            // loopback only - the proxy owns the user-facing port.
+            if (std.posix.getenv("ZIEX_INNER_PORT")) |port_str| {
+                if (std.fmt.parseInt(u16, port_str, 10) catch null) |inner_port| {
+                    self.server.config.port = inner_port;
+                    self.server.config.address = "127.0.0.1";
+                }
+            }
+
             self.server.listen() catch |err| {
                 self._is_listening = false;
 
@@ -194,7 +203,11 @@ pub fn Server(comptime H: type) type {
         /// Print the server info to the console
         /// ZX - v{version} | http://localhost:{port}
         pub fn info(self: *Self) void {
-            std.debug.print("{s}ZX{s} {s}- v{s}{s} | http://localhost:{d}\n", .{ colors.bold, colors.reset_all, colors.dim, Self.version, colors.reset_all, self.server.config.port.? });
+            const display_port: u16 = if (std.posix.getenv("ZIEX_OUTER_PORT")) |s|
+                std.fmt.parseInt(u16, s, 10) catch self.server.config.port.?
+            else
+                self.server.config.port.?;
+            std.debug.print("{s}ZX{s} {s}- v{s}{s} | http://localhost:{d}\n", .{ colors.bold, colors.reset_all, colors.dim, Self.version, colors.reset_all, display_port });
         }
 
         /// Print the info line with the address/port part crossed out
@@ -281,14 +294,12 @@ pub fn Server(comptime H: type) type {
                 std.process.exit(0);
             }
 
+            // TODO: move this to DevServer.zig
             // Dev-only routes under /.well-known/_zx/
             if (self.meta.cli_command == .dev) {
                 var router = try self.server.router(.{});
                 var zx_routes = router.group("/.well-known/_zx", .{});
 
-                zx_routes.get("/devsocket", HandlerType.devsocket, .{});
-                zx_routes.get("/devscript.js", HandlerType.devscript, .{});
-                zx_routes.all("/devtool", HandlerType.devtool, .{});
                 zx_routes.all("/devtool", HandlerType.devtool, .{});
             }
 
