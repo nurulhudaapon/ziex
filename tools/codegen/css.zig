@@ -1,5 +1,6 @@
 const std = @import("std");
 const astgen = @import("astgen.zig");
+const helper = @import("helper.zig");
 
 const TypeMap = std.StringArrayHashMap([]const u8);
 
@@ -118,6 +119,7 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
     try file.addRaw("//! Generated from @webref/css (W3C Specifications)\n//! Do not edit manually.");
     try file.addImport("std", "std");
     try file.addImport("core", "core.zig");
+    try file.addRaw(try helper.calcExprSource(fa));
     _ = try file.addConst("CssColor", "", "core.Color");
 
     var prop_it = prop_data.iterator();
@@ -151,10 +153,10 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
         }
         if (data.units.percentage) try prop_union.addField(fa, "", "percent_", "[4]f32", null);
         if (data.units.color) try prop_union.addField(fa, "", "hex_", "u32", null);
-        try prop_union.addField(fa, "", "calc_", "[]const u8", null);
+        try prop_union.addField(fa, "", "calc_", "CalcExpr", null);
 
-        const calc_sig = try std.fmt.allocPrint(fa, "(s: []const u8) {s}", .{final_type_name});
-        _ = try prop_union.addMethod(fa, "", "calc", calc_sig, "return .{ .calc_ = s };");
+        const calc_sig = try std.fmt.allocPrint(fa, "(expr: CalcExpr) {s}", .{final_type_name});
+        _ = try prop_union.addMethod(fa, "", "calc", calc_sig, "return .{ .calc_ = expr };");
 
         if (data.units.length) {
             const px_sig = try std.fmt.allocPrint(fa, "(v: f32) {s}", .{final_type_name});

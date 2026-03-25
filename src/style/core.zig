@@ -108,7 +108,7 @@ pub fn formatValue(value: anytype, w: *std.io.Writer) std.io.Writer.Error!void {
             
             if (comptime std.mem.eql(u8, f.name, "calc_")) {
                 try w.writeAll("calc(");
-                try w.writeAll(@field(value, f.name));
+                try @field(value, f.name).format(w);
                 try w.writeAll(")");
                 return;
             }
