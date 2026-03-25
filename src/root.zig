@@ -97,7 +97,7 @@ pub const Router = @import("runtime/core/Router.zig");
 
 // --- Storage --- //
 pub const kv = @import("runtime/core/kv.zig");
-pub const db = @panic("TODO: Database not implemented yet");
+pub const db = @import("runtime/core/db.zig");
 
 // --- Net --- //
 pub const Headers = @import("runtime/core/Headers.zig");

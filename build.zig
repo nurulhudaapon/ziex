@@ -28,6 +28,11 @@ pub fn build(b: *std.Build) !void {
     options.addOption([]const u8, "minimum_zig_version", build_zon.minimum_zig_version);
     options.addOption([]const u8, "jsglue_version", build_zon.jsglue_version);
 
+    const zx_runtime_options = b.addOptions();
+
+    zx_runtime_options.addOption([]const u8, "staticdir", "zig-out/static");
+    zx_runtime_options.addOption([]const u8, "datadir", "zig-out/data");
+
     // --- ZX App Module --- //
     const mod = b.addModule("zx", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize });
     const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });
@@ -42,6 +47,7 @@ pub fn build(b: *std.Build) !void {
     mod.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
     mod.addImport("tree_sitter_mdzx", tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
     mod.addOptions("zx_info", options);
+    mod.addOptions("zx_options", zx_runtime_options);
     // Add stub meta for standalone builds (overridden in user projects with generated meta)
     // stub_meta.zig imports stub_components.zig directly from the same directory
     mod.addAnonymousImport("zx_meta", .{ .root_source_file = b.path("src/build/stub_meta.zig"), .imports = &.{.{ .name = "zx", .module = mod }} });
@@ -55,6 +61,7 @@ pub fn build(b: *std.Build) !void {
     // zx_wasm_mod.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
     // zx_wasm_mod.addImport("tree_sitter_mdzx", tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
     zx_wasm_mod.addOptions("zx_info", options);
+    zx_wasm_mod.addOptions("zx_options", zx_runtime_options);
     // Add stub meta for WASM builds (overridden in user projects with generated meta)
     zx_wasm_mod.addAnonymousImport("zx_meta", .{ .root_source_file = b.path("src/build/stub_meta.zig"), .imports = &.{.{ .name = "zx", .module = zx_wasm_mod }} });
     zx_wasm_mod.addAnonymousImport("zx_injections", .{ .root_source_file = b.path("src/build/stubs/injections.zig") });
@@ -197,6 +204,7 @@ pub fn build(b: *std.Build) !void {
             release_mod.addImport("tree_sitter_mdzx", release_tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
             release_mod.addImport("cachez", cachez_dep.module("cache"));
             release_mod.addOptions("zx_info", options);
+            release_mod.addOptions("zx_options", zx_runtime_options);
 
             const release_exe = b.addExecutable(.{
                 .name = "zx",
