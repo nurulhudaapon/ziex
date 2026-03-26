@@ -24,7 +24,8 @@
 	},
 	"d1_databases": [
 		{
-			"binding": "DB", // available in your Worker on env.DB
+			"binding": "DB",
+			"database_id": "0bec4fab-1cfe-4db7-b774-8feb0b2d44c3", // available in your Worker on env.DB
 		}
 	],
 	// 	"durable_objects": {
