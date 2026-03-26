@@ -283,6 +283,29 @@ pub fn Search(allocator: zx.Allocator) zx.Component {
     );
 }
 
+pub fn ChevronRight(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg @allocator={allocator} class="arrow-icon" width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+            <path 
+                d="M4 3L22 12L4 21L9 12Z" 
+                stroke="currentColor" 
+                stroke-width="2" 
+                stroke-linejoin="round"
+                stroke-linecap="round"
+            ></path>
+        </svg>
+    );
+}
+
+pub fn CornerDownRight(allocator: zx.Allocator) zx.Component {
+    return (
+        <svg @allocator={allocator} class="arrow-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 10 20 15 15 20"></polyline>
+            <path d="M4 4v7a4 4 0 0 0 4 4h12"></path>
+        </svg>
+    );
+}
+
 pub fn StateEye(allocator: zx.Allocator) zx.Component {
     return (
         <svg @allocator={allocator} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">

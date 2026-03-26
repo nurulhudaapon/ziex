@@ -7,7 +7,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <div style="margin-bottom: 24px;">
                     <div class="current-route-label">Current route</div>
                     <div class="route-input-row">
-                        <span class="route-arrow">↳</span>
+                        <span class="route-arrow">{icons.CornerDownRight(ctx.arena)}</span>
                         // <input type="text" value="/" class="route-input" />
                         <ComponentSearchInput @rendering={.client} />
                     </div>
@@ -72,7 +72,7 @@ pub fn ComponentRotes(
             <label for="routes-toggle" class="routes-section-row">
                 {icons.Workflow(ctx.allocator)}
                 <span class="routes-section-title">All Routes</span>
-                <span class="routes-section-arrow"></span>
+                <span class="routes-section-arrow">{icons.ChevronRight(ctx.allocator)}</span>
             </label>
             <div class="routes-section-desc">
                 <span class="routes-count">{getFilteredRouteCount(ctx.allocator)} routes registered in your application</span>

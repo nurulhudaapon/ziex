@@ -34,14 +34,14 @@
     display: none;
 }
 
-.state-row-toggle + label.state-item .item-arrow::before {
-    content: "▶";
-    display: inline-block;
+.state-row-toggle + label.state-item .item-arrow .arrow-icon {
+    display: block;
     transition: transform 0.2s;
+    transform: rotate(0deg);
 }
 
-.state-row-toggle:checked + label.state-item .item-arrow::before {
-    content: "▼";
+.state-row-toggle:checked + label.state-item .item-arrow .arrow-icon {
+    transform: rotate(90deg);
 }
 
 .state-row-toggle:not(:checked) ~ .state-item-children {
@@ -67,39 +67,28 @@
     display: none;
 }
 
-.state-toggle + .section-header .section-arrow::before {
-    content: "▼";
-    display: inline-block;
+.state-toggle + .section-header .section-arrow .arrow-icon {
+    display: block;
     transition: transform 0.2s;
+    transform: rotate(0deg);
 }
 
-.state-toggle:not(:checked) + .section-header .section-arrow::before {
-    content: "▶";
-    transform: rotate(0deg);
+.state-toggle:checked + .section-header .section-arrow .arrow-icon {
+    transform: rotate(90deg);
 }
 
 .state-toggle:not(:checked) + .section-header + .section-items {
     display: none;
 }
 
-.state-toggle:checked + .section-header .section-arrow::before {
-    content: "▼";
-    transform: rotate(0deg);
-}
 .component-toggle {
     display: none;
 }
 
-.component-toggle + .component-item .tree-arrow::before,
-.component-toggle + .component-root .tree-arrow::before {
-    content: "▼";
-    display: inline-block;
+.component-toggle + .component-item .tree-arrow .arrow-icon,
+.component-toggle + .component-root .tree-arrow .arrow-icon {
+    display: block;
     transition: transform 0.2s;
-}
-
-.component-toggle:not(:checked) + .component-item .tree-arrow::before,
-.component-toggle:not(:checked) + .component-root .tree-arrow::before {
-    content: "▶";
     transform: rotate(0deg);
 }
 
@@ -108,10 +97,9 @@
     display: none;
 }
 
-.component-toggle:checked + .component-item .tree-arrow::before,
-.component-toggle:checked + .component-root .tree-arrow::before {
-    content: "▼";
-    transform: rotate(0deg);
+.component-toggle:checked + .component-item .tree-arrow .arrow-icon,
+.component-toggle:checked + .component-root .tree-arrow .arrow-icon {
+    transform: rotate(90deg);
 }
 :root {
     color-scheme: dark;
@@ -819,6 +807,15 @@ input:checked+.slider:before {
 
 .search-wrapper {
     position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.search-input-wrapper {
+    position: relative;
+    flex: 1;
+    min-width: 0;
 }
 
 .search-input {
@@ -1218,7 +1215,12 @@ label.state-item {
 
 .route-arrow {
   color: #666;
-  font-size: 17px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.route-arrow-icon {
+    display: block;
 }
 
 .route-input {
@@ -1280,15 +1282,16 @@ label.state-item {
   margin-left: auto;
   color: #666;
   display: inline-block;
-  transition: transform 0.2s;
 }
 
-.routes-toggle:checked + .routes-section-row .routes-section-arrow::before {
-  content: "▼";
+.routes-section-arrow .arrow-icon {
+    display: block;
+    transition: transform 0.2s;
+    transform: rotate(0deg);
 }
 
-.routes-toggle:not(:checked) + .routes-section-row .routes-section-arrow::before {
-  content: "▶";
+.routes-toggle:checked + .routes-section-row .routes-section-arrow .arrow-icon {
+    transform: rotate(90deg);
 }
 
 .routes-toggle:not(:checked) + .routes-section-row + .routes-section-desc {
