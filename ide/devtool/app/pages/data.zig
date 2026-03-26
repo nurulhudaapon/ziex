@@ -24,9 +24,11 @@ pub const Route = struct {
 pub const StateItem = zx.Component.Serializable.StateItem;
 
 const storage_key = "zx-devtool-show-native-elements";
+pub const host_storage_key = "zx-devtool-host-v2";
 
 var _show_native_elements_loaded = false;
 pub var show_native_elements: bool = true;
+pub var host: []const u8 = "localhost:3000";
 
 pub fn loadSettings() void {
     if (_show_native_elements_loaded) return;
@@ -34,6 +36,33 @@ pub fn loadSettings() void {
     // Returns 1.0 if stored "1" or not set, 0.0 if stored "0"
     const result = zx.client.eval(f64, "+(localStorage.getItem('" ++ storage_key ++ "')??1)") catch return;
     show_native_elements = result >= 1.0;
+
+    // Read host from localStorage char-by-char using charCodeAt (eval with string return
+    // is unsupported by jsz, but eval(f64) works fine — same pattern as native elements).
+    const len_f = zx.client.eval(f64, "(localStorage.getItem('" ++ host_storage_key ++ "')||'').length") catch 0;
+    const len: usize = @intFromFloat(len_f);
+    if (len > 0 and len <= 256) {
+        if (zx.client_allocator.alloc(u8, len)) |buf| {
+            var all_ok = true;
+            for (0..len) |i| {
+                const script = std.fmt.allocPrint(
+                    zx.client_allocator,
+                    "(localStorage.getItem('" ++ host_storage_key ++ "')||'').charCodeAt({d})",
+                    .{i},
+                ) catch {
+                    all_ok = false;
+                    break;
+                };
+                defer zx.client_allocator.free(script);
+                const code = zx.client.eval(f64, script) catch {
+                    all_ok = false;
+                    break;
+                };
+                buf[i] = @intFromFloat(code);
+            }
+            if (all_ok) host = buf;
+        } else |_| {}
+    }
 }
 
 pub fn saveSettings() void {
@@ -42,6 +71,9 @@ pub fn saveSettings() void {
     else
         "localStorage.setItem('" ++ storage_key ++ "','0');";
     zx.client.eval(void, script) catch {};
+
+    const h = std.fmt.allocPrint(zx.client_allocator, "localStorage.setItem('{s}','{s}');", .{ host_storage_key, host }) catch return;
+    zx.client.eval(void, h) catch {};
 }
 
 pub const components = [_]Component{

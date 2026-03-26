@@ -245,10 +245,12 @@ fn handleConnection(ds: *DevServer, conn: std.net.Server.Connection) void {
 
 fn serveRequest(ds: *DevServer, req: *http.Server.Request, client_stream: std.net.Stream) !void {
     const target = req.head.target;
+    var target_split = std.mem.splitScalar(u8, target, '?');
+    const target_path = target_split.first();
 
     // 1. Intercept system requests (dev server only)
-    if (std.mem.indexOf(u8, target, "/.well-known/_zx/")) |_| {
-        if (std.mem.indexOf(u8, target, "devscript") != null) {
+    if (std.mem.startsWith(u8, target_path, "/.well-known/_zx/")) {
+        if (std.mem.eql(u8, target_path, "/.well-known/_zx/devscript.js")) {
             log.debug("devscript matched: {s}", .{target});
             try req.respond(DEVSCRIPT_JS, .{
                 .extra_headers = &.{
@@ -260,7 +262,7 @@ fn serveRequest(ds: *DevServer, req: *http.Server.Request, client_stream: std.ne
             return;
         }
 
-        if (std.mem.indexOf(u8, target, "open-in-editor") != null) {
+        if (std.mem.eql(u8, target_path, "/.well-known/_zx/open-in-editor")) {
             log.debug("open-in-editor matched: {s}", .{target});
             handleOpenInEditor(ds, target) catch |err| {
                 log.debug("handleOpenInEditor failed: {s}", .{@errorName(err)});
@@ -272,11 +274,6 @@ fn serveRequest(ds: *DevServer, req: *http.Server.Request, client_stream: std.ne
             });
             return;
         }
-
-        // Unhandled dev route
-        log.warn("unhandled dev route: {s}", .{target});
-        try req.respond("not found", .{ .status = .not_found });
-        return error.AlreadyReported;
     }
 
     // 2. Everything else goes to the inner app

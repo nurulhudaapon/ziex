@@ -27,7 +27,11 @@ var fetched = false;
 fn fetch() void {
     if (fetched) return;
     fetched = true;
-    _ = zx.fetch(.wasm(&onFetchText), zx.client_allocator, "http://localhost:5588/.well-known/_zx/devtool?meta=true", .{ .method = .GET }) catch {};
+    data.loadSettings();
+    const host = data.host;
+    const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://")) host else std.fmt.allocPrint(zx.client_allocator, "http://{s}", .{host}) catch return;
+    const url = std.fmt.allocPrint(zx.client_allocator, "{s}/.well-known/_zx/devtool?meta=true", .{base}) catch return;
+    _ = zx.fetch(.wasm(&onFetchText), zx.client_allocator, url, .{ .method = .GET }) catch {};
 }
 
     pub const AppRoute = struct {

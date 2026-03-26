@@ -1632,3 +1632,30 @@ label.state-item {
 .settings-toggle-knob-off {
     left: 2px;
 }
+
+/* Settings host input */
+.settings-input {
+    width: 100%;
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 6px;
+    color: var(--text-base);
+    font-size: 13px;
+    padding: 7px 10px;
+    margin-top: 6px;
+    outline: none;
+    transition: border-color 0.2s;
+    font-family: "JetBrains Mono", monospace;
+}
+
+.settings-input:focus {
+    border-color: var(--zx-primary);
+    box-shadow: 0 0 0 2px rgba(0, 217, 255, 0.15);
+}
+
+.settings-host-hint {
+    color: var(--text-muted);
+    font-size: 11px;
+    margin: 5px 0 0 0;
+    opacity: 0.7;
+}

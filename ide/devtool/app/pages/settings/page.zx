@@ -129,30 +129,37 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 </div>
 
                 <div>
+                    // <div class="settings-section">
+                    //     <h3 class="settings-section-title">Appearance</h3>
+                    //     <div class="settings-panel">
+                    //         <button class="settings-btn settings-btn-theme">
+                    //             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                    //             Dark
+                    //         </button>
+
+                    //         <div class="settings-divider-block">
+                    //             <label class="settings-label">UI Scale</label>
+                    //             <div class="settings-select-wrap">
+                    //                 <select class="settings-select">
+                    //                     <option>Normal</option>
+                    //                     <option>Large</option>
+                    //                     <option>Small</option>
+                    //                 </select>
+                    //                 <div class="settings-select-arrow">
+                    //                     <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+                    //                 </div>
+                    //             </div>
+                    //         </div>
+
+                    //         <CheckboxRow allocator={ctx.arena} label="Expand Sidebar" checked={true} row_class="settings-checkbox-row settings-checkbox-row-mb" />
+                    //         <CheckboxRow allocator={ctx.arena} label="Scrollable Sidebar" checked={true} row_class="settings-checkbox-row" />
+                    //     </div>
+                    // </div>
+
                     <div class="settings-section">
-                        <h3 class="settings-section-title">Appearance</h3>
+                        <h3 class="settings-section-title">Connection</h3>
                         <div class="settings-panel">
-                            <button class="settings-btn settings-btn-theme">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-                                Dark
-                            </button>
-
-                            <div class="settings-divider-block">
-                                <label class="settings-label">UI Scale</label>
-                                <div class="settings-select-wrap">
-                                    <select class="settings-select">
-                                        <option>Normal</option>
-                                        <option>Large</option>
-                                        <option>Small</option>
-                                    </select>
-                                    <div class="settings-select-arrow">
-                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#888" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <CheckboxRow allocator={ctx.arena} label="Expand Sidebar" checked={true} row_class="settings-checkbox-row settings-checkbox-row-mb" />
-                            <CheckboxRow allocator={ctx.arena} label="Scrollable Sidebar" checked={true} row_class="settings-checkbox-row" />
+                            <HostSetting @rendering={.client} />
                         </div>
                     </div>
 
@@ -202,4 +209,32 @@ pub fn handleNativeElementsToggle(_: zx.client.Event) void {
     data.show_native_elements = !data.show_native_elements;
     data.saveSettings();
     zx.client.rerender();
+}
+
+const HostSettingProps = struct {};
+
+pub fn HostSetting(ctx: *zx.ComponentCtx(HostSettingProps)) zx.Component {
+    data.loadSettings();
+    
+    zx.client.eval(void,
+        "setTimeout(function(){" ++
+        "var v=localStorage.getItem('" ++ data.host_storage_key ++ "');" ++
+        "if(v){var e=document.getElementById('zx-host-input');if(e)e.value=v;}" ++
+        "},0);"
+    ) catch {};
+    return (
+        <div @allocator={ctx.allocator}>
+            <label class="settings-label">Host</label>
+            <input id="zx-host-input" class="settings-input" type="text" value={data.host} oninput={handleHostInput} placeholder="localhost:3000" />
+            // <p class="settings-host-hint">Restart the devtool after changing the host.</p>
+        </div>
+    );
+}
+
+pub fn handleHostInput(ctx: zx.client.Event) void {
+    if (ctx.value()) |val| {
+        data.host = val;
+        data.saveSettings();
+        zx.client.rerender();
+    }
 }
