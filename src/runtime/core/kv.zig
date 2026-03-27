@@ -171,11 +171,11 @@ fn keyPath(ns: []const u8, key: []const u8, buf: *[1024]u8) ?[]u8 {
     var pos: usize = 0;
     @memcpy(buf[pos..][0..kv_store_base.len], kv_store_base);
     pos += kv_store_base.len;
-    buf[pos] = '/';
+    buf[pos] = std.fs.path.sep;
     pos += 1;
     @memcpy(buf[pos..][0..ns.len], ns);
     pos += ns.len;
-    buf[pos] = '/';
+    buf[pos] = std.fs.path.sep;
     pos += 1;
     const encoded = std.base64.url_safe_no_pad.Encoder.encode(buf[pos..], key);
     return buf[0 .. pos + encoded.len];
@@ -185,7 +185,7 @@ fn nsDir(ns: []const u8, buf: *[256]u8) ?[]u8 {
     const needed = kv_store_base.len + 1 + ns.len;
     if (needed > buf.len) return null;
     @memcpy(buf[0..kv_store_base.len], kv_store_base);
-    buf[kv_store_base.len] = '/';
+    buf[kv_store_base.len] = std.fs.path.sep;
     @memcpy(buf[kv_store_base.len + 1 ..][0..ns.len], ns);
     return buf[0..needed];
 }
