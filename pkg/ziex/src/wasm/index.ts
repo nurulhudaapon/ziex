@@ -588,6 +588,7 @@ export function initEventDelegation(bridge: ZxBridge, rootSelector: string = 'bo
 
         const options = { passive: eventType.startsWith('touch') || eventType === 'scroll' };
         root.addEventListener(eventType, listener, options);
+        // @ts-ignore
         removers.push(() => root.removeEventListener(eventType, listener, options));
     }
 

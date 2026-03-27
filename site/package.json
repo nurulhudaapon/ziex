@@ -12,7 +12,9 @@
     "@types/react-dom": "19.2.3",
     "esbuild": "0.27.2",
     "typescript": "^5.5.2",
-    "wrangler": "^4.73.0"
+    "wrangler": "^4.73.0",
+    "@ziex/cli": "0.1.0-dev.8640",
+    "@zigc/cli": "0.15.20"
   },
   "dependencies": {
     "@andrewbranch/untar.js": "^1.0.3",

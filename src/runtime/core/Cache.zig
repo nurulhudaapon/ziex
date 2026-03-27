@@ -134,7 +134,7 @@ const cachez = switch (builtin.os.tag) {
 
 pub const PutOptions = kv.PutOptions;
 
-const memory_namespace = "__zx_cache__";
+const memory_namespace = ".cache";
 const entry_version: u8 = 1;
 const header_len = 9;
 

@@ -7,7 +7,7 @@
     "bundle": "zx bundle",
     "fmt": "zx fmt"
   },
-  "dependencies": {
+  "devDependencies": {
     "@ziex/cli": "0.1.0-dev.8640",
     "@zigc/cli": "0.15.20"
   }

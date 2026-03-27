@@ -96,6 +96,15 @@ pub fn build(b: *std.Build) !void {
         .install_dir = .prefix,
         .install_subdir = "static/assets/playground",
     });
+
+    // b.installDirectory(.{
+    //     .source_dir = ziex_b.ziex_js.dep.path("."),
+    //     .install_dir = .prefix,
+    //     .include_extensions = &.{ ".js", ".ts" },
+    //     .install_subdir = "pkg/ziex",
+    // });
+
+    ziex_b.installZiexJs(.{});
 }
 
 const bunjs = @import("bunjs");

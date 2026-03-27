@@ -10,8 +10,8 @@
     .dependencies = .{
         // Ziex JS - The JavaScript glue code for csr/wasi/cloudflare/aws-lambda/vercel/react
         .ziex_js = .{
-            .url = "https://registry.npmjs.org/ziex/-/ziex-0.1.0-dev.864.tgz",
-            .hash = "ziex_js-0.1.0-dev.804-v1W0GVSeAgBgl6TzyQtwhDiCWMQhus5uPYQDnh1lBEgG",
+            .url = "https://registry.npmjs.org/ziex/-/ziex-0.1.0-test.2.tgz",
+            .hash = "ziex_js-0.1.0-dev.804-v1W0GbMDAwBsd2oeoCUMGZ2FXs99xoOQdA-Fwc5q-oUT",
         },
         // httpz - HTTP server for Ziex
         .httpz = .{

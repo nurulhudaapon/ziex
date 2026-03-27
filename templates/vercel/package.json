@@ -9,6 +9,8 @@
     "ziex": "^0.1.0-dev.804"
   },
   "devDependencies": {
-    "vercel": "^50.34.1"
+    "vercel": "^50.34.1",
+    "@ziex/cli": "0.1.0-dev.8640",
+    "@zigc/cli": "0.15.20"
   }
 }

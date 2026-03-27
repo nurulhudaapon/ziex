@@ -13,3 +13,4 @@ node_modules
 .wrangler/
 
 .vercel
+.env*.local

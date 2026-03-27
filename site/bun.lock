@@ -31,6 +31,8 @@
         "@types/node": "^25.5.0",
         "@types/react": "19.2.7",
         "@types/react-dom": "19.2.3",
+        "@ziex/cli": "0.1.0-dev.8640",
+        "@zigc/cli": "0.15.20",
         "esbuild": "0.27.2",
         "typescript": "^5.5.2",
         "wrangler": "^4.73.0",
@@ -287,6 +289,36 @@
     "@types/react": ["@types/react@19.2.7", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-MWtvHrGZLFttgeEj28VXHxpmwYbor/ATPYbBfSFZEIRK0ecCFLl2Qo55z52Hss+UV9CRN7trSeq1zbgx7YDWWg=="],
 
     "@types/react-dom": ["@types/react-dom@19.2.3", "", { "peerDependencies": { "@types/react": "^19.2.0" } }, "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ=="],
+
+    "@ziex/cli": ["@ziex/cli@0.1.0-dev.8640", "", { "optionalDependencies": { "@ziex/cli-darwin-arm64": "0.1.0-dev.865", "@ziex/cli-darwin-x64": "0.1.0-dev.865", "@ziex/cli-linux-arm64": "0.1.0-dev.865", "@ziex/cli-linux-x64": "0.1.0-dev.865", "@ziex/cli-win32-arm64": "0.1.0-dev.865", "@ziex/cli-win32-x64": "0.1.0-dev.865" }, "bin": { "ziex": "bin/ziex", "zx": "bin/ziex" } }, "sha512-smZGGI6h+AZr7ViV9fyZJQYcE8SwsbYx3HgoHhaYnTwzstc2votstiuNm9CDbuhuXbUEJW3XBmTq/e365v0fOw=="],
+
+    "@ziex/cli-darwin-arm64": ["@ziex/cli-darwin-arm64@0.1.0-dev.865", "", { "os": "darwin", "cpu": "arm64", "bin": { "zx": "bin/zx", "ziex": "bin/zx" } }, "sha512-PID2MKsGFxMBrYxNQPT5GsuA6zv7EDrg8T27Bjn4924AMwd+MILoA4+jOG0/ybGhaMG3axm92NIB9pzf6YHsEw=="],
+
+    "@ziex/cli-darwin-x64": ["@ziex/cli-darwin-x64@0.1.0-dev.865", "", { "os": "darwin", "cpu": "x64", "bin": { "zx": "bin/zx", "ziex": "bin/zx" } }, "sha512-pCm+BGhpS48vzx9H3s+aP/YvuIgqX7ogj1CfldXrZraiID6gaBXn9gJl5Zgbu0FpVi0fYf0pd4G+NpKnBBCu2Q=="],
+
+    "@ziex/cli-linux-arm64": ["@ziex/cli-linux-arm64@0.1.0-dev.865", "", { "os": "linux", "cpu": "arm64", "bin": { "zx": "bin/zx", "ziex": "bin/zx" } }, "sha512-k7Zb0v3r8ywQl44AamDUotei6mdCFM/8fAuWecI1LDkxmRfxiK4FN6LWiNaQRerKa+HrI1bi3kioaNyWuBoakA=="],
+
+    "@ziex/cli-linux-x64": ["@ziex/cli-linux-x64@0.1.0-dev.865", "", { "os": "linux", "cpu": "x64", "bin": { "zx": "bin/zx", "ziex": "bin/zx" } }, "sha512-c4l0OGl2P8XrSaDhuqRNbC0lQjsmIJ5Fw9aekl9JDzfV3VRefuiWW4LbcXERpHd6x60D9PnTo3swhdYkeLmffQ=="],
+
+    "@ziex/cli-win32-arm64": ["@ziex/cli-win32-arm64@0.1.0-dev.865", "", { "os": "win32", "cpu": "arm64", "bin": { "zx": "bin/zx.exe", "ziex": "bin/zx.exe" } }, "sha512-/arptYcXTiyLbImN6+dO8T3z9tcjby6qYP0CDiZhg9XT4rsX+q2lcVU4FALS2EJq/l1tS8pT3f0bZR+X0ye93w=="],
+
+    "@ziex/cli-win32-x64": ["@ziex/cli-win32-x64@0.1.0-dev.865", "", { "os": "win32", "cpu": "x64", "bin": { "zx": "bin/zx.exe", "ziex": "bin/zx.exe" } }, "sha512-BaRyHSUR1TEfph+uqnU8UCVEuTqqKUnJxgQGC6CppLPmK54dOn/QdOl/wiqbThd82aNfSz5QQnB7ITi/kcmfcw=="],
+
+    "@zigc/cli": ["@zigc/cli@0.15.20", "", { "dependencies": { "@zigc/lib": "0.15.20" }, "optionalDependencies": { "@zigc/darwin-arm64": "0.15.20", "@zigc/darwin-x64": "0.15.20", "@zigc/linux-arm64": "0.15.20", "@zigc/linux-x64": "0.15.20", "@zigc/win32-arm64": "0.15.20", "@zigc/win32-x64": "0.15.20" }, "bin": { "zig": "bin/zig" } }, "sha512-TiwZo4DcARVMKSzpR6V/Ah4Bi7ExYyMnFXigYub+IXJ2wANJkxooQ2oC7/5BjiQIKqEgVF1wEgtTW36BxtH+ew=="],
+
+    "@zigc/darwin-arm64": ["@zigc/darwin-arm64@0.15.20", "", { "os": "darwin", "cpu": "arm64", "bin": { "zig": "bin/zig" } }, "sha512-crjEdK52Vxshrl5wAUv9Oe4yKu8v/s+0iQfaYP0d89ITUPFHQaLEMkLCM+lrMmM1adrDd2RreTDO/5c0t1z29Q=="],
+
+    "@zigc/darwin-x64": ["@zigc/darwin-x64@0.15.20", "", { "os": "darwin", "cpu": "x64", "bin": { "zig": "bin/zig" } }, "sha512-vzbBEqFFQDBlOMj+rbXSvhpFMOyrV+5x5BvrfWZiwSeRcnGn7lslKtOODEkd/5h/58BfS8coQsuZXQlf14+Qag=="],
+
+    "@zigc/lib": ["@zigc/lib@0.15.20", "", {}, "sha512-6BOl9Il9lHY+Y/juSckKR+7etlpk7tJ3jeW73Jm+3JO4MRpX2UpzgOXPEwaHdZ8mYnwEbPenOSuk8BBtw4btZg=="],
+
+    "@zigc/linux-arm64": ["@zigc/linux-arm64@0.15.20", "", { "os": "linux", "cpu": "arm64", "bin": { "zig": "bin/zig" } }, "sha512-ALFqQLUTZEVOetB5O03FUAsvm9+4lR/iqmCrjfPOsrW6KorEcAufVglNajtZEenXPoDaJJPr2xR6PN0NNf4P5A=="],
+
+    "@zigc/linux-x64": ["@zigc/linux-x64@0.15.20", "", { "os": "linux", "cpu": "x64", "bin": { "zig": "bin/zig" } }, "sha512-sad8XFjvaBLTImOcBPd8mVc6y43nDta2kUerq3xhOh/NgcSF3nwrVoq3D2idhLlmH3sS2nz2NS4pDQeBXtT6Eg=="],
+
+    "@zigc/win32-arm64": ["@zigc/win32-arm64@0.15.20", "", { "os": "win32", "cpu": "arm64", "bin": { "zig": "bin/zig.exe" } }, "sha512-BL0gFVPwTjE23oWtZUcwcXJFgW7AOoLuBw9coUNMUmHWBDJAQp44ZRW+HfohI2ZpSpjEyIPMLVIfOCse3UJQHg=="],
+
+    "@zigc/win32-x64": ["@zigc/win32-x64@0.15.20", "", { "os": "win32", "cpu": "x64", "bin": { "zig": "bin/zig.exe" } }, "sha512-gOWb0WJ7/3Lgaa9dpZCUPa6QFwr5wF1O0UdcWvrLzvTIXvRzi6GC5CjfHO7QIeea/pjU1xcosrtsnmz9JlO29w=="],
 
     "blake3-wasm": ["blake3-wasm@2.1.5", "", {}, "sha512-F1+K8EbfOZE49dtoPtmxUQrpXaBIl3ICvasLh+nJta0xkz+9kF/7uet9fLnwKqhDrmj6g+6K3Tw9yQPUg2ka5g=="],
 
