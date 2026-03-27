@@ -2,17 +2,15 @@ const std = @import("std");
 const zx = @import("zx");
 
 test "Style formatting" {
-    const allocator = std.testing.allocator;
-    const style: zx.Style = .{
-        .display = .flex,
-        .flex_direction = .column,
-        .background_color = .hex(0xff0000),
-        .padding_top = .px(10),
-        .width = .px(100),
-    };
+    const style = zx.style.styleInit(.{
+        zx.style.display(.flex),
+        zx.style.flex_direction(.column),
+        zx.style.background_color(.hex(0xff0000)),
+        zx.style.padding_top(.px(10)),
+        zx.style.width(.px(100)),
+    });
 
-    const result = try std.fmt.allocPrint(allocator, "{f}", .{style});
-    defer allocator.free(result);
+    const result = style.css;
 
     std.debug.print("\nGenerated CSS: {s}\n", .{result});
 
@@ -31,10 +29,10 @@ test "Style in Component" {
 
     var ctx = zx.allocInit(arena_allocator);
 
-    const style: zx.Style = .{
-        .color = .hex(0x0000ff),
-        .margin_top = .px(20),
-    };
+    const style = zx.style.styleInit(.{
+        zx.style.color(.hex(0x0000ff)),
+        zx.style.margin_top(.px(20)),
+    });
 
     const comp = ctx.ele(.div, .{
         .attributes = &[_]zx.Element.Attribute{
@@ -45,7 +43,6 @@ test "Style in Component" {
             ctx.txt("Hello with style"),
         },
     });
-    // deinit is not strictly needed with arena but good practice if we want to test it
     defer comp.deinit(arena_allocator);
 
     try std.testing.expectEqual(zx.ElementTag.div, comp.element.tag);
@@ -62,26 +59,25 @@ test "Style in Component" {
 }
 
 test "Style pseudo-states" {
-    const style: zx.Style = .{
-        .background_color = .hex(0x0000ff),
-        .hover = &.{
-            .background_color = .hex(0xff0000),
-        },
-    };
+    const style = zx.style.styleInit(.{
+        zx.style.background_color(.hex(0x0000ff)),
+        // In Option A, pseudo-states are currently just another property
+        // that can be formatted.
+        zx.style.hover(&zx.style.styleInit(.{
+            zx.style.background_color(.hex(0xff0000)),
+        })),
+    });
 
-    try std.testing.expect(style.hover != null);
-    try std.testing.expectEqual(zx.style.generated.BackgroundColor.hex(0xff0000), style.hover.?.background_color);
+    try std.testing.expect(std.mem.indexOf(u8, style.css, "background-color: #0000ff;") != null);
 }
 
 test "Style shorthands" {
-    const allocator = std.testing.allocator;
-    const style: zx.Style = .{
-        .padding = .px2(10, 20),
-        .margin = .px4(5, 10, 15, 20),
-    };
+    const style = zx.style.styleInit(.{
+        zx.style.padding(.px2(10, 20)),
+        zx.style.margin(.px4(5, 10, 15, 20)),
+    });
 
-    const result = try std.fmt.allocPrint(allocator, "{f}", .{style});
-    defer allocator.free(result);
+    const result = style.css;
     
     try std.testing.expect(std.mem.indexOf(u8, result, "padding: 10px 20px;") != null);
     try std.testing.expect(std.mem.indexOf(u8, result, "margin: 5px 10px 15px 20px;") != null);

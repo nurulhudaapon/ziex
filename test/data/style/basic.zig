@@ -1,21 +1,14 @@
-pub fn Page(allocator: zx.Allocator) zx.Component {
-    const style: zx.Style = .{
-        .display = .flex,
-        .background_color = .hex(0xff0000),
-    };
-    var _zx = @import("zx").allocInit(allocator);
-    return _zx.ele(
-        .div,
-        .{
-            .allocator = allocator,
-            .attributes = _zx.attrs(.{
-                _zx.attr("style", style),
-            }),
-            .children = &.{
-                _zx.txt(" Hello "),
-            },
-        },
-    );
-}
-
+const std = @import("std");
 const zx = @import("zx");
+
+pub fn Page(allocator: std.mem.Allocator) zx.Component {
+    var ctx = zx.allocInit(allocator);
+    const style = zx.style.styleInit(.{
+        zx.style.display(.flex),
+        zx.style.flex_direction(.column),
+    });
+    return ctx.ele(.div, .{
+        .attributes = &.{ ctx.attr("style", style).? },
+        .children = &.{ ctx.txt("Basic style") },
+    });
+}

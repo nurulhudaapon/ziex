@@ -51,51 +51,51 @@ pub const CalcExpr = struct {
     }
 
     fn leaf(value: []const u8) Self {
-        return init(value);
+        return Self.init(value);
     }
 
     fn unitLeaf(unit: Unit, value: f32) Self {
         var temp: [64]u8 = undefined;
         const written = std.fmt.bufPrint(&temp, "{d}{s}", .{ value, unit.toString() }) catch @panic("calc expression too complex");
-        return leaf(written);
+        return Self.leaf(written);
     }
 
     fn numberLeaf(value: f32) Self {
         var temp: [64]u8 = undefined;
         const written = std.fmt.bufPrint(&temp, "{d}", .{value}) catch @panic("calc expression too complex");
-        return leaf(written);
+        return Self.leaf(written);
     }
 
     fn rawLeaf(value: []const u8) Self {
-        return leaf(value);
+        return Self.leaf(value);
     }
 
     pub fn px(value: f32) Self {
-        return unitLeaf(.px, value);
+        return Self.unitLeaf(.px, value);
     }
 
     pub fn em(value: f32) Self {
-        return unitLeaf(.em, value);
+        return Self.unitLeaf(.em, value);
     }
 
     pub fn rem(value: f32) Self {
-        return unitLeaf(.rem, value);
+        return Self.unitLeaf(.rem, value);
     }
 
     pub fn percent(value: f32) Self {
-        return unitLeaf(.percent, value);
+        return Self.unitLeaf(.percent, value);
     }
 
     pub fn raw(value: []const u8) Self {
-        return rawLeaf(value);
+        return Self.rawLeaf(value);
     }
 
     pub fn number(value: f32) Self {
-        return numberLeaf(value);
+        return Self.numberLeaf(value);
     }
 
     fn combine(self: Self, other: Self, op: Op) Self {
-        var temp: [64]u8 = undefined;
+        var temp: [128]u8 = undefined;
         const lhs = self.text();
         const rhs = other.text();
         const op_text = op.toString();
@@ -118,7 +118,7 @@ pub const CalcExpr = struct {
         temp[i] = ')';
         i += 1;
 
-        return init(temp[0..i]);
+        return Self.init(temp[0..i]);
     }
 
     pub fn add(self: Self, other: Self) Self {
@@ -130,14 +130,14 @@ pub const CalcExpr = struct {
     }
 
     pub fn mul(self: Self, factor: f32) Self {
-        return self.combine(numberLeaf(factor), .mul);
+        return self.combine(Self.numberLeaf(factor), .mul);
     }
 
     pub fn div(self: Self, factor: f32) Self {
-        return self.combine(numberLeaf(factor), .div);
+        return self.combine(Self.numberLeaf(factor), .div);
     }
 
-    pub fn format(self: Self, w: *std.io.Writer) !void {
+    pub fn format(self: Self, w: *std.io.Writer) std.io.Writer.Error!void {
         try w.writeAll(self.text());
     }
 };
@@ -32118,2900 +32118,4635 @@ pub const Zoom = union(enum) {
     }
 };
 
-pub const Style = struct {
-    /// -webkit-align-content
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-align-content
-    webkit_align_content: WebkitAlignContent = .none,
-    /// -webkit-align-items
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-align-items
-    webkit_align_items: WebkitAlignItems = .none,
-    /// -webkit-align-self
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-align-self
-    webkit_align_self: WebkitAlignSelf = .none,
-    /// -webkit-animation
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation
-    webkit_animation: WebkitAnimation = .none,
-    /// -webkit-animation-delay
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation-delay
-    webkit_animation_delay: WebkitAnimationDelay = .none,
-    /// -webkit-animation-direction
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation-direction
-    webkit_animation_direction: WebkitAnimationDirection = .none,
-    /// -webkit-animation-duration
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation-duration
-    webkit_animation_duration: WebkitAnimationDuration = .none,
-    /// -webkit-animation-fill-mode
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation-fill-mode
-    webkit_animation_fill_mode: WebkitAnimationFillMode = .none,
-    /// -webkit-animation-iteration-count
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation-iteration-count
-    webkit_animation_iteration_count: WebkitAnimationIterationCount = .none,
-    /// -webkit-animation-name
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation-name
-    webkit_animation_name: WebkitAnimationName = .none,
-    /// -webkit-animation-play-state
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation-play-state
-    webkit_animation_play_state: WebkitAnimationPlayState = .none,
-    /// -webkit-animation-timing-function
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation-timing-function
-    webkit_animation_timing_function: WebkitAnimationTimingFunction = .none,
-    /// -webkit-appearance
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef--webkit-appearance
-    webkit_appearance: WebkitAppearance = .none,
-    /// -webkit-backface-visibility
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-backface-visibility
-    webkit_backface_visibility: WebkitBackfaceVisibility = .none,
-    /// -webkit-background-clip
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-background-clip
-    webkit_background_clip: WebkitBackgroundClip = .none,
-    /// -webkit-background-origin
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-background-origin
-    webkit_background_origin: WebkitBackgroundOrigin = .none,
-    /// -webkit-background-size
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-background-size
-    webkit_background_size: WebkitBackgroundSize = .none,
-    /// -webkit-border-bottom-left-radius
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-border-bottom-left-radius
-    webkit_border_bottom_left_radius: WebkitBorderBottomLeftRadius = .none,
-    /// -webkit-border-bottom-right-radius
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-border-bottom-right-radius
-    webkit_border_bottom_right_radius: WebkitBorderBottomRightRadius = .none,
-    /// -webkit-border-radius
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-border-radius
-    webkit_border_radius: WebkitBorderRadius = .none,
-    /// -webkit-border-top-left-radius
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-border-top-left-radius
-    webkit_border_top_left_radius: WebkitBorderTopLeftRadius = .none,
-    /// -webkit-border-top-right-radius
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-border-top-right-radius
-    webkit_border_top_right_radius: WebkitBorderTopRightRadius = .none,
-    /// -webkit-box-align
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-box-align
-    webkit_box_align: WebkitBoxAlign = .none,
-    /// -webkit-box-flex
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-box-flex
-    webkit_box_flex: WebkitBoxFlex = .none,
-    /// -webkit-box-ordinal-group
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-box-ordinal-group
-    webkit_box_ordinal_group: WebkitBoxOrdinalGroup = .none,
-    /// -webkit-box-orient
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-box-orient
-    webkit_box_orient: WebkitBoxOrient = .none,
-    /// -webkit-box-pack
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-box-pack
-    webkit_box_pack: WebkitBoxPack = .none,
-    /// -webkit-box-shadow
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-box-shadow
-    webkit_box_shadow: WebkitBoxShadow = .none,
-    /// -webkit-box-sizing
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-box-sizing
-    webkit_box_sizing: WebkitBoxSizing = .none,
-    /// -webkit-filter
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-filter
-    webkit_filter: WebkitFilter = .none,
-    /// -webkit-flex
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-flex-propdef
-    webkit_flex: WebkitFlex = .none,
-    /// -webkit-flex-basis
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-flex-basis
-    webkit_flex_basis: WebkitFlexBasis = .none,
-    /// -webkit-flex-direction
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-flex-direction
-    webkit_flex_direction: WebkitFlexDirection = .none,
-    /// -webkit-flex-flow
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-flex-flow
-    webkit_flex_flow: WebkitFlexFlow = .none,
-    /// -webkit-flex-grow
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-flex-grow
-    webkit_flex_grow: WebkitFlexGrow = .none,
-    /// -webkit-flex-shrink
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-flex-shrink
-    webkit_flex_shrink: WebkitFlexShrink = .none,
-    /// -webkit-flex-wrap
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-flex-wrap
-    webkit_flex_wrap: WebkitFlexWrap = .none,
-    /// -webkit-justify-content
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-justify-content
-    webkit_justify_content: WebkitJustifyContent = .none,
-    /// -webkit-line-clamp
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef--webkit-line-clamp
-    webkit_line_clamp: WebkitLineClamp = .none,
-    /// -webkit-mask
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask
-    webkit_mask: WebkitMask = .none,
-    /// -webkit-mask-box-image
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-box-image
-    webkit_mask_box_image: WebkitMaskBoxImage = .none,
-    /// -webkit-mask-box-image-outset
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-box-image-outset
-    webkit_mask_box_image_outset: WebkitMaskBoxImageOutset = .none,
-    /// -webkit-mask-box-image-repeat
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-box-image-repeat
-    webkit_mask_box_image_repeat: WebkitMaskBoxImageRepeat = .none,
-    /// -webkit-mask-box-image-slice
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-box-image-slice
-    webkit_mask_box_image_slice: WebkitMaskBoxImageSlice = .none,
-    /// -webkit-mask-box-image-source
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-box-image-source
-    webkit_mask_box_image_source: WebkitMaskBoxImageSource = .none,
-    /// -webkit-mask-box-image-width
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-box-image-width
-    webkit_mask_box_image_width: WebkitMaskBoxImageWidth = .none,
-    /// -webkit-mask-clip
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-clip
-    webkit_mask_clip: WebkitMaskClip = .none,
-    /// -webkit-mask-composite
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-composite
-    webkit_mask_composite: WebkitMaskComposite = .none,
-    /// -webkit-mask-image
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-image
-    webkit_mask_image: WebkitMaskImage = .none,
-    /// -webkit-mask-origin
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-origin
-    webkit_mask_origin: WebkitMaskOrigin = .none,
-    /// -webkit-mask-position
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-position
-    webkit_mask_position: WebkitMaskPosition = .none,
-    /// -webkit-mask-repeat
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-repeat
-    webkit_mask_repeat: WebkitMaskRepeat = .none,
-    /// -webkit-mask-size
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-size
-    webkit_mask_size: WebkitMaskSize = .none,
-    /// -webkit-order
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-order
-    webkit_order: WebkitOrder = .none,
-    /// -webkit-perspective
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-perspective
-    webkit_perspective: WebkitPerspective = .none,
-    /// -webkit-perspective-origin
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-perspective-origin
-    webkit_perspective_origin: WebkitPerspectiveOrigin = .none,
-    /// -webkit-text-fill-color
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-text-fill-color
-    webkit_text_fill_color: WebkitTextFillColor = .none,
-    /// -webkit-text-size-adjust
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-text-size-adjust
-    webkit_text_size_adjust: WebkitTextSizeAdjust = .none,
-    /// -webkit-text-stroke
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-text-stroke
-    webkit_text_stroke: WebkitTextStroke = .none,
-    /// -webkit-text-stroke-color
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-text-stroke-color
-    webkit_text_stroke_color: WebkitTextStrokeColor = .none,
-    /// -webkit-text-stroke-width
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-text-stroke-width
-    webkit_text_stroke_width: WebkitTextStrokeWidth = .none,
-    /// -webkit-transform
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-transform
-    webkit_transform: WebkitTransform = .none,
-    /// -webkit-transform-origin
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-transform-origin
-    webkit_transform_origin: WebkitTransformOrigin = .none,
-    /// -webkit-transform-style
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-transform-style
-    webkit_transform_style: WebkitTransformStyle = .none,
-    /// -webkit-transition
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-transition
-    webkit_transition: WebkitTransition = .none,
-    /// -webkit-transition-delay
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-transition-delay
-    webkit_transition_delay: WebkitTransitionDelay = .none,
-    /// -webkit-transition-duration
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-transition-duration
-    webkit_transition_duration: WebkitTransitionDuration = .none,
-    /// -webkit-transition-property
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-transition-property
-    webkit_transition_property: WebkitTransitionProperty = .none,
-    /// -webkit-transition-timing-function
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-transition-timing-function
-    webkit_transition_timing_function: WebkitTransitionTimingFunction = .none,
-    /// -webkit-user-select
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef--webkit-user-select
-    webkit_user_select: WebkitUserSelect = .none,
-    /// accent-color
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-accent-color
-    accent_color: AccentColor = .none,
-    /// align-content
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-align-content
-    align_content: AlignContent = .none,
-    /// align-items
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-align-items
-    align_items: AlignItems = .none,
-    /// align-self
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-align-self
-    align_self: AlignSelf = .none,
-    /// alignment-baseline
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-alignment-baseline
-    alignment_baseline: AlignmentBaseline = .none,
-    /// all
-    /// - **W3C**: https://drafts.csswg.org/css-cascade-5/#propdef-all
-    all: All = .none,
-    /// anchor-name
-    /// - **W3C**: https://drafts.csswg.org/css-anchor-position-1/#propdef-anchor-name
-    anchor_name: AnchorName = .none,
-    /// anchor-scope
-    /// - **W3C**: https://drafts.csswg.org/css-anchor-position-1/#propdef-anchor-scope
-    anchor_scope: AnchorScope = .none,
-    /// animation
-    /// - **W3C**: https://drafts.csswg.org/css-animations-1/#propdef-animation
-    animation: Animation = .none,
-    /// animation-composition
-    /// - **W3C**: https://drafts.csswg.org/css-animations-2/#propdef-animation-composition
-    animation_composition: AnimationComposition = .none,
-    /// animation-delay
-    /// - **W3C**: https://drafts.csswg.org/css-animations-1/#propdef-animation-delay
-    animation_delay: AnimationDelay = .none,
-    /// animation-direction
-    /// - **W3C**: https://drafts.csswg.org/css-animations-1/#propdef-animation-direction
-    animation_direction: AnimationDirection = .none,
-    /// animation-duration
-    /// - **W3C**: https://drafts.csswg.org/css-animations-2/#propdef-animation-duration
-    animation_duration: AnimationDuration = .none,
-    /// animation-fill-mode
-    /// - **W3C**: https://drafts.csswg.org/css-animations-1/#propdef-animation-fill-mode
-    animation_fill_mode: AnimationFillMode = .none,
-    /// animation-iteration-count
-    /// - **W3C**: https://drafts.csswg.org/css-animations-1/#propdef-animation-iteration-count
-    animation_iteration_count: AnimationIterationCount = .none,
-    /// animation-name
-    /// - **W3C**: https://drafts.csswg.org/css-animations-1/#propdef-animation-name
-    animation_name: AnimationName = .none,
-    /// animation-play-state
-    /// - **W3C**: https://drafts.csswg.org/css-animations-1/#propdef-animation-play-state
-    animation_play_state: AnimationPlayState = .none,
-    /// animation-range
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-animation-range
-    animation_range: AnimationRange = .none,
-    /// animation-range-center
-    /// - **W3C**: https://drafts.csswg.org/pointer-animations-1/#propdef-animation-range-center
-    animation_range_center: AnimationRangeCenter = .none,
-    /// animation-range-end
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-animation-range-end
-    animation_range_end: AnimationRangeEnd = .none,
-    /// animation-range-start
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-animation-range-start
-    animation_range_start: AnimationRangeStart = .none,
-    /// animation-timeline
-    /// - **W3C**: https://drafts.csswg.org/css-animations-2/#propdef-animation-timeline
-    animation_timeline: AnimationTimeline = .none,
-    /// animation-timing-function
-    /// - **W3C**: https://drafts.csswg.org/css-animations-1/#propdef-animation-timing-function
-    animation_timing_function: AnimationTimingFunction = .none,
-    /// animation-trigger
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-animation-trigger
-    animation_trigger: AnimationTrigger = .none,
-    /// appearance
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-appearance
-    appearance: Appearance = .none,
-    /// aspect-ratio
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-4/#propdef-aspect-ratio
-    aspect_ratio: AspectRatio = .none,
-    /// backdrop-filter
-    /// - **W3C**: https://drafts.csswg.org/filter-effects-2/#propdef-backdrop-filter
-    backdrop_filter: BackdropFilter = .none,
-    /// backface-visibility
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-2/#propdef-backface-visibility
-    backface_visibility: BackfaceVisibility = .none,
-    /// background
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background
-    background: Background = .none,
-    /// background-attachment
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-attachment
-    background_attachment: BackgroundAttachment = .none,
-    /// background-blend-mode
-    /// - **W3C**: https://drafts.csswg.org/compositing-2/#propdef-background-blend-mode
-    background_blend_mode: BackgroundBlendMode = .none,
-    /// background-clip
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-clip
-    background_clip: BackgroundClip = .none,
-    /// background-color
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-color
-    background_color: BackgroundColor = .none,
-    /// background-image
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-image
-    background_image: BackgroundImage = .none,
-    /// background-origin
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-origin
-    background_origin: BackgroundOrigin = .none,
-    /// background-position
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-position
-    background_position: BackgroundPosition = .none,
-    /// background-position-block
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-position-block
-    background_position_block: BackgroundPositionBlock = .none,
-    /// background-position-inline
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-position-inline
-    background_position_inline: BackgroundPositionInline = .none,
-    /// background-position-x
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-position-x
-    background_position_x: BackgroundPositionX = .none,
-    /// background-position-y
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-position-y
-    background_position_y: BackgroundPositionY = .none,
-    /// background-repeat
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-repeat
-    background_repeat: BackgroundRepeat = .none,
-    /// background-repeat-block
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-repeat-block
-    background_repeat_block: BackgroundRepeatBlock = .none,
-    /// background-repeat-inline
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-repeat-inline
-    background_repeat_inline: BackgroundRepeatInline = .none,
-    /// background-repeat-x
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-repeat-x
-    background_repeat_x: BackgroundRepeatX = .none,
-    /// background-repeat-y
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-repeat-y
-    background_repeat_y: BackgroundRepeatY = .none,
-    /// background-size
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-size
-    background_size: BackgroundSize = .none,
-    /// background-tbd
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-tbd
-    background_tbd: BackgroundTbd = .none,
-    /// baseline-shift
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-baseline-shift
-    baseline_shift: BaselineShift = .none,
-    /// baseline-source
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-baseline-source
-    baseline_source: BaselineSource = .none,
-    /// block-ellipsis
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-block-ellipsis
-    block_ellipsis: BlockEllipsis = .none,
-    /// block-size
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-block-size
-    block_size: BlockSize = .none,
-    /// block-step
-    /// - **W3C**: https://drafts.csswg.org/css-rhythm-1/#propdef-block-step
-    block_step: BlockStep = .none,
-    /// block-step-align
-    /// - **W3C**: https://drafts.csswg.org/css-rhythm-1/#propdef-block-step-align
-    block_step_align: BlockStepAlign = .none,
-    /// block-step-insert
-    /// - **W3C**: https://drafts.csswg.org/css-rhythm-1/#propdef-block-step-insert
-    block_step_insert: BlockStepInsert = .none,
-    /// block-step-round
-    /// - **W3C**: https://drafts.csswg.org/css-rhythm-1/#propdef-block-step-round
-    block_step_round: BlockStepRound = .none,
-    /// block-step-size
-    /// - **W3C**: https://drafts.csswg.org/css-rhythm-1/#propdef-block-step-size
-    block_step_size: BlockStepSize = .none,
-    /// bookmark-label
-    /// - **W3C**: https://drafts.csswg.org/css-content-3/#propdef-bookmark-label
-    bookmark_label: BookmarkLabel = .none,
-    /// bookmark-level
-    /// - **W3C**: https://drafts.csswg.org/css-content-3/#propdef-bookmark-level
-    bookmark_level: BookmarkLevel = .none,
-    /// bookmark-state
-    /// - **W3C**: https://drafts.csswg.org/css-content-3/#propdef-bookmark-state
-    bookmark_state: BookmarkState = .none,
-    /// border
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border
-    border: Border = .none,
-    /// border-block
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block
-    border_block: BorderBlock = .none,
-    /// border-block-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-clip
-    border_block_clip: BorderBlockClip = .none,
-    /// border-block-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-color
-    border_block_color: BorderBlockColor = .none,
-    /// border-block-end
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-end
-    border_block_end: BorderBlockEnd = .none,
-    /// border-block-end-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-end-clip
-    border_block_end_clip: BorderBlockEndClip = .none,
-    /// border-block-end-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-end-color
-    border_block_end_color: BorderBlockEndColor = .none,
-    /// border-block-end-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-end-radius
-    border_block_end_radius: BorderBlockEndRadius = .none,
-    /// border-block-end-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-end-style
-    border_block_end_style: BorderBlockEndStyle = .none,
-    /// border-block-end-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-end-width
-    border_block_end_width: BorderBlockEndWidth = .none,
-    /// border-block-start
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-start
-    border_block_start: BorderBlockStart = .none,
-    /// border-block-start-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-start-clip
-    border_block_start_clip: BorderBlockStartClip = .none,
-    /// border-block-start-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-start-color
-    border_block_start_color: BorderBlockStartColor = .none,
-    /// border-block-start-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-start-radius
-    border_block_start_radius: BorderBlockStartRadius = .none,
-    /// border-block-start-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-start-style
-    border_block_start_style: BorderBlockStartStyle = .none,
-    /// border-block-start-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-start-width
-    border_block_start_width: BorderBlockStartWidth = .none,
-    /// border-block-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-style
-    border_block_style: BorderBlockStyle = .none,
-    /// border-block-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-width
-    border_block_width: BorderBlockWidth = .none,
-    /// border-bottom
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-bottom
-    border_bottom: BorderBottom = .none,
-    /// border-bottom-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-bottom-clip
-    border_bottom_clip: BorderBottomClip = .none,
-    /// border-bottom-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-bottom-color
-    border_bottom_color: BorderBottomColor = .none,
-    /// border-bottom-left-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-bottom-left-radius
-    border_bottom_left_radius: BorderBottomLeftRadius = .none,
-    /// border-bottom-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-bottom-radius
-    border_bottom_radius: BorderBottomRadius = .none,
-    /// border-bottom-right-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-bottom-right-radius
-    border_bottom_right_radius: BorderBottomRightRadius = .none,
-    /// border-bottom-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-bottom-style
-    border_bottom_style: BorderBottomStyle = .none,
-    /// border-bottom-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-bottom-width
-    border_bottom_width: BorderBottomWidth = .none,
-    /// border-boundary
-    /// - **W3C**: https://drafts.csswg.org/css-round-display-1/#propdef-border-boundary
-    border_boundary: BorderBoundary = .none,
-    /// border-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-clip
-    border_clip: BorderClip = .none,
-    /// border-collapse
-    /// - **W3C**: https://drafts.csswg.org/css-tables-3/#propdef-border-collapse
-    border_collapse: BorderCollapse = .none,
-    /// border-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-color
-    border_color: BorderColor = .none,
-    /// border-end-end-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-end-end-radius
-    border_end_end_radius: BorderEndEndRadius = .none,
-    /// border-end-start-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-end-start-radius
-    border_end_start_radius: BorderEndStartRadius = .none,
-    /// border-image
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-image
-    border_image: BorderImage = .none,
-    /// border-image-outset
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-image-outset
-    border_image_outset: BorderImageOutset = .none,
-    /// border-image-repeat
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-image-repeat
-    border_image_repeat: BorderImageRepeat = .none,
-    /// border-image-slice
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-image-slice
-    border_image_slice: BorderImageSlice = .none,
-    /// border-image-source
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-image-source
-    border_image_source: BorderImageSource = .none,
-    /// border-image-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-image-width
-    border_image_width: BorderImageWidth = .none,
-    /// border-inline
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline
-    border_inline: BorderInline = .none,
-    /// border-inline-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-clip
-    border_inline_clip: BorderInlineClip = .none,
-    /// border-inline-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-color
-    border_inline_color: BorderInlineColor = .none,
-    /// border-inline-end
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-end
-    border_inline_end: BorderInlineEnd = .none,
-    /// border-inline-end-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-end-clip
-    border_inline_end_clip: BorderInlineEndClip = .none,
-    /// border-inline-end-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-end-color
-    border_inline_end_color: BorderInlineEndColor = .none,
-    /// border-inline-end-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-end-radius
-    border_inline_end_radius: BorderInlineEndRadius = .none,
-    /// border-inline-end-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-end-style
-    border_inline_end_style: BorderInlineEndStyle = .none,
-    /// border-inline-end-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-end-width
-    border_inline_end_width: BorderInlineEndWidth = .none,
-    /// border-inline-start
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-start
-    border_inline_start: BorderInlineStart = .none,
-    /// border-inline-start-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-start-clip
-    border_inline_start_clip: BorderInlineStartClip = .none,
-    /// border-inline-start-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-start-color
-    border_inline_start_color: BorderInlineStartColor = .none,
-    /// border-inline-start-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-start-radius
-    border_inline_start_radius: BorderInlineStartRadius = .none,
-    /// border-inline-start-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-start-style
-    border_inline_start_style: BorderInlineStartStyle = .none,
-    /// border-inline-start-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-start-width
-    border_inline_start_width: BorderInlineStartWidth = .none,
-    /// border-inline-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-style
-    border_inline_style: BorderInlineStyle = .none,
-    /// border-inline-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-width
-    border_inline_width: BorderInlineWidth = .none,
-    /// border-left
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-left
-    border_left: BorderLeft = .none,
-    /// border-left-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-left-clip
-    border_left_clip: BorderLeftClip = .none,
-    /// border-left-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-left-color
-    border_left_color: BorderLeftColor = .none,
-    /// border-left-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-left-radius
-    border_left_radius: BorderLeftRadius = .none,
-    /// border-left-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-left-style
-    border_left_style: BorderLeftStyle = .none,
-    /// border-left-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-left-width
-    border_left_width: BorderLeftWidth = .none,
-    /// border-limit
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-limit
-    border_limit: BorderLimit = .none,
-    /// border-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-radius
-    border_radius: BorderRadius = .none,
-    /// border-right
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-right
-    border_right: BorderRight = .none,
-    /// border-right-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-right-clip
-    border_right_clip: BorderRightClip = .none,
-    /// border-right-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-right-color
-    border_right_color: BorderRightColor = .none,
-    /// border-right-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-right-radius
-    border_right_radius: BorderRightRadius = .none,
-    /// border-right-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-right-style
-    border_right_style: BorderRightStyle = .none,
-    /// border-right-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-right-width
-    border_right_width: BorderRightWidth = .none,
-    /// border-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-shape
-    border_shape: BorderShape = .none,
-    /// border-spacing
-    /// - **W3C**: https://drafts.csswg.org/css-tables-3/#propdef-border-spacing
-    border_spacing: BorderSpacing = .none,
-    /// border-start-end-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-start-end-radius
-    border_start_end_radius: BorderStartEndRadius = .none,
-    /// border-start-start-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-start-start-radius
-    border_start_start_radius: BorderStartStartRadius = .none,
-    /// border-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-style
-    border_style: BorderStyle = .none,
-    /// border-top
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-top
-    border_top: BorderTop = .none,
-    /// border-top-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-top-clip
-    border_top_clip: BorderTopClip = .none,
-    /// border-top-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-top-color
-    border_top_color: BorderTopColor = .none,
-    /// border-top-left-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-top-left-radius
-    border_top_left_radius: BorderTopLeftRadius = .none,
-    /// border-top-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-top-radius
-    border_top_radius: BorderTopRadius = .none,
-    /// border-top-right-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-top-right-radius
-    border_top_right_radius: BorderTopRightRadius = .none,
-    /// border-top-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-top-style
-    border_top_style: BorderTopStyle = .none,
-    /// border-top-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-top-width
-    border_top_width: BorderTopWidth = .none,
-    /// border-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-width
-    border_width: BorderWidth = .none,
-    /// bottom
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-bottom
-    bottom: Bottom = .none,
-    /// box-decoration-break
-    /// - **W3C**: https://drafts.csswg.org/css-break-4/#propdef-box-decoration-break
-    box_decoration_break: BoxDecorationBreak = .none,
-    /// box-shadow
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-box-shadow
-    box_shadow: BoxShadow = .none,
-    /// box-shadow-blur
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-box-shadow-blur
-    box_shadow_blur: BoxShadowBlur = .none,
-    /// box-shadow-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-box-shadow-color
-    box_shadow_color: BoxShadowColor = .none,
-    /// box-shadow-offset
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-box-shadow-offset
-    box_shadow_offset: BoxShadowOffset = .none,
-    /// box-shadow-position
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-box-shadow-position
-    box_shadow_position: BoxShadowPosition = .none,
-    /// box-shadow-spread
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-box-shadow-spread
-    box_shadow_spread: BoxShadowSpread = .none,
-    /// box-sizing
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-3/#propdef-box-sizing
-    box_sizing: BoxSizing = .none,
-    /// box-snap
-    /// - **W3C**: https://drafts.csswg.org/css-line-grid-1/#propdef-box-snap
-    box_snap: BoxSnap = .none,
-    /// break-after
-    /// - **W3C**: https://drafts.csswg.org/css-break-4/#propdef-break-after
-    break_after: BreakAfter = .none,
-    /// break-before
-    /// - **W3C**: https://drafts.csswg.org/css-break-4/#propdef-break-before
-    break_before: BreakBefore = .none,
-    /// break-inside
-    /// - **W3C**: https://drafts.csswg.org/css-break-4/#propdef-break-inside
-    break_inside: BreakInside = .none,
-    /// caption-side
-    /// - **W3C**: https://drafts.csswg.org/css-tables-3/#propdef-caption-side
-    caption_side: CaptionSide = .none,
-    /// caret
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-caret
-    caret: Caret = .none,
-    /// caret-animation
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-caret-animation
-    caret_animation: CaretAnimation = .none,
-    /// caret-color
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-caret-color
-    caret_color: CaretColor = .none,
-    /// caret-shape
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-caret-shape
-    caret_shape: CaretShape = .none,
-    /// clear
-    /// - **W3C**: https://drafts.csswg.org/css-page-floats-3/#propdef-clear
-    clear: Clear = .none,
-    /// clip
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-clip
-    clip: Clip = .none,
-    /// clip-path
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-clip-path
-    clip_path: ClipPath = .none,
-    /// clip-rule
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-clip-rule
-    clip_rule: ClipRule = .none,
-    /// color
-    /// - **W3C**: https://drafts.csswg.org/css-color-4/#propdef-color
-    color: CssColor = .none,
-    /// color-adjust
-    /// - **W3C**: https://drafts.csswg.org/css-color-adjust-1/#propdef-color-adjust
-    color_adjust: ColorAdjust = .none,
-    /// color-interpolation
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#ColorInterpolationProperty
-    color_interpolation: ColorInterpolation = .none,
-    /// color-interpolation-filters
-    /// - **W3C**: https://drafts.csswg.org/filter-effects-1/#propdef-color-interpolation-filters
-    color_interpolation_filters: ColorInterpolationFilters = .none,
-    /// color-scheme
-    /// - **W3C**: https://drafts.csswg.org/css-color-adjust-1/#propdef-color-scheme
-    color_scheme: ColorScheme = .none,
-    /// column-count
-    /// - **W3C**: https://drafts.csswg.org/css-multicol-2/#propdef-column-count
-    column_count: ColumnCount = .none,
-    /// column-fill
-    /// - **W3C**: https://drafts.csswg.org/css-multicol-2/#propdef-column-fill
-    column_fill: ColumnFill = .none,
-    /// column-gap
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-column-gap
-    column_gap: ColumnGap = .none,
-    /// column-height
-    /// - **W3C**: https://drafts.csswg.org/css-multicol-2/#propdef-column-height
-    column_height: ColumnHeight = .none,
-    /// column-rule
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule
-    column_rule: ColumnRule = .none,
-    /// column-rule-break
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-break
-    column_rule_break: ColumnRuleBreak = .none,
-    /// column-rule-color
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-color
-    column_rule_color: ColumnRuleColor = .none,
-    /// column-rule-edge-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-edge-inset
-    column_rule_edge_inset: ColumnRuleEdgeInset = .none,
-    /// column-rule-edge-inset-end
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-edge-inset-end
-    column_rule_edge_inset_end: ColumnRuleEdgeInsetEnd = .none,
-    /// column-rule-edge-inset-start
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-edge-inset-start
-    column_rule_edge_inset_start: ColumnRuleEdgeInsetStart = .none,
-    /// column-rule-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-inset
-    column_rule_inset: ColumnRuleInset = .none,
-    /// column-rule-inset-end
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-inset-end
-    column_rule_inset_end: ColumnRuleInsetEnd = .none,
-    /// column-rule-inset-start
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-inset-start
-    column_rule_inset_start: ColumnRuleInsetStart = .none,
-    /// column-rule-interior-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-interior-inset
-    column_rule_interior_inset: ColumnRuleInteriorInset = .none,
-    /// column-rule-interior-inset-end
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-interior-inset-end
-    column_rule_interior_inset_end: ColumnRuleInteriorInsetEnd = .none,
-    /// column-rule-interior-inset-start
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-interior-inset-start
-    column_rule_interior_inset_start: ColumnRuleInteriorInsetStart = .none,
-    /// column-rule-style
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-style
-    column_rule_style: ColumnRuleStyle = .none,
-    /// column-rule-visibility-items
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-visibility-items
-    column_rule_visibility_items: ColumnRuleVisibilityItems = .none,
-    /// column-rule-width
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-width
-    column_rule_width: ColumnRuleWidth = .none,
-    /// column-span
-    /// - **W3C**: https://drafts.csswg.org/css-multicol-2/#propdef-column-span
-    column_span: ColumnSpan = .none,
-    /// column-width
-    /// - **W3C**: https://drafts.csswg.org/css-multicol-2/#propdef-column-width
-    column_width: ColumnWidth = .none,
-    /// column-wrap
-    /// - **W3C**: https://drafts.csswg.org/css-multicol-2/#propdef-column-wrap
-    column_wrap: ColumnWrap = .none,
-    /// columns
-    /// - **W3C**: https://drafts.csswg.org/css-multicol-2/#propdef-columns
-    columns: Columns = .none,
-    /// contain
-    /// - **W3C**: https://drafts.csswg.org/css-contain-2/#propdef-contain
-    contain: Contain = .none,
-    /// contain-intrinsic-block-size
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-4/#propdef-contain-intrinsic-block-size
-    contain_intrinsic_block_size: ContainIntrinsicBlockSize = .none,
-    /// contain-intrinsic-height
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-4/#propdef-contain-intrinsic-height
-    contain_intrinsic_height: ContainIntrinsicHeight = .none,
-    /// contain-intrinsic-inline-size
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-4/#propdef-contain-intrinsic-inline-size
-    contain_intrinsic_inline_size: ContainIntrinsicInlineSize = .none,
-    /// contain-intrinsic-size
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-4/#propdef-contain-intrinsic-size
-    contain_intrinsic_size: ContainIntrinsicSize = .none,
-    /// contain-intrinsic-width
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-4/#propdef-contain-intrinsic-width
-    contain_intrinsic_width: ContainIntrinsicWidth = .none,
-    /// container
-    /// - **W3C**: https://drafts.csswg.org/css-conditional-5/#propdef-container
-    container: Container = .none,
-    /// container-name
-    /// - **W3C**: https://drafts.csswg.org/css-conditional-5/#propdef-container-name
-    container_name: ContainerName = .none,
-    /// container-type
-    /// - **W3C**: https://drafts.csswg.org/css-conditional-5/#propdef-container-type
-    container_type: ContainerType = .none,
-    /// content
-    /// - **W3C**: https://drafts.csswg.org/css-content-3/#propdef-content
-    content: Content = .none,
-    /// content-visibility
-    /// - **W3C**: https://drafts.csswg.org/css-contain-2/#propdef-content-visibility
-    content_visibility: ContentVisibility = .none,
-    /// continue
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-continue
-    @"continue": Continue = .none,
-    /// copy-into
-    /// - **W3C**: https://drafts.csswg.org/css-gcpm-4/#propdef-copy-into
-    copy_into: CopyInto = .none,
-    /// corner
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner
-    corner: Corner = .none,
-    /// corner-block-end
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-block-end
-    corner_block_end: CornerBlockEnd = .none,
-    /// corner-block-end-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-block-end-shape
-    corner_block_end_shape: CornerBlockEndShape = .none,
-    /// corner-block-start
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-block-start
-    corner_block_start: CornerBlockStart = .none,
-    /// corner-block-start-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-block-start-shape
-    corner_block_start_shape: CornerBlockStartShape = .none,
-    /// corner-bottom
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-bottom
-    corner_bottom: CornerBottom = .none,
-    /// corner-bottom-left
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-bottom-left
-    corner_bottom_left: CornerBottomLeft = .none,
-    /// corner-bottom-left-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-bottom-left-shape
-    corner_bottom_left_shape: CornerBottomLeftShape = .none,
-    /// corner-bottom-right
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-bottom-right
-    corner_bottom_right: CornerBottomRight = .none,
-    /// corner-bottom-right-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-bottom-right-shape
-    corner_bottom_right_shape: CornerBottomRightShape = .none,
-    /// corner-bottom-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-bottom-shape
-    corner_bottom_shape: CornerBottomShape = .none,
-    /// corner-end-end
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-end-end
-    corner_end_end: CornerEndEnd = .none,
-    /// corner-end-end-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-end-end-shape
-    corner_end_end_shape: CornerEndEndShape = .none,
-    /// corner-end-start
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-end-start
-    corner_end_start: CornerEndStart = .none,
-    /// corner-end-start-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-end-start-shape
-    corner_end_start_shape: CornerEndStartShape = .none,
-    /// corner-inline-end
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-inline-end
-    corner_inline_end: CornerInlineEnd = .none,
-    /// corner-inline-end-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-inline-end-shape
-    corner_inline_end_shape: CornerInlineEndShape = .none,
-    /// corner-inline-start
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-inline-start
-    corner_inline_start: CornerInlineStart = .none,
-    /// corner-inline-start-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-inline-start-shape
-    corner_inline_start_shape: CornerInlineStartShape = .none,
-    /// corner-left
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-left
-    corner_left: CornerLeft = .none,
-    /// corner-left-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-left-shape
-    corner_left_shape: CornerLeftShape = .none,
-    /// corner-right
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-right
-    corner_right: CornerRight = .none,
-    /// corner-right-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-right-shape
-    corner_right_shape: CornerRightShape = .none,
-    /// corner-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-shape
-    corner_shape: CornerShape = .none,
-    /// corner-start-end
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-start-end
-    corner_start_end: CornerStartEnd = .none,
-    /// corner-start-end-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-start-end-shape
-    corner_start_end_shape: CornerStartEndShape = .none,
-    /// corner-start-start
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-start-start
-    corner_start_start: CornerStartStart = .none,
-    /// corner-start-start-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-start-start-shape
-    corner_start_start_shape: CornerStartStartShape = .none,
-    /// corner-top
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-top
-    corner_top: CornerTop = .none,
-    /// corner-top-left
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-top-left
-    corner_top_left: CornerTopLeft = .none,
-    /// corner-top-left-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-top-left-shape
-    corner_top_left_shape: CornerTopLeftShape = .none,
-    /// corner-top-right
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-top-right
-    corner_top_right: CornerTopRight = .none,
-    /// corner-top-right-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-top-right-shape
-    corner_top_right_shape: CornerTopRightShape = .none,
-    /// corner-top-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-top-shape
-    corner_top_shape: CornerTopShape = .none,
-    /// counter-increment
-    /// - **W3C**: https://drafts.csswg.org/css-lists-3/#propdef-counter-increment
-    counter_increment: CounterIncrement = .none,
-    /// counter-reset
-    /// - **W3C**: https://drafts.csswg.org/css-lists-3/#propdef-counter-reset
-    counter_reset: CounterReset = .none,
-    /// counter-set
-    /// - **W3C**: https://drafts.csswg.org/css-lists-3/#propdef-counter-set
-    counter_set: CounterSet = .none,
-    /// cue
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-cue
-    cue: Cue = .none,
-    /// cue-after
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-cue-after
-    cue_after: CueAfter = .none,
-    /// cue-before
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-cue-before
-    cue_before: CueBefore = .none,
-    /// cursor
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-cursor
-    cursor: Cursor = .none,
-    /// cx
-    /// - **W3C**: https://svgwg.org/svg2-draft/geometry.html#CxProperty
-    cx: Cx = .none,
-    /// cy
-    /// - **W3C**: https://svgwg.org/svg2-draft/geometry.html#CyProperty
-    cy: Cy = .none,
-    /// d
-    /// - **W3C**: https://svgwg.org/svg2-draft/paths.html#DProperty
-    d: D = .none,
-    /// direction
-    /// - **W3C**: https://drafts.csswg.org/css-writing-modes-4/#propdef-direction
-    direction: Direction = .none,
-    /// display
-    /// - **W3C**: https://drafts.csswg.org/css-display-4/#propdef-display
-    display: Display = .none,
-    /// dominant-baseline
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-dominant-baseline
-    dominant_baseline: DominantBaseline = .none,
-    /// dynamic-range-limit
-    /// - **W3C**: https://drafts.csswg.org/css-color-hdr-1/#propdef-dynamic-range-limit
-    dynamic_range_limit: DynamicRangeLimit = .none,
-    /// empty-cells
-    /// - **W3C**: https://drafts.csswg.org/css-tables-3/#propdef-empty-cells
-    empty_cells: EmptyCells = .none,
-    /// event-trigger
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-event-trigger
-    event_trigger: EventTrigger = .none,
-    /// event-trigger-name
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-event-trigger-name
-    event_trigger_name: EventTriggerName = .none,
-    /// event-trigger-source
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-event-trigger-source
-    event_trigger_source: EventTriggerSource = .none,
-    /// field-sizing
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#propdef-field-sizing
-    field_sizing: FieldSizing = .none,
-    /// fill
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#FillProperty
-    fill: Fill = .none,
-    /// fill-break
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-break
-    fill_break: FillBreak = .none,
-    /// fill-color
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-color
-    fill_color: FillColor = .none,
-    /// fill-image
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-image
-    fill_image: FillImage = .none,
-    /// fill-opacity
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-opacity
-    fill_opacity: FillOpacity = .none,
-    /// fill-origin
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-origin
-    fill_origin: FillOrigin = .none,
-    /// fill-position
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-position
-    fill_position: FillPosition = .none,
-    /// fill-repeat
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-repeat
-    fill_repeat: FillRepeat = .none,
-    /// fill-rule
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-rule
-    fill_rule: FillRule = .none,
-    /// fill-size
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-size
-    fill_size: FillSize = .none,
-    /// filter
-    /// - **W3C**: https://drafts.csswg.org/filter-effects-1/#propdef-filter
-    filter: Filter = .none,
-    /// flex
-    /// - **W3C**: https://drafts.csswg.org/css-flexbox-1/#propdef-flex
-    flex: Flex = .none,
-    /// flex-basis
-    /// - **W3C**: https://drafts.csswg.org/css-flexbox-1/#propdef-flex-basis
-    flex_basis: FlexBasis = .none,
-    /// flex-direction
-    /// - **W3C**: https://drafts.csswg.org/css-flexbox-1/#propdef-flex-direction
-    flex_direction: FlexDirection = .none,
-    /// flex-flow
-    /// - **W3C**: https://drafts.csswg.org/css-flexbox-1/#propdef-flex-flow
-    flex_flow: FlexFlow = .none,
-    /// flex-grow
-    /// - **W3C**: https://drafts.csswg.org/css-flexbox-1/#propdef-flex-grow
-    flex_grow: FlexGrow = .none,
-    /// flex-shrink
-    /// - **W3C**: https://drafts.csswg.org/css-flexbox-1/#propdef-flex-shrink
-    flex_shrink: FlexShrink = .none,
-    /// flex-wrap
-    /// - **W3C**: https://drafts.csswg.org/css-flexbox-1/#propdef-flex-wrap
-    flex_wrap: FlexWrap = .none,
-    /// float
-    /// - **W3C**: https://drafts.csswg.org/css-page-floats-3/#propdef-float
-    float: Float = .none,
-    /// float-defer
-    /// - **W3C**: https://drafts.csswg.org/css-page-floats-3/#propdef-float-defer
-    float_defer: FloatDefer = .none,
-    /// float-offset
-    /// - **W3C**: https://drafts.csswg.org/css-page-floats-3/#propdef-float-offset
-    float_offset: FloatOffset = .none,
-    /// float-reference
-    /// - **W3C**: https://drafts.csswg.org/css-page-floats-3/#propdef-float-reference
-    float_reference: FloatReference = .none,
-    /// flood-color
-    /// - **W3C**: https://drafts.csswg.org/filter-effects-1/#propdef-flood-color
-    flood_color: FloodColor = .none,
-    /// flood-opacity
-    /// - **W3C**: https://drafts.csswg.org/filter-effects-1/#propdef-flood-opacity
-    flood_opacity: FloodOpacity = .none,
-    /// flow-from
-    /// - **W3C**: https://drafts.csswg.org/css-regions-1/#propdef-flow-from
-    flow_from: FlowFrom = .none,
-    /// flow-into
-    /// - **W3C**: https://drafts.csswg.org/css-regions-1/#propdef-flow-into
-    flow_into: FlowInto = .none,
-    /// flow-tolerance
-    /// - **W3C**: https://drafts.csswg.org/css-grid-3/#propdef-flow-tolerance
-    flow_tolerance: FlowTolerance = .none,
-    /// font
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font
-    font: Font = .none,
-    /// font-family
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-family
-    font_family: FontFamily = .none,
-    /// font-feature-settings
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-feature-settings
-    font_feature_settings: FontFeatureSettings = .none,
-    /// font-kerning
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-kerning
-    font_kerning: FontKerning = .none,
-    /// font-language-override
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-language-override
-    font_language_override: FontLanguageOverride = .none,
-    /// font-optical-sizing
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-optical-sizing
-    font_optical_sizing: FontOpticalSizing = .none,
-    /// font-palette
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-palette
-    font_palette: FontPalette = .none,
-    /// font-size
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-size
-    font_size: FontSize = .none,
-    /// font-size-adjust
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-5/#propdef-font-size-adjust
-    font_size_adjust: FontSizeAdjust = .none,
-    /// font-stretch
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-stretch
-    font_stretch: FontStretch = .none,
-    /// font-style
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-style
-    font_style: FontStyle = .none,
-    /// font-synthesis
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-synthesis
-    font_synthesis: FontSynthesis = .none,
-    /// font-synthesis-position
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-synthesis-position
-    font_synthesis_position: FontSynthesisPosition = .none,
-    /// font-synthesis-small-caps
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-synthesis-small-caps
-    font_synthesis_small_caps: FontSynthesisSmallCaps = .none,
-    /// font-synthesis-style
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-synthesis-style
-    font_synthesis_style: FontSynthesisStyle = .none,
-    /// font-synthesis-weight
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-synthesis-weight
-    font_synthesis_weight: FontSynthesisWeight = .none,
-    /// font-variant
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variant
-    font_variant: FontVariant = .none,
-    /// font-variant-alternates
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variant-alternates
-    font_variant_alternates: FontVariantAlternates = .none,
-    /// font-variant-caps
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variant-caps
-    font_variant_caps: FontVariantCaps = .none,
-    /// font-variant-east-asian
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variant-east-asian
-    font_variant_east_asian: FontVariantEastAsian = .none,
-    /// font-variant-emoji
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variant-emoji
-    font_variant_emoji: FontVariantEmoji = .none,
-    /// font-variant-ligatures
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variant-ligatures
-    font_variant_ligatures: FontVariantLigatures = .none,
-    /// font-variant-numeric
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variant-numeric
-    font_variant_numeric: FontVariantNumeric = .none,
-    /// font-variant-position
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variant-position
-    font_variant_position: FontVariantPosition = .none,
-    /// font-variation-settings
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variation-settings
-    font_variation_settings: FontVariationSettings = .none,
-    /// font-weight
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-weight
-    font_weight: FontWeight = .none,
-    /// font-width
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-width
-    font_width: FontWidth = .none,
-    /// footnote-display
-    /// - **W3C**: https://drafts.csswg.org/css-gcpm-3/#propdef-footnote-display
-    footnote_display: FootnoteDisplay = .none,
-    /// footnote-policy
-    /// - **W3C**: https://drafts.csswg.org/css-gcpm-3/#propdef-footnote-policy
-    footnote_policy: FootnotePolicy = .none,
-    /// forced-color-adjust
-    /// - **W3C**: https://drafts.csswg.org/css-color-adjust-1/#propdef-forced-color-adjust
-    forced_color_adjust: ForcedColorAdjust = .none,
-    /// gap
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-gap
-    gap: Gap = .none,
-    /// glyph-orientation-vertical
-    /// - **W3C**: https://drafts.csswg.org/css-writing-modes-4/#propdef-glyph-orientation-vertical
-    glyph_orientation_vertical: GlyphOrientationVertical = .none,
-    /// grid
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid
-    grid: Grid = .none,
-    /// grid-area
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-area
-    grid_area: GridArea = .none,
-    /// grid-auto-columns
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-auto-columns
-    grid_auto_columns: GridAutoColumns = .none,
-    /// grid-auto-flow
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-auto-flow
-    grid_auto_flow: GridAutoFlow = .none,
-    /// grid-auto-rows
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-auto-rows
-    grid_auto_rows: GridAutoRows = .none,
-    /// grid-column
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-column
-    grid_column: GridColumn = .none,
-    /// grid-column-end
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-column-end
-    grid_column_end: GridColumnEnd = .none,
-    /// grid-column-gap
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-grid-column-gap
-    grid_column_gap: GridColumnGap = .none,
-    /// grid-column-start
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-column-start
-    grid_column_start: GridColumnStart = .none,
-    /// grid-gap
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-grid-gap
-    grid_gap: GridGap = .none,
-    /// grid-row
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-row
-    grid_row: GridRow = .none,
-    /// grid-row-end
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-row-end
-    grid_row_end: GridRowEnd = .none,
-    /// grid-row-gap
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-grid-row-gap
-    grid_row_gap: GridRowGap = .none,
-    /// grid-row-start
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-row-start
-    grid_row_start: GridRowStart = .none,
-    /// grid-template
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-template
-    grid_template: GridTemplate = .none,
-    /// grid-template-areas
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-template-areas
-    grid_template_areas: GridTemplateAreas = .none,
-    /// grid-template-columns
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-template-columns
-    grid_template_columns: GridTemplateColumns = .none,
-    /// grid-template-rows
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-template-rows
-    grid_template_rows: GridTemplateRows = .none,
-    /// hanging-punctuation
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-hanging-punctuation
-    hanging_punctuation: HangingPunctuation = .none,
-    /// height
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-3/#propdef-height
-    height: Height = .none,
-    /// hyphenate-character
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-hyphenate-character
-    hyphenate_character: HyphenateCharacter = .none,
-    /// hyphenate-limit-chars
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-chars
-    hyphenate_limit_chars: HyphenateLimitChars = .none,
-    /// hyphenate-limit-last
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-last
-    hyphenate_limit_last: HyphenateLimitLast = .none,
-    /// hyphenate-limit-lines
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-lines
-    hyphenate_limit_lines: HyphenateLimitLines = .none,
-    /// hyphenate-limit-zone
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-zone
-    hyphenate_limit_zone: HyphenateLimitZone = .none,
-    /// hyphens
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-hyphens
-    hyphens: Hyphens = .none,
-    /// image-animation
-    /// - **W3C**: https://drafts.csswg.org/css-image-animation-1/#propdef-image-animation
-    image_animation: ImageAnimation = .none,
-    /// image-orientation
-    /// - **W3C**: https://drafts.csswg.org/css-images-3/#propdef-image-orientation
-    image_orientation: ImageOrientation = .none,
-    /// image-rendering
-    /// - **W3C**: https://drafts.csswg.org/css-images-3/#propdef-image-rendering
-    image_rendering: ImageRendering = .none,
-    /// image-resolution
-    /// - **W3C**: https://drafts.csswg.org/css-images-4/#propdef-image-resolution
-    image_resolution: ImageResolution = .none,
-    /// initial-letter
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-initial-letter
-    initial_letter: InitialLetter = .none,
-    /// initial-letter-align
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-initial-letter-align
-    initial_letter_align: InitialLetterAlign = .none,
-    /// initial-letter-wrap
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-initial-letter-wrap
-    initial_letter_wrap: InitialLetterWrap = .none,
-    /// inline-size
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-inline-size
-    inline_size: InlineSize = .none,
-    /// inline-sizing
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-inline-sizing
-    inline_sizing: InlineSizing = .none,
-    /// input-security
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#propdef-input-security
-    input_security: InputSecurity = .none,
-    /// inset
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-inset
-    inset: Inset = .none,
-    /// inset-block
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-inset-block
-    inset_block: InsetBlock = .none,
-    /// inset-block-end
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-inset-block-end
-    inset_block_end: InsetBlockEnd = .none,
-    /// inset-block-start
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-inset-block-start
-    inset_block_start: InsetBlockStart = .none,
-    /// inset-inline
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-inset-inline
-    inset_inline: InsetInline = .none,
-    /// inset-inline-end
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-inset-inline-end
-    inset_inline_end: InsetInlineEnd = .none,
-    /// inset-inline-start
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-inset-inline-start
-    inset_inline_start: InsetInlineStart = .none,
-    /// interactivity
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-interactivity
-    interactivity: Interactivity = .none,
-    /// interest-delay
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-interest-delay
-    interest_delay: InterestDelay = .none,
-    /// interest-delay-end
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-interest-delay-end
-    interest_delay_end: InterestDelayEnd = .none,
-    /// interest-delay-start
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-interest-delay-start
-    interest_delay_start: InterestDelayStart = .none,
-    /// interpolate-size
-    /// - **W3C**: https://drafts.csswg.org/css-values-5/#propdef-interpolate-size
-    interpolate_size: InterpolateSize = .none,
-    /// isolation
-    /// - **W3C**: https://drafts.csswg.org/compositing-2/#propdef-isolation
-    isolation: Isolation = .none,
-    /// justify-content
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-justify-content
-    justify_content: JustifyContent = .none,
-    /// justify-items
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-justify-items
-    justify_items: JustifyItems = .none,
-    /// justify-self
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-justify-self
-    justify_self: JustifySelf = .none,
-    /// left
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-left
-    left: Left = .none,
-    /// letter-spacing
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-letter-spacing
-    letter_spacing: LetterSpacing = .none,
-    /// lighting-color
-    /// - **W3C**: https://drafts.csswg.org/filter-effects-1/#propdef-lighting-color
-    lighting_color: LightingColor = .none,
-    /// line-break
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-line-break
-    line_break: LineBreak = .none,
-    /// line-clamp
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-line-clamp
-    line_clamp: LineClamp = .none,
-    /// line-fit-edge
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-line-fit-edge
-    line_fit_edge: LineFitEdge = .none,
-    /// line-grid
-    /// - **W3C**: https://drafts.csswg.org/css-line-grid-1/#propdef-line-grid
-    line_grid: LineGrid = .none,
-    /// line-height
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-line-height
-    line_height: LineHeight = .none,
-    /// line-height-step
-    /// - **W3C**: https://drafts.csswg.org/css-rhythm-1/#propdef-line-height-step
-    line_height_step: LineHeightStep = .none,
-    /// line-padding
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-line-padding
-    line_padding: LinePadding = .none,
-    /// line-snap
-    /// - **W3C**: https://drafts.csswg.org/css-line-grid-1/#propdef-line-snap
-    line_snap: LineSnap = .none,
-    /// link-parameters
-    /// - **W3C**: https://drafts.csswg.org/css-link-params-1/#propdef-link-parameters
-    link_parameters: LinkParameters = .none,
-    /// list-style
-    /// - **W3C**: https://drafts.csswg.org/css-lists-3/#propdef-list-style
-    list_style: ListStyle = .none,
-    /// list-style-image
-    /// - **W3C**: https://drafts.csswg.org/css-lists-3/#propdef-list-style-image
-    list_style_image: ListStyleImage = .none,
-    /// list-style-position
-    /// - **W3C**: https://drafts.csswg.org/css-lists-3/#propdef-list-style-position
-    list_style_position: ListStylePosition = .none,
-    /// list-style-type
-    /// - **W3C**: https://drafts.csswg.org/css-lists-3/#propdef-list-style-type
-    list_style_type: ListStyleType = .none,
-    /// margin
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-margin
-    margin: Margin = .none,
-    /// margin-block
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-margin-block
-    margin_block: MarginBlock = .none,
-    /// margin-block-end
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-margin-block-end
-    margin_block_end: MarginBlockEnd = .none,
-    /// margin-block-start
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-margin-block-start
-    margin_block_start: MarginBlockStart = .none,
-    /// margin-bottom
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-margin-bottom
-    margin_bottom: MarginBottom = .none,
-    /// margin-break
-    /// - **W3C**: https://drafts.csswg.org/css-break-4/#propdef-margin-break
-    margin_break: MarginBreak = .none,
-    /// margin-inline
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-margin-inline
-    margin_inline: MarginInline = .none,
-    /// margin-inline-end
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-margin-inline-end
-    margin_inline_end: MarginInlineEnd = .none,
-    /// margin-inline-start
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-margin-inline-start
-    margin_inline_start: MarginInlineStart = .none,
-    /// margin-left
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-margin-left
-    margin_left: MarginLeft = .none,
-    /// margin-right
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-margin-right
-    margin_right: MarginRight = .none,
-    /// margin-top
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-margin-top
-    margin_top: MarginTop = .none,
-    /// margin-trim
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-margin-trim
-    margin_trim: MarginTrim = .none,
-    /// marker
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#MarkerProperty
-    marker: Marker = .none,
-    /// marker-end
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#MarkerEndProperty
-    marker_end: MarkerEnd = .none,
-    /// marker-mid
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#MarkerMidProperty
-    marker_mid: MarkerMid = .none,
-    /// marker-side
-    /// - **W3C**: https://drafts.csswg.org/css-lists-3/#propdef-marker-side
-    marker_side: MarkerSide = .none,
-    /// marker-start
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#MarkerStartProperty
-    marker_start: MarkerStart = .none,
-    /// mask
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask
-    mask: Mask = .none,
-    /// mask-border
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-border
-    mask_border: MaskBorder = .none,
-    /// mask-border-mode
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-border-mode
-    mask_border_mode: MaskBorderMode = .none,
-    /// mask-border-outset
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-border-outset
-    mask_border_outset: MaskBorderOutset = .none,
-    /// mask-border-repeat
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-border-repeat
-    mask_border_repeat: MaskBorderRepeat = .none,
-    /// mask-border-slice
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-border-slice
-    mask_border_slice: MaskBorderSlice = .none,
-    /// mask-border-source
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-border-source
-    mask_border_source: MaskBorderSource = .none,
-    /// mask-border-width
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-border-width
-    mask_border_width: MaskBorderWidth = .none,
-    /// mask-clip
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-clip
-    mask_clip: MaskClip = .none,
-    /// mask-composite
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-composite
-    mask_composite: MaskComposite = .none,
-    /// mask-image
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-image
-    mask_image: MaskImage = .none,
-    /// mask-mode
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-mode
-    mask_mode: MaskMode = .none,
-    /// mask-origin
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-origin
-    mask_origin: MaskOrigin = .none,
-    /// mask-position
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-position
-    mask_position: MaskPosition = .none,
-    /// mask-repeat
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-repeat
-    mask_repeat: MaskRepeat = .none,
-    /// mask-size
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-size
-    mask_size: MaskSize = .none,
-    /// mask-type
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-type
-    mask_type: MaskType = .none,
-    /// math-depth
-    /// - **W3C**: https://w3c.github.io/mathml-core/#propdef-math-depth
-    math_depth: MathDepth = .none,
-    /// math-shift
-    /// - **W3C**: https://w3c.github.io/mathml-core/#propdef-math-shift
-    math_shift: MathShift = .none,
-    /// math-style
-    /// - **W3C**: https://w3c.github.io/mathml-core/#propdef-math-style
-    math_style: MathStyle = .none,
-    /// max-block-size
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-max-block-size
-    max_block_size: MaxBlockSize = .none,
-    /// max-height
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-3/#propdef-max-height
-    max_height: MaxHeight = .none,
-    /// max-inline-size
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-max-inline-size
-    max_inline_size: MaxInlineSize = .none,
-    /// max-lines
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-max-lines
-    max_lines: MaxLines = .none,
-    /// max-width
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-3/#propdef-max-width
-    max_width: MaxWidth = .none,
-    /// min-block-size
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-min-block-size
-    min_block_size: MinBlockSize = .none,
-    /// min-height
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-3/#propdef-min-height
-    min_height: MinHeight = .none,
-    /// min-inline-size
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-min-inline-size
-    min_inline_size: MinInlineSize = .none,
-    /// min-intrinsic-sizing
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-4/#propdef-min-intrinsic-sizing
-    min_intrinsic_sizing: MinIntrinsicSizing = .none,
-    /// min-width
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-3/#propdef-min-width
-    min_width: MinWidth = .none,
-    /// mix-blend-mode
-    /// - **W3C**: https://drafts.csswg.org/compositing-2/#propdef-mix-blend-mode
-    mix_blend_mode: MixBlendMode = .none,
-    /// nav-down
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-nav-down
-    nav_down: NavDown = .none,
-    /// nav-left
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-nav-left
-    nav_left: NavLeft = .none,
-    /// nav-right
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-nav-right
-    nav_right: NavRight = .none,
-    /// nav-up
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-nav-up
-    nav_up: NavUp = .none,
-    /// object-fit
-    /// - **W3C**: https://drafts.csswg.org/css-images-4/#propdef-object-fit
-    object_fit: ObjectFit = .none,
-    /// object-position
-    /// - **W3C**: https://drafts.csswg.org/css-images-3/#propdef-object-position
-    object_position: ObjectPosition = .none,
-    /// object-view-box
-    /// - **W3C**: https://drafts.csswg.org/css-images-5/#propdef-object-view-box
-    object_view_box: ObjectViewBox = .none,
-    /// offset
-    /// - **W3C**: https://drafts.csswg.org/motion-1/#propdef-offset
-    offset: Offset = .none,
-    /// offset-anchor
-    /// - **W3C**: https://drafts.csswg.org/motion-1/#propdef-offset-anchor
-    offset_anchor: OffsetAnchor = .none,
-    /// offset-distance
-    /// - **W3C**: https://drafts.csswg.org/motion-1/#propdef-offset-distance
-    offset_distance: OffsetDistance = .none,
-    /// offset-path
-    /// - **W3C**: https://drafts.csswg.org/motion-1/#propdef-offset-path
-    offset_path: OffsetPath = .none,
-    /// offset-position
-    /// - **W3C**: https://drafts.csswg.org/motion-1/#propdef-offset-position
-    offset_position: OffsetPosition = .none,
-    /// offset-rotate
-    /// - **W3C**: https://drafts.csswg.org/motion-1/#propdef-offset-rotate
-    offset_rotate: OffsetRotate = .none,
-    /// opacity
-    /// - **W3C**: https://drafts.csswg.org/css-color-4/#propdef-opacity
-    opacity: Opacity = .none,
-    /// order
-    /// - **W3C**: https://drafts.csswg.org/css-display-4/#propdef-order
-    order: Order = .none,
-    /// orphans
-    /// - **W3C**: https://drafts.csswg.org/css-break-4/#propdef-orphans
-    orphans: Orphans = .none,
-    /// outline
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-outline
-    outline: Outline = .none,
-    /// outline-color
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-outline-color
-    outline_color: OutlineColor = .none,
-    /// outline-offset
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-outline-offset
-    outline_offset: OutlineOffset = .none,
-    /// outline-style
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-outline-style
-    outline_style: OutlineStyle = .none,
-    /// outline-width
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-outline-width
-    outline_width: OutlineWidth = .none,
-    /// overflow
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-3/#propdef-overflow
-    overflow: Overflow = .none,
-    /// overflow-anchor
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-anchoring-1/#propdef-overflow-anchor
-    overflow_anchor: OverflowAnchor = .none,
-    /// overflow-block
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-3/#propdef-overflow-block
-    overflow_block: OverflowBlock = .none,
-    /// overflow-clip-margin
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin
-    overflow_clip_margin: OverflowClipMargin = .none,
-    /// overflow-clip-margin-block
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-block
-    overflow_clip_margin_block: OverflowClipMarginBlock = .none,
-    /// overflow-clip-margin-block-end
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-block-end
-    overflow_clip_margin_block_end: OverflowClipMarginBlockEnd = .none,
-    /// overflow-clip-margin-block-start
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-block-start
-    overflow_clip_margin_block_start: OverflowClipMarginBlockStart = .none,
-    /// overflow-clip-margin-bottom
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-bottom
-    overflow_clip_margin_bottom: OverflowClipMarginBottom = .none,
-    /// overflow-clip-margin-inline
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-inline
-    overflow_clip_margin_inline: OverflowClipMarginInline = .none,
-    /// overflow-clip-margin-inline-end
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-inline-end
-    overflow_clip_margin_inline_end: OverflowClipMarginInlineEnd = .none,
-    /// overflow-clip-margin-inline-start
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-inline-start
-    overflow_clip_margin_inline_start: OverflowClipMarginInlineStart = .none,
-    /// overflow-clip-margin-left
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-left
-    overflow_clip_margin_left: OverflowClipMarginLeft = .none,
-    /// overflow-clip-margin-right
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-right
-    overflow_clip_margin_right: OverflowClipMarginRight = .none,
-    /// overflow-clip-margin-top
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-top
-    overflow_clip_margin_top: OverflowClipMarginTop = .none,
-    /// overflow-inline
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-3/#propdef-overflow-inline
-    overflow_inline: OverflowInline = .none,
-    /// overflow-wrap
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-overflow-wrap
-    overflow_wrap: OverflowWrap = .none,
-    /// overflow-x
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-3/#propdef-overflow-x
-    overflow_x: OverflowX = .none,
-    /// overflow-y
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-3/#propdef-overflow-y
-    overflow_y: OverflowY = .none,
-    /// overlay
-    /// - **W3C**: https://drafts.csswg.org/css-position-4/#propdef-overlay
-    overlay: Overlay = .none,
-    /// overscroll-behavior
-    /// - **W3C**: https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior
-    overscroll_behavior: OverscrollBehavior = .none,
-    /// overscroll-behavior-block
-    /// - **W3C**: https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior-block
-    overscroll_behavior_block: OverscrollBehaviorBlock = .none,
-    /// overscroll-behavior-inline
-    /// - **W3C**: https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior-inline
-    overscroll_behavior_inline: OverscrollBehaviorInline = .none,
-    /// overscroll-behavior-x
-    /// - **W3C**: https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior-x
-    overscroll_behavior_x: OverscrollBehaviorX = .none,
-    /// overscroll-behavior-y
-    /// - **W3C**: https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior-y
-    overscroll_behavior_y: OverscrollBehaviorY = .none,
-    /// padding
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-padding
-    padding: Padding = .none,
-    /// padding-block
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-padding-block
-    padding_block: PaddingBlock = .none,
-    /// padding-block-end
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-padding-block-end
-    padding_block_end: PaddingBlockEnd = .none,
-    /// padding-block-start
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-padding-block-start
-    padding_block_start: PaddingBlockStart = .none,
-    /// padding-bottom
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-padding-bottom
-    padding_bottom: PaddingBottom = .none,
-    /// padding-inline
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-padding-inline
-    padding_inline: PaddingInline = .none,
-    /// padding-inline-end
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-padding-inline-end
-    padding_inline_end: PaddingInlineEnd = .none,
-    /// padding-inline-start
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-padding-inline-start
-    padding_inline_start: PaddingInlineStart = .none,
-    /// padding-left
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-padding-left
-    padding_left: PaddingLeft = .none,
-    /// padding-right
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-padding-right
-    padding_right: PaddingRight = .none,
-    /// padding-top
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-padding-top
-    padding_top: PaddingTop = .none,
-    /// page
-    /// - **W3C**: https://drafts.csswg.org/css-page-3/#propdef-page
-    page: Page = .none,
-    /// page-break-after
-    /// - **W3C**: https://drafts.csswg.org/css2/#propdef-page-break-after
-    page_break_after: PageBreakAfter = .none,
-    /// page-break-before
-    /// - **W3C**: https://drafts.csswg.org/css2/#propdef-page-break-before
-    page_break_before: PageBreakBefore = .none,
-    /// page-break-inside
-    /// - **W3C**: https://drafts.csswg.org/css2/#propdef-page-break-inside
-    page_break_inside: PageBreakInside = .none,
-    /// paint-order
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#PaintOrderProperty
-    paint_order: PaintOrder = .none,
-    /// pause
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-pause
-    pause: Pause = .none,
-    /// pause-after
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-pause-after
-    pause_after: PauseAfter = .none,
-    /// pause-before
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-pause-before
-    pause_before: PauseBefore = .none,
-    /// perspective
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-2/#propdef-perspective
-    perspective: Perspective = .none,
-    /// perspective-origin
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-2/#propdef-perspective-origin
-    perspective_origin: PerspectiveOrigin = .none,
-    /// place-content
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-place-content
-    place_content: PlaceContent = .none,
-    /// place-items
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-place-items
-    place_items: PlaceItems = .none,
-    /// place-self
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-place-self
-    place_self: PlaceSelf = .none,
-    /// pointer-events
-    /// - **W3C**: https://svgwg.org/svg2-draft/interact.html#PointerEventsProperty
-    pointer_events: PointerEvents = .none,
-    /// pointer-timeline
-    /// - **W3C**: https://drafts.csswg.org/pointer-animations-1/#propdef-pointer-timeline
-    pointer_timeline: PointerTimeline = .none,
-    /// pointer-timeline-axis
-    /// - **W3C**: https://drafts.csswg.org/pointer-animations-1/#propdef-pointer-timeline-axis
-    pointer_timeline_axis: PointerTimelineAxis = .none,
-    /// pointer-timeline-name
-    /// - **W3C**: https://drafts.csswg.org/pointer-animations-1/#propdef-pointer-timeline-name
-    pointer_timeline_name: PointerTimelineName = .none,
-    /// position
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-position
-    position: Position = .none,
-    /// position-anchor
-    /// - **W3C**: https://drafts.csswg.org/css-anchor-position-1/#propdef-position-anchor
-    position_anchor: PositionAnchor = .none,
-    /// position-area
-    /// - **W3C**: https://drafts.csswg.org/css-anchor-position-1/#propdef-position-area
-    position_area: PositionArea = .none,
-    /// position-try
-    /// - **W3C**: https://drafts.csswg.org/css-anchor-position-1/#propdef-position-try
-    position_try: PositionTry = .none,
-    /// position-try-fallbacks
-    /// - **W3C**: https://drafts.csswg.org/css-anchor-position-1/#propdef-position-try-fallbacks
-    position_try_fallbacks: PositionTryFallbacks = .none,
-    /// position-try-order
-    /// - **W3C**: https://drafts.csswg.org/css-anchor-position-1/#propdef-position-try-order
-    position_try_order: PositionTryOrder = .none,
-    /// position-visibility
-    /// - **W3C**: https://drafts.csswg.org/css-anchor-position-1/#propdef-position-visibility
-    position_visibility: PositionVisibility = .none,
-    /// print-color-adjust
-    /// - **W3C**: https://drafts.csswg.org/css-color-adjust-1/#propdef-print-color-adjust
-    print_color_adjust: PrintColorAdjust = .none,
-    /// quotes
-    /// - **W3C**: https://drafts.csswg.org/css-content-3/#propdef-quotes
-    quotes: Quotes = .none,
-    /// r
-    /// - **W3C**: https://svgwg.org/svg2-draft/geometry.html#RProperty
-    r: R = .none,
-    /// reading-flow
-    /// - **W3C**: https://drafts.csswg.org/css-display-4/#propdef-reading-flow
-    reading_flow: ReadingFlow = .none,
-    /// reading-order
-    /// - **W3C**: https://drafts.csswg.org/css-display-4/#propdef-reading-order
-    reading_order: ReadingOrder = .none,
-    /// region-fragment
-    /// - **W3C**: https://drafts.csswg.org/css-regions-1/#propdef-region-fragment
-    region_fragment: RegionFragment = .none,
-    /// resize
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-resize
-    resize: Resize = .none,
-    /// rest
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-rest
-    rest: Rest = .none,
-    /// rest-after
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-rest-after
-    rest_after: RestAfter = .none,
-    /// rest-before
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-rest-before
-    rest_before: RestBefore = .none,
-    /// right
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-right
-    right: Right = .none,
-    /// rotate
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-2/#propdef-rotate
-    rotate: Rotate = .none,
-    /// row-gap
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-row-gap
-    row_gap: RowGap = .none,
-    /// row-rule
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule
-    row_rule: RowRule = .none,
-    /// row-rule-break
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-break
-    row_rule_break: RowRuleBreak = .none,
-    /// row-rule-color
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-color
-    row_rule_color: RowRuleColor = .none,
-    /// row-rule-edge-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-edge-inset
-    row_rule_edge_inset: RowRuleEdgeInset = .none,
-    /// row-rule-edge-inset-end
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-edge-inset-end
-    row_rule_edge_inset_end: RowRuleEdgeInsetEnd = .none,
-    /// row-rule-edge-inset-start
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-edge-inset-start
-    row_rule_edge_inset_start: RowRuleEdgeInsetStart = .none,
-    /// row-rule-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-inset
-    row_rule_inset: RowRuleInset = .none,
-    /// row-rule-inset-end
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-inset-end
-    row_rule_inset_end: RowRuleInsetEnd = .none,
-    /// row-rule-inset-start
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-inset-start
-    row_rule_inset_start: RowRuleInsetStart = .none,
-    /// row-rule-interior-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-interior-inset
-    row_rule_interior_inset: RowRuleInteriorInset = .none,
-    /// row-rule-interior-inset-end
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-interior-inset-end
-    row_rule_interior_inset_end: RowRuleInteriorInsetEnd = .none,
-    /// row-rule-interior-inset-start
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-interior-inset-start
-    row_rule_interior_inset_start: RowRuleInteriorInsetStart = .none,
-    /// row-rule-style
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-style
-    row_rule_style: RowRuleStyle = .none,
-    /// row-rule-visibility-items
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-visibility-items
-    row_rule_visibility_items: RowRuleVisibilityItems = .none,
-    /// row-rule-width
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-width
-    row_rule_width: RowRuleWidth = .none,
-    /// ruby-align
-    /// - **W3C**: https://drafts.csswg.org/css-ruby-1/#propdef-ruby-align
-    ruby_align: RubyAlign = .none,
-    /// ruby-merge
-    /// - **W3C**: https://drafts.csswg.org/css-ruby-1/#propdef-ruby-merge
-    ruby_merge: RubyMerge = .none,
-    /// ruby-overhang
-    /// - **W3C**: https://drafts.csswg.org/css-ruby-1/#propdef-ruby-overhang
-    ruby_overhang: RubyOverhang = .none,
-    /// ruby-position
-    /// - **W3C**: https://drafts.csswg.org/css-ruby-1/#propdef-ruby-position
-    ruby_position: RubyPosition = .none,
-    /// rule
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule
-    rule: Rule = .none,
-    /// rule-break
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-break
-    rule_break: RuleBreak = .none,
-    /// rule-color
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-color
-    rule_color: RuleColor = .none,
-    /// rule-edge-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-edge-inset
-    rule_edge_inset: RuleEdgeInset = .none,
-    /// rule-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-inset
-    rule_inset: RuleInset = .none,
-    /// rule-inset-end
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-inset-end
-    rule_inset_end: RuleInsetEnd = .none,
-    /// rule-inset-start
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-inset-start
-    rule_inset_start: RuleInsetStart = .none,
-    /// rule-interior-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-interior-inset
-    rule_interior_inset: RuleInteriorInset = .none,
-    /// rule-overlap
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-overlap
-    rule_overlap: RuleOverlap = .none,
-    /// rule-style
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-style
-    rule_style: RuleStyle = .none,
-    /// rule-visibility-items
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-visibility-items
-    rule_visibility_items: RuleVisibilityItems = .none,
-    /// rule-width
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-width
-    rule_width: RuleWidth = .none,
-    /// rx
-    /// - **W3C**: https://svgwg.org/svg2-draft/geometry.html#RxProperty
-    rx: Rx = .none,
-    /// ry
-    /// - **W3C**: https://svgwg.org/svg2-draft/geometry.html#RyProperty
-    ry: Ry = .none,
-    /// scale
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-2/#propdef-scale
-    scale: Scale = .none,
-    /// scroll-behavior
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-3/#propdef-scroll-behavior
-    scroll_behavior: ScrollBehavior = .none,
-    /// scroll-initial-target
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-2/#propdef-scroll-initial-target
-    scroll_initial_target: ScrollInitialTarget = .none,
-    /// scroll-margin
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin
-    scroll_margin: ScrollMargin = .none,
-    /// scroll-margin-block
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-block
-    scroll_margin_block: ScrollMarginBlock = .none,
-    /// scroll-margin-block-end
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-block-end
-    scroll_margin_block_end: ScrollMarginBlockEnd = .none,
-    /// scroll-margin-block-start
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-block-start
-    scroll_margin_block_start: ScrollMarginBlockStart = .none,
-    /// scroll-margin-bottom
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-bottom
-    scroll_margin_bottom: ScrollMarginBottom = .none,
-    /// scroll-margin-inline
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-inline
-    scroll_margin_inline: ScrollMarginInline = .none,
-    /// scroll-margin-inline-end
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-inline-end
-    scroll_margin_inline_end: ScrollMarginInlineEnd = .none,
-    /// scroll-margin-inline-start
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-inline-start
-    scroll_margin_inline_start: ScrollMarginInlineStart = .none,
-    /// scroll-margin-left
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-left
-    scroll_margin_left: ScrollMarginLeft = .none,
-    /// scroll-margin-right
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-right
-    scroll_margin_right: ScrollMarginRight = .none,
-    /// scroll-margin-top
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-top
-    scroll_margin_top: ScrollMarginTop = .none,
-    /// scroll-marker-group
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-5/#propdef-scroll-marker-group
-    scroll_marker_group: ScrollMarkerGroup = .none,
-    /// scroll-padding
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding
-    scroll_padding: ScrollPadding = .none,
-    /// scroll-padding-block
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-block
-    scroll_padding_block: ScrollPaddingBlock = .none,
-    /// scroll-padding-block-end
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-block-end
-    scroll_padding_block_end: ScrollPaddingBlockEnd = .none,
-    /// scroll-padding-block-start
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-block-start
-    scroll_padding_block_start: ScrollPaddingBlockStart = .none,
-    /// scroll-padding-bottom
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-bottom
-    scroll_padding_bottom: ScrollPaddingBottom = .none,
-    /// scroll-padding-inline
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-inline
-    scroll_padding_inline: ScrollPaddingInline = .none,
-    /// scroll-padding-inline-end
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-inline-end
-    scroll_padding_inline_end: ScrollPaddingInlineEnd = .none,
-    /// scroll-padding-inline-start
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-inline-start
-    scroll_padding_inline_start: ScrollPaddingInlineStart = .none,
-    /// scroll-padding-left
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-left
-    scroll_padding_left: ScrollPaddingLeft = .none,
-    /// scroll-padding-right
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-right
-    scroll_padding_right: ScrollPaddingRight = .none,
-    /// scroll-padding-top
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-top
-    scroll_padding_top: ScrollPaddingTop = .none,
-    /// scroll-snap-align
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-snap-align
-    scroll_snap_align: ScrollSnapAlign = .none,
-    /// scroll-snap-stop
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-snap-stop
-    scroll_snap_stop: ScrollSnapStop = .none,
-    /// scroll-snap-type
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-snap-type
-    scroll_snap_type: ScrollSnapType = .none,
-    /// scroll-target-group
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-5/#propdef-scroll-target-group
-    scroll_target_group: ScrollTargetGroup = .none,
-    /// scroll-timeline
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-scroll-timeline
-    scroll_timeline: ScrollTimeline = .none,
-    /// scroll-timeline-axis
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-scroll-timeline-axis
-    scroll_timeline_axis: ScrollTimelineAxis = .none,
-    /// scroll-timeline-name
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-scroll-timeline-name
-    scroll_timeline_name: ScrollTimelineName = .none,
-    /// scrollbar-color
-    /// - **W3C**: https://drafts.csswg.org/css-scrollbars-1/#propdef-scrollbar-color
-    scrollbar_color: ScrollbarColor = .none,
-    /// scrollbar-gutter
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-3/#propdef-scrollbar-gutter
-    scrollbar_gutter: ScrollbarGutter = .none,
-    /// scrollbar-width
-    /// - **W3C**: https://drafts.csswg.org/css-scrollbars-1/#propdef-scrollbar-width
-    scrollbar_width: ScrollbarWidth = .none,
-    /// shape-image-threshold
-    /// - **W3C**: https://drafts.csswg.org/css-shapes-1/#propdef-shape-image-threshold
-    shape_image_threshold: ShapeImageThreshold = .none,
-    /// shape-inside
-    /// - **W3C**: https://drafts.csswg.org/css-shapes-2/#propdef-shape-inside
-    shape_inside: ShapeInside = .none,
-    /// shape-margin
-    /// - **W3C**: https://drafts.csswg.org/css-shapes-1/#propdef-shape-margin
-    shape_margin: ShapeMargin = .none,
-    /// shape-outside
-    /// - **W3C**: https://drafts.csswg.org/css-shapes-1/#propdef-shape-outside
-    shape_outside: ShapeOutside = .none,
-    /// shape-padding
-    /// - **W3C**: https://drafts.csswg.org/css-shapes-2/#propdef-shape-padding
-    shape_padding: ShapePadding = .none,
-    /// shape-rendering
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#ShapeRenderingProperty
-    shape_rendering: ShapeRendering = .none,
-    /// shape-subtract
-    /// - **W3C**: https://svgwg.org/svg2-draft/text.html#ShapesubtractProperty
-    shape_subtract: ShapeSubtract = .none,
-    /// slider-orientation
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#propdef-slider-orientation
-    slider_orientation: SliderOrientation = .none,
-    /// spatial-navigation-action
-    /// - **W3C**: https://drafts.csswg.org/css-nav-1/#propdef-spatial-navigation-action
-    spatial_navigation_action: SpatialNavigationAction = .none,
-    /// spatial-navigation-contain
-    /// - **W3C**: https://drafts.csswg.org/css-nav-1/#propdef-spatial-navigation-contain
-    spatial_navigation_contain: SpatialNavigationContain = .none,
-    /// spatial-navigation-function
-    /// - **W3C**: https://drafts.csswg.org/css-nav-1/#propdef-spatial-navigation-function
-    spatial_navigation_function: SpatialNavigationFunction = .none,
-    /// speak
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-speak
-    speak: Speak = .none,
-    /// speak-as
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-speak-as
-    speak_as: SpeakAs = .none,
-    /// stop-color
-    /// - **W3C**: https://svgwg.org/svg2-draft/pservers.html#StopColorProperty
-    stop_color: StopColor = .none,
-    /// stop-opacity
-    /// - **W3C**: https://svgwg.org/svg2-draft/pservers.html#StopOpacityProperty
-    stop_opacity: StopOpacity = .none,
-    /// string-set
-    /// - **W3C**: https://drafts.csswg.org/css-content-3/#propdef-string-set
-    string_set: StringSet = .none,
-    /// stroke
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#StrokeProperty
-    stroke: Stroke = .none,
-    /// stroke-align
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-align
-    stroke_align: StrokeAlign = .none,
-    /// stroke-alignment
-    /// - **W3C**: https://svgwg.org/specs/strokes/#StrokeAlignmentProperty
-    stroke_alignment: StrokeAlignment = .none,
-    /// stroke-break
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-break
-    stroke_break: StrokeBreak = .none,
-    /// stroke-color
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-color
-    stroke_color: StrokeColor = .none,
-    /// stroke-dash-corner
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-dash-corner
-    stroke_dash_corner: StrokeDashCorner = .none,
-    /// stroke-dash-justify
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-dash-justify
-    stroke_dash_justify: StrokeDashJustify = .none,
-    /// stroke-dashadjust
-    /// - **W3C**: https://svgwg.org/specs/strokes/#StrokeDashadjustProperty
-    stroke_dashadjust: StrokeDashadjust = .none,
-    /// stroke-dasharray
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-dasharray
-    stroke_dasharray: StrokeDasharray = .none,
-    /// stroke-dashcorner
-    /// - **W3C**: https://svgwg.org/specs/strokes/#StrokeDashcornerProperty
-    stroke_dashcorner: StrokeDashcorner = .none,
-    /// stroke-dashoffset
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-dashoffset
-    stroke_dashoffset: StrokeDashoffset = .none,
-    /// stroke-image
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-image
-    stroke_image: StrokeImage = .none,
-    /// stroke-linecap
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-linecap
-    stroke_linecap: StrokeLinecap = .none,
-    /// stroke-linejoin
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-linejoin
-    stroke_linejoin: StrokeLinejoin = .none,
-    /// stroke-miterlimit
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-miterlimit
-    stroke_miterlimit: StrokeMiterlimit = .none,
-    /// stroke-opacity
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-opacity
-    stroke_opacity: StrokeOpacity = .none,
-    /// stroke-origin
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-origin
-    stroke_origin: StrokeOrigin = .none,
-    /// stroke-position
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-position
-    stroke_position: StrokePosition = .none,
-    /// stroke-repeat
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-repeat
-    stroke_repeat: StrokeRepeat = .none,
-    /// stroke-size
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-size
-    stroke_size: StrokeSize = .none,
-    /// stroke-width
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-width
-    stroke_width: StrokeWidth = .none,
-    /// tab-size
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-tab-size
-    tab_size: TabSize = .none,
-    /// table-layout
-    /// - **W3C**: https://drafts.csswg.org/css-tables-3/#propdef-table-layout
-    table_layout: TableLayout = .none,
-    /// text-align
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-align
-    text_align: TextAlign = .none,
-    /// text-align-all
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-align-all
-    text_align_all: TextAlignAll = .none,
-    /// text-align-last
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-align-last
-    text_align_last: TextAlignLast = .none,
-    /// text-anchor
-    /// - **W3C**: https://svgwg.org/svg2-draft/text.html#TextAnchorProperty
-    text_anchor: TextAnchor = .none,
-    /// text-autospace
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-autospace
-    text_autospace: TextAutospace = .none,
-    /// text-box
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-text-box
-    text_box: TextBox = .none,
-    /// text-box-edge
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-text-box-edge
-    text_box_edge: TextBoxEdge = .none,
-    /// text-box-trim
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-text-box-trim
-    text_box_trim: TextBoxTrim = .none,
-    /// text-combine-upright
-    /// - **W3C**: https://drafts.csswg.org/css-writing-modes-4/#propdef-text-combine-upright
-    text_combine_upright: TextCombineUpright = .none,
-    /// text-decoration
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration
-    text_decoration: TextDecoration = .none,
-    /// text-decoration-color
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-color
-    text_decoration_color: TextDecorationColor = .none,
-    /// text-decoration-inset
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-inset
-    text_decoration_inset: TextDecorationInset = .none,
-    /// text-decoration-line
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-line
-    text_decoration_line: TextDecorationLine = .none,
-    /// text-decoration-skip
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-skip
-    text_decoration_skip: TextDecorationSkip = .none,
-    /// text-decoration-skip-box
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-skip-box
-    text_decoration_skip_box: TextDecorationSkipBox = .none,
-    /// text-decoration-skip-ink
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-skip-ink
-    text_decoration_skip_ink: TextDecorationSkipInk = .none,
-    /// text-decoration-skip-self
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-skip-self
-    text_decoration_skip_self: TextDecorationSkipSelf = .none,
-    /// text-decoration-skip-spaces
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-skip-spaces
-    text_decoration_skip_spaces: TextDecorationSkipSpaces = .none,
-    /// text-decoration-style
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-style
-    text_decoration_style: TextDecorationStyle = .none,
-    /// text-decoration-thickness
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-thickness
-    text_decoration_thickness: TextDecorationThickness = .none,
-    /// text-emphasis
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-emphasis
-    text_emphasis: TextEmphasis = .none,
-    /// text-emphasis-color
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-emphasis-color
-    text_emphasis_color: TextEmphasisColor = .none,
-    /// text-emphasis-position
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-emphasis-position
-    text_emphasis_position: TextEmphasisPosition = .none,
-    /// text-emphasis-skip
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-emphasis-skip
-    text_emphasis_skip: TextEmphasisSkip = .none,
-    /// text-emphasis-style
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-emphasis-style
-    text_emphasis_style: TextEmphasisStyle = .none,
-    /// text-group-align
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-group-align
-    text_group_align: TextGroupAlign = .none,
-    /// text-indent
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-indent
-    text_indent: TextIndent = .none,
-    /// text-justify
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-justify
-    text_justify: TextJustify = .none,
-    /// text-orientation
-    /// - **W3C**: https://drafts.csswg.org/css-writing-modes-4/#propdef-text-orientation
-    text_orientation: TextOrientation = .none,
-    /// text-overflow
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-text-overflow
-    text_overflow: TextOverflow = .none,
-    /// text-rendering
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#TextRenderingProperty
-    text_rendering: TextRendering = .none,
-    /// text-shadow
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-shadow
-    text_shadow: TextShadow = .none,
-    /// text-size-adjust
-    /// - **W3C**: https://drafts.csswg.org/css-size-adjust-1/#propdef-text-size-adjust
-    text_size_adjust: TextSizeAdjust = .none,
-    /// text-spacing
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-spacing
-    text_spacing: TextSpacing = .none,
-    /// text-spacing-trim
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-spacing-trim
-    text_spacing_trim: TextSpacingTrim = .none,
-    /// text-transform
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-transform
-    text_transform: TextTransform = .none,
-    /// text-underline-offset
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-underline-offset
-    text_underline_offset: TextUnderlineOffset = .none,
-    /// text-underline-position
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-underline-position
-    text_underline_position: TextUnderlinePosition = .none,
-    /// text-wrap
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-wrap
-    text_wrap: TextWrap = .none,
-    /// text-wrap-mode
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-wrap-mode
-    text_wrap_mode: TextWrapMode = .none,
-    /// text-wrap-style
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-wrap-style
-    text_wrap_style: TextWrapStyle = .none,
-    /// timeline-scope
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-timeline-scope
-    timeline_scope: TimelineScope = .none,
-    /// timeline-trigger
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger
-    timeline_trigger: TimelineTrigger = .none,
-    /// timeline-trigger-activation-range
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger-activation-range
-    timeline_trigger_activation_range: TimelineTriggerActivationRange = .none,
-    /// timeline-trigger-activation-range-end
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger-activation-range-end
-    timeline_trigger_activation_range_end: TimelineTriggerActivationRangeEnd = .none,
-    /// timeline-trigger-activation-range-start
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger-activation-range-start
-    timeline_trigger_activation_range_start: TimelineTriggerActivationRangeStart = .none,
-    /// timeline-trigger-active-range
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger-active-range
-    timeline_trigger_active_range: TimelineTriggerActiveRange = .none,
-    /// timeline-trigger-active-range-end
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger-active-range-end
-    timeline_trigger_active_range_end: TimelineTriggerActiveRangeEnd = .none,
-    /// timeline-trigger-active-range-start
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger-active-range-start
-    timeline_trigger_active_range_start: TimelineTriggerActiveRangeStart = .none,
-    /// timeline-trigger-name
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger-name
-    timeline_trigger_name: TimelineTriggerName = .none,
-    /// timeline-trigger-source
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger-source
-    timeline_trigger_source: TimelineTriggerSource = .none,
-    /// top
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-top
-    top: Top = .none,
-    /// touch-action
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef-touch-action
-    touch_action: TouchAction = .none,
-    /// transform
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-1/#propdef-transform
-    transform: Transform = .none,
-    /// transform-box
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-1/#propdef-transform-box
-    transform_box: TransformBox = .none,
-    /// transform-origin
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-1/#propdef-transform-origin
-    transform_origin: TransformOrigin = .none,
-    /// transform-style
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-2/#propdef-transform-style
-    transform_style: TransformStyle = .none,
-    /// transition
-    /// - **W3C**: https://drafts.csswg.org/css-transitions-1/#propdef-transition
-    transition: Transition = .none,
-    /// transition-behavior
-    /// - **W3C**: https://drafts.csswg.org/css-transitions-2/#propdef-transition-behavior
-    transition_behavior: TransitionBehavior = .none,
-    /// transition-delay
-    /// - **W3C**: https://drafts.csswg.org/css-transitions-1/#propdef-transition-delay
-    transition_delay: TransitionDelay = .none,
-    /// transition-duration
-    /// - **W3C**: https://drafts.csswg.org/css-transitions-1/#propdef-transition-duration
-    transition_duration: TransitionDuration = .none,
-    /// transition-property
-    /// - **W3C**: https://drafts.csswg.org/css-transitions-1/#propdef-transition-property
-    transition_property: TransitionProperty = .none,
-    /// transition-timing-function
-    /// - **W3C**: https://drafts.csswg.org/css-transitions-1/#propdef-transition-timing-function
-    transition_timing_function: TransitionTimingFunction = .none,
-    /// translate
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-2/#propdef-translate
-    translate: Translate = .none,
-    /// trigger-scope
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-trigger-scope
-    trigger_scope: TriggerScope = .none,
-    /// unicode-bidi
-    /// - **W3C**: https://drafts.csswg.org/css-writing-modes-4/#propdef-unicode-bidi
-    unicode_bidi: UnicodeBidi = .none,
-    /// user-select
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-user-select
-    user_select: UserSelect = .none,
-    /// vector-effect
-    /// - **W3C**: https://svgwg.org/svg2-draft/coords.html#VectorEffectProperty
-    vector_effect: VectorEffect = .none,
-    /// vertical-align
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-vertical-align
-    vertical_align: VerticalAlign = .none,
-    /// view-timeline
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-view-timeline
-    view_timeline: ViewTimeline = .none,
-    /// view-timeline-axis
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-view-timeline-axis
-    view_timeline_axis: ViewTimelineAxis = .none,
-    /// view-timeline-inset
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-view-timeline-inset
-    view_timeline_inset: ViewTimelineInset = .none,
-    /// view-timeline-name
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-view-timeline-name
-    view_timeline_name: ViewTimelineName = .none,
-    /// view-transition-class
-    /// - **W3C**: https://drafts.csswg.org/css-view-transitions-2/#propdef-view-transition-class
-    view_transition_class: ViewTransitionClass = .none,
-    /// view-transition-group
-    /// - **W3C**: https://drafts.csswg.org/css-view-transitions-2/#propdef-view-transition-group
-    view_transition_group: ViewTransitionGroup = .none,
-    /// view-transition-name
-    /// - **W3C**: https://drafts.csswg.org/css-view-transitions-2/#propdef-view-transition-name
-    view_transition_name: ViewTransitionName = .none,
-    /// view-transition-scope
-    /// - **W3C**: https://drafts.csswg.org/css-view-transitions-2/#propdef-view-transition-scope
-    view_transition_scope: ViewTransitionScope = .none,
-    /// visibility
-    /// - **W3C**: https://drafts.csswg.org/css-display-4/#propdef-visibility
-    visibility: Visibility = .none,
-    /// voice-balance
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-voice-balance
-    voice_balance: VoiceBalance = .none,
-    /// voice-duration
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-voice-duration
-    voice_duration: VoiceDuration = .none,
-    /// voice-family
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-voice-family
-    voice_family: VoiceFamily = .none,
-    /// voice-pitch
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-voice-pitch
-    voice_pitch: VoicePitch = .none,
-    /// voice-range
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-voice-range
-    voice_range: VoiceRange = .none,
-    /// voice-rate
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-voice-rate
-    voice_rate: VoiceRate = .none,
-    /// voice-stress
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-voice-stress
-    voice_stress: VoiceStress = .none,
-    /// voice-volume
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-voice-volume
-    voice_volume: VoiceVolume = .none,
-    /// white-space
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-white-space
-    white_space: WhiteSpace = .none,
-    /// white-space-collapse
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-white-space-collapse
-    white_space_collapse: WhiteSpaceCollapse = .none,
-    /// white-space-trim
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-white-space-trim
-    white_space_trim: WhiteSpaceTrim = .none,
-    /// widows
-    /// - **W3C**: https://drafts.csswg.org/css-break-4/#propdef-widows
-    widows: Widows = .none,
-    /// width
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-3/#propdef-width
-    width: Width = .none,
-    /// will-change
-    /// - **W3C**: https://drafts.csswg.org/css-will-change-1/#propdef-will-change
-    will_change: WillChange = .none,
-    /// word-break
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-word-break
-    word_break: WordBreak = .none,
-    /// word-space-transform
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-word-space-transform
-    word_space_transform: WordSpaceTransform = .none,
-    /// word-spacing
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-word-spacing
-    word_spacing: WordSpacing = .none,
-    /// word-wrap
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-word-wrap
-    word_wrap: WordWrap = .none,
-    /// wrap-after
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-wrap-after
-    wrap_after: WrapAfter = .none,
-    /// wrap-before
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-wrap-before
-    wrap_before: WrapBefore = .none,
-    /// wrap-flow
-    /// - **W3C**: https://drafts.csswg.org/css-exclusions-1/#propdef-wrap-flow
-    wrap_flow: WrapFlow = .none,
-    /// wrap-inside
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-wrap-inside
-    wrap_inside: WrapInside = .none,
-    /// wrap-through
-    /// - **W3C**: https://drafts.csswg.org/css-exclusions-1/#propdef-wrap-through
-    wrap_through: WrapThrough = .none,
-    /// writing-mode
-    /// - **W3C**: https://drafts.csswg.org/css-writing-modes-4/#propdef-writing-mode
-    writing_mode: WritingMode = .none,
-    /// x
-    /// - **W3C**: https://svgwg.org/svg2-draft/geometry.html#XProperty
-    x: X = .none,
-    /// y
-    /// - **W3C**: https://svgwg.org/svg2-draft/geometry.html#YProperty
-    y: Y = .none,
-    /// z-index
-    /// - **W3C**: https://drafts.csswg.org/css2/#propdef-z-index
-    z_index: ZIndex = .none,
-    /// zoom
-    /// - **W3C**: https://drafts.csswg.org/css-viewport/#propdef-zoom
-    zoom: Zoom = .none,
-    /// ::after
-    /// Represents a styleable child pseudo-element immediately after the originating element’s actual content.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-after
-    after: ?*const Style = null,
-    /// ::backdrop
-    /// Each element rendered in the top layer has a ::backdrop pseudo-element, for which it is the originating element.
-    /// - **W3C**: https://drafts.csswg.org/css-position-4/#selectordef-backdrop
-    backdrop: ?*const Style = null,
-    /// ::before
-    /// Represents a styleable child pseudo-element immediately before the originating element’s actual content.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-before
-    before: ?*const Style = null,
-    /// ::checkmark
-    /// The ::checkmark pseudo-element represents an indicator of whether the item is checked, and is present on checkboxes, radios, and option elements.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-checkmark
-    checkmark: ?*const Style = null,
-    /// ::clear-icon
-    /// The ::clear-icon pseudo-element represents the portion of the input that allows the user to clear the input when clicked if provided by the user agent. With appearance: textfield, the user agent must not generate this part.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-clear-icon
-    clear_icon: ?*const Style = null,
-    /// ::color-swatch
-    /// The ::color-swatch pseudo-element represents the portion of the control that displays the chosen color value.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-color-swatch
-    color_swatch: ?*const Style = null,
-    /// ::column
-    /// The ::column pseudo-element represents the individual columns in a multi-column container. It only exists on multi-column containers.
-    /// - **W3C**: https://drafts.csswg.org/css-multicol-2/#selectordef-column
-    column: ?*const Style = null,
-    /// ::cue-region
-    /// The ::cue-region pseudo-element (with no argument) matches any list of WebVTT region objects constructed for the matched element.
-    /// - **W3C**: https://w3c.github.io/webvtt/#selectordef-cue-region
-    cue_region: ?*const Style = null,
-    /// ::details-content
-    /// The ::details-content pseudo-element targets the additional information in a details element that can be expanded or collapsed. It is an element-backed pseudo-element.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-details-content
-    details_content: ?*const Style = null,
-    /// ::field-component
-    /// The ::field-component pseudo-element represents the portions of the control that contain the date/time component values.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-field-component
-    field_component: ?*const Style = null,
-    /// ::field-separator
-    /// The ::field-separator pseudo-element represents the portions of the control that separate the date/time component values if the user agent provides those portions.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-field-separator
-    field_separator: ?*const Style = null,
-    /// ::field-text
-    /// The ::field-text pseudo-element represents the portion of the input that contains the editable text.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-field-text
-    field_text: ?*const Style = null,
-    /// ::file-selector-button
-    /// The ::file-selector-button pseudo-element represents the button used to open a file picker, if the UA renders such a button.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-file-selector-button
-    file_selector_button: ?*const Style = null,
-    /// ::first-letter
-    /// The ::first-letter pseudo-element represents the first Letter, Number, or Symbol (Unicode category L*, N*, or S*) typographic character unit on the first formatted line of its originating element (the first letter) as well as its associated punctuation. Collectively, this text is the first-letter text. The ::first-letter pseudo-element can be used to create “initial caps” and “drop caps”, which are common typographic effects.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-first-letter
-    first_letter: ?*const Style = null,
-    /// ::first-line
-    /// The ::first-line pseudo-element represents the contents of the first formatted line of its originating element.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-first-line
-    first_line: ?*const Style = null,
-    /// ::grammar-error
-    /// The ::grammar-error pseudo-element represents a portion of text that has been flagged by the user agent as grammatically incorrect.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-grammar-error
-    grammar_error: ?*const Style = null,
-    /// ::picker-icon
-    /// The ::picker-icon pseudo-element represents the part of the control that represents the icon denoting the presence of the picker. It is only generated when the originating element has basic appearance and if it opens a picker. It is a fully styleable pseudo-element and inherits from its originating element.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-picker-icon
-    picker_icon: ?*const Style = null,
-    /// ::placeholder
-    /// The ::placeholder pseudo-element represents the portion of the input that contains the placeholder text.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-placeholder
-    placeholder: ?*const Style = null,
-    /// ::reveal-icon
-    /// The ::reveal-icon pseudo-element represents the portion of the input that allows the user to temporarily disable obscuring of sensitive text input when clicked if provided by the user agent. User agents providing ::reveal-icon may choose to remove it in some circumstances to help protect sensitive text input from being revealed unintentionally.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-reveal-icon
-    reveal_icon: ?*const Style = null,
-    /// ::scroll-marker
-    /// When the computed content value of a ::scroll-marker pseudo-element is not none and its nearest ancestor scroll container scroll container has a computed scroll-marker-group property that is not none, the pseudo-element generates a box attached as a child of the ::scroll-marker-group pseudo-element’s generated box on its nearest ancestor scroll container. These boxes are added in the tree order of their originating element.
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-5/#selectordef-scroll-marker
-    scroll_marker: ?*const Style = null,
-    /// ::search-text
-    /// The ::search-text pseudo-element represents text identified by the user agent’s find-in-page feature. Since not all UAs style matched text in ways expressible with the highlight pseudo-elements, this pseudo-element is optional to implement. The :current pseudo-class (but not ::current()) may be combined with ::search-text to represent the currently focused match instance. The :past and :future pseudo-classes are reserved for analogous use in the future. Any unsupported combination of these pseudo-classes with ::search-text must be treated as invalid.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-search-text
-    search_text: ?*const Style = null,
-    /// ::selection
-    /// The ::selection pseudo-element represents the portion of a document that has been selected as the target or object of some possible future user-agent operation(s). It applies, for example, to selected text within an editable text field, which would be copied by a copy operation or replaced by a paste operation.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-selection
-    selection: ?*const Style = null,
-    /// ::slider-fill
-    /// The ::slider-fill pseudo-element represents the portion containing the progressed portion of the control. When the progress of control is indeterminate (like with <progress>), the user agent must give this portion an inline-size of zero.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-slider-fill
-    slider_fill: ?*const Style = null,
-    /// ::slider-thumb
-    /// The ::slider-thumb pseudo-element represents the portion that allows the user to adjust the progress of the control.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-slider-thumb
-    slider_thumb: ?*const Style = null,
-    /// ::slider-track
-    /// The ::slider-track pseudo-element represents the portion containing both the progressed and unprogressed portions of the control.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-slider-track
-    slider_track: ?*const Style = null,
-    /// ::spelling-error
-    /// The ::spelling-error pseudo-element represents a portion of text that has been flagged by the user agent as misspelled.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-spelling-error
-    spelling_error: ?*const Style = null,
-    /// ::step-control
-    /// The ::step-control pseudo-element represents the portion of a number input that contains the up and down buttons.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-step-control
-    step_control: ?*const Style = null,
-    /// ::step-down
-    /// The ::step-down pseudo-element represents the button that decrements the value inside a number input when activated.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-step-down
-    step_down: ?*const Style = null,
-    /// ::step-up
-    /// The ::step-up pseudo-element represents the button that increments the value inside a number input when activated.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-step-up
-    step_up: ?*const Style = null,
-    /// ::target-text
-    /// The ::target-text pseudo-element represents text directly targeted by the document URL’s fragment, if any.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-target-text
-    target_text: ?*const Style = null,
-    /// ::view-transition
-    /// The ::view-transition pseudo-element is a tree-abiding pseudo-element that is also a pseudo-element root. Its originating element is the document’s document element, and its containing block is the snapshot containing block.
-    /// - **W3C**: https://drafts.csswg.org/css-view-transitions-2/#selectordef-view-transition
-    view_transition: ?*const Style = null,
-    /// :active
-    /// The :active pseudo-class applies while an element is being “activated” by the user, as defined by the host language; for example, while a hyperlink is being triggered.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#active-pseudo
-    active: ?*const Style = null,
-    /// :active-view-transition
-    /// The :active-view-transition pseudo-class applies to the root element of the document, if it has an active view transition.
-    /// - **W3C**: https://drafts.csswg.org/css-view-transitions-2/#active-view-transition-pseudo
-    active_view_transition: ?*const Style = null,
-    /// :animated-image
-    /// The :animated-image pseudo-class represents content image elements where a animated image has been loaded. For the animated-image pseudo-class to match, the image must not only be in a format that is capable of animation, but must also be an actually animated image.
-    /// - **W3C**: https://drafts.csswg.org/css-image-animation-1/#selectordef-animated-image
-    animated_image: ?*const Style = null,
-    /// :any-link
-    /// The :any-link pseudo-class represents an element that acts as the source anchor of a hyperlink. For example, in [HTML5], any a or area elements with an href attribute are hyperlinks, and thus match :any-link. It matches an element if the element would match either :link or :visited, and is equivalent to :is(:link, :visited).
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#any-link-pseudo
-    any_link: ?*const Style = null,
-    /// :autofill
-    /// The :autofill pseudo-class represents input elements that have been automatically filled by the user agent, and have not been subsequently altered by the user.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-autofill
-    autofill: ?*const Style = null,
-    /// :blank
-    /// The :blank pseudo-class applies to user-input elements whose input value is empty (consists of the empty string or otherwise null input).
-    /// - **W3C**: https://drafts.csswg.org/selectors-5/#blank-pseudo
-    blank: ?*const Style = null,
-    /// :buffering
-    /// The :buffering pseudo-class represents an element that is capable of being “played” or “paused”, when that element cannot continue playing because it is actively attempting to obtain media data but has not yet obtained enough data to resume playback. (Note that the element is still considered to be “playing” when it is “buffering”. Whenever :buffering matches an element, :playing also matches the element.)
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-buffering
-    buffering: ?*const Style = null,
-    /// :checked
-    /// When such elements are toggled “on” the :checked pseudo-class applies. For example, [HTML5] defines that checked checkboxes, radio buttons, and selected <option> elements match :checked. Similarly, when such elements are toggled “off”, the :unchecked pseudo-class applies.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#checked-pseudo
-    checked: ?*const Style = null,
-    /// :current
-    /// The :current pseudo-class represents the element, or an ancestor of the element, that is currently being displayed.
-    /// - **W3C**: https://drafts.csswg.org/selectors-5/#current-pseudo
-    current: ?*const Style = null,
-    /// :default
-    /// The :default pseudo-class applies to the one or more UI elements that are the default among a set of similar elements. Typically applies to context menu items, buttons and select lists/menus.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#default-pseudo
-    default: ?*const Style = null,
-    /// :defined
-    /// In some host languages, elements can have a distinction between being “defined”/“constructed” or not. The :defined pseudo-class matches elements that are fully defined, as dictated by the host language.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#defined-pseudo
-    defined: ?*const Style = null,
-    /// :disabled
-    /// Conversely, the :disabled pseudo-class represents user interface elements that are in a disabled state; such elements must have a corresponding enabled state.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#disabled-pseudo
-    disabled: ?*const Style = null,
-    /// :empty
-    /// The :empty pseudo-class represents an element that has no children except, optionally, document white space characters. In terms of the document tree, only element nodes and content nodes (such as [DOM] text nodes, and entity references) whose data has a non-zero length must be considered as affecting emptiness; comments, processing instructions, and other nodes must not affect whether an element is considered empty or not.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#empty-pseudo
-    empty: ?*const Style = null,
-    /// :enabled
-    /// The :enabled pseudo-class represents user interface elements that are in an enabled state; such elements must have a corresponding disabled state.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#enabled-pseudo
-    enabled: ?*const Style = null,
-    /// :first
-    /// Authors may also specify style for the first page of a document with the :first pseudo-class:
-    /// - **W3C**: https://drafts.csswg.org/css2/#selectordef-first
-    first: ?*const Style = null,
-    /// :first-child
-    /// The :first-child pseudo-class represents an element that is first among its inclusive siblings. Same as :nth-child(1).
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#first-child-pseudo
-    first_child: ?*const Style = null,
-    /// :first-of-page
-    /// Same as :nth-of-page(n), but where n = 1 (it is the first matched element on the page).
-    /// - **W3C**: https://drafts.csswg.org/css-gcpm-4/#selectordef-first-of-page
-    first_of_page: ?*const Style = null,
-    /// :first-of-type
-    /// The :first-of-type pseudo-class represents the same element as :nth-of-type(1).
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#first-of-type-pseudo
-    first_of_type: ?*const Style = null,
-    /// :focus
-    /// The :focus pseudo-class applies while an element (or pseudo-element) has the focus (accepts keyboard or other forms of input).
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#focus-pseudo
-    focus: ?*const Style = null,
-    /// :focus-visible
-    /// While the :focus pseudo-class always matches the currently-focused element, UAs only sometimes visibly indicate focus (such as by drawing a “focus ring”), instead using a variety of heuristics to visibly indicate the focus only when it would be most helpful to the user. The :focus-visible pseudo-class matches a focused element (or pseudo-element) in these situations only, allowing authors to change the appearance of the focus indicator without changing when a focus indicator appears.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#focus-visible-pseudo
-    focus_visible: ?*const Style = null,
-    /// :focus-within
-    /// The :focus-within pseudo-class applies to any element (or pseudo-element) for which the :focus pseudo-class applies, as well as to an element (or pseudo-element) whose descendant in the flat tree (including non-element nodes, such as text nodes) matches the conditions for matching :focus.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#focus-within-pseudo
-    focus_within: ?*const Style = null,
-    /// :fullscreen
-    /// The :fullscreen pseudo-class represents an element which is displayed in a mode that takes up most (usually all) of the screen, such as that defined by the Fullscreen API. [FULLSCREEN]
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-fullscreen
-    fullscreen: ?*const Style = null,
-    /// :future
-    /// The :future pseudo-class represents any element that is defined to occur entirely after a :current element. For example, the WebVTT spec defines the :future pseudo-class relative to the current playback position of a media element. If a time-based order of elements is not defined by the document language, then this represents any element that is a (possibly indirect) next sibling of a :current element.
-    /// - **W3C**: https://drafts.csswg.org/selectors-5/#future-pseudo
-    future: ?*const Style = null,
-    /// :has-slotted
-    /// The :has-slotted pseudo-class matches slot elements which have a non-empty list of flattened slotted nodes.
-    /// - **W3C**: https://drafts.csswg.org/css-shadow-1/#selectordef-has-slotted
-    has_slotted: ?*const Style = null,
-    /// :heading
-    /// The (non-functional) :heading pseudo-class matches an element which has a heading level, with respect to the semantics defined by the document language (e.g. [HTML5]).
-    /// - **W3C**: https://drafts.csswg.org/selectors-5/#heading-pseudo
-    heading: ?*const Style = null,
-    /// :high-value
-    /// The :high-value pseudo-class matches on a meter element when its value is over the value specified by the high HTML attribute.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-high-value
-    high_value: ?*const Style = null,
-    /// :host
-    /// The :host pseudo-class, when evaluated in the context of a shadow tree, matches the shadow tree’s shadow host. In any other context, it matches nothing.
-    /// - **W3C**: https://drafts.csswg.org/css-shadow-1/#selectordef-host
-    host: ?*const Style = null,
-    /// :hover
-    /// The :hover pseudo-class applies while the user designates an element (or pseudo-element) with a pointing device, but does not necessarily activate it. For example, a visual user agent could apply this pseudo-class when the cursor (mouse pointer) hovers over a box generated by the element. Interactive user agents that cannot detect hovering due to hardware limitations (e.g., a pen device that does not detect hovering) are still conforming; the selector will simply never match in such a UA.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#hover-pseudo
-    hover: ?*const Style = null,
-    /// :in-range
-    /// The :in-range and :out-of-range pseudo-classes apply only to elements that have range limitations. An element is :in-range or :out-of-range when the value that the element is bound to is in range or out of range with respect to its range limits as defined by the document language. An element that lacks data range limits or is not a form control is neither :in-range nor :out-of-range. E.g. a slider element with a value of 11 presented as a slider control that only represents the values from 1-10 is :out-of-range. Another example is a menu element with a value of "E" that happens to be presented in a popup menu that only has choices "A", "B" and "C".
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#in-range-pseudo
-    in_range: ?*const Style = null,
-    /// :indeterminate
-    /// If an element that could match :checked or :unchecked is neither "on" nor "off", the :indeterminate pseudo-class applies. :indeterminate also matches elements which do not have a notion of being "checked", but whose "value" is still in an indeterminate state, such as a progress meter whose progress percentage is unknown.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#indeterminate-pseudo
-    indeterminate: ?*const Style = null,
-    /// :interest-source
-    /// The :interest-source pseudo-class applies to an interest source element that the user is currently "showing interest" in, and the :interest-target pseudo-class applies to the associated interest target of an element matching :interest-source.
-    /// - **W3C**: https://drafts.csswg.org/selectors-5/#selectordef-interest-source
-    interest_source: ?*const Style = null,
-    /// :interest-target
-    /// The :interest-source pseudo-class applies to an interest source element that the user is currently "showing interest" in, and the :interest-target pseudo-class applies to the associated interest target of an element matching :interest-source.
-    /// - **W3C**: https://drafts.csswg.org/selectors-5/#selectordef-interest-target
-    interest_target: ?*const Style = null,
-    /// :invalid
-    /// An element is :valid or :invalid when its contents or value is, respectively, valid or invalid with respect to data validity semantics defined by the document language (e.g. [XFORMS11] or [HTML5]). An element which lacks data validity semantics is neither :valid nor :invalid.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#invalid-pseudo
-    invalid: ?*const Style = null,
-    /// :last-child
-    /// The :last-child pseudo-class represents an element that is last among its inclusive siblings. Same as :nth-last-child(1).
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#last-child-pseudo
-    last_child: ?*const Style = null,
-    /// :last-of-page
-    /// The element is the last matched element on the page.
-    /// - **W3C**: https://drafts.csswg.org/css-gcpm-4/#selectordef-last-of-page
-    last_of_page: ?*const Style = null,
-    /// :last-of-type
-    /// The :last-of-type pseudo-class represents the same element as :nth-last-of-type(1).
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#last-of-type-pseudo
-    last_of_type: ?*const Style = null,
-    /// :link
-    /// User agents commonly display unvisited hyperlinks differently from previously visited ones. Selectors provides the pseudo-classes :link and :visited to distinguish them:
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#link-pseudo
-    link: ?*const Style = null,
-    /// :local-link
-    /// The :local-link pseudo-class allows authors to style hyperlinks based on the users current location within a site and to differentiate site-internal versus site-external links.
-    /// - **W3C**: https://drafts.csswg.org/selectors-5/#local-link-pseudo
-    local_link: ?*const Style = null,
-    /// :low-value
-    /// The :low-value pseudo-class matches on a meter element when its value is under the value specified by the low HTML attribute.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-low-value
-    low_value: ?*const Style = null,
-    /// :modal
-    /// The :modal pseudo-class represents an element which is in a state that excludes all interaction with elements outside it until it has been dismissed. Multiple elements can be :modal simultaneously, with only one of them active (able to receive input).
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-modal
-    modal: ?*const Style = null,
-    /// :muted
-    /// The :muted pseudo-class represents an element that is capable of making sound, but is currently “muted“ (forced silent). (For the audio and video elements of HTML, see muted. [HTML])
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-muted
-    muted: ?*const Style = null,
-    /// :only-child
-    /// The :only-child pseudo-class represents an element that has no siblings. Same as :first-child:last-child or :nth-child(1):nth-last-child(1), but with a lower specificity.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#only-child-pseudo
-    only_child: ?*const Style = null,
-    /// :only-of-type
-    /// The :only-of-type pseudo-class represents the same element as :first-of-type:last-of-type.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#only-of-type-pseudo
-    only_of_type: ?*const Style = null,
-    /// :open
-    /// The :open pseudo-class represents an element that has both “open” and “closed” states, and which is currently in the “open” state.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-open
-    open: ?*const Style = null,
-    /// :optimal-value
-    /// The :optimal-value pseudo-class matches on a meter element when its value is in the range determined by the optimum / low / high HTML attributes.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-optimal-value
-    optimal_value: ?*const Style = null,
-    /// :optional
-    /// A form element is :required or :optional if a value for it is, respectively, required or optional before the form it belongs to can be validly submitted. Elements that are not form elements are neither required nor optional.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#optional-pseudo
-    optional: ?*const Style = null,
-    /// :out-of-range
-    /// The :in-range and :out-of-range pseudo-classes apply only to elements that have range limitations. An element is :in-range or :out-of-range when the value that the element is bound to is in range or out of range with respect to its range limits as defined by the document language. An element that lacks data range limits or is not a form control is neither :in-range nor :out-of-range. E.g. a slider element with a value of 11 presented as a slider control that only represents the values from 1-10 is :out-of-range. Another example is a menu element with a value of "E" that happens to be presented in a popup menu that only has choices "A", "B" and "C".
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#out-of-range-pseudo
-    out_of_range: ?*const Style = null,
-    /// :past
-    /// The :past pseudo-class represents any element that is defined to occur entirely prior to a :current element. For example, the WebVTT spec defines the :past pseudo-class relative to the current playback position of a media element. If a time-based order of elements is not defined by the document language, then this represents any element that is a (possibly indirect) previous sibling of a :current element.
-    /// - **W3C**: https://drafts.csswg.org/selectors-5/#past-pseudo
-    past: ?*const Style = null,
-    /// :paused
-    /// The :paused pseudo-class represents an element that is capable of being “played” or “paused”, when that element is “paused” (i.e. not ”playing”). (This includes both an explicit “paused” state, and other non-playing states like “loaded, hasn’t been activated yet”, etc.)
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-paused
-    paused: ?*const Style = null,
-    /// :picture-in-picture
-    /// The :picture-in-picture pseudo-class represents an element which is displayed in a mode that takes up most (usually all) of the viewport, and whose viewport is confined to part of the screen while being displayed over other content, for example when using the Picture-in-Picture API. [picture-in-picture]
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-picture-in-picture
-    picture_in_picture: ?*const Style = null,
-    /// :placeholder-shown
-    /// Input elements can sometimes show placeholder text as a hint to the user on what to type in. See, for example, the placeholder attribute in [HTML5]. The :placeholder-shown pseudo-class matches an input element that is showing such placeholder text, whether that text is given by an attribute or a real element, or is otherwise implied by the UA.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#placeholder-shown-pseudo
-    placeholder_shown: ?*const Style = null,
-    /// :playing
-    /// The :playing pseudo-class represents an element that is capable of being “played” or “paused”, when that element is “playing”. (This includes both when the element is explicitly playing, and when it’s temporarily stopped for some reason not connected to user intent, but will automatically resume when that reason is resolved, such as a “buffering” or “stalled” state.)
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-playing
-    playing: ?*const Style = null,
-    /// :popover-open
-    /// The :popover-open pseudo-class represents an element that has both “popover-showing” and “popover-hidden” states and which is currently in the “popover-showing” state.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-popover-open
-    popover_open: ?*const Style = null,
-    /// :read-only
-    /// An element matches :read-write if it is user-alterable, as defined by the document language. Otherwise, it is :read-only.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#read-only-pseudo
-    read_only: ?*const Style = null,
-    /// :read-write
-    /// An element matches :read-write if it is user-alterable, as defined by the document language. Otherwise, it is :read-only.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#read-write-pseudo
-    read_write: ?*const Style = null,
-    /// :required
-    /// A form element is :required or :optional if a value for it is, respectively, required or optional before the form it belongs to can be validly submitted. Elements that are not form elements are neither required nor optional.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#required-pseudo
-    required: ?*const Style = null,
-    /// :root
-    /// The :root pseudo-class represents an element that is the root of the document.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#root-pseudo
-    root: ?*const Style = null,
-    /// :scope
-    /// In some contexts, selectors are matched with respect to one or more scoping roots, such as when calling the querySelector() method in [DOM]. The :scope pseudo-class represents this scoping root, and may be either a true element or a virtual one (such as a DocumentFragment).
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#scope-pseudo
-    scope: ?*const Style = null,
-    /// :seeking
-    /// The :seeking pseudo-class represents an element that is capable of ”seeking” when that element is ”seeking”. (For the audio and video elements of HTML, see HTML § 4.8.11.9 Seeking.)
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-seeking
-    seeking: ?*const Style = null,
-    /// :snapped
-    /// The :snapped pseudo-class matches any scroll snap targets, regardless of axis. The longform physical and logical pseudo-class selectors allow for more finite snapped children styling as they can target an individual axis.
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-2/#selectordef-snapped
-    snapped: ?*const Style = null,
-    /// :snapped-block
-    /// Matches the child snapped on the block axis.
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-2/#selectordef-snapped-block
-    snapped_block: ?*const Style = null,
-    /// :snapped-inline
-    /// Matches the child snapped on the inline axis.
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-2/#selectordef-snapped-inline
-    snapped_inline: ?*const Style = null,
-    /// :snapped-x
-    /// Matches the child snapped on the horizontal axis.
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-2/#selectordef-snapped-x
-    snapped_x: ?*const Style = null,
-    /// :snapped-y
-    /// Matches the child snapped on the vertical axis.
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-2/#selectordef-snapped-y
-    snapped_y: ?*const Style = null,
-    /// :stalled
-    /// The :stalled pseudo-class represents an element when that element cannot continue playing because it is actively attempting to obtain media data but it has failed to receive any data for some amount of time. For the audio and video elements of HTML, this amount of time is the media element stall timeout. [HTML] (Note that, like with the :buffering pseudo-class, the element is still considered to be “playing” when it is “stalled”. Whenever :stalled matches an element, :playing also matches the element.)
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-stalled
-    stalled: ?*const Style = null,
-    /// :start-of-page
-    /// The element is the first matched element on the page, and neither it nor its ancestors have any previous siblings that appear on the page.
-    /// - **W3C**: https://drafts.csswg.org/css-gcpm-4/#selectordef-start-of-page
-    start_of_page: ?*const Style = null,
-    /// :target
-    /// The :target pseudo-class matches the document’s target elements. If the document’s URL has no fragment identifier, then the document has no target elements.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#target-pseudo
-    target: ?*const Style = null,
-    /// :target-after
-    /// In addition to the :target-current pseudo-class, this specification introduces the :target-before and :target-after pseudo-classes for use with scroll marker elements.
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-5/#selectordef-target-after
-    target_after: ?*const Style = null,
-    /// :target-before
-    /// In addition to the :target-current pseudo-class, this specification introduces the :target-before and :target-after pseudo-classes for use with scroll marker elements.
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-5/#selectordef-target-before
-    target_before: ?*const Style = null,
-    /// :target-current
-    /// Exactly one scroll marker within each scroll marker group is determined to be active at a time. Such "active" scroll markers match the :target-current pseudo-class.
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-5/#selectordef-target-current
-    target_current: ?*const Style = null,
-    /// :unchecked
-    /// When such elements are toggled “on” the :checked pseudo-class applies. For example, [HTML5] defines that checked checkboxes, radio buttons, and selected <option> elements match :checked. Similarly, when such elements are toggled “off”, the :unchecked pseudo-class applies.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#unchecked-pseudo
-    unchecked: ?*const Style = null,
-    /// :user-invalid
-    /// The :user-invalid and the :user-valid pseudo-classes represent an element with incorrect or correct input, respectively, but only after the user has significantly interacted with it. Their purpose is to help the user identify mistakes in their input.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#user-invalid-pseudo
-    user_invalid: ?*const Style = null,
-    /// :user-valid
-    /// The :user-invalid and the :user-valid pseudo-classes represent an element with incorrect or correct input, respectively, but only after the user has significantly interacted with it. Their purpose is to help the user identify mistakes in their input.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#user-valid-pseudo
-    user_valid: ?*const Style = null,
-    /// :valid
-    /// An element is :valid or :invalid when its contents or value is, respectively, valid or invalid with respect to data validity semantics defined by the document language (e.g. [XFORMS11] or [HTML5]). An element which lacks data validity semantics is neither :valid nor :invalid.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#valid-pseudo
-    valid: ?*const Style = null,
-    /// :visited
-    /// User agents commonly display unvisited hyperlinks differently from previously visited ones. Selectors provides the pseudo-classes :link and :visited to distinguish them:
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#visited-pseudo
-    visited: ?*const Style = null,
-    /// :volume-locked
-    /// The :volume-locked pseudo-class represents an element that is capable of making sound, and currently has its volume "locked" by the UA or the user, so the page author cannot change it. (For the audio and video elements of HTML, see the algorithm for setting the element’s effective media volume. [HTML])
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-volume-locked
-    volume_locked: ?*const Style = null,
-    /// :xr-overlay
-    /// The :xr-overlay pseudo-class MUST match the overlay element for the duration of an immersive session using a DOM Overlay.
-    /// - **W3C**: https://immersive-web.github.io/dom-overlays/#selectordef-xr-overlay
-    xr_overlay: ?*const Style = null,
-    sm: ?*const Style = null,
-    md: ?*const Style = null,
-    lg: ?*const Style = null,
-    xl: ?*const Style = null,
-    extra: []const u8 = "",
-
-    pub fn format(self: Style, w: *std.io.Writer) std.io.Writer.Error!void {
-        @setEvalBranchQuota(20000);
-        inline for (std.meta.fields(Style)) |f| {
-            const T = f.type;
-            if (comptime std.mem.eql(u8, f.name, "extra")) continue;
-            if (comptime @typeInfo(T) == .@"union") {
-                const val = @field(self, f.name);
-                if (val != .none) {
-                    try core.formatKebab(f.name, w);
-                    try w.writeAll(": ");
-                    try val.format(w);
-                    try w.writeAll("; ");
-                }
-            }
-        }
-        if (self.extra.len > 0) try w.writeAll(self.extra);
-    }
-    pub fn toString(self: Style, allocator: std.mem.Allocator) ![]const u8 {
-        var list: std.ArrayList(u8) = .empty;
-        defer list.deinit(allocator);
-        const w = list.writer(allocator);
-        try self.format(w);
-        return list.toOwnedSlice(allocator);
-    }
+pub const StyleProperty = union(enum(u32)) {
+    webkit_align_content: WebkitAlignContent,
+    webkit_align_items: WebkitAlignItems,
+    webkit_align_self: WebkitAlignSelf,
+    webkit_animation: WebkitAnimation,
+    webkit_animation_delay: WebkitAnimationDelay,
+    webkit_animation_direction: WebkitAnimationDirection,
+    webkit_animation_duration: WebkitAnimationDuration,
+    webkit_animation_fill_mode: WebkitAnimationFillMode,
+    webkit_animation_iteration_count: WebkitAnimationIterationCount,
+    webkit_animation_name: WebkitAnimationName,
+    webkit_animation_play_state: WebkitAnimationPlayState,
+    webkit_animation_timing_function: WebkitAnimationTimingFunction,
+    webkit_appearance: WebkitAppearance,
+    webkit_backface_visibility: WebkitBackfaceVisibility,
+    webkit_background_clip: WebkitBackgroundClip,
+    webkit_background_origin: WebkitBackgroundOrigin,
+    webkit_background_size: WebkitBackgroundSize,
+    webkit_border_bottom_left_radius: WebkitBorderBottomLeftRadius,
+    webkit_border_bottom_right_radius: WebkitBorderBottomRightRadius,
+    webkit_border_radius: WebkitBorderRadius,
+    webkit_border_top_left_radius: WebkitBorderTopLeftRadius,
+    webkit_border_top_right_radius: WebkitBorderTopRightRadius,
+    webkit_box_align: WebkitBoxAlign,
+    webkit_box_flex: WebkitBoxFlex,
+    webkit_box_ordinal_group: WebkitBoxOrdinalGroup,
+    webkit_box_orient: WebkitBoxOrient,
+    webkit_box_pack: WebkitBoxPack,
+    webkit_box_shadow: WebkitBoxShadow,
+    webkit_box_sizing: WebkitBoxSizing,
+    webkit_filter: WebkitFilter,
+    webkit_flex: WebkitFlex,
+    webkit_flex_basis: WebkitFlexBasis,
+    webkit_flex_direction: WebkitFlexDirection,
+    webkit_flex_flow: WebkitFlexFlow,
+    webkit_flex_grow: WebkitFlexGrow,
+    webkit_flex_shrink: WebkitFlexShrink,
+    webkit_flex_wrap: WebkitFlexWrap,
+    webkit_justify_content: WebkitJustifyContent,
+    webkit_line_clamp: WebkitLineClamp,
+    webkit_mask: WebkitMask,
+    webkit_mask_box_image: WebkitMaskBoxImage,
+    webkit_mask_box_image_outset: WebkitMaskBoxImageOutset,
+    webkit_mask_box_image_repeat: WebkitMaskBoxImageRepeat,
+    webkit_mask_box_image_slice: WebkitMaskBoxImageSlice,
+    webkit_mask_box_image_source: WebkitMaskBoxImageSource,
+    webkit_mask_box_image_width: WebkitMaskBoxImageWidth,
+    webkit_mask_clip: WebkitMaskClip,
+    webkit_mask_composite: WebkitMaskComposite,
+    webkit_mask_image: WebkitMaskImage,
+    webkit_mask_origin: WebkitMaskOrigin,
+    webkit_mask_position: WebkitMaskPosition,
+    webkit_mask_repeat: WebkitMaskRepeat,
+    webkit_mask_size: WebkitMaskSize,
+    webkit_order: WebkitOrder,
+    webkit_perspective: WebkitPerspective,
+    webkit_perspective_origin: WebkitPerspectiveOrigin,
+    webkit_text_fill_color: WebkitTextFillColor,
+    webkit_text_size_adjust: WebkitTextSizeAdjust,
+    webkit_text_stroke: WebkitTextStroke,
+    webkit_text_stroke_color: WebkitTextStrokeColor,
+    webkit_text_stroke_width: WebkitTextStrokeWidth,
+    webkit_transform: WebkitTransform,
+    webkit_transform_origin: WebkitTransformOrigin,
+    webkit_transform_style: WebkitTransformStyle,
+    webkit_transition: WebkitTransition,
+    webkit_transition_delay: WebkitTransitionDelay,
+    webkit_transition_duration: WebkitTransitionDuration,
+    webkit_transition_property: WebkitTransitionProperty,
+    webkit_transition_timing_function: WebkitTransitionTimingFunction,
+    webkit_user_select: WebkitUserSelect,
+    accent_color: AccentColor,
+    align_content: AlignContent,
+    align_items: AlignItems,
+    align_self: AlignSelf,
+    alignment_baseline: AlignmentBaseline,
+    all: All,
+    anchor_name: AnchorName,
+    anchor_scope: AnchorScope,
+    animation: Animation,
+    animation_composition: AnimationComposition,
+    animation_delay: AnimationDelay,
+    animation_direction: AnimationDirection,
+    animation_duration: AnimationDuration,
+    animation_fill_mode: AnimationFillMode,
+    animation_iteration_count: AnimationIterationCount,
+    animation_name: AnimationName,
+    animation_play_state: AnimationPlayState,
+    animation_range: AnimationRange,
+    animation_range_center: AnimationRangeCenter,
+    animation_range_end: AnimationRangeEnd,
+    animation_range_start: AnimationRangeStart,
+    animation_timeline: AnimationTimeline,
+    animation_timing_function: AnimationTimingFunction,
+    animation_trigger: AnimationTrigger,
+    appearance: Appearance,
+    aspect_ratio: AspectRatio,
+    backdrop_filter: BackdropFilter,
+    backface_visibility: BackfaceVisibility,
+    background: Background,
+    background_attachment: BackgroundAttachment,
+    background_blend_mode: BackgroundBlendMode,
+    background_clip: BackgroundClip,
+    background_color: BackgroundColor,
+    background_image: BackgroundImage,
+    background_origin: BackgroundOrigin,
+    background_position: BackgroundPosition,
+    background_position_block: BackgroundPositionBlock,
+    background_position_inline: BackgroundPositionInline,
+    background_position_x: BackgroundPositionX,
+    background_position_y: BackgroundPositionY,
+    background_repeat: BackgroundRepeat,
+    background_repeat_block: BackgroundRepeatBlock,
+    background_repeat_inline: BackgroundRepeatInline,
+    background_repeat_x: BackgroundRepeatX,
+    background_repeat_y: BackgroundRepeatY,
+    background_size: BackgroundSize,
+    background_tbd: BackgroundTbd,
+    baseline_shift: BaselineShift,
+    baseline_source: BaselineSource,
+    block_ellipsis: BlockEllipsis,
+    block_size: BlockSize,
+    block_step: BlockStep,
+    block_step_align: BlockStepAlign,
+    block_step_insert: BlockStepInsert,
+    block_step_round: BlockStepRound,
+    block_step_size: BlockStepSize,
+    bookmark_label: BookmarkLabel,
+    bookmark_level: BookmarkLevel,
+    bookmark_state: BookmarkState,
+    border: Border,
+    border_block: BorderBlock,
+    border_block_clip: BorderBlockClip,
+    border_block_color: BorderBlockColor,
+    border_block_end: BorderBlockEnd,
+    border_block_end_clip: BorderBlockEndClip,
+    border_block_end_color: BorderBlockEndColor,
+    border_block_end_radius: BorderBlockEndRadius,
+    border_block_end_style: BorderBlockEndStyle,
+    border_block_end_width: BorderBlockEndWidth,
+    border_block_start: BorderBlockStart,
+    border_block_start_clip: BorderBlockStartClip,
+    border_block_start_color: BorderBlockStartColor,
+    border_block_start_radius: BorderBlockStartRadius,
+    border_block_start_style: BorderBlockStartStyle,
+    border_block_start_width: BorderBlockStartWidth,
+    border_block_style: BorderBlockStyle,
+    border_block_width: BorderBlockWidth,
+    border_bottom: BorderBottom,
+    border_bottom_clip: BorderBottomClip,
+    border_bottom_color: BorderBottomColor,
+    border_bottom_left_radius: BorderBottomLeftRadius,
+    border_bottom_radius: BorderBottomRadius,
+    border_bottom_right_radius: BorderBottomRightRadius,
+    border_bottom_style: BorderBottomStyle,
+    border_bottom_width: BorderBottomWidth,
+    border_boundary: BorderBoundary,
+    border_clip: BorderClip,
+    border_collapse: BorderCollapse,
+    border_color: BorderColor,
+    border_end_end_radius: BorderEndEndRadius,
+    border_end_start_radius: BorderEndStartRadius,
+    border_image: BorderImage,
+    border_image_outset: BorderImageOutset,
+    border_image_repeat: BorderImageRepeat,
+    border_image_slice: BorderImageSlice,
+    border_image_source: BorderImageSource,
+    border_image_width: BorderImageWidth,
+    border_inline: BorderInline,
+    border_inline_clip: BorderInlineClip,
+    border_inline_color: BorderInlineColor,
+    border_inline_end: BorderInlineEnd,
+    border_inline_end_clip: BorderInlineEndClip,
+    border_inline_end_color: BorderInlineEndColor,
+    border_inline_end_radius: BorderInlineEndRadius,
+    border_inline_end_style: BorderInlineEndStyle,
+    border_inline_end_width: BorderInlineEndWidth,
+    border_inline_start: BorderInlineStart,
+    border_inline_start_clip: BorderInlineStartClip,
+    border_inline_start_color: BorderInlineStartColor,
+    border_inline_start_radius: BorderInlineStartRadius,
+    border_inline_start_style: BorderInlineStartStyle,
+    border_inline_start_width: BorderInlineStartWidth,
+    border_inline_style: BorderInlineStyle,
+    border_inline_width: BorderInlineWidth,
+    border_left: BorderLeft,
+    border_left_clip: BorderLeftClip,
+    border_left_color: BorderLeftColor,
+    border_left_radius: BorderLeftRadius,
+    border_left_style: BorderLeftStyle,
+    border_left_width: BorderLeftWidth,
+    border_limit: BorderLimit,
+    border_radius: BorderRadius,
+    border_right: BorderRight,
+    border_right_clip: BorderRightClip,
+    border_right_color: BorderRightColor,
+    border_right_radius: BorderRightRadius,
+    border_right_style: BorderRightStyle,
+    border_right_width: BorderRightWidth,
+    border_shape: BorderShape,
+    border_spacing: BorderSpacing,
+    border_start_end_radius: BorderStartEndRadius,
+    border_start_start_radius: BorderStartStartRadius,
+    border_style: BorderStyle,
+    border_top: BorderTop,
+    border_top_clip: BorderTopClip,
+    border_top_color: BorderTopColor,
+    border_top_left_radius: BorderTopLeftRadius,
+    border_top_radius: BorderTopRadius,
+    border_top_right_radius: BorderTopRightRadius,
+    border_top_style: BorderTopStyle,
+    border_top_width: BorderTopWidth,
+    border_width: BorderWidth,
+    bottom: Bottom,
+    box_decoration_break: BoxDecorationBreak,
+    box_shadow: BoxShadow,
+    box_shadow_blur: BoxShadowBlur,
+    box_shadow_color: BoxShadowColor,
+    box_shadow_offset: BoxShadowOffset,
+    box_shadow_position: BoxShadowPosition,
+    box_shadow_spread: BoxShadowSpread,
+    box_sizing: BoxSizing,
+    box_snap: BoxSnap,
+    break_after: BreakAfter,
+    break_before: BreakBefore,
+    break_inside: BreakInside,
+    caption_side: CaptionSide,
+    caret: Caret,
+    caret_animation: CaretAnimation,
+    caret_color: CaretColor,
+    caret_shape: CaretShape,
+    clear: Clear,
+    clip: Clip,
+    clip_path: ClipPath,
+    clip_rule: ClipRule,
+    color: CssColor,
+    color_adjust: ColorAdjust,
+    color_interpolation: ColorInterpolation,
+    color_interpolation_filters: ColorInterpolationFilters,
+    color_scheme: ColorScheme,
+    column_count: ColumnCount,
+    column_fill: ColumnFill,
+    column_gap: ColumnGap,
+    column_height: ColumnHeight,
+    column_rule: ColumnRule,
+    column_rule_break: ColumnRuleBreak,
+    column_rule_color: ColumnRuleColor,
+    column_rule_edge_inset: ColumnRuleEdgeInset,
+    column_rule_edge_inset_end: ColumnRuleEdgeInsetEnd,
+    column_rule_edge_inset_start: ColumnRuleEdgeInsetStart,
+    column_rule_inset: ColumnRuleInset,
+    column_rule_inset_end: ColumnRuleInsetEnd,
+    column_rule_inset_start: ColumnRuleInsetStart,
+    column_rule_interior_inset: ColumnRuleInteriorInset,
+    column_rule_interior_inset_end: ColumnRuleInteriorInsetEnd,
+    column_rule_interior_inset_start: ColumnRuleInteriorInsetStart,
+    column_rule_style: ColumnRuleStyle,
+    column_rule_visibility_items: ColumnRuleVisibilityItems,
+    column_rule_width: ColumnRuleWidth,
+    column_span: ColumnSpan,
+    column_width: ColumnWidth,
+    column_wrap: ColumnWrap,
+    columns: Columns,
+    contain: Contain,
+    contain_intrinsic_block_size: ContainIntrinsicBlockSize,
+    contain_intrinsic_height: ContainIntrinsicHeight,
+    contain_intrinsic_inline_size: ContainIntrinsicInlineSize,
+    contain_intrinsic_size: ContainIntrinsicSize,
+    contain_intrinsic_width: ContainIntrinsicWidth,
+    container: Container,
+    container_name: ContainerName,
+    container_type: ContainerType,
+    content: Content,
+    content_visibility: ContentVisibility,
+    @"continue": Continue,
+    copy_into: CopyInto,
+    corner: Corner,
+    corner_block_end: CornerBlockEnd,
+    corner_block_end_shape: CornerBlockEndShape,
+    corner_block_start: CornerBlockStart,
+    corner_block_start_shape: CornerBlockStartShape,
+    corner_bottom: CornerBottom,
+    corner_bottom_left: CornerBottomLeft,
+    corner_bottom_left_shape: CornerBottomLeftShape,
+    corner_bottom_right: CornerBottomRight,
+    corner_bottom_right_shape: CornerBottomRightShape,
+    corner_bottom_shape: CornerBottomShape,
+    corner_end_end: CornerEndEnd,
+    corner_end_end_shape: CornerEndEndShape,
+    corner_end_start: CornerEndStart,
+    corner_end_start_shape: CornerEndStartShape,
+    corner_inline_end: CornerInlineEnd,
+    corner_inline_end_shape: CornerInlineEndShape,
+    corner_inline_start: CornerInlineStart,
+    corner_inline_start_shape: CornerInlineStartShape,
+    corner_left: CornerLeft,
+    corner_left_shape: CornerLeftShape,
+    corner_right: CornerRight,
+    corner_right_shape: CornerRightShape,
+    corner_shape: CornerShape,
+    corner_start_end: CornerStartEnd,
+    corner_start_end_shape: CornerStartEndShape,
+    corner_start_start: CornerStartStart,
+    corner_start_start_shape: CornerStartStartShape,
+    corner_top: CornerTop,
+    corner_top_left: CornerTopLeft,
+    corner_top_left_shape: CornerTopLeftShape,
+    corner_top_right: CornerTopRight,
+    corner_top_right_shape: CornerTopRightShape,
+    corner_top_shape: CornerTopShape,
+    counter_increment: CounterIncrement,
+    counter_reset: CounterReset,
+    counter_set: CounterSet,
+    cue: Cue,
+    cue_after: CueAfter,
+    cue_before: CueBefore,
+    cursor: Cursor,
+    cx: Cx,
+    cy: Cy,
+    d: D,
+    direction: Direction,
+    display: Display,
+    dominant_baseline: DominantBaseline,
+    dynamic_range_limit: DynamicRangeLimit,
+    empty_cells: EmptyCells,
+    event_trigger: EventTrigger,
+    event_trigger_name: EventTriggerName,
+    event_trigger_source: EventTriggerSource,
+    field_sizing: FieldSizing,
+    fill: Fill,
+    fill_break: FillBreak,
+    fill_color: FillColor,
+    fill_image: FillImage,
+    fill_opacity: FillOpacity,
+    fill_origin: FillOrigin,
+    fill_position: FillPosition,
+    fill_repeat: FillRepeat,
+    fill_rule: FillRule,
+    fill_size: FillSize,
+    filter: Filter,
+    flex: Flex,
+    flex_basis: FlexBasis,
+    flex_direction: FlexDirection,
+    flex_flow: FlexFlow,
+    flex_grow: FlexGrow,
+    flex_shrink: FlexShrink,
+    flex_wrap: FlexWrap,
+    float: Float,
+    float_defer: FloatDefer,
+    float_offset: FloatOffset,
+    float_reference: FloatReference,
+    flood_color: FloodColor,
+    flood_opacity: FloodOpacity,
+    flow_from: FlowFrom,
+    flow_into: FlowInto,
+    flow_tolerance: FlowTolerance,
+    font: Font,
+    font_family: FontFamily,
+    font_feature_settings: FontFeatureSettings,
+    font_kerning: FontKerning,
+    font_language_override: FontLanguageOverride,
+    font_optical_sizing: FontOpticalSizing,
+    font_palette: FontPalette,
+    font_size: FontSize,
+    font_size_adjust: FontSizeAdjust,
+    font_stretch: FontStretch,
+    font_style: FontStyle,
+    font_synthesis: FontSynthesis,
+    font_synthesis_position: FontSynthesisPosition,
+    font_synthesis_small_caps: FontSynthesisSmallCaps,
+    font_synthesis_style: FontSynthesisStyle,
+    font_synthesis_weight: FontSynthesisWeight,
+    font_variant: FontVariant,
+    font_variant_alternates: FontVariantAlternates,
+    font_variant_caps: FontVariantCaps,
+    font_variant_east_asian: FontVariantEastAsian,
+    font_variant_emoji: FontVariantEmoji,
+    font_variant_ligatures: FontVariantLigatures,
+    font_variant_numeric: FontVariantNumeric,
+    font_variant_position: FontVariantPosition,
+    font_variation_settings: FontVariationSettings,
+    font_weight: FontWeight,
+    font_width: FontWidth,
+    footnote_display: FootnoteDisplay,
+    footnote_policy: FootnotePolicy,
+    forced_color_adjust: ForcedColorAdjust,
+    gap: Gap,
+    glyph_orientation_vertical: GlyphOrientationVertical,
+    grid: Grid,
+    grid_area: GridArea,
+    grid_auto_columns: GridAutoColumns,
+    grid_auto_flow: GridAutoFlow,
+    grid_auto_rows: GridAutoRows,
+    grid_column: GridColumn,
+    grid_column_end: GridColumnEnd,
+    grid_column_gap: GridColumnGap,
+    grid_column_start: GridColumnStart,
+    grid_gap: GridGap,
+    grid_row: GridRow,
+    grid_row_end: GridRowEnd,
+    grid_row_gap: GridRowGap,
+    grid_row_start: GridRowStart,
+    grid_template: GridTemplate,
+    grid_template_areas: GridTemplateAreas,
+    grid_template_columns: GridTemplateColumns,
+    grid_template_rows: GridTemplateRows,
+    hanging_punctuation: HangingPunctuation,
+    height: Height,
+    hyphenate_character: HyphenateCharacter,
+    hyphenate_limit_chars: HyphenateLimitChars,
+    hyphenate_limit_last: HyphenateLimitLast,
+    hyphenate_limit_lines: HyphenateLimitLines,
+    hyphenate_limit_zone: HyphenateLimitZone,
+    hyphens: Hyphens,
+    image_animation: ImageAnimation,
+    image_orientation: ImageOrientation,
+    image_rendering: ImageRendering,
+    image_resolution: ImageResolution,
+    initial_letter: InitialLetter,
+    initial_letter_align: InitialLetterAlign,
+    initial_letter_wrap: InitialLetterWrap,
+    inline_size: InlineSize,
+    inline_sizing: InlineSizing,
+    input_security: InputSecurity,
+    inset: Inset,
+    inset_block: InsetBlock,
+    inset_block_end: InsetBlockEnd,
+    inset_block_start: InsetBlockStart,
+    inset_inline: InsetInline,
+    inset_inline_end: InsetInlineEnd,
+    inset_inline_start: InsetInlineStart,
+    interactivity: Interactivity,
+    interest_delay: InterestDelay,
+    interest_delay_end: InterestDelayEnd,
+    interest_delay_start: InterestDelayStart,
+    interpolate_size: InterpolateSize,
+    isolation: Isolation,
+    justify_content: JustifyContent,
+    justify_items: JustifyItems,
+    justify_self: JustifySelf,
+    left: Left,
+    letter_spacing: LetterSpacing,
+    lighting_color: LightingColor,
+    line_break: LineBreak,
+    line_clamp: LineClamp,
+    line_fit_edge: LineFitEdge,
+    line_grid: LineGrid,
+    line_height: LineHeight,
+    line_height_step: LineHeightStep,
+    line_padding: LinePadding,
+    line_snap: LineSnap,
+    link_parameters: LinkParameters,
+    list_style: ListStyle,
+    list_style_image: ListStyleImage,
+    list_style_position: ListStylePosition,
+    list_style_type: ListStyleType,
+    margin: Margin,
+    margin_block: MarginBlock,
+    margin_block_end: MarginBlockEnd,
+    margin_block_start: MarginBlockStart,
+    margin_bottom: MarginBottom,
+    margin_break: MarginBreak,
+    margin_inline: MarginInline,
+    margin_inline_end: MarginInlineEnd,
+    margin_inline_start: MarginInlineStart,
+    margin_left: MarginLeft,
+    margin_right: MarginRight,
+    margin_top: MarginTop,
+    margin_trim: MarginTrim,
+    marker: Marker,
+    marker_end: MarkerEnd,
+    marker_mid: MarkerMid,
+    marker_side: MarkerSide,
+    marker_start: MarkerStart,
+    mask: Mask,
+    mask_border: MaskBorder,
+    mask_border_mode: MaskBorderMode,
+    mask_border_outset: MaskBorderOutset,
+    mask_border_repeat: MaskBorderRepeat,
+    mask_border_slice: MaskBorderSlice,
+    mask_border_source: MaskBorderSource,
+    mask_border_width: MaskBorderWidth,
+    mask_clip: MaskClip,
+    mask_composite: MaskComposite,
+    mask_image: MaskImage,
+    mask_mode: MaskMode,
+    mask_origin: MaskOrigin,
+    mask_position: MaskPosition,
+    mask_repeat: MaskRepeat,
+    mask_size: MaskSize,
+    mask_type: MaskType,
+    math_depth: MathDepth,
+    math_shift: MathShift,
+    math_style: MathStyle,
+    max_block_size: MaxBlockSize,
+    max_height: MaxHeight,
+    max_inline_size: MaxInlineSize,
+    max_lines: MaxLines,
+    max_width: MaxWidth,
+    min_block_size: MinBlockSize,
+    min_height: MinHeight,
+    min_inline_size: MinInlineSize,
+    min_intrinsic_sizing: MinIntrinsicSizing,
+    min_width: MinWidth,
+    mix_blend_mode: MixBlendMode,
+    nav_down: NavDown,
+    nav_left: NavLeft,
+    nav_right: NavRight,
+    nav_up: NavUp,
+    object_fit: ObjectFit,
+    object_position: ObjectPosition,
+    object_view_box: ObjectViewBox,
+    offset: Offset,
+    offset_anchor: OffsetAnchor,
+    offset_distance: OffsetDistance,
+    offset_path: OffsetPath,
+    offset_position: OffsetPosition,
+    offset_rotate: OffsetRotate,
+    opacity: Opacity,
+    order: Order,
+    orphans: Orphans,
+    outline: Outline,
+    outline_color: OutlineColor,
+    outline_offset: OutlineOffset,
+    outline_style: OutlineStyle,
+    outline_width: OutlineWidth,
+    overflow: Overflow,
+    overflow_anchor: OverflowAnchor,
+    overflow_block: OverflowBlock,
+    overflow_clip_margin: OverflowClipMargin,
+    overflow_clip_margin_block: OverflowClipMarginBlock,
+    overflow_clip_margin_block_end: OverflowClipMarginBlockEnd,
+    overflow_clip_margin_block_start: OverflowClipMarginBlockStart,
+    overflow_clip_margin_bottom: OverflowClipMarginBottom,
+    overflow_clip_margin_inline: OverflowClipMarginInline,
+    overflow_clip_margin_inline_end: OverflowClipMarginInlineEnd,
+    overflow_clip_margin_inline_start: OverflowClipMarginInlineStart,
+    overflow_clip_margin_left: OverflowClipMarginLeft,
+    overflow_clip_margin_right: OverflowClipMarginRight,
+    overflow_clip_margin_top: OverflowClipMarginTop,
+    overflow_inline: OverflowInline,
+    overflow_wrap: OverflowWrap,
+    overflow_x: OverflowX,
+    overflow_y: OverflowY,
+    overlay: Overlay,
+    overscroll_behavior: OverscrollBehavior,
+    overscroll_behavior_block: OverscrollBehaviorBlock,
+    overscroll_behavior_inline: OverscrollBehaviorInline,
+    overscroll_behavior_x: OverscrollBehaviorX,
+    overscroll_behavior_y: OverscrollBehaviorY,
+    padding: Padding,
+    padding_block: PaddingBlock,
+    padding_block_end: PaddingBlockEnd,
+    padding_block_start: PaddingBlockStart,
+    padding_bottom: PaddingBottom,
+    padding_inline: PaddingInline,
+    padding_inline_end: PaddingInlineEnd,
+    padding_inline_start: PaddingInlineStart,
+    padding_left: PaddingLeft,
+    padding_right: PaddingRight,
+    padding_top: PaddingTop,
+    page: Page,
+    page_break_after: PageBreakAfter,
+    page_break_before: PageBreakBefore,
+    page_break_inside: PageBreakInside,
+    paint_order: PaintOrder,
+    pause: Pause,
+    pause_after: PauseAfter,
+    pause_before: PauseBefore,
+    perspective: Perspective,
+    perspective_origin: PerspectiveOrigin,
+    place_content: PlaceContent,
+    place_items: PlaceItems,
+    place_self: PlaceSelf,
+    pointer_events: PointerEvents,
+    pointer_timeline: PointerTimeline,
+    pointer_timeline_axis: PointerTimelineAxis,
+    pointer_timeline_name: PointerTimelineName,
+    position: Position,
+    position_anchor: PositionAnchor,
+    position_area: PositionArea,
+    position_try: PositionTry,
+    position_try_fallbacks: PositionTryFallbacks,
+    position_try_order: PositionTryOrder,
+    position_visibility: PositionVisibility,
+    print_color_adjust: PrintColorAdjust,
+    quotes: Quotes,
+    r: R,
+    reading_flow: ReadingFlow,
+    reading_order: ReadingOrder,
+    region_fragment: RegionFragment,
+    resize: Resize,
+    rest: Rest,
+    rest_after: RestAfter,
+    rest_before: RestBefore,
+    right: Right,
+    rotate: Rotate,
+    row_gap: RowGap,
+    row_rule: RowRule,
+    row_rule_break: RowRuleBreak,
+    row_rule_color: RowRuleColor,
+    row_rule_edge_inset: RowRuleEdgeInset,
+    row_rule_edge_inset_end: RowRuleEdgeInsetEnd,
+    row_rule_edge_inset_start: RowRuleEdgeInsetStart,
+    row_rule_inset: RowRuleInset,
+    row_rule_inset_end: RowRuleInsetEnd,
+    row_rule_inset_start: RowRuleInsetStart,
+    row_rule_interior_inset: RowRuleInteriorInset,
+    row_rule_interior_inset_end: RowRuleInteriorInsetEnd,
+    row_rule_interior_inset_start: RowRuleInteriorInsetStart,
+    row_rule_style: RowRuleStyle,
+    row_rule_visibility_items: RowRuleVisibilityItems,
+    row_rule_width: RowRuleWidth,
+    ruby_align: RubyAlign,
+    ruby_merge: RubyMerge,
+    ruby_overhang: RubyOverhang,
+    ruby_position: RubyPosition,
+    rule: Rule,
+    rule_break: RuleBreak,
+    rule_color: RuleColor,
+    rule_edge_inset: RuleEdgeInset,
+    rule_inset: RuleInset,
+    rule_inset_end: RuleInsetEnd,
+    rule_inset_start: RuleInsetStart,
+    rule_interior_inset: RuleInteriorInset,
+    rule_overlap: RuleOverlap,
+    rule_style: RuleStyle,
+    rule_visibility_items: RuleVisibilityItems,
+    rule_width: RuleWidth,
+    rx: Rx,
+    ry: Ry,
+    scale: Scale,
+    scroll_behavior: ScrollBehavior,
+    scroll_initial_target: ScrollInitialTarget,
+    scroll_margin: ScrollMargin,
+    scroll_margin_block: ScrollMarginBlock,
+    scroll_margin_block_end: ScrollMarginBlockEnd,
+    scroll_margin_block_start: ScrollMarginBlockStart,
+    scroll_margin_bottom: ScrollMarginBottom,
+    scroll_margin_inline: ScrollMarginInline,
+    scroll_margin_inline_end: ScrollMarginInlineEnd,
+    scroll_margin_inline_start: ScrollMarginInlineStart,
+    scroll_margin_left: ScrollMarginLeft,
+    scroll_margin_right: ScrollMarginRight,
+    scroll_margin_top: ScrollMarginTop,
+    scroll_marker_group: ScrollMarkerGroup,
+    scroll_padding: ScrollPadding,
+    scroll_padding_block: ScrollPaddingBlock,
+    scroll_padding_block_end: ScrollPaddingBlockEnd,
+    scroll_padding_block_start: ScrollPaddingBlockStart,
+    scroll_padding_bottom: ScrollPaddingBottom,
+    scroll_padding_inline: ScrollPaddingInline,
+    scroll_padding_inline_end: ScrollPaddingInlineEnd,
+    scroll_padding_inline_start: ScrollPaddingInlineStart,
+    scroll_padding_left: ScrollPaddingLeft,
+    scroll_padding_right: ScrollPaddingRight,
+    scroll_padding_top: ScrollPaddingTop,
+    scroll_snap_align: ScrollSnapAlign,
+    scroll_snap_stop: ScrollSnapStop,
+    scroll_snap_type: ScrollSnapType,
+    scroll_target_group: ScrollTargetGroup,
+    scroll_timeline: ScrollTimeline,
+    scroll_timeline_axis: ScrollTimelineAxis,
+    scroll_timeline_name: ScrollTimelineName,
+    scrollbar_color: ScrollbarColor,
+    scrollbar_gutter: ScrollbarGutter,
+    scrollbar_width: ScrollbarWidth,
+    shape_image_threshold: ShapeImageThreshold,
+    shape_inside: ShapeInside,
+    shape_margin: ShapeMargin,
+    shape_outside: ShapeOutside,
+    shape_padding: ShapePadding,
+    shape_rendering: ShapeRendering,
+    shape_subtract: ShapeSubtract,
+    slider_orientation: SliderOrientation,
+    spatial_navigation_action: SpatialNavigationAction,
+    spatial_navigation_contain: SpatialNavigationContain,
+    spatial_navigation_function: SpatialNavigationFunction,
+    speak: Speak,
+    speak_as: SpeakAs,
+    stop_color: StopColor,
+    stop_opacity: StopOpacity,
+    string_set: StringSet,
+    stroke: Stroke,
+    stroke_align: StrokeAlign,
+    stroke_alignment: StrokeAlignment,
+    stroke_break: StrokeBreak,
+    stroke_color: StrokeColor,
+    stroke_dash_corner: StrokeDashCorner,
+    stroke_dash_justify: StrokeDashJustify,
+    stroke_dashadjust: StrokeDashadjust,
+    stroke_dasharray: StrokeDasharray,
+    stroke_dashcorner: StrokeDashcorner,
+    stroke_dashoffset: StrokeDashoffset,
+    stroke_image: StrokeImage,
+    stroke_linecap: StrokeLinecap,
+    stroke_linejoin: StrokeLinejoin,
+    stroke_miterlimit: StrokeMiterlimit,
+    stroke_opacity: StrokeOpacity,
+    stroke_origin: StrokeOrigin,
+    stroke_position: StrokePosition,
+    stroke_repeat: StrokeRepeat,
+    stroke_size: StrokeSize,
+    stroke_width: StrokeWidth,
+    tab_size: TabSize,
+    table_layout: TableLayout,
+    text_align: TextAlign,
+    text_align_all: TextAlignAll,
+    text_align_last: TextAlignLast,
+    text_anchor: TextAnchor,
+    text_autospace: TextAutospace,
+    text_box: TextBox,
+    text_box_edge: TextBoxEdge,
+    text_box_trim: TextBoxTrim,
+    text_combine_upright: TextCombineUpright,
+    text_decoration: TextDecoration,
+    text_decoration_color: TextDecorationColor,
+    text_decoration_inset: TextDecorationInset,
+    text_decoration_line: TextDecorationLine,
+    text_decoration_skip: TextDecorationSkip,
+    text_decoration_skip_box: TextDecorationSkipBox,
+    text_decoration_skip_ink: TextDecorationSkipInk,
+    text_decoration_skip_self: TextDecorationSkipSelf,
+    text_decoration_skip_spaces: TextDecorationSkipSpaces,
+    text_decoration_style: TextDecorationStyle,
+    text_decoration_thickness: TextDecorationThickness,
+    text_emphasis: TextEmphasis,
+    text_emphasis_color: TextEmphasisColor,
+    text_emphasis_position: TextEmphasisPosition,
+    text_emphasis_skip: TextEmphasisSkip,
+    text_emphasis_style: TextEmphasisStyle,
+    text_group_align: TextGroupAlign,
+    text_indent: TextIndent,
+    text_justify: TextJustify,
+    text_orientation: TextOrientation,
+    text_overflow: TextOverflow,
+    text_rendering: TextRendering,
+    text_shadow: TextShadow,
+    text_size_adjust: TextSizeAdjust,
+    text_spacing: TextSpacing,
+    text_spacing_trim: TextSpacingTrim,
+    text_transform: TextTransform,
+    text_underline_offset: TextUnderlineOffset,
+    text_underline_position: TextUnderlinePosition,
+    text_wrap: TextWrap,
+    text_wrap_mode: TextWrapMode,
+    text_wrap_style: TextWrapStyle,
+    timeline_scope: TimelineScope,
+    timeline_trigger: TimelineTrigger,
+    timeline_trigger_activation_range: TimelineTriggerActivationRange,
+    timeline_trigger_activation_range_end: TimelineTriggerActivationRangeEnd,
+    timeline_trigger_activation_range_start: TimelineTriggerActivationRangeStart,
+    timeline_trigger_active_range: TimelineTriggerActiveRange,
+    timeline_trigger_active_range_end: TimelineTriggerActiveRangeEnd,
+    timeline_trigger_active_range_start: TimelineTriggerActiveRangeStart,
+    timeline_trigger_name: TimelineTriggerName,
+    timeline_trigger_source: TimelineTriggerSource,
+    top: Top,
+    touch_action: TouchAction,
+    transform: Transform,
+    transform_box: TransformBox,
+    transform_origin: TransformOrigin,
+    transform_style: TransformStyle,
+    transition: Transition,
+    transition_behavior: TransitionBehavior,
+    transition_delay: TransitionDelay,
+    transition_duration: TransitionDuration,
+    transition_property: TransitionProperty,
+    transition_timing_function: TransitionTimingFunction,
+    translate: Translate,
+    trigger_scope: TriggerScope,
+    unicode_bidi: UnicodeBidi,
+    user_select: UserSelect,
+    vector_effect: VectorEffect,
+    vertical_align: VerticalAlign,
+    view_timeline: ViewTimeline,
+    view_timeline_axis: ViewTimelineAxis,
+    view_timeline_inset: ViewTimelineInset,
+    view_timeline_name: ViewTimelineName,
+    view_transition_class: ViewTransitionClass,
+    view_transition_group: ViewTransitionGroup,
+    view_transition_name: ViewTransitionName,
+    view_transition_scope: ViewTransitionScope,
+    visibility: Visibility,
+    voice_balance: VoiceBalance,
+    voice_duration: VoiceDuration,
+    voice_family: VoiceFamily,
+    voice_pitch: VoicePitch,
+    voice_range: VoiceRange,
+    voice_rate: VoiceRate,
+    voice_stress: VoiceStress,
+    voice_volume: VoiceVolume,
+    white_space: WhiteSpace,
+    white_space_collapse: WhiteSpaceCollapse,
+    white_space_trim: WhiteSpaceTrim,
+    widows: Widows,
+    width: Width,
+    will_change: WillChange,
+    word_break: WordBreak,
+    word_space_transform: WordSpaceTransform,
+    word_spacing: WordSpacing,
+    word_wrap: WordWrap,
+    wrap_after: WrapAfter,
+    wrap_before: WrapBefore,
+    wrap_flow: WrapFlow,
+    wrap_inside: WrapInside,
+    wrap_through: WrapThrough,
+    writing_mode: WritingMode,
+    x: X,
+    y: Y,
+    z_index: ZIndex,
+    zoom: Zoom,
+    after: ?*const Style,
+    backdrop: ?*const Style,
+    before: ?*const Style,
+    checkmark: ?*const Style,
+    clear_icon: ?*const Style,
+    color_swatch: ?*const Style,
+    column: ?*const Style,
+    cue_region: ?*const Style,
+    details_content: ?*const Style,
+    field_component: ?*const Style,
+    field_separator: ?*const Style,
+    field_text: ?*const Style,
+    file_selector_button: ?*const Style,
+    first_letter: ?*const Style,
+    first_line: ?*const Style,
+    grammar_error: ?*const Style,
+    picker_icon: ?*const Style,
+    placeholder: ?*const Style,
+    reveal_icon: ?*const Style,
+    scroll_marker: ?*const Style,
+    search_text: ?*const Style,
+    selection: ?*const Style,
+    slider_fill: ?*const Style,
+    slider_thumb: ?*const Style,
+    slider_track: ?*const Style,
+    spelling_error: ?*const Style,
+    step_control: ?*const Style,
+    step_down: ?*const Style,
+    step_up: ?*const Style,
+    target_text: ?*const Style,
+    view_transition: ?*const Style,
+    active: ?*const Style,
+    active_view_transition: ?*const Style,
+    animated_image: ?*const Style,
+    any_link: ?*const Style,
+    autofill: ?*const Style,
+    blank: ?*const Style,
+    buffering: ?*const Style,
+    checked: ?*const Style,
+    current: ?*const Style,
+    default: ?*const Style,
+    defined: ?*const Style,
+    disabled: ?*const Style,
+    empty: ?*const Style,
+    enabled: ?*const Style,
+    first: ?*const Style,
+    first_child: ?*const Style,
+    first_of_page: ?*const Style,
+    first_of_type: ?*const Style,
+    focus: ?*const Style,
+    focus_visible: ?*const Style,
+    focus_within: ?*const Style,
+    fullscreen: ?*const Style,
+    future: ?*const Style,
+    has_slotted: ?*const Style,
+    heading: ?*const Style,
+    high_value: ?*const Style,
+    host: ?*const Style,
+    hover: ?*const Style,
+    in_range: ?*const Style,
+    indeterminate: ?*const Style,
+    interest_source: ?*const Style,
+    interest_target: ?*const Style,
+    invalid: ?*const Style,
+    last_child: ?*const Style,
+    last_of_page: ?*const Style,
+    last_of_type: ?*const Style,
+    link: ?*const Style,
+    local_link: ?*const Style,
+    low_value: ?*const Style,
+    modal: ?*const Style,
+    muted: ?*const Style,
+    only_child: ?*const Style,
+    only_of_type: ?*const Style,
+    open: ?*const Style,
+    optimal_value: ?*const Style,
+    optional: ?*const Style,
+    out_of_range: ?*const Style,
+    past: ?*const Style,
+    paused: ?*const Style,
+    picture_in_picture: ?*const Style,
+    placeholder_shown: ?*const Style,
+    playing: ?*const Style,
+    popover_open: ?*const Style,
+    read_only: ?*const Style,
+    read_write: ?*const Style,
+    required: ?*const Style,
+    root: ?*const Style,
+    scope: ?*const Style,
+    seeking: ?*const Style,
+    snapped: ?*const Style,
+    snapped_block: ?*const Style,
+    snapped_inline: ?*const Style,
+    snapped_x: ?*const Style,
+    snapped_y: ?*const Style,
+    stalled: ?*const Style,
+    start_of_page: ?*const Style,
+    target: ?*const Style,
+    target_after: ?*const Style,
+    target_before: ?*const Style,
+    target_current: ?*const Style,
+    unchecked: ?*const Style,
+    user_invalid: ?*const Style,
+    user_valid: ?*const Style,
+    valid: ?*const Style,
+    visited: ?*const Style,
+    volume_locked: ?*const Style,
+    xr_overlay: ?*const Style,
+    sm: ?*const Style,
+    md: ?*const Style,
+    lg: ?*const Style,
+    xl: ?*const Style,
+    extra: []const u8,
 };
+
+pub fn webkit_align_content(v: WebkitAlignContent) StyleProperty {
+    return .{ .webkit_align_content = v };
+}
+
+pub fn webkit_align_items(v: WebkitAlignItems) StyleProperty {
+    return .{ .webkit_align_items = v };
+}
+
+pub fn webkit_align_self(v: WebkitAlignSelf) StyleProperty {
+    return .{ .webkit_align_self = v };
+}
+
+pub fn webkit_animation(v: WebkitAnimation) StyleProperty {
+    return .{ .webkit_animation = v };
+}
+
+pub fn webkit_animation_delay(v: WebkitAnimationDelay) StyleProperty {
+    return .{ .webkit_animation_delay = v };
+}
+
+pub fn webkit_animation_direction(v: WebkitAnimationDirection) StyleProperty {
+    return .{ .webkit_animation_direction = v };
+}
+
+pub fn webkit_animation_duration(v: WebkitAnimationDuration) StyleProperty {
+    return .{ .webkit_animation_duration = v };
+}
+
+pub fn webkit_animation_fill_mode(v: WebkitAnimationFillMode) StyleProperty {
+    return .{ .webkit_animation_fill_mode = v };
+}
+
+pub fn webkit_animation_iteration_count(v: WebkitAnimationIterationCount) StyleProperty {
+    return .{ .webkit_animation_iteration_count = v };
+}
+
+pub fn webkit_animation_name(v: WebkitAnimationName) StyleProperty {
+    return .{ .webkit_animation_name = v };
+}
+
+pub fn webkit_animation_play_state(v: WebkitAnimationPlayState) StyleProperty {
+    return .{ .webkit_animation_play_state = v };
+}
+
+pub fn webkit_animation_timing_function(v: WebkitAnimationTimingFunction) StyleProperty {
+    return .{ .webkit_animation_timing_function = v };
+}
+
+pub fn webkit_appearance(v: WebkitAppearance) StyleProperty {
+    return .{ .webkit_appearance = v };
+}
+
+pub fn webkit_backface_visibility(v: WebkitBackfaceVisibility) StyleProperty {
+    return .{ .webkit_backface_visibility = v };
+}
+
+pub fn webkit_background_clip(v: WebkitBackgroundClip) StyleProperty {
+    return .{ .webkit_background_clip = v };
+}
+
+pub fn webkit_background_origin(v: WebkitBackgroundOrigin) StyleProperty {
+    return .{ .webkit_background_origin = v };
+}
+
+pub fn webkit_background_size(v: WebkitBackgroundSize) StyleProperty {
+    return .{ .webkit_background_size = v };
+}
+
+pub fn webkit_border_bottom_left_radius(v: WebkitBorderBottomLeftRadius) StyleProperty {
+    return .{ .webkit_border_bottom_left_radius = v };
+}
+
+pub fn webkit_border_bottom_right_radius(v: WebkitBorderBottomRightRadius) StyleProperty {
+    return .{ .webkit_border_bottom_right_radius = v };
+}
+
+pub fn webkit_border_radius(v: WebkitBorderRadius) StyleProperty {
+    return .{ .webkit_border_radius = v };
+}
+
+pub fn webkit_border_top_left_radius(v: WebkitBorderTopLeftRadius) StyleProperty {
+    return .{ .webkit_border_top_left_radius = v };
+}
+
+pub fn webkit_border_top_right_radius(v: WebkitBorderTopRightRadius) StyleProperty {
+    return .{ .webkit_border_top_right_radius = v };
+}
+
+pub fn webkit_box_align(v: WebkitBoxAlign) StyleProperty {
+    return .{ .webkit_box_align = v };
+}
+
+pub fn webkit_box_flex(v: WebkitBoxFlex) StyleProperty {
+    return .{ .webkit_box_flex = v };
+}
+
+pub fn webkit_box_ordinal_group(v: WebkitBoxOrdinalGroup) StyleProperty {
+    return .{ .webkit_box_ordinal_group = v };
+}
+
+pub fn webkit_box_orient(v: WebkitBoxOrient) StyleProperty {
+    return .{ .webkit_box_orient = v };
+}
+
+pub fn webkit_box_pack(v: WebkitBoxPack) StyleProperty {
+    return .{ .webkit_box_pack = v };
+}
+
+pub fn webkit_box_shadow(v: WebkitBoxShadow) StyleProperty {
+    return .{ .webkit_box_shadow = v };
+}
+
+pub fn webkit_box_sizing(v: WebkitBoxSizing) StyleProperty {
+    return .{ .webkit_box_sizing = v };
+}
+
+pub fn webkit_filter(v: WebkitFilter) StyleProperty {
+    return .{ .webkit_filter = v };
+}
+
+pub fn webkit_flex(v: WebkitFlex) StyleProperty {
+    return .{ .webkit_flex = v };
+}
+
+pub fn webkit_flex_basis(v: WebkitFlexBasis) StyleProperty {
+    return .{ .webkit_flex_basis = v };
+}
+
+pub fn webkit_flex_direction(v: WebkitFlexDirection) StyleProperty {
+    return .{ .webkit_flex_direction = v };
+}
+
+pub fn webkit_flex_flow(v: WebkitFlexFlow) StyleProperty {
+    return .{ .webkit_flex_flow = v };
+}
+
+pub fn webkit_flex_grow(v: WebkitFlexGrow) StyleProperty {
+    return .{ .webkit_flex_grow = v };
+}
+
+pub fn webkit_flex_shrink(v: WebkitFlexShrink) StyleProperty {
+    return .{ .webkit_flex_shrink = v };
+}
+
+pub fn webkit_flex_wrap(v: WebkitFlexWrap) StyleProperty {
+    return .{ .webkit_flex_wrap = v };
+}
+
+pub fn webkit_justify_content(v: WebkitJustifyContent) StyleProperty {
+    return .{ .webkit_justify_content = v };
+}
+
+pub fn webkit_line_clamp(v: WebkitLineClamp) StyleProperty {
+    return .{ .webkit_line_clamp = v };
+}
+
+pub fn webkit_mask(v: WebkitMask) StyleProperty {
+    return .{ .webkit_mask = v };
+}
+
+pub fn webkit_mask_box_image(v: WebkitMaskBoxImage) StyleProperty {
+    return .{ .webkit_mask_box_image = v };
+}
+
+pub fn webkit_mask_box_image_outset(v: WebkitMaskBoxImageOutset) StyleProperty {
+    return .{ .webkit_mask_box_image_outset = v };
+}
+
+pub fn webkit_mask_box_image_repeat(v: WebkitMaskBoxImageRepeat) StyleProperty {
+    return .{ .webkit_mask_box_image_repeat = v };
+}
+
+pub fn webkit_mask_box_image_slice(v: WebkitMaskBoxImageSlice) StyleProperty {
+    return .{ .webkit_mask_box_image_slice = v };
+}
+
+pub fn webkit_mask_box_image_source(v: WebkitMaskBoxImageSource) StyleProperty {
+    return .{ .webkit_mask_box_image_source = v };
+}
+
+pub fn webkit_mask_box_image_width(v: WebkitMaskBoxImageWidth) StyleProperty {
+    return .{ .webkit_mask_box_image_width = v };
+}
+
+pub fn webkit_mask_clip(v: WebkitMaskClip) StyleProperty {
+    return .{ .webkit_mask_clip = v };
+}
+
+pub fn webkit_mask_composite(v: WebkitMaskComposite) StyleProperty {
+    return .{ .webkit_mask_composite = v };
+}
+
+pub fn webkit_mask_image(v: WebkitMaskImage) StyleProperty {
+    return .{ .webkit_mask_image = v };
+}
+
+pub fn webkit_mask_origin(v: WebkitMaskOrigin) StyleProperty {
+    return .{ .webkit_mask_origin = v };
+}
+
+pub fn webkit_mask_position(v: WebkitMaskPosition) StyleProperty {
+    return .{ .webkit_mask_position = v };
+}
+
+pub fn webkit_mask_repeat(v: WebkitMaskRepeat) StyleProperty {
+    return .{ .webkit_mask_repeat = v };
+}
+
+pub fn webkit_mask_size(v: WebkitMaskSize) StyleProperty {
+    return .{ .webkit_mask_size = v };
+}
+
+pub fn webkit_order(v: WebkitOrder) StyleProperty {
+    return .{ .webkit_order = v };
+}
+
+pub fn webkit_perspective(v: WebkitPerspective) StyleProperty {
+    return .{ .webkit_perspective = v };
+}
+
+pub fn webkit_perspective_origin(v: WebkitPerspectiveOrigin) StyleProperty {
+    return .{ .webkit_perspective_origin = v };
+}
+
+pub fn webkit_text_fill_color(v: WebkitTextFillColor) StyleProperty {
+    return .{ .webkit_text_fill_color = v };
+}
+
+pub fn webkit_text_size_adjust(v: WebkitTextSizeAdjust) StyleProperty {
+    return .{ .webkit_text_size_adjust = v };
+}
+
+pub fn webkit_text_stroke(v: WebkitTextStroke) StyleProperty {
+    return .{ .webkit_text_stroke = v };
+}
+
+pub fn webkit_text_stroke_color(v: WebkitTextStrokeColor) StyleProperty {
+    return .{ .webkit_text_stroke_color = v };
+}
+
+pub fn webkit_text_stroke_width(v: WebkitTextStrokeWidth) StyleProperty {
+    return .{ .webkit_text_stroke_width = v };
+}
+
+pub fn webkit_transform(v: WebkitTransform) StyleProperty {
+    return .{ .webkit_transform = v };
+}
+
+pub fn webkit_transform_origin(v: WebkitTransformOrigin) StyleProperty {
+    return .{ .webkit_transform_origin = v };
+}
+
+pub fn webkit_transform_style(v: WebkitTransformStyle) StyleProperty {
+    return .{ .webkit_transform_style = v };
+}
+
+pub fn webkit_transition(v: WebkitTransition) StyleProperty {
+    return .{ .webkit_transition = v };
+}
+
+pub fn webkit_transition_delay(v: WebkitTransitionDelay) StyleProperty {
+    return .{ .webkit_transition_delay = v };
+}
+
+pub fn webkit_transition_duration(v: WebkitTransitionDuration) StyleProperty {
+    return .{ .webkit_transition_duration = v };
+}
+
+pub fn webkit_transition_property(v: WebkitTransitionProperty) StyleProperty {
+    return .{ .webkit_transition_property = v };
+}
+
+pub fn webkit_transition_timing_function(v: WebkitTransitionTimingFunction) StyleProperty {
+    return .{ .webkit_transition_timing_function = v };
+}
+
+pub fn webkit_user_select(v: WebkitUserSelect) StyleProperty {
+    return .{ .webkit_user_select = v };
+}
+
+pub fn accent_color(v: AccentColor) StyleProperty {
+    return .{ .accent_color = v };
+}
+
+pub fn align_content(v: AlignContent) StyleProperty {
+    return .{ .align_content = v };
+}
+
+pub fn align_items(v: AlignItems) StyleProperty {
+    return .{ .align_items = v };
+}
+
+pub fn align_self(v: AlignSelf) StyleProperty {
+    return .{ .align_self = v };
+}
+
+pub fn alignment_baseline(v: AlignmentBaseline) StyleProperty {
+    return .{ .alignment_baseline = v };
+}
+
+pub fn all(v: All) StyleProperty {
+    return .{ .all = v };
+}
+
+pub fn anchor_name(v: AnchorName) StyleProperty {
+    return .{ .anchor_name = v };
+}
+
+pub fn anchor_scope(v: AnchorScope) StyleProperty {
+    return .{ .anchor_scope = v };
+}
+
+pub fn animation(v: Animation) StyleProperty {
+    return .{ .animation = v };
+}
+
+pub fn animation_composition(v: AnimationComposition) StyleProperty {
+    return .{ .animation_composition = v };
+}
+
+pub fn animation_delay(v: AnimationDelay) StyleProperty {
+    return .{ .animation_delay = v };
+}
+
+pub fn animation_direction(v: AnimationDirection) StyleProperty {
+    return .{ .animation_direction = v };
+}
+
+pub fn animation_duration(v: AnimationDuration) StyleProperty {
+    return .{ .animation_duration = v };
+}
+
+pub fn animation_fill_mode(v: AnimationFillMode) StyleProperty {
+    return .{ .animation_fill_mode = v };
+}
+
+pub fn animation_iteration_count(v: AnimationIterationCount) StyleProperty {
+    return .{ .animation_iteration_count = v };
+}
+
+pub fn animation_name(v: AnimationName) StyleProperty {
+    return .{ .animation_name = v };
+}
+
+pub fn animation_play_state(v: AnimationPlayState) StyleProperty {
+    return .{ .animation_play_state = v };
+}
+
+pub fn animation_range(v: AnimationRange) StyleProperty {
+    return .{ .animation_range = v };
+}
+
+pub fn animation_range_center(v: AnimationRangeCenter) StyleProperty {
+    return .{ .animation_range_center = v };
+}
+
+pub fn animation_range_end(v: AnimationRangeEnd) StyleProperty {
+    return .{ .animation_range_end = v };
+}
+
+pub fn animation_range_start(v: AnimationRangeStart) StyleProperty {
+    return .{ .animation_range_start = v };
+}
+
+pub fn animation_timeline(v: AnimationTimeline) StyleProperty {
+    return .{ .animation_timeline = v };
+}
+
+pub fn animation_timing_function(v: AnimationTimingFunction) StyleProperty {
+    return .{ .animation_timing_function = v };
+}
+
+pub fn animation_trigger(v: AnimationTrigger) StyleProperty {
+    return .{ .animation_trigger = v };
+}
+
+pub fn appearance(v: Appearance) StyleProperty {
+    return .{ .appearance = v };
+}
+
+pub fn aspect_ratio(v: AspectRatio) StyleProperty {
+    return .{ .aspect_ratio = v };
+}
+
+pub fn backdrop_filter(v: BackdropFilter) StyleProperty {
+    return .{ .backdrop_filter = v };
+}
+
+pub fn backface_visibility(v: BackfaceVisibility) StyleProperty {
+    return .{ .backface_visibility = v };
+}
+
+pub fn background(v: Background) StyleProperty {
+    return .{ .background = v };
+}
+
+pub fn background_attachment(v: BackgroundAttachment) StyleProperty {
+    return .{ .background_attachment = v };
+}
+
+pub fn background_blend_mode(v: BackgroundBlendMode) StyleProperty {
+    return .{ .background_blend_mode = v };
+}
+
+pub fn background_clip(v: BackgroundClip) StyleProperty {
+    return .{ .background_clip = v };
+}
+
+pub fn background_color(v: BackgroundColor) StyleProperty {
+    return .{ .background_color = v };
+}
+
+pub fn background_image(v: BackgroundImage) StyleProperty {
+    return .{ .background_image = v };
+}
+
+pub fn background_origin(v: BackgroundOrigin) StyleProperty {
+    return .{ .background_origin = v };
+}
+
+pub fn background_position(v: BackgroundPosition) StyleProperty {
+    return .{ .background_position = v };
+}
+
+pub fn background_position_block(v: BackgroundPositionBlock) StyleProperty {
+    return .{ .background_position_block = v };
+}
+
+pub fn background_position_inline(v: BackgroundPositionInline) StyleProperty {
+    return .{ .background_position_inline = v };
+}
+
+pub fn background_position_x(v: BackgroundPositionX) StyleProperty {
+    return .{ .background_position_x = v };
+}
+
+pub fn background_position_y(v: BackgroundPositionY) StyleProperty {
+    return .{ .background_position_y = v };
+}
+
+pub fn background_repeat(v: BackgroundRepeat) StyleProperty {
+    return .{ .background_repeat = v };
+}
+
+pub fn background_repeat_block(v: BackgroundRepeatBlock) StyleProperty {
+    return .{ .background_repeat_block = v };
+}
+
+pub fn background_repeat_inline(v: BackgroundRepeatInline) StyleProperty {
+    return .{ .background_repeat_inline = v };
+}
+
+pub fn background_repeat_x(v: BackgroundRepeatX) StyleProperty {
+    return .{ .background_repeat_x = v };
+}
+
+pub fn background_repeat_y(v: BackgroundRepeatY) StyleProperty {
+    return .{ .background_repeat_y = v };
+}
+
+pub fn background_size(v: BackgroundSize) StyleProperty {
+    return .{ .background_size = v };
+}
+
+pub fn background_tbd(v: BackgroundTbd) StyleProperty {
+    return .{ .background_tbd = v };
+}
+
+pub fn baseline_shift(v: BaselineShift) StyleProperty {
+    return .{ .baseline_shift = v };
+}
+
+pub fn baseline_source(v: BaselineSource) StyleProperty {
+    return .{ .baseline_source = v };
+}
+
+pub fn block_ellipsis(v: BlockEllipsis) StyleProperty {
+    return .{ .block_ellipsis = v };
+}
+
+pub fn block_size(v: BlockSize) StyleProperty {
+    return .{ .block_size = v };
+}
+
+pub fn block_step(v: BlockStep) StyleProperty {
+    return .{ .block_step = v };
+}
+
+pub fn block_step_align(v: BlockStepAlign) StyleProperty {
+    return .{ .block_step_align = v };
+}
+
+pub fn block_step_insert(v: BlockStepInsert) StyleProperty {
+    return .{ .block_step_insert = v };
+}
+
+pub fn block_step_round(v: BlockStepRound) StyleProperty {
+    return .{ .block_step_round = v };
+}
+
+pub fn block_step_size(v: BlockStepSize) StyleProperty {
+    return .{ .block_step_size = v };
+}
+
+pub fn bookmark_label(v: BookmarkLabel) StyleProperty {
+    return .{ .bookmark_label = v };
+}
+
+pub fn bookmark_level(v: BookmarkLevel) StyleProperty {
+    return .{ .bookmark_level = v };
+}
+
+pub fn bookmark_state(v: BookmarkState) StyleProperty {
+    return .{ .bookmark_state = v };
+}
+
+pub fn border(v: Border) StyleProperty {
+    return .{ .border = v };
+}
+
+pub fn border_block(v: BorderBlock) StyleProperty {
+    return .{ .border_block = v };
+}
+
+pub fn border_block_clip(v: BorderBlockClip) StyleProperty {
+    return .{ .border_block_clip = v };
+}
+
+pub fn border_block_color(v: BorderBlockColor) StyleProperty {
+    return .{ .border_block_color = v };
+}
+
+pub fn border_block_end(v: BorderBlockEnd) StyleProperty {
+    return .{ .border_block_end = v };
+}
+
+pub fn border_block_end_clip(v: BorderBlockEndClip) StyleProperty {
+    return .{ .border_block_end_clip = v };
+}
+
+pub fn border_block_end_color(v: BorderBlockEndColor) StyleProperty {
+    return .{ .border_block_end_color = v };
+}
+
+pub fn border_block_end_radius(v: BorderBlockEndRadius) StyleProperty {
+    return .{ .border_block_end_radius = v };
+}
+
+pub fn border_block_end_style(v: BorderBlockEndStyle) StyleProperty {
+    return .{ .border_block_end_style = v };
+}
+
+pub fn border_block_end_width(v: BorderBlockEndWidth) StyleProperty {
+    return .{ .border_block_end_width = v };
+}
+
+pub fn border_block_start(v: BorderBlockStart) StyleProperty {
+    return .{ .border_block_start = v };
+}
+
+pub fn border_block_start_clip(v: BorderBlockStartClip) StyleProperty {
+    return .{ .border_block_start_clip = v };
+}
+
+pub fn border_block_start_color(v: BorderBlockStartColor) StyleProperty {
+    return .{ .border_block_start_color = v };
+}
+
+pub fn border_block_start_radius(v: BorderBlockStartRadius) StyleProperty {
+    return .{ .border_block_start_radius = v };
+}
+
+pub fn border_block_start_style(v: BorderBlockStartStyle) StyleProperty {
+    return .{ .border_block_start_style = v };
+}
+
+pub fn border_block_start_width(v: BorderBlockStartWidth) StyleProperty {
+    return .{ .border_block_start_width = v };
+}
+
+pub fn border_block_style(v: BorderBlockStyle) StyleProperty {
+    return .{ .border_block_style = v };
+}
+
+pub fn border_block_width(v: BorderBlockWidth) StyleProperty {
+    return .{ .border_block_width = v };
+}
+
+pub fn border_bottom(v: BorderBottom) StyleProperty {
+    return .{ .border_bottom = v };
+}
+
+pub fn border_bottom_clip(v: BorderBottomClip) StyleProperty {
+    return .{ .border_bottom_clip = v };
+}
+
+pub fn border_bottom_color(v: BorderBottomColor) StyleProperty {
+    return .{ .border_bottom_color = v };
+}
+
+pub fn border_bottom_left_radius(v: BorderBottomLeftRadius) StyleProperty {
+    return .{ .border_bottom_left_radius = v };
+}
+
+pub fn border_bottom_radius(v: BorderBottomRadius) StyleProperty {
+    return .{ .border_bottom_radius = v };
+}
+
+pub fn border_bottom_right_radius(v: BorderBottomRightRadius) StyleProperty {
+    return .{ .border_bottom_right_radius = v };
+}
+
+pub fn border_bottom_style(v: BorderBottomStyle) StyleProperty {
+    return .{ .border_bottom_style = v };
+}
+
+pub fn border_bottom_width(v: BorderBottomWidth) StyleProperty {
+    return .{ .border_bottom_width = v };
+}
+
+pub fn border_boundary(v: BorderBoundary) StyleProperty {
+    return .{ .border_boundary = v };
+}
+
+pub fn border_clip(v: BorderClip) StyleProperty {
+    return .{ .border_clip = v };
+}
+
+pub fn border_collapse(v: BorderCollapse) StyleProperty {
+    return .{ .border_collapse = v };
+}
+
+pub fn border_color(v: BorderColor) StyleProperty {
+    return .{ .border_color = v };
+}
+
+pub fn border_end_end_radius(v: BorderEndEndRadius) StyleProperty {
+    return .{ .border_end_end_radius = v };
+}
+
+pub fn border_end_start_radius(v: BorderEndStartRadius) StyleProperty {
+    return .{ .border_end_start_radius = v };
+}
+
+pub fn border_image(v: BorderImage) StyleProperty {
+    return .{ .border_image = v };
+}
+
+pub fn border_image_outset(v: BorderImageOutset) StyleProperty {
+    return .{ .border_image_outset = v };
+}
+
+pub fn border_image_repeat(v: BorderImageRepeat) StyleProperty {
+    return .{ .border_image_repeat = v };
+}
+
+pub fn border_image_slice(v: BorderImageSlice) StyleProperty {
+    return .{ .border_image_slice = v };
+}
+
+pub fn border_image_source(v: BorderImageSource) StyleProperty {
+    return .{ .border_image_source = v };
+}
+
+pub fn border_image_width(v: BorderImageWidth) StyleProperty {
+    return .{ .border_image_width = v };
+}
+
+pub fn border_inline(v: BorderInline) StyleProperty {
+    return .{ .border_inline = v };
+}
+
+pub fn border_inline_clip(v: BorderInlineClip) StyleProperty {
+    return .{ .border_inline_clip = v };
+}
+
+pub fn border_inline_color(v: BorderInlineColor) StyleProperty {
+    return .{ .border_inline_color = v };
+}
+
+pub fn border_inline_end(v: BorderInlineEnd) StyleProperty {
+    return .{ .border_inline_end = v };
+}
+
+pub fn border_inline_end_clip(v: BorderInlineEndClip) StyleProperty {
+    return .{ .border_inline_end_clip = v };
+}
+
+pub fn border_inline_end_color(v: BorderInlineEndColor) StyleProperty {
+    return .{ .border_inline_end_color = v };
+}
+
+pub fn border_inline_end_radius(v: BorderInlineEndRadius) StyleProperty {
+    return .{ .border_inline_end_radius = v };
+}
+
+pub fn border_inline_end_style(v: BorderInlineEndStyle) StyleProperty {
+    return .{ .border_inline_end_style = v };
+}
+
+pub fn border_inline_end_width(v: BorderInlineEndWidth) StyleProperty {
+    return .{ .border_inline_end_width = v };
+}
+
+pub fn border_inline_start(v: BorderInlineStart) StyleProperty {
+    return .{ .border_inline_start = v };
+}
+
+pub fn border_inline_start_clip(v: BorderInlineStartClip) StyleProperty {
+    return .{ .border_inline_start_clip = v };
+}
+
+pub fn border_inline_start_color(v: BorderInlineStartColor) StyleProperty {
+    return .{ .border_inline_start_color = v };
+}
+
+pub fn border_inline_start_radius(v: BorderInlineStartRadius) StyleProperty {
+    return .{ .border_inline_start_radius = v };
+}
+
+pub fn border_inline_start_style(v: BorderInlineStartStyle) StyleProperty {
+    return .{ .border_inline_start_style = v };
+}
+
+pub fn border_inline_start_width(v: BorderInlineStartWidth) StyleProperty {
+    return .{ .border_inline_start_width = v };
+}
+
+pub fn border_inline_style(v: BorderInlineStyle) StyleProperty {
+    return .{ .border_inline_style = v };
+}
+
+pub fn border_inline_width(v: BorderInlineWidth) StyleProperty {
+    return .{ .border_inline_width = v };
+}
+
+pub fn border_left(v: BorderLeft) StyleProperty {
+    return .{ .border_left = v };
+}
+
+pub fn border_left_clip(v: BorderLeftClip) StyleProperty {
+    return .{ .border_left_clip = v };
+}
+
+pub fn border_left_color(v: BorderLeftColor) StyleProperty {
+    return .{ .border_left_color = v };
+}
+
+pub fn border_left_radius(v: BorderLeftRadius) StyleProperty {
+    return .{ .border_left_radius = v };
+}
+
+pub fn border_left_style(v: BorderLeftStyle) StyleProperty {
+    return .{ .border_left_style = v };
+}
+
+pub fn border_left_width(v: BorderLeftWidth) StyleProperty {
+    return .{ .border_left_width = v };
+}
+
+pub fn border_limit(v: BorderLimit) StyleProperty {
+    return .{ .border_limit = v };
+}
+
+pub fn border_radius(v: BorderRadius) StyleProperty {
+    return .{ .border_radius = v };
+}
+
+pub fn border_right(v: BorderRight) StyleProperty {
+    return .{ .border_right = v };
+}
+
+pub fn border_right_clip(v: BorderRightClip) StyleProperty {
+    return .{ .border_right_clip = v };
+}
+
+pub fn border_right_color(v: BorderRightColor) StyleProperty {
+    return .{ .border_right_color = v };
+}
+
+pub fn border_right_radius(v: BorderRightRadius) StyleProperty {
+    return .{ .border_right_radius = v };
+}
+
+pub fn border_right_style(v: BorderRightStyle) StyleProperty {
+    return .{ .border_right_style = v };
+}
+
+pub fn border_right_width(v: BorderRightWidth) StyleProperty {
+    return .{ .border_right_width = v };
+}
+
+pub fn border_shape(v: BorderShape) StyleProperty {
+    return .{ .border_shape = v };
+}
+
+pub fn border_spacing(v: BorderSpacing) StyleProperty {
+    return .{ .border_spacing = v };
+}
+
+pub fn border_start_end_radius(v: BorderStartEndRadius) StyleProperty {
+    return .{ .border_start_end_radius = v };
+}
+
+pub fn border_start_start_radius(v: BorderStartStartRadius) StyleProperty {
+    return .{ .border_start_start_radius = v };
+}
+
+pub fn border_style(v: BorderStyle) StyleProperty {
+    return .{ .border_style = v };
+}
+
+pub fn border_top(v: BorderTop) StyleProperty {
+    return .{ .border_top = v };
+}
+
+pub fn border_top_clip(v: BorderTopClip) StyleProperty {
+    return .{ .border_top_clip = v };
+}
+
+pub fn border_top_color(v: BorderTopColor) StyleProperty {
+    return .{ .border_top_color = v };
+}
+
+pub fn border_top_left_radius(v: BorderTopLeftRadius) StyleProperty {
+    return .{ .border_top_left_radius = v };
+}
+
+pub fn border_top_radius(v: BorderTopRadius) StyleProperty {
+    return .{ .border_top_radius = v };
+}
+
+pub fn border_top_right_radius(v: BorderTopRightRadius) StyleProperty {
+    return .{ .border_top_right_radius = v };
+}
+
+pub fn border_top_style(v: BorderTopStyle) StyleProperty {
+    return .{ .border_top_style = v };
+}
+
+pub fn border_top_width(v: BorderTopWidth) StyleProperty {
+    return .{ .border_top_width = v };
+}
+
+pub fn border_width(v: BorderWidth) StyleProperty {
+    return .{ .border_width = v };
+}
+
+pub fn bottom(v: Bottom) StyleProperty {
+    return .{ .bottom = v };
+}
+
+pub fn box_decoration_break(v: BoxDecorationBreak) StyleProperty {
+    return .{ .box_decoration_break = v };
+}
+
+pub fn box_shadow(v: BoxShadow) StyleProperty {
+    return .{ .box_shadow = v };
+}
+
+pub fn box_shadow_blur(v: BoxShadowBlur) StyleProperty {
+    return .{ .box_shadow_blur = v };
+}
+
+pub fn box_shadow_color(v: BoxShadowColor) StyleProperty {
+    return .{ .box_shadow_color = v };
+}
+
+pub fn box_shadow_offset(v: BoxShadowOffset) StyleProperty {
+    return .{ .box_shadow_offset = v };
+}
+
+pub fn box_shadow_position(v: BoxShadowPosition) StyleProperty {
+    return .{ .box_shadow_position = v };
+}
+
+pub fn box_shadow_spread(v: BoxShadowSpread) StyleProperty {
+    return .{ .box_shadow_spread = v };
+}
+
+pub fn box_sizing(v: BoxSizing) StyleProperty {
+    return .{ .box_sizing = v };
+}
+
+pub fn box_snap(v: BoxSnap) StyleProperty {
+    return .{ .box_snap = v };
+}
+
+pub fn break_after(v: BreakAfter) StyleProperty {
+    return .{ .break_after = v };
+}
+
+pub fn break_before(v: BreakBefore) StyleProperty {
+    return .{ .break_before = v };
+}
+
+pub fn break_inside(v: BreakInside) StyleProperty {
+    return .{ .break_inside = v };
+}
+
+pub fn caption_side(v: CaptionSide) StyleProperty {
+    return .{ .caption_side = v };
+}
+
+pub fn caret(v: Caret) StyleProperty {
+    return .{ .caret = v };
+}
+
+pub fn caret_animation(v: CaretAnimation) StyleProperty {
+    return .{ .caret_animation = v };
+}
+
+pub fn caret_color(v: CaretColor) StyleProperty {
+    return .{ .caret_color = v };
+}
+
+pub fn caret_shape(v: CaretShape) StyleProperty {
+    return .{ .caret_shape = v };
+}
+
+pub fn clear(v: Clear) StyleProperty {
+    return .{ .clear = v };
+}
+
+pub fn clip(v: Clip) StyleProperty {
+    return .{ .clip = v };
+}
+
+pub fn clip_path(v: ClipPath) StyleProperty {
+    return .{ .clip_path = v };
+}
+
+pub fn clip_rule(v: ClipRule) StyleProperty {
+    return .{ .clip_rule = v };
+}
+
+pub fn color(v: CssColor) StyleProperty {
+    return .{ .color = v };
+}
+
+pub fn color_adjust(v: ColorAdjust) StyleProperty {
+    return .{ .color_adjust = v };
+}
+
+pub fn color_interpolation(v: ColorInterpolation) StyleProperty {
+    return .{ .color_interpolation = v };
+}
+
+pub fn color_interpolation_filters(v: ColorInterpolationFilters) StyleProperty {
+    return .{ .color_interpolation_filters = v };
+}
+
+pub fn color_scheme(v: ColorScheme) StyleProperty {
+    return .{ .color_scheme = v };
+}
+
+pub fn column_count(v: ColumnCount) StyleProperty {
+    return .{ .column_count = v };
+}
+
+pub fn column_fill(v: ColumnFill) StyleProperty {
+    return .{ .column_fill = v };
+}
+
+pub fn column_gap(v: ColumnGap) StyleProperty {
+    return .{ .column_gap = v };
+}
+
+pub fn column_height(v: ColumnHeight) StyleProperty {
+    return .{ .column_height = v };
+}
+
+pub fn column_rule(v: ColumnRule) StyleProperty {
+    return .{ .column_rule = v };
+}
+
+pub fn column_rule_break(v: ColumnRuleBreak) StyleProperty {
+    return .{ .column_rule_break = v };
+}
+
+pub fn column_rule_color(v: ColumnRuleColor) StyleProperty {
+    return .{ .column_rule_color = v };
+}
+
+pub fn column_rule_edge_inset(v: ColumnRuleEdgeInset) StyleProperty {
+    return .{ .column_rule_edge_inset = v };
+}
+
+pub fn column_rule_edge_inset_end(v: ColumnRuleEdgeInsetEnd) StyleProperty {
+    return .{ .column_rule_edge_inset_end = v };
+}
+
+pub fn column_rule_edge_inset_start(v: ColumnRuleEdgeInsetStart) StyleProperty {
+    return .{ .column_rule_edge_inset_start = v };
+}
+
+pub fn column_rule_inset(v: ColumnRuleInset) StyleProperty {
+    return .{ .column_rule_inset = v };
+}
+
+pub fn column_rule_inset_end(v: ColumnRuleInsetEnd) StyleProperty {
+    return .{ .column_rule_inset_end = v };
+}
+
+pub fn column_rule_inset_start(v: ColumnRuleInsetStart) StyleProperty {
+    return .{ .column_rule_inset_start = v };
+}
+
+pub fn column_rule_interior_inset(v: ColumnRuleInteriorInset) StyleProperty {
+    return .{ .column_rule_interior_inset = v };
+}
+
+pub fn column_rule_interior_inset_end(v: ColumnRuleInteriorInsetEnd) StyleProperty {
+    return .{ .column_rule_interior_inset_end = v };
+}
+
+pub fn column_rule_interior_inset_start(v: ColumnRuleInteriorInsetStart) StyleProperty {
+    return .{ .column_rule_interior_inset_start = v };
+}
+
+pub fn column_rule_style(v: ColumnRuleStyle) StyleProperty {
+    return .{ .column_rule_style = v };
+}
+
+pub fn column_rule_visibility_items(v: ColumnRuleVisibilityItems) StyleProperty {
+    return .{ .column_rule_visibility_items = v };
+}
+
+pub fn column_rule_width(v: ColumnRuleWidth) StyleProperty {
+    return .{ .column_rule_width = v };
+}
+
+pub fn column_span(v: ColumnSpan) StyleProperty {
+    return .{ .column_span = v };
+}
+
+pub fn column_width(v: ColumnWidth) StyleProperty {
+    return .{ .column_width = v };
+}
+
+pub fn column_wrap(v: ColumnWrap) StyleProperty {
+    return .{ .column_wrap = v };
+}
+
+pub fn columns(v: Columns) StyleProperty {
+    return .{ .columns = v };
+}
+
+pub fn contain(v: Contain) StyleProperty {
+    return .{ .contain = v };
+}
+
+pub fn contain_intrinsic_block_size(v: ContainIntrinsicBlockSize) StyleProperty {
+    return .{ .contain_intrinsic_block_size = v };
+}
+
+pub fn contain_intrinsic_height(v: ContainIntrinsicHeight) StyleProperty {
+    return .{ .contain_intrinsic_height = v };
+}
+
+pub fn contain_intrinsic_inline_size(v: ContainIntrinsicInlineSize) StyleProperty {
+    return .{ .contain_intrinsic_inline_size = v };
+}
+
+pub fn contain_intrinsic_size(v: ContainIntrinsicSize) StyleProperty {
+    return .{ .contain_intrinsic_size = v };
+}
+
+pub fn contain_intrinsic_width(v: ContainIntrinsicWidth) StyleProperty {
+    return .{ .contain_intrinsic_width = v };
+}
+
+pub fn container(v: Container) StyleProperty {
+    return .{ .container = v };
+}
+
+pub fn container_name(v: ContainerName) StyleProperty {
+    return .{ .container_name = v };
+}
+
+pub fn container_type(v: ContainerType) StyleProperty {
+    return .{ .container_type = v };
+}
+
+pub fn content(v: Content) StyleProperty {
+    return .{ .content = v };
+}
+
+pub fn content_visibility(v: ContentVisibility) StyleProperty {
+    return .{ .content_visibility = v };
+}
+
+pub fn @"continue"(v: Continue) StyleProperty {
+    return .{ .@"continue" = v };
+}
+
+pub fn copy_into(v: CopyInto) StyleProperty {
+    return .{ .copy_into = v };
+}
+
+pub fn corner(v: Corner) StyleProperty {
+    return .{ .corner = v };
+}
+
+pub fn corner_block_end(v: CornerBlockEnd) StyleProperty {
+    return .{ .corner_block_end = v };
+}
+
+pub fn corner_block_end_shape(v: CornerBlockEndShape) StyleProperty {
+    return .{ .corner_block_end_shape = v };
+}
+
+pub fn corner_block_start(v: CornerBlockStart) StyleProperty {
+    return .{ .corner_block_start = v };
+}
+
+pub fn corner_block_start_shape(v: CornerBlockStartShape) StyleProperty {
+    return .{ .corner_block_start_shape = v };
+}
+
+pub fn corner_bottom(v: CornerBottom) StyleProperty {
+    return .{ .corner_bottom = v };
+}
+
+pub fn corner_bottom_left(v: CornerBottomLeft) StyleProperty {
+    return .{ .corner_bottom_left = v };
+}
+
+pub fn corner_bottom_left_shape(v: CornerBottomLeftShape) StyleProperty {
+    return .{ .corner_bottom_left_shape = v };
+}
+
+pub fn corner_bottom_right(v: CornerBottomRight) StyleProperty {
+    return .{ .corner_bottom_right = v };
+}
+
+pub fn corner_bottom_right_shape(v: CornerBottomRightShape) StyleProperty {
+    return .{ .corner_bottom_right_shape = v };
+}
+
+pub fn corner_bottom_shape(v: CornerBottomShape) StyleProperty {
+    return .{ .corner_bottom_shape = v };
+}
+
+pub fn corner_end_end(v: CornerEndEnd) StyleProperty {
+    return .{ .corner_end_end = v };
+}
+
+pub fn corner_end_end_shape(v: CornerEndEndShape) StyleProperty {
+    return .{ .corner_end_end_shape = v };
+}
+
+pub fn corner_end_start(v: CornerEndStart) StyleProperty {
+    return .{ .corner_end_start = v };
+}
+
+pub fn corner_end_start_shape(v: CornerEndStartShape) StyleProperty {
+    return .{ .corner_end_start_shape = v };
+}
+
+pub fn corner_inline_end(v: CornerInlineEnd) StyleProperty {
+    return .{ .corner_inline_end = v };
+}
+
+pub fn corner_inline_end_shape(v: CornerInlineEndShape) StyleProperty {
+    return .{ .corner_inline_end_shape = v };
+}
+
+pub fn corner_inline_start(v: CornerInlineStart) StyleProperty {
+    return .{ .corner_inline_start = v };
+}
+
+pub fn corner_inline_start_shape(v: CornerInlineStartShape) StyleProperty {
+    return .{ .corner_inline_start_shape = v };
+}
+
+pub fn corner_left(v: CornerLeft) StyleProperty {
+    return .{ .corner_left = v };
+}
+
+pub fn corner_left_shape(v: CornerLeftShape) StyleProperty {
+    return .{ .corner_left_shape = v };
+}
+
+pub fn corner_right(v: CornerRight) StyleProperty {
+    return .{ .corner_right = v };
+}
+
+pub fn corner_right_shape(v: CornerRightShape) StyleProperty {
+    return .{ .corner_right_shape = v };
+}
+
+pub fn corner_shape(v: CornerShape) StyleProperty {
+    return .{ .corner_shape = v };
+}
+
+pub fn corner_start_end(v: CornerStartEnd) StyleProperty {
+    return .{ .corner_start_end = v };
+}
+
+pub fn corner_start_end_shape(v: CornerStartEndShape) StyleProperty {
+    return .{ .corner_start_end_shape = v };
+}
+
+pub fn corner_start_start(v: CornerStartStart) StyleProperty {
+    return .{ .corner_start_start = v };
+}
+
+pub fn corner_start_start_shape(v: CornerStartStartShape) StyleProperty {
+    return .{ .corner_start_start_shape = v };
+}
+
+pub fn corner_top(v: CornerTop) StyleProperty {
+    return .{ .corner_top = v };
+}
+
+pub fn corner_top_left(v: CornerTopLeft) StyleProperty {
+    return .{ .corner_top_left = v };
+}
+
+pub fn corner_top_left_shape(v: CornerTopLeftShape) StyleProperty {
+    return .{ .corner_top_left_shape = v };
+}
+
+pub fn corner_top_right(v: CornerTopRight) StyleProperty {
+    return .{ .corner_top_right = v };
+}
+
+pub fn corner_top_right_shape(v: CornerTopRightShape) StyleProperty {
+    return .{ .corner_top_right_shape = v };
+}
+
+pub fn corner_top_shape(v: CornerTopShape) StyleProperty {
+    return .{ .corner_top_shape = v };
+}
+
+pub fn counter_increment(v: CounterIncrement) StyleProperty {
+    return .{ .counter_increment = v };
+}
+
+pub fn counter_reset(v: CounterReset) StyleProperty {
+    return .{ .counter_reset = v };
+}
+
+pub fn counter_set(v: CounterSet) StyleProperty {
+    return .{ .counter_set = v };
+}
+
+pub fn cue(v: Cue) StyleProperty {
+    return .{ .cue = v };
+}
+
+pub fn cue_after(v: CueAfter) StyleProperty {
+    return .{ .cue_after = v };
+}
+
+pub fn cue_before(v: CueBefore) StyleProperty {
+    return .{ .cue_before = v };
+}
+
+pub fn cursor(v: Cursor) StyleProperty {
+    return .{ .cursor = v };
+}
+
+pub fn cx(v: Cx) StyleProperty {
+    return .{ .cx = v };
+}
+
+pub fn cy(v: Cy) StyleProperty {
+    return .{ .cy = v };
+}
+
+pub fn d(v: D) StyleProperty {
+    return .{ .d = v };
+}
+
+pub fn direction(v: Direction) StyleProperty {
+    return .{ .direction = v };
+}
+
+pub fn display(v: Display) StyleProperty {
+    return .{ .display = v };
+}
+
+pub fn dominant_baseline(v: DominantBaseline) StyleProperty {
+    return .{ .dominant_baseline = v };
+}
+
+pub fn dynamic_range_limit(v: DynamicRangeLimit) StyleProperty {
+    return .{ .dynamic_range_limit = v };
+}
+
+pub fn empty_cells(v: EmptyCells) StyleProperty {
+    return .{ .empty_cells = v };
+}
+
+pub fn event_trigger(v: EventTrigger) StyleProperty {
+    return .{ .event_trigger = v };
+}
+
+pub fn event_trigger_name(v: EventTriggerName) StyleProperty {
+    return .{ .event_trigger_name = v };
+}
+
+pub fn event_trigger_source(v: EventTriggerSource) StyleProperty {
+    return .{ .event_trigger_source = v };
+}
+
+pub fn field_sizing(v: FieldSizing) StyleProperty {
+    return .{ .field_sizing = v };
+}
+
+pub fn fill(v: Fill) StyleProperty {
+    return .{ .fill = v };
+}
+
+pub fn fill_break(v: FillBreak) StyleProperty {
+    return .{ .fill_break = v };
+}
+
+pub fn fill_color(v: FillColor) StyleProperty {
+    return .{ .fill_color = v };
+}
+
+pub fn fill_image(v: FillImage) StyleProperty {
+    return .{ .fill_image = v };
+}
+
+pub fn fill_opacity(v: FillOpacity) StyleProperty {
+    return .{ .fill_opacity = v };
+}
+
+pub fn fill_origin(v: FillOrigin) StyleProperty {
+    return .{ .fill_origin = v };
+}
+
+pub fn fill_position(v: FillPosition) StyleProperty {
+    return .{ .fill_position = v };
+}
+
+pub fn fill_repeat(v: FillRepeat) StyleProperty {
+    return .{ .fill_repeat = v };
+}
+
+pub fn fill_rule(v: FillRule) StyleProperty {
+    return .{ .fill_rule = v };
+}
+
+pub fn fill_size(v: FillSize) StyleProperty {
+    return .{ .fill_size = v };
+}
+
+pub fn filter(v: Filter) StyleProperty {
+    return .{ .filter = v };
+}
+
+pub fn flex(v: Flex) StyleProperty {
+    return .{ .flex = v };
+}
+
+pub fn flex_basis(v: FlexBasis) StyleProperty {
+    return .{ .flex_basis = v };
+}
+
+pub fn flex_direction(v: FlexDirection) StyleProperty {
+    return .{ .flex_direction = v };
+}
+
+pub fn flex_flow(v: FlexFlow) StyleProperty {
+    return .{ .flex_flow = v };
+}
+
+pub fn flex_grow(v: FlexGrow) StyleProperty {
+    return .{ .flex_grow = v };
+}
+
+pub fn flex_shrink(v: FlexShrink) StyleProperty {
+    return .{ .flex_shrink = v };
+}
+
+pub fn flex_wrap(v: FlexWrap) StyleProperty {
+    return .{ .flex_wrap = v };
+}
+
+pub fn float(v: Float) StyleProperty {
+    return .{ .float = v };
+}
+
+pub fn float_defer(v: FloatDefer) StyleProperty {
+    return .{ .float_defer = v };
+}
+
+pub fn float_offset(v: FloatOffset) StyleProperty {
+    return .{ .float_offset = v };
+}
+
+pub fn float_reference(v: FloatReference) StyleProperty {
+    return .{ .float_reference = v };
+}
+
+pub fn flood_color(v: FloodColor) StyleProperty {
+    return .{ .flood_color = v };
+}
+
+pub fn flood_opacity(v: FloodOpacity) StyleProperty {
+    return .{ .flood_opacity = v };
+}
+
+pub fn flow_from(v: FlowFrom) StyleProperty {
+    return .{ .flow_from = v };
+}
+
+pub fn flow_into(v: FlowInto) StyleProperty {
+    return .{ .flow_into = v };
+}
+
+pub fn flow_tolerance(v: FlowTolerance) StyleProperty {
+    return .{ .flow_tolerance = v };
+}
+
+pub fn font(v: Font) StyleProperty {
+    return .{ .font = v };
+}
+
+pub fn font_family(v: FontFamily) StyleProperty {
+    return .{ .font_family = v };
+}
+
+pub fn font_feature_settings(v: FontFeatureSettings) StyleProperty {
+    return .{ .font_feature_settings = v };
+}
+
+pub fn font_kerning(v: FontKerning) StyleProperty {
+    return .{ .font_kerning = v };
+}
+
+pub fn font_language_override(v: FontLanguageOverride) StyleProperty {
+    return .{ .font_language_override = v };
+}
+
+pub fn font_optical_sizing(v: FontOpticalSizing) StyleProperty {
+    return .{ .font_optical_sizing = v };
+}
+
+pub fn font_palette(v: FontPalette) StyleProperty {
+    return .{ .font_palette = v };
+}
+
+pub fn font_size(v: FontSize) StyleProperty {
+    return .{ .font_size = v };
+}
+
+pub fn font_size_adjust(v: FontSizeAdjust) StyleProperty {
+    return .{ .font_size_adjust = v };
+}
+
+pub fn font_stretch(v: FontStretch) StyleProperty {
+    return .{ .font_stretch = v };
+}
+
+pub fn font_style(v: FontStyle) StyleProperty {
+    return .{ .font_style = v };
+}
+
+pub fn font_synthesis(v: FontSynthesis) StyleProperty {
+    return .{ .font_synthesis = v };
+}
+
+pub fn font_synthesis_position(v: FontSynthesisPosition) StyleProperty {
+    return .{ .font_synthesis_position = v };
+}
+
+pub fn font_synthesis_small_caps(v: FontSynthesisSmallCaps) StyleProperty {
+    return .{ .font_synthesis_small_caps = v };
+}
+
+pub fn font_synthesis_style(v: FontSynthesisStyle) StyleProperty {
+    return .{ .font_synthesis_style = v };
+}
+
+pub fn font_synthesis_weight(v: FontSynthesisWeight) StyleProperty {
+    return .{ .font_synthesis_weight = v };
+}
+
+pub fn font_variant(v: FontVariant) StyleProperty {
+    return .{ .font_variant = v };
+}
+
+pub fn font_variant_alternates(v: FontVariantAlternates) StyleProperty {
+    return .{ .font_variant_alternates = v };
+}
+
+pub fn font_variant_caps(v: FontVariantCaps) StyleProperty {
+    return .{ .font_variant_caps = v };
+}
+
+pub fn font_variant_east_asian(v: FontVariantEastAsian) StyleProperty {
+    return .{ .font_variant_east_asian = v };
+}
+
+pub fn font_variant_emoji(v: FontVariantEmoji) StyleProperty {
+    return .{ .font_variant_emoji = v };
+}
+
+pub fn font_variant_ligatures(v: FontVariantLigatures) StyleProperty {
+    return .{ .font_variant_ligatures = v };
+}
+
+pub fn font_variant_numeric(v: FontVariantNumeric) StyleProperty {
+    return .{ .font_variant_numeric = v };
+}
+
+pub fn font_variant_position(v: FontVariantPosition) StyleProperty {
+    return .{ .font_variant_position = v };
+}
+
+pub fn font_variation_settings(v: FontVariationSettings) StyleProperty {
+    return .{ .font_variation_settings = v };
+}
+
+pub fn font_weight(v: FontWeight) StyleProperty {
+    return .{ .font_weight = v };
+}
+
+pub fn font_width(v: FontWidth) StyleProperty {
+    return .{ .font_width = v };
+}
+
+pub fn footnote_display(v: FootnoteDisplay) StyleProperty {
+    return .{ .footnote_display = v };
+}
+
+pub fn footnote_policy(v: FootnotePolicy) StyleProperty {
+    return .{ .footnote_policy = v };
+}
+
+pub fn forced_color_adjust(v: ForcedColorAdjust) StyleProperty {
+    return .{ .forced_color_adjust = v };
+}
+
+pub fn gap(v: Gap) StyleProperty {
+    return .{ .gap = v };
+}
+
+pub fn glyph_orientation_vertical(v: GlyphOrientationVertical) StyleProperty {
+    return .{ .glyph_orientation_vertical = v };
+}
+
+pub fn grid(v: Grid) StyleProperty {
+    return .{ .grid = v };
+}
+
+pub fn grid_area(v: GridArea) StyleProperty {
+    return .{ .grid_area = v };
+}
+
+pub fn grid_auto_columns(v: GridAutoColumns) StyleProperty {
+    return .{ .grid_auto_columns = v };
+}
+
+pub fn grid_auto_flow(v: GridAutoFlow) StyleProperty {
+    return .{ .grid_auto_flow = v };
+}
+
+pub fn grid_auto_rows(v: GridAutoRows) StyleProperty {
+    return .{ .grid_auto_rows = v };
+}
+
+pub fn grid_column(v: GridColumn) StyleProperty {
+    return .{ .grid_column = v };
+}
+
+pub fn grid_column_end(v: GridColumnEnd) StyleProperty {
+    return .{ .grid_column_end = v };
+}
+
+pub fn grid_column_gap(v: GridColumnGap) StyleProperty {
+    return .{ .grid_column_gap = v };
+}
+
+pub fn grid_column_start(v: GridColumnStart) StyleProperty {
+    return .{ .grid_column_start = v };
+}
+
+pub fn grid_gap(v: GridGap) StyleProperty {
+    return .{ .grid_gap = v };
+}
+
+pub fn grid_row(v: GridRow) StyleProperty {
+    return .{ .grid_row = v };
+}
+
+pub fn grid_row_end(v: GridRowEnd) StyleProperty {
+    return .{ .grid_row_end = v };
+}
+
+pub fn grid_row_gap(v: GridRowGap) StyleProperty {
+    return .{ .grid_row_gap = v };
+}
+
+pub fn grid_row_start(v: GridRowStart) StyleProperty {
+    return .{ .grid_row_start = v };
+}
+
+pub fn grid_template(v: GridTemplate) StyleProperty {
+    return .{ .grid_template = v };
+}
+
+pub fn grid_template_areas(v: GridTemplateAreas) StyleProperty {
+    return .{ .grid_template_areas = v };
+}
+
+pub fn grid_template_columns(v: GridTemplateColumns) StyleProperty {
+    return .{ .grid_template_columns = v };
+}
+
+pub fn grid_template_rows(v: GridTemplateRows) StyleProperty {
+    return .{ .grid_template_rows = v };
+}
+
+pub fn hanging_punctuation(v: HangingPunctuation) StyleProperty {
+    return .{ .hanging_punctuation = v };
+}
+
+pub fn height(v: Height) StyleProperty {
+    return .{ .height = v };
+}
+
+pub fn hyphenate_character(v: HyphenateCharacter) StyleProperty {
+    return .{ .hyphenate_character = v };
+}
+
+pub fn hyphenate_limit_chars(v: HyphenateLimitChars) StyleProperty {
+    return .{ .hyphenate_limit_chars = v };
+}
+
+pub fn hyphenate_limit_last(v: HyphenateLimitLast) StyleProperty {
+    return .{ .hyphenate_limit_last = v };
+}
+
+pub fn hyphenate_limit_lines(v: HyphenateLimitLines) StyleProperty {
+    return .{ .hyphenate_limit_lines = v };
+}
+
+pub fn hyphenate_limit_zone(v: HyphenateLimitZone) StyleProperty {
+    return .{ .hyphenate_limit_zone = v };
+}
+
+pub fn hyphens(v: Hyphens) StyleProperty {
+    return .{ .hyphens = v };
+}
+
+pub fn image_animation(v: ImageAnimation) StyleProperty {
+    return .{ .image_animation = v };
+}
+
+pub fn image_orientation(v: ImageOrientation) StyleProperty {
+    return .{ .image_orientation = v };
+}
+
+pub fn image_rendering(v: ImageRendering) StyleProperty {
+    return .{ .image_rendering = v };
+}
+
+pub fn image_resolution(v: ImageResolution) StyleProperty {
+    return .{ .image_resolution = v };
+}
+
+pub fn initial_letter(v: InitialLetter) StyleProperty {
+    return .{ .initial_letter = v };
+}
+
+pub fn initial_letter_align(v: InitialLetterAlign) StyleProperty {
+    return .{ .initial_letter_align = v };
+}
+
+pub fn initial_letter_wrap(v: InitialLetterWrap) StyleProperty {
+    return .{ .initial_letter_wrap = v };
+}
+
+pub fn inline_size(v: InlineSize) StyleProperty {
+    return .{ .inline_size = v };
+}
+
+pub fn inline_sizing(v: InlineSizing) StyleProperty {
+    return .{ .inline_sizing = v };
+}
+
+pub fn input_security(v: InputSecurity) StyleProperty {
+    return .{ .input_security = v };
+}
+
+pub fn inset(v: Inset) StyleProperty {
+    return .{ .inset = v };
+}
+
+pub fn inset_block(v: InsetBlock) StyleProperty {
+    return .{ .inset_block = v };
+}
+
+pub fn inset_block_end(v: InsetBlockEnd) StyleProperty {
+    return .{ .inset_block_end = v };
+}
+
+pub fn inset_block_start(v: InsetBlockStart) StyleProperty {
+    return .{ .inset_block_start = v };
+}
+
+pub fn inset_inline(v: InsetInline) StyleProperty {
+    return .{ .inset_inline = v };
+}
+
+pub fn inset_inline_end(v: InsetInlineEnd) StyleProperty {
+    return .{ .inset_inline_end = v };
+}
+
+pub fn inset_inline_start(v: InsetInlineStart) StyleProperty {
+    return .{ .inset_inline_start = v };
+}
+
+pub fn interactivity(v: Interactivity) StyleProperty {
+    return .{ .interactivity = v };
+}
+
+pub fn interest_delay(v: InterestDelay) StyleProperty {
+    return .{ .interest_delay = v };
+}
+
+pub fn interest_delay_end(v: InterestDelayEnd) StyleProperty {
+    return .{ .interest_delay_end = v };
+}
+
+pub fn interest_delay_start(v: InterestDelayStart) StyleProperty {
+    return .{ .interest_delay_start = v };
+}
+
+pub fn interpolate_size(v: InterpolateSize) StyleProperty {
+    return .{ .interpolate_size = v };
+}
+
+pub fn isolation(v: Isolation) StyleProperty {
+    return .{ .isolation = v };
+}
+
+pub fn justify_content(v: JustifyContent) StyleProperty {
+    return .{ .justify_content = v };
+}
+
+pub fn justify_items(v: JustifyItems) StyleProperty {
+    return .{ .justify_items = v };
+}
+
+pub fn justify_self(v: JustifySelf) StyleProperty {
+    return .{ .justify_self = v };
+}
+
+pub fn left(v: Left) StyleProperty {
+    return .{ .left = v };
+}
+
+pub fn letter_spacing(v: LetterSpacing) StyleProperty {
+    return .{ .letter_spacing = v };
+}
+
+pub fn lighting_color(v: LightingColor) StyleProperty {
+    return .{ .lighting_color = v };
+}
+
+pub fn line_break(v: LineBreak) StyleProperty {
+    return .{ .line_break = v };
+}
+
+pub fn line_clamp(v: LineClamp) StyleProperty {
+    return .{ .line_clamp = v };
+}
+
+pub fn line_fit_edge(v: LineFitEdge) StyleProperty {
+    return .{ .line_fit_edge = v };
+}
+
+pub fn line_grid(v: LineGrid) StyleProperty {
+    return .{ .line_grid = v };
+}
+
+pub fn line_height(v: LineHeight) StyleProperty {
+    return .{ .line_height = v };
+}
+
+pub fn line_height_step(v: LineHeightStep) StyleProperty {
+    return .{ .line_height_step = v };
+}
+
+pub fn line_padding(v: LinePadding) StyleProperty {
+    return .{ .line_padding = v };
+}
+
+pub fn line_snap(v: LineSnap) StyleProperty {
+    return .{ .line_snap = v };
+}
+
+pub fn link_parameters(v: LinkParameters) StyleProperty {
+    return .{ .link_parameters = v };
+}
+
+pub fn list_style(v: ListStyle) StyleProperty {
+    return .{ .list_style = v };
+}
+
+pub fn list_style_image(v: ListStyleImage) StyleProperty {
+    return .{ .list_style_image = v };
+}
+
+pub fn list_style_position(v: ListStylePosition) StyleProperty {
+    return .{ .list_style_position = v };
+}
+
+pub fn list_style_type(v: ListStyleType) StyleProperty {
+    return .{ .list_style_type = v };
+}
+
+pub fn margin(v: Margin) StyleProperty {
+    return .{ .margin = v };
+}
+
+pub fn margin_block(v: MarginBlock) StyleProperty {
+    return .{ .margin_block = v };
+}
+
+pub fn margin_block_end(v: MarginBlockEnd) StyleProperty {
+    return .{ .margin_block_end = v };
+}
+
+pub fn margin_block_start(v: MarginBlockStart) StyleProperty {
+    return .{ .margin_block_start = v };
+}
+
+pub fn margin_bottom(v: MarginBottom) StyleProperty {
+    return .{ .margin_bottom = v };
+}
+
+pub fn margin_break(v: MarginBreak) StyleProperty {
+    return .{ .margin_break = v };
+}
+
+pub fn margin_inline(v: MarginInline) StyleProperty {
+    return .{ .margin_inline = v };
+}
+
+pub fn margin_inline_end(v: MarginInlineEnd) StyleProperty {
+    return .{ .margin_inline_end = v };
+}
+
+pub fn margin_inline_start(v: MarginInlineStart) StyleProperty {
+    return .{ .margin_inline_start = v };
+}
+
+pub fn margin_left(v: MarginLeft) StyleProperty {
+    return .{ .margin_left = v };
+}
+
+pub fn margin_right(v: MarginRight) StyleProperty {
+    return .{ .margin_right = v };
+}
+
+pub fn margin_top(v: MarginTop) StyleProperty {
+    return .{ .margin_top = v };
+}
+
+pub fn margin_trim(v: MarginTrim) StyleProperty {
+    return .{ .margin_trim = v };
+}
+
+pub fn marker(v: Marker) StyleProperty {
+    return .{ .marker = v };
+}
+
+pub fn marker_end(v: MarkerEnd) StyleProperty {
+    return .{ .marker_end = v };
+}
+
+pub fn marker_mid(v: MarkerMid) StyleProperty {
+    return .{ .marker_mid = v };
+}
+
+pub fn marker_side(v: MarkerSide) StyleProperty {
+    return .{ .marker_side = v };
+}
+
+pub fn marker_start(v: MarkerStart) StyleProperty {
+    return .{ .marker_start = v };
+}
+
+pub fn mask(v: Mask) StyleProperty {
+    return .{ .mask = v };
+}
+
+pub fn mask_border(v: MaskBorder) StyleProperty {
+    return .{ .mask_border = v };
+}
+
+pub fn mask_border_mode(v: MaskBorderMode) StyleProperty {
+    return .{ .mask_border_mode = v };
+}
+
+pub fn mask_border_outset(v: MaskBorderOutset) StyleProperty {
+    return .{ .mask_border_outset = v };
+}
+
+pub fn mask_border_repeat(v: MaskBorderRepeat) StyleProperty {
+    return .{ .mask_border_repeat = v };
+}
+
+pub fn mask_border_slice(v: MaskBorderSlice) StyleProperty {
+    return .{ .mask_border_slice = v };
+}
+
+pub fn mask_border_source(v: MaskBorderSource) StyleProperty {
+    return .{ .mask_border_source = v };
+}
+
+pub fn mask_border_width(v: MaskBorderWidth) StyleProperty {
+    return .{ .mask_border_width = v };
+}
+
+pub fn mask_clip(v: MaskClip) StyleProperty {
+    return .{ .mask_clip = v };
+}
+
+pub fn mask_composite(v: MaskComposite) StyleProperty {
+    return .{ .mask_composite = v };
+}
+
+pub fn mask_image(v: MaskImage) StyleProperty {
+    return .{ .mask_image = v };
+}
+
+pub fn mask_mode(v: MaskMode) StyleProperty {
+    return .{ .mask_mode = v };
+}
+
+pub fn mask_origin(v: MaskOrigin) StyleProperty {
+    return .{ .mask_origin = v };
+}
+
+pub fn mask_position(v: MaskPosition) StyleProperty {
+    return .{ .mask_position = v };
+}
+
+pub fn mask_repeat(v: MaskRepeat) StyleProperty {
+    return .{ .mask_repeat = v };
+}
+
+pub fn mask_size(v: MaskSize) StyleProperty {
+    return .{ .mask_size = v };
+}
+
+pub fn mask_type(v: MaskType) StyleProperty {
+    return .{ .mask_type = v };
+}
+
+pub fn math_depth(v: MathDepth) StyleProperty {
+    return .{ .math_depth = v };
+}
+
+pub fn math_shift(v: MathShift) StyleProperty {
+    return .{ .math_shift = v };
+}
+
+pub fn math_style(v: MathStyle) StyleProperty {
+    return .{ .math_style = v };
+}
+
+pub fn max_block_size(v: MaxBlockSize) StyleProperty {
+    return .{ .max_block_size = v };
+}
+
+pub fn max_height(v: MaxHeight) StyleProperty {
+    return .{ .max_height = v };
+}
+
+pub fn max_inline_size(v: MaxInlineSize) StyleProperty {
+    return .{ .max_inline_size = v };
+}
+
+pub fn max_lines(v: MaxLines) StyleProperty {
+    return .{ .max_lines = v };
+}
+
+pub fn max_width(v: MaxWidth) StyleProperty {
+    return .{ .max_width = v };
+}
+
+pub fn min_block_size(v: MinBlockSize) StyleProperty {
+    return .{ .min_block_size = v };
+}
+
+pub fn min_height(v: MinHeight) StyleProperty {
+    return .{ .min_height = v };
+}
+
+pub fn min_inline_size(v: MinInlineSize) StyleProperty {
+    return .{ .min_inline_size = v };
+}
+
+pub fn min_intrinsic_sizing(v: MinIntrinsicSizing) StyleProperty {
+    return .{ .min_intrinsic_sizing = v };
+}
+
+pub fn min_width(v: MinWidth) StyleProperty {
+    return .{ .min_width = v };
+}
+
+pub fn mix_blend_mode(v: MixBlendMode) StyleProperty {
+    return .{ .mix_blend_mode = v };
+}
+
+pub fn nav_down(v: NavDown) StyleProperty {
+    return .{ .nav_down = v };
+}
+
+pub fn nav_left(v: NavLeft) StyleProperty {
+    return .{ .nav_left = v };
+}
+
+pub fn nav_right(v: NavRight) StyleProperty {
+    return .{ .nav_right = v };
+}
+
+pub fn nav_up(v: NavUp) StyleProperty {
+    return .{ .nav_up = v };
+}
+
+pub fn object_fit(v: ObjectFit) StyleProperty {
+    return .{ .object_fit = v };
+}
+
+pub fn object_position(v: ObjectPosition) StyleProperty {
+    return .{ .object_position = v };
+}
+
+pub fn object_view_box(v: ObjectViewBox) StyleProperty {
+    return .{ .object_view_box = v };
+}
+
+pub fn offset(v: Offset) StyleProperty {
+    return .{ .offset = v };
+}
+
+pub fn offset_anchor(v: OffsetAnchor) StyleProperty {
+    return .{ .offset_anchor = v };
+}
+
+pub fn offset_distance(v: OffsetDistance) StyleProperty {
+    return .{ .offset_distance = v };
+}
+
+pub fn offset_path(v: OffsetPath) StyleProperty {
+    return .{ .offset_path = v };
+}
+
+pub fn offset_position(v: OffsetPosition) StyleProperty {
+    return .{ .offset_position = v };
+}
+
+pub fn offset_rotate(v: OffsetRotate) StyleProperty {
+    return .{ .offset_rotate = v };
+}
+
+pub fn opacity(v: Opacity) StyleProperty {
+    return .{ .opacity = v };
+}
+
+pub fn order(v: Order) StyleProperty {
+    return .{ .order = v };
+}
+
+pub fn orphans(v: Orphans) StyleProperty {
+    return .{ .orphans = v };
+}
+
+pub fn outline(v: Outline) StyleProperty {
+    return .{ .outline = v };
+}
+
+pub fn outline_color(v: OutlineColor) StyleProperty {
+    return .{ .outline_color = v };
+}
+
+pub fn outline_offset(v: OutlineOffset) StyleProperty {
+    return .{ .outline_offset = v };
+}
+
+pub fn outline_style(v: OutlineStyle) StyleProperty {
+    return .{ .outline_style = v };
+}
+
+pub fn outline_width(v: OutlineWidth) StyleProperty {
+    return .{ .outline_width = v };
+}
+
+pub fn overflow(v: Overflow) StyleProperty {
+    return .{ .overflow = v };
+}
+
+pub fn overflow_anchor(v: OverflowAnchor) StyleProperty {
+    return .{ .overflow_anchor = v };
+}
+
+pub fn overflow_block(v: OverflowBlock) StyleProperty {
+    return .{ .overflow_block = v };
+}
+
+pub fn overflow_clip_margin(v: OverflowClipMargin) StyleProperty {
+    return .{ .overflow_clip_margin = v };
+}
+
+pub fn overflow_clip_margin_block(v: OverflowClipMarginBlock) StyleProperty {
+    return .{ .overflow_clip_margin_block = v };
+}
+
+pub fn overflow_clip_margin_block_end(v: OverflowClipMarginBlockEnd) StyleProperty {
+    return .{ .overflow_clip_margin_block_end = v };
+}
+
+pub fn overflow_clip_margin_block_start(v: OverflowClipMarginBlockStart) StyleProperty {
+    return .{ .overflow_clip_margin_block_start = v };
+}
+
+pub fn overflow_clip_margin_bottom(v: OverflowClipMarginBottom) StyleProperty {
+    return .{ .overflow_clip_margin_bottom = v };
+}
+
+pub fn overflow_clip_margin_inline(v: OverflowClipMarginInline) StyleProperty {
+    return .{ .overflow_clip_margin_inline = v };
+}
+
+pub fn overflow_clip_margin_inline_end(v: OverflowClipMarginInlineEnd) StyleProperty {
+    return .{ .overflow_clip_margin_inline_end = v };
+}
+
+pub fn overflow_clip_margin_inline_start(v: OverflowClipMarginInlineStart) StyleProperty {
+    return .{ .overflow_clip_margin_inline_start = v };
+}
+
+pub fn overflow_clip_margin_left(v: OverflowClipMarginLeft) StyleProperty {
+    return .{ .overflow_clip_margin_left = v };
+}
+
+pub fn overflow_clip_margin_right(v: OverflowClipMarginRight) StyleProperty {
+    return .{ .overflow_clip_margin_right = v };
+}
+
+pub fn overflow_clip_margin_top(v: OverflowClipMarginTop) StyleProperty {
+    return .{ .overflow_clip_margin_top = v };
+}
+
+pub fn overflow_inline(v: OverflowInline) StyleProperty {
+    return .{ .overflow_inline = v };
+}
+
+pub fn overflow_wrap(v: OverflowWrap) StyleProperty {
+    return .{ .overflow_wrap = v };
+}
+
+pub fn overflow_x(v: OverflowX) StyleProperty {
+    return .{ .overflow_x = v };
+}
+
+pub fn overflow_y(v: OverflowY) StyleProperty {
+    return .{ .overflow_y = v };
+}
+
+pub fn overlay(v: Overlay) StyleProperty {
+    return .{ .overlay = v };
+}
+
+pub fn overscroll_behavior(v: OverscrollBehavior) StyleProperty {
+    return .{ .overscroll_behavior = v };
+}
+
+pub fn overscroll_behavior_block(v: OverscrollBehaviorBlock) StyleProperty {
+    return .{ .overscroll_behavior_block = v };
+}
+
+pub fn overscroll_behavior_inline(v: OverscrollBehaviorInline) StyleProperty {
+    return .{ .overscroll_behavior_inline = v };
+}
+
+pub fn overscroll_behavior_x(v: OverscrollBehaviorX) StyleProperty {
+    return .{ .overscroll_behavior_x = v };
+}
+
+pub fn overscroll_behavior_y(v: OverscrollBehaviorY) StyleProperty {
+    return .{ .overscroll_behavior_y = v };
+}
+
+pub fn padding(v: Padding) StyleProperty {
+    return .{ .padding = v };
+}
+
+pub fn padding_block(v: PaddingBlock) StyleProperty {
+    return .{ .padding_block = v };
+}
+
+pub fn padding_block_end(v: PaddingBlockEnd) StyleProperty {
+    return .{ .padding_block_end = v };
+}
+
+pub fn padding_block_start(v: PaddingBlockStart) StyleProperty {
+    return .{ .padding_block_start = v };
+}
+
+pub fn padding_bottom(v: PaddingBottom) StyleProperty {
+    return .{ .padding_bottom = v };
+}
+
+pub fn padding_inline(v: PaddingInline) StyleProperty {
+    return .{ .padding_inline = v };
+}
+
+pub fn padding_inline_end(v: PaddingInlineEnd) StyleProperty {
+    return .{ .padding_inline_end = v };
+}
+
+pub fn padding_inline_start(v: PaddingInlineStart) StyleProperty {
+    return .{ .padding_inline_start = v };
+}
+
+pub fn padding_left(v: PaddingLeft) StyleProperty {
+    return .{ .padding_left = v };
+}
+
+pub fn padding_right(v: PaddingRight) StyleProperty {
+    return .{ .padding_right = v };
+}
+
+pub fn padding_top(v: PaddingTop) StyleProperty {
+    return .{ .padding_top = v };
+}
+
+pub fn page(v: Page) StyleProperty {
+    return .{ .page = v };
+}
+
+pub fn page_break_after(v: PageBreakAfter) StyleProperty {
+    return .{ .page_break_after = v };
+}
+
+pub fn page_break_before(v: PageBreakBefore) StyleProperty {
+    return .{ .page_break_before = v };
+}
+
+pub fn page_break_inside(v: PageBreakInside) StyleProperty {
+    return .{ .page_break_inside = v };
+}
+
+pub fn paint_order(v: PaintOrder) StyleProperty {
+    return .{ .paint_order = v };
+}
+
+pub fn pause(v: Pause) StyleProperty {
+    return .{ .pause = v };
+}
+
+pub fn pause_after(v: PauseAfter) StyleProperty {
+    return .{ .pause_after = v };
+}
+
+pub fn pause_before(v: PauseBefore) StyleProperty {
+    return .{ .pause_before = v };
+}
+
+pub fn perspective(v: Perspective) StyleProperty {
+    return .{ .perspective = v };
+}
+
+pub fn perspective_origin(v: PerspectiveOrigin) StyleProperty {
+    return .{ .perspective_origin = v };
+}
+
+pub fn place_content(v: PlaceContent) StyleProperty {
+    return .{ .place_content = v };
+}
+
+pub fn place_items(v: PlaceItems) StyleProperty {
+    return .{ .place_items = v };
+}
+
+pub fn place_self(v: PlaceSelf) StyleProperty {
+    return .{ .place_self = v };
+}
+
+pub fn pointer_events(v: PointerEvents) StyleProperty {
+    return .{ .pointer_events = v };
+}
+
+pub fn pointer_timeline(v: PointerTimeline) StyleProperty {
+    return .{ .pointer_timeline = v };
+}
+
+pub fn pointer_timeline_axis(v: PointerTimelineAxis) StyleProperty {
+    return .{ .pointer_timeline_axis = v };
+}
+
+pub fn pointer_timeline_name(v: PointerTimelineName) StyleProperty {
+    return .{ .pointer_timeline_name = v };
+}
+
+pub fn position(v: Position) StyleProperty {
+    return .{ .position = v };
+}
+
+pub fn position_anchor(v: PositionAnchor) StyleProperty {
+    return .{ .position_anchor = v };
+}
+
+pub fn position_area(v: PositionArea) StyleProperty {
+    return .{ .position_area = v };
+}
+
+pub fn position_try(v: PositionTry) StyleProperty {
+    return .{ .position_try = v };
+}
+
+pub fn position_try_fallbacks(v: PositionTryFallbacks) StyleProperty {
+    return .{ .position_try_fallbacks = v };
+}
+
+pub fn position_try_order(v: PositionTryOrder) StyleProperty {
+    return .{ .position_try_order = v };
+}
+
+pub fn position_visibility(v: PositionVisibility) StyleProperty {
+    return .{ .position_visibility = v };
+}
+
+pub fn print_color_adjust(v: PrintColorAdjust) StyleProperty {
+    return .{ .print_color_adjust = v };
+}
+
+pub fn quotes(v: Quotes) StyleProperty {
+    return .{ .quotes = v };
+}
+
+pub fn r(v: R) StyleProperty {
+    return .{ .r = v };
+}
+
+pub fn reading_flow(v: ReadingFlow) StyleProperty {
+    return .{ .reading_flow = v };
+}
+
+pub fn reading_order(v: ReadingOrder) StyleProperty {
+    return .{ .reading_order = v };
+}
+
+pub fn region_fragment(v: RegionFragment) StyleProperty {
+    return .{ .region_fragment = v };
+}
+
+pub fn resize(v: Resize) StyleProperty {
+    return .{ .resize = v };
+}
+
+pub fn rest(v: Rest) StyleProperty {
+    return .{ .rest = v };
+}
+
+pub fn rest_after(v: RestAfter) StyleProperty {
+    return .{ .rest_after = v };
+}
+
+pub fn rest_before(v: RestBefore) StyleProperty {
+    return .{ .rest_before = v };
+}
+
+pub fn right(v: Right) StyleProperty {
+    return .{ .right = v };
+}
+
+pub fn rotate(v: Rotate) StyleProperty {
+    return .{ .rotate = v };
+}
+
+pub fn row_gap(v: RowGap) StyleProperty {
+    return .{ .row_gap = v };
+}
+
+pub fn row_rule(v: RowRule) StyleProperty {
+    return .{ .row_rule = v };
+}
+
+pub fn row_rule_break(v: RowRuleBreak) StyleProperty {
+    return .{ .row_rule_break = v };
+}
+
+pub fn row_rule_color(v: RowRuleColor) StyleProperty {
+    return .{ .row_rule_color = v };
+}
+
+pub fn row_rule_edge_inset(v: RowRuleEdgeInset) StyleProperty {
+    return .{ .row_rule_edge_inset = v };
+}
+
+pub fn row_rule_edge_inset_end(v: RowRuleEdgeInsetEnd) StyleProperty {
+    return .{ .row_rule_edge_inset_end = v };
+}
+
+pub fn row_rule_edge_inset_start(v: RowRuleEdgeInsetStart) StyleProperty {
+    return .{ .row_rule_edge_inset_start = v };
+}
+
+pub fn row_rule_inset(v: RowRuleInset) StyleProperty {
+    return .{ .row_rule_inset = v };
+}
+
+pub fn row_rule_inset_end(v: RowRuleInsetEnd) StyleProperty {
+    return .{ .row_rule_inset_end = v };
+}
+
+pub fn row_rule_inset_start(v: RowRuleInsetStart) StyleProperty {
+    return .{ .row_rule_inset_start = v };
+}
+
+pub fn row_rule_interior_inset(v: RowRuleInteriorInset) StyleProperty {
+    return .{ .row_rule_interior_inset = v };
+}
+
+pub fn row_rule_interior_inset_end(v: RowRuleInteriorInsetEnd) StyleProperty {
+    return .{ .row_rule_interior_inset_end = v };
+}
+
+pub fn row_rule_interior_inset_start(v: RowRuleInteriorInsetStart) StyleProperty {
+    return .{ .row_rule_interior_inset_start = v };
+}
+
+pub fn row_rule_style(v: RowRuleStyle) StyleProperty {
+    return .{ .row_rule_style = v };
+}
+
+pub fn row_rule_visibility_items(v: RowRuleVisibilityItems) StyleProperty {
+    return .{ .row_rule_visibility_items = v };
+}
+
+pub fn row_rule_width(v: RowRuleWidth) StyleProperty {
+    return .{ .row_rule_width = v };
+}
+
+pub fn ruby_align(v: RubyAlign) StyleProperty {
+    return .{ .ruby_align = v };
+}
+
+pub fn ruby_merge(v: RubyMerge) StyleProperty {
+    return .{ .ruby_merge = v };
+}
+
+pub fn ruby_overhang(v: RubyOverhang) StyleProperty {
+    return .{ .ruby_overhang = v };
+}
+
+pub fn ruby_position(v: RubyPosition) StyleProperty {
+    return .{ .ruby_position = v };
+}
+
+pub fn rule(v: Rule) StyleProperty {
+    return .{ .rule = v };
+}
+
+pub fn rule_break(v: RuleBreak) StyleProperty {
+    return .{ .rule_break = v };
+}
+
+pub fn rule_color(v: RuleColor) StyleProperty {
+    return .{ .rule_color = v };
+}
+
+pub fn rule_edge_inset(v: RuleEdgeInset) StyleProperty {
+    return .{ .rule_edge_inset = v };
+}
+
+pub fn rule_inset(v: RuleInset) StyleProperty {
+    return .{ .rule_inset = v };
+}
+
+pub fn rule_inset_end(v: RuleInsetEnd) StyleProperty {
+    return .{ .rule_inset_end = v };
+}
+
+pub fn rule_inset_start(v: RuleInsetStart) StyleProperty {
+    return .{ .rule_inset_start = v };
+}
+
+pub fn rule_interior_inset(v: RuleInteriorInset) StyleProperty {
+    return .{ .rule_interior_inset = v };
+}
+
+pub fn rule_overlap(v: RuleOverlap) StyleProperty {
+    return .{ .rule_overlap = v };
+}
+
+pub fn rule_style(v: RuleStyle) StyleProperty {
+    return .{ .rule_style = v };
+}
+
+pub fn rule_visibility_items(v: RuleVisibilityItems) StyleProperty {
+    return .{ .rule_visibility_items = v };
+}
+
+pub fn rule_width(v: RuleWidth) StyleProperty {
+    return .{ .rule_width = v };
+}
+
+pub fn rx(v: Rx) StyleProperty {
+    return .{ .rx = v };
+}
+
+pub fn ry(v: Ry) StyleProperty {
+    return .{ .ry = v };
+}
+
+pub fn scale(v: Scale) StyleProperty {
+    return .{ .scale = v };
+}
+
+pub fn scroll_behavior(v: ScrollBehavior) StyleProperty {
+    return .{ .scroll_behavior = v };
+}
+
+pub fn scroll_initial_target(v: ScrollInitialTarget) StyleProperty {
+    return .{ .scroll_initial_target = v };
+}
+
+pub fn scroll_margin(v: ScrollMargin) StyleProperty {
+    return .{ .scroll_margin = v };
+}
+
+pub fn scroll_margin_block(v: ScrollMarginBlock) StyleProperty {
+    return .{ .scroll_margin_block = v };
+}
+
+pub fn scroll_margin_block_end(v: ScrollMarginBlockEnd) StyleProperty {
+    return .{ .scroll_margin_block_end = v };
+}
+
+pub fn scroll_margin_block_start(v: ScrollMarginBlockStart) StyleProperty {
+    return .{ .scroll_margin_block_start = v };
+}
+
+pub fn scroll_margin_bottom(v: ScrollMarginBottom) StyleProperty {
+    return .{ .scroll_margin_bottom = v };
+}
+
+pub fn scroll_margin_inline(v: ScrollMarginInline) StyleProperty {
+    return .{ .scroll_margin_inline = v };
+}
+
+pub fn scroll_margin_inline_end(v: ScrollMarginInlineEnd) StyleProperty {
+    return .{ .scroll_margin_inline_end = v };
+}
+
+pub fn scroll_margin_inline_start(v: ScrollMarginInlineStart) StyleProperty {
+    return .{ .scroll_margin_inline_start = v };
+}
+
+pub fn scroll_margin_left(v: ScrollMarginLeft) StyleProperty {
+    return .{ .scroll_margin_left = v };
+}
+
+pub fn scroll_margin_right(v: ScrollMarginRight) StyleProperty {
+    return .{ .scroll_margin_right = v };
+}
+
+pub fn scroll_margin_top(v: ScrollMarginTop) StyleProperty {
+    return .{ .scroll_margin_top = v };
+}
+
+pub fn scroll_marker_group(v: ScrollMarkerGroup) StyleProperty {
+    return .{ .scroll_marker_group = v };
+}
+
+pub fn scroll_padding(v: ScrollPadding) StyleProperty {
+    return .{ .scroll_padding = v };
+}
+
+pub fn scroll_padding_block(v: ScrollPaddingBlock) StyleProperty {
+    return .{ .scroll_padding_block = v };
+}
+
+pub fn scroll_padding_block_end(v: ScrollPaddingBlockEnd) StyleProperty {
+    return .{ .scroll_padding_block_end = v };
+}
+
+pub fn scroll_padding_block_start(v: ScrollPaddingBlockStart) StyleProperty {
+    return .{ .scroll_padding_block_start = v };
+}
+
+pub fn scroll_padding_bottom(v: ScrollPaddingBottom) StyleProperty {
+    return .{ .scroll_padding_bottom = v };
+}
+
+pub fn scroll_padding_inline(v: ScrollPaddingInline) StyleProperty {
+    return .{ .scroll_padding_inline = v };
+}
+
+pub fn scroll_padding_inline_end(v: ScrollPaddingInlineEnd) StyleProperty {
+    return .{ .scroll_padding_inline_end = v };
+}
+
+pub fn scroll_padding_inline_start(v: ScrollPaddingInlineStart) StyleProperty {
+    return .{ .scroll_padding_inline_start = v };
+}
+
+pub fn scroll_padding_left(v: ScrollPaddingLeft) StyleProperty {
+    return .{ .scroll_padding_left = v };
+}
+
+pub fn scroll_padding_right(v: ScrollPaddingRight) StyleProperty {
+    return .{ .scroll_padding_right = v };
+}
+
+pub fn scroll_padding_top(v: ScrollPaddingTop) StyleProperty {
+    return .{ .scroll_padding_top = v };
+}
+
+pub fn scroll_snap_align(v: ScrollSnapAlign) StyleProperty {
+    return .{ .scroll_snap_align = v };
+}
+
+pub fn scroll_snap_stop(v: ScrollSnapStop) StyleProperty {
+    return .{ .scroll_snap_stop = v };
+}
+
+pub fn scroll_snap_type(v: ScrollSnapType) StyleProperty {
+    return .{ .scroll_snap_type = v };
+}
+
+pub fn scroll_target_group(v: ScrollTargetGroup) StyleProperty {
+    return .{ .scroll_target_group = v };
+}
+
+pub fn scroll_timeline(v: ScrollTimeline) StyleProperty {
+    return .{ .scroll_timeline = v };
+}
+
+pub fn scroll_timeline_axis(v: ScrollTimelineAxis) StyleProperty {
+    return .{ .scroll_timeline_axis = v };
+}
+
+pub fn scroll_timeline_name(v: ScrollTimelineName) StyleProperty {
+    return .{ .scroll_timeline_name = v };
+}
+
+pub fn scrollbar_color(v: ScrollbarColor) StyleProperty {
+    return .{ .scrollbar_color = v };
+}
+
+pub fn scrollbar_gutter(v: ScrollbarGutter) StyleProperty {
+    return .{ .scrollbar_gutter = v };
+}
+
+pub fn scrollbar_width(v: ScrollbarWidth) StyleProperty {
+    return .{ .scrollbar_width = v };
+}
+
+pub fn shape_image_threshold(v: ShapeImageThreshold) StyleProperty {
+    return .{ .shape_image_threshold = v };
+}
+
+pub fn shape_inside(v: ShapeInside) StyleProperty {
+    return .{ .shape_inside = v };
+}
+
+pub fn shape_margin(v: ShapeMargin) StyleProperty {
+    return .{ .shape_margin = v };
+}
+
+pub fn shape_outside(v: ShapeOutside) StyleProperty {
+    return .{ .shape_outside = v };
+}
+
+pub fn shape_padding(v: ShapePadding) StyleProperty {
+    return .{ .shape_padding = v };
+}
+
+pub fn shape_rendering(v: ShapeRendering) StyleProperty {
+    return .{ .shape_rendering = v };
+}
+
+pub fn shape_subtract(v: ShapeSubtract) StyleProperty {
+    return .{ .shape_subtract = v };
+}
+
+pub fn slider_orientation(v: SliderOrientation) StyleProperty {
+    return .{ .slider_orientation = v };
+}
+
+pub fn spatial_navigation_action(v: SpatialNavigationAction) StyleProperty {
+    return .{ .spatial_navigation_action = v };
+}
+
+pub fn spatial_navigation_contain(v: SpatialNavigationContain) StyleProperty {
+    return .{ .spatial_navigation_contain = v };
+}
+
+pub fn spatial_navigation_function(v: SpatialNavigationFunction) StyleProperty {
+    return .{ .spatial_navigation_function = v };
+}
+
+pub fn speak(v: Speak) StyleProperty {
+    return .{ .speak = v };
+}
+
+pub fn speak_as(v: SpeakAs) StyleProperty {
+    return .{ .speak_as = v };
+}
+
+pub fn stop_color(v: StopColor) StyleProperty {
+    return .{ .stop_color = v };
+}
+
+pub fn stop_opacity(v: StopOpacity) StyleProperty {
+    return .{ .stop_opacity = v };
+}
+
+pub fn string_set(v: StringSet) StyleProperty {
+    return .{ .string_set = v };
+}
+
+pub fn stroke(v: Stroke) StyleProperty {
+    return .{ .stroke = v };
+}
+
+pub fn stroke_align(v: StrokeAlign) StyleProperty {
+    return .{ .stroke_align = v };
+}
+
+pub fn stroke_alignment(v: StrokeAlignment) StyleProperty {
+    return .{ .stroke_alignment = v };
+}
+
+pub fn stroke_break(v: StrokeBreak) StyleProperty {
+    return .{ .stroke_break = v };
+}
+
+pub fn stroke_color(v: StrokeColor) StyleProperty {
+    return .{ .stroke_color = v };
+}
+
+pub fn stroke_dash_corner(v: StrokeDashCorner) StyleProperty {
+    return .{ .stroke_dash_corner = v };
+}
+
+pub fn stroke_dash_justify(v: StrokeDashJustify) StyleProperty {
+    return .{ .stroke_dash_justify = v };
+}
+
+pub fn stroke_dashadjust(v: StrokeDashadjust) StyleProperty {
+    return .{ .stroke_dashadjust = v };
+}
+
+pub fn stroke_dasharray(v: StrokeDasharray) StyleProperty {
+    return .{ .stroke_dasharray = v };
+}
+
+pub fn stroke_dashcorner(v: StrokeDashcorner) StyleProperty {
+    return .{ .stroke_dashcorner = v };
+}
+
+pub fn stroke_dashoffset(v: StrokeDashoffset) StyleProperty {
+    return .{ .stroke_dashoffset = v };
+}
+
+pub fn stroke_image(v: StrokeImage) StyleProperty {
+    return .{ .stroke_image = v };
+}
+
+pub fn stroke_linecap(v: StrokeLinecap) StyleProperty {
+    return .{ .stroke_linecap = v };
+}
+
+pub fn stroke_linejoin(v: StrokeLinejoin) StyleProperty {
+    return .{ .stroke_linejoin = v };
+}
+
+pub fn stroke_miterlimit(v: StrokeMiterlimit) StyleProperty {
+    return .{ .stroke_miterlimit = v };
+}
+
+pub fn stroke_opacity(v: StrokeOpacity) StyleProperty {
+    return .{ .stroke_opacity = v };
+}
+
+pub fn stroke_origin(v: StrokeOrigin) StyleProperty {
+    return .{ .stroke_origin = v };
+}
+
+pub fn stroke_position(v: StrokePosition) StyleProperty {
+    return .{ .stroke_position = v };
+}
+
+pub fn stroke_repeat(v: StrokeRepeat) StyleProperty {
+    return .{ .stroke_repeat = v };
+}
+
+pub fn stroke_size(v: StrokeSize) StyleProperty {
+    return .{ .stroke_size = v };
+}
+
+pub fn stroke_width(v: StrokeWidth) StyleProperty {
+    return .{ .stroke_width = v };
+}
+
+pub fn tab_size(v: TabSize) StyleProperty {
+    return .{ .tab_size = v };
+}
+
+pub fn table_layout(v: TableLayout) StyleProperty {
+    return .{ .table_layout = v };
+}
+
+pub fn text_align(v: TextAlign) StyleProperty {
+    return .{ .text_align = v };
+}
+
+pub fn text_align_all(v: TextAlignAll) StyleProperty {
+    return .{ .text_align_all = v };
+}
+
+pub fn text_align_last(v: TextAlignLast) StyleProperty {
+    return .{ .text_align_last = v };
+}
+
+pub fn text_anchor(v: TextAnchor) StyleProperty {
+    return .{ .text_anchor = v };
+}
+
+pub fn text_autospace(v: TextAutospace) StyleProperty {
+    return .{ .text_autospace = v };
+}
+
+pub fn text_box(v: TextBox) StyleProperty {
+    return .{ .text_box = v };
+}
+
+pub fn text_box_edge(v: TextBoxEdge) StyleProperty {
+    return .{ .text_box_edge = v };
+}
+
+pub fn text_box_trim(v: TextBoxTrim) StyleProperty {
+    return .{ .text_box_trim = v };
+}
+
+pub fn text_combine_upright(v: TextCombineUpright) StyleProperty {
+    return .{ .text_combine_upright = v };
+}
+
+pub fn text_decoration(v: TextDecoration) StyleProperty {
+    return .{ .text_decoration = v };
+}
+
+pub fn text_decoration_color(v: TextDecorationColor) StyleProperty {
+    return .{ .text_decoration_color = v };
+}
+
+pub fn text_decoration_inset(v: TextDecorationInset) StyleProperty {
+    return .{ .text_decoration_inset = v };
+}
+
+pub fn text_decoration_line(v: TextDecorationLine) StyleProperty {
+    return .{ .text_decoration_line = v };
+}
+
+pub fn text_decoration_skip(v: TextDecorationSkip) StyleProperty {
+    return .{ .text_decoration_skip = v };
+}
+
+pub fn text_decoration_skip_box(v: TextDecorationSkipBox) StyleProperty {
+    return .{ .text_decoration_skip_box = v };
+}
+
+pub fn text_decoration_skip_ink(v: TextDecorationSkipInk) StyleProperty {
+    return .{ .text_decoration_skip_ink = v };
+}
+
+pub fn text_decoration_skip_self(v: TextDecorationSkipSelf) StyleProperty {
+    return .{ .text_decoration_skip_self = v };
+}
+
+pub fn text_decoration_skip_spaces(v: TextDecorationSkipSpaces) StyleProperty {
+    return .{ .text_decoration_skip_spaces = v };
+}
+
+pub fn text_decoration_style(v: TextDecorationStyle) StyleProperty {
+    return .{ .text_decoration_style = v };
+}
+
+pub fn text_decoration_thickness(v: TextDecorationThickness) StyleProperty {
+    return .{ .text_decoration_thickness = v };
+}
+
+pub fn text_emphasis(v: TextEmphasis) StyleProperty {
+    return .{ .text_emphasis = v };
+}
+
+pub fn text_emphasis_color(v: TextEmphasisColor) StyleProperty {
+    return .{ .text_emphasis_color = v };
+}
+
+pub fn text_emphasis_position(v: TextEmphasisPosition) StyleProperty {
+    return .{ .text_emphasis_position = v };
+}
+
+pub fn text_emphasis_skip(v: TextEmphasisSkip) StyleProperty {
+    return .{ .text_emphasis_skip = v };
+}
+
+pub fn text_emphasis_style(v: TextEmphasisStyle) StyleProperty {
+    return .{ .text_emphasis_style = v };
+}
+
+pub fn text_group_align(v: TextGroupAlign) StyleProperty {
+    return .{ .text_group_align = v };
+}
+
+pub fn text_indent(v: TextIndent) StyleProperty {
+    return .{ .text_indent = v };
+}
+
+pub fn text_justify(v: TextJustify) StyleProperty {
+    return .{ .text_justify = v };
+}
+
+pub fn text_orientation(v: TextOrientation) StyleProperty {
+    return .{ .text_orientation = v };
+}
+
+pub fn text_overflow(v: TextOverflow) StyleProperty {
+    return .{ .text_overflow = v };
+}
+
+pub fn text_rendering(v: TextRendering) StyleProperty {
+    return .{ .text_rendering = v };
+}
+
+pub fn text_shadow(v: TextShadow) StyleProperty {
+    return .{ .text_shadow = v };
+}
+
+pub fn text_size_adjust(v: TextSizeAdjust) StyleProperty {
+    return .{ .text_size_adjust = v };
+}
+
+pub fn text_spacing(v: TextSpacing) StyleProperty {
+    return .{ .text_spacing = v };
+}
+
+pub fn text_spacing_trim(v: TextSpacingTrim) StyleProperty {
+    return .{ .text_spacing_trim = v };
+}
+
+pub fn text_transform(v: TextTransform) StyleProperty {
+    return .{ .text_transform = v };
+}
+
+pub fn text_underline_offset(v: TextUnderlineOffset) StyleProperty {
+    return .{ .text_underline_offset = v };
+}
+
+pub fn text_underline_position(v: TextUnderlinePosition) StyleProperty {
+    return .{ .text_underline_position = v };
+}
+
+pub fn text_wrap(v: TextWrap) StyleProperty {
+    return .{ .text_wrap = v };
+}
+
+pub fn text_wrap_mode(v: TextWrapMode) StyleProperty {
+    return .{ .text_wrap_mode = v };
+}
+
+pub fn text_wrap_style(v: TextWrapStyle) StyleProperty {
+    return .{ .text_wrap_style = v };
+}
+
+pub fn timeline_scope(v: TimelineScope) StyleProperty {
+    return .{ .timeline_scope = v };
+}
+
+pub fn timeline_trigger(v: TimelineTrigger) StyleProperty {
+    return .{ .timeline_trigger = v };
+}
+
+pub fn timeline_trigger_activation_range(v: TimelineTriggerActivationRange) StyleProperty {
+    return .{ .timeline_trigger_activation_range = v };
+}
+
+pub fn timeline_trigger_activation_range_end(v: TimelineTriggerActivationRangeEnd) StyleProperty {
+    return .{ .timeline_trigger_activation_range_end = v };
+}
+
+pub fn timeline_trigger_activation_range_start(v: TimelineTriggerActivationRangeStart) StyleProperty {
+    return .{ .timeline_trigger_activation_range_start = v };
+}
+
+pub fn timeline_trigger_active_range(v: TimelineTriggerActiveRange) StyleProperty {
+    return .{ .timeline_trigger_active_range = v };
+}
+
+pub fn timeline_trigger_active_range_end(v: TimelineTriggerActiveRangeEnd) StyleProperty {
+    return .{ .timeline_trigger_active_range_end = v };
+}
+
+pub fn timeline_trigger_active_range_start(v: TimelineTriggerActiveRangeStart) StyleProperty {
+    return .{ .timeline_trigger_active_range_start = v };
+}
+
+pub fn timeline_trigger_name(v: TimelineTriggerName) StyleProperty {
+    return .{ .timeline_trigger_name = v };
+}
+
+pub fn timeline_trigger_source(v: TimelineTriggerSource) StyleProperty {
+    return .{ .timeline_trigger_source = v };
+}
+
+pub fn top(v: Top) StyleProperty {
+    return .{ .top = v };
+}
+
+pub fn touch_action(v: TouchAction) StyleProperty {
+    return .{ .touch_action = v };
+}
+
+pub fn transform(v: Transform) StyleProperty {
+    return .{ .transform = v };
+}
+
+pub fn transform_box(v: TransformBox) StyleProperty {
+    return .{ .transform_box = v };
+}
+
+pub fn transform_origin(v: TransformOrigin) StyleProperty {
+    return .{ .transform_origin = v };
+}
+
+pub fn transform_style(v: TransformStyle) StyleProperty {
+    return .{ .transform_style = v };
+}
+
+pub fn transition(v: Transition) StyleProperty {
+    return .{ .transition = v };
+}
+
+pub fn transition_behavior(v: TransitionBehavior) StyleProperty {
+    return .{ .transition_behavior = v };
+}
+
+pub fn transition_delay(v: TransitionDelay) StyleProperty {
+    return .{ .transition_delay = v };
+}
+
+pub fn transition_duration(v: TransitionDuration) StyleProperty {
+    return .{ .transition_duration = v };
+}
+
+pub fn transition_property(v: TransitionProperty) StyleProperty {
+    return .{ .transition_property = v };
+}
+
+pub fn transition_timing_function(v: TransitionTimingFunction) StyleProperty {
+    return .{ .transition_timing_function = v };
+}
+
+pub fn translate(v: Translate) StyleProperty {
+    return .{ .translate = v };
+}
+
+pub fn trigger_scope(v: TriggerScope) StyleProperty {
+    return .{ .trigger_scope = v };
+}
+
+pub fn unicode_bidi(v: UnicodeBidi) StyleProperty {
+    return .{ .unicode_bidi = v };
+}
+
+pub fn user_select(v: UserSelect) StyleProperty {
+    return .{ .user_select = v };
+}
+
+pub fn vector_effect(v: VectorEffect) StyleProperty {
+    return .{ .vector_effect = v };
+}
+
+pub fn vertical_align(v: VerticalAlign) StyleProperty {
+    return .{ .vertical_align = v };
+}
+
+pub fn view_timeline(v: ViewTimeline) StyleProperty {
+    return .{ .view_timeline = v };
+}
+
+pub fn view_timeline_axis(v: ViewTimelineAxis) StyleProperty {
+    return .{ .view_timeline_axis = v };
+}
+
+pub fn view_timeline_inset(v: ViewTimelineInset) StyleProperty {
+    return .{ .view_timeline_inset = v };
+}
+
+pub fn view_timeline_name(v: ViewTimelineName) StyleProperty {
+    return .{ .view_timeline_name = v };
+}
+
+pub fn view_transition_class(v: ViewTransitionClass) StyleProperty {
+    return .{ .view_transition_class = v };
+}
+
+pub fn view_transition_group(v: ViewTransitionGroup) StyleProperty {
+    return .{ .view_transition_group = v };
+}
+
+pub fn view_transition_name(v: ViewTransitionName) StyleProperty {
+    return .{ .view_transition_name = v };
+}
+
+pub fn view_transition_scope(v: ViewTransitionScope) StyleProperty {
+    return .{ .view_transition_scope = v };
+}
+
+pub fn visibility(v: Visibility) StyleProperty {
+    return .{ .visibility = v };
+}
+
+pub fn voice_balance(v: VoiceBalance) StyleProperty {
+    return .{ .voice_balance = v };
+}
+
+pub fn voice_duration(v: VoiceDuration) StyleProperty {
+    return .{ .voice_duration = v };
+}
+
+pub fn voice_family(v: VoiceFamily) StyleProperty {
+    return .{ .voice_family = v };
+}
+
+pub fn voice_pitch(v: VoicePitch) StyleProperty {
+    return .{ .voice_pitch = v };
+}
+
+pub fn voice_range(v: VoiceRange) StyleProperty {
+    return .{ .voice_range = v };
+}
+
+pub fn voice_rate(v: VoiceRate) StyleProperty {
+    return .{ .voice_rate = v };
+}
+
+pub fn voice_stress(v: VoiceStress) StyleProperty {
+    return .{ .voice_stress = v };
+}
+
+pub fn voice_volume(v: VoiceVolume) StyleProperty {
+    return .{ .voice_volume = v };
+}
+
+pub fn white_space(v: WhiteSpace) StyleProperty {
+    return .{ .white_space = v };
+}
+
+pub fn white_space_collapse(v: WhiteSpaceCollapse) StyleProperty {
+    return .{ .white_space_collapse = v };
+}
+
+pub fn white_space_trim(v: WhiteSpaceTrim) StyleProperty {
+    return .{ .white_space_trim = v };
+}
+
+pub fn widows(v: Widows) StyleProperty {
+    return .{ .widows = v };
+}
+
+pub fn width(v: Width) StyleProperty {
+    return .{ .width = v };
+}
+
+pub fn will_change(v: WillChange) StyleProperty {
+    return .{ .will_change = v };
+}
+
+pub fn word_break(v: WordBreak) StyleProperty {
+    return .{ .word_break = v };
+}
+
+pub fn word_space_transform(v: WordSpaceTransform) StyleProperty {
+    return .{ .word_space_transform = v };
+}
+
+pub fn word_spacing(v: WordSpacing) StyleProperty {
+    return .{ .word_spacing = v };
+}
+
+pub fn word_wrap(v: WordWrap) StyleProperty {
+    return .{ .word_wrap = v };
+}
+
+pub fn wrap_after(v: WrapAfter) StyleProperty {
+    return .{ .wrap_after = v };
+}
+
+pub fn wrap_before(v: WrapBefore) StyleProperty {
+    return .{ .wrap_before = v };
+}
+
+pub fn wrap_flow(v: WrapFlow) StyleProperty {
+    return .{ .wrap_flow = v };
+}
+
+pub fn wrap_inside(v: WrapInside) StyleProperty {
+    return .{ .wrap_inside = v };
+}
+
+pub fn wrap_through(v: WrapThrough) StyleProperty {
+    return .{ .wrap_through = v };
+}
+
+pub fn writing_mode(v: WritingMode) StyleProperty {
+    return .{ .writing_mode = v };
+}
+
+pub fn x(v: X) StyleProperty {
+    return .{ .x = v };
+}
+
+pub fn y(v: Y) StyleProperty {
+    return .{ .y = v };
+}
+
+pub fn z_index(v: ZIndex) StyleProperty {
+    return .{ .z_index = v };
+}
+
+pub fn zoom(v: Zoom) StyleProperty {
+    return .{ .zoom = v };
+}
+
+pub fn after(v: ?*const Style) StyleProperty {
+    return .{ .after = v };
+}
+
+pub fn backdrop(v: ?*const Style) StyleProperty {
+    return .{ .backdrop = v };
+}
+
+pub fn before(v: ?*const Style) StyleProperty {
+    return .{ .before = v };
+}
+
+pub fn checkmark(v: ?*const Style) StyleProperty {
+    return .{ .checkmark = v };
+}
+
+pub fn clear_icon(v: ?*const Style) StyleProperty {
+    return .{ .clear_icon = v };
+}
+
+pub fn color_swatch(v: ?*const Style) StyleProperty {
+    return .{ .color_swatch = v };
+}
+
+pub fn column(v: ?*const Style) StyleProperty {
+    return .{ .column = v };
+}
+
+pub fn cue_region(v: ?*const Style) StyleProperty {
+    return .{ .cue_region = v };
+}
+
+pub fn details_content(v: ?*const Style) StyleProperty {
+    return .{ .details_content = v };
+}
+
+pub fn field_component(v: ?*const Style) StyleProperty {
+    return .{ .field_component = v };
+}
+
+pub fn field_separator(v: ?*const Style) StyleProperty {
+    return .{ .field_separator = v };
+}
+
+pub fn field_text(v: ?*const Style) StyleProperty {
+    return .{ .field_text = v };
+}
+
+pub fn file_selector_button(v: ?*const Style) StyleProperty {
+    return .{ .file_selector_button = v };
+}
+
+pub fn first_letter(v: ?*const Style) StyleProperty {
+    return .{ .first_letter = v };
+}
+
+pub fn first_line(v: ?*const Style) StyleProperty {
+    return .{ .first_line = v };
+}
+
+pub fn grammar_error(v: ?*const Style) StyleProperty {
+    return .{ .grammar_error = v };
+}
+
+pub fn picker_icon(v: ?*const Style) StyleProperty {
+    return .{ .picker_icon = v };
+}
+
+pub fn placeholder(v: ?*const Style) StyleProperty {
+    return .{ .placeholder = v };
+}
+
+pub fn reveal_icon(v: ?*const Style) StyleProperty {
+    return .{ .reveal_icon = v };
+}
+
+pub fn scroll_marker(v: ?*const Style) StyleProperty {
+    return .{ .scroll_marker = v };
+}
+
+pub fn search_text(v: ?*const Style) StyleProperty {
+    return .{ .search_text = v };
+}
+
+pub fn selection(v: ?*const Style) StyleProperty {
+    return .{ .selection = v };
+}
+
+pub fn slider_fill(v: ?*const Style) StyleProperty {
+    return .{ .slider_fill = v };
+}
+
+pub fn slider_thumb(v: ?*const Style) StyleProperty {
+    return .{ .slider_thumb = v };
+}
+
+pub fn slider_track(v: ?*const Style) StyleProperty {
+    return .{ .slider_track = v };
+}
+
+pub fn spelling_error(v: ?*const Style) StyleProperty {
+    return .{ .spelling_error = v };
+}
+
+pub fn step_control(v: ?*const Style) StyleProperty {
+    return .{ .step_control = v };
+}
+
+pub fn step_down(v: ?*const Style) StyleProperty {
+    return .{ .step_down = v };
+}
+
+pub fn step_up(v: ?*const Style) StyleProperty {
+    return .{ .step_up = v };
+}
+
+pub fn target_text(v: ?*const Style) StyleProperty {
+    return .{ .target_text = v };
+}
+
+pub fn view_transition(v: ?*const Style) StyleProperty {
+    return .{ .view_transition = v };
+}
+
+pub fn active(v: ?*const Style) StyleProperty {
+    return .{ .active = v };
+}
+
+pub fn active_view_transition(v: ?*const Style) StyleProperty {
+    return .{ .active_view_transition = v };
+}
+
+pub fn animated_image(v: ?*const Style) StyleProperty {
+    return .{ .animated_image = v };
+}
+
+pub fn any_link(v: ?*const Style) StyleProperty {
+    return .{ .any_link = v };
+}
+
+pub fn autofill(v: ?*const Style) StyleProperty {
+    return .{ .autofill = v };
+}
+
+pub fn blank(v: ?*const Style) StyleProperty {
+    return .{ .blank = v };
+}
+
+pub fn buffering(v: ?*const Style) StyleProperty {
+    return .{ .buffering = v };
+}
+
+pub fn checked(v: ?*const Style) StyleProperty {
+    return .{ .checked = v };
+}
+
+pub fn current(v: ?*const Style) StyleProperty {
+    return .{ .current = v };
+}
+
+pub fn default(v: ?*const Style) StyleProperty {
+    return .{ .default = v };
+}
+
+pub fn defined(v: ?*const Style) StyleProperty {
+    return .{ .defined = v };
+}
+
+pub fn disabled(v: ?*const Style) StyleProperty {
+    return .{ .disabled = v };
+}
+
+pub fn empty(v: ?*const Style) StyleProperty {
+    return .{ .empty = v };
+}
+
+pub fn enabled(v: ?*const Style) StyleProperty {
+    return .{ .enabled = v };
+}
+
+pub fn first(v: ?*const Style) StyleProperty {
+    return .{ .first = v };
+}
+
+pub fn first_child(v: ?*const Style) StyleProperty {
+    return .{ .first_child = v };
+}
+
+pub fn first_of_page(v: ?*const Style) StyleProperty {
+    return .{ .first_of_page = v };
+}
+
+pub fn first_of_type(v: ?*const Style) StyleProperty {
+    return .{ .first_of_type = v };
+}
+
+pub fn focus(v: ?*const Style) StyleProperty {
+    return .{ .focus = v };
+}
+
+pub fn focus_visible(v: ?*const Style) StyleProperty {
+    return .{ .focus_visible = v };
+}
+
+pub fn focus_within(v: ?*const Style) StyleProperty {
+    return .{ .focus_within = v };
+}
+
+pub fn fullscreen(v: ?*const Style) StyleProperty {
+    return .{ .fullscreen = v };
+}
+
+pub fn future(v: ?*const Style) StyleProperty {
+    return .{ .future = v };
+}
+
+pub fn has_slotted(v: ?*const Style) StyleProperty {
+    return .{ .has_slotted = v };
+}
+
+pub fn heading(v: ?*const Style) StyleProperty {
+    return .{ .heading = v };
+}
+
+pub fn high_value(v: ?*const Style) StyleProperty {
+    return .{ .high_value = v };
+}
+
+pub fn host(v: ?*const Style) StyleProperty {
+    return .{ .host = v };
+}
+
+pub fn hover(v: ?*const Style) StyleProperty {
+    return .{ .hover = v };
+}
+
+pub fn in_range(v: ?*const Style) StyleProperty {
+    return .{ .in_range = v };
+}
+
+pub fn indeterminate(v: ?*const Style) StyleProperty {
+    return .{ .indeterminate = v };
+}
+
+pub fn interest_source(v: ?*const Style) StyleProperty {
+    return .{ .interest_source = v };
+}
+
+pub fn interest_target(v: ?*const Style) StyleProperty {
+    return .{ .interest_target = v };
+}
+
+pub fn invalid(v: ?*const Style) StyleProperty {
+    return .{ .invalid = v };
+}
+
+pub fn last_child(v: ?*const Style) StyleProperty {
+    return .{ .last_child = v };
+}
+
+pub fn last_of_page(v: ?*const Style) StyleProperty {
+    return .{ .last_of_page = v };
+}
+
+pub fn last_of_type(v: ?*const Style) StyleProperty {
+    return .{ .last_of_type = v };
+}
+
+pub fn link(v: ?*const Style) StyleProperty {
+    return .{ .link = v };
+}
+
+pub fn local_link(v: ?*const Style) StyleProperty {
+    return .{ .local_link = v };
+}
+
+pub fn low_value(v: ?*const Style) StyleProperty {
+    return .{ .low_value = v };
+}
+
+pub fn modal(v: ?*const Style) StyleProperty {
+    return .{ .modal = v };
+}
+
+pub fn muted(v: ?*const Style) StyleProperty {
+    return .{ .muted = v };
+}
+
+pub fn only_child(v: ?*const Style) StyleProperty {
+    return .{ .only_child = v };
+}
+
+pub fn only_of_type(v: ?*const Style) StyleProperty {
+    return .{ .only_of_type = v };
+}
+
+pub fn open(v: ?*const Style) StyleProperty {
+    return .{ .open = v };
+}
+
+pub fn optimal_value(v: ?*const Style) StyleProperty {
+    return .{ .optimal_value = v };
+}
+
+pub fn optional(v: ?*const Style) StyleProperty {
+    return .{ .optional = v };
+}
+
+pub fn out_of_range(v: ?*const Style) StyleProperty {
+    return .{ .out_of_range = v };
+}
+
+pub fn past(v: ?*const Style) StyleProperty {
+    return .{ .past = v };
+}
+
+pub fn paused(v: ?*const Style) StyleProperty {
+    return .{ .paused = v };
+}
+
+pub fn picture_in_picture(v: ?*const Style) StyleProperty {
+    return .{ .picture_in_picture = v };
+}
+
+pub fn placeholder_shown(v: ?*const Style) StyleProperty {
+    return .{ .placeholder_shown = v };
+}
+
+pub fn playing(v: ?*const Style) StyleProperty {
+    return .{ .playing = v };
+}
+
+pub fn popover_open(v: ?*const Style) StyleProperty {
+    return .{ .popover_open = v };
+}
+
+pub fn read_only(v: ?*const Style) StyleProperty {
+    return .{ .read_only = v };
+}
+
+pub fn read_write(v: ?*const Style) StyleProperty {
+    return .{ .read_write = v };
+}
+
+pub fn required(v: ?*const Style) StyleProperty {
+    return .{ .required = v };
+}
+
+pub fn root(v: ?*const Style) StyleProperty {
+    return .{ .root = v };
+}
+
+pub fn scope(v: ?*const Style) StyleProperty {
+    return .{ .scope = v };
+}
+
+pub fn seeking(v: ?*const Style) StyleProperty {
+    return .{ .seeking = v };
+}
+
+pub fn snapped(v: ?*const Style) StyleProperty {
+    return .{ .snapped = v };
+}
+
+pub fn snapped_block(v: ?*const Style) StyleProperty {
+    return .{ .snapped_block = v };
+}
+
+pub fn snapped_inline(v: ?*const Style) StyleProperty {
+    return .{ .snapped_inline = v };
+}
+
+pub fn snapped_x(v: ?*const Style) StyleProperty {
+    return .{ .snapped_x = v };
+}
+
+pub fn snapped_y(v: ?*const Style) StyleProperty {
+    return .{ .snapped_y = v };
+}
+
+pub fn stalled(v: ?*const Style) StyleProperty {
+    return .{ .stalled = v };
+}
+
+pub fn start_of_page(v: ?*const Style) StyleProperty {
+    return .{ .start_of_page = v };
+}
+
+pub fn target(v: ?*const Style) StyleProperty {
+    return .{ .target = v };
+}
+
+pub fn target_after(v: ?*const Style) StyleProperty {
+    return .{ .target_after = v };
+}
+
+pub fn target_before(v: ?*const Style) StyleProperty {
+    return .{ .target_before = v };
+}
+
+pub fn target_current(v: ?*const Style) StyleProperty {
+    return .{ .target_current = v };
+}
+
+pub fn unchecked(v: ?*const Style) StyleProperty {
+    return .{ .unchecked = v };
+}
+
+pub fn user_invalid(v: ?*const Style) StyleProperty {
+    return .{ .user_invalid = v };
+}
+
+pub fn user_valid(v: ?*const Style) StyleProperty {
+    return .{ .user_valid = v };
+}
+
+pub fn valid(v: ?*const Style) StyleProperty {
+    return .{ .valid = v };
+}
+
+pub fn visited(v: ?*const Style) StyleProperty {
+    return .{ .visited = v };
+}
+
+pub fn volume_locked(v: ?*const Style) StyleProperty {
+    return .{ .volume_locked = v };
+}
+
+pub fn xr_overlay(v: ?*const Style) StyleProperty {
+    return .{ .xr_overlay = v };
+}
+
+pub fn sm(v: ?*const Style) StyleProperty {
+    return .{ .sm = v };
+}
+
+pub fn md(v: ?*const Style) StyleProperty {
+    return .{ .md = v };
+}
+
+pub fn lg(v: ?*const Style) StyleProperty {
+    return .{ .lg = v };
+}
+
+pub fn xl(v: ?*const Style) StyleProperty {
+    return .{ .xl = v };
+}
+
+pub fn extra(v: []const u8) StyleProperty {
+    return .{ .extra = v };
+}
+
+pub const styleInit = core.init;
+
+pub const Style = core.StyleOutput;
+
+pub const StyleUnit = core.Unit;
+
+pub const StyleDimension = core.Dimension;
+
+pub const StyleColor = core.Color;

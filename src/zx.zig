@@ -76,17 +76,6 @@ pub const ZxContext = struct {
         return self.allocator orelse @panic("Allocator not set. Please provide @allocator attribute to the parent element.");
     }
 
-    /// Check if a Style has any pseudo-states or media queries
-    fn hasSelectors(style_obj: zx.Style) bool {
-        const fields = std.meta.fields(zx.Style);
-        inline for (fields) |f| {
-            if (f.type == ?*const zx.Style) {
-                if (@field(style_obj, f.name) != null) return true;
-            }
-        }
-        return false;
-    }
-
     fn escapeHtml(self: *ZxContext, text: []const u8) []const u8 {
         // On browser, DOM APIs (textContent) handle escaping automatically
         // We only need to escape when generating HTML strings on the server
@@ -304,37 +293,37 @@ pub const ZxContext = struct {
             .@"struct" => if (T == zx.EventHandler) .{
                 .name = name,
                 .handler = val,
-            } else if (T == zx.Style) blk: {
+            } else if (T == zx.style.Style) blk: {
                 if (comptime std.mem.eql(u8, name, "style")) {
-                    if (hasSelectors(val)) {
-                        // We need a deterministic hash of the style
-                        // For now, let's just use the formatted string as the key
-                        const style_str = self.printf("{f}", .{val});
-                        
-                        // Register style if registry exists
-                        if (self.style_registry) |reg| {
-                            const hash = std.hash.Wyhash.hash(0, style_str);
-                            const class_name = self.printf("zx-{x}", .{hash});
-                            
-                            if (!reg.contains(class_name)) {
-                                // Important: We store the Style object itself or its string representation.
-                                // For now, storing the string is easier for the final flush.
-                                reg.put(class_name, style_str) catch @panic("OOM");
-                            }
-                            
-                            // Return class attribute instead of style
-                            break :blk .{
-                                .name = "class",
-                                .value = class_name,
-                            };
+                    // Register style if registry exists
+                    if (self.style_registry) |reg| {
+                        if (!reg.contains(val.class)) {
+                            reg.put(val.class, val.css) catch @panic("OOM");
                         }
+                        
+                        // Return class attribute instead of style
+                        break :blk .{
+                            .name = "class",
+                            .value = val.class,
+                        };
                     }
                 }
                 break :blk .{
                     .name = name,
-                    .value = self.printf("{f}", .{val}),
+                    .value = val.css,
                 };
             } else @compileError("Unsupported struct type for attribute: " ++ @typeName(T)),
+
+            .@"union" => if (T == @import("style/generated.zig").StyleProperty) blk: {
+                var buf: [1024]u8 = undefined;
+                var fbs = std.io.fixedBufferStream(&buf);
+                var w = fbs.writer();
+                @import("style/core.zig").formatProperty(val, &w) catch @panic("OOM");
+                break :blk .{
+                    .name = name,
+                    .value = self.printf("{s}", .{fbs.getWritten()}),
+                };
+            } else @compileError("Unsupported union type for attribute: " ++ @typeName(T)),
 
             else => @compileError("Unsupported type for attribute value: " ++ @typeName(T)),
         };
