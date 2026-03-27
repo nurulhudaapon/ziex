@@ -25,7 +25,11 @@ fn findComponentById(comps: []const data.Component, id: []const u8) ?data.Compon
 fn fetch() void {
     if (fetched) return;
     fetched = true;
-    _ = zx.fetch(.wasm(&onFetchText), zx.client_allocator, "http://localhost:5588/.well-known/_zx/devtool?path=/", .{ .method = .GET }) catch {};
+    data.loadSettings();
+    const host = data.host;
+    const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://")) host else std.fmt.allocPrint(zx.client_allocator, "http://{s}", .{host}) catch return;
+    const url = std.fmt.allocPrint(zx.client_allocator, "{s}/.well-known/_zx/devtool?path=/", .{base}) catch return;
+    _ = zx.fetch(.wasm(&onFetchText), zx.client_allocator, url, .{ .method = .GET }) catch {};
 }
 
 fn onFetchText(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
@@ -161,7 +165,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         <ComponentSearchInput @rendering={.client} />
                         {icons.Search(ctx.arena)}
                         <NativeToggle @rendering={.client} />
-                        <div class="search-shortcut">↲</div>
                     </div>
                 </div>
 
@@ -234,7 +237,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
                 <input type="checkbox" id={dom_id} class="component-toggle" />
                 <div class={item_class} style={style_str}>
                     <label for={dom_id} class="component-toggle-label">
-                        <span class="tree-arrow"></span>
+                        <span class="tree-arrow">{icons.ChevronRight(allocator)}</span>
                     </label>
                     <button value={props.id} onclick={handleComponentClick} class="component-select-btn">
                         <span class="bracket">{"<"}</span>
@@ -259,7 +262,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
                 <input type="checkbox" id={dom_id} class="component-toggle" checked />
                 <div class={item_class} style={style_str}>
                     <label for={dom_id} class="component-toggle-label">
-                        <span class="tree-arrow"></span>
+                        <span class="tree-arrow">{icons.ChevronRight(allocator)}</span>
                     </label>
                     <button value={props.id} onclick={handleComponentClick} class="component-select-btn">
                         <span class="bracket">{"<"}</span>
@@ -283,7 +286,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
             <input type="checkbox" id={dom_id} class="component-toggle" />
             <div class={item_class} style={style_str}>
                 <label for={dom_id} class="component-toggle-label">
-                    <span class="tree-arrow"></span>
+                    <span class="tree-arrow">{icons.ChevronRight(allocator)}</span>
                 </label>
                 <button value={props.id} onclick={handleComponentClick} class="component-select-btn">
                     <span class="bracket">{"<"}</span>
@@ -309,7 +312,7 @@ fn StateSection(allocator: zx.Allocator, props: struct { title: []const u8, item
         <div @allocator={allocator} class="state-section">
             <input type="checkbox" id={id} class="state-toggle" checked />
             <label for={id} class="section-header">
-                <span class="section-arrow"></span>
+                <span class="section-arrow">{icons.ChevronRight(allocator)}</span>
                 <span class="section-title">{props.title}</span>
             </label>
             <div class="section-items">
@@ -335,7 +338,7 @@ fn StateItemRow(allocator: zx.Allocator, props: struct { item: StateItem, depth:
                 <>
                     <input type="checkbox" id={id} class="state-row-toggle" />
                     <label for={id} class="state-item">
-                        <span class="item-arrow"></span>
+                        <span class="item-arrow">{icons.ChevronRight(allocator)}</span>
                         <span class="key-default">{item.key}</span>
                         <span class="item-colon">:</span>
                         <span class={value_color}>{item.value}</span>

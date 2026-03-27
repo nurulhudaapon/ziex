@@ -313,7 +313,8 @@ pub fn Server(comptime H: type) type {
 pub const SerilizableAppMeta = struct {
     pub const Route = struct {
         path: []const u8,
-        method: []const u8,
+        kind: []const u8 = "Page",
+        methods: []const []const u8 = &.{},
         has_notfound: bool = false,
         is_dynamic: bool = false,
     };
@@ -333,9 +334,11 @@ pub const SerilizableAppMeta = struct {
 
         for (meta.routes, 0..) |route, i| {
             const is_dynamic = std.mem.indexOf(u8, route.path, ":") != null;
+            const kind, const methods = try getRouteKindAndMethods(allocator, route);
             routes[i] = Route{
                 .path = try allocator.dupe(u8, route.path),
-                .method = "NA",
+                .kind = kind,
+                .methods = methods,
                 .has_notfound = route.notfound != null,
                 .is_dynamic = is_dynamic,
             };
@@ -355,6 +358,7 @@ pub const SerilizableAppMeta = struct {
     pub fn deinit(self: *SerilizableAppMeta, allocator: std.mem.Allocator) void {
         for (self.routes) |route| {
             allocator.free(route.path);
+            allocator.free(route.methods);
         }
         allocator.free(self.routes);
 
@@ -371,6 +375,42 @@ pub const SerilizableAppMeta = struct {
     }
     pub fn serializeRoutes(self: SerilizableAppMeta, writer: anytype) !void {
         try zx.util.zxon.serialize(self.routes, writer, .{});
+    }
+
+    fn getRouteKindAndMethods(allocator: std.mem.Allocator, route: ServerMeta.Route) !struct { []const u8, []const []const u8 } {
+        var methods = std.ArrayList([]const u8).empty;
+        defer methods.deinit(allocator);
+
+        if (route.route) |handlers| {
+            if (handlers.handler != null) try methods.append(allocator, "ANY");
+            if (handlers.get != null) try methods.append(allocator, "GET");
+            if (handlers.post != null) try methods.append(allocator, "POST");
+            if (handlers.put != null) try methods.append(allocator, "PUT");
+            if (handlers.delete != null) try methods.append(allocator, "DELETE");
+            if (handlers.patch != null) try methods.append(allocator, "PATCH");
+            if (handlers.head != null) try methods.append(allocator, "HEAD");
+            if (handlers.options != null) try methods.append(allocator, "OPTIONS");
+
+            if (handlers.custom_methods) |custom_methods| {
+                for (custom_methods) |custom| {
+                    try methods.append(allocator, custom.method);
+                }
+            }
+
+            return .{ "Route", try methods.toOwnedSlice(allocator) };
+        }
+
+        if (route.page_opts) |page_opts| {
+            for (page_opts.methods) |method| {
+                try methods.append(allocator, @tagName(method));
+            }
+        }
+
+        if (methods.items.len == 0) {
+            try methods.append(allocator, "GET");
+        }
+
+        return .{ "Page", try methods.toOwnedSlice(allocator) };
     }
 };
 
