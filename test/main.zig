@@ -11,6 +11,7 @@ test {
     _ = @import("core/vdom.zig");
     _ = @import("core/dx.zig");
     _ = @import("core/db.zig");
+    _ = @import("core/cache.zig");
     _ = @import("core/kv.zig");
     _ = @import("style.zig");
     _ = @import("size.zig");

@@ -103,7 +103,8 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
 
                     if (generated_key) |key| {
                         // Try to get from cache
-                        if (zx.cache.get(key)) |cached_html| {
+                        if (try zx.cache.get(func.allocator, key)) |cached_html| {
+                            defer func.allocator.free(cached_html);
                             try writer.writeAll(cached_html);
                             return;
                         }
@@ -114,7 +115,7 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
                         try renderInner(component, &buf_writer.writer, options);
 
                         const rendered = buf_writer.written();
-                        zx.cache.put(key, rendered, caching.seconds);
+                        try zx.cache.put(key, rendered, .{ .expiration_ttl = caching.seconds });
 
                         // Write to actual output
                         try writer.writeAll(rendered);
