@@ -408,7 +408,7 @@ pub const CacheScope = struct {
 
 fn backendNamespace(allocator: Allocator, ns: []const u8) ![]u8 {
     const effective_ns = if (ns.len == 0) "default" else ns;
-    return std.fmt.allocPrint(allocator, "{s}:{s}", .{ memory_namespace, effective_ns });
+    return std.fmt.allocPrint(allocator, "{s}" ++ std.fs.path.sep_str ++ "{s}", .{ memory_namespace, effective_ns });
 }
 
 fn scopedKey(allocator: Allocator, ns: []const u8, key: []const u8) ![]u8 {
