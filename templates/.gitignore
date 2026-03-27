@@ -34,6 +34,7 @@ node_modules/
 !vercel/vercel.json
 !vercel/README.md
 !vercel/type.d.ts
+!vercel/build.zig
 
 # starter template
 !starter/.gitignore
