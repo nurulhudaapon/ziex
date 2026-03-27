@@ -8,7 +8,7 @@ pub const Dashboard = struct {
     latest_order_at: []const u8,
 };
 
-pub fn init(database: *zx.db.Database) !void {
+pub fn init(database: *zx.db.Connection) !void {
     _ = try database.run(
         \\CREATE TABLE IF NOT EXISTS customers (
         \\  id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -29,7 +29,7 @@ pub fn init(database: *zx.db.Database) !void {
     , .empty);
 }
 
-pub fn seed(database: *zx.db.Database) !void {
+pub fn seed(database: *zx.db.Connection) !void {
     _ = try database.run(
         \\INSERT OR IGNORE INTO customers (name, email) VALUES
         \\  ('Ava Stone', 'ava@example.com'),
@@ -45,7 +45,7 @@ pub fn seed(database: *zx.db.Database) !void {
     , .empty);
 }
 
-pub fn dashboard(database: *zx.db.Database, allocator: zx.Allocator) !Dashboard {
+pub fn dashboard(database: *zx.db.Connection, allocator: zx.Allocator) !Dashboard {
     var statement = try database.query(
         \\SELECT
         \\  (SELECT COUNT(*) FROM customers) AS total_customers,

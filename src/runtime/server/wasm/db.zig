@@ -1,5 +1,5 @@
 const std = @import("std");
-const db = @import("../../core/db.zig");
+const db = @import("db");
 const ext = @import("extern.zig");
 
 const WireRunResult = struct {

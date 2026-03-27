@@ -1,8 +1,5 @@
 pub fn Page(ctx: zx.PageContext) !zx.Component {
-    var database = try zx.db.Database.open(null, .{});
-    defer database.deinit();
-
-    _ = try database.run(
+    _ = try zx.db.run(
         \\CREATE TABLE IF NOT EXISTS page_visits (
         \\  id INTEGER PRIMARY KEY AUTOINCREMENT,
         \\  page TEXT NOT NULL,
@@ -10,11 +7,11 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
         \\)
     , .empty);
 
-    _ = try database.run(
+    _ = try zx.db.run(
         \\INSERT INTO page_visits (page) VALUES ('/examples/db')
     , .empty);
 
-    var statement = try database.query(
+    var statement = try zx.db.query(
         \\SELECT
         \\  COUNT(*) AS total_visits,
         \\  MAX(created_at) AS latest_visit
@@ -39,12 +36,11 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     return (
         <main @allocator={ctx.arena} lang="en">
             <h1>Database Example</h1>
-            <p>This page writes a row into a D1 table on every request.</p>
+            <p>This page writesdd a row into the implicit default database on every request.</p>
             <p>Total visits recorded: {total_visits}</p>
             <p>Latest visit: {latest_visit}</p>
-            <p><a href="/examples/db/comprehensive">Open the comprehensive DB example</a></p>
+            <p><a href="/examples/db/advance">Open the advance DB example</a></p>
         </main>
     );
 }
-
 const zx = @import("zx");

@@ -2,6 +2,7 @@ const server = @import("server/Server.zig");
 
 pub const Event = @import("server/Event.zig");
 pub const Action = @import("server/Action.zig");
+pub const db = @import("server/db.zig");
 
 // Legacy --- will be renamed
 pub const SerilizableAppMeta = server.SerilizableAppMeta;

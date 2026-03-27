@@ -41,6 +41,8 @@ pub fn Server(comptime H: type) type {
         const HandlerType = Handler(AppCtxType);
 
         pub fn init(allocator: std.mem.Allocator, config: ServerConfig, app_ctx: H) !*Self {
+            default_db.use();
+
             const self = try allocator.create(Self);
             errdefer allocator.destroy(self);
 
@@ -854,6 +856,10 @@ const module_config = @import("zx_info");
 const Constant = @import("../../constant.zig");
 const Handler = @import("handler.zig").Handler;
 const CacheConfig = @import("handler.zig").CacheConfig;
+const default_db = if (builtin.os.tag == .wasi or builtin.os.tag == .freestanding)
+    @import("wasm/db.zig")
+else
+    @import("db.zig");
 
 const Allocator = std.mem.Allocator;
 const Component = zx.Component;

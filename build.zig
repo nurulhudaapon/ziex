@@ -19,7 +19,7 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
     const exclude_lsp = b.option(bool, "exclude-lsp", "Exclude the LSP server to speed up builds") orelse false;
 
-    // --- ZX Meta Options --- //
+    // Options
     const options = b.addOptions();
     options.addOption([]const u8, "version", build_zon.version);
     options.addOption([]const u8, "description", build_zon.description);
@@ -29,46 +29,49 @@ pub fn build(b: *std.Build) !void {
     options.addOption([]const u8, "jsglue_version", build_zon.jsglue_version);
 
     const zx_runtime_options = b.addOptions();
-
     zx_runtime_options.addOption([]const u8, "staticdir", "zig-out/static");
     zx_runtime_options.addOption([]const u8, "datadir", "zig-out/data");
 
-    // --- ZX App Module --- //
-    const mod = b.addModule("zx", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize });
+    const cli_options_dev = b.addOptions();
+    cli_options_dev.addOption([]const u8, "zig_exe", b.graph.zig_exe);
+
+    // Dependencies
     const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });
     const tree_sitter_dep = b.dependency("tree_sitter", .{ .target = target, .optimize = optimize });
     const tree_sitter_zx_dep = b.dependency("tree_sitter_zx", .{ .target = target, .optimize = optimize, .@"build-shared" = false });
     const tree_sitter_mdzx_dep = b.dependency("tree_sitter_mdzx", .{ .target = target, .optimize = optimize, .@"build-shared" = false });
     const cachez_dep = b.dependency("cachez", .{ .target = target, .optimize = optimize });
+    const adapters_dep = b.dependency("adapters", .{ .target = target, .optimize = optimize });
 
-    mod.addImport("cachez", cachez_dep.module("cache"));
-    mod.addImport("httpz", httpz_dep.module("httpz"));
-    mod.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
-    mod.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
-    mod.addImport("tree_sitter_mdzx", tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
-    mod.addOptions("zx_info", options);
-    mod.addOptions("zx_options", zx_runtime_options);
-    // Add stub meta for standalone builds (overridden in user projects with generated meta)
-    // stub_meta.zig imports stub_components.zig directly from the same directory
-    mod.addAnonymousImport("zx_meta", .{ .root_source_file = b.path("src/build/stub_meta.zig"), .imports = &.{.{ .name = "zx", .module = mod }} });
-    mod.addAnonymousImport("zx_injections", .{ .root_source_file = b.path("src/build/stubs/injections.zig") });
+    // Modules
+    const mod = b.addModule("zx", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize });
+
+    // Imports (zx)
+    {
+        mod.addImport("db", adapters_dep.module("db"));
+        mod.addImport("db_sqlite", adapters_dep.module("db_sqlite"));
+        mod.addImport("cachez", cachez_dep.module("cache"));
+        mod.addImport("httpz", httpz_dep.module("httpz"));
+        mod.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
+        mod.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
+        mod.addImport("tree_sitter_mdzx", tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
+        mod.addOptions("zx_info", options);
+        mod.addOptions("zx_options", zx_runtime_options);
+
+        // Stubs
+        mod.addAnonymousImport("zx_meta", .{ .root_source_file = b.path("src/build/stub_meta.zig"), .imports = &.{.{ .name = "zx", .module = mod }} });
+        mod.addAnonymousImport("zx_injections", .{ .root_source_file = b.path("src/build/stubs/injections.zig") });
+    }
 
     // --- ZX WASM Module --- //
     const zx_wasm_mod = b.addModule("zx_wasm", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize });
     const jsz_dep = b.dependency("zig_js", .{ .target = target, .optimize = optimize });
     zx_wasm_mod.addImport("js", jsz_dep.module("zig-js"));
-    // zx_wasm_mod.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
-    // zx_wasm_mod.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
-    // zx_wasm_mod.addImport("tree_sitter_mdzx", tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
     zx_wasm_mod.addOptions("zx_info", options);
     zx_wasm_mod.addOptions("zx_options", zx_runtime_options);
     // Add stub meta for WASM builds (overridden in user projects with generated meta)
     zx_wasm_mod.addAnonymousImport("zx_meta", .{ .root_source_file = b.path("src/build/stub_meta.zig"), .imports = &.{.{ .name = "zx", .module = zx_wasm_mod }} });
     zx_wasm_mod.addAnonymousImport("zx_injections", .{ .root_source_file = b.path("src/build/stubs/injections.zig") });
-
-    // --- ZX CLI Options (Dev) --- //
-    const cli_options_dev = b.addOptions();
-    cli_options_dev.addOption([]const u8, "zig_exe", b.graph.zig_exe);
 
     // --- ZX CLI (Transpiler, Exporter, Dev Server) --- //
     const zli_dep = b.dependency("zli", .{ .target = target, .optimize = optimize });
@@ -95,11 +98,13 @@ pub fn build(b: *std.Build) !void {
     b.installArtifact(exe);
 
     // --- Steps: Run --- //
-    const run_step = b.step("run", "Run the app");
-    const run_cmd = b.addRunArtifact(exe);
-    run_step.dependOn(&run_cmd.step);
-    run_cmd.step.dependOn(b.getInstallStep());
-    if (b.args) |args| run_cmd.addArgs(args);
+    {
+        const run_step = b.step("run", "Run the app");
+        const run_cmd = b.addRunArtifact(exe);
+        run_step.dependOn(&run_cmd.step);
+        run_cmd.step.dependOn(b.getInstallStep());
+        if (b.args) |args| run_cmd.addArgs(args);
+    }
 
     // --- Steps: Test --- //
     {
@@ -219,7 +224,6 @@ pub fn build(b: *std.Build) !void {
             release_mod.addImport("tree_sitter", release_tree_sitter_dep.module("tree_sitter"));
             release_mod.addImport("tree_sitter_zx", release_tree_sitter_zx_dep.module("tree_sitter_zx"));
             release_mod.addImport("tree_sitter_mdzx", release_tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
-            release_mod.addImport("cachez", cachez_dep.module("cache"));
             release_mod.addOptions("zx_info", options);
             release_mod.addOptions("zx_options", zx_runtime_options);
 

@@ -18,7 +18,8 @@
             .url = "git+https://github.com/nurulhudaapon/httpz.git#7268154f43f5827bf78668e8e79a00f2ebe4db13",
             .hash = "httpz-0.0.0-PNVzrBgtBwCVkSJyophIX6WHwDR0r8XhBGQr96Kk-1El",
         },
-        .zli = .{ .path = "vendor/cliz" },
+        .adapters = .{ .path = "pkg/adapters" },
+        .zli = .{ .path = "vendor/cliz" }, // Get rid of this in favor of copying from Zig's new builtin args parser once 0.16.0 is released
         .zig_js = .{ .path = "vendor/jsz" },
         .tree_sitter = .{ .path = "vendor/zig-tree-sitter" },
         .tree_sitter_zx = .{ .path = "pkg/tree-sitter-zx" },

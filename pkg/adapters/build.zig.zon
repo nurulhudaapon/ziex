@@ -1,0 +1,14 @@
+.{
+    .name = .ziex_adapters,
+    .version = "0.0.1",
+    .fingerprint = 0x74548a19a807c4e8,
+    .minimum_zig_version = "0.15.2",
+    .dependencies = .{},
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "vendor/sqlite",
+        "vendor/zqlite/src",
+    },
+}

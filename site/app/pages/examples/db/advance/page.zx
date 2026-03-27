@@ -1,5 +1,17 @@
+
+
+
+fn defaultDbUrl() ?[]const u8 {
+    return if (builtin.os.tag == .wasi or builtin.os.tag == .freestanding)
+        null
+    else
+        "file:zig-out/data/db/site-example-advance.sqlite";
+}
+
+const builtin = @import("builtin");
+
 pub fn Page(ctx: zx.PageContext) !zx.Component {
-    var database = try zx.db.Database.open(null, .{});
+    var database = try zx.db.open(defaultDbUrl(), .{});
     defer database.deinit();
 
     try query.init(&database);

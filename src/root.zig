@@ -14,6 +14,14 @@ const app_module = @import("runtime/server/Server.zig");
 const opts = @import("options.zig");
 const ctxs = @import("contexts.zig");
 const reactivity = @import("runtime/client/reactivity.zig");
+const _default_db_adapter = if (builtin.os.tag == .wasi or builtin.os.tag == .freestanding)
+    @import("runtime/server/wasm/db.zig")
+else
+    @import("runtime/server/db.zig");
+
+comptime {
+    _ = _default_db_adapter;
+}
 
 // -- Core Language --//
 pub const Ast = @import("core/Ast.zig");
@@ -97,7 +105,7 @@ pub const Router = @import("runtime/core/Router.zig");
 
 // --- Storage --- //
 pub const kv = @import("runtime/core/kv.zig");
-pub const db = @import("runtime/core/db.zig");
+pub const db = @import("db");
 
 // --- Net --- //
 pub const Headers = @import("runtime/core/Headers.zig");
