@@ -35,6 +35,7 @@
         "build.zig",
         "build.zig.zon",
         "src",
+        "pkg/adapters",
         "pkg/tree-sitter-zx",
         "pkg/tree-sitter-mdzx",
         "vendor/cachez",
