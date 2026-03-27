@@ -1313,53 +1313,107 @@ label.state-item {
 }
 
 .route-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 4px 8px;
-  border-radius: 4px;
+    display: flex;
+    align-items: center;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    border-left-width: 3px;
   font-size: 13px;
+    cursor: pointer;
 }
 
 .route-item:hover {
-  background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.04);
+    border-color: rgba(255, 255, 255, 0.08);
+}
+
+.route-item-page {
+    border-left-color: rgba(138, 180, 248, 0.45);
+}
+
+.route-item-route {
+    border-left-color: rgba(255, 210, 63, 0.55);
 }
 
 .route-item-hidden {
   display: none;
 }
 
-.route-method {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 1px 6px;
-  border-radius: 3px;
-  min-width: 50px;
-  text-align: center;
+.route-kind {
+        font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+        text-transform: uppercase;
+    padding: 2px 7px;
+    border-radius: 4px;
+    min-width: 50px;
+    text-align: center;
 }
 
-.method-get {
-  color: #61affe;
-  background: rgba(97, 175, 254, 0.1);
-  border: 1px solid rgba(97, 175, 254, 0.3);
+.route-kind-page {
+    color: #8ab4f8;
+    background: rgba(138, 180, 248, 0.08);
+    border: 1px solid rgba(138, 180, 248, 0.24);
 }
 
-.method-post {
-  color: #49cc90;
-  background: rgba(73, 204, 144, 0.1);
-  border: 1px solid rgba(73, 204, 144, 0.3);
+.route-kind-route {
+    color: #ffd23f;
+    background: rgba(255, 210, 63, 0.08);
+    border: 1px solid rgba(255, 210, 63, 0.25);
 }
 
-.method-put {
-  color: #fca130;
-  background: rgba(252, 161, 48, 0.1);
-  border: 1px solid rgba(252, 161, 48, 0.3);
+.route-methods-chip {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    padding: 1px 7px;
+    border-radius: 999px;
+    color: #d0d7de;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 }
 
-.method-delete {
-  color: #f93e3e;
-  background: rgba(249, 62, 62, 0.1);
-  border: 1px solid rgba(249, 62, 62, 0.3);
+.route-method-token {
+    font-weight: 700;
+}
+
+.route-method-sep {
+    color: rgba(255, 255, 255, 0.45);
+    margin: 0 2px;
+}
+
+.route-method-token.method-get {
+    color: #61affe;
+}
+
+.route-method-token.method-post {
+    color: #49cc90;
+}
+
+.route-method-token.method-put {
+    color: #fca130;
+}
+
+.route-method-token.method-delete {
+    color: #f93e3e;
+}
+
+.route-method-token.method-patch {
+    color: #f7c948;
+}
+
+.route-method-token.method-head {
+    color: #58d68d;
+}
+
+.route-method-token.method-options {
+    color: #5dade2;
+}
+
+.route-method-token.method-any {
+    color: #c792ea;
 }
 
 .routes-children {
@@ -1370,6 +1424,41 @@ label.state-item {
 .route-path {
   color: #e5e5e5;
   font-family: monospace;
+    font-size: 14px;
+    line-height: 1.2;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.route-head {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    gap: 8px;
+}
+
+.route-main {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+    flex: 0 1 auto;
+}
+
+.route-methods-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: 0;
+    flex-shrink: 0;
+}
+
+.route-methods-separator {
+    width: 1px;
+    height: 18px;
+    background: rgba(255, 255, 255, 0.15);
 }
 
 .sidebar-logo {
