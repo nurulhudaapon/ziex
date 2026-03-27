@@ -6,6 +6,8 @@
 const std = @import("std");
 const builtin = @import("builtin");
 
+const noop = @import("db/noop.zig");
+
 pub const Driver = @This();
 
 pub const DbError = error{
@@ -115,7 +117,7 @@ pub const DefaultConfig = struct {
 
 var _stateless: u8 = 0;
 var _ctx: *anyopaque = @ptrCast(&_stateless);
-var _vtable: *const DriverVTable = &noop_driver_vtable;
+var _vtable: *const DriverVTable = &noop.vtable;
 var _default_config: DefaultConfig = .{};
 var _default_connection: ?Connection = null;
 var _default_connection_mutex: std.Thread.Mutex = .{};
@@ -455,110 +457,6 @@ pub const Statement = struct {
     }
 };
 
-const empty_fields = [_]Field{};
-const empty_rows = [_]Row{};
-const empty_values = [_]Value{};
-const empty_value_rows = [_][]const Value{};
-const empty_column_names = [_][]const u8{};
-const empty_column_types = [_]ColumnType{};
-const empty_declared_types = [_]?[]const u8{};
-
-fn noopOpen(_: *anyopaque, _: ?[]const u8, _: OpenOptions) anyerror!Database {
-    return .{
-        .backend_ctx = @ptrCast(&_stateless),
-        .vtable = &noop_database_vtable,
-    };
-}
-
-fn noopDeserialize(_: *anyopaque, _: []const u8, _: OpenOptions) anyerror!Database {
-    return .{
-        .backend_ctx = @ptrCast(&_stateless),
-        .vtable = &noop_database_vtable,
-    };
-}
-
-fn noopQuery(_: *anyopaque, _: []const u8) anyerror!Statement {
-    return .{
-        .backend_ctx = @ptrCast(&_stateless),
-        .vtable = &noop_statement_vtable,
-    };
-}
-
-fn noopPrepare(_: *anyopaque, _: []const u8) anyerror!Statement {
-    return .{
-        .backend_ctx = @ptrCast(&_stateless),
-        .vtable = &noop_statement_vtable,
-    };
-}
-
-fn noopRunSql(_: *anyopaque, _: []const u8, _: Bindings) anyerror!RunResult {
-    return DbError.Unimplemented;
-}
-
-fn noopTransaction(_: *anyopaque, _: TransactionMode, _: *anyopaque, _: TransactionCallback) anyerror!void {
-    return DbError.Unimplemented;
-}
-
-fn noopClose(_: *anyopaque, _: bool) anyerror!void {}
-
-fn noopSerialize(_: *anyopaque, _: std.mem.Allocator) anyerror![]u8 {
-    return DbError.Unimplemented;
-}
-
-fn noopLoadExtension(_: *anyopaque, _: []const u8, _: ?[]const u8) anyerror!void {
-    return DbError.Unimplemented;
-}
-
-fn noopFileControl(_: *anyopaque, _: i32, _: FileControlValue) anyerror!void {
-    return DbError.Unimplemented;
-}
-
-fn noopNative(_: *anyopaque) ?*anyopaque {
-    return null;
-}
-
-fn noopAll(_: *anyopaque, _: std.mem.Allocator, _: Bindings) anyerror![]const Row {
-    return DbError.Unimplemented;
-}
-
-fn noopGet(_: *anyopaque, _: std.mem.Allocator, _: Bindings) anyerror!?Row {
-    return DbError.Unimplemented;
-}
-
-fn noopRunStatement(_: *anyopaque, _: Bindings) anyerror!RunResult {
-    return DbError.Unimplemented;
-}
-
-fn noopValues(_: *anyopaque, _: std.mem.Allocator, _: Bindings) anyerror![]const []const Value {
-    return DbError.Unimplemented;
-}
-
-fn noopIterate(_: *anyopaque, _: Bindings) anyerror!Statement.Iterator {
-    return .{};
-}
-
-fn noopFinalize(_: *anyopaque) void {}
-
-fn noopToString(_: *anyopaque, allocator: std.mem.Allocator) anyerror![]u8 {
-    return allocator.dupe(u8, "");
-}
-
-fn noopColumnNames(_: *anyopaque) []const []const u8 {
-    return empty_column_names[0..];
-}
-
-fn noopColumnTypes(_: *anyopaque) []const ColumnType {
-    return empty_column_types[0..];
-}
-
-fn noopDeclaredTypes(_: *anyopaque) []const ?[]const u8 {
-    return empty_declared_types[0..];
-}
-
-fn noopParamsCount(_: *anyopaque) usize {
-    return 0;
-}
-
 fn resolveDatabaseLocation(filename: ?[]const u8) !?[]const u8 {
     const input = filename orelse configuredUrl() orelse defaultLocation();
     return try parseDatabaseUrl(input);
@@ -618,35 +516,3 @@ fn parseDatabaseUrl(input: ?[]const u8) !?[]const u8 {
 fn trimOrDefault(value: []const u8, fallback: []const u8) []const u8 {
     return if (value.len == 0) fallback else value;
 }
-
-const noop_driver_vtable = DriverVTable{
-    .open = &noopOpen,
-    .deserialize = &noopDeserialize,
-};
-
-const noop_database_vtable = Database.VTable{
-    .query = &noopQuery,
-    .prepare = &noopPrepare,
-    .run = &noopRunSql,
-    .transaction = &noopTransaction,
-    .close = &noopClose,
-    .serialize = &noopSerialize,
-    .load_extension = &noopLoadExtension,
-    .file_control = &noopFileControl,
-    .native = &noopNative,
-};
-
-const noop_statement_vtable = Statement.VTable{
-    .all = &noopAll,
-    .get = &noopGet,
-    .run = &noopRunStatement,
-    .values = &noopValues,
-    .iterate = &noopIterate,
-    .finalize = &noopFinalize,
-    .to_string = &noopToString,
-    .column_names = &noopColumnNames,
-    .column_types = &noopColumnTypes,
-    .declared_types = &noopDeclaredTypes,
-    .params_count = &noopParamsCount,
-    .native = &noopNative,
-};

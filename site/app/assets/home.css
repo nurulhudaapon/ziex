@@ -1,3 +1,83 @@
+/* Hide vertical scrollbar in install tab OS switcher */
+.hero-install .install-box-header,
+.hero-install .install-tab-labels {
+    scrollbar-width: none;
+}
+.hero-install .install-box-header::-webkit-scrollbar,
+.hero-install .install-tab-labels::-webkit-scrollbar {
+    display: none;
+}
+/* Extra small device tweaks */
+@media (max-width: 480px) {
+    .hero {
+        padding: 0.5rem;
+        min-height: unset;
+    }
+    .hero-inner {
+        flex-direction: column;
+        gap: 1.5rem;
+        padding-top: 2rem;
+    }
+    .hero-title-main {
+        font-size: 2.2rem !important;
+    }
+    .hero-mascot {
+        width: 100%;
+        min-width: 0;
+        max-width: 220px;
+        margin: 0 auto;
+    }
+    .hero-mascot img {
+        max-width: 180px;
+    }
+    .hero-install {
+        max-width: 100%;
+        margin: 1rem 0 1.5rem;
+    }
+    .hero-install .install-box-header,
+    .hero-install .install-tab-labels {
+        overflow-x: auto;
+        flex-wrap: nowrap;
+        gap: 0.2rem;
+    }
+    .hero-install .install-tab-label {
+        min-width: 90px;
+        font-size: 0.7rem;
+        padding: 0.35rem 0.5rem;
+    }
+    .hero-install .install-box-content {
+        padding: 0.5rem 0.3rem;
+    }
+    .hero-install .install-code {
+        font-size: 0.68rem;
+        padding: 0.5rem 0.2rem;
+        white-space: pre-line;
+        word-break: break-all;
+        overflow-x: auto;
+    }
+    .features {
+        padding: 2rem 0.5rem;
+    }
+    .features-grid {
+        grid-template-columns: 1fr;
+    }
+    .feature-card {
+        padding: 1.2rem 0.7rem;
+    }
+}
+
+@media (max-width: 340px) {
+    .hero-title-main {
+        font-size: 1.3rem !important;
+    }
+    .hero-mascot img {
+        max-width: 120px;
+    }
+    .hero-install .install-tab-label {
+        min-width: 70px;
+        font-size: 0.6rem;
+    }
+}
 /* ZX Framework Home Page Styles */
 
 :root {
@@ -472,6 +552,10 @@ body {
     background: rgba(16, 18, 23, 0.95);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     /* padding: 0.6rem 0.85rem; */
+    /* overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin; */
 }
 
 .hero-install .install-box-content {
@@ -492,6 +576,10 @@ body {
 .hero-install .install-tab-labels {
     display: flex;
     gap: 0.4rem;
+    /* overflow-x: auto;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin; */
 }
 
 .hero-install .install-tab-label {
