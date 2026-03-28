@@ -434,10 +434,15 @@ fn decodeStoredEntry(encoded: []const u8) !StoredEntry {
     };
 }
 
+fn now() u64 {
+    if (comptime builtin.os.tag == .freestanding or builtin.os.tag == .wasi) return 0;
+    return @as(u64, @intCast(std.time.timestamp()));
+}
+
 fn expirationFromOptions(opts: PutOptions) !?u64 {
     if (opts.expiration) |expiration| return expiration;
     if (opts.expiration_ttl) |ttl| {
-        return @as(u64, @intCast(std.time.timestamp())) + ttl;
+        return now() + ttl;
     }
     return null;
 }
@@ -450,9 +455,9 @@ fn ttlFromOptions(opts: PutOptions) ?u32 {
 
 fn ttlFromExpiration(expires_at: ?u64) ?u32 {
     const expiration = expires_at orelse return null;
-    const now: u64 = @intCast(std.time.timestamp());
-    if (expiration <= now) return 0;
-    return clampTtl(expiration - now);
+    const current_now = now();
+    if (expiration <= current_now) return 0;
+    return clampTtl(expiration - current_now);
 }
 
 fn clampTtl(ttl: u64) u32 {
@@ -461,7 +466,7 @@ fn clampTtl(ttl: u64) u32 {
 
 fn isExpired(expires_at: ?u64) bool {
     const expiration = expires_at orelse return false;
-    return expiration <= @as(u64, @intCast(std.time.timestamp()));
+    return expiration <= now();
 }
 
 fn putMemoryEntryLocked(s: *State, scoped_key: []const u8, value: []const u8, ttl_seconds: ?u32) !void {
