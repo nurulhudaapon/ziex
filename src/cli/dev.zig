@@ -90,7 +90,25 @@ fn dev(ctx: zli.CommandContext) !void {
     defer env_map.deinit();
 
     var initial_build = std.process.Child.init(initial_build_args_array.items, allocator);
-    _ = initial_build.spawnAndWait() catch {};
+    const initial_term = initial_build.spawnAndWait() catch |err| {
+        log.err("Failed to run initial build: {any}", .{err});
+        std.process.exit(1);
+    };
+
+    switch (initial_term) {
+        .Exited => |code| {
+            if (code != 0) {
+                if (env_map.get("CI") != null) {
+                    std.process.exit(code);
+                }
+            }
+        },
+        else => {
+            if (env_map.get("CI") != null) {
+                std.process.exit(1);
+            }
+        },
+    }
 
     // Spin up the dev proxy: it owns the user-facing port for the entire session
     const outer_port: u16 = if (port != 0) @intCast(port) else 3000;
