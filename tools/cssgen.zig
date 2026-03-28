@@ -26,7 +26,7 @@ pub fn main() !void {
     defer arena.deinit();
     const allocator = arena.allocator();
 
-    // 1. Load Types
+    // 1. Load Data
     const main_file = try std.fs.cwd().openFile("vendor/webref/ed/css.json", .{});
     defer main_file.close();
     const main_content = try main_file.readToEndAlloc(allocator, 15 * 1024 * 1024);
@@ -35,6 +35,7 @@ pub fn main() !void {
     const root = main_parsed.value.object;
     const properties = root.get("properties").?.array;
     const types_json = root.get("types").?.array;
+    const selectors = root.get("selectors").?.array;
 
     var type_map = TypeMap.init(allocator);
     for (types_json.items) |t| {
@@ -86,6 +87,7 @@ pub fn main() !void {
         \\
         \\const std = @import("std");
         \\const core = @import("core.zig");
+        \\const CssColor = core.Color;
         \\
     );
 
@@ -113,6 +115,8 @@ pub fn main() !void {
         const type_name_raw = try cleanName(allocator, prop_name, .pascal);
         const final_type_name = if (std.mem.eql(u8, type_name_raw, "Color")) "CssColor" else type_name_raw;
 
+        if (std.mem.eql(u8, final_type_name, "CssColor")) continue;
+
         try writer.interface.print("\n/// {s}\n", .{prop_name});
         if (data.prose.len > 0) {
             try writeDoc(&writer.interface, data.prose, "");
@@ -126,7 +130,7 @@ pub fn main() !void {
         var k_it = data.keywords.iterator();
         while (k_it.next()) |k_entry| {
             const clean_kw = try cleanName(allocator, k_entry.key_ptr.*, .snake);
-            if (!tags.contains(clean_kw)) {
+            if (clean_kw.len > 0 and !tags.contains(clean_kw)) {
                 if (k_entry.value_ptr.*.len > 0) {
                     try writer.interface.writeAll("    /// ");
                     try writeDoc(&writer.interface, k_entry.value_ptr.*, "    ");
@@ -136,15 +140,9 @@ pub fn main() !void {
             }
         }
 
-        if (data.units.length) {
-            try writer.interface.writeAll("    px_: f32, em_: f32, rem_: f32,\n");
-        }
-        if (data.units.percentage) {
-            try writer.interface.writeAll("    percent_: f32,\n");
-        }
-        if (data.units.color) {
-            try writer.interface.writeAll("    hex_: u32, rgb_: core.Color, rgba_: core.Color,\n");
-        }
+        if (data.units.length) try writer.interface.writeAll("    px_: f32, em_: f32, rem_: f32,\n");
+        if (data.units.percentage) try writer.interface.writeAll("    percent_: f32,\n");
+        if (data.units.color) try writer.interface.writeAll("    hex_: u32,\n");
 
         // Helper Methods
         if (data.units.length) {
@@ -155,7 +153,6 @@ pub fn main() !void {
         if (data.units.percentage) try writer.interface.print("    pub fn percent(v: f32) {s} {{ return .{{ .percent_ = v }}; }}\n", .{final_type_name});
         if (data.units.color) {
             try writer.interface.print("    pub fn hex(v: u32) {s} {{ return .{{ .hex_ = v }}; }}\n", .{final_type_name});
-            try writer.interface.print("    pub fn rgb(r: u8, g: u8, b: u8) {s} {{ return .{{ .rgb_ = core.Color.rgb(r, g, b) }}; }}\n", .{final_type_name});
         }
 
         try writer.interface.print("\n    pub fn format(self: {s}, w: *std.io.Writer) std.io.Writer.Error!void {{ return core.formatValue(self, w); }}\n", .{final_type_name});
@@ -169,6 +166,7 @@ pub fn main() !void {
         const type_name_raw = try cleanName(allocator, name, .pascal);
         const final_type_name = if (std.mem.eql(u8, type_name_raw, "Color")) "CssColor" else type_name_raw;
         const clean_p = try cleanName(allocator, name, .snake);
+        if (clean_p.len == 0) continue;
         try writer.interface.print("\n    /// {s}\n", .{name});
         if (data.prose.len > 0) {
             try writeDoc(&writer.interface, data.prose, "    ");
@@ -177,21 +175,65 @@ pub fn main() !void {
         try writer.interface.print("    /// - **W3C**: {s}\n", .{data.href});
         try writer.interface.print("    {s}: {s} = .none,\n", .{ clean_p, final_type_name });
     }
-    try writer.interface.writeAll("\n    extra: []const u8 = \"\",\n");
+
+    try writer.interface.writeAll("\n    // --- Selectors (Pseudo-classes & Elements) --- //\n");
+    var selector_tags = std.StringArrayHashMap(void).init(allocator);
+    for (selectors.items) |sel| {
+        const name = sel.object.get("name").?.string;
+        if (std.mem.indexOf(u8, name, "(") != null) continue; // Skip functional selectors for now
+        const href = sel.object.get("href").?.string;
+        const prose = if (sel.object.get("prose")) |p| p.string else "";
+        const clean_s = try cleanName(allocator, name, .snake);
+        if (clean_s.len == 0) continue;
+        if (selector_tags.contains(clean_s)) continue;
+        
+        // Skip if it conflicts with a property name
+        var is_duplicate = false;
+        var p_it = prop_data.iterator();
+        while (p_it.next()) |p_entry| {
+            const p_clean = try cleanName(allocator, p_entry.key_ptr.*, .snake);
+            if (std.mem.eql(u8, p_clean, clean_s)) {
+                is_duplicate = true;
+                break;
+            }
+        }
+        if (is_duplicate) continue;
+
+        try selector_tags.put(clean_s, {});
+
+        try writer.interface.print("\n    /// {s}\n", .{name});
+        if (prose.len > 0) {
+            try writeDoc(&writer.interface, prose, "    ");
+            try writer.interface.writeAll("    ///\n");
+        }
+        try writer.interface.print("    /// - **W3C**: {s}\n", .{href});
+        try writer.interface.print("    {s}: ?*const Style = null,\n", .{clean_s});
+    }
 
     try writer.interface.writeAll(
         \\
+        \\    // Responsive Breakpoints
+        \\    sm: ?*const Style = null,
+        \\    md: ?*const Style = null,
+        \\    lg: ?*const Style = null,
+        \\    xl: ?*const Style = null,
+        \\
+        \\    extra: []const u8 = "",
+        \\
         \\    pub fn format(self: Style, w: *std.io.Writer) std.io.Writer.Error!void {
         \\        @setEvalBranchQuota(20000);
-        \\        const fields = std.meta.fields(Style);
-        \\        inline for (fields) |f| {
+        \\        inline for (std.meta.fields(Style)) |f| {
+        \\            const T = f.type;
         \\            if (comptime std.mem.eql(u8, f.name, "extra")) continue;
-        \\            const val = @field(self, f.name);
-        \\            if (val != .none) {
-        \\                try core.formatKebab(f.name, w);
-        \\                try w.writeAll(": ");
-        \\                try val.format(w);
-        \\                try w.writeAll("; ");
+        \\            
+        \\            if (comptime @typeInfo(T) == .@"union") {
+        \\                const val = @field(self, f.name);
+        \\                if (val != .none) {
+        \\                    try core.formatKebab(f.name, w);
+        \\                    try w.writeAll(": ");
+        \\                    try val.format(w);
+        \\                    try w.writeAll("; ");
+        \\                }
         \\            }
         \\        }
         \\        if (self.extra.len > 0) try w.writeAll(self.extra);
@@ -206,10 +248,11 @@ pub fn main() !void {
         \\    }
         \\};
     );
+
     try writer.interface.flush();
 }
 
-fn writeDoc(writer: *std.Io.Writer, prose: []const u8, indent: []const u8) !void {
+fn writeDoc(writer: anytype, prose: []const u8, indent: []const u8) !void {
     var it = std.mem.tokenizeAny(u8, prose, "\n");
     while (it.next()) |line| {
         try writer.print("{s}/// {s}\n", .{ indent, line });
@@ -218,13 +261,20 @@ fn writeDoc(writer: *std.Io.Writer, prose: []const u8, indent: []const u8) !void
 
 fn cleanName(allocator: std.mem.Allocator, name: []const u8, case: enum { pascal, camel, snake }) ![]const u8 {
     if (name.len == 0) return "";
-    if (std.ascii.isDigit(name[0])) return try std.fmt.allocPrint(allocator, "@\"{s}\"", .{name});
+    var start: usize = 0;
+    while (start < name.len and (name[start] == '-' or name[start] == ':')) : (start += 1) {}
+    if (start >= name.len) return "";
+
+    // Skip names that are just symbols (e.g. "&", "+", ">", "||")
+    if (!std.ascii.isAlphabetic(name[start]) and !std.ascii.isDigit(name[start])) {
+        return "";
+    }
+
     var list: std.ArrayList(u8) = .empty;
     var next_upper = (case == .pascal);
-    var start: usize = 0;
-    while (start < name.len and name[start] == '-') : (start += 1) {}
+    
     for (name[start..]) |c| {
-        if (c == '-') {
+        if (c == '-' or c == ':') {
             if (case == .snake) {
                 try list.append(allocator, '_');
             } else {
@@ -240,7 +290,10 @@ fn cleanName(allocator: std.mem.Allocator, name: []const u8, case: enum { pascal
         }
     }
     const result = try list.toOwnedSlice(allocator);
-    if (isZigKeyword(result)) return try std.mem.concat(allocator, u8, &.{ result, "_" });
+    if (isZigKeyword(result) or (result.len > 0 and std.ascii.isDigit(result[0]))) {
+        const final = try std.fmt.allocPrint(allocator, "@\"{s}\"", .{result});
+        return final;
+    }
     return result;
 }
 
@@ -276,7 +329,7 @@ fn resolveMetaEnriched(allocator: std.mem.Allocator, syntax: []const u8, type_ma
                 }
             }
         }
-        if (is_valid and !keywords.contains(cleaned)) {
+        if (is_valid and cleaned.len > 0 and !keywords.contains(cleaned)) {
             const pr = blk: {
                 if (kprose) |kp| if (kp.get(cleaned)) |p| break :blk p;
                 if (std.mem.eql(u8, cleaned, "inherit")) break :blk "The inherit CSS keyword causes the element to take the computed value of the property from its parent element.";
