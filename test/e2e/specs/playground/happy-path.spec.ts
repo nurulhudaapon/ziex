@@ -13,7 +13,13 @@ test.describe('Ziex Playground', () => {
     await expect(page.getByRole('button', { name: /Playground\.zx/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /style\.css/ })).toBeVisible();
     // Always click Run on first load to expect preview
-    await page.getByRole('button', { name: 'Run' }).click();
+    const runButton = page.getByRole('button', { name: 'Run' });
+    await runButton.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+      const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent?.trim() === 'Run');
+      return btn && !btn.disabled;
+    });
+    await runButton.click();
     // Wait for preview output (look for a heading or known output)
     await page.waitForTimeout(2000); // Allow time for preview to update
     // Check inside the preview iframe
@@ -28,7 +34,13 @@ test.describe('Ziex Playground', () => {
     await editor.click();
     await editor.type('\n// test comment');
     // Click Run
-    await page.getByRole('button', { name: 'Run' }).click();
+    const runButton = page.getByRole('button', { name: 'Run' });
+    await runButton.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+      const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent?.trim() === 'Run');
+      return btn && !btn.disabled;
+    });
+    await runButton.click();
     // Wait for preview output
     await page.waitForTimeout(2000); // Allow time for preview to update
     // Check inside the preview iframe
@@ -67,7 +79,13 @@ test.describe('Ziex Playground', () => {
 
   test('Share Button', async ({ page }) => {
     await page.goto(`${BASE_URL}/playground`);
-    await page.getByRole('button', { name: /Share/ }).click();
+    const shareButton = page.getByRole('button', { name: /Share/ });
+    await shareButton.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+      const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent?.trim().includes('Share'));
+      return btn && !btn.disabled;
+    });
+    await shareButton.click();
     // expect: Share dialog or link is shown (if implemented)
   });
 
@@ -85,7 +103,13 @@ test.describe('Ziex Playground', () => {
     const editor = page.getByRole('textbox').first();
     await editor.click();
     await editor.type('\nthis is invalid code');
-    await page.getByRole('button', { name: 'Run' }).click();
+    const runButton = page.getByRole('button', { name: 'Run' });
+    await runButton.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+      const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent?.trim() === 'Run');
+      return btn && !btn.disabled;
+    });
+    await runButton.click();
     // Wait for error in terminal/output
     await expect(page.getByText(/error|invalid|failed/i)).toBeVisible();
   });
@@ -110,7 +134,13 @@ test.describe('Ziex Playground', () => {
     // Reload
     await page.reload();
     // Always click Run after reload to update preview
-    await page.getByRole('button', { name: 'Run' }).click();
+    const runButton = page.getByRole('button', { name: 'Run' });
+    await runButton.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+      const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent?.trim() === 'Run');
+      return btn && !btn.disabled;
+    });
+    await runButton.click();
     await page.waitForTimeout(2000);
     // expect: Initial template is present (not the edited content)
     const previewFrame = page.frameLocator('iframe');
