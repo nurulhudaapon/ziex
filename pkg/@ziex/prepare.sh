@@ -1,13 +1,13 @@
 #!/bin/bash
 set -euo pipefail
 
-# Downloads Zig compiler binaries for all platforms.
-# Reads version from package.json.
-# Places lib/ in the shared @zigc/lib package (identical across platforms).
+# Prepares @ziex npm packages for publishing.
+# Reads version from the root build.zig.zon.
+# Copies platform binaries and syncs package versions.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ZIEX_VER=$(node -p "require('$SCRIPT_DIR/package.json').version")
-LIB_COPIED=false
+ROOT_DIR="$SCRIPT_DIR/../.."
+ZIEX_VER=$(sed -n 's/.*\.version *= *"\([^"]*\)".*/\1/p' "$ROOT_DIR/build.zig.zon")
 
 # Update version in all workspace package.json files
 echo "Updating package versions to $ZIEX_VER..."
@@ -34,6 +34,38 @@ if [[ "${1:-}" == "--version" ]]; then
   echo "Done."
   exit 0
 fi
+
+# Copy binaries from zig-out/bin/release to respective platform packages
+RELEASE_DIR="$SCRIPT_DIR/../../zig-out/bin/release"
+
+declare -A BINARY_MAP=(
+  ["cli-darwin-arm64"]="zx-macos-aarch64"
+  ["cli-darwin-x64"]="zx-macos-x64"
+  ["cli-linux-x64"]="zx-linux-x64"
+  ["cli-linux-arm64"]="zx-linux-aarch64"
+  ["cli-win32-x64"]="zx-windows-x64.exe"
+  ["cli-win32-arm64"]="zx-windows-aarch64.exe"
+)
+
+echo "Copying binaries from $RELEASE_DIR..."
+for pkg in "${!BINARY_MAP[@]}"; do
+  src="$RELEASE_DIR/${BINARY_MAP[$pkg]}"
+  dest_dir="$SCRIPT_DIR/$pkg/bin"
+  if [[ "$pkg" == cli-win32-* ]]; then
+    dest="$dest_dir/zx.exe"
+  else
+    dest="$dest_dir/zx"
+  fi
+
+  if [ -f "$src" ]; then
+    mkdir -p "$dest_dir"
+    cp "$src" "$dest"
+    chmod +x "$dest"
+    echo "  Copied ${BINARY_MAP[$pkg]} -> $pkg/bin/"
+  else
+    echo "  Warning: $src not found, skipping $pkg"
+  fi
+done
 
 # Copy README.md to all packages
 echo "Copying README.md to all packages..."

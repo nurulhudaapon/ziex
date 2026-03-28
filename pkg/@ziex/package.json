@@ -8,6 +8,7 @@
     "publish": "npm publish --workspaces --access public",
     "start:registry": "verdaccio --config verdaccio.yaml --listen 4873",
     "publish:local": "npm publish --workspaces --registry http://localhost:4873",
+    "check": "bash check.sh",
     "syncver": "npm version --ignore-scripts --workspace lib --workspace cli --workspace cli-darwin-arm64 --workspace cli-darwin-x64 --workspace cli-linux-x64 --workspace cli-linux-arm64 --workspace cli-win32-x64 --workspace cli-win32-arm64"
   },
   "workspaces": [

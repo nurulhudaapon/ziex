@@ -122,6 +122,48 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  publish-npm:
+    name: Publish CLI to NPM
+    runs-on: ubuntu-latest
+    needs: build-release
+    if: github.event_name == 'release'
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Place binaries in zig-out/bin/release
+        shell: bash
+        run: |
+          mkdir -p zig-out/bin/release
+          for dir in dist/*/; do
+            for file in "$dir"*; do
+              case "$file" in
+                *.tar.gz) tar -xzf "$file" -C zig-out/bin/release ;;
+                *.zip)    unzip -o "$file" -d zig-out/bin/release ;;
+              esac
+            done
+          done
+
+      - name: Prepare and publish @ziex packages
+        run: |
+          cd pkg/@ziex
+          bash prepare.sh
+          npm publish --workspaces --access public --provenance
+
   sync-templates:
     name: Sync & Release Templates
     runs-on: ubuntu-latest

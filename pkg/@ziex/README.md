@@ -1,6 +1,6 @@
 # @ziex/cli
 
-Ziex CLI Node Package Manager (npm) distribution.
+Ziex CLI distribution via NPM.
 
 ## Usage
 
@@ -26,5 +26,3 @@ The `@ziex/cli` package resolves the correct native binary for your platform via
 | `@ziex/cli-linux-arm64` | Linux ARM64 |
 | `@ziex/cli-win32-x64` | Windows x64 |
 | `@ziex/cli-win32-arm64` | Windows ARM64 |
-
-The standard library is shipped separately in `@ziex/lib` (shared across all platforms).

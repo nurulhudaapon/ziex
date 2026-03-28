@@ -1,10 +1,6 @@
-*/bin/zig
-*/bin/zig.exe
+*/bin/zx
+*/bin/zx.exe
 */README.md
-lib/
 
-!lib/package.json
-.zig-version
-.cache/
 .verdaccio-storage/
 .verdaccio-htpasswd
