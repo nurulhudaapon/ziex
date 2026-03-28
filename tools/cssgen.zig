@@ -145,7 +145,6 @@ pub fn main() !void {
         if (data.units.color) {
             try writer.interface.writeAll("    hex_: u32, rgb_: core.Color, rgba_: core.Color,\n");
         }
-        try writer.interface.writeAll("    raw_: []const u8,\n");
 
         // Helper Methods
         if (data.units.length) {
@@ -158,7 +157,6 @@ pub fn main() !void {
             try writer.interface.print("    pub fn hex(v: u32) {s} {{ return .{{ .hex_ = v }}; }}\n", .{final_type_name});
             try writer.interface.print("    pub fn rgb(r: u8, g: u8, b: u8) {s} {{ return .{{ .rgb_ = core.Color.rgb(r, g, b) }}; }}\n", .{final_type_name});
         }
-        try writer.interface.print("    pub fn raw(r: []const u8) {s} {{ return .{{ .raw_ = r }}; }}\n", .{final_type_name});
 
         try writer.interface.print("\n    pub fn format(self: {s}, w: *std.io.Writer) std.io.Writer.Error!void {{ return core.formatValue(self, w); }}\n", .{final_type_name});
         try writer.interface.writeAll("};\n");
@@ -179,13 +177,15 @@ pub fn main() !void {
         try writer.interface.print("    /// - **W3C**: {s}\n", .{data.href});
         try writer.interface.print("    {s}: {s} = .none,\n", .{ clean_p, final_type_name });
     }
+    try writer.interface.writeAll("\n    extra: []const u8 = \"\",\n");
 
     try writer.interface.writeAll(
         \\
         \\    pub fn format(self: Style, w: *std.io.Writer) std.io.Writer.Error!void {
-        \\        @setEvalBranchQuota(10000);
+        \\        @setEvalBranchQuota(20000);
         \\        const fields = std.meta.fields(Style);
         \\        inline for (fields) |f| {
+        \\            if (comptime std.mem.eql(u8, f.name, "extra")) continue;
         \\            const val = @field(self, f.name);
         \\            if (val != .none) {
         \\                try core.formatKebab(f.name, w);
@@ -194,6 +194,7 @@ pub fn main() !void {
         \\                try w.writeAll("; ");
         \\            }
         \\        }
+        \\        if (self.extra.len > 0) try w.writeAll(self.extra);
         \\    }
         \\
         \\    pub fn toString(self: Style, allocator: std.mem.Allocator) ![]const u8 {
