@@ -3,12 +3,10 @@
 
 import { test, expect } from '@playwright/test';
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
-
 test.describe('Auth Example', () => {
   test('Login and Protected Page', async ({ page }) => {
     // 1. Navigate to /examples/auth
-    await page.goto(`${BASE_URL}/examples/auth`);
+    await page.goto('/examples/auth');
     // expect: Auth UI loads with username input and login button.
     await expect(page.getByRole('textbox', { name: /Username/ })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Login' })).toBeVisible();

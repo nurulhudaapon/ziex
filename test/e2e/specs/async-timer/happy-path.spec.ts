@@ -3,12 +3,10 @@
 
 import { test, expect } from '@playwright/test';
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
-
 test.describe('Async Timer Example', () => {
   test('Timer and Interval Functionality', async ({ page }) => {
     // 1. Navigate to /examples/wasm/async
-    await page.goto(`${BASE_URL}/examples/wasm/async`);
+    await page.goto('/examples/wasm/async');
     // expect: Timer demo loads with timer and interval buttons.
     await expect(page.getByRole('button', { name: 'setTimeout (2s)' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Start Interval (1s)' })).toBeVisible();

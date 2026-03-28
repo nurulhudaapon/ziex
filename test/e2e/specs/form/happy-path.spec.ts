@@ -3,12 +3,11 @@
 
 import { test, expect } from '@playwright/test';
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
 test.describe('Form Example', () => {
   test('Add and Search Users', async ({ page }) => {
     // 1. Navigate to /examples/form
-    await page.goto(`${BASE_URL}/examples/form`);
+    await page.goto('/examples/form');
     // expect: Form UI loads with search and add user fields.
     await expect(page.getByRole('textbox', { name: /Search users/ })).toBeVisible();
     await expect(page.getByRole('textbox', { name: /Name/ })).toBeVisible();

@@ -3,12 +3,11 @@
 
 import { test, expect } from '@playwright/test';
 
-const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
 test.describe('Todo App Example', () => {
   test('Add and Remove Todos', async ({ page }) => {
     // 1. Navigate to /examples/wasm
-    await page.goto(`${BASE_URL}/examples/wasm`);
+    await page.goto('/examples/wasm');
     // expect: Todo app loads with initial todos.
     await expect(page.getByRole('textbox', { name: /Add a new todo/ })).toBeVisible();
     // 2. Type 'Test new todo' in the input and click 'Add'
