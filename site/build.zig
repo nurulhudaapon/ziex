@@ -96,7 +96,9 @@ pub fn build(b: *std.Build) !void {
             .define = &.{
                 .{
                     .key = "COMMIT_HASH",
-                    .value = b.run(&.{ "git", "rev-parse", "--short", "HEAD" }),
+                    .value = b.fmt("\"{s}\"", .{
+                        std.mem.trim(u8, b.run(&.{ "git", "rev-parse", "--short", "HEAD" }), "\n"),
+                    }),
                 },
             },
             // .outdir = assetsdir.path(b, "playground/"),
