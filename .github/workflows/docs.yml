@@ -55,17 +55,32 @@ jobs:
         with:
           path: ./site/dist
 
+  e2e:
+    needs: build_ssg
+    uses: ./.github/workflows/e2e.yml
+    with:
+      report_name: playwright-report-pre-deploy
+
   deploy_ssg:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: build_ssg
+    needs: [build_ssg, e2e]
     name: Deploy (SSG)
+    outputs:
+      page_url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+
+  e2e_post_deploy:
+    needs: [deploy_ssg, deploy_edge]
+    uses: ./.github/workflows/e2e.yml
+    with:
+      base_url: ${{ needs.deploy_ssg.outputs.page_url }}
+      report_name: playwright-report-post-deploy
 
   deploy_ssr:
     environment:

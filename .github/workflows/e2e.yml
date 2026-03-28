@@ -1,0 +1,79 @@
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_call:
+    inputs:
+      base_url:
+        description: 'Base URL to run tests against'
+        required: false
+        type: string
+        default: ''
+      report_name:
+        description: 'Name for the Playwright report artifact'
+        required: false
+        type: string
+        default: 'playwright-report'
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    name: E2E Tests
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Zig
+        if: ${{ !inputs.base_url }}
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install E2E Dependencies
+        working-directory: test/e2e
+        run: npm install
+
+      - name: Install Playwright Browsers
+        working-directory: test/e2e
+        run: npx playwright install --with-deps chromium
+
+      - name: Start Dev Server
+        if: ${{ !inputs.base_url }}
+        run: zig build dev &
+
+      - name: Wait for Dev Server
+        if: ${{ !inputs.base_url }}
+        run: |
+          for i in $(seq 1 60); do
+            if curl -s http://localhost:3000 > /dev/null 2>&1; then
+              echo "Dev server is ready"
+              exit 0
+            fi
+            echo "Waiting for dev server... ($i/60)"
+            sleep 2
+          done
+          echo "Dev server failed to start"
+          exit 1
+
+      - name: Run E2E Tests
+        working-directory: test/e2e
+        run: npx playwright test
+        env:
+          CI: true
+          BASE_URL: ${{ inputs.base_url || 'http://localhost:3000' }}
+
+      - name: Upload Playwright Report
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: ${{ inputs.report_name || 'playwright-report' }}
+          path: test/e2e/playwright-report/
+          retention-days: 30
