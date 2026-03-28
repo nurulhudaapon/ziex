@@ -8,6 +8,7 @@ const UnitSupport = struct {
     time: bool = false,
     percentage: bool = false,
     color: bool = false,
+    shorthand: bool = false,
 };
 
 const PropMeta = struct {
@@ -140,17 +141,26 @@ pub fn main() !void {
             }
         }
 
-        if (data.units.length) try writer.interface.writeAll("    px_: f32, em_: f32, rem_: f32,\n");
-        if (data.units.percentage) try writer.interface.writeAll("    percent_: f32,\n");
+        if (data.units.length) try writer.interface.writeAll("    px_: [4]f32, em_: [4]f32, rem_: [4]f32,\n");
+        if (data.units.percentage) try writer.interface.writeAll("    percent_: [4]f32,\n");
         if (data.units.color) try writer.interface.writeAll("    hex_: u32,\n");
 
         // Helper Methods
         if (data.units.length) {
-            try writer.interface.print("    pub fn px(v: f32) {s} {{ return .{{ .px_ = v }}; }}\n", .{final_type_name});
-            try writer.interface.print("    pub fn em(v: f32) {s} {{ return .{{ .em_ = v }}; }}\n", .{final_type_name});
-            try writer.interface.print("    pub fn rem(v: f32) {s} {{ return .{{ .rem_ = v }}; }}\n", .{final_type_name});
+            try writer.interface.print("    pub fn px(v: f32) {s} {{ return .{{ .px_ = .{{ v, v, v, v }} }}; }}\n", .{final_type_name});
+            try writer.interface.print("    pub fn px2(v1: f32, v2: f32) {s} {{ return .{{ .px_ = .{{ v1, v2, v1, v2 }} }}; }}\n", .{final_type_name});
+            try writer.interface.print("    pub fn px4(v1: f32, v2: f32, v3: f32, v4: f32) {s} {{ return .{{ .px_ = .{{ v1, v2, v3, v4 }} }}; }}\n", .{final_type_name});
+            
+            try writer.interface.print("    pub fn em(v: f32) {s} {{ return .{{ .em_ = .{{ v, v, v, v }} }}; }}\n", .{final_type_name});
+            try writer.interface.print("    pub fn em2(v1: f32, v2: f32) {s} {{ return .{{ .em_ = .{{ v1, v2, v1, v2 }} }}; }}\n", .{final_type_name});
+            
+            try writer.interface.print("    pub fn rem(v: f32) {s} {{ return .{{ .rem_ = .{{ v, v, v, v }} }}; }}\n", .{final_type_name});
+            try writer.interface.print("    pub fn rem2(v1: f32, v2: f32) {s} {{ return .{{ .rem_ = .{{ v1, v2, v1, v2 }} }}; }}\n", .{final_type_name});
         }
-        if (data.units.percentage) try writer.interface.print("    pub fn percent(v: f32) {s} {{ return .{{ .percent_ = v }}; }}\n", .{final_type_name});
+        if (data.units.percentage) {
+            try writer.interface.print("    pub fn percent(v: f32) {s} {{ return .{{ .percent_ = .{{ v, v, v, v }} }}; }}\n", .{final_type_name});
+            try writer.interface.print("    pub fn percent2(v1: f32, v2: f32) {s} {{ return .{{ .percent_ = .{{ v1, v2, v1, v2 }} }}; }}\n", .{final_type_name});
+        }
         if (data.units.color) {
             try writer.interface.print("    pub fn hex(v: u32) {s} {{ return .{{ .hex_ = v }}; }}\n", .{final_type_name});
         }
@@ -299,21 +309,53 @@ fn cleanName(allocator: std.mem.Allocator, name: []const u8, case: enum { pascal
 
 fn resolveMetaEnriched(allocator: std.mem.Allocator, syntax: []const u8, type_map: *TypeMap, keywords: *std.StringArrayHashMap([]const u8), units: *UnitSupport, depth: usize, kprose: ?std.StringHashMap([]const u8)) !void {
     if (depth > 10) return;
+    
+    // Check if this syntax allows multiple values (e.g. {1,4} or {1,2})
+    const is_shorthand = std.mem.indexOf(u8, syntax, "{1,4}") != null or std.mem.indexOf(u8, syntax, "{1,2}") != null;
+    if (is_shorthand) units.shorthand = true;
+
     var it = std.mem.tokenizeAny(u8, syntax, " |[]\t\r\n&");
     while (it.next()) |token| {
         if (token.len == 0) continue;
         var cleaned = token;
         if (std.mem.indexOfAny(u8, cleaned, "+*?#{")) |idx| cleaned = cleaned[0..idx];
         if (cleaned.len == 0) continue;
+        
+        // Handle syntax references like <'padding-top'>
+        if (std.mem.startsWith(u8, cleaned, "<'")) {
+            const ref_name = cleaned[2 .. cleaned.len - 2];
+            // We'll just assume length for common box model properties for now 
+            // since we can't easily look up property syntax from here without 
+            // passing the whole prop_data map.
+            if (std.mem.indexOf(u8, ref_name, "padding") != null or 
+                std.mem.indexOf(u8, ref_name, "margin") != null or
+                std.mem.indexOf(u8, ref_name, "border") != null) {
+                units.length = true;
+            }
+            continue;
+        }
+
         if (std.mem.startsWith(u8, cleaned, "<")) {
             var type_name = cleaned[1..];
             if (std.mem.indexOfAny(u8, type_name, ">[ ")) |idx| type_name = type_name[0..idx];
             if (std.mem.endsWith(u8, type_name, ">")) type_name = type_name[0 .. type_name.len - 1];
-            if (std.mem.indexOf(u8, type_name, "length") != null) units.length = true;
+            
+            const is_length = std.mem.indexOf(u8, type_name, "length") != null;
+            const is_percent = std.mem.indexOf(u8, type_name, "percentage") != null;
+
+            if (is_length) {
+                units.length = true;
+                if (is_shorthand) {
+                    // We don't store is_shorthand in UnitSupport yet, but we should probably 
+                    // make units.length an enum or bitset to track this if we wanted to be precise.
+                    // For now, let's just enable it if length is detected in a shorthand context.
+                }
+            }
+            if (is_percent) units.percentage = true;
             if (std.mem.indexOf(u8, type_name, "angle") != null) units.angle = true;
             if (std.mem.indexOf(u8, type_name, "time") != null) units.time = true;
-            if (std.mem.indexOf(u8, type_name, "percentage") != null) units.percentage = true;
             if (std.mem.indexOf(u8, type_name, "color") != null) units.color = true;
+            
             if (type_map.get(type_name)) |sub_syntax| try resolveMetaEnriched(allocator, sub_syntax, type_map, keywords, units, depth + 1, kprose);
             continue;
         }
