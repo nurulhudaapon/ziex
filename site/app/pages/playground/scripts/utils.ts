@@ -1,8 +1,11 @@
 import { untar } from "@andrewbranch/untar.js";
 import { Directory, File, ConsoleStdout, wasi as wasi_defs } from "@bjorn3/browser_wasi_shim";
 
+declare const COMMIT_HASH: string;
+const cacheName = typeof COMMIT_HASH !== "undefined" ? "ziex-pg" + COMMIT_HASH : "ziex-pg-dev";
+
 export async function fetchWithCache(url: string): Promise<Response> {
-    const cache = await caches.open("ziex-pg-v0.1.0-dev.855");
+    const cache = await caches.open(cacheName);
     let response = await cache.match(url);
     if (!response) {
         response = await fetch(url);

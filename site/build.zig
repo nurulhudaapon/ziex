@@ -93,6 +93,12 @@ pub fn build(b: *std.Build) !void {
                 b.path("app/pages/playground/scripts/workers/zx.ts"),
                 b.path("app/pages/playground/scripts/workers/zls.ts"),
             },
+            .define = &.{
+                .{
+                    .key = "COMMIT_HASH",
+                    .value = b.run(&.{ "git", "rev-parse", "--short", "HEAD" }),
+                },
+            },
             // .outdir = assetsdir.path(b, "playground/"),
         },
     });
