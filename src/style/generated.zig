@@ -36741,6 +36741,390 @@ pub fn extra(v: []const u8) StyleProperty {
     return .{ .extra = v };
 }
 
+pub fn circle(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn ellipse(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn polygon(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn path(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn shape(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn inset_(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn rect(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn xywh(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn calc_size(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn contrast_color(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn device_cmyk(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn color_mix(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn rgb(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn rgba(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn hsl(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn hsla(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn hwb(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn lab(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn lch(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn oklab(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn oklch(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn ictcp(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn jzazbz(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn jzczhz(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn alpha(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn color_(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn hdr_color(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn attr(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn counter(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn counters(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn content_(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn leader(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn string(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn superellipse(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn symbols(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn @"type"(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn cubic_bezier(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn blur(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn brightness(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn contrast(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn drop_shadow(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn grayscale(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn hue_rotate(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn invert(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn opacity_(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn sepia(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn saturate(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn linear_gradient(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn repeating_linear_gradient(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn radial_gradient(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn repeating_radial_gradient(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn conic_gradient(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn repeating_conic_gradient(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn image(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn image_set(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn cross_fade(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn element(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn stripes(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn linear(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn url_pattern(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn ray(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn scroll(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn view(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn steps(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn target_counter(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn target_counters(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn target_text_(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn scale3d(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn scale_(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn scaleX(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn scaleY(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn scaleZ(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn translate3d(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn translate_(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn translateX(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn translateY(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn translateZ(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn rotate3d(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn rotate_(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn rotateX(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn rotateY(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn rotateZ(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn skew(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn skewX(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn skewY(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn matrix3d(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn matrix(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn perspective_(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn url(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn src(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn dynamic_range_limit_mix(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn palette_mix(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn param(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn fade(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn snap_block(value: []const u8) []const u8 {
+    return value;
+}
+
+pub fn snap_inline(value: []const u8) []const u8 {
+    return value;
+}
+
 pub const Calc = CalcExpr;
 
 pub const styleInit = core.init;
