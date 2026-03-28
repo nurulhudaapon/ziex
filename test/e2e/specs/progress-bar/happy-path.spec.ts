@@ -15,11 +15,22 @@ test.describe('Progress Bar Example', () => {
     await expect(page.getByRole('button', { name: 'Reset' })).toBeVisible();
     // 2. Click 'Start' and observe progress
     await page.getByRole('button', { name: 'Start' }).click();
-    await page.waitForTimeout(1000);
-    // 3. Click 'Stop'
-    await page.getByRole('button', { name: 'Stop' }).click();
-    // 4. Click 'Reset'
-    await page.getByRole('button', { name: 'Reset' }).click();
+    // Wait for Stop button to become enabled (progress started)
+    const stopButton = page.getByRole('button', { name: 'Stop' });
+    await stopButton.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+      const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent?.trim() === 'Stop');
+      return btn && !btn.disabled;
+    });
+    await stopButton.click();
+    // Wait for Reset button to become enabled (if it can be disabled)
+    const resetButton = page.getByRole('button', { name: 'Reset' });
+    await resetButton.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+      const btn = Array.from(document.querySelectorAll('button')).find(b => b.textContent?.trim() === 'Reset');
+      return btn && !btn.disabled;
+    });
+    await resetButton.click();
     // Optionally, assert progress resets to 0%
   });
 });

@@ -425,11 +425,6 @@ function clearSharedDataHashFromUrl() {
 
 
 window.addEventListener("DOMContentLoaded", async () => {
-    // Enable Run and Share buttons when scripts are loaded
-    const runBtn = document.getElementById("pg-run-btn");
-    if (runBtn) runBtn.removeAttribute("disabled");
-    const shareBtn = document.getElementById("pg-share-btn");
-    if (shareBtn) shareBtn.removeAttribute("disabled");
     await client.initialize();
     let code = null;
     if (location.hash.startsWith("#data=")) {
@@ -456,6 +451,11 @@ window.addEventListener("DOMContentLoaded", async () => {
                 editorView.setState(files[initialFileIndex].state);
             }
             clearSharedDataHashFromUrl();
+            // Enable Run and Share buttons only after files are loaded and editor is ready
+            const runBtn = document.getElementById("pg-run-btn");
+            if (runBtn) runBtn.removeAttribute("disabled");
+            const shareBtn = document.getElementById("pg-share-btn");
+            if (shareBtn) shareBtn.removeAttribute("disabled");
             return;
         }
     }
@@ -473,6 +473,11 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (editorView && files[initialFileIndex]) {
         editorView.setState(files[initialFileIndex].state);
     }
+    // Enable Run and Share buttons only after files are loaded and editor is ready
+    const runBtn = document.getElementById("pg-run-btn");
+    if (runBtn) runBtn.removeAttribute("disabled");
+    const shareBtn = document.getElementById("pg-share-btn");
+    if (shareBtn) shareBtn.removeAttribute("disabled");
 });
 
 // Only initialize client here, file loading is handled in DOMContentLoaded
