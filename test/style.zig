@@ -2,13 +2,7 @@ const std = @import("std");
 const zx = @import("zx");
 
 test "Style formatting" {
-    const style = zx.style.styleInit(.{
-        zx.style.display(.flex),
-        zx.style.flex_direction(.column),
-        zx.style.background_color(.hex(0xff0000)),
-        zx.style.padding_top(.px(10)),
-        zx.style.width(.px(100)),
-    });
+    const style = zx.style.init();
 
     const result = style.css;
 
@@ -29,7 +23,7 @@ test "Style in Component" {
 
     var ctx = zx.allocInit(arena_allocator);
 
-    const style = zx.style.styleInit(.{
+    const style = zx.style.init(.{
         zx.style.color(.hex(0x0000ff)),
         zx.style.margin_top(.px(20)),
     });
@@ -59,11 +53,11 @@ test "Style in Component" {
 }
 
 test "Style pseudo-states" {
-    const style = zx.style.styleInit(.{
+    const style = zx.style.init(.{
         zx.style.background_color(.hex(0x0000ff)),
         // In Option A, pseudo-states are currently just another property
         // that can be formatted.
-        zx.style.hover(&zx.style.styleInit(.{
+        zx.style.hover(&zx.style.init(.{
             zx.style.background_color(.hex(0xff0000)),
         })),
     });
@@ -72,13 +66,12 @@ test "Style pseudo-states" {
 }
 
 test "Style shorthands" {
-    const style = zx.style.styleInit(.{
+    const style = zx.style.init(.{
         zx.style.padding(.px2(10, 20)),
         zx.style.margin(.px4(5, 10, 15, 20)),
     });
 
-    const result = try std.fmt.allocPrint(allocator, "{f}", .{style});
-    defer allocator.free(result);
+    const result = style.css;
 
     try std.testing.expect(std.mem.indexOf(u8, result, "padding: 10px 20px;") != null);
     try std.testing.expect(std.mem.indexOf(u8, result, "margin: 5px 10px 15px 20px;") != null);

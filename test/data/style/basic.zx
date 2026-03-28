@@ -1,11 +1,11 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     const style: zx.Style = .{
-        .display = .flex,
-        .background_color = .hex(0xff0000),
+        .display(.flex),
+        .background_color(.hex(0xff0000)),
     };
     return (
         <div @allocator={allocator} style={style}>
-             Hello
+            Hello
         </div>
     );
 }

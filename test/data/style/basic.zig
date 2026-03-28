@@ -1,7 +1,6 @@
-pub fn Page(allocator: std.mem.Allocator) zx.Component {
-    const style = zx.style.styleInit(.{
-        zx.style.display(.flex),
-        zx.style.flex_direction(.column),
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const style = zx.style.init(.{
+        ..Page(allocator: (unknown type))
     });
     var _zx = @import("zx").allocInit(allocator);
     return _zx.ele(
@@ -12,11 +11,10 @@ pub fn Page(allocator: std.mem.Allocator) zx.Component {
                 _zx.attr("style", style),
             }),
             .children = &.{
-                _zx.txt(" Basic style"),
+                _zx.txt("Hello"),
             },
         },
     );
 }
 
-const std = @import("std");
 const zx = @import("zx");

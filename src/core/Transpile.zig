@@ -402,7 +402,7 @@ pub fn transpileBuiltin(self: *Ast, node: ts.Node, ctx: *TranspileContext) !bool
                         const full_text = try self.getNodeText(node);
                         const open_paren = std.mem.indexOfScalar(u8, full_text, '(') orelse return true;
                         const close_paren = std.mem.lastIndexOfScalar(u8, full_text, ')') orelse return true;
-                        try ctx.writeM("zx.style.styleInit", node.startByte(), self);
+                        try ctx.writeM("zx.style.init", node.startByte(), self);
                         try ctx.write("(.{");
                         try writeStyleDsl(self, node.startByte() + @as(u32, @intCast(open_paren + 1)), node.startByte() + @as(u32, @intCast(close_paren)), ctx);
                         try ctx.write("})");
@@ -2193,7 +2193,7 @@ fn writeStyleSegment(segment: []const u8, ctx: *TranspileContext) error{OutOfMem
 
 fn writeStyleExpr(expr: []const u8, ctx: *TranspileContext) error{OutOfMemory}!void {
     if (expr.len >= 8 and std.mem.startsWith(u8, expr, "@style(") and expr[expr.len - 1] == ')') {
-        try ctx.write("zx.style.styleInit(.{");
+        try ctx.write("zx.style.init(.{");
         try writeStyleList(expr[7 .. expr.len - 1], ctx);
         try ctx.write("})");
         return;
@@ -2335,7 +2335,7 @@ fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileC
             const style_value = styleValueText(attr.value);
             if (styleNeedsInit(style_value)) {
                 const multiline = std.mem.indexOfScalar(u8, style_value, '\n') != null;
-                try ctx.write(if (multiline) ".style = zx.style.styleInit(.{" else ".style = zx.style.styleInit(.{ ");
+                try ctx.write(if (multiline) ".style = zx.style.init(.{" else ".style = zx.style.init(.{ ");
                 try writeStyleDslText(style_value, ctx);
                 try ctx.write(if (multiline) "}),\n" else " }),\n");
             } else {
@@ -2405,7 +2405,7 @@ fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileC
             const style_value = styleValueText(attr.value);
             if (styleNeedsInit(style_value)) {
                 const multiline = std.mem.indexOfScalar(u8, style_value, '\n') != null;
-                try ctx.write(if (multiline) "_zx.attr(\"style\", zx.style.styleInit(.{" else "_zx.attr(\"style\", zx.style.styleInit(.{ ");
+                try ctx.write(if (multiline) "_zx.attr(\"style\", zx.style.init(.{" else "_zx.attr(\"style\", zx.style.init(.{ ");
                 try writeStyleDslText(style_value, ctx);
                 try ctx.write(if (multiline) "})),\n" else " })),\n");
             } else {

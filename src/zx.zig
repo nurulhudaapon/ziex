@@ -309,7 +309,7 @@ pub const ZxContext = struct {
                     if (hasSelectors(val)) {
                         // We need a deterministic hash of the style
                         // For now, let's just use the formatted string as the key
-                        const style_str = self.printf("{f}", .{val});
+                        const style_str = val.css;
 
                         // Register style if registry exists
                         if (self.style_registry) |reg| {
