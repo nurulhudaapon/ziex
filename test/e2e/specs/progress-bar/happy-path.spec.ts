@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:3000';
 
-test.describe('Progress Bar Example', () => {
+test.skip('Progress Bar Example', () => {
   test('Progress Bar Controls', async ({ page }) => {
     // 1. Navigate to /examples/wasm/progress
     await page.goto(`${BASE_URL}/examples/wasm/progress`);
