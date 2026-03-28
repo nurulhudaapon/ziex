@@ -258,6 +258,33 @@ fn writeDepFile(allocator: std.mem.Allocator, path: []const u8, target: []const 
     try f.writeAll(buf.items);
 }
 
+/// Scan source for `@embedFile("...")` references and add resolved paths as dependencies.
+// TODO: collect @import(...), only add .zig files to deps that are actually imported
+// TODO: also we should be able to collect the .zx dependancy tree and transpile the ones that is only used,
+// however that will make multi threading hard but we may do this in the future just to save transpilation time
+// currently transpilation takes ms for files in hundreds, but for larger project we may need to optimize this by only transpiling the used files
+fn collectEmbedFileDeps(
+    allocator: std.mem.Allocator,
+    input_files: *std.array_list.Managed([]const u8),
+    source: []const u8,
+    source_dir: []const u8,
+) !void {
+    const needle = "@embedFile(\"";
+    var pos: usize = 0;
+    while (std.mem.indexOfPos(u8, source, pos, needle)) |start| {
+        const path_start = start + needle.len;
+        const path_end = std.mem.indexOfPos(u8, source, path_start, "\"") orelse break;
+        const embed_path = source[path_start..path_end];
+        pos = path_end + 1;
+
+        const resolved = std.fs.path.join(allocator, &.{ source_dir, embed_path }) catch continue;
+        defer allocator.free(resolved);
+
+        const abs_path = std.fs.cwd().realpathAlloc(allocator, resolved) catch continue;
+        input_files.append(abs_path) catch continue;
+    }
+}
+
 // ---- Component Cache (per-file incremental) ---- //
 
 fn writeComponentCache(
@@ -1436,6 +1463,13 @@ fn transpileDirectory(
             const abs_input = std.fs.cwd().realpathAlloc(allocator, input_path) catch
                 try allocator.dupe(u8, input_path);
             try input_files.append(abs_input);
+
+            // Scan for @embedFile references and track them as dependencies
+            const source_dir = std.fs.path.dirname(input_path) orelse ".";
+            if (std.fs.cwd().readFileAlloc(allocator, input_path, 4 * 1024 * 1024)) |source| {
+                defer allocator.free(source);
+                try collectEmbedFileDeps(allocator, input_files, source, source_dir);
+            } else |_| {}
 
             const cache_base = opts.cache_dir orelse opts.outdir;
             const cache_out_path = try std.fs.path.join(allocator, &.{ cache_base, output_rel_path });

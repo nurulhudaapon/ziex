@@ -425,6 +425,11 @@ function clearSharedDataHashFromUrl() {
 
 
 window.addEventListener("DOMContentLoaded", async () => {
+    // Enable Run and Share buttons when scripts are loaded
+    const runBtn = document.getElementById("pg-run-btn");
+    if (runBtn) runBtn.removeAttribute("disabled");
+    const shareBtn = document.getElementById("pg-share-btn");
+    if (shareBtn) shareBtn.removeAttribute("disabled");
     await client.initialize();
     let code = null;
     if (location.hash.startsWith("#data=")) {
