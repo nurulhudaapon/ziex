@@ -1,15 +1,16 @@
 {
-  "name": "@zigc/linux-x64",
-  "version": "0.15.20",
-  "description": "Zig compiler binary for Linux x64",
+  "name": "@ziex/cli-win32-x64",
+  "version": "0.1.0-dev.928",
+  "description": "ziex CLI binary for Windows x64",
   "os": [
-    "linux"
+    "win32"
   ],
   "cpu": [
     "x64"
   ],
   "bin": {
-    "zig": "bin/zig"
+    "zx": "bin/zx.exe",
+    "ziex": "bin/zx.exe"
   },
   "repository": {
     "type": "git",

@@ -1,7 +1,7 @@
 {
-  "name": "@zigc/darwin-x64",
-  "version": "0.15.20",
-  "description": "Zig compiler binary for macOS x64 (Intel)",
+  "name": "@ziex/cli-darwin-x64",
+  "version": "0.1.0-dev.928",
+  "description": "ziex CLI binary for macOS x64 (Intel)",
   "os": [
     "darwin"
   ],
@@ -9,7 +9,8 @@
     "x64"
   ],
   "bin": {
-    "zig": "bin/zig"
+    "zx": "bin/zx",
+    "ziex": "bin/zx"
   },
   "repository": {
     "type": "git",

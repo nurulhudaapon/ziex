@@ -1,15 +1,16 @@
 {
-  "name": "@zigc/darwin-arm64",
-  "version": "0.15.20",
-  "description": "Zig compiler binary for macOS ARM64 (Apple Silicon)",
+  "name": "@ziex/cli-linux-x64",
+  "version": "0.1.0-dev.928",
+  "description": "ziex CLI binary for Linux x64",
   "os": [
-    "darwin"
+    "linux"
   ],
   "cpu": [
-    "arm64"
+    "x64"
   ],
   "bin": {
-    "zig": "bin/zig"
+    "zx": "bin/zx",
+    "ziex": "bin/zx"
   },
   "repository": {
     "type": "git",

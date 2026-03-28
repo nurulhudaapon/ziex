@@ -1,9 +1,13 @@
 {
-  "name": "@ziex/cli-linux-x64",
-  "version": "0.0.0",
-  "description": "ziex CLI binary for Linux x64",
-  "os": ["linux"],
-  "cpu": ["x64"],
+  "name": "@ziex/cli-darwin-arm64",
+  "version": "0.1.0-dev.928",
+  "description": "ziex CLI binary for macOS ARM64 (Apple Silicon)",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
   "bin": {
     "zx": "bin/zx",
     "ziex": "bin/zx"

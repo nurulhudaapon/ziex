@@ -1,0 +1,27 @@
+{
+  "name": "@ziex/cli",
+  "version": "0.1.0-dev.928",
+  "description": "ZX is a framework for building web applications with Zig.",
+  "type": "module",
+  "scripts": {
+    "postinstall": "node install.cjs"
+  },
+  "bin": {
+    "zx": "bin/zx",
+    "ziex": "bin/zx"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ziex-dev/ziex.git"
+  },
+  "license": "MIT",
+  "preferUnplugged": true,
+  "optionalDependencies": {
+    "@ziex/cli-darwin-arm64": "0.1.0-dev.928",
+    "@ziex/cli-darwin-x64": "0.1.0-dev.928",
+    "@ziex/cli-linux-x64": "0.1.0-dev.928",
+    "@ziex/cli-linux-arm64": "0.1.0-dev.928",
+    "@ziex/cli-win32-x64": "0.1.0-dev.928",
+    "@ziex/cli-win32-arm64": "0.1.0-dev.928"
+  }
+}
