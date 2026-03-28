@@ -243,7 +243,7 @@ fn dev(ctx: zli.CommandContext) !void {
                 },
                 .resolved => {
                     last_was_no_change = false;
-                    try ctx.writer.print("{s} ✓ {s}All build errors have been resolved!{s}\n", .{ Colors.green, Colors.bold, Colors.reset });
+                    try ctx.writer.print("\n{s} ✓ {s}All build errors have been resolved!{s}\n", .{ Colors.green, Colors.bold, Colors.reset });
                     dev_server.notify(.{ .type = .clear });
                 },
                 .build_complete_no_change => |_| {

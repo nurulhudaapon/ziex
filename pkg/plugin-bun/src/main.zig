@@ -7,6 +7,7 @@ const BuildEvent = struct {
     type: EventType,
     success: ?bool = null,
     @"error": ?[]const u8 = null,
+    dependencies: []const []const u8 = &.{},
 };
 
 pub fn main() !void {
@@ -20,11 +21,13 @@ pub fn main() !void {
     // --- Flags --- //
     var bun_path: []const u8 = "bun"; // default to "bun" in PATH
     var outdir_path: ?[]const u8 = null;
+    var dep_file_path: ?[]const u8 = null;
     const runner_script = @embedFile("builder.ts");
 
     while (args.next()) |arg| {
         if (std.mem.eql(u8, arg, "--bun-path")) bun_path = args.next() orelse return error.MissingBunPath;
         if (std.mem.eql(u8, arg, "--outdir")) outdir_path = args.next() orelse return error.MissingOutdirPath;
+        if (std.mem.eql(u8, arg, "--dep-file")) dep_file_path = args.next() orelse return error.MissingDepFilePath;
     }
 
     const input_json = try std.fs.File.stdin().readToEndAlloc(allocator, 64 * 1024 * 1024);
@@ -79,6 +82,10 @@ pub fn main() !void {
     var failed: usize = 0;
     failed = failed; // silence unused
 
+    // Collect dependencies for dep file
+    var all_deps = std.ArrayList([]const u8).empty;
+    defer all_deps.deinit(allocator);
+
     var stdout = child.stdout.?;
     var buffer: [4096]u8 = undefined;
     var streaming_reader = stdout.readerStreaming(&buffer);
@@ -108,6 +115,9 @@ pub fn main() !void {
             },
             .result => {
                 if (ev.success == false) failed += 1;
+                for (ev.dependencies) |dep| {
+                    try all_deps.append(allocator, try arena.dupe(u8, dep));
+                }
             },
             .@"error" => {
                 failed += 1;
@@ -128,6 +138,13 @@ pub fn main() !void {
         if (err == error.EndOfStream) {}
     }
 
+    // Write dep file before potential exit(1)
+    if (dep_file_path) |dfp| {
+        writeDepFile(allocator, dfp, outdir_path orelse "dist", all_deps.items) catch |err| {
+            std.debug.print("Failed to write dep file: {any}\n", .{err});
+        };
+    }
+
     const term = child.wait() catch |err| {
         if (err == error.FileNotFound) {
             std.debug.print("Failed to execute bun: executable not found at '{s}'\n", .{bun_path});
@@ -145,4 +162,25 @@ pub fn main() !void {
         std.debug.print("bun build: {d} build(s) failed\n", .{failed});
         std.process.exit(1);
     }
+}
+
+fn writeDepFile(allocator: std.mem.Allocator, path: []const u8, target: []const u8, deps: []const []const u8) !void {
+    var buf = std.ArrayList(u8).empty;
+    defer buf.deinit(allocator);
+    try buf.appendSlice(allocator, target);
+    try buf.appendSlice(allocator, ":");
+    for (deps) |dep| {
+        try buf.appendSlice(allocator, " ");
+        for (dep) |c| {
+            if (c == ' ') {
+                try buf.appendSlice(allocator, "\\ ");
+            } else {
+                try buf.append(allocator, c);
+            }
+        }
+    }
+    try buf.appendSlice(allocator, "\n");
+    const f = try std.fs.cwd().createFile(path, .{});
+    defer f.close();
+    try f.writeAll(buf.items);
 }
