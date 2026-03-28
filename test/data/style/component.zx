@@ -1,0 +1,14 @@
+pub fn Page(allocator: std.mem.Allocator) zx.Component {
+    const style = zx.style.styleInit(.{
+        zx.style.color(.hex(0x0000ff)),
+        zx.style.margin_top(.px(20)),
+    });
+    return (
+        <div @allocator={allocator} style={style}>
+            Component style
+        </div>
+    );
+}
+
+const std = @import("std");
+const zx = @import("zx");

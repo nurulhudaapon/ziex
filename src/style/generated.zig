@@ -36741,6 +36741,8 @@ pub fn extra(v: []const u8) StyleProperty {
     return .{ .extra = v };
 }
 
+pub const Calc = CalcExpr;
+
 pub const styleInit = core.init;
 
 pub const Style = core.StyleOutput;

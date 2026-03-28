@@ -217,7 +217,7 @@ pub fn formatProperty(prop: anytype, w: *std.io.Writer) std.io.Writer.Error!void
 }
 
 pub fn init(comptime properties: anytype) StyleOutput {
-    comptime {
+    return comptime blk: {
         const PropsType = @TypeOf(properties);
         const props_info = @typeInfo(PropsType);
         if (props_info != .@"struct" or !props_info.@"struct".is_tuple) {
@@ -239,18 +239,17 @@ pub fn init(comptime properties: anytype) StyleOutput {
             seen_props = seen_props ++ [_][]const u8{tag_name};
 
             var buf: [2048]u8 = undefined;
-            var fbs = std.io.fixedBufferStream(&buf);
-            var w = fbs.writer();
+            var w = std.io.Writer.fixed(&buf);
             formatProperty(prop, &w) catch @panic("OOM in style.init");
-            css_buf = css_buf ++ fbs.getWritten();
+            css_buf = css_buf ++ w.buffer[0..w.end];
         }
 
         const hash = std.hash.Wyhash.hash(0, css_buf);
         const class_name = std.fmt.comptimePrint("zx-{x}", .{hash});
 
-        return .{
+        break :blk .{
             .class = class_name,
             .css = css_buf,
         };
-    }
+    };
 }

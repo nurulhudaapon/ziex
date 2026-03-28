@@ -1,14 +1,22 @@
-const std = @import("std");
-const zx = @import("zx");
-
 pub fn Page(allocator: std.mem.Allocator) zx.Component {
-    var ctx = zx.allocInit(allocator);
     const style = zx.style.styleInit(.{
         zx.style.display(.flex),
         zx.style.flex_direction(.column),
     });
-    return ctx.ele(.div, .{
-        .attributes = &.{ ctx.attr("style", style).? },
-        .children = &.{ ctx.txt("Basic style") },
-    });
+    var _zx = @import("zx").allocInit(allocator);
+    return _zx.ele(
+        .div,
+        .{
+            .allocator = allocator,
+            .attributes = _zx.attrs(.{
+                _zx.attr("style", style),
+            }),
+            .children = &.{
+                _zx.txt(" Basic style"),
+            },
+        },
+    );
 }
+
+const std = @import("std");
+const zx = @import("zx");
