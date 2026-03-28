@@ -6,8 +6,9 @@ const std = @import("std");
 const builtin = @import("builtin");
 const ext = @import("window/extern.zig");
 
+const zx = @import("../../root.zig");
 /// Whether we're running in a browser environment (WASM)
-pub const is_wasm = builtin.cpu.arch.isWasm() and builtin.os.tag == .freestanding;
+pub const is_wasm = zx.platform == .browser;
 
 /// JS bindings - only available in WASM builds
 pub const js = if (is_wasm) @import("js") else struct {

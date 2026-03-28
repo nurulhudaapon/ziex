@@ -112,6 +112,13 @@
           "meta.tag.attributes.zx": "zx",
           "meta.embedded.expression.zx": "zx"
         }
+      },
+      {
+        "scopeName": "source.zx.injection",
+        "path": "./syntaxes/zx-injection.tmLanguage.json",
+        "injectTo": [
+          "source.zig"
+        ]
       }
     ]
   },

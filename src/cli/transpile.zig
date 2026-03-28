@@ -592,7 +592,7 @@ fn copyDirectory(
 }
 
 // ---- Client Component Handling ---- //
-const ClientComponentSerializable = struct { type: zx.BuiltinAttribute.Rendering, id: []const u8, name: []const u8, path: []const u8, import: []const u8, route: []const u8 };
+const ClientComponentSerializable = struct { type: zx.Ast.ClientComponentMetadata.Type, id: []const u8, name: []const u8, path: []const u8, import: []const u8, route: []const u8 };
 fn genClientComponents(allocator: std.mem.Allocator, components: []const ClientComponentSerializable, output_dir: []const u8, verbose: bool) !void {
     _ = verbose;
     // Generate Zig array literal contents (without outer array declaration)

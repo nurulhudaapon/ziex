@@ -46,12 +46,24 @@ pub const BuildResult = struct {
     }
 };
 
+pub const AssetChange = struct {
+    allocator: std.mem.Allocator,
+    files: []const []const u8, // web-relative paths like "/favicon.ico", "/assets/styles.css"
+    build_duration_ms: u64,
+
+    pub fn deinit(self: *AssetChange) void {
+        for (self.files) |f| self.allocator.free(f);
+        self.allocator.free(self.files);
+    }
+};
+
 pub const Event = union(enum) {
     change_detected,
     should_restart: u64, // build_duration_ms
     errors: BuildResult,
     resolved,
     build_complete_no_change: u64, // build_duration_ms — successful build but binary unchanged
+    assets_installed: AssetChange, // asset-only change (public/assets files copied, no recompilation)
 };
 
 pub const BuildState = struct {
@@ -65,6 +77,7 @@ pub const BuildState = struct {
 
     // Per-cycle parse state
     diagnostics: std.ArrayList(Diagnostic),
+    installed_asset_paths: std.ArrayList([]const u8),
     build_in_progress: bool,
     pending_has_errors: bool,
     max_duration_ms: u64,
@@ -84,6 +97,7 @@ pub const BuildState = struct {
             .first_build_done = false,
             .previous_had_errors = false,
             .diagnostics = std.ArrayList(Diagnostic).empty,
+            .installed_asset_paths = std.ArrayList([]const u8).empty,
             .build_in_progress = false,
             .pending_has_errors = false,
             .max_duration_ms = 0,
@@ -99,6 +113,8 @@ pub const BuildState = struct {
             if (d.caret_line) |cl| self.allocator.free(cl);
         }
         self.diagnostics.deinit(self.allocator);
+        self.clearInstalledAssets();
+        self.installed_asset_paths.deinit(self.allocator);
     }
 
     pub fn markRestartComplete(self: *BuildState, new_mtime: i128) void {
@@ -147,6 +163,14 @@ pub const BuildState = struct {
         }
 
         self.skip_next_build_cmd = false;
+
+        // Detect asset installs from verbose output (install -C lines)
+        if (parseAssetInstallWebPath(line)) |rel_path| {
+            const web_path = std.fmt.allocPrint(self.allocator, "/{s}", .{rel_path}) catch null;
+            if (web_path) |wp| {
+                self.installed_asset_paths.append(self.allocator, wp) catch self.allocator.free(wp);
+            }
+        }
 
         // Accumulate timing
         accumulateDuration(line, &self.max_duration_ms);
@@ -235,7 +259,19 @@ pub const BuildState = struct {
                     event = .{ .should_restart = self.max_duration_ms };
                 }
             } else if (!self.previous_had_errors) {
-                event = .{ .build_complete_no_change = self.max_duration_ms };
+                if (self.installed_asset_paths.items.len > 0) {
+                    const files = self.installed_asset_paths.toOwnedSlice(self.allocator) catch blk: {
+                        self.clearInstalledAssets();
+                        break :blk &.{};
+                    };
+                    event = .{ .assets_installed = .{
+                        .allocator = self.allocator,
+                        .files = files,
+                        .build_duration_ms = self.max_duration_ms,
+                    } };
+                } else {
+                    event = .{ .build_complete_no_change = self.max_duration_ms };
+                }
             }
             if (self.previous_had_errors) {
                 if (event == null) {
@@ -248,7 +284,13 @@ pub const BuildState = struct {
         }
 
         self.build_in_progress = false;
+        self.clearInstalledAssets();
         return event;
+    }
+
+    fn clearInstalledAssets(self: *BuildState) void {
+        for (self.installed_asset_paths.items) |p| self.allocator.free(p);
+        self.installed_asset_paths.clearRetainingCapacity();
     }
 
     fn emitErrors(self: *BuildState) ?Event {
@@ -411,6 +453,30 @@ fn parseDiagnostic(allocator: std.mem.Allocator, line: []const u8) ?Diagnostic {
     };
 }
 
+/// Parse an `install -C <src> <dst>` verbose line and return the web-relative
+/// path (e.g. "favicon.ico" or "assets/styles.css") if it's a user asset install.
+/// Returns null for cache/package artifacts and non-asset installs.
+fn parseAssetInstallWebPath(line: []const u8) ?[]const u8 {
+    const trimmed = std.mem.trimLeft(u8, line, " \t");
+    if (!std.mem.startsWith(u8, trimmed, "install ")) return null;
+
+    // Skip installs from build cache or package cache (built artifacts like wasm/jsglue)
+    if (std.mem.indexOf(u8, trimmed, ".zig-cache") != null) return null;
+    if (std.mem.indexOf(u8, trimmed, "/zig/p/") != null) return null;
+
+    // Must involve public/ or assets/ source files
+    if (std.mem.indexOf(u8, trimmed, "/public/") == null and
+        std.mem.indexOf(u8, trimmed, "/assets/") == null) return null;
+
+    // Extract web path from destination: find last "/static/" and take the rest
+    const static_marker = "/static/";
+    const last_static_pos = std.mem.lastIndexOf(u8, trimmed, static_marker) orelse return null;
+    const web_path_start = last_static_pos + static_marker.len;
+    if (web_path_start >= trimmed.len) return null;
+
+    return trimmed[web_path_start..];
+}
+
 fn accumulateDuration(line: []const u8, max_ms: *u64) void {
     var it = std.mem.tokenizeAny(u8, line, " \t");
     while (it.next()) |tok| {
@@ -522,6 +588,7 @@ test "error build cycle emits errors" {
         for (events.items) |*e| {
             switch (e.*) {
                 .errors => |*r| r.deinit(),
+                .assets_installed => |*a| a.deinit(),
                 else => {},
             }
         }
@@ -557,6 +624,7 @@ test "error then fix then error again: errors detected each time" {
         for (events.items) |*e| {
             switch (e.*) {
                 .errors => |*r| r.deinit(),
+                .assets_installed => |*a| a.deinit(),
                 else => {},
             }
         }
@@ -628,6 +696,7 @@ test "rebuild error detection with real watch output" {
         for (events.items) |*e| {
             switch (e.*) {
                 .errors => |*r| r.deinit(),
+                .assets_installed => |*a| a.deinit(),
                 else => {},
             }
         }
@@ -683,6 +752,7 @@ test "full lifecycle: initial error build, fix, then error again" {
         for (events.items) |*e| {
             switch (e.*) {
                 .errors => |*r| r.deinit(),
+                .assets_installed => |*a| a.deinit(),
                 else => {},
             }
         }
@@ -739,6 +809,7 @@ test "windows watch output detects build start and restart" {
         for (events.items) |*e| {
             switch (e.*) {
                 .errors => |*r| r.deinit(),
+                .assets_installed => |*a| a.deinit(),
                 else => {},
             }
         }
@@ -832,6 +903,14 @@ pub fn main() !void {
                 },
                 .build_complete_no_change => |build_ms| {
                     std.debug.print("[EVENT] build_complete_no_change build_duration_ms={d}\n", .{build_ms});
+                },
+                .assets_installed => |result| {
+                    std.debug.print("[EVENT] assets_installed files={d}\n", .{result.files.len});
+                    for (result.files) |f| {
+                        std.debug.print("  {s}\n", .{f});
+                    }
+                    var r = result;
+                    r.deinit();
                 },
             }
         }

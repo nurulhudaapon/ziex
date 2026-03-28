@@ -2,6 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const ts = @import("tree_sitter");
 const ts_zx = @import("tree_sitter_zx");
+const zx = @import("zx");
 
 const hl_query = @embedFile("highlights.scm");
 
@@ -40,7 +41,7 @@ const HighlightCache = struct {
 };
 
 pub fn highlightZx(allocator: std.mem.Allocator, source: []const u8) ![]u8 {
-    if (builtin.os.tag == .freestanding) return try allocator.dupe(u8, source);
+    if (zx.platform == .browser) return try allocator.dupe(u8, source);
 
     const cache = try HighlightCache.getOrInit(std.heap.page_allocator);
     cache.mutex.lock();

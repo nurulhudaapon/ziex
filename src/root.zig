@@ -3,6 +3,7 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
+const module_options = @import("zx_module_options");
 
 const element = @import("element.zig");
 const plfm = @import("platform.zig");
@@ -14,19 +15,11 @@ const app_module = @import("runtime/server/Server.zig");
 const opts = @import("options.zig");
 const ctxs = @import("contexts.zig");
 const reactivity = @import("runtime/client/reactivity.zig");
-const _default_db_adapter = if (builtin.os.tag == .wasi or builtin.os.tag == .freestanding)
-    @import("runtime/server/wasm/db.zig")
-else
-    @import("runtime/server/db.zig");
 
-comptime {
-    _ = _default_db_adapter;
-}
-
-// -- Core Language --//
-pub const Ast = @import("core/Ast.zig");
-pub const Parse = @import("core/Parse.zig");
-pub const sourcemap = @import("core/sourcemap.zig");
+// -- Core Language (separate cached module — excluded by default for user builds) --//
+pub const Ast = if (!module_options.exclude_core_lang) @import("zx_core_lang").Ast else @compileError("core_lang is excluded. Set exclude-core-lang=false to enable.");
+pub const Parse = if (!module_options.exclude_core_lang) @import("zx_core_lang").Parse else @compileError("core_lang is excluded. Set exclude-core-lang=false to enable.");
+pub const sourcemap = if (!module_options.exclude_core_lang) @import("zx_core_lang").sourcemap else @compileError("core_lang is excluded. Set exclude-core-lang=false to enable.");
 
 // -- Core -- //
 pub const ElementTag = element.Tag;
@@ -105,7 +98,7 @@ pub const Router = @import("runtime/core/Router.zig");
 
 // --- Storage --- //
 pub const kv = @import("runtime/core/kv.zig");
-pub const db = @import("db");
+pub const db = if (!module_options.exclude_db) @import("db") else @compileError("db is excluded. Set exclude-db=false to enable.");
 
 // --- Net --- //
 pub const Headers = @import("runtime/core/Headers.zig");
@@ -117,10 +110,10 @@ pub const Socket = routing.Socket;
 pub const fetch = Fetch.fetch;
 
 // --- Values --- //
-pub const client_allocator = if (builtin.os.tag == .freestanding) std.heap.wasm_allocator else std.heap.page_allocator;
+pub const client_allocator = if (builtin.cpu.arch == .wasm32) std.heap.wasm_allocator else std.heap.page_allocator;
 pub const platform: Platform = plfm.platform;
 pub const std_options: std.Options = opts.std_options;
 
-// --- StyleSheet --- //
-pub const style = @import("style/root.zig");
+// --- StyleSheet (separate cached module) --- //
+pub const style = @import("zx_style");
 pub const Style = style.Style;

@@ -7,7 +7,7 @@ const Client = @import("Client.zig");
 const zx = @import("../../root.zig");
 const js = zx.client.js;
 
-const is_wasm = builtin.os.tag == .freestanding;
+const is_wasm = zx.platform == .browser;
 
 fn getGlobalAllocator() std.mem.Allocator {
     return zx.client_allocator;
