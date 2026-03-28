@@ -4,6 +4,19 @@ on:
   release:
     types: [created]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (leave empty to use version from build.zig.zon)"
+        required: false
+        type: string
+      target:
+        description: "Release target"
+        required: true
+        type: choice
+        default: npm
+        options:
+          - npm
+          - gh
 
 jobs:
   build-release:
@@ -56,6 +69,12 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-zig-release-
 
+      - name: Set version
+        if: inputs.version != '' || github.event.release.tag_name != ''
+        run: |
+          VERSION="${{ inputs.version || github.event.release.tag_name }}"
+          bash tools/version "$VERSION"
+
       - name: Sync Template Files
         run: bash tools/synctemplate
 
@@ -90,7 +109,7 @@ jobs:
     name: Create Release Assets
     runs-on: ubuntu-latest
     needs: build-release
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.target == 'gh')
     permissions:
       contents: write
 
@@ -126,7 +145,7 @@ jobs:
     name: Publish CLI to NPM
     runs-on: ubuntu-latest
     needs: build-release
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.target == 'npm')
     permissions:
       contents: read
       id-token: write
@@ -158,11 +177,24 @@ jobs:
             done
           done
 
-      - name: Prepare and publish @ziex packages
+      - name: Prepare @ziex packages
+        run: |
+          VERSION="${{ inputs.version || github.event.release.tag_name }}"
+          cd pkg/@ziex
+          bash prepare.sh $VERSION
+
+      - name: Publish platform packages to NPM
         run: |
           cd pkg/@ziex
-          bash prepare.sh
-          npm publish --workspaces --access public --provenance
+          for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-win32-x64 cli-win32-arm64; do
+            echo "Publishing @ziex/$pkg..."
+            npm publish --workspace "$pkg" --access public --provenance || echo "Failed to publish $pkg, continuing..."
+          done
+
+      - name: Publish @ziex/cli to NPM
+        run: |
+          cd pkg/@ziex
+          npm publish --workspace cli --access public --provenance
 
   sync-templates:
     name: Sync & Release Templates

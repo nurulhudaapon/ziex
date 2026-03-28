@@ -7,7 +7,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$SCRIPT_DIR/../.."
-ZIEX_VER=$(sed -n 's/.*\.version *= *"\([^"]*\)".*/\1/p' "$ROOT_DIR/build.zig.zon")
+
+# Use version argument if provided, otherwise read from build.zig.zon
+if [[ "${1:-}" != "" && "${1:-}" != "--version" ]]; then
+  ZIEX_VER="$1"
+  shift
+else
+  ZIEX_VER=$(sed -n 's/.*\.version *= *"\([^"]*\)".*/\1/p' "$ROOT_DIR/build.zig.zon")
+fi
 
 # Update version in all workspace package.json files
 echo "Updating package versions to $ZIEX_VER..."
