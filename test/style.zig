@@ -63,7 +63,7 @@ test "Style pseudo-states" {
         zx.style.background_color(.hex(0x0000ff)),
         // In Option A, pseudo-states are currently just another property
         // that can be formatted.
-        zx.style.hover(&zx.style.styleInit(.{
+        zx.style.hover(zx.style.styleInit(.{
             zx.style.background_color(.hex(0xff0000)),
         })),
     });

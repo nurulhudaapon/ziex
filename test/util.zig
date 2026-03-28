@@ -57,6 +57,7 @@ pub const TestFileCache = struct {
         "style/basic",
         "style/component",
         "style/inline",
+        "style/builtin",
 
         // Expression
         "expression/text",

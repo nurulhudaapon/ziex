@@ -240,24 +240,24 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
         if (is_duplicate) continue;
 
         try selector_tags.put(clean_s, {});
-        try style_property.addField(fa, "", clean_s, "?*const Style", null);
+        try style_property.addField(fa, "", clean_s, "Style", null);
 
-        const helper_sig = try std.fmt.allocPrint(fa, "(v: ?*const Style) StyleProperty", .{});
+        const helper_sig = try std.fmt.allocPrint(fa, "(v: Style) StyleProperty", .{});
         const helper_body = try std.fmt.allocPrint(fa, "return .{{ .{s} = v }};", .{clean_s});
         _ = try file.addFn(clean_s, helper_sig, helper_body);
     }
 
-    try style_property.addField(fa, "", "sm", "?*const Style", null);
-    try style_property.addField(fa, "", "md", "?*const Style", null);
-    try style_property.addField(fa, "", "lg", "?*const Style", null);
-    try style_property.addField(fa, "", "xl", "?*const Style", null);
+    try style_property.addField(fa, "", "sm", "Style", null);
+    try style_property.addField(fa, "", "md", "Style", null);
+    try style_property.addField(fa, "", "lg", "Style", null);
+    try style_property.addField(fa, "", "xl", "Style", null);
     try style_property.addField(fa, "", "extra", "[]const u8", null);
 
     // Helpers for media queries and extra
-    _ = try file.addFn("sm", "(v: ?*const Style) StyleProperty", "return .{ .sm = v };");
-    _ = try file.addFn("md", "(v: ?*const Style) StyleProperty", "return .{ .md = v };");
-    _ = try file.addFn("lg", "(v: ?*const Style) StyleProperty", "return .{ .lg = v };");
-    _ = try file.addFn("xl", "(v: ?*const Style) StyleProperty", "return .{ .xl = v };");
+    _ = try file.addFn("sm", "(v: Style) StyleProperty", "return .{ .sm = v };");
+    _ = try file.addFn("md", "(v: Style) StyleProperty", "return .{ .md = v };");
+    _ = try file.addFn("lg", "(v: Style) StyleProperty", "return .{ .lg = v };");
+    _ = try file.addFn("xl", "(v: Style) StyleProperty", "return .{ .xl = v };");
     _ = try file.addFn("extra", "(v: []const u8) StyleProperty", "return .{ .extra = v };");
 
     // Compatibility exports

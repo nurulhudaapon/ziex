@@ -1,6 +1,9 @@
 const std = @import("std");
 
-const zx = @import("root.zig");
+pub const zx = @import("root.zig");
+pub const style = zx.style.styleInit;
+pub const StyleProperty = zx.style.StyleProperty;
+
 const prp = @import("props.zig");
 
 const ElementTag = zx.ElementTag;
@@ -26,10 +29,11 @@ pub const ComponentClientOptions = struct {
     id: []const u8,
 };
 
-const ZxOptions = struct {
+pub const ZxOptions = struct {
     children: ?[]const Component = null,
     attributes: ?[]const Element.Attribute = null,
     allocator: ?std.mem.Allocator = null,
+    style: ?zx.Style = null,
     escaping: ?BuiltinAttribute.Escaping = .html,
     rendering: ?BuiltinAttribute.Rendering = .server,
     async: ?BuiltinAttribute.Async = .sync,
@@ -52,11 +56,12 @@ pub fn allocInit(allocator: std.mem.Allocator) ZxContext {
     return .{ .allocator = allocator };
 }
 
-pub fn x(tag: ElementTag, options: ZxOptions) Component {
+pub fn x(tag: ElementTag, options: anytype) Component {
+    const OptsType = @TypeOf(options);
     return .{ .element = .{
         .tag = tag,
-        .children = options.children,
-        .attributes = options.attributes,
+        .children = if (comptime @hasField(OptsType, "children")) options.children else null,
+        .attributes = if (comptime @hasField(OptsType, "attributes")) options.attributes else null,
     } };
 }
 
@@ -91,36 +96,103 @@ pub const ZxContext = struct {
         return allocator.dupe(u8, aw.written()) catch @panic("OOM");
     }
 
-    pub fn ele(self: *ZxContext, tag: ElementTag, options: ZxOptions) Component {
-        // Set allocator from @allocator option if provided
-        if (options.allocator) |allocator| {
-            self.allocator = allocator;
+    fn ListValue(comptime T: type) type {
+        return struct {
+            items: ?[]const T = null,
+            owned: ?[]T = null,
+        };
+    }
+
+    fn normalizeList(self: *ZxContext, comptime T: type, value: anytype) ListValue(T) {
+        const V = @TypeOf(value);
+        switch (@typeInfo(V)) {
+            .optional => if (value) |inner| return self.normalizeList(T, inner) else return .{},
+            .pointer => |ptr_info| switch (ptr_info.size) {
+                .one => switch (@typeInfo(ptr_info.child)) {
+                    .array => return .{ .items = value[0..] },
+                    else => return self.normalizeList(T, value.*),
+                },
+                .many => return .{ .items = std.mem.span(value) },
+                .slice => return .{ .items = value },
+                else => @compileError("Unsupported pointer type for list normalization: " ++ @typeName(V)),
+            },
+            .array => {
+                const slice: []const T = value[0..];
+                const copy = self.getAlloc().alloc(T, slice.len) catch @panic("OOM");
+                @memcpy(copy, slice);
+                return .{ .items = copy, .owned = copy };
+            },
+            .@"struct" => |info| {
+                if (!info.is_tuple) @compileError("Unsupported struct type for list normalization: " ++ @typeName(V));
+                const copy = self.getAlloc().alloc(T, info.fields.len) catch @panic("OOM");
+                inline for (info.fields, 0..) |field, i| {
+                    copy[i] = @field(value, field.name);
+                }
+                return .{ .items = copy, .owned = copy };
+            },
+            else => @compileError("Unsupported list type: " ++ @typeName(V)),
+        }
+    }
+
+    pub fn ele(self: *ZxContext, tag: ElementTag, options: anytype) Component {
+        const OptsType = @TypeOf(options);
+
+        if (comptime @hasField(OptsType, "allocator")) {
+            const maybe_allocator = @field(options, "allocator");
+            if (comptime @typeInfo(@TypeOf(maybe_allocator)) == .optional) {
+                if (maybe_allocator) |allocator| {
+                    self.allocator = allocator;
+                }
+            } else {
+                self.allocator = maybe_allocator;
+            }
         }
 
         const allocator = self.getAlloc();
 
-        // Allocate and copy children if provided
-        const children_copy = if (options.children) |children| blk: {
-            const copy = allocator.alloc(Component, children.len) catch @panic("OOM");
-            @memcpy(copy, children);
-            break :blk copy;
-        } else null;
+        const children = if (comptime @hasField(OptsType, "children")) self.normalizeList(Component, @field(options, "children")).items else null;
+        var attributes_list = if (comptime @hasField(OptsType, "attributes")) self.normalizeList(Element.Attribute, @field(options, "attributes")) else ListValue(Element.Attribute){};
 
-        // Allocate and copy attributes if provided
-        const attributes_copy = if (options.attributes) |attributes| blk: {
-            const copy = allocator.alloc(Element.Attribute, attributes.len) catch @panic("OOM");
-            @memcpy(copy, attributes);
-            break :blk copy;
-        } else null;
+        if (comptime @hasField(OptsType, "style")) {
+            const val = @field(options, "style");
+            const ValType = @TypeOf(val);
+            const style_val_opt: ?zx.Style = if (comptime @typeInfo(ValType) == .optional) val else val;
+
+            if (style_val_opt) |style_val| {
+                const style_attr = self.attr("style", style_val);
+                if (style_attr) |sa| {
+                    if (attributes_list.items) |existing| {
+                        const new_attrs = allocator.alloc(Element.Attribute, existing.len + 1) catch @panic("OOM");
+                        @memcpy(new_attrs[0..existing.len], existing);
+                        new_attrs[existing.len] = sa;
+                        if (attributes_list.owned) |owned| allocator.free(owned);
+                        attributes_list = .{ .items = new_attrs, .owned = new_attrs };
+                    } else {
+                        const new_attrs = allocator.alloc(Element.Attribute, 1) catch @panic("OOM");
+                        new_attrs[0] = sa;
+                        attributes_list = .{ .items = new_attrs, .owned = new_attrs };
+                    }
+                }
+            }
+        }
 
         return .{ .element = .{
             .tag = tag,
-            .children = children_copy,
-            .attributes = attributes_copy,
-            .escaping = options.escaping,
-            .rendering = options.rendering,
-            .async = options.async,
-            .fallback = options.fallback,
+            .children = children,
+            .attributes = attributes_list.items,
+            .escaping = if (comptime @hasField(OptsType, "escaping")) blk: {
+                const v = @field(options, "escaping");
+                break :blk if (comptime @typeInfo(@TypeOf(v)) == .optional) v orelse .html else v;
+            } else .html,
+            .rendering = if (comptime @hasField(OptsType, "rendering")) blk: {
+                const v = @field(options, "rendering");
+                break :blk if (comptime @typeInfo(@TypeOf(v)) == .optional) v orelse .server else v;
+            } else .server,
+            .async = if (comptime @hasField(OptsType, "async")) blk: {
+                const v = @field(options, "async");
+                break :blk if (comptime @typeInfo(@TypeOf(v)) == .optional) v orelse .sync else v;
+            } else .sync,
+            .fallback = if (comptime @hasField(OptsType, "fallback")) @field(options, "fallback") else null,
         } };
     }
 

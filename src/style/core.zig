@@ -180,6 +180,13 @@ pub const StyleOutput = struct {
 
 pub fn formatProperty(prop: anytype, w: *std.io.Writer) std.io.Writer.Error!void {
     const T = @TypeOf(prop);
+    
+    // Support direct StyleOutput for composition/merging
+    if (comptime T == StyleOutput) {
+        try w.writeAll(prop.css);
+        return;
+    }
+
     const info = @typeInfo(T).@"union";
     const tag = @as(info.tag_type.?, prop);
 
@@ -195,8 +202,15 @@ pub fn formatProperty(prop: anytype, w: *std.io.Writer) std.io.Writer.Error!void
             }
 
             // Regular property or selector
-            if (comptime ValType == ?*const StyleOutput) {
-                if (val) |nested| {
+            if (comptime ValType == StyleOutput or ValType == *const StyleOutput or ValType == ?*const StyleOutput) {
+                const nested_opt: ?*const StyleOutput = switch (ValType) {
+                    StyleOutput => &val,
+                    *const StyleOutput => val,
+                    ?*const StyleOutput => val,
+                    else => unreachable,
+                };
+
+                if (nested_opt) |nested| {
                     try formatKebab(f.name, w);
                     try w.print(" {{ {s} }} ", .{nested.css});
                 }
@@ -216,31 +230,41 @@ pub fn formatProperty(prop: anytype, w: *std.io.Writer) std.io.Writer.Error!void
     }
 }
 
-pub fn init(comptime properties: anytype) StyleOutput {
+pub fn init(comptime args: anytype) StyleOutput {
     return comptime blk: {
-        const PropsType = @TypeOf(properties);
-        const props_info = @typeInfo(PropsType);
-        if (props_info != .@"struct" or !props_info.@"struct".is_tuple) {
-            @compileError("style.init expects a tuple of properties, e.g., .{ .display(.flex) }");
-        }
-
+        const ArgsType = @TypeOf(args);
+        const args_info = @typeInfo(ArgsType);
+        
         var css_buf: []const u8 = "";
 
-        var seen_props: []const []const u8 = &.{};
+        // Handle both tuple and direct arguments
+        if (args_info == .@"struct" and args_info.@"struct".is_tuple) {
+            var seen_props: []const []const u8 = &.{};
 
-        for (properties) |prop| {
-            const tag_name = @tagName(prop);
-
-            for (seen_props) |seen| {
-                if (std.mem.eql(u8, seen, tag_name)) {
-                    @compileError("Property '" ++ tag_name ++ "' is already defined in this style.");
+            for (args) |prop| {
+                const T = @TypeOf(prop);
+                if (T == StyleOutput) {
+                    css_buf = css_buf ++ prop.css;
+                    continue;
                 }
-            }
-            seen_props = seen_props ++ [_][]const u8{tag_name};
 
+                const tag_name = @tagName(prop);
+                for (seen_props) |seen| {
+                    if (std.mem.eql(u8, seen, tag_name)) {
+                        @compileError("Property '" ++ tag_name ++ "' is already defined in this style.");
+                    }
+                }
+                seen_props = seen_props ++ [_][]const u8{tag_name};
+
+                var buf: [2048]u8 = undefined;
+                var w = std.io.Writer.fixed(&buf);
+                formatProperty(prop, &w) catch @panic("OOM in style.init");
+                css_buf = css_buf ++ w.buffer[0..w.end];
+            }
+        } else {
             var buf: [2048]u8 = undefined;
             var w = std.io.Writer.fixed(&buf);
-            formatProperty(prop, &w) catch @panic("OOM in style.init");
+            formatProperty(args, &w) catch @panic("OOM in style.init");
             css_buf = css_buf ++ w.buffer[0..w.end];
         }
 

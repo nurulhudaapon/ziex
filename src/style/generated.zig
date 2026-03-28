@@ -32930,118 +32930,118 @@ pub const StyleProperty = union(enum(u32)) {
     y: Y,
     z_index: ZIndex,
     zoom: Zoom,
-    after: ?*const Style,
-    backdrop: ?*const Style,
-    before: ?*const Style,
-    checkmark: ?*const Style,
-    clear_icon: ?*const Style,
-    color_swatch: ?*const Style,
-    column: ?*const Style,
-    cue_region: ?*const Style,
-    details_content: ?*const Style,
-    field_component: ?*const Style,
-    field_separator: ?*const Style,
-    field_text: ?*const Style,
-    file_selector_button: ?*const Style,
-    first_letter: ?*const Style,
-    first_line: ?*const Style,
-    grammar_error: ?*const Style,
-    picker_icon: ?*const Style,
-    placeholder: ?*const Style,
-    reveal_icon: ?*const Style,
-    scroll_marker: ?*const Style,
-    search_text: ?*const Style,
-    selection: ?*const Style,
-    slider_fill: ?*const Style,
-    slider_thumb: ?*const Style,
-    slider_track: ?*const Style,
-    spelling_error: ?*const Style,
-    step_control: ?*const Style,
-    step_down: ?*const Style,
-    step_up: ?*const Style,
-    target_text: ?*const Style,
-    view_transition: ?*const Style,
-    active: ?*const Style,
-    active_view_transition: ?*const Style,
-    animated_image: ?*const Style,
-    any_link: ?*const Style,
-    autofill: ?*const Style,
-    blank: ?*const Style,
-    buffering: ?*const Style,
-    checked: ?*const Style,
-    current: ?*const Style,
-    default: ?*const Style,
-    defined: ?*const Style,
-    disabled: ?*const Style,
-    empty: ?*const Style,
-    enabled: ?*const Style,
-    first: ?*const Style,
-    first_child: ?*const Style,
-    first_of_page: ?*const Style,
-    first_of_type: ?*const Style,
-    focus: ?*const Style,
-    focus_visible: ?*const Style,
-    focus_within: ?*const Style,
-    fullscreen: ?*const Style,
-    future: ?*const Style,
-    has_slotted: ?*const Style,
-    heading: ?*const Style,
-    high_value: ?*const Style,
-    host: ?*const Style,
-    hover: ?*const Style,
-    in_range: ?*const Style,
-    indeterminate: ?*const Style,
-    interest_source: ?*const Style,
-    interest_target: ?*const Style,
-    invalid: ?*const Style,
-    last_child: ?*const Style,
-    last_of_page: ?*const Style,
-    last_of_type: ?*const Style,
-    link: ?*const Style,
-    local_link: ?*const Style,
-    low_value: ?*const Style,
-    modal: ?*const Style,
-    muted: ?*const Style,
-    only_child: ?*const Style,
-    only_of_type: ?*const Style,
-    open: ?*const Style,
-    optimal_value: ?*const Style,
-    optional: ?*const Style,
-    out_of_range: ?*const Style,
-    past: ?*const Style,
-    paused: ?*const Style,
-    picture_in_picture: ?*const Style,
-    placeholder_shown: ?*const Style,
-    playing: ?*const Style,
-    popover_open: ?*const Style,
-    read_only: ?*const Style,
-    read_write: ?*const Style,
-    required: ?*const Style,
-    root: ?*const Style,
-    scope: ?*const Style,
-    seeking: ?*const Style,
-    snapped: ?*const Style,
-    snapped_block: ?*const Style,
-    snapped_inline: ?*const Style,
-    snapped_x: ?*const Style,
-    snapped_y: ?*const Style,
-    stalled: ?*const Style,
-    start_of_page: ?*const Style,
-    target: ?*const Style,
-    target_after: ?*const Style,
-    target_before: ?*const Style,
-    target_current: ?*const Style,
-    unchecked: ?*const Style,
-    user_invalid: ?*const Style,
-    user_valid: ?*const Style,
-    valid: ?*const Style,
-    visited: ?*const Style,
-    volume_locked: ?*const Style,
-    xr_overlay: ?*const Style,
-    sm: ?*const Style,
-    md: ?*const Style,
-    lg: ?*const Style,
-    xl: ?*const Style,
+    after: Style,
+    backdrop: Style,
+    before: Style,
+    checkmark: Style,
+    clear_icon: Style,
+    color_swatch: Style,
+    column: Style,
+    cue_region: Style,
+    details_content: Style,
+    field_component: Style,
+    field_separator: Style,
+    field_text: Style,
+    file_selector_button: Style,
+    first_letter: Style,
+    first_line: Style,
+    grammar_error: Style,
+    picker_icon: Style,
+    placeholder: Style,
+    reveal_icon: Style,
+    scroll_marker: Style,
+    search_text: Style,
+    selection: Style,
+    slider_fill: Style,
+    slider_thumb: Style,
+    slider_track: Style,
+    spelling_error: Style,
+    step_control: Style,
+    step_down: Style,
+    step_up: Style,
+    target_text: Style,
+    view_transition: Style,
+    active: Style,
+    active_view_transition: Style,
+    animated_image: Style,
+    any_link: Style,
+    autofill: Style,
+    blank: Style,
+    buffering: Style,
+    checked: Style,
+    current: Style,
+    default: Style,
+    defined: Style,
+    disabled: Style,
+    empty: Style,
+    enabled: Style,
+    first: Style,
+    first_child: Style,
+    first_of_page: Style,
+    first_of_type: Style,
+    focus: Style,
+    focus_visible: Style,
+    focus_within: Style,
+    fullscreen: Style,
+    future: Style,
+    has_slotted: Style,
+    heading: Style,
+    high_value: Style,
+    host: Style,
+    hover: Style,
+    in_range: Style,
+    indeterminate: Style,
+    interest_source: Style,
+    interest_target: Style,
+    invalid: Style,
+    last_child: Style,
+    last_of_page: Style,
+    last_of_type: Style,
+    link: Style,
+    local_link: Style,
+    low_value: Style,
+    modal: Style,
+    muted: Style,
+    only_child: Style,
+    only_of_type: Style,
+    open: Style,
+    optimal_value: Style,
+    optional: Style,
+    out_of_range: Style,
+    past: Style,
+    paused: Style,
+    picture_in_picture: Style,
+    placeholder_shown: Style,
+    playing: Style,
+    popover_open: Style,
+    read_only: Style,
+    read_write: Style,
+    required: Style,
+    root: Style,
+    scope: Style,
+    seeking: Style,
+    snapped: Style,
+    snapped_block: Style,
+    snapped_inline: Style,
+    snapped_x: Style,
+    snapped_y: Style,
+    stalled: Style,
+    start_of_page: Style,
+    target: Style,
+    target_after: Style,
+    target_before: Style,
+    target_current: Style,
+    unchecked: Style,
+    user_invalid: Style,
+    user_valid: Style,
+    valid: Style,
+    visited: Style,
+    volume_locked: Style,
+    xr_overlay: Style,
+    sm: Style,
+    md: Style,
+    lg: Style,
+    xl: Style,
     extra: []const u8,
 };
 
@@ -36289,451 +36289,451 @@ pub fn zoom(v: Zoom) StyleProperty {
     return .{ .zoom = v };
 }
 
-pub fn after(v: ?*const Style) StyleProperty {
+pub fn after(v: Style) StyleProperty {
     return .{ .after = v };
 }
 
-pub fn backdrop(v: ?*const Style) StyleProperty {
+pub fn backdrop(v: Style) StyleProperty {
     return .{ .backdrop = v };
 }
 
-pub fn before(v: ?*const Style) StyleProperty {
+pub fn before(v: Style) StyleProperty {
     return .{ .before = v };
 }
 
-pub fn checkmark(v: ?*const Style) StyleProperty {
+pub fn checkmark(v: Style) StyleProperty {
     return .{ .checkmark = v };
 }
 
-pub fn clear_icon(v: ?*const Style) StyleProperty {
+pub fn clear_icon(v: Style) StyleProperty {
     return .{ .clear_icon = v };
 }
 
-pub fn color_swatch(v: ?*const Style) StyleProperty {
+pub fn color_swatch(v: Style) StyleProperty {
     return .{ .color_swatch = v };
 }
 
-pub fn column(v: ?*const Style) StyleProperty {
+pub fn column(v: Style) StyleProperty {
     return .{ .column = v };
 }
 
-pub fn cue_region(v: ?*const Style) StyleProperty {
+pub fn cue_region(v: Style) StyleProperty {
     return .{ .cue_region = v };
 }
 
-pub fn details_content(v: ?*const Style) StyleProperty {
+pub fn details_content(v: Style) StyleProperty {
     return .{ .details_content = v };
 }
 
-pub fn field_component(v: ?*const Style) StyleProperty {
+pub fn field_component(v: Style) StyleProperty {
     return .{ .field_component = v };
 }
 
-pub fn field_separator(v: ?*const Style) StyleProperty {
+pub fn field_separator(v: Style) StyleProperty {
     return .{ .field_separator = v };
 }
 
-pub fn field_text(v: ?*const Style) StyleProperty {
+pub fn field_text(v: Style) StyleProperty {
     return .{ .field_text = v };
 }
 
-pub fn file_selector_button(v: ?*const Style) StyleProperty {
+pub fn file_selector_button(v: Style) StyleProperty {
     return .{ .file_selector_button = v };
 }
 
-pub fn first_letter(v: ?*const Style) StyleProperty {
+pub fn first_letter(v: Style) StyleProperty {
     return .{ .first_letter = v };
 }
 
-pub fn first_line(v: ?*const Style) StyleProperty {
+pub fn first_line(v: Style) StyleProperty {
     return .{ .first_line = v };
 }
 
-pub fn grammar_error(v: ?*const Style) StyleProperty {
+pub fn grammar_error(v: Style) StyleProperty {
     return .{ .grammar_error = v };
 }
 
-pub fn picker_icon(v: ?*const Style) StyleProperty {
+pub fn picker_icon(v: Style) StyleProperty {
     return .{ .picker_icon = v };
 }
 
-pub fn placeholder(v: ?*const Style) StyleProperty {
+pub fn placeholder(v: Style) StyleProperty {
     return .{ .placeholder = v };
 }
 
-pub fn reveal_icon(v: ?*const Style) StyleProperty {
+pub fn reveal_icon(v: Style) StyleProperty {
     return .{ .reveal_icon = v };
 }
 
-pub fn scroll_marker(v: ?*const Style) StyleProperty {
+pub fn scroll_marker(v: Style) StyleProperty {
     return .{ .scroll_marker = v };
 }
 
-pub fn search_text(v: ?*const Style) StyleProperty {
+pub fn search_text(v: Style) StyleProperty {
     return .{ .search_text = v };
 }
 
-pub fn selection(v: ?*const Style) StyleProperty {
+pub fn selection(v: Style) StyleProperty {
     return .{ .selection = v };
 }
 
-pub fn slider_fill(v: ?*const Style) StyleProperty {
+pub fn slider_fill(v: Style) StyleProperty {
     return .{ .slider_fill = v };
 }
 
-pub fn slider_thumb(v: ?*const Style) StyleProperty {
+pub fn slider_thumb(v: Style) StyleProperty {
     return .{ .slider_thumb = v };
 }
 
-pub fn slider_track(v: ?*const Style) StyleProperty {
+pub fn slider_track(v: Style) StyleProperty {
     return .{ .slider_track = v };
 }
 
-pub fn spelling_error(v: ?*const Style) StyleProperty {
+pub fn spelling_error(v: Style) StyleProperty {
     return .{ .spelling_error = v };
 }
 
-pub fn step_control(v: ?*const Style) StyleProperty {
+pub fn step_control(v: Style) StyleProperty {
     return .{ .step_control = v };
 }
 
-pub fn step_down(v: ?*const Style) StyleProperty {
+pub fn step_down(v: Style) StyleProperty {
     return .{ .step_down = v };
 }
 
-pub fn step_up(v: ?*const Style) StyleProperty {
+pub fn step_up(v: Style) StyleProperty {
     return .{ .step_up = v };
 }
 
-pub fn target_text(v: ?*const Style) StyleProperty {
+pub fn target_text(v: Style) StyleProperty {
     return .{ .target_text = v };
 }
 
-pub fn view_transition(v: ?*const Style) StyleProperty {
+pub fn view_transition(v: Style) StyleProperty {
     return .{ .view_transition = v };
 }
 
-pub fn active(v: ?*const Style) StyleProperty {
+pub fn active(v: Style) StyleProperty {
     return .{ .active = v };
 }
 
-pub fn active_view_transition(v: ?*const Style) StyleProperty {
+pub fn active_view_transition(v: Style) StyleProperty {
     return .{ .active_view_transition = v };
 }
 
-pub fn animated_image(v: ?*const Style) StyleProperty {
+pub fn animated_image(v: Style) StyleProperty {
     return .{ .animated_image = v };
 }
 
-pub fn any_link(v: ?*const Style) StyleProperty {
+pub fn any_link(v: Style) StyleProperty {
     return .{ .any_link = v };
 }
 
-pub fn autofill(v: ?*const Style) StyleProperty {
+pub fn autofill(v: Style) StyleProperty {
     return .{ .autofill = v };
 }
 
-pub fn blank(v: ?*const Style) StyleProperty {
+pub fn blank(v: Style) StyleProperty {
     return .{ .blank = v };
 }
 
-pub fn buffering(v: ?*const Style) StyleProperty {
+pub fn buffering(v: Style) StyleProperty {
     return .{ .buffering = v };
 }
 
-pub fn checked(v: ?*const Style) StyleProperty {
+pub fn checked(v: Style) StyleProperty {
     return .{ .checked = v };
 }
 
-pub fn current(v: ?*const Style) StyleProperty {
+pub fn current(v: Style) StyleProperty {
     return .{ .current = v };
 }
 
-pub fn default(v: ?*const Style) StyleProperty {
+pub fn default(v: Style) StyleProperty {
     return .{ .default = v };
 }
 
-pub fn defined(v: ?*const Style) StyleProperty {
+pub fn defined(v: Style) StyleProperty {
     return .{ .defined = v };
 }
 
-pub fn disabled(v: ?*const Style) StyleProperty {
+pub fn disabled(v: Style) StyleProperty {
     return .{ .disabled = v };
 }
 
-pub fn empty(v: ?*const Style) StyleProperty {
+pub fn empty(v: Style) StyleProperty {
     return .{ .empty = v };
 }
 
-pub fn enabled(v: ?*const Style) StyleProperty {
+pub fn enabled(v: Style) StyleProperty {
     return .{ .enabled = v };
 }
 
-pub fn first(v: ?*const Style) StyleProperty {
+pub fn first(v: Style) StyleProperty {
     return .{ .first = v };
 }
 
-pub fn first_child(v: ?*const Style) StyleProperty {
+pub fn first_child(v: Style) StyleProperty {
     return .{ .first_child = v };
 }
 
-pub fn first_of_page(v: ?*const Style) StyleProperty {
+pub fn first_of_page(v: Style) StyleProperty {
     return .{ .first_of_page = v };
 }
 
-pub fn first_of_type(v: ?*const Style) StyleProperty {
+pub fn first_of_type(v: Style) StyleProperty {
     return .{ .first_of_type = v };
 }
 
-pub fn focus(v: ?*const Style) StyleProperty {
+pub fn focus(v: Style) StyleProperty {
     return .{ .focus = v };
 }
 
-pub fn focus_visible(v: ?*const Style) StyleProperty {
+pub fn focus_visible(v: Style) StyleProperty {
     return .{ .focus_visible = v };
 }
 
-pub fn focus_within(v: ?*const Style) StyleProperty {
+pub fn focus_within(v: Style) StyleProperty {
     return .{ .focus_within = v };
 }
 
-pub fn fullscreen(v: ?*const Style) StyleProperty {
+pub fn fullscreen(v: Style) StyleProperty {
     return .{ .fullscreen = v };
 }
 
-pub fn future(v: ?*const Style) StyleProperty {
+pub fn future(v: Style) StyleProperty {
     return .{ .future = v };
 }
 
-pub fn has_slotted(v: ?*const Style) StyleProperty {
+pub fn has_slotted(v: Style) StyleProperty {
     return .{ .has_slotted = v };
 }
 
-pub fn heading(v: ?*const Style) StyleProperty {
+pub fn heading(v: Style) StyleProperty {
     return .{ .heading = v };
 }
 
-pub fn high_value(v: ?*const Style) StyleProperty {
+pub fn high_value(v: Style) StyleProperty {
     return .{ .high_value = v };
 }
 
-pub fn host(v: ?*const Style) StyleProperty {
+pub fn host(v: Style) StyleProperty {
     return .{ .host = v };
 }
 
-pub fn hover(v: ?*const Style) StyleProperty {
+pub fn hover(v: Style) StyleProperty {
     return .{ .hover = v };
 }
 
-pub fn in_range(v: ?*const Style) StyleProperty {
+pub fn in_range(v: Style) StyleProperty {
     return .{ .in_range = v };
 }
 
-pub fn indeterminate(v: ?*const Style) StyleProperty {
+pub fn indeterminate(v: Style) StyleProperty {
     return .{ .indeterminate = v };
 }
 
-pub fn interest_source(v: ?*const Style) StyleProperty {
+pub fn interest_source(v: Style) StyleProperty {
     return .{ .interest_source = v };
 }
 
-pub fn interest_target(v: ?*const Style) StyleProperty {
+pub fn interest_target(v: Style) StyleProperty {
     return .{ .interest_target = v };
 }
 
-pub fn invalid(v: ?*const Style) StyleProperty {
+pub fn invalid(v: Style) StyleProperty {
     return .{ .invalid = v };
 }
 
-pub fn last_child(v: ?*const Style) StyleProperty {
+pub fn last_child(v: Style) StyleProperty {
     return .{ .last_child = v };
 }
 
-pub fn last_of_page(v: ?*const Style) StyleProperty {
+pub fn last_of_page(v: Style) StyleProperty {
     return .{ .last_of_page = v };
 }
 
-pub fn last_of_type(v: ?*const Style) StyleProperty {
+pub fn last_of_type(v: Style) StyleProperty {
     return .{ .last_of_type = v };
 }
 
-pub fn link(v: ?*const Style) StyleProperty {
+pub fn link(v: Style) StyleProperty {
     return .{ .link = v };
 }
 
-pub fn local_link(v: ?*const Style) StyleProperty {
+pub fn local_link(v: Style) StyleProperty {
     return .{ .local_link = v };
 }
 
-pub fn low_value(v: ?*const Style) StyleProperty {
+pub fn low_value(v: Style) StyleProperty {
     return .{ .low_value = v };
 }
 
-pub fn modal(v: ?*const Style) StyleProperty {
+pub fn modal(v: Style) StyleProperty {
     return .{ .modal = v };
 }
 
-pub fn muted(v: ?*const Style) StyleProperty {
+pub fn muted(v: Style) StyleProperty {
     return .{ .muted = v };
 }
 
-pub fn only_child(v: ?*const Style) StyleProperty {
+pub fn only_child(v: Style) StyleProperty {
     return .{ .only_child = v };
 }
 
-pub fn only_of_type(v: ?*const Style) StyleProperty {
+pub fn only_of_type(v: Style) StyleProperty {
     return .{ .only_of_type = v };
 }
 
-pub fn open(v: ?*const Style) StyleProperty {
+pub fn open(v: Style) StyleProperty {
     return .{ .open = v };
 }
 
-pub fn optimal_value(v: ?*const Style) StyleProperty {
+pub fn optimal_value(v: Style) StyleProperty {
     return .{ .optimal_value = v };
 }
 
-pub fn optional(v: ?*const Style) StyleProperty {
+pub fn optional(v: Style) StyleProperty {
     return .{ .optional = v };
 }
 
-pub fn out_of_range(v: ?*const Style) StyleProperty {
+pub fn out_of_range(v: Style) StyleProperty {
     return .{ .out_of_range = v };
 }
 
-pub fn past(v: ?*const Style) StyleProperty {
+pub fn past(v: Style) StyleProperty {
     return .{ .past = v };
 }
 
-pub fn paused(v: ?*const Style) StyleProperty {
+pub fn paused(v: Style) StyleProperty {
     return .{ .paused = v };
 }
 
-pub fn picture_in_picture(v: ?*const Style) StyleProperty {
+pub fn picture_in_picture(v: Style) StyleProperty {
     return .{ .picture_in_picture = v };
 }
 
-pub fn placeholder_shown(v: ?*const Style) StyleProperty {
+pub fn placeholder_shown(v: Style) StyleProperty {
     return .{ .placeholder_shown = v };
 }
 
-pub fn playing(v: ?*const Style) StyleProperty {
+pub fn playing(v: Style) StyleProperty {
     return .{ .playing = v };
 }
 
-pub fn popover_open(v: ?*const Style) StyleProperty {
+pub fn popover_open(v: Style) StyleProperty {
     return .{ .popover_open = v };
 }
 
-pub fn read_only(v: ?*const Style) StyleProperty {
+pub fn read_only(v: Style) StyleProperty {
     return .{ .read_only = v };
 }
 
-pub fn read_write(v: ?*const Style) StyleProperty {
+pub fn read_write(v: Style) StyleProperty {
     return .{ .read_write = v };
 }
 
-pub fn required(v: ?*const Style) StyleProperty {
+pub fn required(v: Style) StyleProperty {
     return .{ .required = v };
 }
 
-pub fn root(v: ?*const Style) StyleProperty {
+pub fn root(v: Style) StyleProperty {
     return .{ .root = v };
 }
 
-pub fn scope(v: ?*const Style) StyleProperty {
+pub fn scope(v: Style) StyleProperty {
     return .{ .scope = v };
 }
 
-pub fn seeking(v: ?*const Style) StyleProperty {
+pub fn seeking(v: Style) StyleProperty {
     return .{ .seeking = v };
 }
 
-pub fn snapped(v: ?*const Style) StyleProperty {
+pub fn snapped(v: Style) StyleProperty {
     return .{ .snapped = v };
 }
 
-pub fn snapped_block(v: ?*const Style) StyleProperty {
+pub fn snapped_block(v: Style) StyleProperty {
     return .{ .snapped_block = v };
 }
 
-pub fn snapped_inline(v: ?*const Style) StyleProperty {
+pub fn snapped_inline(v: Style) StyleProperty {
     return .{ .snapped_inline = v };
 }
 
-pub fn snapped_x(v: ?*const Style) StyleProperty {
+pub fn snapped_x(v: Style) StyleProperty {
     return .{ .snapped_x = v };
 }
 
-pub fn snapped_y(v: ?*const Style) StyleProperty {
+pub fn snapped_y(v: Style) StyleProperty {
     return .{ .snapped_y = v };
 }
 
-pub fn stalled(v: ?*const Style) StyleProperty {
+pub fn stalled(v: Style) StyleProperty {
     return .{ .stalled = v };
 }
 
-pub fn start_of_page(v: ?*const Style) StyleProperty {
+pub fn start_of_page(v: Style) StyleProperty {
     return .{ .start_of_page = v };
 }
 
-pub fn target(v: ?*const Style) StyleProperty {
+pub fn target(v: Style) StyleProperty {
     return .{ .target = v };
 }
 
-pub fn target_after(v: ?*const Style) StyleProperty {
+pub fn target_after(v: Style) StyleProperty {
     return .{ .target_after = v };
 }
 
-pub fn target_before(v: ?*const Style) StyleProperty {
+pub fn target_before(v: Style) StyleProperty {
     return .{ .target_before = v };
 }
 
-pub fn target_current(v: ?*const Style) StyleProperty {
+pub fn target_current(v: Style) StyleProperty {
     return .{ .target_current = v };
 }
 
-pub fn unchecked(v: ?*const Style) StyleProperty {
+pub fn unchecked(v: Style) StyleProperty {
     return .{ .unchecked = v };
 }
 
-pub fn user_invalid(v: ?*const Style) StyleProperty {
+pub fn user_invalid(v: Style) StyleProperty {
     return .{ .user_invalid = v };
 }
 
-pub fn user_valid(v: ?*const Style) StyleProperty {
+pub fn user_valid(v: Style) StyleProperty {
     return .{ .user_valid = v };
 }
 
-pub fn valid(v: ?*const Style) StyleProperty {
+pub fn valid(v: Style) StyleProperty {
     return .{ .valid = v };
 }
 
-pub fn visited(v: ?*const Style) StyleProperty {
+pub fn visited(v: Style) StyleProperty {
     return .{ .visited = v };
 }
 
-pub fn volume_locked(v: ?*const Style) StyleProperty {
+pub fn volume_locked(v: Style) StyleProperty {
     return .{ .volume_locked = v };
 }
 
-pub fn xr_overlay(v: ?*const Style) StyleProperty {
+pub fn xr_overlay(v: Style) StyleProperty {
     return .{ .xr_overlay = v };
 }
 
-pub fn sm(v: ?*const Style) StyleProperty {
+pub fn sm(v: Style) StyleProperty {
     return .{ .sm = v };
 }
 
-pub fn md(v: ?*const Style) StyleProperty {
+pub fn md(v: Style) StyleProperty {
     return .{ .md = v };
 }
 
-pub fn lg(v: ?*const Style) StyleProperty {
+pub fn lg(v: Style) StyleProperty {
     return .{ .lg = v };
 }
 
-pub fn xl(v: ?*const Style) StyleProperty {
+pub fn xl(v: Style) StyleProperty {
     return .{ .xl = v };
 }
 

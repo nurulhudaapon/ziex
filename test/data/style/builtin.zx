@@ -1,0 +1,20 @@
+pub fn Page(allocator: std.mem.Allocator) zx.Component {
+    const header_style = @style(
+        .background_color(.hex(0x0f0f0f)),
+        .hover(@style(
+            .background_color(.hex(0xf0f0f0)),
+        )),
+    );
+
+    return (
+        <div @allocator={allocator} @style={.display(.flex)}>
+            <h1 @style={header_style}>Hello Style</h1>
+            <p @style={.color(.hex(0xff0000)), .font_weight(.bold)}>
+                Universal builtin function test
+            </p>
+        </div>
+    );
+}
+
+const std = @import("std");
+const zx = @import("zx");
