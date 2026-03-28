@@ -1,7 +1,7 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    const style: zx.Style = .{
-        .color = .hex(0x0000ff),
-    };
+    const style = zx.style.init(&.{
+        .color(.hex(0x0000ff)),
+    });
     var _zx = @import("zx").allocInit(allocator);
     return _zx.cmp(
         StyledCard,

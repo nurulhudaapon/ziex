@@ -1,8 +1,16 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    return (
-        <div @allocator={allocator} style={zx.Style{ .display = .flex, .row_gap = .px(10) }}>
-             Inline Style
-        </div>
+    var _zx = @import("zx").allocInit(allocator);
+    return _zx.ele(
+        .div,
+        .{
+            .allocator = allocator,
+            .attributes = _zx.attrs(.{
+                _zx.attr("style", zx.style.init(&.{ .display(.flex), .row_gap(.px(10)) })),
+            }),
+            .children = &.{
+                _zx.txt(" Inline Style"),
+            },
+        },
     );
 }
 

@@ -216,39 +216,30 @@ pub fn formatProperty(prop: anytype, w: *std.io.Writer) std.io.Writer.Error!void
     }
 }
 
-pub fn init(comptime properties: anytype) StyleOutput {
+pub fn init(comptime SP: type, comptime props: []const SP) StyleOutput {
     return comptime blk: {
-        const PropsType = @TypeOf(properties);
-        const props_info = @typeInfo(PropsType);
-        if (props_info != .@"struct" or !props_info.@"struct".is_tuple) {
-            @compileError("style.init expects a tuple of properties, e.g., .{ .display(.flex) }");
-        }
-
+        var seen: []const []const u8 = &.{};
         var css_buf: []const u8 = "";
 
-        var seen_props: []const []const u8 = &.{};
+        for (props) |prop| {
+            const tag = @tagName(prop);
 
-        for (properties) |prop| {
-            const tag_name = @tagName(prop);
-
-            for (seen_props) |seen| {
-                if (std.mem.eql(u8, seen, tag_name)) {
-                    @compileError("Property '" ++ tag_name ++ "' is already defined in this style.");
+            for (seen) |s| {
+                if (std.mem.eql(u8, s, tag)) {
+                    @compileError("Duplicate property: " ++ tag);
                 }
             }
-            seen_props = seen_props ++ [_][]const u8{tag_name};
+            seen = seen ++ &[_][]const u8{tag};
 
             var buf: [2048]u8 = undefined;
             var w = std.io.Writer.fixed(&buf);
-            formatProperty(prop, &w) catch @panic("OOM in style.init");
+            formatProperty(prop, &w) catch @panic("buffer overflow");
             css_buf = css_buf ++ w.buffer[0..w.end];
         }
 
         const hash = std.hash.Wyhash.hash(0, css_buf);
-        const class_name = std.fmt.comptimePrint("zx-{x}", .{hash});
-
         break :blk .{
-            .class = class_name,
+            .class = std.fmt.comptimePrint("zx-{x}", .{hash}),
             .css = css_buf,
         };
     };

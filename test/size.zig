@@ -11,10 +11,10 @@ test "Style size" {
     std.debug.print("-------------------------------------------------\n", .{});
 
     // This is now a comptime-computed StyleOutput
-    const s = zx.style.init(.{
-        zx.style.display(.flex),
-        zx.style.background_color(.hex(0xff0000)),
-        zx.style.margin_top(.calc(zx.style.Calc.percent(5).sub(.px(10)))),
+    const s = zx.style.init(&.{
+        .display(.flex),
+        .background_color(.hex(0xff0000)),
+        .margin_top(.calc(zx.style.Calc.percent(5).sub(.px(10)))),
     });
 
     try std.testing.expect(s.css.len > 0);

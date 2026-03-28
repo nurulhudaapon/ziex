@@ -1,9 +1,9 @@
 pub fn Page(allocator: std.mem.Allocator) zx.Component {
-    const header_style = zx.style.init(.{
-        @as(zx.style.StyleProperty, .{ .background_color = .hex(0x0f0f0f) }),
-        @as(zx.style.StyleProperty, .{ .hover = &zx.style.init(.{
-            @as(zx.style.StyleProperty, .{ .background_color = .hex(0xf0f0f0) }),
-        }) }),
+    const header_style = zx.style.init(&.{
+        .background_color(.hex(0x0f0f0f)),
+        .hover(&zx.style.init(&.{
+            .background_color(.hex(0xf0f0f0)),
+        })),
     });
 
     var _zx = @import("zx").allocInit(allocator);
@@ -12,7 +12,7 @@ pub fn Page(allocator: std.mem.Allocator) zx.Component {
         .{
             .allocator = allocator,
             .attributes = _zx.attrs(.{
-                _zx.attr("style", zx.style.init(.{@as(zx.style.StyleProperty, .{ .display = .flex })})),
+                _zx.attr("style", zx.style.init(&.{ .display(.flex) })),
             }),
             .children = &.{
                 _zx.ele(
@@ -30,7 +30,7 @@ pub fn Page(allocator: std.mem.Allocator) zx.Component {
                     .p,
                     .{
                         .attributes = _zx.attrs(.{
-                            _zx.attr("style", zx.style.init(.{ @as(zx.style.StyleProperty, .{ .color = .hex(0xff0000) }), @as(zx.style.StyleProperty, .{ .font_weight = .bold }) })),
+                            _zx.attr("style", zx.style.init(&.{ .color(.hex(0xff0000)), .font_weight(.bold) })),
                         }),
                         .children = &.{
                             _zx.txt(" Universal builtin function test"),
