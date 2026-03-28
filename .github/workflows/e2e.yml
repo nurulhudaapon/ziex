@@ -44,6 +44,15 @@ jobs:
         with:
           node-version: 20
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Site Dependencies
+        working-directory: site
+        run: bun install
+
       - name: Install E2E Dependencies
         working-directory: test/e2e
         run: npm install
