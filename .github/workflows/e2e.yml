@@ -5,10 +5,17 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Base URL to run tests against (skips local dev server when set)'
+        required: false
+        type: string
+        default: ''
   workflow_call:
     inputs:
       base_url:
-        description: 'Base URL to run tests against'
+        description: 'Base URL to run tests against (skips local dev server when set)'
         required: false
         type: string
         default: ''
@@ -45,30 +52,12 @@ jobs:
         working-directory: test/e2e
         run: npx playwright install --with-deps chromium
 
-      - name: Start Dev Server
-        if: ${{ !inputs.base_url }}
-        run: zig build dev &
-
-      - name: Wait for Dev Server
-        if: ${{ !inputs.base_url }}
-        run: |
-          for i in $(seq 1 60); do
-            if curl -s http://localhost:3000 > /dev/null 2>&1; then
-              echo "Dev server is ready"
-              exit 0
-            fi
-            echo "Waiting for dev server... ($i/60)"
-            sleep 2
-          done
-          echo "Dev server failed to start"
-          exit 1
-
       - name: Run E2E Tests
         working-directory: test/e2e
         run: npx playwright test
         env:
           CI: true
-          BASE_URL: ${{ inputs.base_url || 'http://localhost:3000' }}
+          BASE_URL: ${{ inputs.base_url }}
 
       - name: Upload Playwright Report
         uses: actions/upload-artifact@v4
