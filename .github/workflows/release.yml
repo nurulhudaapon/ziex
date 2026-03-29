@@ -9,6 +9,11 @@ on:
         description: "Version tag (leave empty to use version from build.zig.zon)"
         required: false
         type: string
+      tag:
+        description: "npm dist-tag (e.g. dev, latest). Defaults to dev"
+        required: false
+        type: string
+        default: dev
       target:
         description: "Release target"
         required: true
@@ -24,6 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.resolve.outputs.version }}
+      dist-tag: ${{ steps.resolve.outputs.dist_tag }}
     steps:
       - name: Resolve and validate version
         id: resolve
@@ -41,6 +47,19 @@ jobs:
             exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          # Resolve npm dist-tag: use input if provided, detect from version, default to latest
+          INPUT_TAG="${{ inputs.tag }}"
+          if [ -n "$INPUT_TAG" ]; then
+            DIST_TAG="$INPUT_TAG"
+          elif echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+-'; then
+            # Prerelease version: extract identifier (e.g. "dev" from "0.1.0-dev.123")
+            DIST_TAG=$(echo "$VERSION" | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+-([a-zA-Z]+).*/\1/')
+          else
+            DIST_TAG="latest"
+          fi
+          echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+          echo "Resolved dist-tag: $DIST_TAG"
 
   build-release:
     name: Build Release Binaries
@@ -211,7 +230,7 @@ jobs:
           cd pkg/@ziex
           for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-win32-x64 cli-win32-arm64; do
             echo "Publishing @ziex/$pkg..."
-            npm publish --workspace "$pkg" --access public --provenance || echo "Failed to publish $pkg, continuing..."
+            npm publish --workspace "$pkg" --access public --provenance --tag ${{ needs.resolve-version.outputs.dist-tag }} || echo "Failed to publish $pkg, continuing..."
           done
 
       - name: Publish @ziex/cli* to NPM
@@ -219,7 +238,7 @@ jobs:
           NODE_AUTH_TOKEN: ""
         run: |
           cd pkg/@ziex
-          npm publish --workspaces --access public --provenance
+          npm publish --workspaces --access public --provenance --tag ${{ needs.resolve-version.outputs.dist-tag }}
 
   sync-templates:
     name: Sync & Release Templates
