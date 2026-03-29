@@ -6,7 +6,12 @@ on:
     paths:
       - 'src/**'
       - 'test/e2e/**'
-      - 'pkg/**'
+      - 'pkg/adapters/**'
+      - 'pkg/tree-sitter-zx/**'
+      - 'pkg/tree-sitter-mdzx/**'
+      - 'vendor/**'
+      - 'build.zig'
+      - 'build.zig.zon'
   workflow_dispatch:
     inputs:
       base_url:

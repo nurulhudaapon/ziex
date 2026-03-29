@@ -31,7 +31,7 @@ echo "==> Checking packages at version $VERSION"
 # (written by setup-node) doesn't interfere with local Verdaccio.
 export npm_config_userconfig="$SCRIPT_DIR/_check_npmrc"
 cat > "$npm_config_userconfig" <<EOF
-registry=$REGISTRY
+@ziex:registry=$REGISTRY
 //localhost:4873/:_authToken=local-dev-token
 EOF
 
@@ -54,15 +54,15 @@ fi
 # Publish @ziex/cli* packages to local registry
 echo "==> Publishing @ziex/cli* to local registry..."
 cd "$VERDACCIO_DIR"
-npm publish --workspaces --access public --tag dev 2>&1
+npm publish --workspaces --access public --tag dev --registry "$REGISTRY" 2>&1
 
 # Build and publish ziex to local registry
 echo "==> Building and publishing ziex to local registry..."
 cd "$SCRIPT_DIR/ziex"
-npm_config_registry="$REGISTRY" bun install
+bun install
 bun run build
 cd dist
-npm publish --access public --tag dev 2>&1
+npm publish --access public --tag dev --registry "$REGISTRY" 2>&1
 
 # Create temp directory for testing
 mkdir -p "$SCRIPT_DIR/_check_tmp"
@@ -79,7 +79,7 @@ echo "==> Running checks..."
 # Check @ziex/cli version command
 echo ""
 echo "--- @ziex/cli ---"
-CLI_OUTPUT=$(npx --yes @ziex/cli@dev version 2>&1) || true
+CLI_OUTPUT=$(npx --yes --registry "$REGISTRY" @ziex/cli@dev version 2>&1) || true
 if echo "$CLI_OUTPUT" | grep -q "$VERSION"; then
   pass "@ziex/cli version outputs $VERSION"
 else
@@ -89,7 +89,7 @@ fi
 # Check ziex version command (delegates to @ziex/cli)
 echo ""
 echo "--- ziex ---"
-ZIEX_OUTPUT=$(npx --yes ziex@dev version 2>&1) || true
+ZIEX_OUTPUT=$(npx --yes --registry "$REGISTRY" ziex@dev version 2>&1) || true
 if echo "$ZIEX_OUTPUT" | grep -q "$VERSION"; then
   pass "ziex version outputs $VERSION"
 else
@@ -97,7 +97,7 @@ else
 fi
 
 # Check that ziex resolves @ziex/cli as dependency
-ZIEX_HELP=$(npx --yes ziex@dev --help 2>&1) || true
+ZIEX_HELP=$(npx --yes --registry "$REGISTRY" ziex@dev --help 2>&1) || true
 if [ -n "$ZIEX_HELP" ]; then
   pass "ziex --help produces output"
 else
