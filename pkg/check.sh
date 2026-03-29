@@ -35,17 +35,21 @@ registry=$REGISTRY
 //localhost:4873/:_authToken=local-dev-token
 EOF
 
-# Start Verdaccio
-echo "==> Starting local registry..."
-rm -rf "$VERDACCIO_DIR/.verdaccio-storage"
-npx --yes verdaccio --config "$VERDACCIO_DIR/verdaccio.yaml" --listen 4873 &
-VERDACCIO_PID=$!
+# Start Verdaccio only if not running in CI
+if [ -z "${CI:-}" ]; then
+  echo "==> Starting local registry..."
+  rm -rf "$VERDACCIO_DIR/.verdaccio-storage"
+  npx --yes verdaccio --config "$VERDACCIO_DIR/verdaccio.yaml" --listen 4873 &
+  VERDACCIO_PID=$!
 
-# Wait for Verdaccio to be ready (up to 60s; npx may need time to install verdaccio)
-for i in $(seq 1 120); do
-  if curl -sf "$REGISTRY/-/ping" > /dev/null 2>&1; then break; fi
-  sleep 0.5
-done
+  # Wait for Verdaccio to be ready (up to 60s; npx may need time to install verdaccio)
+  for i in $(seq 1 120); do
+    if curl -sf "$REGISTRY/-/ping" > /dev/null 2>&1; then break; fi
+    sleep 0.5
+  done
+else
+  echo "==> Skipping Verdaccio startup in CI"
+fi
 
 # Publish @ziex/cli* packages to local registry
 echo "==> Publishing @ziex/cli* to local registry..."

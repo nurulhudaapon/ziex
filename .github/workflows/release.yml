@@ -221,9 +221,11 @@ jobs:
 
 
       - name: Start Verdaccio
+        env:
+          CI: true
         run: |
           npm install -g verdaccio
-          verdaccio --config verdaccio.yaml --listen 4873 &
+          verdaccio --config pkg/@ziex/verdaccio.yaml --listen 4873 &
           # Wait until the registry responds
           timeout 30 bash -c 'until curl -sf http://localhost:4873 > /dev/null; do sleep 1; done'
           echo "Verdaccio is up."
