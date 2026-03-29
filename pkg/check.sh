@@ -17,7 +17,7 @@ cleanup() {
     kill "$VERDACCIO_PID" 2>/dev/null || true
     wait "$VERDACCIO_PID" 2>/dev/null || true
   fi
-  rm -rf "$SCRIPT_DIR/_check_tmp"
+  rm -rf "$SCRIPT_DIR/_check_tmp" "$SCRIPT_DIR/_check_npmrc"
 }
 trap cleanup EXIT
 
@@ -27,10 +27,15 @@ if [ -z "$VERSION" ]; then
 fi
 echo "==> Checking packages at version $VERSION"
 
+# Use a clean .npmrc scoped to this script so CI's global auth config
+# (written by setup-node) doesn't interfere with local Verdaccio.
+export npm_config_userconfig="$SCRIPT_DIR/_check_npmrc"
+echo "registry=$REGISTRY" > "$npm_config_userconfig"
+
 # Start Verdaccio
 echo "==> Starting local registry..."
 rm -rf "$VERDACCIO_DIR/.verdaccio-storage"
-npx verdaccio --config "$VERDACCIO_DIR/verdaccio.yaml" --listen 4873 &
+npx --yes verdaccio --config "$VERDACCIO_DIR/verdaccio.yaml" --listen 4873 &
 VERDACCIO_PID=$!
 
 # Wait for Verdaccio to be ready
@@ -42,7 +47,7 @@ done
 # Publish @ziex/cli* packages to local registry
 echo "==> Publishing @ziex/cli* to local registry..."
 cd "$VERDACCIO_DIR"
-npm publish --workspaces --registry "$REGISTRY" --access public --tag dev 2>&1
+npm publish --workspaces --access public --tag dev 2>&1
 
 # Build and publish ziex to local registry
 echo "==> Building and publishing ziex to local registry..."
@@ -50,7 +55,7 @@ cd "$SCRIPT_DIR/ziex"
 npm_config_registry="$REGISTRY" bun install
 bun run build
 cd dist
-npm publish --registry "$REGISTRY" --access public --tag dev 2>&1
+npm publish --access public --tag dev 2>&1
 
 # Create temp directory for testing
 mkdir -p "$SCRIPT_DIR/_check_tmp"
@@ -67,7 +72,7 @@ echo "==> Running checks..."
 # Check @ziex/cli version command
 echo ""
 echo "--- @ziex/cli ---"
-CLI_OUTPUT=$(npx --registry "$REGISTRY" --yes @ziex/cli@dev version 2>&1) || true
+CLI_OUTPUT=$(npx --yes @ziex/cli@dev version 2>&1) || true
 if echo "$CLI_OUTPUT" | grep -q "$VERSION"; then
   pass "@ziex/cli version outputs $VERSION"
 else
@@ -77,7 +82,7 @@ fi
 # Check ziex version command (delegates to @ziex/cli)
 echo ""
 echo "--- ziex ---"
-ZIEX_OUTPUT=$(npx --registry "$REGISTRY" --yes ziex@dev version 2>&1) || true
+ZIEX_OUTPUT=$(npx --yes ziex@dev version 2>&1) || true
 if echo "$ZIEX_OUTPUT" | grep -q "$VERSION"; then
   pass "ziex version outputs $VERSION"
 else
@@ -85,7 +90,7 @@ else
 fi
 
 # Check that ziex resolves @ziex/cli as dependency
-ZIEX_HELP=$(npx --registry "$REGISTRY" --yes ziex@dev --help 2>&1) || true
+ZIEX_HELP=$(npx --yes ziex@dev --help 2>&1) || true
 if [ -n "$ZIEX_HELP" ]; then
   pass "ziex --help produces output"
 else

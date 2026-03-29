@@ -182,26 +182,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  publish-npm:
-    name: Publish CLI to NPM
+  smoke-test:
+    name: Smoke Test Packages
     runs-on: ubuntu-latest
     needs: [resolve-version, build-release]
     if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.target == 'npm')
-    permissions:
-      contents: read
-      id-token: write
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 24
-          registry-url: https://registry.npmjs.org
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
+      - uses: oven-sh/setup-bun@v2
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -226,8 +219,49 @@ jobs:
           cd pkg/@ziex
           bash prepare.sh ${{ needs.resolve-version.outputs.version }}
 
-      - name: Smoke-test packages via local registry
+      - name: Run smoke tests
         run: bash pkg/check.sh ${{ needs.resolve-version.outputs.version }}
+
+  publish-npm:
+    name: Publish to NPM
+    runs-on: ubuntu-latest
+    needs: [resolve-version, build-release, smoke-test]
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.target == 'npm')
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Place binaries in zig-out/bin/release
+        shell: bash
+        run: |
+          mkdir -p zig-out/bin/release
+          for dir in dist/*/; do
+            for file in "$dir"*; do
+              case "$file" in
+                *.tar.gz) tar -xzf "$file" -C zig-out/bin/release ;;
+                *.zip)    unzip -o "$file" -d zig-out/bin/release ;;
+              esac
+            done
+          done
+
+      - name: Prepare @ziex packages
+        run: |
+          cd pkg/@ziex
+          bash prepare.sh ${{ needs.resolve-version.outputs.version }}
 
       - name: Publish @ziex/cli* to NPM
         env:
