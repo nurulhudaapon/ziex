@@ -30,7 +30,10 @@ echo "==> Checking packages at version $VERSION"
 # Use a clean .npmrc scoped to this script so CI's global auth config
 # (written by setup-node) doesn't interfere with local Verdaccio.
 export npm_config_userconfig="$SCRIPT_DIR/_check_npmrc"
-echo "registry=$REGISTRY" > "$npm_config_userconfig"
+cat > "$npm_config_userconfig" <<EOF
+registry=$REGISTRY
+//localhost:4873/:_authToken=local-dev-token
+EOF
 
 # Start Verdaccio
 echo "==> Starting local registry..."
