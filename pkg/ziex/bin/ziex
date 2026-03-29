@@ -1,26 +1,28 @@
 #!/usr/bin/env node
 
-// Stub that delegates to the native zx binary.
-// The postinstall script copies it to bin/zx, but if that hasn't run
-// (e.g. bunx), we resolve the platform package's binary directly.
+// Delegates to @ziex/cli's binary resolver.
+// The `ziex` package depends on `@ziex/cli` which handles
+// platform-specific binary resolution and installation.
 
 import { execFileSync } from "child_process";
 import { existsSync } from "fs";
 import { createRequire } from "module";
 import { dirname, join } from "path";
-import { fileURLToPath } from "url";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
 const require = createRequire(import.meta.url);
 const isWindows = process.platform === "win32";
 const ext = isWindows ? ".exe" : "";
 
 function findBinary() {
-  // 1. Check if postinstall already placed the binary
-  const localBin = join(__dirname, `zx${ext}`);
-  if (existsSync(localBin)) return localBin;
+  // Resolve from @ziex/cli's bin directory
+  try {
+    const cliPkgPath = require.resolve("@ziex/cli/package.json");
+    const cliDir = dirname(cliPkgPath);
+    const bin = join(cliDir, "bin", `zx${ext}`);
+    if (existsSync(bin)) return bin;
+  } catch {}
 
-  // 2. Resolve from the platform-specific optional dependency
+  // Fallback: resolve from platform-specific packages directly
   const platformPkgs = {
     "darwin-arm64": "@ziex/cli-darwin-arm64",
     "darwin-x64": "@ziex/cli-darwin-x64",
@@ -45,9 +47,8 @@ function findBinary() {
 const bin = findBinary();
 if (!bin) {
   console.error(
-    "Error: ziex native binary not found. The postinstall script may not have run.",
+    "Error: ziex native binary not found. Try reinstalling: npm install ziex",
   );
-  console.error("Try reinstalling: npm install -g ziex");
   process.exit(1);
 }
 

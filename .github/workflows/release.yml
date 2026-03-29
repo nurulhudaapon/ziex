@@ -200,6 +200,9 @@ jobs:
           node-version: 24
           registry-url: https://registry.npmjs.org
 
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
@@ -223,12 +226,25 @@ jobs:
           cd pkg/@ziex
           bash prepare.sh ${{ needs.resolve-version.outputs.version }}
 
+      - name: Smoke-test packages via local registry
+        run: bash pkg/check.sh ${{ needs.resolve-version.outputs.version }}
+
       - name: Publish @ziex/cli* to NPM
         env:
           NODE_AUTH_TOKEN: ""
         run: |
           cd pkg/@ziex
           npm publish --workspaces --access public --provenance --tag ${{ needs.resolve-version.outputs.dist-tag }}
+
+      - name: Build and publish ziex to NPM
+        env:
+          NODE_AUTH_TOKEN: ""
+        run: |
+          cd pkg/ziex
+          bun install
+          bun run build
+          cd dist
+          npm publish --access public --provenance --tag ${{ needs.resolve-version.outputs.dist-tag }}
 
   sync-templates:
     name: Sync & Release Templates

@@ -3,6 +3,9 @@
   "configVersion": 1,
   "workspaces": {
     "": {
+      "dependencies": {
+        "@ziex/cli": "0.1.0-dev.928",
+      },
       "devDependencies": {
         "@types/bun": "latest",
         "@types/react": "latest",
@@ -22,24 +25,38 @@
     },
   },
   "packages": {
-    "@types/bun": ["@types/bun@1.3.3", "", { "dependencies": { "bun-types": "1.3.3" } }, "sha512-ogrKbJ2X5N0kWLLFKeytG0eHDleBYtngtlbu9cyBKFtNL3cnpDZkNdQj8flVf6WTZUX5ulI9AY1oa7ljhSrp+g=="],
+    "@types/bun": ["@types/bun@1.3.3", "http://localhost:4873/@types/bun/-/bun-1.3.3.tgz", { "dependencies": { "bun-types": "1.3.3" } }, "sha512-ogrKbJ2X5N0kWLLFKeytG0eHDleBYtngtlbu9cyBKFtNL3cnpDZkNdQj8flVf6WTZUX5ulI9AY1oa7ljhSrp+g=="],
 
-    "@types/node": ["@types/node@24.10.1", "", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-GNWcUTRBgIRJD5zj+Tq0fKOJ5XZajIiBroOF0yvj2bSU1WvNdYS/dn9UxwsujGW4JX06dnHyjV2y9rRaybH0iQ=="],
+    "@types/node": ["@types/node@24.10.1", "http://localhost:4873/@types/node/-/node-24.10.1.tgz", { "dependencies": { "undici-types": "~7.16.0" } }, "sha512-GNWcUTRBgIRJD5zj+Tq0fKOJ5XZajIiBroOF0yvj2bSU1WvNdYS/dn9UxwsujGW4JX06dnHyjV2y9rRaybH0iQ=="],
 
-    "@types/react": ["@types/react@19.2.14", "", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w=="],
+    "@types/react": ["@types/react@19.2.14", "http://localhost:4873/@types/react/-/react-19.2.14.tgz", { "dependencies": { "csstype": "^3.2.2" } }, "sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w=="],
 
-    "@types/react-dom": ["@types/react-dom@19.2.3", "", { "peerDependencies": { "@types/react": "^19.2.0" } }, "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ=="],
+    "@types/react-dom": ["@types/react-dom@19.2.3", "http://localhost:4873/@types/react-dom/-/react-dom-19.2.3.tgz", { "peerDependencies": { "@types/react": "^19.2.0" } }, "sha512-jp2L/eY6fn+KgVVQAOqYItbF0VY/YApe5Mz2F0aykSO8gx31bYCZyvSeYxCHKvzHG5eZjc+zyaS5BrBWya2+kQ=="],
 
-    "bun-types": ["bun-types@1.3.3", "", { "dependencies": { "@types/node": "*" } }, "sha512-z3Xwlg7j2l9JY27x5Qn3Wlyos8YAp0kKRlrePAOjgjMGS5IG6E7Jnlx736vH9UVI4wUICwwhC9anYL++XeOgTQ=="],
+    "@ziex/cli": ["@ziex/cli@0.1.0-dev.928", "http://localhost:4873/@ziex/cli/-/cli-0.1.0-dev.928.tgz", { "optionalDependencies": { "@ziex/cli-darwin-arm64": "0.1.0-dev.928", "@ziex/cli-darwin-x64": "0.1.0-dev.928", "@ziex/cli-linux-arm64": "0.1.0-dev.928", "@ziex/cli-linux-x64": "0.1.0-dev.928", "@ziex/cli-win32-arm64": "0.1.0-dev.928", "@ziex/cli-win32-x64": "0.1.0-dev.928" }, "bin": { "zx": "bin/zx", "ziex": "bin/zx" } }, "sha512-pA9MWsgDgoUooAj2JiinAdTwiKU2azOki+DfTZMrR2BMQdj5S5zENpXdZaNHx1dZcoGvkbMQ/Hy4w5x5me9ysw=="],
 
-    "csstype": ["csstype@3.2.3", "", {}, "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ=="],
+    "@ziex/cli-darwin-arm64": ["@ziex/cli-darwin-arm64@0.1.0-dev.928", "http://localhost:4873/@ziex/cli-darwin-arm64/-/cli-darwin-arm64-0.1.0-dev.928.tgz", { "os": "darwin", "cpu": "arm64", "bin": { "zx": "bin/zx", "ziex": "bin/zx" } }, "sha512-Wif8nQWgRa4Q295J231f0bKDURKdFi+TO1+1nHdjv1mG8GjlXERFsytrl7x/nQL2mKIX9soK8hnXDORLl1HPPA=="],
+
+    "@ziex/cli-darwin-x64": ["@ziex/cli-darwin-x64@0.1.0-dev.928", "http://localhost:4873/@ziex/cli-darwin-x64/-/cli-darwin-x64-0.1.0-dev.928.tgz", { "os": "darwin", "cpu": "x64", "bin": { "zx": "bin/zx", "ziex": "bin/zx" } }, "sha512-3OS/U1tIJq+6T7DDeBPE6qIoTnNu3ai1SWQ384mg7UpWbhFYLB6C9Y5kwCLYMjjOzWKzXHrd8iFrO9L6p2+R9A=="],
+
+    "@ziex/cli-linux-arm64": ["@ziex/cli-linux-arm64@0.1.0-dev.928", "http://localhost:4873/@ziex/cli-linux-arm64/-/cli-linux-arm64-0.1.0-dev.928.tgz", { "os": "linux", "cpu": "arm64", "bin": { "zx": "bin/zx", "ziex": "bin/zx" } }, "sha512-ZRkoDIs9Q3HHubK45rsm6+M2GjH4mRK0ocurEQ9tigtLCU2iqGc5vPQz201p7fOCpPyCv6GdK8J97hkOB28RvA=="],
+
+    "@ziex/cli-linux-x64": ["@ziex/cli-linux-x64@0.1.0-dev.928", "http://localhost:4873/@ziex/cli-linux-x64/-/cli-linux-x64-0.1.0-dev.928.tgz", { "os": "linux", "cpu": "x64", "bin": { "zx": "bin/zx", "ziex": "bin/zx" } }, "sha512-x0fwLbyUb6452j43zze5gGzgQ7OwgR+MdcQb0VicJ7zDzResfbRDGehZynXeO2qlg4rd1rL9Ep/F9FK8TG3bFg=="],
+
+    "@ziex/cli-win32-arm64": ["@ziex/cli-win32-arm64@0.1.0-dev.928", "http://localhost:4873/@ziex/cli-win32-arm64/-/cli-win32-arm64-0.1.0-dev.928.tgz", { "os": "win32", "cpu": "arm64", "bin": { "zx": "bin/zx.exe", "ziex": "bin/zx.exe" } }, "sha512-5tBfJVUunroHRTdnk74U/uLIfUCVWWSBHuAqb/GxVcrq8To+Pp7TAK7gTPDcKfh/SJG3PGnvKa34VPt716UHnw=="],
+
+    "@ziex/cli-win32-x64": ["@ziex/cli-win32-x64@0.1.0-dev.928", "http://localhost:4873/@ziex/cli-win32-x64/-/cli-win32-x64-0.1.0-dev.928.tgz", { "os": "win32", "cpu": "x64", "bin": { "zx": "bin/zx.exe", "ziex": "bin/zx.exe" } }, "sha512-3BgmQ+C2kbwjNJ2sFhy90fl3Eubr7qpGU1/PFXgWWc934kuT2DPwMZHx1RoH+EdNSwZD3lxEAPEcuoQlEJro8g=="],
+
+    "bun-types": ["bun-types@1.3.3", "http://localhost:4873/bun-types/-/bun-types-1.3.3.tgz", { "dependencies": { "@types/node": "*" } }, "sha512-z3Xwlg7j2l9JY27x5Qn3Wlyos8YAp0kKRlrePAOjgjMGS5IG6E7Jnlx736vH9UVI4wUICwwhC9anYL++XeOgTQ=="],
+
+    "csstype": ["csstype@3.2.3", "http://localhost:4873/csstype/-/csstype-3.2.3.tgz", {}, "sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ=="],
 
     "jsz": ["jsz@github:nurulhudaapon/jsz#04db83c", {}, "nurulhudaapon-jsz-04db83c"],
 
-    "typescript": ["typescript@5.9.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
+    "typescript": ["typescript@5.9.3", "http://localhost:4873/typescript/-/typescript-5.9.3.tgz", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-jl1vZzPDinLr9eUt3J/t7V6FgNEw9QjvBPdysz9KfQDD41fQrC2Y4vKQdiaUpFT4bXlb1RHhLpp8wtm6M5TgSw=="],
 
-    "undici-types": ["undici-types@7.16.0", "", {}, "sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw=="],
+    "undici-types": ["undici-types@7.16.0", "http://localhost:4873/undici-types/-/undici-types-7.16.0.tgz", {}, "sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw=="],
 
-    "zzon": ["zzon@1.7.1", "", {}, "sha512-eIPaqPj4Tzss0xbhnHKQvA4SweRAPNknl4VdVFhQ8yC6AvwM2wx0QVxVUYo7fTwJSYOUC5F3+mPKuumRFWfCYQ=="],
+    "zzon": ["zzon@1.7.1", "http://localhost:4873/zzon/-/zzon-1.7.1.tgz", {}, "sha512-eIPaqPj4Tzss0xbhnHKQvA4SweRAPNknl4VdVFhQ8yC6AvwM2wx0QVxVUYo7fTwJSYOUC5F3+mPKuumRFWfCYQ=="],
   }
 }

@@ -1,0 +1,103 @@
+#!/bin/bash
+set -euo pipefail
+
+# Smoke-tests @ziex/cli and ziex packages by publishing to a local
+# Verdaccio registry and verifying that the CLI binary works.
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$SCRIPT_DIR/.."
+VERDACCIO_DIR="$SCRIPT_DIR/@ziex"
+REGISTRY="http://localhost:4873"
+PASSED=0
+FAILED=0
+VERSION="${1:-}"
+
+cleanup() {
+  if [ -n "${VERDACCIO_PID:-}" ]; then
+    kill "$VERDACCIO_PID" 2>/dev/null || true
+    wait "$VERDACCIO_PID" 2>/dev/null || true
+  fi
+  rm -rf "$SCRIPT_DIR/_check_tmp"
+}
+trap cleanup EXIT
+
+# Resolve expected version
+if [ -z "$VERSION" ]; then
+  VERSION=$(sed -n 's/.*\.version *= *"\([^"]*\)".*/\1/p' "$ROOT_DIR/build.zig.zon")
+fi
+echo "==> Checking packages at version $VERSION"
+
+# Start Verdaccio
+echo "==> Starting local registry..."
+rm -rf "$VERDACCIO_DIR/.verdaccio-storage"
+npx verdaccio --config "$VERDACCIO_DIR/verdaccio.yaml" --listen 4873 &
+VERDACCIO_PID=$!
+
+# Wait for Verdaccio to be ready
+for i in $(seq 1 30); do
+  if curl -s "$REGISTRY" > /dev/null 2>&1; then break; fi
+  sleep 0.5
+done
+
+# Publish @ziex/cli* packages to local registry
+echo "==> Publishing @ziex/cli* to local registry..."
+cd "$VERDACCIO_DIR"
+npm publish --workspaces --registry "$REGISTRY" --access public --tag dev 2>&1
+
+# Build and publish ziex to local registry
+echo "==> Building and publishing ziex to local registry..."
+cd "$SCRIPT_DIR/ziex"
+npm_config_registry="$REGISTRY" bun install
+bun run build
+cd dist
+npm publish --registry "$REGISTRY" --access public --tag dev 2>&1
+
+# Create temp directory for testing
+mkdir -p "$SCRIPT_DIR/_check_tmp"
+cd "$SCRIPT_DIR/_check_tmp"
+
+pass() { PASSED=$((PASSED + 1)); echo "  PASS: $1"; }
+fail() { FAILED=$((FAILED + 1)); echo "  FAIL: $1"; }
+
+# --- Tests ---
+
+echo ""
+echo "==> Running checks..."
+
+# Check @ziex/cli version command
+echo ""
+echo "--- @ziex/cli ---"
+CLI_OUTPUT=$(npx --registry "$REGISTRY" --yes @ziex/cli@dev version 2>&1) || true
+if echo "$CLI_OUTPUT" | grep -q "$VERSION"; then
+  pass "@ziex/cli version outputs $VERSION"
+else
+  fail "@ziex/cli version expected '$VERSION', got: $CLI_OUTPUT"
+fi
+
+# Check ziex version command (delegates to @ziex/cli)
+echo ""
+echo "--- ziex ---"
+ZIEX_OUTPUT=$(npx --registry "$REGISTRY" --yes ziex@dev version 2>&1) || true
+if echo "$ZIEX_OUTPUT" | grep -q "$VERSION"; then
+  pass "ziex version outputs $VERSION"
+else
+  fail "ziex version expected '$VERSION', got: $ZIEX_OUTPUT"
+fi
+
+# Check that ziex resolves @ziex/cli as dependency
+ZIEX_HELP=$(npx --registry "$REGISTRY" --yes ziex@dev --help 2>&1) || true
+if [ -n "$ZIEX_HELP" ]; then
+  pass "ziex --help produces output"
+else
+  fail "ziex --help produced no output"
+fi
+
+# --- Summary ---
+echo ""
+echo "==========================="
+echo "  Results: $PASSED passed, $FAILED failed"
+echo "==========================="
+
+if [ "$FAILED" -gt 0 ]; then
+  exit 1
+fi
