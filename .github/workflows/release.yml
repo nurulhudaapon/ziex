@@ -223,16 +223,6 @@ jobs:
           cd pkg/@ziex
           bash prepare.sh ${{ needs.resolve-version.outputs.version }}
 
-      - name: Publish platform packages to NPM
-        env:
-          NODE_AUTH_TOKEN: ""
-        run: |
-          cd pkg/@ziex
-          for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-win32-x64 cli-win32-arm64; do
-            echo "Publishing @ziex/$pkg..."
-            npm publish --workspace "$pkg" --access public --provenance --tag ${{ needs.resolve-version.outputs.dist-tag }} || echo "Failed to publish $pkg, continuing..."
-          done
-
       - name: Publish @ziex/cli* to NPM
         env:
           NODE_AUTH_TOKEN: ""
