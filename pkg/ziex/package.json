@@ -64,20 +64,6 @@
     }
   },
   "dependencies": {
-    "@ziex/cli": "0.1.0-dev.928"
-  },
-  "release": {
-    "plugins": [
-      "@semantic-release/commit-analyzer",
-      "@semantic-release/release-notes-generator",
-      [
-        "@semantic-release/npm",
-        {
-          "npmPublish": true,
-          "pkgRoot": "dist"
-        }
-      ],
-      "@semantic-release/github"
-    ]
+    "@ziex/cli": "0.1.0-dev.8640"
   }
 }
