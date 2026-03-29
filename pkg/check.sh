@@ -17,7 +17,7 @@ cleanup() {
     kill "$VERDACCIO_PID" 2>/dev/null || true
     wait "$VERDACCIO_PID" 2>/dev/null || true
   fi
-  rm -rf "$SCRIPT_DIR/_check_tmp" "$SCRIPT_DIR/_check_npmrc" "$SCRIPT_DIR/ziex/.npmrc" "$SCRIPT_DIR/ziex/bunfig.toml"
+  rm -rf "$SCRIPT_DIR/_check_tmp" "$SCRIPT_DIR/_check_npmrc"
 }
 trap cleanup EXIT
 
@@ -31,7 +31,7 @@ echo "==> Checking packages at version $VERSION"
 # (written by setup-node) doesn't interfere with local Verdaccio.
 export npm_config_userconfig="$SCRIPT_DIR/_check_npmrc"
 cat > "$npm_config_userconfig" <<EOF
-@ziex:registry=$REGISTRY
+registry=$REGISTRY
 //localhost:4873/:_authToken=local-dev-token
 EOF
 
@@ -59,11 +59,7 @@ npm publish --workspaces --access public --tag dev --registry "$REGISTRY" 2>&1
 # Build and publish ziex to local registry
 echo "==> Building and publishing ziex to local registry..."
 cd "$SCRIPT_DIR/ziex"
-cat > bunfig.toml <<BUNEOF
-[install.scopes]
-"@ziex" = { url = "$REGISTRY" }
-BUNEOF
-npm_config_userconfig="" bun install
+npm_config_registry="$REGISTRY" bun install
 bun run build
 cd dist
 npm publish --access public --tag dev --registry "$REGISTRY" 2>&1

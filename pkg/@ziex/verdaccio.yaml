@@ -3,13 +3,16 @@ auth:
   htpasswd:
     file: ./.verdaccio-htpasswd
     max_users: 100
-uplinks: {}
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
 packages:
-  '@zigc/*':
+  '@ziex/*':
     access: $anonymous
     publish: $anonymous
   '**':
     access: $anonymous
     publish: $anonymous
+    proxy: npmjs
 max_body_size: 500mb
 log: { type: stdout, format: pretty, level: warn }
