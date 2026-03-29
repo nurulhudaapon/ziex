@@ -4,6 +4,7 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
             <head>
                 <meta charset="UTF-8" />
                 <meta name="color-scheme" content="dark" />
+                <script src="assets/devtools-ui.js"></script>
                 <title>Ziex DevTools</title>
                 <link rel="stylesheet" href="assets/style.css" />
             </head>
@@ -28,9 +29,6 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
                     <main class="main-content">
                         {children}
                     </main>
-
-
-                    <script src="assets/devtools-resize.js"></script>
                 </div>
             </body>
         </html>

@@ -1,4 +1,10 @@
 (function () {
+  var dark = (+(localStorage.getItem('zx-devtool-theme-dark') || 1)) >= 1;
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  document.documentElement.style.colorScheme = dark ? 'dark' : 'light';
+})();
+
+(function () {
   const container = document.querySelector('.devtools-container');
   const handle = document.querySelector('.devtools-resize-handle');
   if (!handle || !container) return;
@@ -8,7 +14,6 @@
 
   function startDrag(e) {
     if (e.type === 'touchstart' && e.touches.length !== 1) return;
-    
     e.preventDefault();
     dragging = true;
     const isColumn = getComputedStyle(container).flexDirection === 'column';
@@ -18,7 +23,6 @@
 
   function handleDrag(clientX, clientY) {
     if (!dragging) return;
-
     const rect = container.getBoundingClientRect();
     const isColumn = getComputedStyle(container).flexDirection === 'column';
 
@@ -62,5 +66,3 @@
   document.addEventListener('mouseup', stopDrag);
   document.addEventListener('touchend', stopDrag);
 })();
-
-
