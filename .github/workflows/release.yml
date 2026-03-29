@@ -178,10 +178,8 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
-
-      - name: Configure npm registry
-        run: npm config set registry https://registry.npmjs.org/
+          node-version: 24
+          registry-url: https://registry.npmjs.org
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -207,6 +205,8 @@ jobs:
           bash prepare.sh ${{ needs.resolve-version.outputs.version }}
 
       - name: Publish platform packages to NPM
+        env:
+          NODE_AUTH_TOKEN: ""
         run: |
           cd pkg/@ziex
           for pkg in cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-win32-x64 cli-win32-arm64; do
@@ -214,10 +214,12 @@ jobs:
             npm publish --workspace "$pkg" --access public --provenance || echo "Failed to publish $pkg, continuing..."
           done
 
-      - name: Publish @ziex/cli to NPM
+      - name: Publish @ziex/cli* to NPM
+        env:
+          NODE_AUTH_TOKEN: ""
         run: |
           cd pkg/@ziex
-          npm publish --workspace cli --access public --provenance
+          npm publish --workspaces --access public --provenance
 
   sync-templates:
     name: Sync & Release Templates
