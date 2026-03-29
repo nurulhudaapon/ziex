@@ -17,7 +17,7 @@ cleanup() {
     kill "$VERDACCIO_PID" 2>/dev/null || true
     wait "$VERDACCIO_PID" 2>/dev/null || true
   fi
-  rm -rf "$SCRIPT_DIR/_check_tmp" "$SCRIPT_DIR/_check_npmrc" "$SCRIPT_DIR/ziex/.npmrc"
+  rm -rf "$SCRIPT_DIR/_check_tmp" "$SCRIPT_DIR/_check_npmrc" "$SCRIPT_DIR/ziex/.npmrc" "$SCRIPT_DIR/ziex/bunfig.toml"
 }
 trap cleanup EXIT
 
@@ -59,8 +59,11 @@ npm publish --workspaces --access public --tag dev --registry "$REGISTRY" 2>&1
 # Build and publish ziex to local registry
 echo "==> Building and publishing ziex to local registry..."
 cd "$SCRIPT_DIR/ziex"
-echo "@ziex:registry=$REGISTRY" > .npmrc
-bun install
+cat > bunfig.toml <<BUNEOF
+[install.scopes]
+"@ziex" = { url = "$REGISTRY" }
+BUNEOF
+npm_config_userconfig="" bun install
 bun run build
 cd dist
 npm publish --access public --tag dev --registry "$REGISTRY" 2>&1
