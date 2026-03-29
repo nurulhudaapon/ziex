@@ -45,6 +45,12 @@ if [ -f "$ZIEX_PKG_JSON" ]; then
     const p = JSON.parse(fs.readFileSync('$ZIEX_PKG_JSON', 'utf8'));
     p.version = '$ZIEX_VER';
     if (p.dependencies?.['@ziex/cli']) p.dependencies['@ziex/cli'] = '$ZIEX_VER';
+    for (const key of ['optionalDependencies']) {
+      if (!p[key]) continue;
+      for (const dep of Object.keys(p[key])) {
+        if (dep.startsWith('@ziex/cli')) p[key][dep] = '$ZIEX_VER';
+      }
+    }
     fs.writeFileSync('$ZIEX_PKG_JSON', JSON.stringify(p, null, 2) + '\n');
   "
 fi

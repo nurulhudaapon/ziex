@@ -43,6 +43,9 @@
     "fmt": "prettier --write . '!test/files/**' '!README.md'",
     "check": "tsc"
   },
+  "dependencies": {
+    "@ziex/cli": "0.1.0-dev.928"
+  },
   "devDependencies": {
     "@types/bun": "latest",
     "zzon": "^1.7.1",
@@ -62,8 +65,5 @@
     "react-dom": {
       "optional": true
     }
-  },
-  "dependencies": {
-    "@ziex/cli": "0.1.0-dev.8640"
   }
 }

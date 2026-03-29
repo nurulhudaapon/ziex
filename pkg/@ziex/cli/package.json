@@ -3,9 +3,6 @@
   "version": "0.1.0-dev.928",
   "description": "ZX is a framework for building web applications with Zig.",
   "type": "module",
-  "scripts": {
-    "postinstall": "node install.cjs"
-  },
   "bin": {
     "zx": "bin/zx",
     "ziex": "bin/zx"

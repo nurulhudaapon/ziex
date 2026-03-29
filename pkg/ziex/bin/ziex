@@ -1,62 +1,25 @@
 #!/usr/bin/env node
-
-// Delegates to @ziex/cli's binary resolver.
-// The `ziex` package depends on `@ziex/cli` which handles
-// platform-specific binary resolution and installation.
-
-import { execFileSync } from "child_process";
-import { existsSync } from "fs";
-import { createRequire } from "module";
-import { dirname, join } from "path";
+import { spawn } from 'node:child_process';
+import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const isWindows = process.platform === "win32";
-const ext = isWindows ? ".exe" : "";
-
-function findBinary() {
-  // Resolve from @ziex/cli's bin directory
-  try {
-    const cliPkgPath = require.resolve("@ziex/cli/package.json");
-    const cliDir = dirname(cliPkgPath);
-    const bin = join(cliDir, "bin", `zx${ext}`);
-    if (existsSync(bin)) return bin;
-  } catch {}
-
-  // Fallback: resolve from platform-specific packages directly
-  const platformPkgs = {
-    "darwin-arm64": "@ziex/cli-darwin-arm64",
-    "darwin-x64": "@ziex/cli-darwin-x64",
-    "linux-x64": "@ziex/cli-linux-x64",
-    "linux-arm64": "@ziex/cli-linux-arm64",
-    "win32-x64": "@ziex/cli-win32-x64",
-    "win32-arm64": "@ziex/cli-win32-arm64",
-  };
-
-  const pkg = platformPkgs[`${process.platform}-${process.arch}`];
-  if (pkg) {
-    try {
-      const pkgDir = dirname(require.resolve(`${pkg}/package.json`));
-      const bin = join(pkgDir, "bin", `zx${ext}`);
-      if (existsSync(bin)) return bin;
-    } catch {}
-  }
-
-  return null;
-}
-
-const bin = findBinary();
-if (!bin) {
-  console.error(
-    "Error: ziex native binary not found. Try reinstalling: npm install ziex",
-  );
-  process.exit(1);
-}
+const pkgName = `@ziex/cli-${process.platform}-${process.arch}`;
 
 try {
-  execFileSync(bin, process.argv.slice(2), { stdio: "inherit" });
+  const binaryPath = require.resolve(`${pkgName}/bin/zx`);
+
+  const child = spawn(binaryPath, process.argv.slice(2), { 
+    stdio: 'inherit',
+    shell: process.platform === 'win32' 
+  });
+
+  child.on('exit', (code) => process.exit(code ?? 0));
+  child.on('error', (err) => {
+    console.error('Failed to start child process:', err);
+    process.exit(1);
+  });
 } catch (e) {
-  if (e.status !== undefined) {
-    process.exit(e.status);
-  }
-  throw e;
+  console.error(`Error: Could not find binary for ${process.platform}-${process.arch}`);
+  console.error(`Ensure the optional dependency "${pkgName}" is installed.`);
+  process.exit(1);
 }
