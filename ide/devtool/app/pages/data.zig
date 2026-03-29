@@ -32,9 +32,8 @@ pub var host: []const u8 = "localhost:3000";
 
 pub fn loadSettings() void {
     if (_show_native_elements_loaded) return;
-    _show_native_elements_loaded = true;
     // Returns 1.0 if stored "1" or not set, 0.0 if stored "0"
-    const result = zx.client.eval(f64, "+(localStorage.getItem('" ++ storage_key ++ "')??1)") catch return;
+    const result = zx.client.eval(f64, "+(localStorage.getItem('" ++ storage_key ++ "')??1)") catch 1;
     show_native_elements = result >= 1.0;
 
     // Read host from localStorage char-by-char using charCodeAt (eval with string return
@@ -63,6 +62,7 @@ pub fn loadSettings() void {
             if (all_ok) host = buf;
         } else |_| {}
     }
+    _show_native_elements_loaded = true;
 }
 
 pub fn saveSettings() void {
