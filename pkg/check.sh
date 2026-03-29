@@ -41,9 +41,9 @@ rm -rf "$VERDACCIO_DIR/.verdaccio-storage"
 npx --yes verdaccio --config "$VERDACCIO_DIR/verdaccio.yaml" --listen 4873 &
 VERDACCIO_PID=$!
 
-# Wait for Verdaccio to be ready
-for i in $(seq 1 30); do
-  if curl -s "$REGISTRY" > /dev/null 2>&1; then break; fi
+# Wait for Verdaccio to be ready (up to 60s; npx may need time to install verdaccio)
+for i in $(seq 1 120); do
+  if curl -sf "$REGISTRY/-/ping" > /dev/null 2>&1; then break; fi
   sleep 0.5
 done
 
