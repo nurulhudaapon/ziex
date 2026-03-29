@@ -5,6 +5,11 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - '!test/e2e/**'
+      - 'pkg/**'
 
 jobs:
   build:

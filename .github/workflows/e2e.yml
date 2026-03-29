@@ -3,6 +3,10 @@ name: E2E
 on:
   pull_request:
     branches: [main]
+    paths:
+      - 'src/**'
+      - 'test/e2e/**'
+      - 'pkg/**'
   workflow_dispatch:
     inputs:
       base_url:
