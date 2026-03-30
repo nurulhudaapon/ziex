@@ -90,6 +90,7 @@ jobs:
       url: https://ssr.ziex.dev
     runs-on: self-hosted
     name: Deploy (SSR)
+    needs: [pre_deploy]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -103,6 +104,7 @@ jobs:
       url: https://site.ziex.workers.dev
     runs-on: ubuntu-latest
     name: Deploy (Edge)
+    needs: [pre_deploy]
     steps:
       - uses: actions/checkout@v4
 
