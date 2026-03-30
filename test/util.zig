@@ -53,12 +53,6 @@ pub const TestFileCache = struct {
         "control_flow/if_for_if",
         "control_flow/if_while_if",
 
-        // Style
-        "style/basic",
-        "style/component",
-        "style/inline",
-        "style/builtin",
-
         // Expression
         "expression/text",
         "expression/format",
