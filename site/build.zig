@@ -46,7 +46,7 @@ pub fn build(b: *std.Build) !void {
             .path = b.path("app"),
             .copy_embedded_sources = true,
         },
-        .client = .{ .jsglue_href = "/assets/_/main.js?=" ++ build_zon.version },
+        .client = .{ .jsglue_href = "/assets/_/main.js" },
         .cli = .{ .optimize = optimize },
     });
 
