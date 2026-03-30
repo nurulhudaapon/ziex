@@ -1,10 +1,10 @@
 import { untar } from "@andrewbranch/untar.js";
 import { Directory, File, ConsoleStdout, wasi as wasi_defs } from "@bjorn3/browser_wasi_shim";
 
-declare const COMMIT_HASH: string;
+declare const VERSION: string;
 
 export async function fetchWithCache(url: string): Promise<Response> {
-    const cacheName = typeof COMMIT_HASH !== "undefined" ? "playground-" + COMMIT_HASH : "playground-dev";
+    const cacheName = typeof VERSION !== "undefined" ? "playground-" + VERSION : "playground-dev";
     const cache = await caches.open(cacheName.trim());
     let response = await cache.match(url);
     if (!response) {
