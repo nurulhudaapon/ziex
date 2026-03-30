@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Negative and Edge Cases', () => {
   test('Edge and negative scenarios', async ({ page }) => {
     // Navigate to the Server Action example page to begin test execution for Negative and Edge Cases suite.
-    await page.goto('http://localhost:3000/examples/server-action');
+    await page.goto('/examples/server-action');
 
     // Click all increment and event buttons rapidly in succession to check for errors and race conditions.
     await page.getByRole('button', { name: '+ (Server)' }).first().click();

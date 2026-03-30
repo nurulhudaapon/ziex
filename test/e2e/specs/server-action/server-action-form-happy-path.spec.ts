@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Form and Event Actions', () => {
   test('Form submissions and event actions (happy path)', async ({ page }) => {
     // Navigate to the Server Action example page to begin test execution for Form and Event Actions suite.
-    await page.goto('http://localhost:3000/examples/server-action');
+    await page.goto('/examples/server-action');
 
     // Enter valid username in first block for login test.
     await page.getByRole('textbox', { name: 'Username:' }).first().fill('testuser');

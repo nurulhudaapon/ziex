@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Counter and Age Actions', () => {
   test('Increment and update actions (happy path)', async ({ page }) => {
     // Navigate to the Server Action example page to begin test execution for Counter and Age Actions suite.
-    await page.goto('http://localhost:3000/examples/server-action');
+    await page.goto('/examples/server-action');
 
     // Click '+ (Server)' button in first counter section. Expect: Count increases by 1. Server log: 'increment: <new count>'
     await page.getByRole('button', { name: '+ (Server)' }).first().click();
