@@ -375,15 +375,13 @@ fn test_fmt_inner(comptime file_path: []const u8, comptime has_diff_expected: bo
     var result = try zx.Ast.fmt(allocator, source_z);
     defer result.deinit(allocator);
 
-    // Get pre-loaded expected file
-    const expected_source = try cache.get(expected_source_path) orelse {
-        std.log.err("Expected file not found: {s}\n", .{expected_source_path});
-        return error.FileNotFound;
-    };
-    const expected_source_z = try allocator.dupeZ(u8, expected_source);
-    defer allocator.free(expected_source_z);
-
     if (!no_expect) {
+        const expected_source = try cache.get(expected_source_path) orelse {
+            std.log.err("Expected file not found: {s}\n", .{expected_source_path});
+            return error.FileNotFound;
+        };
+        const expected_source_z = try allocator.dupeZ(u8, expected_source);
+        defer allocator.free(expected_source_z);
         try testing.expectEqualStrings(expected_source_z, result.source);
     }
 }
