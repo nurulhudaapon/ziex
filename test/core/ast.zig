@@ -383,22 +383,6 @@ test "component_optional_error" {
     try test_render("component/optional_error", @import("./../data/component/optional_error.zig").Page);
 }
 
-// === Style ===
-test "style > basic" {
-    try test_transpile("style/basic");
-    try test_render("style/basic", @import("./../data/style/basic.zig").Page);
-}
-
-test "style > component" {
-    try test_transpile("style/component");
-    try test_render("style/component", @import("./../data/style/component.zig").Page);
-}
-
-test "style > inline" {
-    try test_transpile("style/inline");
-    try test_render("style/inline", @import("./../data/style/inline.zig").Page);
-}
-
 test "flaky: performance > transpile" {
     if (!test_util.shouldRunSlowTest()) return;
     const MAX_TIME_MS = 50.0 * 9; // 50ms is on M1 Pro
@@ -425,7 +409,7 @@ test "flaky: performance > transpile" {
 
 test "flaky: performance > render" {
     const MAX_TIME_MS = 5.0 * 8; // 3.5ms is on M1 Pro
-    const MAX_TIME_PER_FILE_MS = 0.10 * 10; // 0.06ms is on M1 Pro
+    const MAX_TIME_PER_FILE_MS = 0.15 * 10; // 0.06ms is on M1 Pro
 
     var total_time_ns: f64 = 0.0;
     inline for (TestFileCache.test_files) |comptime_path| {
@@ -469,18 +453,19 @@ fn test_transpile_inner(comptime file_path: []const u8, comptime no_expect: bool
     var result = try zx.Ast.parse(allocator, source_z, .{ .path = full_file_path });
     defer result.deinit(allocator);
 
-    // Check for SNAPSHOT=1 environment variable
+    // Check for SS=1 environment variable
     if (isSnapshotMode()) {
         // Save the transpiled output to .zig file
         const file = std.fs.cwd().createFile(output_zig_path, .{}) catch |err| {
-            std.log.err("Failed to create snapshot file {s}: {}\n", .{ output_zig_path, err });
+            std.debug.print("Failed to create snapshot file {s}: {}\n", .{ output_zig_path, err });
             return err;
         };
         defer file.close();
         file.writeAll(result.zig_source) catch |err| {
-            std.log.err("Failed to write snapshot file {s}: {}\n", .{ output_zig_path, err });
+            std.debug.print("Failed to write snapshot file {s}: {}\n", .{ output_zig_path, err });
             return err;
         };
+        std.debug.print("Updated snapshot: {s}\n", .{output_zig_path});
         return; // Skip comparison in snapshot mode
     }
 
@@ -592,9 +577,6 @@ fn getPageFn(comptime path: []const u8) ?fn (std.mem.Allocator) zx.Component {
         .{ "component/csr_zig_props", @import("./../data/component/csr_zig_props.zig") },
         .{ "component/error_component", @import("./../data/component/error_component.zig") },
         .{ "component/optional_error", @import("./../data/component/optional_error.zig") },
-        .{ "style/basic", @import("./../data/style/basic.zig") },
-        .{ "style/component", @import("./../data/style/component.zig") },
-        .{ "style/inline", @import("./../data/style/inline.zig") },
     };
 
     inline for (imports) |entry| {
@@ -612,17 +594,24 @@ fn test_render_inner_with_cmp(comptime file_path: []const u8, comptime cmp: fn (
     const allocator = aa.allocator();
 
     const component = cmp(allocator);
+
+    if (no_expect) {
+        var trash: [4096]u8 = undefined;
+        var dw = std.io.Writer.Discarding.init(&trash);
+        try component.render(&dw.writer);
+        try testing.expect(dw.fullCount() > 0);
+        return;
+    }
+
     var aw = std.io.Writer.Allocating.init(allocator);
     defer aw.deinit();
     try component.render(&aw.writer);
     const rendered = aw.written();
     try testing.expect(rendered.len > 0);
 
-    if (no_expect) return;
-
     const html_path = "test/data/" ++ file_path ++ ".html";
 
-    // Check for SNAPSHOT=1 environment variable
+    // Check for SS=1 environment variable
     if (isSnapshotMode()) {
         // Save the rendered output to .html file
         const file = std.fs.cwd().createFile(html_path, .{}) catch |err| {

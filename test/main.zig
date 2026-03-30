@@ -13,8 +13,7 @@ test {
     _ = @import("core/db.zig");
     _ = @import("core/cache.zig");
     _ = @import("core/kv.zig");
-    _ = @import("style.zig");
-    _ = @import("size.zig");
+    _ = @import("core/style.zig");
 }
 
 pub const std_options = std.Options{

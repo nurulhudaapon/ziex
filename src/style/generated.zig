@@ -51,51 +51,51 @@ pub const CalcExpr = struct {
     }
 
     fn leaf(value: []const u8) Self {
-        return init(value);
+        return Self.init(value);
     }
 
     fn unitLeaf(unit: Unit, value: f32) Self {
         var temp: [64]u8 = undefined;
         const written = std.fmt.bufPrint(&temp, "{d}{s}", .{ value, unit.toString() }) catch @panic("calc expression too complex");
-        return leaf(written);
+        return Self.leaf(written);
     }
 
     fn numberLeaf(value: f32) Self {
         var temp: [64]u8 = undefined;
         const written = std.fmt.bufPrint(&temp, "{d}", .{value}) catch @panic("calc expression too complex");
-        return leaf(written);
+        return Self.leaf(written);
     }
 
     fn rawLeaf(value: []const u8) Self {
-        return leaf(value);
+        return Self.leaf(value);
     }
 
     pub fn px(value: f32) Self {
-        return unitLeaf(.px, value);
+        return Self.unitLeaf(.px, value);
     }
 
     pub fn em(value: f32) Self {
-        return unitLeaf(.em, value);
+        return Self.unitLeaf(.em, value);
     }
 
     pub fn rem(value: f32) Self {
-        return unitLeaf(.rem, value);
+        return Self.unitLeaf(.rem, value);
     }
 
     pub fn percent(value: f32) Self {
-        return unitLeaf(.percent, value);
+        return Self.unitLeaf(.percent, value);
     }
 
     pub fn raw(value: []const u8) Self {
-        return rawLeaf(value);
+        return Self.rawLeaf(value);
     }
 
     pub fn number(value: f32) Self {
-        return numberLeaf(value);
+        return Self.numberLeaf(value);
     }
 
     fn combine(self: Self, other: Self, op: Op) Self {
-        var temp: [64]u8 = undefined;
+        var temp: [128]u8 = undefined;
         const lhs = self.text();
         const rhs = other.text();
         const op_text = op.toString();
@@ -118,7 +118,7 @@ pub const CalcExpr = struct {
         temp[i] = ')';
         i += 1;
 
-        return init(temp[0..i]);
+        return Self.init(temp[0..i]);
     }
 
     pub fn add(self: Self, other: Self) Self {
@@ -130,14 +130,14 @@ pub const CalcExpr = struct {
     }
 
     pub fn mul(self: Self, factor: f32) Self {
-        return self.combine(numberLeaf(factor), .mul);
+        return self.combine(Self.numberLeaf(factor), .mul);
     }
 
     pub fn div(self: Self, factor: f32) Self {
-        return self.combine(numberLeaf(factor), .div);
+        return self.combine(Self.numberLeaf(factor), .div);
     }
 
-    pub fn format(self: Self, w: *std.io.Writer) !void {
+    pub fn format(self: Self, w: *std.io.Writer) std.io.Writer.Error!void {
         try w.writeAll(self.text());
     }
 };
@@ -169,7 +169,7 @@ pub const WebkitAlignContent = union(enum) {
     flex_start,
     flex_end,
 
-    pub fn format(self: WebkitAlignContent, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitAlignContent, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -198,7 +198,7 @@ pub const WebkitAlignItems = union(enum) {
     flex_start,
     flex_end,
 
-    pub fn format(self: WebkitAlignItems, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitAlignItems, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -228,7 +228,7 @@ pub const WebkitAlignSelf = union(enum) {
     last,
     baseline,
 
-    pub fn format(self: WebkitAlignSelf, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitAlignSelf, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -265,7 +265,7 @@ pub const WebkitAnimation = union(enum) {
     pub fn calc(expr: CalcExpr) WebkitAnimation {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: WebkitAnimation, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitAnimation, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -284,7 +284,7 @@ pub const WebkitAnimationDelay = union(enum) {
     pub fn calc(expr: CalcExpr) WebkitAnimationDelay {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: WebkitAnimationDelay, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitAnimationDelay, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -303,7 +303,7 @@ pub const WebkitAnimationDirection = union(enum) {
     alternate,
     alternate_reverse,
 
-    pub fn format(self: WebkitAnimationDirection, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitAnimationDirection, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -322,7 +322,7 @@ pub const WebkitAnimationDuration = union(enum) {
     pub fn calc(expr: CalcExpr) WebkitAnimationDuration {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: WebkitAnimationDuration, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitAnimationDuration, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -340,7 +340,7 @@ pub const WebkitAnimationFillMode = union(enum) {
     backwards,
     both,
 
-    pub fn format(self: WebkitAnimationFillMode, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitAnimationFillMode, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -356,7 +356,7 @@ pub const WebkitAnimationIterationCount = union(enum) {
     unset,
     infinite,
 
-    pub fn format(self: WebkitAnimationIterationCount, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitAnimationIterationCount, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -371,7 +371,7 @@ pub const WebkitAnimationName = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: WebkitAnimationName, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitAnimationName, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -388,7 +388,7 @@ pub const WebkitAnimationPlayState = union(enum) {
     running,
     paused,
 
-    pub fn format(self: WebkitAnimationPlayState, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitAnimationPlayState, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -410,7 +410,7 @@ pub const WebkitAnimationTimingFunction = union(enum) {
     step_start,
     step_end,
 
-    pub fn format(self: WebkitAnimationTimingFunction, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitAnimationTimingFunction, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -439,7 +439,7 @@ pub const WebkitAppearance = union(enum) {
     textfield,
     menulist_button,
 
-    pub fn format(self: WebkitAppearance, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitAppearance, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -456,7 +456,7 @@ pub const WebkitBackfaceVisibility = union(enum) {
     visible,
     hidden,
 
-    pub fn format(self: WebkitBackfaceVisibility, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitBackfaceVisibility, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -474,7 +474,7 @@ pub const WebkitBackgroundClip = union(enum) {
     padding_box,
     border_box,
 
-    pub fn format(self: WebkitBackgroundClip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitBackgroundClip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -492,7 +492,7 @@ pub const WebkitBackgroundOrigin = union(enum) {
     padding_box,
     border_box,
 
-    pub fn format(self: WebkitBackgroundOrigin, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitBackgroundOrigin, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -545,7 +545,7 @@ pub const WebkitBackgroundSize = union(enum) {
     pub fn percent2(v1: f32, v2: f32) WebkitBackgroundSize {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitBackgroundSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitBackgroundSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -595,7 +595,7 @@ pub const WebkitBorderBottomLeftRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) WebkitBorderBottomLeftRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitBorderBottomLeftRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitBorderBottomLeftRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -645,7 +645,7 @@ pub const WebkitBorderBottomRightRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) WebkitBorderBottomRightRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitBorderBottomRightRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitBorderBottomRightRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -695,7 +695,7 @@ pub const WebkitBorderRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) WebkitBorderRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitBorderRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitBorderRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -745,7 +745,7 @@ pub const WebkitBorderTopLeftRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) WebkitBorderTopLeftRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitBorderTopLeftRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitBorderTopLeftRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -795,7 +795,7 @@ pub const WebkitBorderTopRightRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) WebkitBorderTopRightRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitBorderTopRightRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitBorderTopRightRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -810,7 +810,7 @@ pub const WebkitBoxAlign = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: WebkitBoxAlign, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitBoxAlign, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -825,7 +825,7 @@ pub const WebkitBoxFlex = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: WebkitBoxFlex, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitBoxFlex, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -840,7 +840,7 @@ pub const WebkitBoxOrdinalGroup = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: WebkitBoxOrdinalGroup, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitBoxOrdinalGroup, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -855,7 +855,7 @@ pub const WebkitBoxOrient = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: WebkitBoxOrient, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitBoxOrient, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -870,7 +870,7 @@ pub const WebkitBoxPack = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: WebkitBoxPack, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitBoxPack, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -913,7 +913,7 @@ pub const WebkitBoxShadow = union(enum) {
     pub fn rem2(v1: f32, v2: f32) WebkitBoxShadow {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitBoxShadow, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitBoxShadow, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -930,7 +930,7 @@ pub const WebkitBoxSizing = union(enum) {
     content_box,
     border_box,
 
-    pub fn format(self: WebkitBoxSizing, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitBoxSizing, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -945,7 +945,7 @@ pub const WebkitFilter = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: WebkitFilter, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitFilter, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -960,7 +960,7 @@ pub const WebkitFlex = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: WebkitFlex, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitFlex, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -976,7 +976,7 @@ pub const WebkitFlexBasis = union(enum) {
     unset,
     content,
 
-    pub fn format(self: WebkitFlexBasis, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitFlexBasis, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -995,7 +995,7 @@ pub const WebkitFlexDirection = union(enum) {
     column,
     column_reverse,
 
-    pub fn format(self: WebkitFlexDirection, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitFlexDirection, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1010,7 +1010,7 @@ pub const WebkitFlexFlow = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: WebkitFlexFlow, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitFlexFlow, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1025,7 +1025,7 @@ pub const WebkitFlexGrow = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: WebkitFlexGrow, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitFlexGrow, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1040,7 +1040,7 @@ pub const WebkitFlexShrink = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: WebkitFlexShrink, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitFlexShrink, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1058,7 +1058,7 @@ pub const WebkitFlexWrap = union(enum) {
     wrap,
     wrap_reverse,
 
-    pub fn format(self: WebkitFlexWrap, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitFlexWrap, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1087,7 +1087,7 @@ pub const WebkitJustifyContent = union(enum) {
     left,
     right,
 
-    pub fn format(self: WebkitJustifyContent, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitJustifyContent, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1102,7 +1102,7 @@ pub const WebkitLineClamp = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: WebkitLineClamp, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitLineClamp, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1194,7 +1194,7 @@ pub const WebkitMask = union(enum) {
     pub fn percent2(v1: f32, v2: f32) WebkitMask {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitMask, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitMask, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1237,7 +1237,7 @@ pub const WebkitMaskBoxImage = union(enum) {
     pub fn rem2(v1: f32, v2: f32) WebkitMaskBoxImage {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitMaskBoxImage, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitMaskBoxImage, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1280,7 +1280,7 @@ pub const WebkitMaskBoxImageOutset = union(enum) {
     pub fn rem2(v1: f32, v2: f32) WebkitMaskBoxImageOutset {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitMaskBoxImageOutset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitMaskBoxImageOutset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1299,7 +1299,7 @@ pub const WebkitMaskBoxImageRepeat = union(enum) {
     round,
     space,
 
-    pub fn format(self: WebkitMaskBoxImageRepeat, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitMaskBoxImageRepeat, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1326,7 +1326,7 @@ pub const WebkitMaskBoxImageSlice = union(enum) {
     pub fn percent2(v1: f32, v2: f32) WebkitMaskBoxImageSlice {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitMaskBoxImageSlice, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitMaskBoxImageSlice, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1341,7 +1341,7 @@ pub const WebkitMaskBoxImageSource = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: WebkitMaskBoxImageSource, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitMaskBoxImageSource, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1392,7 +1392,7 @@ pub const WebkitMaskBoxImageWidth = union(enum) {
     pub fn percent2(v1: f32, v2: f32) WebkitMaskBoxImageWidth {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitMaskBoxImageWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitMaskBoxImageWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1414,7 +1414,7 @@ pub const WebkitMaskClip = union(enum) {
     view_box,
     no_clip,
 
-    pub fn format(self: WebkitMaskClip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitMaskClip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1433,7 +1433,7 @@ pub const WebkitMaskComposite = union(enum) {
     intersect,
     exclude,
 
-    pub fn format(self: WebkitMaskComposite, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitMaskComposite, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1448,7 +1448,7 @@ pub const WebkitMaskImage = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: WebkitMaskImage, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitMaskImage, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1469,7 +1469,7 @@ pub const WebkitMaskOrigin = union(enum) {
     stroke_box,
     view_box,
 
-    pub fn format(self: WebkitMaskOrigin, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitMaskOrigin, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1534,7 +1534,7 @@ pub const WebkitMaskPosition = union(enum) {
     pub fn percent2(v1: f32, v2: f32) WebkitMaskPosition {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitMaskPosition, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitMaskPosition, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1557,7 +1557,7 @@ pub const WebkitMaskRepeat = union(enum) {
     round,
     no_repeat,
 
-    pub fn format(self: WebkitMaskRepeat, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitMaskRepeat, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1610,7 +1610,7 @@ pub const WebkitMaskSize = union(enum) {
     pub fn percent2(v1: f32, v2: f32) WebkitMaskSize {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitMaskSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitMaskSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1625,7 +1625,7 @@ pub const WebkitOrder = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: WebkitOrder, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitOrder, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1668,7 +1668,7 @@ pub const WebkitPerspective = union(enum) {
     pub fn rem2(v1: f32, v2: f32) WebkitPerspective {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitPerspective, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitPerspective, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1733,7 +1733,7 @@ pub const WebkitPerspectiveOrigin = union(enum) {
     pub fn percent2(v1: f32, v2: f32) WebkitPerspectiveOrigin {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitPerspectiveOrigin, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitPerspectiveOrigin, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1944,7 +1944,7 @@ pub const WebkitTextFillColor = union(enum) {
     pub fn hex(v: u32) WebkitTextFillColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: WebkitTextFillColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitTextFillColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -1971,7 +1971,7 @@ pub const WebkitTextSizeAdjust = union(enum) {
     pub fn percent2(v1: f32, v2: f32) WebkitTextSizeAdjust {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitTextSizeAdjust, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitTextSizeAdjust, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -2214,7 +2214,7 @@ pub const WebkitTextStroke = union(enum) {
     pub fn hex(v: u32) WebkitTextStroke {
         return .{ .hex_ = v };
     }
-    pub fn format(self: WebkitTextStroke, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitTextStroke, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -2425,7 +2425,7 @@ pub const WebkitTextStrokeColor = union(enum) {
     pub fn hex(v: u32) WebkitTextStrokeColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: WebkitTextStrokeColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitTextStrokeColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -2472,7 +2472,7 @@ pub const WebkitTextStrokeWidth = union(enum) {
     pub fn rem2(v1: f32, v2: f32) WebkitTextStrokeWidth {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitTextStrokeWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitTextStrokeWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -2487,7 +2487,7 @@ pub const WebkitTransform = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: WebkitTransform, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitTransform, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -2542,7 +2542,7 @@ pub const WebkitTransformOrigin = union(enum) {
     pub fn percent2(v1: f32, v2: f32) WebkitTransformOrigin {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WebkitTransformOrigin, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitTransformOrigin, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -2559,7 +2559,7 @@ pub const WebkitTransformStyle = union(enum) {
     flat,
     preserve_3d,
 
-    pub fn format(self: WebkitTransformStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitTransformStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -2588,7 +2588,7 @@ pub const WebkitTransition = union(enum) {
     pub fn calc(expr: CalcExpr) WebkitTransition {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: WebkitTransition, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitTransition, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -2607,7 +2607,7 @@ pub const WebkitTransitionDelay = union(enum) {
     pub fn calc(expr: CalcExpr) WebkitTransitionDelay {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: WebkitTransitionDelay, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitTransitionDelay, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -2626,7 +2626,7 @@ pub const WebkitTransitionDuration = union(enum) {
     pub fn calc(expr: CalcExpr) WebkitTransitionDuration {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: WebkitTransitionDuration, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitTransitionDuration, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -2642,7 +2642,7 @@ pub const WebkitTransitionProperty = union(enum) {
     unset,
     all,
 
-    pub fn format(self: WebkitTransitionProperty, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitTransitionProperty, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -2664,7 +2664,7 @@ pub const WebkitTransitionTimingFunction = union(enum) {
     step_start,
     step_end,
 
-    pub fn format(self: WebkitTransitionTimingFunction, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitTransitionTimingFunction, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -2683,7 +2683,7 @@ pub const WebkitUserSelect = union(enum) {
     contain,
     all,
 
-    pub fn format(self: WebkitUserSelect, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WebkitUserSelect, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -2896,7 +2896,7 @@ pub const AccentColor = union(enum) {
     pub fn hex(v: u32) AccentColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: AccentColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AccentColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -2927,7 +2927,7 @@ pub const AlignContent = union(enum) {
     flex_start,
     flex_end,
 
-    pub fn format(self: AlignContent, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AlignContent, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -2955,10 +2955,8 @@ pub const AlignItems = union(enum) {
     self_end,
     flex_start,
     flex_end,
-    /// The new anchor-center value makes this case extremely simple: if the positioned box has a default anchor box, then it is centered (insofar as possible) over the default anchor box in the relevant axis. Additionally:
-    anchor_center,
 
-    pub fn format(self: AlignItems, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AlignItems, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -2993,7 +2991,7 @@ pub const AlignSelf = union(enum) {
     /// The new anchor-center value makes this case extremely simple: if the positioned box has a default anchor box, then it is centered (insofar as possible) over the default anchor box in the relevant axis. Additionally:
     anchor_center,
 
-    pub fn format(self: AlignSelf, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AlignSelf, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3018,7 +3016,7 @@ pub const AlignmentBaseline = union(enum) {
     hanging,
     text_top,
 
-    pub fn format(self: AlignmentBaseline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AlignmentBaseline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3035,7 +3033,7 @@ pub const All = union(enum) {
     /// The revert-rule CSS-wide keyword rolls back the cascade similar to revert and revert-layer, except it works by style rule rather than cascade origin or cascade layer.
     revert_rule,
 
-    pub fn format(self: All, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: All, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3050,7 +3048,7 @@ pub const AnchorName = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: AnchorName, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AnchorName, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3067,7 +3065,7 @@ pub const AnchorScope = union(enum) {
     /// Specifies that all anchor names defined by this element or its descendants—​whose scope is not already limited by a descendant using anchor-scope—​to be in scope only for this element’s descendants; and limits descendants to only match anchor names to anchor elements within this subtree. This value only affects anchor names in the same tree scope, as if it were a strictly matched tree-scoped name. (That is, anchor-scope: all acts identically to anchor-scope: --foo, --bar, ..., listing all relevant anchor names.)
     all,
 
-    pub fn format(self: AnchorScope, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AnchorScope, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3104,7 +3102,7 @@ pub const Animation = union(enum) {
     pub fn calc(expr: CalcExpr) Animation {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: Animation, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Animation, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3122,7 +3120,7 @@ pub const AnimationComposition = union(enum) {
     add_,
     accumulate,
 
-    pub fn format(self: AnimationComposition, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AnimationComposition, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3141,7 +3139,7 @@ pub const AnimationDelay = union(enum) {
     pub fn calc(expr: CalcExpr) AnimationDelay {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: AnimationDelay, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AnimationDelay, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3164,7 +3162,7 @@ pub const AnimationDirection = union(enum) {
     /// The animation cycle iterations that are odd counts are played in the reverse direction, and the animation cycle iterations that are even counts are played in a normal direction.
     alternate_reverse,
 
-    pub fn format(self: AnimationDirection, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AnimationDirection, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3185,7 +3183,7 @@ pub const AnimationDuration = union(enum) {
     pub fn calc(expr: CalcExpr) AnimationDuration {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: AnimationDuration, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AnimationDuration, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3206,7 +3204,7 @@ pub const AnimationFillMode = union(enum) {
     /// The effects of both forwards and backwards fill apply.
     both,
 
-    pub fn format(self: AnimationFillMode, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AnimationFillMode, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3223,7 +3221,7 @@ pub const AnimationIterationCount = union(enum) {
     /// The animation will repeat forever.
     infinite,
 
-    pub fn format(self: AnimationIterationCount, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AnimationIterationCount, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3238,7 +3236,7 @@ pub const AnimationName = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: AnimationName, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AnimationName, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3257,7 +3255,7 @@ pub const AnimationPlayState = union(enum) {
     /// While this property is set to paused, the animation is paused. The animation continues to apply to the element with the progress it had made before being paused. When unpaused (set back to running), it restarts from where it left off, as if the "clock" that controls the animation had stopped and started again. If the property is set to paused during the delay phase of the animation, the delay clock is also paused and resumes as soon as animation-play-state is set back to running.
     paused,
 
-    pub fn format(self: AnimationPlayState, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AnimationPlayState, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3272,7 +3270,7 @@ pub const AnimationRange = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: AnimationRange, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AnimationRange, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3324,7 +3322,7 @@ pub const AnimationRangeCenter = union(enum) {
     pub fn percent2(v1: f32, v2: f32) AnimationRangeCenter {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: AnimationRangeCenter, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AnimationRangeCenter, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3376,7 +3374,7 @@ pub const AnimationRangeEnd = union(enum) {
     pub fn percent2(v1: f32, v2: f32) AnimationRangeEnd {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: AnimationRangeEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AnimationRangeEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3428,7 +3426,7 @@ pub const AnimationRangeStart = union(enum) {
     pub fn percent2(v1: f32, v2: f32) AnimationRangeStart {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: AnimationRangeStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AnimationRangeStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3448,7 +3446,7 @@ pub const AnimationTimeline = union(enum) {
     pub fn calc(expr: CalcExpr) AnimationTimeline {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: AnimationTimeline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AnimationTimeline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3470,7 +3468,7 @@ pub const AnimationTimingFunction = union(enum) {
     step_start,
     step_end,
 
-    pub fn format(self: AnimationTimingFunction, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AnimationTimingFunction, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3485,7 +3483,7 @@ pub const AnimationTrigger = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: AnimationTrigger, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AnimationTrigger, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3517,7 +3515,7 @@ pub const Appearance = union(enum) {
     textfield,
     menulist_button,
 
-    pub fn format(self: Appearance, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Appearance, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3534,7 +3532,7 @@ pub const AspectRatio = union(enum) {
     /// Replaced elements with a natural aspect ratio use that aspect ratio; otherwise the box has no preferred aspect ratio. Size calculations involving the aspect ratio work with the content box dimensions always.
     auto,
 
-    pub fn format(self: AspectRatio, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: AspectRatio, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3549,7 +3547,7 @@ pub const BackdropFilter = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: BackdropFilter, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackdropFilter, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3566,7 +3564,7 @@ pub const BackfaceVisibility = union(enum) {
     visible,
     hidden,
 
-    pub fn format(self: BackfaceVisibility, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackfaceVisibility, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3650,7 +3648,7 @@ pub const Background = union(enum) {
     pub fn percent2(v1: f32, v2: f32) Background {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Background, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Background, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3671,7 +3669,7 @@ pub const BackgroundAttachment = union(enum) {
     /// The background is fixed with regard to the box’s contents: if the box has a scrolling mechanism, the background scrolls with the box’s contents, and the background painting area and background positioning area are relative to the scrollable overflow area of the box rather than to the border framing them. Because the scrollable overflow area does not include the border area, for scroll containers the border-box value of background-clip may be treated the same as padding-box.
     local,
 
-    pub fn format(self: BackgroundAttachment, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundAttachment, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3686,7 +3684,7 @@ pub const BackgroundBlendMode = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: BackgroundBlendMode, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundBlendMode, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3709,7 +3707,7 @@ pub const BackgroundClip = union(enum) {
     border_area,
     text,
 
-    pub fn format(self: BackgroundClip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundClip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3920,7 +3918,7 @@ pub const BackgroundColor = union(enum) {
     pub fn hex(v: u32) BackgroundColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BackgroundColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3935,7 +3933,7 @@ pub const BackgroundImage = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: BackgroundImage, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundImage, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -3956,7 +3954,7 @@ pub const BackgroundOrigin = union(enum) {
     /// The position is relative to the border box.
     border_box,
 
-    pub fn format(self: BackgroundOrigin, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundOrigin, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4026,7 +4024,7 @@ pub const BackgroundPosition = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BackgroundPosition {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BackgroundPosition, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundPosition, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4079,7 +4077,7 @@ pub const BackgroundPositionBlock = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BackgroundPositionBlock {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BackgroundPositionBlock, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundPositionBlock, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4132,7 +4130,7 @@ pub const BackgroundPositionInline = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BackgroundPositionInline {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BackgroundPositionInline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundPositionInline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4187,7 +4185,7 @@ pub const BackgroundPositionX = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BackgroundPositionX {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BackgroundPositionX, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundPositionX, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4242,7 +4240,7 @@ pub const BackgroundPositionY = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BackgroundPositionY {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BackgroundPositionY, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundPositionY, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4273,7 +4271,7 @@ pub const BackgroundRepeat = union(enum) {
     /// The image is placed once and not repeated in this direction.
     no_repeat,
 
-    pub fn format(self: BackgroundRepeat, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundRepeat, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4296,7 +4294,7 @@ pub const BackgroundRepeatBlock = union(enum) {
     /// The image is placed once and not repeated in the given direction.
     no_repeat,
 
-    pub fn format(self: BackgroundRepeatBlock, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundRepeatBlock, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4319,7 +4317,7 @@ pub const BackgroundRepeatInline = union(enum) {
     /// The image is placed once and not repeated in the given direction.
     no_repeat,
 
-    pub fn format(self: BackgroundRepeatInline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundRepeatInline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4342,7 +4340,7 @@ pub const BackgroundRepeatX = union(enum) {
     /// The image is placed once and not repeated in the given direction.
     no_repeat,
 
-    pub fn format(self: BackgroundRepeatX, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundRepeatX, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4365,7 +4363,7 @@ pub const BackgroundRepeatY = union(enum) {
     /// The image is placed once and not repeated in the given direction.
     no_repeat,
 
-    pub fn format(self: BackgroundRepeatY, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundRepeatY, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4421,7 +4419,7 @@ pub const BackgroundSize = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BackgroundSize {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BackgroundSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4505,7 +4503,7 @@ pub const BackgroundTbd = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BackgroundTbd {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BackgroundTbd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BackgroundTbd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4565,7 +4563,7 @@ pub const BaselineShift = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BaselineShift {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BaselineShift, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BaselineShift, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4586,7 +4584,7 @@ pub const BaselineSource = union(enum) {
     /// Specifies last-baseline alignment.
     last,
 
-    pub fn format(self: BaselineSource, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BaselineSource, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4605,7 +4603,7 @@ pub const BlockEllipsis = union(enum) {
     /// Render an ellipsis character (U+2026)—​or a more typographically-appropriate equivalent—​as the block overflow ellipsis at the end of the affected line box. UAs should use the conventions of the content language, writing system, and writing mode to determine the most appropriate ellipsis string.
     auto,
 
-    pub fn format(self: BlockEllipsis, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BlockEllipsis, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4620,7 +4618,7 @@ pub const BlockSize = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: BlockSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BlockSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4635,7 +4633,7 @@ pub const BlockStep = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: BlockStep, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BlockStep, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4658,7 +4656,7 @@ pub const BlockStepAlign = union(enum) {
     /// Any extra space resulting from a block-step-size-induced adjustment is inserted on the start side of the box.
     end,
 
-    pub fn format(self: BlockStepAlign, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BlockStepAlign, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4679,7 +4677,7 @@ pub const BlockStepInsert = union(enum) {
     /// Any extra space resulting from a block-step-size-induced adjustment is inserted inside the box’s border by increasing the height of the content area.
     content_box,
 
-    pub fn format(self: BlockStepInsert, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BlockStepInsert, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4697,7 +4695,7 @@ pub const BlockStepRound = union(enum) {
     down,
     nearest,
 
-    pub fn format(self: BlockStepRound, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BlockStepRound, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4740,7 +4738,7 @@ pub const BlockStepSize = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BlockStepSize {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BlockStepSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BlockStepSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4760,7 +4758,7 @@ pub const BookmarkLabel = union(enum) {
     no_open_quote,
     no_close_quote,
 
-    pub fn format(self: BookmarkLabel, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BookmarkLabel, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4775,7 +4773,7 @@ pub const BookmarkLevel = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: BookmarkLevel, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BookmarkLevel, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -4794,7 +4792,7 @@ pub const BookmarkState = union(enum) {
     /// Subsequent bookmarks of bookmark-level greater than the given bookmark are not displayed, until reaching another bookmark of the same level or lower.
     closed,
 
-    pub fn format(self: BookmarkState, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BookmarkState, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -5046,7 +5044,7 @@ pub const Border = union(enum) {
     pub fn hex(v: u32) Border {
         return .{ .hex_ = v };
     }
-    pub fn format(self: Border, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Border, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -5089,7 +5087,7 @@ pub const BorderBlock = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderBlock {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderBlock, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBlock, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -5132,7 +5130,7 @@ pub const BorderBlockClip = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderBlockClip {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderBlockClip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBlockClip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -5175,7 +5173,7 @@ pub const BorderBlockColor = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderBlockColor {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderBlockColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBlockColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -5427,7 +5425,7 @@ pub const BorderBlockEnd = union(enum) {
     pub fn hex(v: u32) BorderBlockEnd {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BorderBlockEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBlockEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -5477,7 +5475,7 @@ pub const BorderBlockEndClip = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderBlockEndClip {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderBlockEndClip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBlockEndClip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -5688,7 +5686,7 @@ pub const BorderBlockEndColor = union(enum) {
     pub fn hex(v: u32) BorderBlockEndColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BorderBlockEndColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBlockEndColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -5738,7 +5736,7 @@ pub const BorderBlockEndRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderBlockEndRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderBlockEndRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBlockEndRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -5762,7 +5760,7 @@ pub const BorderBlockEndStyle = union(enum) {
     inset,
     outset,
 
-    pub fn format(self: BorderBlockEndStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBlockEndStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -5809,7 +5807,7 @@ pub const BorderBlockEndWidth = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderBlockEndWidth {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderBlockEndWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBlockEndWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -6061,7 +6059,7 @@ pub const BorderBlockStart = union(enum) {
     pub fn hex(v: u32) BorderBlockStart {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BorderBlockStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBlockStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -6111,7 +6109,7 @@ pub const BorderBlockStartClip = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderBlockStartClip {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderBlockStartClip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBlockStartClip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -6322,7 +6320,7 @@ pub const BorderBlockStartColor = union(enum) {
     pub fn hex(v: u32) BorderBlockStartColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BorderBlockStartColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBlockStartColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -6372,7 +6370,7 @@ pub const BorderBlockStartRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderBlockStartRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderBlockStartRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBlockStartRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -6396,7 +6394,7 @@ pub const BorderBlockStartStyle = union(enum) {
     inset,
     outset,
 
-    pub fn format(self: BorderBlockStartStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBlockStartStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -6443,7 +6441,7 @@ pub const BorderBlockStartWidth = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderBlockStartWidth {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderBlockStartWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBlockStartWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -6486,7 +6484,7 @@ pub const BorderBlockStyle = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderBlockStyle {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderBlockStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBlockStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -6529,7 +6527,7 @@ pub const BorderBlockWidth = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderBlockWidth {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderBlockWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBlockWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -6781,7 +6779,7 @@ pub const BorderBottom = union(enum) {
     pub fn hex(v: u32) BorderBottom {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BorderBottom, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBottom, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -6831,7 +6829,7 @@ pub const BorderBottomClip = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderBottomClip {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderBottomClip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBottomClip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7042,7 +7040,7 @@ pub const BorderBottomColor = union(enum) {
     pub fn hex(v: u32) BorderBottomColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BorderBottomColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBottomColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7092,7 +7090,7 @@ pub const BorderBottomLeftRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderBottomLeftRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderBottomLeftRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBottomLeftRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7142,7 +7140,7 @@ pub const BorderBottomRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderBottomRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderBottomRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBottomRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7192,7 +7190,7 @@ pub const BorderBottomRightRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderBottomRightRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderBottomRightRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBottomRightRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7216,7 +7214,7 @@ pub const BorderBottomStyle = union(enum) {
     inset,
     outset,
 
-    pub fn format(self: BorderBottomStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBottomStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7263,7 +7261,7 @@ pub const BorderBottomWidth = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderBottomWidth {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderBottomWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBottomWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7280,7 +7278,7 @@ pub const BorderBoundary = union(enum) {
     parent,
     display,
 
-    pub fn format(self: BorderBoundary, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderBoundary, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7323,7 +7321,7 @@ pub const BorderClip = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderClip {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderClip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderClip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7340,7 +7338,7 @@ pub const BorderCollapse = union(enum) {
     separate,
     collapse,
 
-    pub fn format(self: BorderCollapse, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderCollapse, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7551,7 +7549,7 @@ pub const BorderColor = union(enum) {
     pub fn hex(v: u32) BorderColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BorderColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7601,7 +7599,7 @@ pub const BorderEndEndRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderEndEndRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderEndEndRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderEndEndRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7651,7 +7649,7 @@ pub const BorderEndStartRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderEndStartRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderEndStartRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderEndStartRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7694,7 +7692,7 @@ pub const BorderImage = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderImage {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderImage, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderImage, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7737,7 +7735,7 @@ pub const BorderImageOutset = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderImageOutset {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderImageOutset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderImageOutset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7760,7 +7758,7 @@ pub const BorderImageRepeat = union(enum) {
     /// The image is tiled (repeated) to fill its corresponding region. If it does not fill the region with a whole number of tiles, the extra space is distributed around the tiles.
     space,
 
-    pub fn format(self: BorderImageRepeat, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderImageRepeat, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7788,7 +7786,7 @@ pub const BorderImageSlice = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderImageSlice {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderImageSlice, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderImageSlice, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7803,7 +7801,7 @@ pub const BorderImageSource = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: BorderImageSource, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderImageSource, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7855,7 +7853,7 @@ pub const BorderImageWidth = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderImageWidth {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderImageWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderImageWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7898,7 +7896,7 @@ pub const BorderInline = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderInline {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderInline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderInline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7941,7 +7939,7 @@ pub const BorderInlineClip = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderInlineClip {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderInlineClip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderInlineClip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -7984,7 +7982,7 @@ pub const BorderInlineColor = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderInlineColor {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderInlineColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderInlineColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -8236,7 +8234,7 @@ pub const BorderInlineEnd = union(enum) {
     pub fn hex(v: u32) BorderInlineEnd {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BorderInlineEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderInlineEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -8286,7 +8284,7 @@ pub const BorderInlineEndClip = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderInlineEndClip {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderInlineEndClip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderInlineEndClip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -8497,7 +8495,7 @@ pub const BorderInlineEndColor = union(enum) {
     pub fn hex(v: u32) BorderInlineEndColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BorderInlineEndColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderInlineEndColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -8547,7 +8545,7 @@ pub const BorderInlineEndRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderInlineEndRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderInlineEndRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderInlineEndRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -8571,7 +8569,7 @@ pub const BorderInlineEndStyle = union(enum) {
     inset,
     outset,
 
-    pub fn format(self: BorderInlineEndStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderInlineEndStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -8618,7 +8616,7 @@ pub const BorderInlineEndWidth = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderInlineEndWidth {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderInlineEndWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderInlineEndWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -8870,7 +8868,7 @@ pub const BorderInlineStart = union(enum) {
     pub fn hex(v: u32) BorderInlineStart {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BorderInlineStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderInlineStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -8920,7 +8918,7 @@ pub const BorderInlineStartClip = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderInlineStartClip {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderInlineStartClip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderInlineStartClip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -9131,7 +9129,7 @@ pub const BorderInlineStartColor = union(enum) {
     pub fn hex(v: u32) BorderInlineStartColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BorderInlineStartColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderInlineStartColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -9181,7 +9179,7 @@ pub const BorderInlineStartRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderInlineStartRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderInlineStartRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderInlineStartRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -9205,7 +9203,7 @@ pub const BorderInlineStartStyle = union(enum) {
     inset,
     outset,
 
-    pub fn format(self: BorderInlineStartStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderInlineStartStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -9252,7 +9250,7 @@ pub const BorderInlineStartWidth = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderInlineStartWidth {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderInlineStartWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderInlineStartWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -9295,7 +9293,7 @@ pub const BorderInlineStyle = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderInlineStyle {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderInlineStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderInlineStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -9338,7 +9336,7 @@ pub const BorderInlineWidth = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderInlineWidth {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderInlineWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderInlineWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -9590,7 +9588,7 @@ pub const BorderLeft = union(enum) {
     pub fn hex(v: u32) BorderLeft {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BorderLeft, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderLeft, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -9640,7 +9638,7 @@ pub const BorderLeftClip = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderLeftClip {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderLeftClip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderLeftClip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -9851,7 +9849,7 @@ pub const BorderLeftColor = union(enum) {
     pub fn hex(v: u32) BorderLeftColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BorderLeftColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderLeftColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -9901,7 +9899,7 @@ pub const BorderLeftRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderLeftRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderLeftRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderLeftRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -9925,7 +9923,7 @@ pub const BorderLeftStyle = union(enum) {
     inset,
     outset,
 
-    pub fn format(self: BorderLeftStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderLeftStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -9972,7 +9970,7 @@ pub const BorderLeftWidth = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderLeftWidth {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderLeftWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderLeftWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -10036,7 +10034,7 @@ pub const BorderLimit = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderLimit {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderLimit, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderLimit, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -10086,7 +10084,7 @@ pub const BorderRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -10338,7 +10336,7 @@ pub const BorderRight = union(enum) {
     pub fn hex(v: u32) BorderRight {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BorderRight, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderRight, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -10388,7 +10386,7 @@ pub const BorderRightClip = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderRightClip {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderRightClip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderRightClip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -10599,7 +10597,7 @@ pub const BorderRightColor = union(enum) {
     pub fn hex(v: u32) BorderRightColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BorderRightColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderRightColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -10649,7 +10647,7 @@ pub const BorderRightRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderRightRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderRightRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderRightRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -10673,7 +10671,7 @@ pub const BorderRightStyle = union(enum) {
     inset,
     outset,
 
-    pub fn format(self: BorderRightStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderRightStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -10720,7 +10718,7 @@ pub const BorderRightWidth = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderRightWidth {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderRightWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderRightWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -10743,7 +10741,7 @@ pub const BorderShape = union(enum) {
     stroke_box,
     view_box,
 
-    pub fn format(self: BorderShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -10786,7 +10784,7 @@ pub const BorderSpacing = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderSpacing {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderSpacing, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderSpacing, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -10836,7 +10834,7 @@ pub const BorderStartEndRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderStartEndRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderStartEndRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderStartEndRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -10886,7 +10884,7 @@ pub const BorderStartStartRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderStartStartRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderStartStartRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderStartStartRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -10929,7 +10927,7 @@ pub const BorderStyle = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderStyle {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -11181,7 +11179,7 @@ pub const BorderTop = union(enum) {
     pub fn hex(v: u32) BorderTop {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BorderTop, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderTop, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -11231,7 +11229,7 @@ pub const BorderTopClip = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderTopClip {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderTopClip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderTopClip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -11442,7 +11440,7 @@ pub const BorderTopColor = union(enum) {
     pub fn hex(v: u32) BorderTopColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BorderTopColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderTopColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -11492,7 +11490,7 @@ pub const BorderTopLeftRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderTopLeftRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderTopLeftRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderTopLeftRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -11542,7 +11540,7 @@ pub const BorderTopRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderTopRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderTopRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderTopRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -11592,7 +11590,7 @@ pub const BorderTopRightRadius = union(enum) {
     pub fn percent2(v1: f32, v2: f32) BorderTopRightRadius {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderTopRightRadius, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderTopRightRadius, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -11616,7 +11614,7 @@ pub const BorderTopStyle = union(enum) {
     inset,
     outset,
 
-    pub fn format(self: BorderTopStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderTopStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -11663,7 +11661,7 @@ pub const BorderTopWidth = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderTopWidth {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderTopWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderTopWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -11706,7 +11704,7 @@ pub const BorderWidth = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BorderWidth {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BorderWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BorderWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -11758,7 +11756,7 @@ pub const Bottom = union(enum) {
     pub fn percent2(v1: f32, v2: f32) Bottom {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Bottom, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Bottom, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -11777,7 +11775,7 @@ pub const BoxDecorationBreak = union(enum) {
     /// Each box fragment is independently wrapped with the border, padding, and margin. The border-radius and border-image and box-shadow, if any, are applied to each fragment independently. The background is drawn independently in each fragment of the element. A no-repeat background image will thus be rendered once in each fragment of the element.
     clone,
 
-    pub fn format(self: BoxDecorationBreak, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BoxDecorationBreak, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -11820,7 +11818,7 @@ pub const BoxShadow = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BoxShadow {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BoxShadow, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BoxShadow, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -11863,7 +11861,7 @@ pub const BoxShadowBlur = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BoxShadowBlur {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BoxShadowBlur, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BoxShadowBlur, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12074,7 +12072,7 @@ pub const BoxShadowColor = union(enum) {
     pub fn hex(v: u32) BoxShadowColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: BoxShadowColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BoxShadowColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12117,7 +12115,7 @@ pub const BoxShadowOffset = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BoxShadowOffset {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BoxShadowOffset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BoxShadowOffset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12136,7 +12134,7 @@ pub const BoxShadowPosition = union(enum) {
     /// Causes the drop shadow to be an inner box-shadow. That means, one that shadows the canvas onto the box, as if the box were cut out of the canvas and shifted behind it.
     inset,
 
-    pub fn format(self: BoxShadowPosition, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BoxShadowPosition, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12179,7 +12177,7 @@ pub const BoxShadowSpread = union(enum) {
     pub fn rem2(v1: f32, v2: f32) BoxShadowSpread {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: BoxShadowSpread, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BoxShadowSpread, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12198,7 +12196,7 @@ pub const BoxSizing = union(enum) {
     /// Sizes specified on sizing properties as <length-percentage> represent the box’s visually-apparent sizes, including the borders/padding (but not margin): they are applied to the border box. The padding and border of the box are laid out and drawn inside the specified width and height, with the content box sized to fill the remaining space, floored at zero. The content width and height are calculated by subtracting the border and padding widths of the respective sides from the specified <length-percentage>. As the content width and height cannot be negative, this computation is floored at zero. Used values, as exposed for instance through getComputedStyle(), also refer to the border box.
     border_box,
 
-    pub fn format(self: BoxSizing, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BoxSizing, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12223,7 +12221,7 @@ pub const BoxSnap = union(enum) {
     /// The last line box’s dominant baseline is snapped to the nearest grid line.
     last_baseline,
 
-    pub fn format(self: BoxSnap, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BoxSnap, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12266,7 +12264,7 @@ pub const BreakAfter = union(enum) {
     /// Always force a region break before/after the principal box.
     region,
 
-    pub fn format(self: BreakAfter, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BreakAfter, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12309,7 +12307,7 @@ pub const BreakBefore = union(enum) {
     /// Always force a region break before/after the principal box.
     region,
 
-    pub fn format(self: BreakBefore, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BreakBefore, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12334,7 +12332,7 @@ pub const BreakInside = union(enum) {
     /// Avoid a region break within the box.
     avoid_region,
 
-    pub fn format(self: BreakInside, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: BreakInside, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12353,7 +12351,7 @@ pub const CaptionSide = union(enum) {
     /// Positions the caption box below the table grid box.
     bottom,
 
-    pub fn format(self: CaptionSide, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CaptionSide, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12368,7 +12366,7 @@ pub const Caret = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Caret, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Caret, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12387,7 +12385,7 @@ pub const CaretAnimation = union(enum) {
     /// The UA must not animate the caret.
     manual,
 
-    pub fn format(self: CaretAnimation, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CaretAnimation, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12599,7 +12597,7 @@ pub const CaretColor = union(enum) {
     pub fn hex(v: u32) CaretColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: CaretColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CaretColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12622,7 +12620,7 @@ pub const CaretShape = union(enum) {
     /// The UA must render the insertion caret as a thin line under (as defined in [CSS-WRITING-MODES-3]) the next visible character following the insertion point. If there is no visible character after the insertion point, the UA must render the caret after the last visible character.
     underscore,
 
-    pub fn format(self: CaretShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CaretShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12659,7 +12657,7 @@ pub const Clear = union(enum) {
     /// Behave like both-inline.
     both,
 
-    pub fn format(self: Clear, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Clear, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12675,7 +12673,7 @@ pub const Clip = union(enum) {
     unset,
     auto,
 
-    pub fn format(self: Clip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Clip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12701,7 +12699,7 @@ pub const ClipPath = union(enum) {
     /// Uses the nearest SVG viewport as reference box. If a viewBox attribute is specified for the SVG viewport creating element: The reference box is positioned at the origin of the coordinate system established by the viewBox attribute. The dimension of the reference box is set to the width and height values of the viewBox attribute.
     view_box,
 
-    pub fn format(self: ClipPath, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ClipPath, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12720,7 +12718,7 @@ pub const ClipRule = union(enum) {
     /// See description of fill-rule property [SVG11].
     evenodd,
 
-    pub fn format(self: ClipRule, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ClipRule, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12735,7 +12733,7 @@ pub const ColorAdjust = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: ColorAdjust, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColorAdjust, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12753,7 +12751,7 @@ pub const ColorInterpolation = union(enum) {
     sRGB,
     linearRGB,
 
-    pub fn format(self: ColorInterpolation, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColorInterpolation, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12774,7 +12772,7 @@ pub const ColorInterpolationFilters = union(enum) {
     /// Indicates that filter effects color operations should occur in the linear-light sRGB color space.
     linearRGB,
 
-    pub fn format(self: ColorInterpolationFilters, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColorInterpolationFilters, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12797,7 +12795,7 @@ pub const ColorScheme = union(enum) {
     /// Forbids the user agent from overriding the color scheme for the element.
     only,
 
-    pub fn format(self: ColorScheme, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColorScheme, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12814,7 +12812,7 @@ pub const ColumnCount = union(enum) {
     /// means that the number of columns will be determined by other properties (e.g., column-width, if it has a non-auto value).
     auto,
 
-    pub fn format(self: ColumnCount, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnCount, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12835,7 +12833,7 @@ pub const ColumnFill = union(enum) {
     /// Balance content equally between columns, as far as possible. In fragmented contexts, all fragments are balanced.
     balance_all,
 
-    pub fn format(self: ColumnFill, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnFill, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12891,7 +12889,7 @@ pub const ColumnGap = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ColumnGap {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ColumnGap, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnGap, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -12936,7 +12934,7 @@ pub const ColumnHeight = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ColumnHeight {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ColumnHeight, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnHeight, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -13189,7 +13187,7 @@ pub const ColumnRule = union(enum) {
     pub fn hex(v: u32) ColumnRule {
         return .{ .hex_ = v };
     }
-    pub fn format(self: ColumnRule, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnRule, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -13208,7 +13206,7 @@ pub const ColumnRuleBreak = union(enum) {
     /// Gap decorations start and end at visible "T" and "cross" intersections.
     intersection,
 
-    pub fn format(self: ColumnRuleBreak, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnRuleBreak, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -13420,7 +13418,7 @@ pub const ColumnRuleColor = union(enum) {
     pub fn hex(v: u32) ColumnRuleColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: ColumnRuleColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnRuleColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -13470,7 +13468,7 @@ pub const ColumnRuleEdgeInset = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ColumnRuleEdgeInset {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ColumnRuleEdgeInset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnRuleEdgeInset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -13520,7 +13518,7 @@ pub const ColumnRuleEdgeInsetEnd = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ColumnRuleEdgeInsetEnd {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ColumnRuleEdgeInsetEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnRuleEdgeInsetEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -13570,7 +13568,7 @@ pub const ColumnRuleEdgeInsetStart = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ColumnRuleEdgeInsetStart {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ColumnRuleEdgeInsetStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnRuleEdgeInsetStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -13585,7 +13583,7 @@ pub const ColumnRuleInset = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: ColumnRuleInset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnRuleInset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -13635,7 +13633,7 @@ pub const ColumnRuleInsetEnd = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ColumnRuleInsetEnd {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ColumnRuleInsetEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnRuleInsetEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -13685,7 +13683,7 @@ pub const ColumnRuleInsetStart = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ColumnRuleInsetStart {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ColumnRuleInsetStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnRuleInsetStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -13735,7 +13733,7 @@ pub const ColumnRuleInteriorInset = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ColumnRuleInteriorInset {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ColumnRuleInteriorInset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnRuleInteriorInset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -13785,7 +13783,7 @@ pub const ColumnRuleInteriorInsetEnd = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ColumnRuleInteriorInsetEnd {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ColumnRuleInteriorInsetEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnRuleInteriorInsetEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -13835,7 +13833,7 @@ pub const ColumnRuleInteriorInsetStart = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ColumnRuleInteriorInsetStart {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ColumnRuleInteriorInsetStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnRuleInteriorInsetStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -13860,7 +13858,7 @@ pub const ColumnRuleStyle = union(enum) {
     outset,
     auto,
 
-    pub fn format(self: ColumnRuleStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnRuleStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -13881,7 +13879,7 @@ pub const ColumnRuleVisibilityItems = union(enum) {
     /// Paint decorations in a gap segment if both adjacent areas are occupied by items.
     between,
 
-    pub fn format(self: ColumnRuleVisibilityItems, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnRuleVisibilityItems, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -13929,7 +13927,7 @@ pub const ColumnRuleWidth = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ColumnRuleWidth {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ColumnRuleWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnRuleWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -13948,7 +13946,7 @@ pub const ColumnSpan = union(enum) {
     /// The number of columns spanned by the element depends on its min-content outer size in the inline direction of the multi-column container. If it is smaller than the used value of column-width, this is the same as if column-span: none had been specified. Otherwise, the number of columns spanned is the smallest positive integer n for which n × column-width + (n - 1) × column-gap is larger than the min-content outer size. If this would be larger than the number of columns, the number of columns spanned will be the same as if column-span: all had been specified. If column-span: 1 does not do the same as column-span: none, should this behave as column-span: 1 or as column-span: none when the element is small enough?
     auto,
 
-    pub fn format(self: ColumnSpan, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnSpan, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -13997,7 +13995,7 @@ pub const ColumnWidth = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ColumnWidth {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ColumnWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14018,7 +14016,7 @@ pub const ColumnWrap = union(enum) {
     /// Overflow columns create a new multicol row in the block direction.
     wrap,
 
-    pub fn format(self: ColumnWrap, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ColumnWrap, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14033,7 +14031,7 @@ pub const Columns = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Columns, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Columns, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14062,7 +14060,7 @@ pub const Contain = union(enum) {
     /// This value turns on paint containment for the element. This ensures that the descendants of the containment box don’t display outside its bounds, so if an element is off-screen or otherwise not visible, its descendants are also guaranteed to be not visible.
     paint,
 
-    pub fn format(self: Contain, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Contain, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14078,8 +14076,6 @@ pub const ContainIntrinsicBlockSize = union(enum) {
     unset,
     /// If auto is specified and the element has a last remembered size and is currently skipping its contents, its explicit intrinsic inner size in the corresponding axis is the last remembered size in that axis.
     auto,
-    /// If from-element is specified and the element is a replaced element with an internal layout intrinsic size, its explicit intrinsic inner size in the corresponding axis is that size. Should this apply even when contain:layout isn’t specified? The name needs further discussion.
-    from_element,
     px_: [4]f32,
     em_: [4]f32,
     rem_: [4]f32,
@@ -14109,7 +14105,7 @@ pub const ContainIntrinsicBlockSize = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ContainIntrinsicBlockSize {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ContainIntrinsicBlockSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ContainIntrinsicBlockSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14125,8 +14121,6 @@ pub const ContainIntrinsicHeight = union(enum) {
     unset,
     /// If auto is specified and the element has a last remembered size and is currently skipping its contents, its explicit intrinsic inner size in the corresponding axis is the last remembered size in that axis.
     auto,
-    /// If from-element is specified and the element is a replaced element with an internal layout intrinsic size, its explicit intrinsic inner size in the corresponding axis is that size. Should this apply even when contain:layout isn’t specified? The name needs further discussion.
-    from_element,
     px_: [4]f32,
     em_: [4]f32,
     rem_: [4]f32,
@@ -14156,7 +14150,7 @@ pub const ContainIntrinsicHeight = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ContainIntrinsicHeight {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ContainIntrinsicHeight, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ContainIntrinsicHeight, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14172,8 +14166,6 @@ pub const ContainIntrinsicInlineSize = union(enum) {
     unset,
     /// If auto is specified and the element has a last remembered size and is currently skipping its contents, its explicit intrinsic inner size in the corresponding axis is the last remembered size in that axis.
     auto,
-    /// If from-element is specified and the element is a replaced element with an internal layout intrinsic size, its explicit intrinsic inner size in the corresponding axis is that size. Should this apply even when contain:layout isn’t specified? The name needs further discussion.
-    from_element,
     px_: [4]f32,
     em_: [4]f32,
     rem_: [4]f32,
@@ -14203,7 +14195,7 @@ pub const ContainIntrinsicInlineSize = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ContainIntrinsicInlineSize {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ContainIntrinsicInlineSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ContainIntrinsicInlineSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14219,8 +14211,6 @@ pub const ContainIntrinsicSize = union(enum) {
     unset,
     /// If auto is specified and the element has a last remembered size and is currently skipping its contents, its explicit intrinsic inner size in the corresponding axis is the last remembered size in that axis.
     auto,
-    /// If from-element is specified and the element is a replaced element with an internal layout intrinsic size, its explicit intrinsic inner size in the corresponding axis is that size. Should this apply even when contain:layout isn’t specified? The name needs further discussion.
-    from_element,
     px_: [4]f32,
     em_: [4]f32,
     rem_: [4]f32,
@@ -14250,7 +14240,7 @@ pub const ContainIntrinsicSize = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ContainIntrinsicSize {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ContainIntrinsicSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ContainIntrinsicSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14266,8 +14256,6 @@ pub const ContainIntrinsicWidth = union(enum) {
     unset,
     /// If auto is specified and the element has a last remembered size and is currently skipping its contents, its explicit intrinsic inner size in the corresponding axis is the last remembered size in that axis.
     auto,
-    /// If from-element is specified and the element is a replaced element with an internal layout intrinsic size, its explicit intrinsic inner size in the corresponding axis is that size. Should this apply even when contain:layout isn’t specified? The name needs further discussion.
-    from_element,
     px_: [4]f32,
     em_: [4]f32,
     rem_: [4]f32,
@@ -14297,7 +14285,7 @@ pub const ContainIntrinsicWidth = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ContainIntrinsicWidth {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ContainIntrinsicWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ContainIntrinsicWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14312,7 +14300,7 @@ pub const Container = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Container, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Container, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14327,7 +14315,7 @@ pub const ContainerName = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: ContainerName, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ContainerName, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14350,7 +14338,7 @@ pub const ContainerType = union(enum) {
     /// Establishes a query container for container scroll-state queries
     scroll_state,
 
-    pub fn format(self: ContainerType, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ContainerType, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14372,7 +14360,7 @@ pub const Content = union(enum) {
     no_open_quote,
     no_close_quote,
 
-    pub fn format(self: Content, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Content, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14393,7 +14381,7 @@ pub const ContentVisibility = union(enum) {
     /// The element skips its contents. The skipped contents must not be accessible to user-agent features, such as find-in-page, tab-order navigation, etc., nor be selectable or focusable.
     hidden,
 
-    pub fn format(self: ContentVisibility, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ContentVisibility, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14422,7 +14410,7 @@ pub const Continue = union(enum) {
     /// content that doesn’t fit causes the element to copy itself and continue laying out. See fragment overflow.
     fragments,
 
-    pub fn format(self: Continue, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Continue, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14440,7 +14428,7 @@ pub const CopyInto = union(enum) {
     content,
     text,
 
-    pub fn format(self: CopyInto, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CopyInto, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14483,7 +14471,7 @@ pub const Corner = union(enum) {
     pub fn rem2(v1: f32, v2: f32) Corner {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Corner, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Corner, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14526,7 +14514,7 @@ pub const CornerBlockEnd = union(enum) {
     pub fn rem2(v1: f32, v2: f32) CornerBlockEnd {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: CornerBlockEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerBlockEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14541,7 +14529,7 @@ pub const CornerBlockEndShape = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: CornerBlockEndShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerBlockEndShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14584,7 +14572,7 @@ pub const CornerBlockStart = union(enum) {
     pub fn rem2(v1: f32, v2: f32) CornerBlockStart {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: CornerBlockStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerBlockStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14599,7 +14587,7 @@ pub const CornerBlockStartShape = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: CornerBlockStartShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerBlockStartShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14642,7 +14630,7 @@ pub const CornerBottom = union(enum) {
     pub fn rem2(v1: f32, v2: f32) CornerBottom {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: CornerBottom, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerBottom, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14685,7 +14673,7 @@ pub const CornerBottomLeft = union(enum) {
     pub fn rem2(v1: f32, v2: f32) CornerBottomLeft {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: CornerBottomLeft, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerBottomLeft, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14706,7 +14694,7 @@ pub const CornerBottomLeftShape = union(enum) {
     square,
     squircle,
 
-    pub fn format(self: CornerBottomLeftShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerBottomLeftShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14749,7 +14737,7 @@ pub const CornerBottomRight = union(enum) {
     pub fn rem2(v1: f32, v2: f32) CornerBottomRight {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: CornerBottomRight, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerBottomRight, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14770,7 +14758,7 @@ pub const CornerBottomRightShape = union(enum) {
     square,
     squircle,
 
-    pub fn format(self: CornerBottomRightShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerBottomRightShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14785,7 +14773,7 @@ pub const CornerBottomShape = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: CornerBottomShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerBottomShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14828,7 +14816,7 @@ pub const CornerEndEnd = union(enum) {
     pub fn rem2(v1: f32, v2: f32) CornerEndEnd {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: CornerEndEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerEndEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14849,7 +14837,7 @@ pub const CornerEndEndShape = union(enum) {
     square,
     squircle,
 
-    pub fn format(self: CornerEndEndShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerEndEndShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14892,7 +14880,7 @@ pub const CornerEndStart = union(enum) {
     pub fn rem2(v1: f32, v2: f32) CornerEndStart {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: CornerEndStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerEndStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14913,7 +14901,7 @@ pub const CornerEndStartShape = union(enum) {
     square,
     squircle,
 
-    pub fn format(self: CornerEndStartShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerEndStartShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14956,7 +14944,7 @@ pub const CornerInlineEnd = union(enum) {
     pub fn rem2(v1: f32, v2: f32) CornerInlineEnd {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: CornerInlineEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerInlineEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -14971,7 +14959,7 @@ pub const CornerInlineEndShape = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: CornerInlineEndShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerInlineEndShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15014,7 +15002,7 @@ pub const CornerInlineStart = union(enum) {
     pub fn rem2(v1: f32, v2: f32) CornerInlineStart {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: CornerInlineStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerInlineStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15029,7 +15017,7 @@ pub const CornerInlineStartShape = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: CornerInlineStartShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerInlineStartShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15072,7 +15060,7 @@ pub const CornerLeft = union(enum) {
     pub fn rem2(v1: f32, v2: f32) CornerLeft {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: CornerLeft, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerLeft, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15087,7 +15075,7 @@ pub const CornerLeftShape = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: CornerLeftShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerLeftShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15130,7 +15118,7 @@ pub const CornerRight = union(enum) {
     pub fn rem2(v1: f32, v2: f32) CornerRight {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: CornerRight, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerRight, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15145,7 +15133,7 @@ pub const CornerRightShape = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: CornerRightShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerRightShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15160,7 +15148,7 @@ pub const CornerShape = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: CornerShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15203,7 +15191,7 @@ pub const CornerStartEnd = union(enum) {
     pub fn rem2(v1: f32, v2: f32) CornerStartEnd {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: CornerStartEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerStartEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15224,7 +15212,7 @@ pub const CornerStartEndShape = union(enum) {
     square,
     squircle,
 
-    pub fn format(self: CornerStartEndShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerStartEndShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15267,7 +15255,7 @@ pub const CornerStartStart = union(enum) {
     pub fn rem2(v1: f32, v2: f32) CornerStartStart {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: CornerStartStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerStartStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15288,7 +15276,7 @@ pub const CornerStartStartShape = union(enum) {
     square,
     squircle,
 
-    pub fn format(self: CornerStartStartShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerStartStartShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15331,7 +15319,7 @@ pub const CornerTop = union(enum) {
     pub fn rem2(v1: f32, v2: f32) CornerTop {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: CornerTop, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerTop, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15374,7 +15362,7 @@ pub const CornerTopLeft = union(enum) {
     pub fn rem2(v1: f32, v2: f32) CornerTopLeft {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: CornerTopLeft, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerTopLeft, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15395,7 +15383,7 @@ pub const CornerTopLeftShape = union(enum) {
     square,
     squircle,
 
-    pub fn format(self: CornerTopLeftShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerTopLeftShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15438,7 +15426,7 @@ pub const CornerTopRight = union(enum) {
     pub fn rem2(v1: f32, v2: f32) CornerTopRight {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: CornerTopRight, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerTopRight, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15459,7 +15447,7 @@ pub const CornerTopRightShape = union(enum) {
     square,
     squircle,
 
-    pub fn format(self: CornerTopRightShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerTopRightShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15474,7 +15462,7 @@ pub const CornerTopShape = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: CornerTopShape, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CornerTopShape, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15489,7 +15477,7 @@ pub const CounterIncrement = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: CounterIncrement, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CounterIncrement, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15504,7 +15492,7 @@ pub const CounterReset = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: CounterReset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CounterReset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15519,7 +15507,7 @@ pub const CounterSet = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: CounterSet, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CounterSet, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15534,7 +15522,7 @@ pub const Cue = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Cue, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Cue, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15549,7 +15537,7 @@ pub const CueAfter = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: CueAfter, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CueAfter, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15564,7 +15552,7 @@ pub const CueBefore = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: CueBefore, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: CueBefore, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15649,7 +15637,7 @@ pub const Cursor = union(enum) {
     /// Indicates that something can be zoomed (magnified) in or out, and often rendered as a magnifying glass with a "+" or "-" in the center of the glass, for zoom-in and zoom-out respectively.
     zoom_out,
 
-    pub fn format(self: Cursor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Cursor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15699,7 +15687,7 @@ pub const Cx = union(enum) {
     pub fn percent2(v1: f32, v2: f32) Cx {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Cx, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Cx, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15749,7 +15737,7 @@ pub const Cy = union(enum) {
     pub fn percent2(v1: f32, v2: f32) Cy {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Cy, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Cy, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15764,7 +15752,7 @@ pub const D = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: D, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: D, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15783,7 +15771,7 @@ pub const Direction = union(enum) {
     /// This value sets inline base direction (bidi directionality) to line-right-to-line-left.
     rtl,
 
-    pub fn format(self: Direction, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Direction, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15798,7 +15786,7 @@ pub const Display = union(enum) {
     revert_layer,
     unset,
     block,
-    @"inline",
+    inline_,
     run_in,
     flow,
     flow_root,
@@ -15836,7 +15824,7 @@ pub const Display = union(enum) {
     inline_grid_lanes,
     math,
 
-    pub fn format(self: Display, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Display, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15869,7 +15857,7 @@ pub const DominantBaseline = union(enum) {
     /// Use the text-over baselines.
     text_top,
 
-    pub fn format(self: DominantBaseline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: DominantBaseline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15890,7 +15878,7 @@ pub const DynamicRangeLimit = union(enum) {
     /// The highest peak luminance that is displayed is somewhat greater than HDR reference white, i.e. the CSS color white, such that a mix of SDR and HDR content can be comfortably viewed together.
     constrained,
 
-    pub fn format(self: DynamicRangeLimit, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: DynamicRangeLimit, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15907,7 +15895,7 @@ pub const EmptyCells = union(enum) {
     show,
     hide,
 
-    pub fn format(self: EmptyCells, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: EmptyCells, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15922,7 +15910,7 @@ pub const EventTrigger = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: EventTrigger, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: EventTrigger, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15937,7 +15925,7 @@ pub const EventTriggerName = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: EventTriggerName, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: EventTriggerName, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15957,7 +15945,7 @@ pub const EventTriggerSource = union(enum) {
     touch,
     dblclick,
 
-    pub fn format(self: EventTriggerSource, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: EventTriggerSource, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15976,7 +15964,7 @@ pub const FieldSizing = union(enum) {
     /// The UA must determine the element’s intrinsic size based on its content, and must ignore any default preferred size defined by the host language for that element. If the element is an element with default preferred size and is listed in compressible replaced elements, the UA must stop treating the element as a replaced element for min-content contribution.
     content,
 
-    pub fn format(self: FieldSizing, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FieldSizing, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -15992,7 +15980,7 @@ pub const Fill = union(enum) {
     unset,
     child,
 
-    pub fn format(self: Fill, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Fill, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16010,7 +15998,7 @@ pub const FillBreak = union(enum) {
     slice,
     clone,
 
-    pub fn format(self: FillBreak, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FillBreak, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16221,7 +16209,7 @@ pub const FillColor = union(enum) {
     pub fn hex(v: u32) FillColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: FillColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FillColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16237,7 +16225,7 @@ pub const FillImage = union(enum) {
     unset,
     child,
 
-    pub fn format(self: FillImage, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FillImage, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16252,7 +16240,7 @@ pub const FillOpacity = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: FillOpacity, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FillOpacity, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16279,7 +16267,7 @@ pub const FillOrigin = union(enum) {
     /// Use the box’s own content-box/padding-box/border-box as the fill positioning area. For SVG shapes, content-box and padding-box are treated as fill-box, while border-box is treated as stroke-box.
     border_box,
 
-    pub fn format(self: FillOrigin, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FillOrigin, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16344,7 +16332,7 @@ pub const FillPosition = union(enum) {
     pub fn percent2(v1: f32, v2: f32) FillPosition {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: FillPosition, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FillPosition, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16367,7 +16355,7 @@ pub const FillRepeat = union(enum) {
     round,
     no_repeat,
 
-    pub fn format(self: FillRepeat, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FillRepeat, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16386,7 +16374,7 @@ pub const FillRule = union(enum) {
     /// This rule determines the “insideness” of a point on the canvas by drawing a ray from that point to infinity in any direction and counting the number of path segments from the given shape that the ray crosses. If this number is odd, the point is inside; if even, the point is outside. The effect of an evenodd fill rule on paths with self-intersections and enclosed subpaths.
     evenodd,
 
-    pub fn format(self: FillRule, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FillRule, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16439,7 +16427,7 @@ pub const FillSize = union(enum) {
     pub fn percent2(v1: f32, v2: f32) FillSize {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: FillSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FillSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16454,7 +16442,7 @@ pub const Filter = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Filter, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Filter, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16469,7 +16457,7 @@ pub const Flex = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Flex, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Flex, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16486,7 +16474,7 @@ pub const FlexBasis = union(enum) {
     /// Indicates an automatic size based on the flex item’s content. (This is typically equivalent to the max-content size, but with adjustments to handle preferred aspect ratios, intrinsic sizing constraints, and orthogonal flows; see details in § 9 Flex Layout Algorithm.)
     content,
 
-    pub fn format(self: FlexBasis, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FlexBasis, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16509,7 +16497,7 @@ pub const FlexDirection = union(enum) {
     /// Same as column, except the main-start and main-end directions are swapped.
     column_reverse,
 
-    pub fn format(self: FlexDirection, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FlexDirection, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16524,7 +16512,7 @@ pub const FlexFlow = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: FlexFlow, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FlexFlow, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16539,7 +16527,7 @@ pub const FlexGrow = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: FlexGrow, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FlexGrow, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16554,7 +16542,7 @@ pub const FlexShrink = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: FlexShrink, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FlexShrink, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16575,7 +16563,7 @@ pub const FlexWrap = union(enum) {
     /// Same as wrap.
     wrap_reverse,
 
-    pub fn format(self: FlexWrap, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FlexWrap, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16612,7 +16600,7 @@ pub const Float = union(enum) {
     /// each footnote element is placed in the footnote area of the page
     footnote,
 
-    pub fn format(self: Float, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Float, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16628,7 +16616,7 @@ pub const FloatDefer = union(enum) {
     unset,
     last,
 
-    pub fn format(self: FloatDefer, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FloatDefer, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16678,7 +16666,7 @@ pub const FloatOffset = union(enum) {
     pub fn percent2(v1: f32, v2: f32) FloatOffset {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: FloatOffset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FloatOffset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16693,7 +16681,7 @@ pub const FloatReference = union(enum) {
     revert_layer,
     unset,
     /// The float reference is the line box of the float anchor. The float containing block formatting context is the same as that of the float anchor. The float is an inline float.
-    @"inline",
+    inline_,
     /// The float reference is the column in a multi column environment in which the float anchor is placed. If the float anchor is not inside a column, the float reference is the line box of the float anchor. The float containing block formatting context is a new block formatting context with the same dimensions and placement as the float reference. The float is a page float.
     column,
     /// The float reference is the region in a region-chain within which the float anchor is placed. If the float anchor is not inside a region, the float reference is the line box of the float anchor. The float containing block formatting context is a new block formatting context with the same dimensions and placement as the float reference. The float is a page float.
@@ -16701,7 +16689,7 @@ pub const FloatReference = union(enum) {
     /// The float reference of the float is the page within which the float anchor is placed. If the float anchor is not inside a page, the float reference is the line box of the float anchor. The float containing block formatting context is a new block formatting context with the same dimensions and placement as the float reference. The float is a page float.
     page,
 
-    pub fn format(self: FloatReference, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FloatReference, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16912,7 +16900,7 @@ pub const FloodColor = union(enum) {
     pub fn hex(v: u32) FloodColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: FloodColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FloodColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16927,7 +16915,7 @@ pub const FloodOpacity = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: FloodOpacity, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FloodOpacity, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16942,7 +16930,7 @@ pub const FlowFrom = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: FlowFrom, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FlowFrom, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -16959,7 +16947,7 @@ pub const FlowInto = union(enum) {
     element,
     content,
 
-    pub fn format(self: FlowInto, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FlowInto, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17013,7 +17001,7 @@ pub const FlowTolerance = union(enum) {
     pub fn percent2(v1: f32, v2: f32) FlowTolerance {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: FlowTolerance, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FlowTolerance, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17050,7 +17038,7 @@ pub const Font = union(enum) {
     /// The font used in window status bars.
     status_bar,
 
-    pub fn format(self: Font, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Font, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17076,7 +17064,7 @@ pub const FontFamily = union(enum) {
     ui_monospace,
     ui_rounded,
 
-    pub fn format(self: FontFamily, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontFamily, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17095,7 +17083,7 @@ pub const FontFeatureSettings = union(enum) {
     on,
     off,
 
-    pub fn format(self: FontFeatureSettings, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontFeatureSettings, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17114,7 +17102,7 @@ pub const FontKerning = union(enum) {
     /// Specifies that kerning is applied
     normal,
 
-    pub fn format(self: FontKerning, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontKerning, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17130,7 +17118,7 @@ pub const FontLanguageOverride = union(enum) {
     unset,
     normal,
 
-    pub fn format(self: FontLanguageOverride, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontLanguageOverride, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17147,7 +17135,7 @@ pub const FontOpticalSizing = union(enum) {
     /// The user agent may modify the shape of glyphs based on the font-size and the pixel density of the screen. For OpenType and TrueType fonts using font variations, this is often done by using the "opsz" font variation.
     auto,
 
-    pub fn format(self: FontOpticalSizing, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontOpticalSizing, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17168,7 +17156,7 @@ pub const FontPalette = union(enum) {
     /// Some color font formats include metadata marking certain palettes as applicable on a dark (close to black) background. This keyword causes the user-agent to use the first available palette in the font file marked this way. If the font file format does not account for this metadata, or no palette in the font is marked this way, this value behaves as normal.
     dark,
 
-    pub fn format(self: FontPalette, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontPalette, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17230,7 +17218,7 @@ pub const FontSize = union(enum) {
     pub fn percent2(v1: f32, v2: f32) FontSize {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: FontSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17257,7 +17245,7 @@ pub const FontSizeAdjust = union(enum) {
     /// Computes to the <number> corresponding to the specified metric of the first available font, if it exists. Otherwise, the same as none.
     from_font,
 
-    pub fn format(self: FontSizeAdjust, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontSizeAdjust, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17292,7 +17280,7 @@ pub const FontStretch = union(enum) {
     pub fn percent2(v1: f32, v2: f32) FontStretch {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: FontStretch, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontStretch, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17320,7 +17308,7 @@ pub const FontStyle = union(enum) {
     pub fn calc(expr: CalcExpr) FontStyle {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: FontStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17339,7 +17327,7 @@ pub const FontSynthesis = union(enum) {
     small_caps,
     position,
 
-    pub fn format(self: FontSynthesis, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontSynthesis, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17356,7 +17344,7 @@ pub const FontSynthesisPosition = union(enum) {
     /// Synthesis of superscript and subscript forms is required
     auto,
 
-    pub fn format(self: FontSynthesisPosition, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontSynthesisPosition, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17373,7 +17361,7 @@ pub const FontSynthesisSmallCaps = union(enum) {
     /// Synthesis of small caps faces is allowed
     auto,
 
-    pub fn format(self: FontSynthesisSmallCaps, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontSynthesisSmallCaps, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17392,7 +17380,7 @@ pub const FontSynthesisStyle = union(enum) {
     /// Synthesis of oblique faces is allowed, but they must not be used as fallback if italic is specified
     oblique_only,
 
-    pub fn format(self: FontSynthesisStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontSynthesisStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17409,7 +17397,7 @@ pub const FontSynthesisWeight = union(enum) {
     /// Synthesis of bold faces is allowed
     auto,
 
-    pub fn format(self: FontSynthesisWeight, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontSynthesisWeight, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17463,7 +17451,7 @@ pub const FontVariant = union(enum) {
     emoji,
     unicode,
 
-    pub fn format(self: FontVariant, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontVariant, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17482,7 +17470,7 @@ pub const FontVariantAlternates = union(enum) {
     /// Enables display of historical forms (OpenType feature: hist).
     historical_forms,
 
-    pub fn format(self: FontVariantAlternates, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontVariantAlternates, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17511,7 +17499,7 @@ pub const FontVariantCaps = union(enum) {
     /// Enables display of titling capitals (OpenType feature: titl). Uppercase letter glyphs are often designed for use with lowercase letters. When used in all uppercase titling sequences they can appear too strong. Titling capitals are designed specifically for this situation.
     titling_caps,
 
-    pub fn format(self: FontVariantCaps, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontVariantCaps, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17546,7 +17534,7 @@ pub const FontVariantEastAsian = union(enum) {
     /// Enables display of ruby variant glyphs (OpenType feature: ruby). Since ruby text is generally smaller than the associated body text, font designers can design special glyphs for use with ruby that are more readable than scaled down versions of the default glyphs. Only glyph selection is affected, there is no associated font scaling or other change that affects line layout. The red ruby text below is shown with default glyphs (top) and with ruby variant glyphs (bottom). Note the slight difference in stroke thickness.
     ruby,
 
-    pub fn format(self: FontVariantEastAsian, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontVariantEastAsian, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17569,7 +17557,7 @@ pub const FontVariantEmoji = union(enum) {
     /// Code points are rendered in accordance with [UTS51] as either emoji-default, text-default, or text-only, depending on the values of the Emoji and Emoji_Presentation properties for each Emoji Presentation Participating Code Point. If present, FE0E VARIATION SELECTOR-15 and U+FE0F VARIATION SELECTOR-16 will override the default presentation of individual Emoji Presentation Participating Code Points.
     unicode,
 
-    pub fn format(self: FontVariantEmoji, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontVariantEmoji, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17602,7 +17590,7 @@ pub const FontVariantLigatures = union(enum) {
     /// Disables display of contextual alternates (OpenType feature: calt).
     no_contextual,
 
-    pub fn format(self: FontVariantLigatures, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontVariantLigatures, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17635,7 +17623,7 @@ pub const FontVariantNumeric = union(enum) {
     /// Enables display of slashed zeros (OpenType feature: zero).
     slashed_zero,
 
-    pub fn format(self: FontVariantNumeric, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontVariantNumeric, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17656,7 +17644,7 @@ pub const FontVariantPosition = union(enum) {
     /// Enables display of superscript variants (OpenType feature: sups).
     super,
 
-    pub fn format(self: FontVariantPosition, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontVariantPosition, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17672,7 +17660,7 @@ pub const FontVariationSettings = union(enum) {
     unset,
     normal,
 
-    pub fn format(self: FontVariationSettings, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontVariationSettings, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17695,7 +17683,7 @@ pub const FontWeight = union(enum) {
     /// Specifies a lighter weight than the inherited value. See § 2.2.1 Relative Weights.
     lighter,
 
-    pub fn format(self: FontWeight, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontWeight, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17730,7 +17718,7 @@ pub const FontWidth = union(enum) {
     pub fn percent2(v1: f32, v2: f32) FontWidth {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: FontWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FontWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17747,11 +17735,11 @@ pub const FootnoteDisplay = union(enum) {
     /// The footnote element is placed in the footnote area as a block element
     block,
     /// The footnote element is placed in the footnote area as an inline element
-    @"inline",
+    inline_,
     /// The user agent determines whether a given footnote element is placed as a block element or an inline element. If two or more footnotes could fit on the same line in the footnote area, they should be placed inline.
     compact,
 
-    pub fn format(self: FootnoteDisplay, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FootnoteDisplay, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17772,7 +17760,7 @@ pub const FootnotePolicy = union(enum) {
     /// As with line, except a forced page break is introduced before the paragraph that contains the footnote.
     block,
 
-    pub fn format(self: FootnotePolicy, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: FootnotePolicy, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17791,7 +17779,27 @@ pub const ForcedColorAdjust = union(enum) {
     /// In forced colors mode, if the color property inherits from its parent (i.e. there is no cascaded value or the cascaded value is currentColor, inherit, or another keyword that inherits from the parent), then it computes to the used color of its parent’s color value. In all other respects, behaves the same as none.
     preserve_parent_color,
 
-    pub fn format(self: ForcedColorAdjust, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ForcedColorAdjust, w: anytype) std.Io.Writer.Error!void {
+        return core.formatValue(self, w);
+    }
+};
+
+/// frame-sizing
+/// - **W3C**: https://drafts.csswg.org/css-sizing-4/#propdef-frame-sizing
+pub const FrameSizing = union(enum) {
+    none,
+    inherit,
+    initial,
+    revert,
+    revert_layer,
+    unset,
+    auto,
+    content_width,
+    content_height,
+    content_block_size,
+    content_inline_size,
+
+    pub fn format(self: FrameSizing, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17806,7 +17814,7 @@ pub const Gap = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Gap, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Gap, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17821,9 +17829,9 @@ pub const GlyphOrientationVertical = union(enum) {
     revert_layer,
     unset,
     auto,
-    @"0",
+    _0,
 
-    pub fn format(self: GlyphOrientationVertical, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GlyphOrientationVertical, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17840,7 +17848,7 @@ pub const Grid = union(enum) {
     auto_flow,
     dense,
 
-    pub fn format(self: Grid, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Grid, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17857,7 +17865,7 @@ pub const GridArea = union(enum) {
     auto,
     span,
 
-    pub fn format(self: GridArea, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GridArea, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17910,7 +17918,7 @@ pub const GridAutoColumns = union(enum) {
     pub fn percent2(v1: f32, v2: f32) GridAutoColumns {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: GridAutoColumns, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GridAutoColumns, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17931,7 +17939,7 @@ pub const GridAutoFlow = union(enum) {
     /// If specified, the auto-placement algorithm uses a “dense” packing algorithm, which attempts to fill in holes earlier in the grid if smaller items come up later. This may cause items to appear out-of-order, when doing so would fill in holes left by larger items. If omitted, a “sparse” algorithm is used, where the placement algorithm only ever moves “forward” in the grid when placing items, never backtracking to fill holes. This ensures that all of the auto-placed items appear “in order”, even if this leaves holes that could have been filled by later items.
     dense,
 
-    pub fn format(self: GridAutoFlow, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GridAutoFlow, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -17984,7 +17992,7 @@ pub const GridAutoRows = union(enum) {
     pub fn percent2(v1: f32, v2: f32) GridAutoRows {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: GridAutoRows, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GridAutoRows, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18001,7 +18009,7 @@ pub const GridColumn = union(enum) {
     auto,
     span,
 
-    pub fn format(self: GridColumn, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GridColumn, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18018,7 +18026,7 @@ pub const GridColumnEnd = union(enum) {
     auto,
     span,
 
-    pub fn format(self: GridColumnEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GridColumnEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18073,7 +18081,7 @@ pub const GridColumnGap = union(enum) {
     pub fn percent2(v1: f32, v2: f32) GridColumnGap {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: GridColumnGap, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GridColumnGap, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18090,7 +18098,7 @@ pub const GridColumnStart = union(enum) {
     auto,
     span,
 
-    pub fn format(self: GridColumnStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GridColumnStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18105,7 +18113,7 @@ pub const GridGap = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: GridGap, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GridGap, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18122,7 +18130,7 @@ pub const GridRow = union(enum) {
     auto,
     span,
 
-    pub fn format(self: GridRow, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GridRow, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18139,7 +18147,7 @@ pub const GridRowEnd = union(enum) {
     auto,
     span,
 
-    pub fn format(self: GridRowEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GridRowEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18194,7 +18202,7 @@ pub const GridRowGap = union(enum) {
     pub fn percent2(v1: f32, v2: f32) GridRowGap {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: GridRowGap, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GridRowGap, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18211,7 +18219,7 @@ pub const GridRowStart = union(enum) {
     auto,
     span,
 
-    pub fn format(self: GridRowStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GridRowStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18264,7 +18272,7 @@ pub const GridTemplate = union(enum) {
     pub fn percent2(v1: f32, v2: f32) GridTemplate {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: GridTemplate, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GridTemplate, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18279,7 +18287,7 @@ pub const GridTemplateAreas = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: GridTemplateAreas, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GridTemplateAreas, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18338,7 +18346,7 @@ pub const GridTemplateColumns = union(enum) {
     pub fn percent2(v1: f32, v2: f32) GridTemplateColumns {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: GridTemplateColumns, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GridTemplateColumns, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18397,7 +18405,7 @@ pub const GridTemplateRows = union(enum) {
     pub fn percent2(v1: f32, v2: f32) GridTemplateRows {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: GridTemplateRows, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: GridTemplateRows, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18420,7 +18428,7 @@ pub const HangingPunctuation = union(enum) {
     /// A closing bracket or quote at the end of the last formatted line of an element hangs. This applies to all characters in the Unicode categories Pe, Pf, Pi plus the ASCII quote marks U+0027 ' APOSTROPHE and U+0022 " QUOTATION MARK.
     last,
 
-    pub fn format(self: HangingPunctuation, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: HangingPunctuation, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18482,7 +18490,7 @@ pub const Height = union(enum) {
     pub fn percent2(v1: f32, v2: f32) Height {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Height, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Height, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18499,7 +18507,7 @@ pub const HyphenateCharacter = union(enum) {
     /// Specifies that the user agent should find an appropriate string based on the content language’s typographic conventions, possibly from the same source as the hyphenation dictionary.
     auto,
 
-    pub fn format(self: HyphenateCharacter, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: HyphenateCharacter, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18516,7 +18524,7 @@ pub const HyphenateLimitChars = union(enum) {
     /// If three values are specified, the first value is the required minimum for the total characters in a word, the second value is the minimum for characters before the hyphenation point, and the third value is the minimum for characters after the hyphenation point. If the third value is missing, it is the same as the second. If the second value is missing, then it is auto. The auto value means that the UA chooses a value that adapts to the current layout.
     auto,
 
-    pub fn format(self: HyphenateLimitChars, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: HyphenateLimitChars, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18535,7 +18543,7 @@ pub const HyphenateLimitLast = union(enum) {
     page,
     spread,
 
-    pub fn format(self: HyphenateLimitLast, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: HyphenateLimitLast, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18551,7 +18559,7 @@ pub const HyphenateLimitLines = union(enum) {
     unset,
     no_limit,
 
-    pub fn format(self: HyphenateLimitLines, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: HyphenateLimitLines, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18601,7 +18609,7 @@ pub const HyphenateLimitZone = union(enum) {
     pub fn percent2(v1: f32, v2: f32) HyphenateLimitZone {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: HyphenateLimitZone, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: HyphenateLimitZone, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18620,7 +18628,7 @@ pub const Hyphens = union(enum) {
     /// Words may be broken at hyphenation opportunities determined automatically by a language-appropriate hyphenation resource in addition to those indicated explicitly by a conditional hyphen. Automatic hyphenation opportunities elsewhere within a word must be ignored if the word contains a conditional hyphen (&shy; or U+00AD SOFT HYPHEN), in favor of the conditional hyphen(s). However, if, even after breaking at such opportunities, a portion of that word is still too long to fit on one line, an automatic hyphenation opportunity may be used.
     auto,
 
-    pub fn format(self: Hyphens, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Hyphens, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18643,7 +18651,7 @@ pub const ImageAnimation = union(enum) {
     /// Like normal, the animation of animated images is run normally, as determined by the image format and the host language. However, animation timelines are scoped per element: among the content image and decorative images of a single element, any animated images with the same absolute URL, the same image data, and with an image-animation computed value of running must be rendered synchronized to the same timeline as a group, distinct from the timeline of images in other elements. If images are added to the element while the computed value is running, the timeline starts at the time of the least recent addition to the group. If the element is created or made visible after having previously been set to display: none, with images already added and with image-animation already set to running, the timeline starts when the element is included in the layout. If this property is switched to running from another value, the beginnig of this timeline is set so that the animation continues from the state that was displayed at the timem of the switch.
     running,
 
-    pub fn format(self: ImageAnimation, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ImageAnimation, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18665,7 +18673,7 @@ pub const ImageOrientation = union(enum) {
     pub fn calc(expr: CalcExpr) ImageOrientation {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: ImageOrientation, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ImageOrientation, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18690,7 +18698,7 @@ pub const ImageRendering = union(enum) {
     /// The image is scaled in a way that preserves contrast and edges, and which avoids smoothing colors or introducing blur to the image in the process. This is intended for images such as line drawings. The image may be scaled using nearest neighbor or any other UA-chosen algorithm that does not blur edges or blend colors from the source image. It can, however, detect diagonal or curved lines and render them as such (rather than as jagged-looking “giant pixels”).
     crisp_edges,
 
-    pub fn format(self: ImageRendering, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ImageRendering, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18709,7 +18717,7 @@ pub const ImageResolution = union(enum) {
     /// If the "snap" keyword is provided, the computed <resolution> (if any) is the specified resolution rounded to the nearest value that would map one image pixel to an integer number of device pixels. If the resolution is taken from the image, then the used natural resolution is the image’s native resolution similarly adjusted.
     snap,
 
-    pub fn format(self: ImageResolution, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ImageResolution, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18730,7 +18738,7 @@ pub const InitialLetter = union(enum) {
     /// Computes to an initial letter sink of 1.
     raise,
 
-    pub fn format(self: InitialLetter, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: InitialLetter, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18755,7 +18763,7 @@ pub const InitialLetterAlign = union(enum) {
     /// Use the over/under half-leading edges (i.e. ascent/descent + half-leading) of the surrounding text to align the initial letter.
     leading,
 
-    pub fn format(self: InitialLetterAlign, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: InitialLetterAlign, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18811,7 +18819,7 @@ pub const InitialLetterWrap = union(enum) {
     pub fn percent2(v1: f32, v2: f32) InitialLetterWrap {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: InitialLetterWrap, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: InitialLetterWrap, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18826,7 +18834,7 @@ pub const InlineSize = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: InlineSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: InlineSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18845,7 +18853,7 @@ pub const InlineSizing = union(enum) {
     /// Once the line box has been sized and its contents positioned as for normal, the inline box’s box edges are shifted such that its over/under margin edges coincide with the corresponding line box’s edges, stretching the inline box’s inner logical height so that its block-axis outer size fills the line box. (The sizes and positions of its in-flow contents are not affected.)
     stretch,
 
-    pub fn format(self: InlineSizing, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: InlineSizing, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18862,7 +18870,7 @@ pub const InputSecurity = union(enum) {
     /// The UA should obscure the text in the control, so that it cannot be read by the user.
     auto,
 
-    pub fn format(self: InputSecurity, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: InputSecurity, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18877,7 +18885,7 @@ pub const Inset = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Inset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Inset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18892,7 +18900,7 @@ pub const InsetBlock = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: InsetBlock, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: InsetBlock, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18944,7 +18952,7 @@ pub const InsetBlockEnd = union(enum) {
     pub fn percent2(v1: f32, v2: f32) InsetBlockEnd {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: InsetBlockEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: InsetBlockEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -18996,7 +19004,7 @@ pub const InsetBlockStart = union(enum) {
     pub fn percent2(v1: f32, v2: f32) InsetBlockStart {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: InsetBlockStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: InsetBlockStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19011,7 +19019,7 @@ pub const InsetInline = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: InsetInline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: InsetInline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19063,7 +19071,7 @@ pub const InsetInlineEnd = union(enum) {
     pub fn percent2(v1: f32, v2: f32) InsetInlineEnd {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: InsetInlineEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: InsetInlineEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19115,7 +19123,7 @@ pub const InsetInlineStart = union(enum) {
     pub fn percent2(v1: f32, v2: f32) InsetInlineStart {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: InsetInlineStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: InsetInlineStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19134,7 +19142,7 @@ pub const Interactivity = union(enum) {
     /// The element is inert.
     inert,
 
-    pub fn format(self: Interactivity, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Interactivity, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19149,7 +19157,7 @@ pub const InterestDelay = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: InterestDelay, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: InterestDelay, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19170,7 +19178,7 @@ pub const InterestDelayEnd = union(enum) {
     pub fn calc(expr: CalcExpr) InterestDelayEnd {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: InterestDelayEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: InterestDelayEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19191,7 +19199,7 @@ pub const InterestDelayStart = union(enum) {
     pub fn calc(expr: CalcExpr) InterestDelayStart {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: InterestDelayStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: InterestDelayStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19210,7 +19218,7 @@ pub const InterpolateSize = union(enum) {
     /// Two values can also be interpolated if one of them is an <intrinsic-size-keyword> and the other is a <length-percentage>. This is done by treating the <intrinsic-size-keyword> keyword as though it is calc-size(keyword, size) and applying the rules in § 11.3 Interpolating calc-size(). In other cases, an <intrinsic-size-keyword> still cannot be interpolated.
     allow_keywords,
 
-    pub fn format(self: InterpolateSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: InterpolateSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19227,7 +19235,7 @@ pub const Isolation = union(enum) {
     auto,
     isolate,
 
-    pub fn format(self: Isolation, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Isolation, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19259,7 +19267,7 @@ pub const JustifyContent = union(enum) {
     /// Aligns the alignment subject to be flush with the alignment container’s line-right or physical right edge, whichever is in the appropriate axis. If the property’s axis is not parallel with either left↔right axis, this value behaves as start. Currently, the only case where the property’s axis is not parallel with either left↔right axis is in a column flexbox.
     right,
 
-    pub fn format(self: JustifyContent, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: JustifyContent, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19293,10 +19301,8 @@ pub const JustifyItems = union(enum) {
     right,
     /// This keyword causes the value to effectively inherit into descendants. If the legacy keyword appears on its own (without an accompanying left, right, or center keyword): if the inherited value of justify-items includes the legacy keyword, this value computes to the inherited value; otherwise it computes to normal. When justify-self:auto references the value of justify-items, only the alignment keyword, not the legacy keyword, is referenced by it. It exists to implement the legacy alignment behavior of HTML’s <center> element and align attribute.
     legacy,
-    /// The new anchor-center value makes this case extremely simple: if the positioned box has a default anchor box, then it is centered (insofar as possible) over the default anchor box in the relevant axis. Additionally:
-    anchor_center,
 
-    pub fn format(self: JustifyItems, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: JustifyItems, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19335,7 +19341,7 @@ pub const JustifySelf = union(enum) {
     /// The new anchor-center value makes this case extremely simple: if the positioned box has a default anchor box, then it is centered (insofar as possible) over the default anchor box in the relevant axis. Additionally:
     anchor_center,
 
-    pub fn format(self: JustifySelf, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: JustifySelf, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19387,7 +19393,7 @@ pub const Left = union(enum) {
     pub fn percent2(v1: f32, v2: f32) Left {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Left, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Left, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19439,7 +19445,7 @@ pub const LetterSpacing = union(enum) {
     pub fn percent2(v1: f32, v2: f32) LetterSpacing {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: LetterSpacing, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: LetterSpacing, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19650,7 +19656,7 @@ pub const LightingColor = union(enum) {
     pub fn hex(v: u32) LightingColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: LightingColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: LightingColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19675,7 +19681,7 @@ pub const LineBreak = union(enum) {
     /// There is a soft wrap opportunity around every typographic character unit, including around any punctuation character or preserved white spaces, or in the middle of words, disregarding any prohibition against line breaks, even those introduced by characters with the GL, WJ, or ZWJ line breaking classes or mandated by the word-break property. [UAX14] The different wrapping opportunities must not be prioritized. Hyphenation is not applied.
     anywhere,
 
-    pub fn format(self: LineBreak, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: LineBreak, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19692,7 +19698,7 @@ pub const LineClamp = union(enum) {
     /// Sets continue to -webkit-legacy.
     webkit_legacy,
 
-    pub fn format(self: LineClamp, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: LineClamp, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19721,7 +19727,7 @@ pub const LineFitEdge = union(enum) {
     /// Use the alphabetic baseline as the under edge.
     alphabetic,
 
-    pub fn format(self: LineFitEdge, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: LineFitEdge, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19740,7 +19746,7 @@ pub const LineGrid = union(enum) {
     /// Box creates a new line grid using its own font and line layout settings, including any adjustment to the line height caused by the line-height-step property. The line grid consists of a series of horizontal lines corresponding to all the baselines (alphabetic, text-top, text-bottom, mathematic, central, hanging, etc.) and to the line-over and line-under edges, positioned where they would fall if the contents of this element consisted entirely of line boxes filled with text (no sub-elements) using the first available font. If the box is paginated, the line grid is restarted on each page; since line boxes cannot be fragmented, no page begins with the bottom part of a line’s grid.
     create,
 
-    pub fn format(self: LineGrid, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: LineGrid, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19792,7 +19798,7 @@ pub const LineHeight = union(enum) {
     pub fn percent2(v1: f32, v2: f32) LineHeight {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: LineHeight, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: LineHeight, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19835,7 +19841,7 @@ pub const LineHeightStep = union(enum) {
     pub fn rem2(v1: f32, v2: f32) LineHeightStep {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: LineHeightStep, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: LineHeightStep, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19878,7 +19884,7 @@ pub const LinePadding = union(enum) {
     pub fn rem2(v1: f32, v2: f32) LinePadding {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: LinePadding, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: LinePadding, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19897,7 +19903,7 @@ pub const LineSnap = union(enum) {
     /// Two baselines are used to align the line box: the line box is snapped so that its central baseline is centered between one of the line grid’s text-over-edge baselines and a subsequent (but not necessarily consecutive) text-under-edge baseline.
     contain,
 
-    pub fn format(self: LineSnap, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: LineSnap, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19912,7 +19918,7 @@ pub const LinkParameters = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: LinkParameters, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: LinkParameters, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19927,7 +19933,7 @@ pub const ListStyle = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: ListStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ListStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19942,7 +19948,7 @@ pub const ListStyleImage = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: ListStyleImage, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ListStyleImage, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19961,7 +19967,7 @@ pub const ListStylePosition = union(enum) {
     /// If the list item is a block container: the marker box is a block container and is placed outside the principal block box; however, the position of the list-item marker adjacent to floats is undefined. CSS does not specify the precise location of the marker box or its position in the painting order, but does require that it be placed on the inline-start side of the box, using the writing mode of the box indicated by marker-side. The marker box is fixed with respect to the principal block box’s border and does not scroll with the principal box’s content. A UA may hide the marker if the element’s overflow is other than visible. (This allowance may change in the future.) The size or contents of the marker box may affect the height of the principal block box and/or the height of its first line box, and in some cases may cause the creation of a new line box; this interaction is also not defined. This is handwavey nonsense from CSS2, and needs a real definition. If the list item is an inline box: this value is equivalent to inside. Alternatively, outside could lay out the marker as a previous sibling of the principal inline box.
     outside,
 
-    pub fn format(self: ListStylePosition, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ListStylePosition, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -19976,7 +19982,7 @@ pub const ListStyleType = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: ListStyleType, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ListStyleType, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20019,7 +20025,7 @@ pub const Margin = union(enum) {
     pub fn rem2(v1: f32, v2: f32) Margin {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Margin, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Margin, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20062,7 +20068,7 @@ pub const MarginBlock = union(enum) {
     pub fn rem2(v1: f32, v2: f32) MarginBlock {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MarginBlock, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MarginBlock, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20105,7 +20111,7 @@ pub const MarginBlockEnd = union(enum) {
     pub fn rem2(v1: f32, v2: f32) MarginBlockEnd {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MarginBlockEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MarginBlockEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20148,7 +20154,7 @@ pub const MarginBlockStart = union(enum) {
     pub fn rem2(v1: f32, v2: f32) MarginBlockStart {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MarginBlockStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MarginBlockStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20199,7 +20205,7 @@ pub const MarginBottom = union(enum) {
     pub fn percent2(v1: f32, v2: f32) MarginBottom {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MarginBottom, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MarginBottom, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20220,7 +20226,7 @@ pub const MarginBreak = union(enum) {
     /// Margins adjoining a fragmentation break are always truncated, including at the start and end of a fragmentation context.
     discard,
 
-    pub fn format(self: MarginBreak, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MarginBreak, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20263,7 +20269,7 @@ pub const MarginInline = union(enum) {
     pub fn rem2(v1: f32, v2: f32) MarginInline {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MarginInline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MarginInline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20306,7 +20312,7 @@ pub const MarginInlineEnd = union(enum) {
     pub fn rem2(v1: f32, v2: f32) MarginInlineEnd {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MarginInlineEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MarginInlineEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20349,7 +20355,7 @@ pub const MarginInlineStart = union(enum) {
     pub fn rem2(v1: f32, v2: f32) MarginInlineStart {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MarginInlineStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MarginInlineStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20400,7 +20406,7 @@ pub const MarginLeft = union(enum) {
     pub fn percent2(v1: f32, v2: f32) MarginLeft {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MarginLeft, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MarginLeft, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20451,7 +20457,7 @@ pub const MarginRight = union(enum) {
     pub fn percent2(v1: f32, v2: f32) MarginRight {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MarginRight, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MarginRight, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20502,7 +20508,7 @@ pub const MarginTop = union(enum) {
     pub fn percent2(v1: f32, v2: f32) MarginTop {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MarginTop, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MarginTop, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20519,7 +20525,7 @@ pub const MarginTrim = union(enum) {
     /// Computes to block-start block-end.
     block,
     /// Computes to inline-start inline-end.
-    @"inline",
+    inline_,
     /// For in-flow boxes contained by this box, margins adjacent to the box’s specified edges are truncated to zero. It also truncates any descendant margins collapsed with such a margin (but not its own, its siblings’, or its ancestors’).
     block_start,
     /// Computes to block-start block-end.
@@ -20529,7 +20535,7 @@ pub const MarginTrim = union(enum) {
     /// Computes to block-start block-end.
     inline_end,
 
-    pub fn format(self: MarginTrim, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MarginTrim, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20544,7 +20550,7 @@ pub const Marker = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Marker, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Marker, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20559,7 +20565,7 @@ pub const MarkerEnd = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: MarkerEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MarkerEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20574,7 +20580,7 @@ pub const MarkerMid = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: MarkerMid, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MarkerMid, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20593,7 +20599,7 @@ pub const MarkerSide = union(enum) {
     /// The marker box is positioned using the directionality of the ::marker’s originating element’s parent element.
     match_parent,
 
-    pub fn format(self: MarkerSide, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MarkerSide, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20608,7 +20614,7 @@ pub const MarkerStart = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: MarkerStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MarkerStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20700,7 +20706,7 @@ pub const Mask = union(enum) {
     pub fn percent2(v1: f32, v2: f32) Mask {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Mask, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Mask, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20743,7 +20749,7 @@ pub const MaskBorder = union(enum) {
     pub fn rem2(v1: f32, v2: f32) MaskBorder {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MaskBorder, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaskBorder, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20762,7 +20768,7 @@ pub const MaskBorderMode = union(enum) {
     /// A value of alpha indicates that the alpha values of the mask border image should be used as the mask values. See Calculating mask values.
     alpha,
 
-    pub fn format(self: MaskBorderMode, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaskBorderMode, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20805,7 +20811,7 @@ pub const MaskBorderOutset = union(enum) {
     pub fn rem2(v1: f32, v2: f32) MaskBorderOutset {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MaskBorderOutset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaskBorderOutset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20824,7 +20830,7 @@ pub const MaskBorderRepeat = union(enum) {
     round,
     space,
 
-    pub fn format(self: MaskBorderRepeat, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaskBorderRepeat, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20852,7 +20858,7 @@ pub const MaskBorderSlice = union(enum) {
     pub fn percent2(v1: f32, v2: f32) MaskBorderSlice {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MaskBorderSlice, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaskBorderSlice, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20867,7 +20873,7 @@ pub const MaskBorderSource = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: MaskBorderSource, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaskBorderSource, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20918,7 +20924,7 @@ pub const MaskBorderWidth = union(enum) {
     pub fn percent2(v1: f32, v2: f32) MaskBorderWidth {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MaskBorderWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaskBorderWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20947,7 +20953,7 @@ pub const MaskClip = union(enum) {
     /// The painted content is not restricted (not clipped).
     no_clip,
 
-    pub fn format(self: MaskClip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaskClip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20970,7 +20976,7 @@ pub const MaskComposite = union(enum) {
     /// The non-overlapping regions of source and destination are combined. (See Porter-Duff compositing operator XOR.)
     exclude,
 
-    pub fn format(self: MaskComposite, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaskComposite, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -20985,7 +20991,7 @@ pub const MaskImage = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: MaskImage, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaskImage, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21006,7 +21012,7 @@ pub const MaskMode = union(enum) {
     /// If the <mask-reference> of the mask-image property is of type <mask-source> the value specified by the referenced mask element’s mask-type property must be used. If the <mask-reference> of the mask-image property is of type <image> the alpha values of the mask layer image should be used as the mask values.
     match_source,
 
-    pub fn format(self: MaskMode, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaskMode, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21033,7 +21039,7 @@ pub const MaskOrigin = union(enum) {
     /// Uses the nearest SVG viewport as reference box. If a viewBox attribute is specified for the SVG viewport creating element: The reference box is positioned at the origin of the coordinate system established by the viewBox attribute. The dimension of the reference box is set to the width and height values of the viewBox attribute.
     view_box,
 
-    pub fn format(self: MaskOrigin, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaskOrigin, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21098,7 +21104,7 @@ pub const MaskPosition = union(enum) {
     pub fn percent2(v1: f32, v2: f32) MaskPosition {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MaskPosition, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaskPosition, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21121,7 +21127,7 @@ pub const MaskRepeat = union(enum) {
     round,
     no_repeat,
 
-    pub fn format(self: MaskRepeat, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaskRepeat, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21174,7 +21180,7 @@ pub const MaskSize = union(enum) {
     pub fn percent2(v1: f32, v2: f32) MaskSize {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MaskSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaskSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21193,7 +21199,7 @@ pub const MaskType = union(enum) {
     /// Indicates that the alpha values of the mask should be used.
     alpha,
 
-    pub fn format(self: MaskType, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaskType, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21209,7 +21215,7 @@ pub const MathDepth = union(enum) {
     unset,
     auto_add,
 
-    pub fn format(self: MathDepth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MathDepth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21226,7 +21232,7 @@ pub const MathShift = union(enum) {
     normal,
     compact,
 
-    pub fn format(self: MathShift, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MathShift, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21243,7 +21249,7 @@ pub const MathStyle = union(enum) {
     normal,
     compact,
 
-    pub fn format(self: MathStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MathStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21258,7 +21264,7 @@ pub const MaxBlockSize = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: MaxBlockSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaxBlockSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21318,7 +21324,7 @@ pub const MaxHeight = union(enum) {
     pub fn percent2(v1: f32, v2: f32) MaxHeight {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MaxHeight, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaxHeight, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21333,7 +21339,7 @@ pub const MaxInlineSize = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: MaxInlineSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaxInlineSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21348,7 +21354,7 @@ pub const MaxLines = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: MaxLines, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaxLines, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21408,7 +21414,7 @@ pub const MaxWidth = union(enum) {
     pub fn percent2(v1: f32, v2: f32) MaxWidth {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MaxWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MaxWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21423,7 +21429,7 @@ pub const MinBlockSize = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: MinBlockSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MinBlockSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21485,7 +21491,7 @@ pub const MinHeight = union(enum) {
     pub fn percent2(v1: f32, v2: f32) MinHeight {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MinHeight, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MinHeight, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21500,7 +21506,7 @@ pub const MinInlineSize = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: MinInlineSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MinInlineSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21521,7 +21527,7 @@ pub const MinIntrinsicSizing = union(enum) {
     /// The box’s min-content contribution is “compressed” if has an extrinsic preferred or maximum size.
     zero_if_extrinsic,
 
-    pub fn format(self: MinIntrinsicSizing, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MinIntrinsicSizing, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21583,7 +21589,7 @@ pub const MinWidth = union(enum) {
     pub fn percent2(v1: f32, v2: f32) MinWidth {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: MinWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MinWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21615,7 +21621,7 @@ pub const MixBlendMode = union(enum) {
     luminosity,
     plus_lighter,
 
-    pub fn format(self: MixBlendMode, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: MixBlendMode, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21633,7 +21639,7 @@ pub const NavDown = union(enum) {
     current,
     root,
 
-    pub fn format(self: NavDown, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: NavDown, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21651,7 +21657,7 @@ pub const NavLeft = union(enum) {
     current,
     root,
 
-    pub fn format(self: NavLeft, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: NavLeft, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21669,7 +21675,7 @@ pub const NavRight = union(enum) {
     current,
     root,
 
-    pub fn format(self: NavRight, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: NavRight, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21687,7 +21693,7 @@ pub const NavUp = union(enum) {
     current,
     root,
 
-    pub fn format(self: NavUp, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: NavUp, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21710,7 +21716,7 @@ pub const ObjectFit = union(enum) {
     /// Equivalent to contain scale-down.
     scale_down,
 
-    pub fn format(self: ObjectFit, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ObjectFit, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21775,7 +21781,7 @@ pub const ObjectPosition = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ObjectPosition {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ObjectPosition, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ObjectPosition, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21790,7 +21796,7 @@ pub const ObjectViewBox = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: ObjectViewBox, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ObjectViewBox, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21805,7 +21811,7 @@ pub const Offset = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Offset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Offset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21872,7 +21878,7 @@ pub const OffsetAnchor = union(enum) {
     pub fn percent2(v1: f32, v2: f32) OffsetAnchor {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: OffsetAnchor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OffsetAnchor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21922,7 +21928,7 @@ pub const OffsetDistance = union(enum) {
     pub fn percent2(v1: f32, v2: f32) OffsetDistance {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: OffsetDistance, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OffsetDistance, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -21943,7 +21949,7 @@ pub const OffsetPath = union(enum) {
     stroke_box,
     view_box,
 
-    pub fn format(self: OffsetPath, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OffsetPath, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22012,7 +22018,7 @@ pub const OffsetPosition = union(enum) {
     pub fn percent2(v1: f32, v2: f32) OffsetPosition {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: OffsetPosition, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OffsetPosition, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22035,7 +22041,7 @@ pub const OffsetRotate = union(enum) {
     pub fn calc(expr: CalcExpr) OffsetRotate {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: OffsetRotate, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OffsetRotate, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22061,7 +22067,7 @@ pub const Opacity = union(enum) {
     pub fn percent2(v1: f32, v2: f32) Opacity {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Opacity, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Opacity, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22076,7 +22082,7 @@ pub const Order = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Order, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Order, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22091,7 +22097,7 @@ pub const Orphans = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Orphans, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Orphans, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22106,7 +22112,7 @@ pub const Outline = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Outline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Outline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22151,7 +22157,7 @@ pub const OutlineColor = union(enum) {
     pub fn rem2(v1: f32, v2: f32) OutlineColor {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: OutlineColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OutlineColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22194,7 +22200,7 @@ pub const OutlineOffset = union(enum) {
     pub fn rem2(v1: f32, v2: f32) OutlineOffset {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: OutlineOffset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OutlineOffset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22218,7 +22224,7 @@ pub const OutlineStyle = union(enum) {
     inset,
     outset,
 
-    pub fn format(self: OutlineStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OutlineStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22265,7 +22271,7 @@ pub const OutlineWidth = union(enum) {
     pub fn rem2(v1: f32, v2: f32) OutlineWidth {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: OutlineWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OutlineWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22280,7 +22286,7 @@ pub const Overflow = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Overflow, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Overflow, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22297,7 +22303,7 @@ pub const OverflowAnchor = union(enum) {
     /// Declares that the element is potentially eligible to participate in the anchor node selection algorithm for any scrolling box created by the element or an ancestor.
     auto,
 
-    pub fn format(self: OverflowAnchor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverflowAnchor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22317,7 +22323,7 @@ pub const OverflowBlock = union(enum) {
     scroll,
     auto,
 
-    pub fn format(self: OverflowBlock, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverflowBlock, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22363,7 +22369,7 @@ pub const OverflowClipMargin = union(enum) {
     pub fn rem2(v1: f32, v2: f32) OverflowClipMargin {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: OverflowClipMargin, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverflowClipMargin, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22409,7 +22415,7 @@ pub const OverflowClipMarginBlock = union(enum) {
     pub fn rem2(v1: f32, v2: f32) OverflowClipMarginBlock {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: OverflowClipMarginBlock, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverflowClipMarginBlock, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22455,7 +22461,7 @@ pub const OverflowClipMarginBlockEnd = union(enum) {
     pub fn rem2(v1: f32, v2: f32) OverflowClipMarginBlockEnd {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: OverflowClipMarginBlockEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverflowClipMarginBlockEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22501,7 +22507,7 @@ pub const OverflowClipMarginBlockStart = union(enum) {
     pub fn rem2(v1: f32, v2: f32) OverflowClipMarginBlockStart {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: OverflowClipMarginBlockStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverflowClipMarginBlockStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22547,7 +22553,7 @@ pub const OverflowClipMarginBottom = union(enum) {
     pub fn rem2(v1: f32, v2: f32) OverflowClipMarginBottom {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: OverflowClipMarginBottom, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverflowClipMarginBottom, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22593,7 +22599,7 @@ pub const OverflowClipMarginInline = union(enum) {
     pub fn rem2(v1: f32, v2: f32) OverflowClipMarginInline {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: OverflowClipMarginInline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverflowClipMarginInline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22639,7 +22645,7 @@ pub const OverflowClipMarginInlineEnd = union(enum) {
     pub fn rem2(v1: f32, v2: f32) OverflowClipMarginInlineEnd {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: OverflowClipMarginInlineEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverflowClipMarginInlineEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22685,7 +22691,7 @@ pub const OverflowClipMarginInlineStart = union(enum) {
     pub fn rem2(v1: f32, v2: f32) OverflowClipMarginInlineStart {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: OverflowClipMarginInlineStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverflowClipMarginInlineStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22731,7 +22737,7 @@ pub const OverflowClipMarginLeft = union(enum) {
     pub fn rem2(v1: f32, v2: f32) OverflowClipMarginLeft {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: OverflowClipMarginLeft, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverflowClipMarginLeft, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22777,7 +22783,7 @@ pub const OverflowClipMarginRight = union(enum) {
     pub fn rem2(v1: f32, v2: f32) OverflowClipMarginRight {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: OverflowClipMarginRight, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverflowClipMarginRight, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22823,7 +22829,7 @@ pub const OverflowClipMarginTop = union(enum) {
     pub fn rem2(v1: f32, v2: f32) OverflowClipMarginTop {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: OverflowClipMarginTop, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverflowClipMarginTop, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22843,7 +22849,7 @@ pub const OverflowInline = union(enum) {
     scroll,
     auto,
 
-    pub fn format(self: OverflowInline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverflowInline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22864,7 +22870,7 @@ pub const OverflowWrap = union(enum) {
     /// An otherwise unbreakable sequence of characters may be broken at an arbitrary point if there are no otherwise-acceptable break points in the line. Shaping characters are still shaped as if the word were not broken, and grapheme clusters must stay together as one unit. No hyphenation character is inserted at the break point. Soft wrap opportunities introduced by anywhere are considered when calculating min-content intrinsic sizes. In the case of word-break: auto-phrase, these additional soft wrap opportunities are only introduced if relaxing the restrictions introduced by word-break: auto-phrase as described in overflow-wrap: normal is insufficient to prevent overflow.
     anywhere,
 
-    pub fn format(self: OverflowWrap, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverflowWrap, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22889,7 +22895,7 @@ pub const OverflowX = union(enum) {
     /// Like scroll when the box has scrollable overflow; like hidden otherwise. Thus, if the user agent uses a scrolling mechanism that is visible on the screen (such as a scroll bar or a panner), that mechanism will only be displayed if there is overflow.
     auto,
 
-    pub fn format(self: OverflowX, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverflowX, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22914,7 +22920,7 @@ pub const OverflowY = union(enum) {
     /// Like scroll when the box has scrollable overflow; like hidden otherwise. Thus, if the user agent uses a scrolling mechanism that is visible on the screen (such as a scroll bar or a panner), that mechanism will only be displayed if there is overflow.
     auto,
 
-    pub fn format(self: OverflowY, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverflowY, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22931,7 +22937,7 @@ pub const Overlay = union(enum) {
     /// The element is rendered in the top layer if it is in the top layer. Rather than generating boxes as part of its normal position in the document, it generates boxes as a sibling of the root element, rendered "above" it.
     auto,
 
-    pub fn format(self: Overlay, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Overlay, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22950,7 +22956,7 @@ pub const OverscrollBehavior = union(enum) {
     /// This value indicates that the user agent should perform the usual boundary default action with respect to scroll chaining, overscroll and navigation gestures.
     auto,
 
-    pub fn format(self: OverscrollBehavior, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverscrollBehavior, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22969,7 +22975,7 @@ pub const OverscrollBehaviorBlock = union(enum) {
     /// This value indicates that the user agent should perform the usual boundary default action with respect to scroll chaining, overscroll and navigation gestures.
     auto,
 
-    pub fn format(self: OverscrollBehaviorBlock, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverscrollBehaviorBlock, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -22988,7 +22994,7 @@ pub const OverscrollBehaviorInline = union(enum) {
     /// This value indicates that the user agent should perform the usual boundary default action with respect to scroll chaining, overscroll and navigation gestures.
     auto,
 
-    pub fn format(self: OverscrollBehaviorInline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverscrollBehaviorInline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23007,7 +23013,7 @@ pub const OverscrollBehaviorX = union(enum) {
     /// This value indicates that the user agent should perform the usual boundary default action with respect to scroll chaining, overscroll and navigation gestures.
     auto,
 
-    pub fn format(self: OverscrollBehaviorX, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverscrollBehaviorX, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23026,7 +23032,7 @@ pub const OverscrollBehaviorY = union(enum) {
     /// This value indicates that the user agent should perform the usual boundary default action with respect to scroll chaining, overscroll and navigation gestures.
     auto,
 
-    pub fn format(self: OverscrollBehaviorY, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: OverscrollBehaviorY, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23069,7 +23075,7 @@ pub const Padding = union(enum) {
     pub fn rem2(v1: f32, v2: f32) Padding {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Padding, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Padding, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23112,7 +23118,7 @@ pub const PaddingBlock = union(enum) {
     pub fn rem2(v1: f32, v2: f32) PaddingBlock {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: PaddingBlock, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PaddingBlock, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23155,7 +23161,7 @@ pub const PaddingBlockEnd = union(enum) {
     pub fn rem2(v1: f32, v2: f32) PaddingBlockEnd {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: PaddingBlockEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PaddingBlockEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23198,7 +23204,7 @@ pub const PaddingBlockStart = union(enum) {
     pub fn rem2(v1: f32, v2: f32) PaddingBlockStart {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: PaddingBlockStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PaddingBlockStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23248,7 +23254,7 @@ pub const PaddingBottom = union(enum) {
     pub fn percent2(v1: f32, v2: f32) PaddingBottom {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: PaddingBottom, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PaddingBottom, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23291,7 +23297,7 @@ pub const PaddingInline = union(enum) {
     pub fn rem2(v1: f32, v2: f32) PaddingInline {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: PaddingInline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PaddingInline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23334,7 +23340,7 @@ pub const PaddingInlineEnd = union(enum) {
     pub fn rem2(v1: f32, v2: f32) PaddingInlineEnd {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: PaddingInlineEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PaddingInlineEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23377,7 +23383,7 @@ pub const PaddingInlineStart = union(enum) {
     pub fn rem2(v1: f32, v2: f32) PaddingInlineStart {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: PaddingInlineStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PaddingInlineStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23427,7 +23433,7 @@ pub const PaddingLeft = union(enum) {
     pub fn percent2(v1: f32, v2: f32) PaddingLeft {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: PaddingLeft, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PaddingLeft, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23477,7 +23483,7 @@ pub const PaddingRight = union(enum) {
     pub fn percent2(v1: f32, v2: f32) PaddingRight {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: PaddingRight, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PaddingRight, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23527,7 +23533,7 @@ pub const PaddingTop = union(enum) {
     pub fn percent2(v1: f32, v2: f32) PaddingTop {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: PaddingTop, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PaddingTop, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23543,7 +23549,7 @@ pub const Page = union(enum) {
     unset,
     auto,
 
-    pub fn format(self: Page, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Page, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23568,7 +23574,7 @@ pub const PageBreakAfter = union(enum) {
     /// Force one or two page breaks before (after) the generated box so that the next page is formatted as a right page.
     right,
 
-    pub fn format(self: PageBreakAfter, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PageBreakAfter, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23593,7 +23599,7 @@ pub const PageBreakBefore = union(enum) {
     /// Force one or two page breaks before (after) the generated box so that the next page is formatted as a right page.
     right,
 
-    pub fn format(self: PageBreakBefore, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PageBreakBefore, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23612,7 +23618,7 @@ pub const PageBreakInside = union(enum) {
     /// Neither force nor forbid a page break before (after, inside) the generated box.
     auto,
 
-    pub fn format(self: PageBreakInside, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PageBreakInside, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23631,7 +23637,7 @@ pub const PaintOrder = union(enum) {
     stroke,
     markers,
 
-    pub fn format(self: PaintOrder, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PaintOrder, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23646,7 +23652,7 @@ pub const Pause = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Pause, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Pause, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23675,7 +23681,7 @@ pub const PauseAfter = union(enum) {
     pub fn calc(expr: CalcExpr) PauseAfter {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: PauseAfter, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PauseAfter, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23704,7 +23710,7 @@ pub const PauseBefore = union(enum) {
     pub fn calc(expr: CalcExpr) PauseBefore {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: PauseBefore, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PauseBefore, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23747,7 +23753,7 @@ pub const Perspective = union(enum) {
     pub fn rem2(v1: f32, v2: f32) Perspective {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Perspective, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Perspective, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23817,7 +23823,7 @@ pub const PerspectiveOrigin = union(enum) {
     pub fn percent2(v1: f32, v2: f32) PerspectiveOrigin {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: PerspectiveOrigin, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PerspectiveOrigin, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23832,7 +23838,7 @@ pub const PlaceContent = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: PlaceContent, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PlaceContent, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23847,7 +23853,7 @@ pub const PlaceItems = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: PlaceItems, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PlaceItems, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23862,7 +23868,7 @@ pub const PlaceSelf = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: PlaceSelf, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PlaceSelf, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23887,7 +23893,7 @@ pub const PointerEvents = union(enum) {
     stroke,
     all,
 
-    pub fn format(self: PointerEvents, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PointerEvents, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23902,7 +23908,7 @@ pub const PointerTimeline = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: PointerTimeline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PointerTimeline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23919,13 +23925,13 @@ pub const PointerTimelineAxis = union(enum) {
     /// Specifies to use the measure of progress along the block axis of the pointer range.
     block,
     /// Specifies to use the measure of progress along the inline axis of the pointer range. (Default.)
-    @"inline",
+    inline_,
     /// Specifies to use the measure of progress along the horizontal axis of the pointer range.
     x,
     /// Specifies to use the measure of progress along the vertical axis of the pointer range.
     y,
 
-    pub fn format(self: PointerTimelineAxis, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PointerTimelineAxis, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23940,7 +23946,7 @@ pub const PointerTimelineName = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: PointerTimelineName, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PointerTimelineName, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23965,7 +23971,7 @@ pub const Position = union(enum) {
     /// Same as absolute, except the box is positioned and sized relative to a fixed positioning containing block (usually the viewport in continuous media, or the page area in paged media). The box’s position is fixed with respect to this reference rectangle: when attached to the viewport it does not move when the document is scrolled, and when attached to the page area is replicated on every page when the document is paginated. This positioning scheme is called fixed positioning and is considered a subset of absolute positioning. Authors may wish to specify fixed in a media-dependent way. For instance, an author may want a box to remain at the top of the viewport on the screen, but not at the top of each printed page. The two specifications may be separated by using an '@media' rule, as in: @media screen { h1#first { position: fixed } } @media print { h1#first { position: static } }
     fixed,
 
-    pub fn format(self: Position, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Position, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -23983,8 +23989,10 @@ pub const PositionAnchor = union(enum) {
     normal,
     /// Use the implicit anchor element if it exists; otherwise the box has no default anchor element.
     auto,
+    /// Uses the same default anchor element as the parent—​or originating element, if this is a pseudo-element—​if any, and if that would be an acceptable anchor element. Otherwise, the box has no default anchor element.
+    match_parent,
 
-    pub fn format(self: PositionAnchor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PositionAnchor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24049,7 +24057,7 @@ pub const PositionArea = union(enum) {
     span_self_start,
     span_self_end,
 
-    pub fn format(self: PositionArea, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PositionArea, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24064,7 +24072,7 @@ pub const PositionTry = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: PositionTry, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PositionTry, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24139,7 +24147,7 @@ pub const PositionTryFallbacks = union(enum) {
     span_self_start,
     span_self_end,
 
-    pub fn format(self: PositionTryFallbacks, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PositionTryFallbacks, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24164,7 +24172,7 @@ pub const PositionTryOrder = union(enum) {
     /// For each entry in the position options list, apply that position option to the box, and find the inset-modified containing block size that results from those styles (treating auto inset values as zero). Stably sort the position options list according to this size, with the largest coming first. Logical directions are resolved against the writing mode of the containing block.
     most_inline_size,
 
-    pub fn format(self: PositionTryOrder, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PositionTryOrder, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24187,7 +24195,7 @@ pub const PositionVisibility = union(enum) {
     /// If the box overflows its inset-modified containing block even after applying position-try, the box’s visibility property computes to force-hidden.
     no_overflow,
 
-    pub fn format(self: PositionVisibility, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PositionVisibility, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24206,7 +24214,7 @@ pub const PrintColorAdjust = union(enum) {
     /// This value indicates that the page is using color and styling on the specified element in a way which is important and significant, and which should not be tweaked or changed except at the user’s request. For example, a mapping website offering printed directions might "zebra-stripe" the steps in the directions, alternating between white and light gray backgrounds. Losing this zebra-striping and having a pure-white background would make the directions harder to read with a quick glance when distracted in a car.
     exact,
 
-    pub fn format(self: PrintColorAdjust, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: PrintColorAdjust, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24225,7 +24233,7 @@ pub const Quotes = union(enum) {
     /// Specifies the same quotation mark system as the parent. In general this is equivalent to inheriting the parent’s computed value, except that auto it resolves using the same content language that the parent used. Two possible approaches here, currently speccing the latter: a) this computes to the relevant string values, and inherits as such. b) this value effectively inherits as a keyword + a language code, meaning auto, but with this language.
     match_parent,
 
-    pub fn format(self: Quotes, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Quotes, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24275,7 +24283,7 @@ pub const R = union(enum) {
     pub fn percent2(v1: f32, v2: f32) R {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: R, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: R, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24304,7 +24312,7 @@ pub const ReadingFlow = union(enum) {
     /// Only takes effect on grid containers. Follows the order-modified document order. Therefore, as normal unless the order property has been used to change the order of items.
     grid_order,
 
-    pub fn format(self: ReadingFlow, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ReadingFlow, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24319,7 +24327,7 @@ pub const ReadingOrder = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: ReadingOrder, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ReadingOrder, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24334,9 +24342,9 @@ pub const RegionFragment = union(enum) {
     revert_layer,
     unset,
     auto,
-    @"break",
+    break_,
 
-    pub fn format(self: RegionFragment, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RegionFragment, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24354,9 +24362,9 @@ pub const Resize = union(enum) {
     horizontal,
     vertical,
     block,
-    @"inline",
+    inline_,
 
-    pub fn format(self: Resize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Resize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24371,7 +24379,7 @@ pub const Rest = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Rest, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Rest, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24400,7 +24408,7 @@ pub const RestAfter = union(enum) {
     pub fn calc(expr: CalcExpr) RestAfter {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: RestAfter, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RestAfter, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24429,7 +24437,7 @@ pub const RestBefore = union(enum) {
     pub fn calc(expr: CalcExpr) RestBefore {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: RestBefore, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RestBefore, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24481,7 +24489,7 @@ pub const Right = union(enum) {
     pub fn percent2(v1: f32, v2: f32) Right {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Right, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Right, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24506,7 +24514,7 @@ pub const Rotate = union(enum) {
     pub fn calc(expr: CalcExpr) Rotate {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: Rotate, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Rotate, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24562,7 +24570,7 @@ pub const RowGap = union(enum) {
     pub fn percent2(v1: f32, v2: f32) RowGap {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: RowGap, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RowGap, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24815,7 +24823,7 @@ pub const RowRule = union(enum) {
     pub fn hex(v: u32) RowRule {
         return .{ .hex_ = v };
     }
-    pub fn format(self: RowRule, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RowRule, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -24834,7 +24842,7 @@ pub const RowRuleBreak = union(enum) {
     /// Gap decorations start and end at visible "T" and "cross" intersections.
     intersection,
 
-    pub fn format(self: RowRuleBreak, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RowRuleBreak, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25046,7 +25054,7 @@ pub const RowRuleColor = union(enum) {
     pub fn hex(v: u32) RowRuleColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: RowRuleColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RowRuleColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25096,7 +25104,7 @@ pub const RowRuleEdgeInset = union(enum) {
     pub fn percent2(v1: f32, v2: f32) RowRuleEdgeInset {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: RowRuleEdgeInset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RowRuleEdgeInset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25146,7 +25154,7 @@ pub const RowRuleEdgeInsetEnd = union(enum) {
     pub fn percent2(v1: f32, v2: f32) RowRuleEdgeInsetEnd {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: RowRuleEdgeInsetEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RowRuleEdgeInsetEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25196,7 +25204,7 @@ pub const RowRuleEdgeInsetStart = union(enum) {
     pub fn percent2(v1: f32, v2: f32) RowRuleEdgeInsetStart {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: RowRuleEdgeInsetStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RowRuleEdgeInsetStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25211,7 +25219,7 @@ pub const RowRuleInset = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: RowRuleInset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RowRuleInset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25261,7 +25269,7 @@ pub const RowRuleInsetEnd = union(enum) {
     pub fn percent2(v1: f32, v2: f32) RowRuleInsetEnd {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: RowRuleInsetEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RowRuleInsetEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25311,7 +25319,7 @@ pub const RowRuleInsetStart = union(enum) {
     pub fn percent2(v1: f32, v2: f32) RowRuleInsetStart {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: RowRuleInsetStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RowRuleInsetStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25361,7 +25369,7 @@ pub const RowRuleInteriorInset = union(enum) {
     pub fn percent2(v1: f32, v2: f32) RowRuleInteriorInset {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: RowRuleInteriorInset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RowRuleInteriorInset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25411,7 +25419,7 @@ pub const RowRuleInteriorInsetEnd = union(enum) {
     pub fn percent2(v1: f32, v2: f32) RowRuleInteriorInsetEnd {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: RowRuleInteriorInsetEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RowRuleInteriorInsetEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25461,7 +25469,7 @@ pub const RowRuleInteriorInsetStart = union(enum) {
     pub fn percent2(v1: f32, v2: f32) RowRuleInteriorInsetStart {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: RowRuleInteriorInsetStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RowRuleInteriorInsetStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25486,7 +25494,7 @@ pub const RowRuleStyle = union(enum) {
     outset,
     auto,
 
-    pub fn format(self: RowRuleStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RowRuleStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25507,7 +25515,7 @@ pub const RowRuleVisibilityItems = union(enum) {
     /// Paint decorations in a gap segment if both adjacent areas are occupied by items.
     between,
 
-    pub fn format(self: RowRuleVisibilityItems, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RowRuleVisibilityItems, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25555,7 +25563,7 @@ pub const RowRuleWidth = union(enum) {
     pub fn rem2(v1: f32, v2: f32) RowRuleWidth {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: RowRuleWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RowRuleWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25578,7 +25586,7 @@ pub const RubyAlign = union(enum) {
     /// As for space-between except that there exists an extra justification opportunities whose space is distributed half before and half after the ruby content. space-around ruby distribution
     space_around,
 
-    pub fn format(self: RubyAlign, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RubyAlign, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25599,7 +25607,7 @@ pub const RubyMerge = union(enum) {
     /// The user agent may use any algorithm to determine how each ruby annotation box is rendered to its corresponding base box, with the intention that if all annotations fit over their respective bases, the result is identical to separate, but if some annotations are wider than their bases the space is shared in some way to avoid imposing space between bases. ruby-merge: auto with center alignment
     auto,
 
-    pub fn format(self: RubyMerge, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RubyMerge, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25616,7 +25624,7 @@ pub const RubyOverhang = union(enum) {
     /// When a ruby annotation container is longer than its corresponding ruby base container, the ruby annotation container may partially overlap adjacent boxes. Whether, how much, and under which conditions to overhang are determined by the UA.
     auto,
 
-    pub fn format(self: RubyOverhang, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RubyOverhang, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25639,7 +25647,7 @@ pub const RubyPosition = union(enum) {
     /// If the writing mode of the enclosing ruby container is vertical, this value has the same effect as over. Otherwise, the ruby annotation becomes an inter-character annotation. The annotation appears on the right of the base in horizontal text. This forces the computed value of writing-mode of the ruby annotation children of this ruby annotation container to be vertical-rl. This value is provided for the special case of traditional Chinese as used especially in Taiwan: ruby (made of bopomofo glyphs) in that context appears vertically along the right side of the base glyph, even when the layout of the base characters is horizontal: “Bopomofo” ruby in traditional Chinese (ruby annotation shown in blue for clarity) in horizontal layout
     inter_character,
 
-    pub fn format(self: RubyPosition, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RubyPosition, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25654,7 +25662,7 @@ pub const Rule = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Rule, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Rule, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25669,7 +25677,7 @@ pub const RuleBreak = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: RuleBreak, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RuleBreak, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25684,7 +25692,7 @@ pub const RuleColor = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: RuleColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RuleColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25699,7 +25707,7 @@ pub const RuleEdgeInset = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: RuleEdgeInset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RuleEdgeInset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25714,7 +25722,7 @@ pub const RuleInset = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: RuleInset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RuleInset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25729,7 +25737,7 @@ pub const RuleInsetEnd = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: RuleInsetEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RuleInsetEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25744,7 +25752,7 @@ pub const RuleInsetStart = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: RuleInsetStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RuleInsetStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25759,7 +25767,7 @@ pub const RuleInteriorInset = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: RuleInteriorInset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RuleInteriorInset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25778,7 +25786,7 @@ pub const RuleOverlap = union(enum) {
     /// Column-direction decorations are painted above row-direction decorations.
     column_over_row,
 
-    pub fn format(self: RuleOverlap, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RuleOverlap, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25793,7 +25801,7 @@ pub const RuleStyle = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: RuleStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RuleStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25808,7 +25816,7 @@ pub const RuleVisibilityItems = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: RuleVisibilityItems, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RuleVisibilityItems, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25823,7 +25831,7 @@ pub const RuleWidth = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: RuleWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: RuleWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25874,7 +25882,7 @@ pub const Rx = union(enum) {
     pub fn percent2(v1: f32, v2: f32) Rx {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Rx, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Rx, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25925,7 +25933,7 @@ pub const Ry = union(enum) {
     pub fn percent2(v1: f32, v2: f32) Ry {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Ry, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Ry, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25951,7 +25959,7 @@ pub const Scale = union(enum) {
     pub fn percent2(v1: f32, v2: f32) Scale {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Scale, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Scale, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25970,7 +25978,7 @@ pub const ScrollBehavior = union(enum) {
     /// The scroll container is scrolled in a smooth fashion using a user-agent-defined timing function over a user-agent-defined period of time. User agents should follow platform conventions, if any.
     smooth,
 
-    pub fn format(self: ScrollBehavior, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollBehavior, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -25987,7 +25995,7 @@ pub const ScrollInitialTarget = union(enum) {
     /// The element is potentially an initial scroll target for its nearest scroll container ancestor.
     nearest,
 
-    pub fn format(self: ScrollInitialTarget, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollInitialTarget, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26030,7 +26038,7 @@ pub const ScrollMargin = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ScrollMargin {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollMargin, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollMargin, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26073,7 +26081,7 @@ pub const ScrollMarginBlock = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ScrollMarginBlock {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollMarginBlock, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollMarginBlock, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26116,7 +26124,7 @@ pub const ScrollMarginBlockEnd = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ScrollMarginBlockEnd {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollMarginBlockEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollMarginBlockEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26159,7 +26167,7 @@ pub const ScrollMarginBlockStart = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ScrollMarginBlockStart {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollMarginBlockStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollMarginBlockStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26202,7 +26210,7 @@ pub const ScrollMarginBottom = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ScrollMarginBottom {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollMarginBottom, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollMarginBottom, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26245,7 +26253,7 @@ pub const ScrollMarginInline = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ScrollMarginInline {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollMarginInline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollMarginInline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26288,7 +26296,7 @@ pub const ScrollMarginInlineEnd = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ScrollMarginInlineEnd {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollMarginInlineEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollMarginInlineEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26331,7 +26339,7 @@ pub const ScrollMarginInlineStart = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ScrollMarginInlineStart {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollMarginInlineStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollMarginInlineStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26374,7 +26382,7 @@ pub const ScrollMarginLeft = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ScrollMarginLeft {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollMarginLeft, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollMarginLeft, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26417,7 +26425,7 @@ pub const ScrollMarginRight = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ScrollMarginRight {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollMarginRight, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollMarginRight, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26460,7 +26468,7 @@ pub const ScrollMarginTop = union(enum) {
     pub fn rem2(v1: f32, v2: f32) ScrollMarginTop {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollMarginTop, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollMarginTop, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26483,7 +26491,7 @@ pub const ScrollMarkerGroup = union(enum) {
     /// The generated ::scroll-marker-group operates in "tabs" mode, functioning like a tablist.
     tabs,
 
-    pub fn format(self: ScrollMarkerGroup, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollMarkerGroup, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26535,7 +26543,7 @@ pub const ScrollPadding = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ScrollPadding {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollPadding, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollPadding, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26587,7 +26595,7 @@ pub const ScrollPaddingBlock = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ScrollPaddingBlock {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollPaddingBlock, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollPaddingBlock, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26639,7 +26647,7 @@ pub const ScrollPaddingBlockEnd = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ScrollPaddingBlockEnd {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollPaddingBlockEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollPaddingBlockEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26691,7 +26699,7 @@ pub const ScrollPaddingBlockStart = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ScrollPaddingBlockStart {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollPaddingBlockStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollPaddingBlockStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26742,7 +26750,7 @@ pub const ScrollPaddingBottom = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ScrollPaddingBottom {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollPaddingBottom, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollPaddingBottom, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26794,7 +26802,7 @@ pub const ScrollPaddingInline = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ScrollPaddingInline {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollPaddingInline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollPaddingInline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26846,7 +26854,7 @@ pub const ScrollPaddingInlineEnd = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ScrollPaddingInlineEnd {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollPaddingInlineEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollPaddingInlineEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26898,7 +26906,7 @@ pub const ScrollPaddingInlineStart = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ScrollPaddingInlineStart {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollPaddingInlineStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollPaddingInlineStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -26949,7 +26957,7 @@ pub const ScrollPaddingLeft = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ScrollPaddingLeft {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollPaddingLeft, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollPaddingLeft, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27000,7 +27008,7 @@ pub const ScrollPaddingRight = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ScrollPaddingRight {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollPaddingRight, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollPaddingRight, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27051,7 +27059,7 @@ pub const ScrollPaddingTop = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ScrollPaddingTop {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ScrollPaddingTop, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollPaddingTop, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27072,7 +27080,7 @@ pub const ScrollSnapAlign = union(enum) {
     /// Center alignment of this box’s scroll snap area within the scroll container’s snapport is a snap position in the specified axis.
     center,
 
-    pub fn format(self: ScrollSnapAlign, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollSnapAlign, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27091,7 +27099,7 @@ pub const ScrollSnapStop = union(enum) {
     /// The scroll container must not pass over a snap position defined by this element during the execution of a scrolling operation; it must instead snap to the first of this element’s snap positions.
     always,
 
-    pub fn format(self: ScrollSnapStop, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollSnapStop, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27112,7 +27120,7 @@ pub const ScrollSnapType = union(enum) {
     /// The scroll container snaps to snap positions in its block axis only.
     block,
     /// The scroll container snaps to snap positions in its inline axis only.
-    @"inline",
+    inline_,
     /// The scroll container snaps to snap positions in both of its axes independently (potentially snapping to different elements in each axis).
     both,
     /// If specified on a scroll container, the scroll container is required to be snapped to a snap position when there are no active scrolling operations. If a valid snap position exists then the scroll container must snap at the termination of a scroll (if none exist then no snapping occurs).
@@ -27120,7 +27128,7 @@ pub const ScrollSnapType = union(enum) {
     /// If specified on a scroll container, the scroll container may snap to a snap position at the termination of a scroll, at the discretion of the UA given the parameters of the scroll.
     proximity,
 
-    pub fn format(self: ScrollSnapType, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollSnapType, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27137,7 +27145,7 @@ pub const ScrollTargetGroup = union(enum) {
     /// The element establishes a scroll marker group container forming a scroll marker group containing all of the scroll marker elements for which this is the nearest ancestor scroll marker group container.
     auto,
 
-    pub fn format(self: ScrollTargetGroup, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollTargetGroup, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27152,7 +27160,7 @@ pub const ScrollTimeline = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: ScrollTimeline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollTimeline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27169,13 +27177,13 @@ pub const ScrollTimelineAxis = union(enum) {
     /// Specifies to use the measure of progress along the block axis of the scroll container. (Default.)
     block,
     /// Specifies to use the measure of progress along the inline axis of the scroll container.
-    @"inline",
+    inline_,
     /// Specifies to use the measure of progress along the horizontal axis of the scroll container.
     x,
     /// Specifies to use the measure of progress along the vertical axis of the scroll container.
     y,
 
-    pub fn format(self: ScrollTimelineAxis, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollTimelineAxis, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27190,7 +27198,7 @@ pub const ScrollTimelineName = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: ScrollTimelineName, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollTimelineName, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27403,7 +27411,7 @@ pub const ScrollbarColor = union(enum) {
     pub fn hex(v: u32) ScrollbarColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: ScrollbarColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollbarColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27424,7 +27432,7 @@ pub const ScrollbarGutter = union(enum) {
     /// If a scrollbar gutter would be present on one of the inline start edge or the inline end edge of the box, another scrollbar gutter must be present on the opposite edge as well.
     both_edges,
 
-    pub fn format(self: ScrollbarGutter, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollbarGutter, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27443,7 +27451,7 @@ pub const ScrollbarWidth = union(enum) {
     /// Implementations should use thinner scrollbars than auto. This may mean a thin variant of scrollbar provided by the platform, or a custom scrollbar thinner than the default platform scrollbar. The scrollbar must nonetheless remain wide enough to be usable. (Implementers may wish to consult WCAG 2.1 SC 2.5.5 Target Size. [WCAG21]) User agents may disregard this value and treat it as auto, for instance when the user has indicated discomfort for thin scrollbars through some UA or OS setting. (User agents are encouraged to provide such a setting.)
     thin,
 
-    pub fn format(self: ScrollbarWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ScrollbarWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27469,7 +27477,7 @@ pub const ShapeImageThreshold = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ShapeImageThreshold {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ShapeImageThreshold, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ShapeImageThreshold, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27491,7 +27499,7 @@ pub const ShapeInside = union(enum) {
     /// The shape is computed based on the shape of the display as described in css-round-display.
     display,
 
-    pub fn format(self: ShapeInside, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ShapeInside, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27541,7 +27549,7 @@ pub const ShapeMargin = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ShapeMargin {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ShapeMargin, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ShapeMargin, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27561,7 +27569,7 @@ pub const ShapeOutside = union(enum) {
     margin_box,
     half_border_box,
 
-    pub fn format(self: ShapeOutside, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ShapeOutside, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27611,7 +27619,7 @@ pub const ShapePadding = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ShapePadding {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ShapePadding, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ShapePadding, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27630,7 +27638,7 @@ pub const ShapeRendering = union(enum) {
     crispEdges,
     geometricPrecision,
 
-    pub fn format(self: ShapeRendering, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ShapeRendering, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27645,7 +27653,7 @@ pub const ShapeSubtract = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: ShapeSubtract, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ShapeSubtract, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27670,7 +27678,7 @@ pub const SliderOrientation = union(enum) {
     /// The slider-like control is rendered vertically and ::slider-fill is bottom-aligned within the control.
     bottom_to_top,
 
-    pub fn format(self: SliderOrientation, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: SliderOrientation, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27691,7 +27699,7 @@ pub const SpatialNavigationAction = union(enum) {
     /// If the currently focused element is not itself a scroll container, this value on an ancestor scroll container has the same effect as auto. If the currently focused element is a scroll container, it is scrolled in the direction requested without changing which element is in focus, regardless of the presence of focusable descendants.
     scroll,
 
-    pub fn format(self: SpatialNavigationAction, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: SpatialNavigationAction, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27710,7 +27718,7 @@ pub const SpatialNavigationContain = union(enum) {
     /// The element establishes a spatial navigation container
     contain,
 
-    pub fn format(self: SpatialNavigationContain, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: SpatialNavigationContain, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27729,7 +27737,7 @@ pub const SpatialNavigationFunction = union(enum) {
     /// Moves the focus to the element which is aligned most in the navigation direction. If there are more than one aligned candidates in the navigation direction, select the element with the closest distance along the axis which corresponds to the navigation direction. In case of multiple elements with the same distance, select the element with the minimum amount of alignment. Else if there isn’t any aligned candidate in a given direction, select the element with the closest distance along the axis which corresponds to the navigation direction. In case of multiple elements with the same distance, select the element with the minimum distance along the axis which is orthogonal to the navigation direction.
     grid,
 
-    pub fn format(self: SpatialNavigationFunction, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: SpatialNavigationFunction, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27750,7 +27758,7 @@ pub const Speak = union(enum) {
     /// The element is rendered aurally (regardless of its display value, or the display or speak values of its ancestors).
     always,
 
-    pub fn format(self: Speak, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Speak, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27775,7 +27783,7 @@ pub const SpeakAs = union(enum) {
     /// Punctuation is not rendered: neither spoken nor rendered as pauses.
     no_punctuation,
 
-    pub fn format(self: SpeakAs, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: SpeakAs, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27790,7 +27798,7 @@ pub const StopColor = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: StopColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StopColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27805,7 +27813,7 @@ pub const StopOpacity = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: StopOpacity, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StopOpacity, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27820,7 +27828,7 @@ pub const StringSet = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: StringSet, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StringSet, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27836,7 +27844,7 @@ pub const Stroke = union(enum) {
     unset,
     child,
 
-    pub fn format(self: Stroke, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Stroke, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27857,7 +27865,7 @@ pub const StrokeAlign = union(enum) {
     /// The stroke for each subpath lies on the “outside” of the outline (outside the fill area).
     outset,
 
-    pub fn format(self: StrokeAlign, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeAlign, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27875,7 +27883,7 @@ pub const StrokeAlignment = union(enum) {
     inner,
     outer,
 
-    pub fn format(self: StrokeAlignment, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeAlignment, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -27893,7 +27901,7 @@ pub const StrokeBreak = union(enum) {
     slice,
     clone,
 
-    pub fn format(self: StrokeBreak, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeBreak, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28104,7 +28112,7 @@ pub const StrokeColor = union(enum) {
     pub fn hex(v: u32) StrokeColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: StrokeColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28147,7 +28155,7 @@ pub const StrokeDashCorner = union(enum) {
     pub fn rem2(v1: f32, v2: f32) StrokeDashCorner {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: StrokeDashCorner, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeDashCorner, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28170,7 +28178,7 @@ pub const StrokeDashJustify = union(enum) {
     /// Indicates that when a dash pattern is to be stretched or compressed, the length of the gaps will be adjusted.
     gaps,
 
-    pub fn format(self: StrokeDashJustify, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeDashJustify, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28189,7 +28197,7 @@ pub const StrokeDashadjust = union(enum) {
     dashes,
     gaps,
 
-    pub fn format(self: StrokeDashadjust, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeDashadjust, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28239,7 +28247,7 @@ pub const StrokeDasharray = union(enum) {
     pub fn percent2(v1: f32, v2: f32) StrokeDasharray {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: StrokeDasharray, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeDasharray, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28282,7 +28290,7 @@ pub const StrokeDashcorner = union(enum) {
     pub fn rem2(v1: f32, v2: f32) StrokeDashcorner {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: StrokeDashcorner, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeDashcorner, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28332,7 +28340,7 @@ pub const StrokeDashoffset = union(enum) {
     pub fn percent2(v1: f32, v2: f32) StrokeDashoffset {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: StrokeDashoffset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeDashoffset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28348,7 +28356,7 @@ pub const StrokeImage = union(enum) {
     unset,
     child,
 
-    pub fn format(self: StrokeImage, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeImage, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28369,7 +28377,7 @@ pub const StrokeLinecap = union(enum) {
     /// At the end of each subpath, the stroke is extended by a rectangle with the same width as the stroke width and whose length is half of the stroke width. (The stroke for a zero-length subpath is a square with side length equal to the stroke width, centered at the subpath’s point, and oriented such that two of its sides are parallel to the effective tangent at that subpath’s point. See § 4.6 Computing the Shape of the Stroke for details on how to determine the tangent at a zero-length subpath.) Adding a rectangle to the end of dashes on a curved outline looks bad. It should just extend the dash by stroke-width/2, following the outline.
     square,
 
-    pub fn format(self: StrokeLinecap, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeLinecap, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28396,7 +28404,7 @@ pub const StrokeLinejoin = union(enum) {
     /// When the stroke-miterlimit is exceeded, this behaves as if crop bevel were specified. Can we just remove fallback? It’s a stupid value, useful only because we didn’t have the clip-at-miterlimit behavior in SVG1. Question is if people are mostly just *accidentally* getting the bevel behavior right now, and would be okay with their joins extending up to the miterlimit and only getting the excess corners clipped, or if they actually wanted the discontinuous behavior currently specified. The breakpoint is between 29 and 30 degrees.
     fallback,
 
-    pub fn format(self: StrokeLinejoin, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeLinejoin, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28411,7 +28419,7 @@ pub const StrokeMiterlimit = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: StrokeMiterlimit, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeMiterlimit, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28426,7 +28434,7 @@ pub const StrokeOpacity = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: StrokeOpacity, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeOpacity, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28453,7 +28461,7 @@ pub const StrokeOrigin = union(enum) {
     /// Use the box’s own content-box/padding-box/border-box as the stroke positioning area. For SVG shapes, content-box and padding-box are treated as fill-box, while border-box is treated as stroke-box.
     border_box,
 
-    pub fn format(self: StrokeOrigin, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeOrigin, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28518,7 +28526,7 @@ pub const StrokePosition = union(enum) {
     pub fn percent2(v1: f32, v2: f32) StrokePosition {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: StrokePosition, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokePosition, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28541,7 +28549,7 @@ pub const StrokeRepeat = union(enum) {
     round,
     no_repeat,
 
-    pub fn format(self: StrokeRepeat, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeRepeat, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28594,7 +28602,7 @@ pub const StrokeSize = union(enum) {
     pub fn percent2(v1: f32, v2: f32) StrokeSize {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: StrokeSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28644,7 +28652,7 @@ pub const StrokeWidth = union(enum) {
     pub fn percent2(v1: f32, v2: f32) StrokeWidth {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: StrokeWidth, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: StrokeWidth, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28687,7 +28695,7 @@ pub const TabSize = union(enum) {
     pub fn rem2(v1: f32, v2: f32) TabSize {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: TabSize, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TabSize, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28704,7 +28712,7 @@ pub const TableLayout = union(enum) {
     auto,
     fixed,
 
-    pub fn format(self: TableLayout, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TableLayout, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28735,7 +28743,7 @@ pub const TextAlign = union(enum) {
     /// Sets both text-align-all and text-align-last to justify, forcing the last line to justify as well.
     justify_all,
 
-    pub fn format(self: TextAlign, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextAlign, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28757,7 +28765,7 @@ pub const TextAlignAll = union(enum) {
     justify,
     match_parent,
 
-    pub fn format(self: TextAlignAll, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextAlignAll, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28781,7 +28789,7 @@ pub const TextAlignLast = union(enum) {
     justify,
     match_parent,
 
-    pub fn format(self: TextAlignLast, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextAlignLast, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28799,7 +28807,7 @@ pub const TextAnchor = union(enum) {
     middle,
     end,
 
-    pub fn format(self: TextAnchor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextAnchor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28830,7 +28838,7 @@ pub const TextAutospace = union(enum) {
     /// The user agent chooses a set of typographically high quality spacing values. Different user agents running on different platforms may pick different values.
     auto,
 
-    pub fn format(self: TextAutospace, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextAutospace, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28847,7 +28855,7 @@ pub const TextBox = union(enum) {
     /// If the single keyword normal is specified, it sets text-box-trim to none and text-box-edge to auto. Otherwise, omitting the text-box-trim value sets it to trim-both (not the initial value), while omitting the text-box-edge value sets it to auto (the initial value).
     normal,
 
-    pub fn format(self: TextBox, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextBox, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28870,7 +28878,7 @@ pub const TextBoxEdge = union(enum) {
     ex,
     alphabetic,
 
-    pub fn format(self: TextBoxEdge, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextBoxEdge, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28891,7 +28899,7 @@ pub const TextBoxTrim = union(enum) {
     /// Specifies the behavior of trim-start and trim-end simultaneously.
     trim_both,
 
-    pub fn format(self: TextBoxTrim, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextBoxTrim, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28909,7 +28917,7 @@ pub const TextCombineUpright = union(enum) {
     all,
     digits,
 
-    pub fn format(self: TextCombineUpright, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextCombineUpright, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -28924,7 +28932,7 @@ pub const TextDecoration = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: TextDecoration, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextDecoration, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29135,7 +29143,7 @@ pub const TextDecorationColor = union(enum) {
     pub fn hex(v: u32) TextDecorationColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: TextDecorationColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextDecorationColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29180,7 +29188,7 @@ pub const TextDecorationInset = union(enum) {
     pub fn rem2(v1: f32, v2: f32) TextDecorationInset {
         return .{ .rem_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: TextDecorationInset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextDecorationInset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29207,7 +29215,7 @@ pub const TextDecorationLine = union(enum) {
     /// This value indicates the type of text decoration used by the user agent to highlight grammar mistakes. Its appearance is UA defined, and may be platform-dependent.
     grammar_error,
 
-    pub fn format(self: TextDecorationLine, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextDecorationLine, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29224,7 +29232,7 @@ pub const TextDecorationSkip = union(enum) {
     /// The text-decoration-skip property and its sub-properties (text-decoration-skip-self, text-decoration-skip-box, text-decoration-skip-spaces, text-decoration-skip-ink) control interruptions in line decorations for which the element or an ancestor is the decorating box. The none value sets all sub-properties to none, and the auto value sets all sub-properties to their initial values.
     auto,
 
-    pub fn format(self: TextDecorationSkip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextDecorationSkip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29241,7 +29249,7 @@ pub const TextDecorationSkipBox = union(enum) {
     /// When drawing text decoration lines applied to an ancestor decorating box, skip over the box’s own margin, border, and padding areas and only draw line decorations within its content area. This value only has an effect for decorations imposed by an ancestor; a decorating box never draws over its own box decoration.
     all,
 
-    pub fn format(self: TextDecorationSkipBox, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextDecorationSkipBox, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29260,7 +29268,7 @@ pub const TextDecorationSkipInk = union(enum) {
     /// UAs must interrupt underlines and overlines where the line would cross glyph ink and to some distance to either side of the glyph outline.
     all,
 
-    pub fn format(self: TextDecorationSkipInk, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextDecorationSkipInk, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29287,7 +29295,7 @@ pub const TextDecorationSkipSelf = union(enum) {
     /// Line decorations from ancestor decorating boxes are applied to this box unconditionally: drawn across it as if it were text if it is an atomic inline, or propagated to it according to the usual rules if it is not.
     no_skip,
 
-    pub fn format(self: TextDecorationSkipSelf, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextDecorationSkipSelf, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29308,7 +29316,7 @@ pub const TextDecorationSkipSpaces = union(enum) {
     /// Skip all spacers, plus any adjacent letter-spacing or word-spacing, when located at the end of the line.
     end,
 
-    pub fn format(self: TextDecorationSkipSpaces, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextDecorationSkipSpaces, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29329,7 +29337,7 @@ pub const TextDecorationStyle = union(enum) {
     /// Values have the same meaning as for the border-style properties [CSS-BACKGROUNDS-3]. wavy indicates a wavy line.
     wavy,
 
-    pub fn format(self: TextDecorationStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextDecorationStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29387,7 +29395,7 @@ pub const TextDecorationThickness = union(enum) {
     pub fn percent2(v1: f32, v2: f32) TextDecorationThickness {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: TextDecorationThickness, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextDecorationThickness, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29402,7 +29410,7 @@ pub const TextEmphasis = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: TextEmphasis, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextEmphasis, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29613,7 +29621,7 @@ pub const TextEmphasisColor = union(enum) {
     pub fn hex(v: u32) TextEmphasisColor {
         return .{ .hex_ = v };
     }
-    pub fn format(self: TextEmphasisColor, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextEmphasisColor, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29636,7 +29644,7 @@ pub const TextEmphasisPosition = union(enum) {
     /// Draw marks to the left of the text in vertical typographic modes.
     left,
 
-    pub fn format(self: TextEmphasisPosition, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextEmphasisPosition, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29659,7 +29667,7 @@ pub const TextEmphasisSkip = union(enum) {
     /// Skip characters where the East_Asian_Width property [UAX11] of the Unicode database [UAX44] is not F (Fullwidth) or W (Wide).
     narrow,
 
-    pub fn format(self: TextEmphasisSkip, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextEmphasisSkip, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29687,7 +29695,7 @@ pub const TextEmphasisStyle = union(enum) {
     /// Display sesames as marks. The filled sesame is U+FE45 '﹅', and the open sesame is U+FE46 '﹆'.
     sesame,
 
-    pub fn format(self: TextEmphasisStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextEmphasisStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29712,7 +29720,7 @@ pub const TextGroupAlign = union(enum) {
     /// Inline-level content is group-aligned to the center, by padding both sides of each line box, half the spacing to each side.
     center,
 
-    pub fn format(self: TextGroupAlign, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextGroupAlign, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29766,7 +29774,7 @@ pub const TextIndent = union(enum) {
     pub fn percent2(v1: f32, v2: f32) TextIndent {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: TextIndent, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextIndent, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29791,7 +29799,7 @@ pub const TextJustify = union(enum) {
     /// Justification must not compress spacing controlled by text-spacing-trim or text-autospace. (If this value is not specified, the justification process may reduce such spacing except when the spacing is at the start or end of the line.) This keyword used to be part of text-spacing; it might need renaming to be more specific now that it’s here, as it implies that e.g. U+0020 cannot be compressed. [Issue #7079]
     no_compress,
 
-    pub fn format(self: TextJustify, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextJustify, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29812,7 +29820,7 @@ pub const TextOrientation = union(enum) {
     /// Causes all text to be typeset sideways, as if in a horizontal layout, but rotated 90° clockwise.
     sideways,
 
-    pub fn format(self: TextOrientation, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextOrientation, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29833,7 +29841,7 @@ pub const TextOverflow = union(enum) {
     /// Same as fade(), but the distance over which the fading effect is applied is determined by the UA. 1em is suggested as a reasonable value.
     fade,
 
-    pub fn format(self: TextOverflow, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextOverflow, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -29852,7 +29860,7 @@ pub const TextRendering = union(enum) {
     optimizeLegibility,
     geometricPrecision,
 
-    pub fn format(self: TextRendering, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextRendering, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30092,7 +30100,7 @@ pub const TextShadow = union(enum) {
     pub fn hex(v: u32) TextShadow {
         return .{ .hex_ = v };
     }
-    pub fn format(self: TextShadow, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextShadow, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30120,7 +30128,7 @@ pub const TextSizeAdjust = union(enum) {
     pub fn percent2(v1: f32, v2: f32) TextSizeAdjust {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: TextSizeAdjust, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextSizeAdjust, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30149,7 +30157,7 @@ pub const TextSpacing = union(enum) {
     insert,
     replace,
 
-    pub fn format(self: TextSpacing, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextSpacing, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30178,7 +30186,7 @@ pub const TextSpacingTrim = union(enum) {
     /// The user agent chooses a set of typographically high quality spacing values. Different user agents running on different platforms may pick different values. Do we need auto? It would be weird for the author to choose platform-dependent behavior at the start of the first line, and it should otherwise use trim-both.
     auto,
 
-    pub fn format(self: TextSpacingTrim, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextSpacingTrim, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30205,7 +30213,7 @@ pub const TextTransform = union(enum) {
     /// See MathML Core § 4.2 The math-auto transform.
     math_auto,
 
-    pub fn format(self: TextTransform, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextTransform, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30257,7 +30265,7 @@ pub const TextUnderlineOffset = union(enum) {
     pub fn percent2(v1: f32, v2: f32) TextUnderlineOffset {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: TextUnderlineOffset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextUnderlineOffset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30282,7 +30290,7 @@ pub const TextUnderlinePosition = union(enum) {
     /// In vertical typographic modes, the underline is aligned as for under, except it is always aligned to the right edge of the text. If this causes the underline to be drawn on the "over" side of the text, then an overline also switches sides and is drawn on the "under" side.
     right,
 
-    pub fn format(self: TextUnderlinePosition, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextUnderlinePosition, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30297,7 +30305,7 @@ pub const TextWrap = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: TextWrap, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextWrap, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30316,7 +30324,7 @@ pub const TextWrapMode = union(enum) {
     /// Inline-level content does not break across lines; content that does not fit within the block container overflows it.
     nowrap,
 
-    pub fn format(self: TextWrapMode, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextWrapMode, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30341,7 +30349,7 @@ pub const TextWrapStyle = union(enum) {
     /// Specifies the UA should avoid excessively short last lines, and is expected to consider more than one line when making break decisions (for example, to avoid "fixing" an orphan by making the previous line too short). The user agent may decide against improving the last line when it would make some prior line(s) substantially unbalanced. The user agent should not attempt to improve other aspects of the layout beyond what auto if those improvements come at a significant performance cost. For instance, with the given line length, the following test would be wrapped with a single word on the last line, which could be judged too short. ἄνδρα μοι ἔννεπε, μοῦσα, πολύτροπον, ὃς μάλα πολλὰ πλάγχθη, ἐπεὶ Τροίης ἱερὸν πτολίεθρον ἔπερσεν. Applying text-wrap-style: avoid-orphans could yield something like this instead, which is arguably more pleasing: ἄνδρα μοι ἔννεπε, μοῦσα, πολύτροπον, ὃς μάλα πολλὰ πλάγχθη, ἐπεὶ Τροίης ἱερὸν πτολίεθρον ἔπερσεν. However, the following fragment is more vexing: Circumnavigating the Mississippi river An attempt to make the last line less short by wrapping the previous line earlier would result in the following: Circumnavigating the Mississippi river While the last line would indeed no longer be short, the penultimate line would be unsightly. In such cases, user agents are expected to prefer the first rendering despite text-wrap-style: avoid-orphans being set.
     avoid_orphans,
 
-    pub fn format(self: TextWrapStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TextWrapStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30358,7 +30366,7 @@ pub const TimelineScope = union(enum) {
     /// Specifies that all timeline names defined by this element or its flat tree descendants—​whose scope is not already limited by a descendant using timeline-scope—​to be in scope only for this element’s flat tree descendants; and limits descendants to only match timeline names to elements within this subtree.
     all,
 
-    pub fn format(self: TimelineScope, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TimelineScope, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30373,7 +30381,7 @@ pub const TimelineTrigger = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: TimelineTrigger, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TimelineTrigger, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30388,7 +30396,7 @@ pub const TimelineTriggerActivationRange = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: TimelineTriggerActivationRange, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TimelineTriggerActivationRange, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30439,7 +30447,7 @@ pub const TimelineTriggerActivationRangeEnd = union(enum) {
     pub fn percent2(v1: f32, v2: f32) TimelineTriggerActivationRangeEnd {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: TimelineTriggerActivationRangeEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TimelineTriggerActivationRangeEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30490,7 +30498,7 @@ pub const TimelineTriggerActivationRangeStart = union(enum) {
     pub fn percent2(v1: f32, v2: f32) TimelineTriggerActivationRangeStart {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: TimelineTriggerActivationRangeStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TimelineTriggerActivationRangeStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30505,7 +30513,7 @@ pub const TimelineTriggerActiveRange = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: TimelineTriggerActiveRange, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TimelineTriggerActiveRange, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30558,7 +30566,7 @@ pub const TimelineTriggerActiveRangeEnd = union(enum) {
     pub fn percent2(v1: f32, v2: f32) TimelineTriggerActiveRangeEnd {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: TimelineTriggerActiveRangeEnd, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TimelineTriggerActiveRangeEnd, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30611,7 +30619,7 @@ pub const TimelineTriggerActiveRangeStart = union(enum) {
     pub fn percent2(v1: f32, v2: f32) TimelineTriggerActiveRangeStart {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: TimelineTriggerActiveRangeStart, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TimelineTriggerActiveRangeStart, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30626,7 +30634,7 @@ pub const TimelineTriggerName = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: TimelineTriggerName, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TimelineTriggerName, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30646,7 +30654,7 @@ pub const TimelineTriggerSource = union(enum) {
     pub fn calc(expr: CalcExpr) TimelineTriggerSource {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: TimelineTriggerSource, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TimelineTriggerSource, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30698,7 +30706,7 @@ pub const Top = union(enum) {
     pub fn percent2(v1: f32, v2: f32) Top {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Top, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Top, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30722,7 +30730,7 @@ pub const TouchAction = union(enum) {
     pinch_zoom,
     manipulation,
 
-    pub fn format(self: TouchAction, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TouchAction, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30737,7 +30745,7 @@ pub const Transform = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Transform, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Transform, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30762,7 +30770,7 @@ pub const TransformBox = union(enum) {
     /// Uses the nearest SVG viewport as reference box.
     view_box,
 
-    pub fn format(self: TransformBox, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TransformBox, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30822,7 +30830,7 @@ pub const TransformOrigin = union(enum) {
     pub fn percent2(v1: f32, v2: f32) TransformOrigin {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: TransformOrigin, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TransformOrigin, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30839,7 +30847,7 @@ pub const TransformStyle = union(enum) {
     flat,
     preserve_3d,
 
-    pub fn format(self: TransformStyle, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TransformStyle, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30868,7 +30876,7 @@ pub const Transition = union(enum) {
     pub fn calc(expr: CalcExpr) Transition {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: Transition, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Transition, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30885,7 +30893,7 @@ pub const TransitionBehavior = union(enum) {
     normal,
     allow_discrete,
 
-    pub fn format(self: TransitionBehavior, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TransitionBehavior, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30904,7 +30912,7 @@ pub const TransitionDelay = union(enum) {
     pub fn calc(expr: CalcExpr) TransitionDelay {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: TransitionDelay, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TransitionDelay, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30923,7 +30931,7 @@ pub const TransitionDuration = union(enum) {
     pub fn calc(expr: CalcExpr) TransitionDuration {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: TransitionDuration, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TransitionDuration, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30940,7 +30948,7 @@ pub const TransitionProperty = union(enum) {
     /// A value of none means that no property will transition. Otherwise, a list of properties to be transitioned, or the keyword all which indicates that all properties are to be transitioned, is given.
     all,
 
-    pub fn format(self: TransitionProperty, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TransitionProperty, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -30962,7 +30970,7 @@ pub const TransitionTimingFunction = union(enum) {
     step_start,
     step_end,
 
-    pub fn format(self: TransitionTimingFunction, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TransitionTimingFunction, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31012,7 +31020,7 @@ pub const Translate = union(enum) {
     pub fn percent2(v1: f32, v2: f32) Translate {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Translate, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Translate, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31029,7 +31037,7 @@ pub const TriggerScope = union(enum) {
     /// Specifies that all trigger names defined by this element or its descendants—​whose scope is not already limited by a descendant using trigger-scope—​to be in scope only for this element’s flat tree descendants; and limits descendants to only match trigger names to triggers within this subtree. This value only affects trigger names in the same tree scope, as if it were a strictly matched tree-scoped name. (That is, trigger-scope: all acts identically to trigger-scope: --foo, --bar, ..., listing all relevant trigger names.)
     all,
 
-    pub fn format(self: TriggerScope, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: TriggerScope, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31056,7 +31064,7 @@ pub const UnicodeBidi = union(enum) {
     /// This value behaves as isolate except that for the purposes of the Unicode bidirectional algorithm, the base directionality of each of the box’s bidi paragraphs (if a block container) or isolated sequences (if an inline) is determined by following the heuristic in rules P2 and P3 of the Unicode bidirectional algorithm (rather than by using the direction property of the box).
     plaintext,
 
-    pub fn format(self: UnicodeBidi, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: UnicodeBidi, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31079,7 +31087,7 @@ pub const UserSelect = union(enum) {
     /// The content of the element must be selected atomically: If a selection would contain part of the element, then the selection must contain the entire element including all its descendants. If the element is selected and the used value of user-select on its parent is all, then the parent must be included in the selection, recursively. If this element has descendants on which the used value of user-select is not all and if a selection is entirely contained in these descendants, then the selection is not extended to include this whole element.
     all,
 
-    pub fn format(self: UserSelect, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: UserSelect, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31098,7 +31106,7 @@ pub const VectorEffect = union(enum) {
     non_rotation,
     fixed_position,
 
-    pub fn format(self: VectorEffect, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: VectorEffect, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31117,7 +31125,7 @@ pub const VerticalAlign = union(enum) {
     /// Specifies last-baseline alignment.
     last,
 
-    pub fn format(self: VerticalAlign, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: VerticalAlign, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31132,7 +31140,7 @@ pub const ViewTimeline = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: ViewTimeline, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ViewTimeline, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31149,13 +31157,13 @@ pub const ViewTimelineAxis = union(enum) {
     /// Specifies to use the measure of progress along the block axis of the scroll container. (Default.)
     block,
     /// Specifies to use the measure of progress along the inline axis of the scroll container.
-    @"inline",
+    inline_,
     /// Specifies to use the measure of progress along the horizontal axis of the scroll container.
     x,
     /// Specifies to use the measure of progress along the vertical axis of the scroll container.
     y,
 
-    pub fn format(self: ViewTimelineAxis, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ViewTimelineAxis, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31207,7 +31215,7 @@ pub const ViewTimelineInset = union(enum) {
     pub fn percent2(v1: f32, v2: f32) ViewTimelineInset {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: ViewTimelineInset, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ViewTimelineInset, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31222,7 +31230,7 @@ pub const ViewTimelineName = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: ViewTimelineName, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ViewTimelineName, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31237,7 +31245,7 @@ pub const ViewTransitionClass = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: ViewTransitionClass, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ViewTransitionClass, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31258,7 +31266,7 @@ pub const ViewTransitionGroup = union(enum) {
     /// The view-transition-group() pseudo-element generated by this element is a child of the view-transition-group-children() pseudo-element generated by this element’s nearest view-transition-group() generating flat tree ancestor element, if any. If no such element is present, the view-transition-group() pseudo-element generated by this element is a direct child of the ::view-transition pseudo-element associated with this view transition.
     nearest,
 
-    pub fn format(self: ViewTransitionGroup, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ViewTransitionGroup, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31273,7 +31281,7 @@ pub const ViewTransitionName = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: ViewTransitionName, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ViewTransitionName, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31289,7 +31297,7 @@ pub const ViewTransitionScope = union(enum) {
     unset,
     all,
 
-    pub fn format(self: ViewTransitionScope, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ViewTransitionScope, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31312,7 +31320,7 @@ pub const Visibility = union(enum) {
     /// Indicates that the box is collapsed, which can cause it to take up less space than otherwise in a formatting-context–specific way. See dynamic row and column effects in tables [CSS2] and collapsed flex items in flex layout [CSS-FLEXBOX-1]. In all other cases, however, (i.e. unless otherwise specified) this simply makes the box invisible, just like hidden.
     collapse,
 
-    pub fn format(self: Visibility, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Visibility, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31337,7 +31345,7 @@ pub const VoiceBalance = union(enum) {
     /// Moves the sound to the right, by adding 20 to the inherited voice-balance value (and by clamping the resulting number to 100).
     rightwards,
 
-    pub fn format(self: VoiceBalance, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: VoiceBalance, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31358,7 +31366,7 @@ pub const VoiceDuration = union(enum) {
     pub fn calc(expr: CalcExpr) VoiceDuration {
         return .{ .calc_ = expr };
     }
-    pub fn format(self: VoiceDuration, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: VoiceDuration, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31375,7 +31383,7 @@ pub const VoiceFamily = union(enum) {
     /// Indicates that the voice-family value gets inherited and used regardless of any potential language change within the content markup (see the section below about voice selection and language handling). This value behaves as inherit when applied to the root element. Note: Descendants of the element automatically inherit the preserve value, unless it is explicitly overridden by other voice-family values (e.g. name, gender, age).
     preserve,
 
-    pub fn format(self: VoiceFamily, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: VoiceFamily, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31413,7 +31421,7 @@ pub const VoicePitch = union(enum) {
     pub fn percent2(v1: f32, v2: f32) VoicePitch {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: VoicePitch, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: VoicePitch, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31451,7 +31459,7 @@ pub const VoiceRange = union(enum) {
     pub fn percent2(v1: f32, v2: f32) VoiceRange {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: VoiceRange, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: VoiceRange, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31489,7 +31497,7 @@ pub const VoiceRate = union(enum) {
     pub fn percent2(v1: f32, v2: f32) VoiceRate {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: VoiceRate, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: VoiceRate, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31512,7 +31520,7 @@ pub const VoiceStress = union(enum) {
     /// Effectively the opposite of emphasizing a word.
     reduced,
 
-    pub fn format(self: VoiceStress, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: VoiceStress, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31539,7 +31547,7 @@ pub const VoiceVolume = union(enum) {
     /// This sequence of keywords corresponds to monotonically non-decreasing volume levels, mapped to implementation-dependent values that meet the listener’s requirements with regards to perceived loudness. These audio levels are typically provided via a preference mechanism that allow users to calibrate sound options according to their auditory environment. The keyword x-soft maps to the user’s minimum audible volume level, x-loud maps to the user’s maximum tolerable volume level, medium maps to the user’s preferred volume level, soft and loud map to intermediary values.
     x_loud,
 
-    pub fn format(self: VoiceVolume, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: VoiceVolume, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31562,7 +31570,7 @@ pub const WhiteSpace = union(enum) {
     /// Like normal, this value collapses consecutive white space characters and allows wrapping, but it preserves segment breaks in the source as forced line breaks.
     pre_line,
 
-    pub fn format(self: WhiteSpace, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WhiteSpace, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31589,7 +31597,7 @@ pub const WhiteSpaceCollapse = union(enum) {
     /// The behavior is identical to that of preserve, except that: Any sequence of preserved white space or other space separators always takes up space, including at the end of the line. A soft wrap opportunity exists after every preserved white space character and after every other space separator (including between adjacent spaces).
     break_spaces,
 
-    pub fn format(self: WhiteSpaceCollapse, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WhiteSpaceCollapse, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31610,7 +31618,7 @@ pub const WhiteSpaceTrim = union(enum) {
     /// For block containers this value directs UAs to discard all whitespace at the beginning of the element up to and including the last segment break before the first non-white-space character in the element as well as to discard all white space at the end of the element starting with the first segment break after the last non-white-space character in the element. For other elements this value directs UAs to discard all whitespace at the beginning and end of the element.
     discard_inner,
 
-    pub fn format(self: WhiteSpaceTrim, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WhiteSpaceTrim, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31625,7 +31633,7 @@ pub const Widows = union(enum) {
     revert_layer,
     unset,
 
-    pub fn format(self: Widows, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Widows, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31687,7 +31695,7 @@ pub const Width = union(enum) {
     pub fn percent2(v1: f32, v2: f32) Width {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Width, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Width, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31708,7 +31716,7 @@ pub const WillChange = union(enum) {
     /// Indicates that the author expects to animate or change something about the element’s contents in the near future. For example, browsers often “cache” rendering of elements over time, because most things don’t change very often, or only change their position. However, if an element does change its contents continually, producing and maintaining this cache is a waste of time. A browser might take this value as a signal to cache less aggressively on the element, or avoid caching at all and just continually re-render the element from scratch. This value is mostly intended to help browsers optimize JS-based animations of content, which change aspects of an element’s contents many times per second. This kind of optimization, when possible, is already done automatically by browsers when declarative animations are used.
     contents,
 
-    pub fn format(self: WillChange, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WillChange, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31735,7 +31743,7 @@ pub const WordBreak = union(enum) {
     /// For compatibility with legacy content, the word-break property also supports a deprecated break-word keyword. When specified, this has the same effect as word-break: normal and overflow-wrap: anywhere, regardless of the actual value of the overflow-wrap property.
     break_word,
 
-    pub fn format(self: WordBreak, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WordBreak, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31756,7 +31764,7 @@ pub const WordSpaceTransform = union(enum) {
     /// If the content language is known and the user agent supports linguistic analysis for this language, the user agent must detect phrase boundaries. If a word-separator character, other space separator, or U+200B ZERO WIDTH SPACE character does not already occur at that boundary, then the UA must insert a virtual expandable separator. If this value is omitted, or if the content language is unknown, or if the user agent does not support detecting phrase boundaries for that language, there are no virtual expandable separator.
     auto_phrase,
 
-    pub fn format(self: WordSpaceTransform, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WordSpaceTransform, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31808,7 +31816,7 @@ pub const WordSpacing = union(enum) {
     pub fn percent2(v1: f32, v2: f32) WordSpacing {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: WordSpacing, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WordSpacing, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31826,7 +31834,7 @@ pub const WordWrap = union(enum) {
     break_word,
     anywhere,
 
-    pub fn format(self: WordWrap, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WordWrap, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31853,7 +31861,7 @@ pub const WrapAfter = union(enum) {
     /// Force a flex line break immediately before/after the box if the box is a flex item in a multi-line flex container.
     flex,
 
-    pub fn format(self: WrapAfter, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WrapAfter, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31880,7 +31888,7 @@ pub const WrapBefore = union(enum) {
     /// Force a flex line break immediately before/after the box if the box is a flex item in a multi-line flex container.
     flex,
 
-    pub fn format(self: WrapBefore, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WrapBefore, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31909,7 +31917,7 @@ pub const WrapFlow = union(enum) {
     /// Inline flow content can only flow before and after the exclusion in the flow content’s block direction and must leave the areas next to the start and end edges of the exclusion empty.
     clear,
 
-    pub fn format(self: WrapFlow, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WrapFlow, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31928,7 +31936,7 @@ pub const WrapInside = union(enum) {
     /// Line breaking is suppressed within the box: the UA may only break within the box if there are no other valid break points in the line. If the text breaks, line-breaking restrictions are honored as for auto. If boxes with avoid are nested and the UA must break within these boxes, a break in an outer box must be used before a break within an inner box may be used.
     avoid,
 
-    pub fn format(self: WrapInside, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WrapInside, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31945,7 +31953,7 @@ pub const WrapThrough = union(enum) {
     /// The element inherits its parent node’s wrapping context. Its descendant inline content wraps around exclusions defined outside the element.
     wrap,
 
-    pub fn format(self: WrapThrough, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WrapThrough, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -31970,7 +31978,7 @@ pub const WritingMode = union(enum) {
     /// Left-to-right block flow direction. The writing mode is vertical, while the typographic mode is horizontal.
     sideways_lr,
 
-    pub fn format(self: WritingMode, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: WritingMode, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -32020,7 +32028,7 @@ pub const X = union(enum) {
     pub fn percent2(v1: f32, v2: f32) X {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: X, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: X, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -32070,7 +32078,7 @@ pub const Y = union(enum) {
     pub fn percent2(v1: f32, v2: f32) Y {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Y, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Y, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -32087,7 +32095,7 @@ pub const ZIndex = union(enum) {
     /// The stack level of the generated box in the current stacking context is 0. The box does not establish a new stacking context unless it is the root element.
     auto,
 
-    pub fn format(self: ZIndex, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: ZIndex, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
@@ -32113,2905 +32121,949 @@ pub const Zoom = union(enum) {
     pub fn percent2(v1: f32, v2: f32) Zoom {
         return .{ .percent_ = .{ v1, v2, v1, v2 } };
     }
-    pub fn format(self: Zoom, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Zoom, w: anytype) std.Io.Writer.Error!void {
         return core.formatValue(self, w);
     }
 };
 
 pub const Style = struct {
-    /// -webkit-align-content
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-align-content
     webkit_align_content: WebkitAlignContent = .none,
-    /// -webkit-align-items
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-align-items
     webkit_align_items: WebkitAlignItems = .none,
-    /// -webkit-align-self
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-align-self
     webkit_align_self: WebkitAlignSelf = .none,
-    /// -webkit-animation
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation
     webkit_animation: WebkitAnimation = .none,
-    /// -webkit-animation-delay
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation-delay
     webkit_animation_delay: WebkitAnimationDelay = .none,
-    /// -webkit-animation-direction
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation-direction
     webkit_animation_direction: WebkitAnimationDirection = .none,
-    /// -webkit-animation-duration
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation-duration
     webkit_animation_duration: WebkitAnimationDuration = .none,
-    /// -webkit-animation-fill-mode
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation-fill-mode
     webkit_animation_fill_mode: WebkitAnimationFillMode = .none,
-    /// -webkit-animation-iteration-count
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation-iteration-count
     webkit_animation_iteration_count: WebkitAnimationIterationCount = .none,
-    /// -webkit-animation-name
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation-name
     webkit_animation_name: WebkitAnimationName = .none,
-    /// -webkit-animation-play-state
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation-play-state
     webkit_animation_play_state: WebkitAnimationPlayState = .none,
-    /// -webkit-animation-timing-function
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-animation-timing-function
     webkit_animation_timing_function: WebkitAnimationTimingFunction = .none,
-    /// -webkit-appearance
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef--webkit-appearance
     webkit_appearance: WebkitAppearance = .none,
-    /// -webkit-backface-visibility
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-backface-visibility
     webkit_backface_visibility: WebkitBackfaceVisibility = .none,
-    /// -webkit-background-clip
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-background-clip
     webkit_background_clip: WebkitBackgroundClip = .none,
-    /// -webkit-background-origin
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-background-origin
     webkit_background_origin: WebkitBackgroundOrigin = .none,
-    /// -webkit-background-size
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-background-size
     webkit_background_size: WebkitBackgroundSize = .none,
-    /// -webkit-border-bottom-left-radius
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-border-bottom-left-radius
     webkit_border_bottom_left_radius: WebkitBorderBottomLeftRadius = .none,
-    /// -webkit-border-bottom-right-radius
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-border-bottom-right-radius
     webkit_border_bottom_right_radius: WebkitBorderBottomRightRadius = .none,
-    /// -webkit-border-radius
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-border-radius
     webkit_border_radius: WebkitBorderRadius = .none,
-    /// -webkit-border-top-left-radius
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-border-top-left-radius
     webkit_border_top_left_radius: WebkitBorderTopLeftRadius = .none,
-    /// -webkit-border-top-right-radius
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-border-top-right-radius
     webkit_border_top_right_radius: WebkitBorderTopRightRadius = .none,
-    /// -webkit-box-align
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-box-align
     webkit_box_align: WebkitBoxAlign = .none,
-    /// -webkit-box-flex
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-box-flex
     webkit_box_flex: WebkitBoxFlex = .none,
-    /// -webkit-box-ordinal-group
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-box-ordinal-group
     webkit_box_ordinal_group: WebkitBoxOrdinalGroup = .none,
-    /// -webkit-box-orient
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-box-orient
     webkit_box_orient: WebkitBoxOrient = .none,
-    /// -webkit-box-pack
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-box-pack
     webkit_box_pack: WebkitBoxPack = .none,
-    /// -webkit-box-shadow
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-box-shadow
     webkit_box_shadow: WebkitBoxShadow = .none,
-    /// -webkit-box-sizing
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-box-sizing
     webkit_box_sizing: WebkitBoxSizing = .none,
-    /// -webkit-filter
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-filter
     webkit_filter: WebkitFilter = .none,
-    /// -webkit-flex
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-flex-propdef
     webkit_flex: WebkitFlex = .none,
-    /// -webkit-flex-basis
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-flex-basis
     webkit_flex_basis: WebkitFlexBasis = .none,
-    /// -webkit-flex-direction
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-flex-direction
     webkit_flex_direction: WebkitFlexDirection = .none,
-    /// -webkit-flex-flow
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-flex-flow
     webkit_flex_flow: WebkitFlexFlow = .none,
-    /// -webkit-flex-grow
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-flex-grow
     webkit_flex_grow: WebkitFlexGrow = .none,
-    /// -webkit-flex-shrink
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-flex-shrink
     webkit_flex_shrink: WebkitFlexShrink = .none,
-    /// -webkit-flex-wrap
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-flex-wrap
     webkit_flex_wrap: WebkitFlexWrap = .none,
-    /// -webkit-justify-content
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-justify-content
     webkit_justify_content: WebkitJustifyContent = .none,
-    /// -webkit-line-clamp
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef--webkit-line-clamp
     webkit_line_clamp: WebkitLineClamp = .none,
-    /// -webkit-mask
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask
     webkit_mask: WebkitMask = .none,
-    /// -webkit-mask-box-image
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-box-image
     webkit_mask_box_image: WebkitMaskBoxImage = .none,
-    /// -webkit-mask-box-image-outset
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-box-image-outset
     webkit_mask_box_image_outset: WebkitMaskBoxImageOutset = .none,
-    /// -webkit-mask-box-image-repeat
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-box-image-repeat
     webkit_mask_box_image_repeat: WebkitMaskBoxImageRepeat = .none,
-    /// -webkit-mask-box-image-slice
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-box-image-slice
     webkit_mask_box_image_slice: WebkitMaskBoxImageSlice = .none,
-    /// -webkit-mask-box-image-source
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-box-image-source
     webkit_mask_box_image_source: WebkitMaskBoxImageSource = .none,
-    /// -webkit-mask-box-image-width
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-box-image-width
     webkit_mask_box_image_width: WebkitMaskBoxImageWidth = .none,
-    /// -webkit-mask-clip
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-clip
     webkit_mask_clip: WebkitMaskClip = .none,
-    /// -webkit-mask-composite
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-composite
     webkit_mask_composite: WebkitMaskComposite = .none,
-    /// -webkit-mask-image
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-image
     webkit_mask_image: WebkitMaskImage = .none,
-    /// -webkit-mask-origin
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-origin
     webkit_mask_origin: WebkitMaskOrigin = .none,
-    /// -webkit-mask-position
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-position
     webkit_mask_position: WebkitMaskPosition = .none,
-    /// -webkit-mask-repeat
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-repeat
     webkit_mask_repeat: WebkitMaskRepeat = .none,
-    /// -webkit-mask-size
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-mask-size
     webkit_mask_size: WebkitMaskSize = .none,
-    /// -webkit-order
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-order
     webkit_order: WebkitOrder = .none,
-    /// -webkit-perspective
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-perspective
     webkit_perspective: WebkitPerspective = .none,
-    /// -webkit-perspective-origin
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-perspective-origin
     webkit_perspective_origin: WebkitPerspectiveOrigin = .none,
-    /// -webkit-text-fill-color
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-text-fill-color
     webkit_text_fill_color: WebkitTextFillColor = .none,
-    /// -webkit-text-size-adjust
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-text-size-adjust
     webkit_text_size_adjust: WebkitTextSizeAdjust = .none,
-    /// -webkit-text-stroke
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-text-stroke
     webkit_text_stroke: WebkitTextStroke = .none,
-    /// -webkit-text-stroke-color
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-text-stroke-color
     webkit_text_stroke_color: WebkitTextStrokeColor = .none,
-    /// -webkit-text-stroke-width
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-text-stroke-width
     webkit_text_stroke_width: WebkitTextStrokeWidth = .none,
-    /// -webkit-transform
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-transform
     webkit_transform: WebkitTransform = .none,
-    /// -webkit-transform-origin
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-transform-origin
     webkit_transform_origin: WebkitTransformOrigin = .none,
-    /// -webkit-transform-style
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-transform-style
     webkit_transform_style: WebkitTransformStyle = .none,
-    /// -webkit-transition
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-transition
     webkit_transition: WebkitTransition = .none,
-    /// -webkit-transition-delay
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-transition-delay
     webkit_transition_delay: WebkitTransitionDelay = .none,
-    /// -webkit-transition-duration
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-transition-duration
     webkit_transition_duration: WebkitTransitionDuration = .none,
-    /// -webkit-transition-property
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-transition-property
     webkit_transition_property: WebkitTransitionProperty = .none,
-    /// -webkit-transition-timing-function
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef--webkit-transition-timing-function
     webkit_transition_timing_function: WebkitTransitionTimingFunction = .none,
-    /// -webkit-user-select
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef--webkit-user-select
     webkit_user_select: WebkitUserSelect = .none,
-    /// accent-color
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-accent-color
     accent_color: AccentColor = .none,
-    /// align-content
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-align-content
     align_content: AlignContent = .none,
-    /// align-items
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-align-items
     align_items: AlignItems = .none,
-    /// align-self
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-align-self
     align_self: AlignSelf = .none,
-    /// alignment-baseline
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-alignment-baseline
     alignment_baseline: AlignmentBaseline = .none,
-    /// all
-    /// - **W3C**: https://drafts.csswg.org/css-cascade-5/#propdef-all
     all: All = .none,
-    /// anchor-name
-    /// - **W3C**: https://drafts.csswg.org/css-anchor-position-1/#propdef-anchor-name
     anchor_name: AnchorName = .none,
-    /// anchor-scope
-    /// - **W3C**: https://drafts.csswg.org/css-anchor-position-1/#propdef-anchor-scope
     anchor_scope: AnchorScope = .none,
-    /// animation
-    /// - **W3C**: https://drafts.csswg.org/css-animations-1/#propdef-animation
     animation: Animation = .none,
-    /// animation-composition
-    /// - **W3C**: https://drafts.csswg.org/css-animations-2/#propdef-animation-composition
     animation_composition: AnimationComposition = .none,
-    /// animation-delay
-    /// - **W3C**: https://drafts.csswg.org/css-animations-1/#propdef-animation-delay
     animation_delay: AnimationDelay = .none,
-    /// animation-direction
-    /// - **W3C**: https://drafts.csswg.org/css-animations-1/#propdef-animation-direction
     animation_direction: AnimationDirection = .none,
-    /// animation-duration
-    /// - **W3C**: https://drafts.csswg.org/css-animations-2/#propdef-animation-duration
     animation_duration: AnimationDuration = .none,
-    /// animation-fill-mode
-    /// - **W3C**: https://drafts.csswg.org/css-animations-1/#propdef-animation-fill-mode
     animation_fill_mode: AnimationFillMode = .none,
-    /// animation-iteration-count
-    /// - **W3C**: https://drafts.csswg.org/css-animations-1/#propdef-animation-iteration-count
     animation_iteration_count: AnimationIterationCount = .none,
-    /// animation-name
-    /// - **W3C**: https://drafts.csswg.org/css-animations-1/#propdef-animation-name
     animation_name: AnimationName = .none,
-    /// animation-play-state
-    /// - **W3C**: https://drafts.csswg.org/css-animations-1/#propdef-animation-play-state
     animation_play_state: AnimationPlayState = .none,
-    /// animation-range
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-animation-range
     animation_range: AnimationRange = .none,
-    /// animation-range-center
-    /// - **W3C**: https://drafts.csswg.org/pointer-animations-1/#propdef-animation-range-center
     animation_range_center: AnimationRangeCenter = .none,
-    /// animation-range-end
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-animation-range-end
     animation_range_end: AnimationRangeEnd = .none,
-    /// animation-range-start
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-animation-range-start
     animation_range_start: AnimationRangeStart = .none,
-    /// animation-timeline
-    /// - **W3C**: https://drafts.csswg.org/css-animations-2/#propdef-animation-timeline
     animation_timeline: AnimationTimeline = .none,
-    /// animation-timing-function
-    /// - **W3C**: https://drafts.csswg.org/css-animations-1/#propdef-animation-timing-function
     animation_timing_function: AnimationTimingFunction = .none,
-    /// animation-trigger
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-animation-trigger
     animation_trigger: AnimationTrigger = .none,
-    /// appearance
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-appearance
     appearance: Appearance = .none,
-    /// aspect-ratio
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-4/#propdef-aspect-ratio
     aspect_ratio: AspectRatio = .none,
-    /// backdrop-filter
-    /// - **W3C**: https://drafts.csswg.org/filter-effects-2/#propdef-backdrop-filter
     backdrop_filter: BackdropFilter = .none,
-    /// backface-visibility
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-2/#propdef-backface-visibility
     backface_visibility: BackfaceVisibility = .none,
-    /// background
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background
     background: Background = .none,
-    /// background-attachment
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-attachment
     background_attachment: BackgroundAttachment = .none,
-    /// background-blend-mode
-    /// - **W3C**: https://drafts.csswg.org/compositing-2/#propdef-background-blend-mode
     background_blend_mode: BackgroundBlendMode = .none,
-    /// background-clip
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-clip
     background_clip: BackgroundClip = .none,
-    /// background-color
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-color
     background_color: BackgroundColor = .none,
-    /// background-image
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-image
     background_image: BackgroundImage = .none,
-    /// background-origin
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-origin
     background_origin: BackgroundOrigin = .none,
-    /// background-position
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-position
     background_position: BackgroundPosition = .none,
-    /// background-position-block
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-position-block
     background_position_block: BackgroundPositionBlock = .none,
-    /// background-position-inline
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-position-inline
     background_position_inline: BackgroundPositionInline = .none,
-    /// background-position-x
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-position-x
     background_position_x: BackgroundPositionX = .none,
-    /// background-position-y
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-position-y
     background_position_y: BackgroundPositionY = .none,
-    /// background-repeat
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-repeat
     background_repeat: BackgroundRepeat = .none,
-    /// background-repeat-block
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-repeat-block
     background_repeat_block: BackgroundRepeatBlock = .none,
-    /// background-repeat-inline
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-repeat-inline
     background_repeat_inline: BackgroundRepeatInline = .none,
-    /// background-repeat-x
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-repeat-x
     background_repeat_x: BackgroundRepeatX = .none,
-    /// background-repeat-y
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-repeat-y
     background_repeat_y: BackgroundRepeatY = .none,
-    /// background-size
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-size
     background_size: BackgroundSize = .none,
-    /// background-tbd
-    /// - **W3C**: https://drafts.csswg.org/css-backgrounds-4/#propdef-background-tbd
     background_tbd: BackgroundTbd = .none,
-    /// baseline-shift
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-baseline-shift
     baseline_shift: BaselineShift = .none,
-    /// baseline-source
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-baseline-source
     baseline_source: BaselineSource = .none,
-    /// block-ellipsis
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-block-ellipsis
     block_ellipsis: BlockEllipsis = .none,
-    /// block-size
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-block-size
     block_size: BlockSize = .none,
-    /// block-step
-    /// - **W3C**: https://drafts.csswg.org/css-rhythm-1/#propdef-block-step
     block_step: BlockStep = .none,
-    /// block-step-align
-    /// - **W3C**: https://drafts.csswg.org/css-rhythm-1/#propdef-block-step-align
     block_step_align: BlockStepAlign = .none,
-    /// block-step-insert
-    /// - **W3C**: https://drafts.csswg.org/css-rhythm-1/#propdef-block-step-insert
     block_step_insert: BlockStepInsert = .none,
-    /// block-step-round
-    /// - **W3C**: https://drafts.csswg.org/css-rhythm-1/#propdef-block-step-round
     block_step_round: BlockStepRound = .none,
-    /// block-step-size
-    /// - **W3C**: https://drafts.csswg.org/css-rhythm-1/#propdef-block-step-size
     block_step_size: BlockStepSize = .none,
-    /// bookmark-label
-    /// - **W3C**: https://drafts.csswg.org/css-content-3/#propdef-bookmark-label
     bookmark_label: BookmarkLabel = .none,
-    /// bookmark-level
-    /// - **W3C**: https://drafts.csswg.org/css-content-3/#propdef-bookmark-level
     bookmark_level: BookmarkLevel = .none,
-    /// bookmark-state
-    /// - **W3C**: https://drafts.csswg.org/css-content-3/#propdef-bookmark-state
     bookmark_state: BookmarkState = .none,
-    /// border
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border
     border: Border = .none,
-    /// border-block
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block
     border_block: BorderBlock = .none,
-    /// border-block-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-clip
     border_block_clip: BorderBlockClip = .none,
-    /// border-block-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-color
     border_block_color: BorderBlockColor = .none,
-    /// border-block-end
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-end
     border_block_end: BorderBlockEnd = .none,
-    /// border-block-end-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-end-clip
     border_block_end_clip: BorderBlockEndClip = .none,
-    /// border-block-end-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-end-color
     border_block_end_color: BorderBlockEndColor = .none,
-    /// border-block-end-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-end-radius
     border_block_end_radius: BorderBlockEndRadius = .none,
-    /// border-block-end-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-end-style
     border_block_end_style: BorderBlockEndStyle = .none,
-    /// border-block-end-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-end-width
     border_block_end_width: BorderBlockEndWidth = .none,
-    /// border-block-start
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-start
     border_block_start: BorderBlockStart = .none,
-    /// border-block-start-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-start-clip
     border_block_start_clip: BorderBlockStartClip = .none,
-    /// border-block-start-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-start-color
     border_block_start_color: BorderBlockStartColor = .none,
-    /// border-block-start-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-start-radius
     border_block_start_radius: BorderBlockStartRadius = .none,
-    /// border-block-start-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-start-style
     border_block_start_style: BorderBlockStartStyle = .none,
-    /// border-block-start-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-start-width
     border_block_start_width: BorderBlockStartWidth = .none,
-    /// border-block-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-style
     border_block_style: BorderBlockStyle = .none,
-    /// border-block-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-block-width
     border_block_width: BorderBlockWidth = .none,
-    /// border-bottom
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-bottom
     border_bottom: BorderBottom = .none,
-    /// border-bottom-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-bottom-clip
     border_bottom_clip: BorderBottomClip = .none,
-    /// border-bottom-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-bottom-color
     border_bottom_color: BorderBottomColor = .none,
-    /// border-bottom-left-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-bottom-left-radius
     border_bottom_left_radius: BorderBottomLeftRadius = .none,
-    /// border-bottom-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-bottom-radius
     border_bottom_radius: BorderBottomRadius = .none,
-    /// border-bottom-right-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-bottom-right-radius
     border_bottom_right_radius: BorderBottomRightRadius = .none,
-    /// border-bottom-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-bottom-style
     border_bottom_style: BorderBottomStyle = .none,
-    /// border-bottom-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-bottom-width
     border_bottom_width: BorderBottomWidth = .none,
-    /// border-boundary
-    /// - **W3C**: https://drafts.csswg.org/css-round-display-1/#propdef-border-boundary
     border_boundary: BorderBoundary = .none,
-    /// border-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-clip
     border_clip: BorderClip = .none,
-    /// border-collapse
-    /// - **W3C**: https://drafts.csswg.org/css-tables-3/#propdef-border-collapse
     border_collapse: BorderCollapse = .none,
-    /// border-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-color
     border_color: BorderColor = .none,
-    /// border-end-end-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-end-end-radius
     border_end_end_radius: BorderEndEndRadius = .none,
-    /// border-end-start-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-end-start-radius
     border_end_start_radius: BorderEndStartRadius = .none,
-    /// border-image
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-image
     border_image: BorderImage = .none,
-    /// border-image-outset
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-image-outset
     border_image_outset: BorderImageOutset = .none,
-    /// border-image-repeat
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-image-repeat
     border_image_repeat: BorderImageRepeat = .none,
-    /// border-image-slice
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-image-slice
     border_image_slice: BorderImageSlice = .none,
-    /// border-image-source
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-image-source
     border_image_source: BorderImageSource = .none,
-    /// border-image-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-image-width
     border_image_width: BorderImageWidth = .none,
-    /// border-inline
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline
     border_inline: BorderInline = .none,
-    /// border-inline-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-clip
     border_inline_clip: BorderInlineClip = .none,
-    /// border-inline-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-color
     border_inline_color: BorderInlineColor = .none,
-    /// border-inline-end
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-end
     border_inline_end: BorderInlineEnd = .none,
-    /// border-inline-end-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-end-clip
     border_inline_end_clip: BorderInlineEndClip = .none,
-    /// border-inline-end-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-end-color
     border_inline_end_color: BorderInlineEndColor = .none,
-    /// border-inline-end-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-end-radius
     border_inline_end_radius: BorderInlineEndRadius = .none,
-    /// border-inline-end-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-end-style
     border_inline_end_style: BorderInlineEndStyle = .none,
-    /// border-inline-end-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-end-width
     border_inline_end_width: BorderInlineEndWidth = .none,
-    /// border-inline-start
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-start
     border_inline_start: BorderInlineStart = .none,
-    /// border-inline-start-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-start-clip
     border_inline_start_clip: BorderInlineStartClip = .none,
-    /// border-inline-start-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-start-color
     border_inline_start_color: BorderInlineStartColor = .none,
-    /// border-inline-start-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-start-radius
     border_inline_start_radius: BorderInlineStartRadius = .none,
-    /// border-inline-start-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-start-style
     border_inline_start_style: BorderInlineStartStyle = .none,
-    /// border-inline-start-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-start-width
     border_inline_start_width: BorderInlineStartWidth = .none,
-    /// border-inline-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-style
     border_inline_style: BorderInlineStyle = .none,
-    /// border-inline-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-inline-width
     border_inline_width: BorderInlineWidth = .none,
-    /// border-left
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-left
     border_left: BorderLeft = .none,
-    /// border-left-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-left-clip
     border_left_clip: BorderLeftClip = .none,
-    /// border-left-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-left-color
     border_left_color: BorderLeftColor = .none,
-    /// border-left-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-left-radius
     border_left_radius: BorderLeftRadius = .none,
-    /// border-left-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-left-style
     border_left_style: BorderLeftStyle = .none,
-    /// border-left-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-left-width
     border_left_width: BorderLeftWidth = .none,
-    /// border-limit
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-limit
     border_limit: BorderLimit = .none,
-    /// border-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-radius
     border_radius: BorderRadius = .none,
-    /// border-right
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-right
     border_right: BorderRight = .none,
-    /// border-right-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-right-clip
     border_right_clip: BorderRightClip = .none,
-    /// border-right-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-right-color
     border_right_color: BorderRightColor = .none,
-    /// border-right-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-right-radius
     border_right_radius: BorderRightRadius = .none,
-    /// border-right-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-right-style
     border_right_style: BorderRightStyle = .none,
-    /// border-right-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-right-width
     border_right_width: BorderRightWidth = .none,
-    /// border-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-shape
     border_shape: BorderShape = .none,
-    /// border-spacing
-    /// - **W3C**: https://drafts.csswg.org/css-tables-3/#propdef-border-spacing
     border_spacing: BorderSpacing = .none,
-    /// border-start-end-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-start-end-radius
     border_start_end_radius: BorderStartEndRadius = .none,
-    /// border-start-start-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-start-start-radius
     border_start_start_radius: BorderStartStartRadius = .none,
-    /// border-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-style
     border_style: BorderStyle = .none,
-    /// border-top
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-top
     border_top: BorderTop = .none,
-    /// border-top-clip
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-top-clip
     border_top_clip: BorderTopClip = .none,
-    /// border-top-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-top-color
     border_top_color: BorderTopColor = .none,
-    /// border-top-left-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-top-left-radius
     border_top_left_radius: BorderTopLeftRadius = .none,
-    /// border-top-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-top-radius
     border_top_radius: BorderTopRadius = .none,
-    /// border-top-right-radius
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-top-right-radius
     border_top_right_radius: BorderTopRightRadius = .none,
-    /// border-top-style
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-top-style
     border_top_style: BorderTopStyle = .none,
-    /// border-top-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-top-width
     border_top_width: BorderTopWidth = .none,
-    /// border-width
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-border-width
     border_width: BorderWidth = .none,
-    /// bottom
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-bottom
     bottom: Bottom = .none,
-    /// box-decoration-break
-    /// - **W3C**: https://drafts.csswg.org/css-break-4/#propdef-box-decoration-break
     box_decoration_break: BoxDecorationBreak = .none,
-    /// box-shadow
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-box-shadow
     box_shadow: BoxShadow = .none,
-    /// box-shadow-blur
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-box-shadow-blur
     box_shadow_blur: BoxShadowBlur = .none,
-    /// box-shadow-color
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-box-shadow-color
     box_shadow_color: BoxShadowColor = .none,
-    /// box-shadow-offset
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-box-shadow-offset
     box_shadow_offset: BoxShadowOffset = .none,
-    /// box-shadow-position
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-box-shadow-position
     box_shadow_position: BoxShadowPosition = .none,
-    /// box-shadow-spread
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-box-shadow-spread
     box_shadow_spread: BoxShadowSpread = .none,
-    /// box-sizing
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-3/#propdef-box-sizing
     box_sizing: BoxSizing = .none,
-    /// box-snap
-    /// - **W3C**: https://drafts.csswg.org/css-line-grid-1/#propdef-box-snap
     box_snap: BoxSnap = .none,
-    /// break-after
-    /// - **W3C**: https://drafts.csswg.org/css-break-4/#propdef-break-after
     break_after: BreakAfter = .none,
-    /// break-before
-    /// - **W3C**: https://drafts.csswg.org/css-break-4/#propdef-break-before
     break_before: BreakBefore = .none,
-    /// break-inside
-    /// - **W3C**: https://drafts.csswg.org/css-break-4/#propdef-break-inside
     break_inside: BreakInside = .none,
-    /// caption-side
-    /// - **W3C**: https://drafts.csswg.org/css-tables-3/#propdef-caption-side
     caption_side: CaptionSide = .none,
-    /// caret
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-caret
     caret: Caret = .none,
-    /// caret-animation
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-caret-animation
     caret_animation: CaretAnimation = .none,
-    /// caret-color
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-caret-color
     caret_color: CaretColor = .none,
-    /// caret-shape
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-caret-shape
     caret_shape: CaretShape = .none,
-    /// clear
-    /// - **W3C**: https://drafts.csswg.org/css-page-floats-3/#propdef-clear
     clear: Clear = .none,
-    /// clip
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-clip
     clip: Clip = .none,
-    /// clip-path
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-clip-path
     clip_path: ClipPath = .none,
-    /// clip-rule
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-clip-rule
     clip_rule: ClipRule = .none,
-    /// color
-    /// - **W3C**: https://drafts.csswg.org/css-color-4/#propdef-color
     color: CssColor = .none,
-    /// color-adjust
-    /// - **W3C**: https://drafts.csswg.org/css-color-adjust-1/#propdef-color-adjust
     color_adjust: ColorAdjust = .none,
-    /// color-interpolation
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#ColorInterpolationProperty
     color_interpolation: ColorInterpolation = .none,
-    /// color-interpolation-filters
-    /// - **W3C**: https://drafts.csswg.org/filter-effects-1/#propdef-color-interpolation-filters
     color_interpolation_filters: ColorInterpolationFilters = .none,
-    /// color-scheme
-    /// - **W3C**: https://drafts.csswg.org/css-color-adjust-1/#propdef-color-scheme
     color_scheme: ColorScheme = .none,
-    /// column-count
-    /// - **W3C**: https://drafts.csswg.org/css-multicol-2/#propdef-column-count
     column_count: ColumnCount = .none,
-    /// column-fill
-    /// - **W3C**: https://drafts.csswg.org/css-multicol-2/#propdef-column-fill
     column_fill: ColumnFill = .none,
-    /// column-gap
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-column-gap
     column_gap: ColumnGap = .none,
-    /// column-height
-    /// - **W3C**: https://drafts.csswg.org/css-multicol-2/#propdef-column-height
     column_height: ColumnHeight = .none,
-    /// column-rule
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule
     column_rule: ColumnRule = .none,
-    /// column-rule-break
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-break
     column_rule_break: ColumnRuleBreak = .none,
-    /// column-rule-color
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-color
     column_rule_color: ColumnRuleColor = .none,
-    /// column-rule-edge-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-edge-inset
     column_rule_edge_inset: ColumnRuleEdgeInset = .none,
-    /// column-rule-edge-inset-end
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-edge-inset-end
     column_rule_edge_inset_end: ColumnRuleEdgeInsetEnd = .none,
-    /// column-rule-edge-inset-start
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-edge-inset-start
     column_rule_edge_inset_start: ColumnRuleEdgeInsetStart = .none,
-    /// column-rule-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-inset
     column_rule_inset: ColumnRuleInset = .none,
-    /// column-rule-inset-end
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-inset-end
     column_rule_inset_end: ColumnRuleInsetEnd = .none,
-    /// column-rule-inset-start
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-inset-start
     column_rule_inset_start: ColumnRuleInsetStart = .none,
-    /// column-rule-interior-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-interior-inset
     column_rule_interior_inset: ColumnRuleInteriorInset = .none,
-    /// column-rule-interior-inset-end
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-interior-inset-end
     column_rule_interior_inset_end: ColumnRuleInteriorInsetEnd = .none,
-    /// column-rule-interior-inset-start
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-interior-inset-start
     column_rule_interior_inset_start: ColumnRuleInteriorInsetStart = .none,
-    /// column-rule-style
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-style
     column_rule_style: ColumnRuleStyle = .none,
-    /// column-rule-visibility-items
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-visibility-items
     column_rule_visibility_items: ColumnRuleVisibilityItems = .none,
-    /// column-rule-width
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-column-rule-width
     column_rule_width: ColumnRuleWidth = .none,
-    /// column-span
-    /// - **W3C**: https://drafts.csswg.org/css-multicol-2/#propdef-column-span
     column_span: ColumnSpan = .none,
-    /// column-width
-    /// - **W3C**: https://drafts.csswg.org/css-multicol-2/#propdef-column-width
     column_width: ColumnWidth = .none,
-    /// column-wrap
-    /// - **W3C**: https://drafts.csswg.org/css-multicol-2/#propdef-column-wrap
     column_wrap: ColumnWrap = .none,
-    /// columns
-    /// - **W3C**: https://drafts.csswg.org/css-multicol-2/#propdef-columns
     columns: Columns = .none,
-    /// contain
-    /// - **W3C**: https://drafts.csswg.org/css-contain-2/#propdef-contain
     contain: Contain = .none,
-    /// contain-intrinsic-block-size
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-4/#propdef-contain-intrinsic-block-size
     contain_intrinsic_block_size: ContainIntrinsicBlockSize = .none,
-    /// contain-intrinsic-height
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-4/#propdef-contain-intrinsic-height
     contain_intrinsic_height: ContainIntrinsicHeight = .none,
-    /// contain-intrinsic-inline-size
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-4/#propdef-contain-intrinsic-inline-size
     contain_intrinsic_inline_size: ContainIntrinsicInlineSize = .none,
-    /// contain-intrinsic-size
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-4/#propdef-contain-intrinsic-size
     contain_intrinsic_size: ContainIntrinsicSize = .none,
-    /// contain-intrinsic-width
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-4/#propdef-contain-intrinsic-width
     contain_intrinsic_width: ContainIntrinsicWidth = .none,
-    /// container
-    /// - **W3C**: https://drafts.csswg.org/css-conditional-5/#propdef-container
     container: Container = .none,
-    /// container-name
-    /// - **W3C**: https://drafts.csswg.org/css-conditional-5/#propdef-container-name
     container_name: ContainerName = .none,
-    /// container-type
-    /// - **W3C**: https://drafts.csswg.org/css-conditional-5/#propdef-container-type
     container_type: ContainerType = .none,
-    /// content
-    /// - **W3C**: https://drafts.csswg.org/css-content-3/#propdef-content
     content: Content = .none,
-    /// content-visibility
-    /// - **W3C**: https://drafts.csswg.org/css-contain-2/#propdef-content-visibility
     content_visibility: ContentVisibility = .none,
-    /// continue
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-continue
-    @"continue": Continue = .none,
-    /// copy-into
-    /// - **W3C**: https://drafts.csswg.org/css-gcpm-4/#propdef-copy-into
+    continue_: Continue = .none,
     copy_into: CopyInto = .none,
-    /// corner
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner
     corner: Corner = .none,
-    /// corner-block-end
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-block-end
     corner_block_end: CornerBlockEnd = .none,
-    /// corner-block-end-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-block-end-shape
     corner_block_end_shape: CornerBlockEndShape = .none,
-    /// corner-block-start
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-block-start
     corner_block_start: CornerBlockStart = .none,
-    /// corner-block-start-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-block-start-shape
     corner_block_start_shape: CornerBlockStartShape = .none,
-    /// corner-bottom
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-bottom
     corner_bottom: CornerBottom = .none,
-    /// corner-bottom-left
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-bottom-left
     corner_bottom_left: CornerBottomLeft = .none,
-    /// corner-bottom-left-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-bottom-left-shape
     corner_bottom_left_shape: CornerBottomLeftShape = .none,
-    /// corner-bottom-right
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-bottom-right
     corner_bottom_right: CornerBottomRight = .none,
-    /// corner-bottom-right-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-bottom-right-shape
     corner_bottom_right_shape: CornerBottomRightShape = .none,
-    /// corner-bottom-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-bottom-shape
     corner_bottom_shape: CornerBottomShape = .none,
-    /// corner-end-end
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-end-end
     corner_end_end: CornerEndEnd = .none,
-    /// corner-end-end-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-end-end-shape
     corner_end_end_shape: CornerEndEndShape = .none,
-    /// corner-end-start
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-end-start
     corner_end_start: CornerEndStart = .none,
-    /// corner-end-start-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-end-start-shape
     corner_end_start_shape: CornerEndStartShape = .none,
-    /// corner-inline-end
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-inline-end
     corner_inline_end: CornerInlineEnd = .none,
-    /// corner-inline-end-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-inline-end-shape
     corner_inline_end_shape: CornerInlineEndShape = .none,
-    /// corner-inline-start
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-inline-start
     corner_inline_start: CornerInlineStart = .none,
-    /// corner-inline-start-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-inline-start-shape
     corner_inline_start_shape: CornerInlineStartShape = .none,
-    /// corner-left
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-left
     corner_left: CornerLeft = .none,
-    /// corner-left-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-left-shape
     corner_left_shape: CornerLeftShape = .none,
-    /// corner-right
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-right
     corner_right: CornerRight = .none,
-    /// corner-right-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-right-shape
     corner_right_shape: CornerRightShape = .none,
-    /// corner-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-shape
     corner_shape: CornerShape = .none,
-    /// corner-start-end
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-start-end
     corner_start_end: CornerStartEnd = .none,
-    /// corner-start-end-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-start-end-shape
     corner_start_end_shape: CornerStartEndShape = .none,
-    /// corner-start-start
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-start-start
     corner_start_start: CornerStartStart = .none,
-    /// corner-start-start-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-start-start-shape
     corner_start_start_shape: CornerStartStartShape = .none,
-    /// corner-top
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-top
     corner_top: CornerTop = .none,
-    /// corner-top-left
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-top-left
     corner_top_left: CornerTopLeft = .none,
-    /// corner-top-left-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-top-left-shape
     corner_top_left_shape: CornerTopLeftShape = .none,
-    /// corner-top-right
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-top-right
     corner_top_right: CornerTopRight = .none,
-    /// corner-top-right-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-top-right-shape
     corner_top_right_shape: CornerTopRightShape = .none,
-    /// corner-top-shape
-    /// - **W3C**: https://drafts.csswg.org/css-borders-4/#propdef-corner-top-shape
     corner_top_shape: CornerTopShape = .none,
-    /// counter-increment
-    /// - **W3C**: https://drafts.csswg.org/css-lists-3/#propdef-counter-increment
     counter_increment: CounterIncrement = .none,
-    /// counter-reset
-    /// - **W3C**: https://drafts.csswg.org/css-lists-3/#propdef-counter-reset
     counter_reset: CounterReset = .none,
-    /// counter-set
-    /// - **W3C**: https://drafts.csswg.org/css-lists-3/#propdef-counter-set
     counter_set: CounterSet = .none,
-    /// cue
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-cue
     cue: Cue = .none,
-    /// cue-after
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-cue-after
     cue_after: CueAfter = .none,
-    /// cue-before
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-cue-before
     cue_before: CueBefore = .none,
-    /// cursor
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-cursor
     cursor: Cursor = .none,
-    /// cx
-    /// - **W3C**: https://svgwg.org/svg2-draft/geometry.html#CxProperty
     cx: Cx = .none,
-    /// cy
-    /// - **W3C**: https://svgwg.org/svg2-draft/geometry.html#CyProperty
     cy: Cy = .none,
-    /// d
-    /// - **W3C**: https://svgwg.org/svg2-draft/paths.html#DProperty
     d: D = .none,
-    /// direction
-    /// - **W3C**: https://drafts.csswg.org/css-writing-modes-4/#propdef-direction
     direction: Direction = .none,
-    /// display
-    /// - **W3C**: https://drafts.csswg.org/css-display-4/#propdef-display
     display: Display = .none,
-    /// dominant-baseline
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-dominant-baseline
     dominant_baseline: DominantBaseline = .none,
-    /// dynamic-range-limit
-    /// - **W3C**: https://drafts.csswg.org/css-color-hdr-1/#propdef-dynamic-range-limit
     dynamic_range_limit: DynamicRangeLimit = .none,
-    /// empty-cells
-    /// - **W3C**: https://drafts.csswg.org/css-tables-3/#propdef-empty-cells
     empty_cells: EmptyCells = .none,
-    /// event-trigger
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-event-trigger
     event_trigger: EventTrigger = .none,
-    /// event-trigger-name
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-event-trigger-name
     event_trigger_name: EventTriggerName = .none,
-    /// event-trigger-source
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-event-trigger-source
     event_trigger_source: EventTriggerSource = .none,
-    /// field-sizing
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#propdef-field-sizing
     field_sizing: FieldSizing = .none,
-    /// fill
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#FillProperty
     fill: Fill = .none,
-    /// fill-break
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-break
     fill_break: FillBreak = .none,
-    /// fill-color
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-color
     fill_color: FillColor = .none,
-    /// fill-image
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-image
     fill_image: FillImage = .none,
-    /// fill-opacity
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-opacity
     fill_opacity: FillOpacity = .none,
-    /// fill-origin
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-origin
     fill_origin: FillOrigin = .none,
-    /// fill-position
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-position
     fill_position: FillPosition = .none,
-    /// fill-repeat
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-repeat
     fill_repeat: FillRepeat = .none,
-    /// fill-rule
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-rule
     fill_rule: FillRule = .none,
-    /// fill-size
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-fill-size
     fill_size: FillSize = .none,
-    /// filter
-    /// - **W3C**: https://drafts.csswg.org/filter-effects-1/#propdef-filter
     filter: Filter = .none,
-    /// flex
-    /// - **W3C**: https://drafts.csswg.org/css-flexbox-1/#propdef-flex
     flex: Flex = .none,
-    /// flex-basis
-    /// - **W3C**: https://drafts.csswg.org/css-flexbox-1/#propdef-flex-basis
     flex_basis: FlexBasis = .none,
-    /// flex-direction
-    /// - **W3C**: https://drafts.csswg.org/css-flexbox-1/#propdef-flex-direction
     flex_direction: FlexDirection = .none,
-    /// flex-flow
-    /// - **W3C**: https://drafts.csswg.org/css-flexbox-1/#propdef-flex-flow
     flex_flow: FlexFlow = .none,
-    /// flex-grow
-    /// - **W3C**: https://drafts.csswg.org/css-flexbox-1/#propdef-flex-grow
     flex_grow: FlexGrow = .none,
-    /// flex-shrink
-    /// - **W3C**: https://drafts.csswg.org/css-flexbox-1/#propdef-flex-shrink
     flex_shrink: FlexShrink = .none,
-    /// flex-wrap
-    /// - **W3C**: https://drafts.csswg.org/css-flexbox-1/#propdef-flex-wrap
     flex_wrap: FlexWrap = .none,
-    /// float
-    /// - **W3C**: https://drafts.csswg.org/css-page-floats-3/#propdef-float
     float: Float = .none,
-    /// float-defer
-    /// - **W3C**: https://drafts.csswg.org/css-page-floats-3/#propdef-float-defer
     float_defer: FloatDefer = .none,
-    /// float-offset
-    /// - **W3C**: https://drafts.csswg.org/css-page-floats-3/#propdef-float-offset
     float_offset: FloatOffset = .none,
-    /// float-reference
-    /// - **W3C**: https://drafts.csswg.org/css-page-floats-3/#propdef-float-reference
     float_reference: FloatReference = .none,
-    /// flood-color
-    /// - **W3C**: https://drafts.csswg.org/filter-effects-1/#propdef-flood-color
     flood_color: FloodColor = .none,
-    /// flood-opacity
-    /// - **W3C**: https://drafts.csswg.org/filter-effects-1/#propdef-flood-opacity
     flood_opacity: FloodOpacity = .none,
-    /// flow-from
-    /// - **W3C**: https://drafts.csswg.org/css-regions-1/#propdef-flow-from
     flow_from: FlowFrom = .none,
-    /// flow-into
-    /// - **W3C**: https://drafts.csswg.org/css-regions-1/#propdef-flow-into
     flow_into: FlowInto = .none,
-    /// flow-tolerance
-    /// - **W3C**: https://drafts.csswg.org/css-grid-3/#propdef-flow-tolerance
     flow_tolerance: FlowTolerance = .none,
-    /// font
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font
     font: Font = .none,
-    /// font-family
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-family
     font_family: FontFamily = .none,
-    /// font-feature-settings
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-feature-settings
     font_feature_settings: FontFeatureSettings = .none,
-    /// font-kerning
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-kerning
     font_kerning: FontKerning = .none,
-    /// font-language-override
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-language-override
     font_language_override: FontLanguageOverride = .none,
-    /// font-optical-sizing
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-optical-sizing
     font_optical_sizing: FontOpticalSizing = .none,
-    /// font-palette
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-palette
     font_palette: FontPalette = .none,
-    /// font-size
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-size
     font_size: FontSize = .none,
-    /// font-size-adjust
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-5/#propdef-font-size-adjust
     font_size_adjust: FontSizeAdjust = .none,
-    /// font-stretch
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-stretch
     font_stretch: FontStretch = .none,
-    /// font-style
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-style
     font_style: FontStyle = .none,
-    /// font-synthesis
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-synthesis
     font_synthesis: FontSynthesis = .none,
-    /// font-synthesis-position
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-synthesis-position
     font_synthesis_position: FontSynthesisPosition = .none,
-    /// font-synthesis-small-caps
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-synthesis-small-caps
     font_synthesis_small_caps: FontSynthesisSmallCaps = .none,
-    /// font-synthesis-style
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-synthesis-style
     font_synthesis_style: FontSynthesisStyle = .none,
-    /// font-synthesis-weight
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-synthesis-weight
     font_synthesis_weight: FontSynthesisWeight = .none,
-    /// font-variant
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variant
     font_variant: FontVariant = .none,
-    /// font-variant-alternates
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variant-alternates
     font_variant_alternates: FontVariantAlternates = .none,
-    /// font-variant-caps
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variant-caps
     font_variant_caps: FontVariantCaps = .none,
-    /// font-variant-east-asian
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variant-east-asian
     font_variant_east_asian: FontVariantEastAsian = .none,
-    /// font-variant-emoji
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variant-emoji
     font_variant_emoji: FontVariantEmoji = .none,
-    /// font-variant-ligatures
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variant-ligatures
     font_variant_ligatures: FontVariantLigatures = .none,
-    /// font-variant-numeric
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variant-numeric
     font_variant_numeric: FontVariantNumeric = .none,
-    /// font-variant-position
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variant-position
     font_variant_position: FontVariantPosition = .none,
-    /// font-variation-settings
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-variation-settings
     font_variation_settings: FontVariationSettings = .none,
-    /// font-weight
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-weight
     font_weight: FontWeight = .none,
-    /// font-width
-    /// - **W3C**: https://drafts.csswg.org/css-fonts-4/#propdef-font-width
     font_width: FontWidth = .none,
-    /// footnote-display
-    /// - **W3C**: https://drafts.csswg.org/css-gcpm-3/#propdef-footnote-display
     footnote_display: FootnoteDisplay = .none,
-    /// footnote-policy
-    /// - **W3C**: https://drafts.csswg.org/css-gcpm-3/#propdef-footnote-policy
     footnote_policy: FootnotePolicy = .none,
-    /// forced-color-adjust
-    /// - **W3C**: https://drafts.csswg.org/css-color-adjust-1/#propdef-forced-color-adjust
     forced_color_adjust: ForcedColorAdjust = .none,
-    /// gap
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-gap
+    frame_sizing: FrameSizing = .none,
     gap: Gap = .none,
-    /// glyph-orientation-vertical
-    /// - **W3C**: https://drafts.csswg.org/css-writing-modes-4/#propdef-glyph-orientation-vertical
     glyph_orientation_vertical: GlyphOrientationVertical = .none,
-    /// grid
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid
     grid: Grid = .none,
-    /// grid-area
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-area
     grid_area: GridArea = .none,
-    /// grid-auto-columns
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-auto-columns
     grid_auto_columns: GridAutoColumns = .none,
-    /// grid-auto-flow
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-auto-flow
     grid_auto_flow: GridAutoFlow = .none,
-    /// grid-auto-rows
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-auto-rows
     grid_auto_rows: GridAutoRows = .none,
-    /// grid-column
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-column
     grid_column: GridColumn = .none,
-    /// grid-column-end
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-column-end
     grid_column_end: GridColumnEnd = .none,
-    /// grid-column-gap
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-grid-column-gap
     grid_column_gap: GridColumnGap = .none,
-    /// grid-column-start
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-column-start
     grid_column_start: GridColumnStart = .none,
-    /// grid-gap
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-grid-gap
     grid_gap: GridGap = .none,
-    /// grid-row
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-row
     grid_row: GridRow = .none,
-    /// grid-row-end
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-row-end
     grid_row_end: GridRowEnd = .none,
-    /// grid-row-gap
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-grid-row-gap
     grid_row_gap: GridRowGap = .none,
-    /// grid-row-start
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-row-start
     grid_row_start: GridRowStart = .none,
-    /// grid-template
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-template
     grid_template: GridTemplate = .none,
-    /// grid-template-areas
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-template-areas
     grid_template_areas: GridTemplateAreas = .none,
-    /// grid-template-columns
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-template-columns
     grid_template_columns: GridTemplateColumns = .none,
-    /// grid-template-rows
-    /// - **W3C**: https://drafts.csswg.org/css-grid-2/#propdef-grid-template-rows
     grid_template_rows: GridTemplateRows = .none,
-    /// hanging-punctuation
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-hanging-punctuation
     hanging_punctuation: HangingPunctuation = .none,
-    /// height
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-3/#propdef-height
     height: Height = .none,
-    /// hyphenate-character
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-hyphenate-character
     hyphenate_character: HyphenateCharacter = .none,
-    /// hyphenate-limit-chars
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-chars
     hyphenate_limit_chars: HyphenateLimitChars = .none,
-    /// hyphenate-limit-last
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-last
     hyphenate_limit_last: HyphenateLimitLast = .none,
-    /// hyphenate-limit-lines
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-lines
     hyphenate_limit_lines: HyphenateLimitLines = .none,
-    /// hyphenate-limit-zone
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-hyphenate-limit-zone
     hyphenate_limit_zone: HyphenateLimitZone = .none,
-    /// hyphens
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-hyphens
     hyphens: Hyphens = .none,
-    /// image-animation
-    /// - **W3C**: https://drafts.csswg.org/css-image-animation-1/#propdef-image-animation
     image_animation: ImageAnimation = .none,
-    /// image-orientation
-    /// - **W3C**: https://drafts.csswg.org/css-images-3/#propdef-image-orientation
     image_orientation: ImageOrientation = .none,
-    /// image-rendering
-    /// - **W3C**: https://drafts.csswg.org/css-images-3/#propdef-image-rendering
     image_rendering: ImageRendering = .none,
-    /// image-resolution
-    /// - **W3C**: https://drafts.csswg.org/css-images-4/#propdef-image-resolution
     image_resolution: ImageResolution = .none,
-    /// initial-letter
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-initial-letter
     initial_letter: InitialLetter = .none,
-    /// initial-letter-align
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-initial-letter-align
     initial_letter_align: InitialLetterAlign = .none,
-    /// initial-letter-wrap
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-initial-letter-wrap
     initial_letter_wrap: InitialLetterWrap = .none,
-    /// inline-size
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-inline-size
     inline_size: InlineSize = .none,
-    /// inline-sizing
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-inline-sizing
     inline_sizing: InlineSizing = .none,
-    /// input-security
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#propdef-input-security
     input_security: InputSecurity = .none,
-    /// inset
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-inset
     inset: Inset = .none,
-    /// inset-block
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-inset-block
     inset_block: InsetBlock = .none,
-    /// inset-block-end
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-inset-block-end
     inset_block_end: InsetBlockEnd = .none,
-    /// inset-block-start
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-inset-block-start
     inset_block_start: InsetBlockStart = .none,
-    /// inset-inline
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-inset-inline
     inset_inline: InsetInline = .none,
-    /// inset-inline-end
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-inset-inline-end
     inset_inline_end: InsetInlineEnd = .none,
-    /// inset-inline-start
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-inset-inline-start
     inset_inline_start: InsetInlineStart = .none,
-    /// interactivity
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-interactivity
     interactivity: Interactivity = .none,
-    /// interest-delay
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-interest-delay
     interest_delay: InterestDelay = .none,
-    /// interest-delay-end
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-interest-delay-end
     interest_delay_end: InterestDelayEnd = .none,
-    /// interest-delay-start
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-interest-delay-start
     interest_delay_start: InterestDelayStart = .none,
-    /// interpolate-size
-    /// - **W3C**: https://drafts.csswg.org/css-values-5/#propdef-interpolate-size
     interpolate_size: InterpolateSize = .none,
-    /// isolation
-    /// - **W3C**: https://drafts.csswg.org/compositing-2/#propdef-isolation
     isolation: Isolation = .none,
-    /// justify-content
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-justify-content
     justify_content: JustifyContent = .none,
-    /// justify-items
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-justify-items
     justify_items: JustifyItems = .none,
-    /// justify-self
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-justify-self
     justify_self: JustifySelf = .none,
-    /// left
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-left
     left: Left = .none,
-    /// letter-spacing
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-letter-spacing
     letter_spacing: LetterSpacing = .none,
-    /// lighting-color
-    /// - **W3C**: https://drafts.csswg.org/filter-effects-1/#propdef-lighting-color
     lighting_color: LightingColor = .none,
-    /// line-break
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-line-break
     line_break: LineBreak = .none,
-    /// line-clamp
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-line-clamp
     line_clamp: LineClamp = .none,
-    /// line-fit-edge
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-line-fit-edge
     line_fit_edge: LineFitEdge = .none,
-    /// line-grid
-    /// - **W3C**: https://drafts.csswg.org/css-line-grid-1/#propdef-line-grid
     line_grid: LineGrid = .none,
-    /// line-height
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-line-height
     line_height: LineHeight = .none,
-    /// line-height-step
-    /// - **W3C**: https://drafts.csswg.org/css-rhythm-1/#propdef-line-height-step
     line_height_step: LineHeightStep = .none,
-    /// line-padding
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-line-padding
     line_padding: LinePadding = .none,
-    /// line-snap
-    /// - **W3C**: https://drafts.csswg.org/css-line-grid-1/#propdef-line-snap
     line_snap: LineSnap = .none,
-    /// link-parameters
-    /// - **W3C**: https://drafts.csswg.org/css-link-params-1/#propdef-link-parameters
     link_parameters: LinkParameters = .none,
-    /// list-style
-    /// - **W3C**: https://drafts.csswg.org/css-lists-3/#propdef-list-style
     list_style: ListStyle = .none,
-    /// list-style-image
-    /// - **W3C**: https://drafts.csswg.org/css-lists-3/#propdef-list-style-image
     list_style_image: ListStyleImage = .none,
-    /// list-style-position
-    /// - **W3C**: https://drafts.csswg.org/css-lists-3/#propdef-list-style-position
     list_style_position: ListStylePosition = .none,
-    /// list-style-type
-    /// - **W3C**: https://drafts.csswg.org/css-lists-3/#propdef-list-style-type
     list_style_type: ListStyleType = .none,
-    /// margin
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-margin
     margin: Margin = .none,
-    /// margin-block
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-margin-block
     margin_block: MarginBlock = .none,
-    /// margin-block-end
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-margin-block-end
     margin_block_end: MarginBlockEnd = .none,
-    /// margin-block-start
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-margin-block-start
     margin_block_start: MarginBlockStart = .none,
-    /// margin-bottom
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-margin-bottom
     margin_bottom: MarginBottom = .none,
-    /// margin-break
-    /// - **W3C**: https://drafts.csswg.org/css-break-4/#propdef-margin-break
     margin_break: MarginBreak = .none,
-    /// margin-inline
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-margin-inline
     margin_inline: MarginInline = .none,
-    /// margin-inline-end
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-margin-inline-end
     margin_inline_end: MarginInlineEnd = .none,
-    /// margin-inline-start
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-margin-inline-start
     margin_inline_start: MarginInlineStart = .none,
-    /// margin-left
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-margin-left
     margin_left: MarginLeft = .none,
-    /// margin-right
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-margin-right
     margin_right: MarginRight = .none,
-    /// margin-top
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-margin-top
     margin_top: MarginTop = .none,
-    /// margin-trim
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-margin-trim
     margin_trim: MarginTrim = .none,
-    /// marker
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#MarkerProperty
     marker: Marker = .none,
-    /// marker-end
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#MarkerEndProperty
     marker_end: MarkerEnd = .none,
-    /// marker-mid
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#MarkerMidProperty
     marker_mid: MarkerMid = .none,
-    /// marker-side
-    /// - **W3C**: https://drafts.csswg.org/css-lists-3/#propdef-marker-side
     marker_side: MarkerSide = .none,
-    /// marker-start
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#MarkerStartProperty
     marker_start: MarkerStart = .none,
-    /// mask
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask
     mask: Mask = .none,
-    /// mask-border
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-border
     mask_border: MaskBorder = .none,
-    /// mask-border-mode
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-border-mode
     mask_border_mode: MaskBorderMode = .none,
-    /// mask-border-outset
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-border-outset
     mask_border_outset: MaskBorderOutset = .none,
-    /// mask-border-repeat
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-border-repeat
     mask_border_repeat: MaskBorderRepeat = .none,
-    /// mask-border-slice
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-border-slice
     mask_border_slice: MaskBorderSlice = .none,
-    /// mask-border-source
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-border-source
     mask_border_source: MaskBorderSource = .none,
-    /// mask-border-width
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-border-width
     mask_border_width: MaskBorderWidth = .none,
-    /// mask-clip
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-clip
     mask_clip: MaskClip = .none,
-    /// mask-composite
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-composite
     mask_composite: MaskComposite = .none,
-    /// mask-image
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-image
     mask_image: MaskImage = .none,
-    /// mask-mode
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-mode
     mask_mode: MaskMode = .none,
-    /// mask-origin
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-origin
     mask_origin: MaskOrigin = .none,
-    /// mask-position
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-position
     mask_position: MaskPosition = .none,
-    /// mask-repeat
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-repeat
     mask_repeat: MaskRepeat = .none,
-    /// mask-size
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-size
     mask_size: MaskSize = .none,
-    /// mask-type
-    /// - **W3C**: https://drafts.csswg.org/css-masking-1/#propdef-mask-type
     mask_type: MaskType = .none,
-    /// math-depth
-    /// - **W3C**: https://w3c.github.io/mathml-core/#propdef-math-depth
     math_depth: MathDepth = .none,
-    /// math-shift
-    /// - **W3C**: https://w3c.github.io/mathml-core/#propdef-math-shift
     math_shift: MathShift = .none,
-    /// math-style
-    /// - **W3C**: https://w3c.github.io/mathml-core/#propdef-math-style
     math_style: MathStyle = .none,
-    /// max-block-size
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-max-block-size
     max_block_size: MaxBlockSize = .none,
-    /// max-height
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-3/#propdef-max-height
     max_height: MaxHeight = .none,
-    /// max-inline-size
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-max-inline-size
     max_inline_size: MaxInlineSize = .none,
-    /// max-lines
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-max-lines
     max_lines: MaxLines = .none,
-    /// max-width
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-3/#propdef-max-width
     max_width: MaxWidth = .none,
-    /// min-block-size
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-min-block-size
     min_block_size: MinBlockSize = .none,
-    /// min-height
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-3/#propdef-min-height
     min_height: MinHeight = .none,
-    /// min-inline-size
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-min-inline-size
     min_inline_size: MinInlineSize = .none,
-    /// min-intrinsic-sizing
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-4/#propdef-min-intrinsic-sizing
     min_intrinsic_sizing: MinIntrinsicSizing = .none,
-    /// min-width
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-3/#propdef-min-width
     min_width: MinWidth = .none,
-    /// mix-blend-mode
-    /// - **W3C**: https://drafts.csswg.org/compositing-2/#propdef-mix-blend-mode
     mix_blend_mode: MixBlendMode = .none,
-    /// nav-down
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-nav-down
     nav_down: NavDown = .none,
-    /// nav-left
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-nav-left
     nav_left: NavLeft = .none,
-    /// nav-right
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-nav-right
     nav_right: NavRight = .none,
-    /// nav-up
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-nav-up
     nav_up: NavUp = .none,
-    /// object-fit
-    /// - **W3C**: https://drafts.csswg.org/css-images-4/#propdef-object-fit
     object_fit: ObjectFit = .none,
-    /// object-position
-    /// - **W3C**: https://drafts.csswg.org/css-images-3/#propdef-object-position
     object_position: ObjectPosition = .none,
-    /// object-view-box
-    /// - **W3C**: https://drafts.csswg.org/css-images-5/#propdef-object-view-box
     object_view_box: ObjectViewBox = .none,
-    /// offset
-    /// - **W3C**: https://drafts.csswg.org/motion-1/#propdef-offset
     offset: Offset = .none,
-    /// offset-anchor
-    /// - **W3C**: https://drafts.csswg.org/motion-1/#propdef-offset-anchor
     offset_anchor: OffsetAnchor = .none,
-    /// offset-distance
-    /// - **W3C**: https://drafts.csswg.org/motion-1/#propdef-offset-distance
     offset_distance: OffsetDistance = .none,
-    /// offset-path
-    /// - **W3C**: https://drafts.csswg.org/motion-1/#propdef-offset-path
     offset_path: OffsetPath = .none,
-    /// offset-position
-    /// - **W3C**: https://drafts.csswg.org/motion-1/#propdef-offset-position
     offset_position: OffsetPosition = .none,
-    /// offset-rotate
-    /// - **W3C**: https://drafts.csswg.org/motion-1/#propdef-offset-rotate
     offset_rotate: OffsetRotate = .none,
-    /// opacity
-    /// - **W3C**: https://drafts.csswg.org/css-color-4/#propdef-opacity
     opacity: Opacity = .none,
-    /// order
-    /// - **W3C**: https://drafts.csswg.org/css-display-4/#propdef-order
     order: Order = .none,
-    /// orphans
-    /// - **W3C**: https://drafts.csswg.org/css-break-4/#propdef-orphans
     orphans: Orphans = .none,
-    /// outline
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-outline
     outline: Outline = .none,
-    /// outline-color
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-outline-color
     outline_color: OutlineColor = .none,
-    /// outline-offset
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-outline-offset
     outline_offset: OutlineOffset = .none,
-    /// outline-style
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-outline-style
     outline_style: OutlineStyle = .none,
-    /// outline-width
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-outline-width
     outline_width: OutlineWidth = .none,
-    /// overflow
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-3/#propdef-overflow
     overflow: Overflow = .none,
-    /// overflow-anchor
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-anchoring-1/#propdef-overflow-anchor
     overflow_anchor: OverflowAnchor = .none,
-    /// overflow-block
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-3/#propdef-overflow-block
     overflow_block: OverflowBlock = .none,
-    /// overflow-clip-margin
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin
     overflow_clip_margin: OverflowClipMargin = .none,
-    /// overflow-clip-margin-block
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-block
     overflow_clip_margin_block: OverflowClipMarginBlock = .none,
-    /// overflow-clip-margin-block-end
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-block-end
     overflow_clip_margin_block_end: OverflowClipMarginBlockEnd = .none,
-    /// overflow-clip-margin-block-start
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-block-start
     overflow_clip_margin_block_start: OverflowClipMarginBlockStart = .none,
-    /// overflow-clip-margin-bottom
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-bottom
     overflow_clip_margin_bottom: OverflowClipMarginBottom = .none,
-    /// overflow-clip-margin-inline
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-inline
     overflow_clip_margin_inline: OverflowClipMarginInline = .none,
-    /// overflow-clip-margin-inline-end
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-inline-end
     overflow_clip_margin_inline_end: OverflowClipMarginInlineEnd = .none,
-    /// overflow-clip-margin-inline-start
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-inline-start
     overflow_clip_margin_inline_start: OverflowClipMarginInlineStart = .none,
-    /// overflow-clip-margin-left
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-left
     overflow_clip_margin_left: OverflowClipMarginLeft = .none,
-    /// overflow-clip-margin-right
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-right
     overflow_clip_margin_right: OverflowClipMarginRight = .none,
-    /// overflow-clip-margin-top
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-overflow-clip-margin-top
     overflow_clip_margin_top: OverflowClipMarginTop = .none,
-    /// overflow-inline
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-3/#propdef-overflow-inline
     overflow_inline: OverflowInline = .none,
-    /// overflow-wrap
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-overflow-wrap
     overflow_wrap: OverflowWrap = .none,
-    /// overflow-x
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-3/#propdef-overflow-x
     overflow_x: OverflowX = .none,
-    /// overflow-y
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-3/#propdef-overflow-y
     overflow_y: OverflowY = .none,
-    /// overlay
-    /// - **W3C**: https://drafts.csswg.org/css-position-4/#propdef-overlay
     overlay: Overlay = .none,
-    /// overscroll-behavior
-    /// - **W3C**: https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior
     overscroll_behavior: OverscrollBehavior = .none,
-    /// overscroll-behavior-block
-    /// - **W3C**: https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior-block
     overscroll_behavior_block: OverscrollBehaviorBlock = .none,
-    /// overscroll-behavior-inline
-    /// - **W3C**: https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior-inline
     overscroll_behavior_inline: OverscrollBehaviorInline = .none,
-    /// overscroll-behavior-x
-    /// - **W3C**: https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior-x
     overscroll_behavior_x: OverscrollBehaviorX = .none,
-    /// overscroll-behavior-y
-    /// - **W3C**: https://drafts.csswg.org/css-overscroll-1/#propdef-overscroll-behavior-y
     overscroll_behavior_y: OverscrollBehaviorY = .none,
-    /// padding
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-padding
     padding: Padding = .none,
-    /// padding-block
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-padding-block
     padding_block: PaddingBlock = .none,
-    /// padding-block-end
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-padding-block-end
     padding_block_end: PaddingBlockEnd = .none,
-    /// padding-block-start
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-padding-block-start
     padding_block_start: PaddingBlockStart = .none,
-    /// padding-bottom
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-padding-bottom
     padding_bottom: PaddingBottom = .none,
-    /// padding-inline
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-padding-inline
     padding_inline: PaddingInline = .none,
-    /// padding-inline-end
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-padding-inline-end
     padding_inline_end: PaddingInlineEnd = .none,
-    /// padding-inline-start
-    /// - **W3C**: https://drafts.csswg.org/css-logical-1/#propdef-padding-inline-start
     padding_inline_start: PaddingInlineStart = .none,
-    /// padding-left
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-padding-left
     padding_left: PaddingLeft = .none,
-    /// padding-right
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-padding-right
     padding_right: PaddingRight = .none,
-    /// padding-top
-    /// - **W3C**: https://drafts.csswg.org/css-box-4/#propdef-padding-top
     padding_top: PaddingTop = .none,
-    /// page
-    /// - **W3C**: https://drafts.csswg.org/css-page-3/#propdef-page
     page: Page = .none,
-    /// page-break-after
-    /// - **W3C**: https://drafts.csswg.org/css2/#propdef-page-break-after
     page_break_after: PageBreakAfter = .none,
-    /// page-break-before
-    /// - **W3C**: https://drafts.csswg.org/css2/#propdef-page-break-before
     page_break_before: PageBreakBefore = .none,
-    /// page-break-inside
-    /// - **W3C**: https://drafts.csswg.org/css2/#propdef-page-break-inside
     page_break_inside: PageBreakInside = .none,
-    /// paint-order
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#PaintOrderProperty
     paint_order: PaintOrder = .none,
-    /// pause
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-pause
     pause: Pause = .none,
-    /// pause-after
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-pause-after
     pause_after: PauseAfter = .none,
-    /// pause-before
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-pause-before
     pause_before: PauseBefore = .none,
-    /// perspective
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-2/#propdef-perspective
     perspective: Perspective = .none,
-    /// perspective-origin
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-2/#propdef-perspective-origin
     perspective_origin: PerspectiveOrigin = .none,
-    /// place-content
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-place-content
     place_content: PlaceContent = .none,
-    /// place-items
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-place-items
     place_items: PlaceItems = .none,
-    /// place-self
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-place-self
     place_self: PlaceSelf = .none,
-    /// pointer-events
-    /// - **W3C**: https://svgwg.org/svg2-draft/interact.html#PointerEventsProperty
     pointer_events: PointerEvents = .none,
-    /// pointer-timeline
-    /// - **W3C**: https://drafts.csswg.org/pointer-animations-1/#propdef-pointer-timeline
     pointer_timeline: PointerTimeline = .none,
-    /// pointer-timeline-axis
-    /// - **W3C**: https://drafts.csswg.org/pointer-animations-1/#propdef-pointer-timeline-axis
     pointer_timeline_axis: PointerTimelineAxis = .none,
-    /// pointer-timeline-name
-    /// - **W3C**: https://drafts.csswg.org/pointer-animations-1/#propdef-pointer-timeline-name
     pointer_timeline_name: PointerTimelineName = .none,
-    /// position
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-position
     position: Position = .none,
-    /// position-anchor
-    /// - **W3C**: https://drafts.csswg.org/css-anchor-position-1/#propdef-position-anchor
     position_anchor: PositionAnchor = .none,
-    /// position-area
-    /// - **W3C**: https://drafts.csswg.org/css-anchor-position-1/#propdef-position-area
     position_area: PositionArea = .none,
-    /// position-try
-    /// - **W3C**: https://drafts.csswg.org/css-anchor-position-1/#propdef-position-try
     position_try: PositionTry = .none,
-    /// position-try-fallbacks
-    /// - **W3C**: https://drafts.csswg.org/css-anchor-position-1/#propdef-position-try-fallbacks
     position_try_fallbacks: PositionTryFallbacks = .none,
-    /// position-try-order
-    /// - **W3C**: https://drafts.csswg.org/css-anchor-position-1/#propdef-position-try-order
     position_try_order: PositionTryOrder = .none,
-    /// position-visibility
-    /// - **W3C**: https://drafts.csswg.org/css-anchor-position-1/#propdef-position-visibility
     position_visibility: PositionVisibility = .none,
-    /// print-color-adjust
-    /// - **W3C**: https://drafts.csswg.org/css-color-adjust-1/#propdef-print-color-adjust
     print_color_adjust: PrintColorAdjust = .none,
-    /// quotes
-    /// - **W3C**: https://drafts.csswg.org/css-content-3/#propdef-quotes
     quotes: Quotes = .none,
-    /// r
-    /// - **W3C**: https://svgwg.org/svg2-draft/geometry.html#RProperty
     r: R = .none,
-    /// reading-flow
-    /// - **W3C**: https://drafts.csswg.org/css-display-4/#propdef-reading-flow
     reading_flow: ReadingFlow = .none,
-    /// reading-order
-    /// - **W3C**: https://drafts.csswg.org/css-display-4/#propdef-reading-order
     reading_order: ReadingOrder = .none,
-    /// region-fragment
-    /// - **W3C**: https://drafts.csswg.org/css-regions-1/#propdef-region-fragment
     region_fragment: RegionFragment = .none,
-    /// resize
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-resize
     resize: Resize = .none,
-    /// rest
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-rest
     rest: Rest = .none,
-    /// rest-after
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-rest-after
     rest_after: RestAfter = .none,
-    /// rest-before
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-rest-before
     rest_before: RestBefore = .none,
-    /// right
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-right
     right: Right = .none,
-    /// rotate
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-2/#propdef-rotate
     rotate: Rotate = .none,
-    /// row-gap
-    /// - **W3C**: https://drafts.csswg.org/css-align-3/#propdef-row-gap
     row_gap: RowGap = .none,
-    /// row-rule
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule
     row_rule: RowRule = .none,
-    /// row-rule-break
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-break
     row_rule_break: RowRuleBreak = .none,
-    /// row-rule-color
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-color
     row_rule_color: RowRuleColor = .none,
-    /// row-rule-edge-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-edge-inset
     row_rule_edge_inset: RowRuleEdgeInset = .none,
-    /// row-rule-edge-inset-end
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-edge-inset-end
     row_rule_edge_inset_end: RowRuleEdgeInsetEnd = .none,
-    /// row-rule-edge-inset-start
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-edge-inset-start
     row_rule_edge_inset_start: RowRuleEdgeInsetStart = .none,
-    /// row-rule-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-inset
     row_rule_inset: RowRuleInset = .none,
-    /// row-rule-inset-end
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-inset-end
     row_rule_inset_end: RowRuleInsetEnd = .none,
-    /// row-rule-inset-start
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-inset-start
     row_rule_inset_start: RowRuleInsetStart = .none,
-    /// row-rule-interior-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-interior-inset
     row_rule_interior_inset: RowRuleInteriorInset = .none,
-    /// row-rule-interior-inset-end
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-interior-inset-end
     row_rule_interior_inset_end: RowRuleInteriorInsetEnd = .none,
-    /// row-rule-interior-inset-start
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-interior-inset-start
     row_rule_interior_inset_start: RowRuleInteriorInsetStart = .none,
-    /// row-rule-style
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-style
     row_rule_style: RowRuleStyle = .none,
-    /// row-rule-visibility-items
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-visibility-items
     row_rule_visibility_items: RowRuleVisibilityItems = .none,
-    /// row-rule-width
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-row-rule-width
     row_rule_width: RowRuleWidth = .none,
-    /// ruby-align
-    /// - **W3C**: https://drafts.csswg.org/css-ruby-1/#propdef-ruby-align
     ruby_align: RubyAlign = .none,
-    /// ruby-merge
-    /// - **W3C**: https://drafts.csswg.org/css-ruby-1/#propdef-ruby-merge
     ruby_merge: RubyMerge = .none,
-    /// ruby-overhang
-    /// - **W3C**: https://drafts.csswg.org/css-ruby-1/#propdef-ruby-overhang
     ruby_overhang: RubyOverhang = .none,
-    /// ruby-position
-    /// - **W3C**: https://drafts.csswg.org/css-ruby-1/#propdef-ruby-position
     ruby_position: RubyPosition = .none,
-    /// rule
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule
     rule: Rule = .none,
-    /// rule-break
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-break
     rule_break: RuleBreak = .none,
-    /// rule-color
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-color
     rule_color: RuleColor = .none,
-    /// rule-edge-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-edge-inset
     rule_edge_inset: RuleEdgeInset = .none,
-    /// rule-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-inset
     rule_inset: RuleInset = .none,
-    /// rule-inset-end
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-inset-end
     rule_inset_end: RuleInsetEnd = .none,
-    /// rule-inset-start
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-inset-start
     rule_inset_start: RuleInsetStart = .none,
-    /// rule-interior-inset
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-interior-inset
     rule_interior_inset: RuleInteriorInset = .none,
-    /// rule-overlap
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-overlap
     rule_overlap: RuleOverlap = .none,
-    /// rule-style
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-style
     rule_style: RuleStyle = .none,
-    /// rule-visibility-items
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-visibility-items
     rule_visibility_items: RuleVisibilityItems = .none,
-    /// rule-width
-    /// - **W3C**: https://drafts.csswg.org/css-gaps-1/#propdef-rule-width
     rule_width: RuleWidth = .none,
-    /// rx
-    /// - **W3C**: https://svgwg.org/svg2-draft/geometry.html#RxProperty
     rx: Rx = .none,
-    /// ry
-    /// - **W3C**: https://svgwg.org/svg2-draft/geometry.html#RyProperty
     ry: Ry = .none,
-    /// scale
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-2/#propdef-scale
     scale: Scale = .none,
-    /// scroll-behavior
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-3/#propdef-scroll-behavior
     scroll_behavior: ScrollBehavior = .none,
-    /// scroll-initial-target
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-2/#propdef-scroll-initial-target
     scroll_initial_target: ScrollInitialTarget = .none,
-    /// scroll-margin
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin
     scroll_margin: ScrollMargin = .none,
-    /// scroll-margin-block
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-block
     scroll_margin_block: ScrollMarginBlock = .none,
-    /// scroll-margin-block-end
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-block-end
     scroll_margin_block_end: ScrollMarginBlockEnd = .none,
-    /// scroll-margin-block-start
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-block-start
     scroll_margin_block_start: ScrollMarginBlockStart = .none,
-    /// scroll-margin-bottom
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-bottom
     scroll_margin_bottom: ScrollMarginBottom = .none,
-    /// scroll-margin-inline
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-inline
     scroll_margin_inline: ScrollMarginInline = .none,
-    /// scroll-margin-inline-end
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-inline-end
     scroll_margin_inline_end: ScrollMarginInlineEnd = .none,
-    /// scroll-margin-inline-start
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-inline-start
     scroll_margin_inline_start: ScrollMarginInlineStart = .none,
-    /// scroll-margin-left
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-left
     scroll_margin_left: ScrollMarginLeft = .none,
-    /// scroll-margin-right
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-right
     scroll_margin_right: ScrollMarginRight = .none,
-    /// scroll-margin-top
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-margin-top
     scroll_margin_top: ScrollMarginTop = .none,
-    /// scroll-marker-group
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-5/#propdef-scroll-marker-group
     scroll_marker_group: ScrollMarkerGroup = .none,
-    /// scroll-padding
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding
     scroll_padding: ScrollPadding = .none,
-    /// scroll-padding-block
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-block
     scroll_padding_block: ScrollPaddingBlock = .none,
-    /// scroll-padding-block-end
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-block-end
     scroll_padding_block_end: ScrollPaddingBlockEnd = .none,
-    /// scroll-padding-block-start
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-block-start
     scroll_padding_block_start: ScrollPaddingBlockStart = .none,
-    /// scroll-padding-bottom
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-bottom
     scroll_padding_bottom: ScrollPaddingBottom = .none,
-    /// scroll-padding-inline
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-inline
     scroll_padding_inline: ScrollPaddingInline = .none,
-    /// scroll-padding-inline-end
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-inline-end
     scroll_padding_inline_end: ScrollPaddingInlineEnd = .none,
-    /// scroll-padding-inline-start
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-inline-start
     scroll_padding_inline_start: ScrollPaddingInlineStart = .none,
-    /// scroll-padding-left
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-left
     scroll_padding_left: ScrollPaddingLeft = .none,
-    /// scroll-padding-right
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-right
     scroll_padding_right: ScrollPaddingRight = .none,
-    /// scroll-padding-top
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-padding-top
     scroll_padding_top: ScrollPaddingTop = .none,
-    /// scroll-snap-align
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-snap-align
     scroll_snap_align: ScrollSnapAlign = .none,
-    /// scroll-snap-stop
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-snap-stop
     scroll_snap_stop: ScrollSnapStop = .none,
-    /// scroll-snap-type
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-1/#propdef-scroll-snap-type
     scroll_snap_type: ScrollSnapType = .none,
-    /// scroll-target-group
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-5/#propdef-scroll-target-group
     scroll_target_group: ScrollTargetGroup = .none,
-    /// scroll-timeline
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-scroll-timeline
     scroll_timeline: ScrollTimeline = .none,
-    /// scroll-timeline-axis
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-scroll-timeline-axis
     scroll_timeline_axis: ScrollTimelineAxis = .none,
-    /// scroll-timeline-name
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-scroll-timeline-name
     scroll_timeline_name: ScrollTimelineName = .none,
-    /// scrollbar-color
-    /// - **W3C**: https://drafts.csswg.org/css-scrollbars-1/#propdef-scrollbar-color
     scrollbar_color: ScrollbarColor = .none,
-    /// scrollbar-gutter
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-3/#propdef-scrollbar-gutter
     scrollbar_gutter: ScrollbarGutter = .none,
-    /// scrollbar-width
-    /// - **W3C**: https://drafts.csswg.org/css-scrollbars-1/#propdef-scrollbar-width
     scrollbar_width: ScrollbarWidth = .none,
-    /// shape-image-threshold
-    /// - **W3C**: https://drafts.csswg.org/css-shapes-1/#propdef-shape-image-threshold
     shape_image_threshold: ShapeImageThreshold = .none,
-    /// shape-inside
-    /// - **W3C**: https://drafts.csswg.org/css-shapes-2/#propdef-shape-inside
     shape_inside: ShapeInside = .none,
-    /// shape-margin
-    /// - **W3C**: https://drafts.csswg.org/css-shapes-1/#propdef-shape-margin
     shape_margin: ShapeMargin = .none,
-    /// shape-outside
-    /// - **W3C**: https://drafts.csswg.org/css-shapes-1/#propdef-shape-outside
     shape_outside: ShapeOutside = .none,
-    /// shape-padding
-    /// - **W3C**: https://drafts.csswg.org/css-shapes-2/#propdef-shape-padding
     shape_padding: ShapePadding = .none,
-    /// shape-rendering
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#ShapeRenderingProperty
     shape_rendering: ShapeRendering = .none,
-    /// shape-subtract
-    /// - **W3C**: https://svgwg.org/svg2-draft/text.html#ShapesubtractProperty
     shape_subtract: ShapeSubtract = .none,
-    /// slider-orientation
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#propdef-slider-orientation
     slider_orientation: SliderOrientation = .none,
-    /// spatial-navigation-action
-    /// - **W3C**: https://drafts.csswg.org/css-nav-1/#propdef-spatial-navigation-action
     spatial_navigation_action: SpatialNavigationAction = .none,
-    /// spatial-navigation-contain
-    /// - **W3C**: https://drafts.csswg.org/css-nav-1/#propdef-spatial-navigation-contain
     spatial_navigation_contain: SpatialNavigationContain = .none,
-    /// spatial-navigation-function
-    /// - **W3C**: https://drafts.csswg.org/css-nav-1/#propdef-spatial-navigation-function
     spatial_navigation_function: SpatialNavigationFunction = .none,
-    /// speak
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-speak
     speak: Speak = .none,
-    /// speak-as
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-speak-as
     speak_as: SpeakAs = .none,
-    /// stop-color
-    /// - **W3C**: https://svgwg.org/svg2-draft/pservers.html#StopColorProperty
     stop_color: StopColor = .none,
-    /// stop-opacity
-    /// - **W3C**: https://svgwg.org/svg2-draft/pservers.html#StopOpacityProperty
     stop_opacity: StopOpacity = .none,
-    /// string-set
-    /// - **W3C**: https://drafts.csswg.org/css-content-3/#propdef-string-set
     string_set: StringSet = .none,
-    /// stroke
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#StrokeProperty
     stroke: Stroke = .none,
-    /// stroke-align
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-align
     stroke_align: StrokeAlign = .none,
-    /// stroke-alignment
-    /// - **W3C**: https://svgwg.org/specs/strokes/#StrokeAlignmentProperty
     stroke_alignment: StrokeAlignment = .none,
-    /// stroke-break
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-break
     stroke_break: StrokeBreak = .none,
-    /// stroke-color
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-color
     stroke_color: StrokeColor = .none,
-    /// stroke-dash-corner
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-dash-corner
     stroke_dash_corner: StrokeDashCorner = .none,
-    /// stroke-dash-justify
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-dash-justify
     stroke_dash_justify: StrokeDashJustify = .none,
-    /// stroke-dashadjust
-    /// - **W3C**: https://svgwg.org/specs/strokes/#StrokeDashadjustProperty
     stroke_dashadjust: StrokeDashadjust = .none,
-    /// stroke-dasharray
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-dasharray
     stroke_dasharray: StrokeDasharray = .none,
-    /// stroke-dashcorner
-    /// - **W3C**: https://svgwg.org/specs/strokes/#StrokeDashcornerProperty
     stroke_dashcorner: StrokeDashcorner = .none,
-    /// stroke-dashoffset
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-dashoffset
     stroke_dashoffset: StrokeDashoffset = .none,
-    /// stroke-image
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-image
     stroke_image: StrokeImage = .none,
-    /// stroke-linecap
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-linecap
     stroke_linecap: StrokeLinecap = .none,
-    /// stroke-linejoin
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-linejoin
     stroke_linejoin: StrokeLinejoin = .none,
-    /// stroke-miterlimit
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-miterlimit
     stroke_miterlimit: StrokeMiterlimit = .none,
-    /// stroke-opacity
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-opacity
     stroke_opacity: StrokeOpacity = .none,
-    /// stroke-origin
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-origin
     stroke_origin: StrokeOrigin = .none,
-    /// stroke-position
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-position
     stroke_position: StrokePosition = .none,
-    /// stroke-repeat
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-repeat
     stroke_repeat: StrokeRepeat = .none,
-    /// stroke-size
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-size
     stroke_size: StrokeSize = .none,
-    /// stroke-width
-    /// - **W3C**: https://drafts.csswg.org/fill-stroke-3/#propdef-stroke-width
     stroke_width: StrokeWidth = .none,
-    /// tab-size
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-tab-size
     tab_size: TabSize = .none,
-    /// table-layout
-    /// - **W3C**: https://drafts.csswg.org/css-tables-3/#propdef-table-layout
     table_layout: TableLayout = .none,
-    /// text-align
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-align
     text_align: TextAlign = .none,
-    /// text-align-all
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-align-all
     text_align_all: TextAlignAll = .none,
-    /// text-align-last
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-align-last
     text_align_last: TextAlignLast = .none,
-    /// text-anchor
-    /// - **W3C**: https://svgwg.org/svg2-draft/text.html#TextAnchorProperty
     text_anchor: TextAnchor = .none,
-    /// text-autospace
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-autospace
     text_autospace: TextAutospace = .none,
-    /// text-box
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-text-box
     text_box: TextBox = .none,
-    /// text-box-edge
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-text-box-edge
     text_box_edge: TextBoxEdge = .none,
-    /// text-box-trim
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-text-box-trim
     text_box_trim: TextBoxTrim = .none,
-    /// text-combine-upright
-    /// - **W3C**: https://drafts.csswg.org/css-writing-modes-4/#propdef-text-combine-upright
     text_combine_upright: TextCombineUpright = .none,
-    /// text-decoration
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration
     text_decoration: TextDecoration = .none,
-    /// text-decoration-color
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-color
     text_decoration_color: TextDecorationColor = .none,
-    /// text-decoration-inset
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-inset
     text_decoration_inset: TextDecorationInset = .none,
-    /// text-decoration-line
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-line
     text_decoration_line: TextDecorationLine = .none,
-    /// text-decoration-skip
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-skip
     text_decoration_skip: TextDecorationSkip = .none,
-    /// text-decoration-skip-box
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-skip-box
     text_decoration_skip_box: TextDecorationSkipBox = .none,
-    /// text-decoration-skip-ink
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-skip-ink
     text_decoration_skip_ink: TextDecorationSkipInk = .none,
-    /// text-decoration-skip-self
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-skip-self
     text_decoration_skip_self: TextDecorationSkipSelf = .none,
-    /// text-decoration-skip-spaces
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-skip-spaces
     text_decoration_skip_spaces: TextDecorationSkipSpaces = .none,
-    /// text-decoration-style
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-style
     text_decoration_style: TextDecorationStyle = .none,
-    /// text-decoration-thickness
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-decoration-thickness
     text_decoration_thickness: TextDecorationThickness = .none,
-    /// text-emphasis
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-emphasis
     text_emphasis: TextEmphasis = .none,
-    /// text-emphasis-color
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-emphasis-color
     text_emphasis_color: TextEmphasisColor = .none,
-    /// text-emphasis-position
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-emphasis-position
     text_emphasis_position: TextEmphasisPosition = .none,
-    /// text-emphasis-skip
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-emphasis-skip
     text_emphasis_skip: TextEmphasisSkip = .none,
-    /// text-emphasis-style
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-emphasis-style
     text_emphasis_style: TextEmphasisStyle = .none,
-    /// text-group-align
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-group-align
     text_group_align: TextGroupAlign = .none,
-    /// text-indent
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-indent
     text_indent: TextIndent = .none,
-    /// text-justify
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-justify
     text_justify: TextJustify = .none,
-    /// text-orientation
-    /// - **W3C**: https://drafts.csswg.org/css-writing-modes-4/#propdef-text-orientation
     text_orientation: TextOrientation = .none,
-    /// text-overflow
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-4/#propdef-text-overflow
     text_overflow: TextOverflow = .none,
-    /// text-rendering
-    /// - **W3C**: https://svgwg.org/svg2-draft/painting.html#TextRenderingProperty
     text_rendering: TextRendering = .none,
-    /// text-shadow
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-shadow
     text_shadow: TextShadow = .none,
-    /// text-size-adjust
-    /// - **W3C**: https://drafts.csswg.org/css-size-adjust-1/#propdef-text-size-adjust
     text_size_adjust: TextSizeAdjust = .none,
-    /// text-spacing
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-spacing
     text_spacing: TextSpacing = .none,
-    /// text-spacing-trim
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-spacing-trim
     text_spacing_trim: TextSpacingTrim = .none,
-    /// text-transform
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-transform
     text_transform: TextTransform = .none,
-    /// text-underline-offset
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-underline-offset
     text_underline_offset: TextUnderlineOffset = .none,
-    /// text-underline-position
-    /// - **W3C**: https://drafts.csswg.org/css-text-decor-4/#propdef-text-underline-position
     text_underline_position: TextUnderlinePosition = .none,
-    /// text-wrap
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-wrap
     text_wrap: TextWrap = .none,
-    /// text-wrap-mode
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-wrap-mode
     text_wrap_mode: TextWrapMode = .none,
-    /// text-wrap-style
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-text-wrap-style
     text_wrap_style: TextWrapStyle = .none,
-    /// timeline-scope
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-timeline-scope
     timeline_scope: TimelineScope = .none,
-    /// timeline-trigger
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger
     timeline_trigger: TimelineTrigger = .none,
-    /// timeline-trigger-activation-range
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger-activation-range
     timeline_trigger_activation_range: TimelineTriggerActivationRange = .none,
-    /// timeline-trigger-activation-range-end
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger-activation-range-end
     timeline_trigger_activation_range_end: TimelineTriggerActivationRangeEnd = .none,
-    /// timeline-trigger-activation-range-start
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger-activation-range-start
     timeline_trigger_activation_range_start: TimelineTriggerActivationRangeStart = .none,
-    /// timeline-trigger-active-range
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger-active-range
     timeline_trigger_active_range: TimelineTriggerActiveRange = .none,
-    /// timeline-trigger-active-range-end
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger-active-range-end
     timeline_trigger_active_range_end: TimelineTriggerActiveRangeEnd = .none,
-    /// timeline-trigger-active-range-start
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger-active-range-start
     timeline_trigger_active_range_start: TimelineTriggerActiveRangeStart = .none,
-    /// timeline-trigger-name
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger-name
     timeline_trigger_name: TimelineTriggerName = .none,
-    /// timeline-trigger-source
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-timeline-trigger-source
     timeline_trigger_source: TimelineTriggerSource = .none,
-    /// top
-    /// - **W3C**: https://drafts.csswg.org/css-position-3/#propdef-top
     top: Top = .none,
-    /// touch-action
-    /// - **W3C**: https://compat.spec.whatwg.org/#propdef-touch-action
     touch_action: TouchAction = .none,
-    /// transform
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-1/#propdef-transform
     transform: Transform = .none,
-    /// transform-box
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-1/#propdef-transform-box
     transform_box: TransformBox = .none,
-    /// transform-origin
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-1/#propdef-transform-origin
     transform_origin: TransformOrigin = .none,
-    /// transform-style
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-2/#propdef-transform-style
     transform_style: TransformStyle = .none,
-    /// transition
-    /// - **W3C**: https://drafts.csswg.org/css-transitions-1/#propdef-transition
     transition: Transition = .none,
-    /// transition-behavior
-    /// - **W3C**: https://drafts.csswg.org/css-transitions-2/#propdef-transition-behavior
     transition_behavior: TransitionBehavior = .none,
-    /// transition-delay
-    /// - **W3C**: https://drafts.csswg.org/css-transitions-1/#propdef-transition-delay
     transition_delay: TransitionDelay = .none,
-    /// transition-duration
-    /// - **W3C**: https://drafts.csswg.org/css-transitions-1/#propdef-transition-duration
     transition_duration: TransitionDuration = .none,
-    /// transition-property
-    /// - **W3C**: https://drafts.csswg.org/css-transitions-1/#propdef-transition-property
     transition_property: TransitionProperty = .none,
-    /// transition-timing-function
-    /// - **W3C**: https://drafts.csswg.org/css-transitions-1/#propdef-transition-timing-function
     transition_timing_function: TransitionTimingFunction = .none,
-    /// translate
-    /// - **W3C**: https://drafts.csswg.org/css-transforms-2/#propdef-translate
     translate: Translate = .none,
-    /// trigger-scope
-    /// - **W3C**: https://drafts.csswg.org/animation-triggers-1/#propdef-trigger-scope
     trigger_scope: TriggerScope = .none,
-    /// unicode-bidi
-    /// - **W3C**: https://drafts.csswg.org/css-writing-modes-4/#propdef-unicode-bidi
     unicode_bidi: UnicodeBidi = .none,
-    /// user-select
-    /// - **W3C**: https://drafts.csswg.org/css-ui-4/#propdef-user-select
     user_select: UserSelect = .none,
-    /// vector-effect
-    /// - **W3C**: https://svgwg.org/svg2-draft/coords.html#VectorEffectProperty
     vector_effect: VectorEffect = .none,
-    /// vertical-align
-    /// - **W3C**: https://drafts.csswg.org/css-inline-3/#propdef-vertical-align
     vertical_align: VerticalAlign = .none,
-    /// view-timeline
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-view-timeline
     view_timeline: ViewTimeline = .none,
-    /// view-timeline-axis
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-view-timeline-axis
     view_timeline_axis: ViewTimelineAxis = .none,
-    /// view-timeline-inset
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-view-timeline-inset
     view_timeline_inset: ViewTimelineInset = .none,
-    /// view-timeline-name
-    /// - **W3C**: https://drafts.csswg.org/scroll-animations-1/#propdef-view-timeline-name
     view_timeline_name: ViewTimelineName = .none,
-    /// view-transition-class
-    /// - **W3C**: https://drafts.csswg.org/css-view-transitions-2/#propdef-view-transition-class
     view_transition_class: ViewTransitionClass = .none,
-    /// view-transition-group
-    /// - **W3C**: https://drafts.csswg.org/css-view-transitions-2/#propdef-view-transition-group
     view_transition_group: ViewTransitionGroup = .none,
-    /// view-transition-name
-    /// - **W3C**: https://drafts.csswg.org/css-view-transitions-2/#propdef-view-transition-name
     view_transition_name: ViewTransitionName = .none,
-    /// view-transition-scope
-    /// - **W3C**: https://drafts.csswg.org/css-view-transitions-2/#propdef-view-transition-scope
     view_transition_scope: ViewTransitionScope = .none,
-    /// visibility
-    /// - **W3C**: https://drafts.csswg.org/css-display-4/#propdef-visibility
     visibility: Visibility = .none,
-    /// voice-balance
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-voice-balance
     voice_balance: VoiceBalance = .none,
-    /// voice-duration
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-voice-duration
     voice_duration: VoiceDuration = .none,
-    /// voice-family
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-voice-family
     voice_family: VoiceFamily = .none,
-    /// voice-pitch
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-voice-pitch
     voice_pitch: VoicePitch = .none,
-    /// voice-range
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-voice-range
     voice_range: VoiceRange = .none,
-    /// voice-rate
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-voice-rate
     voice_rate: VoiceRate = .none,
-    /// voice-stress
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-voice-stress
     voice_stress: VoiceStress = .none,
-    /// voice-volume
-    /// - **W3C**: https://drafts.csswg.org/css-speech-1/#propdef-voice-volume
     voice_volume: VoiceVolume = .none,
-    /// white-space
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-white-space
     white_space: WhiteSpace = .none,
-    /// white-space-collapse
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-white-space-collapse
     white_space_collapse: WhiteSpaceCollapse = .none,
-    /// white-space-trim
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-white-space-trim
     white_space_trim: WhiteSpaceTrim = .none,
-    /// widows
-    /// - **W3C**: https://drafts.csswg.org/css-break-4/#propdef-widows
     widows: Widows = .none,
-    /// width
-    /// - **W3C**: https://drafts.csswg.org/css-sizing-3/#propdef-width
     width: Width = .none,
-    /// will-change
-    /// - **W3C**: https://drafts.csswg.org/css-will-change-1/#propdef-will-change
     will_change: WillChange = .none,
-    /// word-break
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-word-break
     word_break: WordBreak = .none,
-    /// word-space-transform
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-word-space-transform
     word_space_transform: WordSpaceTransform = .none,
-    /// word-spacing
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-word-spacing
     word_spacing: WordSpacing = .none,
-    /// word-wrap
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-word-wrap
     word_wrap: WordWrap = .none,
-    /// wrap-after
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-wrap-after
     wrap_after: WrapAfter = .none,
-    /// wrap-before
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-wrap-before
     wrap_before: WrapBefore = .none,
-    /// wrap-flow
-    /// - **W3C**: https://drafts.csswg.org/css-exclusions-1/#propdef-wrap-flow
     wrap_flow: WrapFlow = .none,
-    /// wrap-inside
-    /// - **W3C**: https://drafts.csswg.org/css-text-4/#propdef-wrap-inside
     wrap_inside: WrapInside = .none,
-    /// wrap-through
-    /// - **W3C**: https://drafts.csswg.org/css-exclusions-1/#propdef-wrap-through
     wrap_through: WrapThrough = .none,
-    /// writing-mode
-    /// - **W3C**: https://drafts.csswg.org/css-writing-modes-4/#propdef-writing-mode
     writing_mode: WritingMode = .none,
-    /// x
-    /// - **W3C**: https://svgwg.org/svg2-draft/geometry.html#XProperty
     x: X = .none,
-    /// y
-    /// - **W3C**: https://svgwg.org/svg2-draft/geometry.html#YProperty
     y: Y = .none,
-    /// z-index
-    /// - **W3C**: https://drafts.csswg.org/css2/#propdef-z-index
     z_index: ZIndex = .none,
-    /// zoom
-    /// - **W3C**: https://drafts.csswg.org/css-viewport/#propdef-zoom
     zoom: Zoom = .none,
-    /// ::after
-    /// Represents a styleable child pseudo-element immediately after the originating element’s actual content.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-after
     after: ?*const Style = null,
-    /// ::backdrop
-    /// Each element rendered in the top layer has a ::backdrop pseudo-element, for which it is the originating element.
-    /// - **W3C**: https://drafts.csswg.org/css-position-4/#selectordef-backdrop
     backdrop: ?*const Style = null,
-    /// ::before
-    /// Represents a styleable child pseudo-element immediately before the originating element’s actual content.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-before
     before: ?*const Style = null,
-    /// ::checkmark
-    /// The ::checkmark pseudo-element represents an indicator of whether the item is checked, and is present on checkboxes, radios, and option elements.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-checkmark
     checkmark: ?*const Style = null,
-    /// ::clear-icon
-    /// The ::clear-icon pseudo-element represents the portion of the input that allows the user to clear the input when clicked if provided by the user agent. With appearance: textfield, the user agent must not generate this part.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-clear-icon
     clear_icon: ?*const Style = null,
-    /// ::color-swatch
-    /// The ::color-swatch pseudo-element represents the portion of the control that displays the chosen color value.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-color-swatch
     color_swatch: ?*const Style = null,
-    /// ::column
-    /// The ::column pseudo-element represents the individual columns in a multi-column container. It only exists on multi-column containers.
-    /// - **W3C**: https://drafts.csswg.org/css-multicol-2/#selectordef-column
     column: ?*const Style = null,
-    /// ::cue-region
-    /// The ::cue-region pseudo-element (with no argument) matches any list of WebVTT region objects constructed for the matched element.
-    /// - **W3C**: https://w3c.github.io/webvtt/#selectordef-cue-region
     cue_region: ?*const Style = null,
-    /// ::details-content
-    /// The ::details-content pseudo-element targets the additional information in a details element that can be expanded or collapsed. It is an element-backed pseudo-element.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-details-content
     details_content: ?*const Style = null,
-    /// ::field-component
-    /// The ::field-component pseudo-element represents the portions of the control that contain the date/time component values.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-field-component
     field_component: ?*const Style = null,
-    /// ::field-separator
-    /// The ::field-separator pseudo-element represents the portions of the control that separate the date/time component values if the user agent provides those portions.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-field-separator
     field_separator: ?*const Style = null,
-    /// ::field-text
-    /// The ::field-text pseudo-element represents the portion of the input that contains the editable text.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-field-text
     field_text: ?*const Style = null,
-    /// ::file-selector-button
-    /// The ::file-selector-button pseudo-element represents the button used to open a file picker, if the UA renders such a button.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-file-selector-button
     file_selector_button: ?*const Style = null,
-    /// ::first-letter
-    /// The ::first-letter pseudo-element represents the first Letter, Number, or Symbol (Unicode category L*, N*, or S*) typographic character unit on the first formatted line of its originating element (the first letter) as well as its associated punctuation. Collectively, this text is the first-letter text. The ::first-letter pseudo-element can be used to create “initial caps” and “drop caps”, which are common typographic effects.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-first-letter
     first_letter: ?*const Style = null,
-    /// ::first-line
-    /// The ::first-line pseudo-element represents the contents of the first formatted line of its originating element.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-first-line
     first_line: ?*const Style = null,
-    /// ::grammar-error
-    /// The ::grammar-error pseudo-element represents a portion of text that has been flagged by the user agent as grammatically incorrect.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-grammar-error
     grammar_error: ?*const Style = null,
-    /// ::picker-icon
-    /// The ::picker-icon pseudo-element represents the part of the control that represents the icon denoting the presence of the picker. It is only generated when the originating element has basic appearance and if it opens a picker. It is a fully styleable pseudo-element and inherits from its originating element.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-picker-icon
     picker_icon: ?*const Style = null,
-    /// ::placeholder
-    /// The ::placeholder pseudo-element represents the portion of the input that contains the placeholder text.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-placeholder
     placeholder: ?*const Style = null,
-    /// ::reveal-icon
-    /// The ::reveal-icon pseudo-element represents the portion of the input that allows the user to temporarily disable obscuring of sensitive text input when clicked if provided by the user agent. User agents providing ::reveal-icon may choose to remove it in some circumstances to help protect sensitive text input from being revealed unintentionally.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-reveal-icon
     reveal_icon: ?*const Style = null,
-    /// ::scroll-marker
-    /// When the computed content value of a ::scroll-marker pseudo-element is not none and its nearest ancestor scroll container scroll container has a computed scroll-marker-group property that is not none, the pseudo-element generates a box attached as a child of the ::scroll-marker-group pseudo-element’s generated box on its nearest ancestor scroll container. These boxes are added in the tree order of their originating element.
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-5/#selectordef-scroll-marker
     scroll_marker: ?*const Style = null,
-    /// ::search-text
-    /// The ::search-text pseudo-element represents text identified by the user agent’s find-in-page feature. Since not all UAs style matched text in ways expressible with the highlight pseudo-elements, this pseudo-element is optional to implement. The :current pseudo-class (but not ::current()) may be combined with ::search-text to represent the currently focused match instance. The :past and :future pseudo-classes are reserved for analogous use in the future. Any unsupported combination of these pseudo-classes with ::search-text must be treated as invalid.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-search-text
     search_text: ?*const Style = null,
-    /// ::selection
-    /// The ::selection pseudo-element represents the portion of a document that has been selected as the target or object of some possible future user-agent operation(s). It applies, for example, to selected text within an editable text field, which would be copied by a copy operation or replaced by a paste operation.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-selection
     selection: ?*const Style = null,
-    /// ::slider-fill
-    /// The ::slider-fill pseudo-element represents the portion containing the progressed portion of the control. When the progress of control is indeterminate (like with <progress>), the user agent must give this portion an inline-size of zero.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-slider-fill
     slider_fill: ?*const Style = null,
-    /// ::slider-thumb
-    /// The ::slider-thumb pseudo-element represents the portion that allows the user to adjust the progress of the control.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-slider-thumb
     slider_thumb: ?*const Style = null,
-    /// ::slider-track
-    /// The ::slider-track pseudo-element represents the portion containing both the progressed and unprogressed portions of the control.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-slider-track
     slider_track: ?*const Style = null,
-    /// ::spelling-error
-    /// The ::spelling-error pseudo-element represents a portion of text that has been flagged by the user agent as misspelled.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-spelling-error
     spelling_error: ?*const Style = null,
-    /// ::step-control
-    /// The ::step-control pseudo-element represents the portion of a number input that contains the up and down buttons.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-step-control
     step_control: ?*const Style = null,
-    /// ::step-down
-    /// The ::step-down pseudo-element represents the button that decrements the value inside a number input when activated.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-step-down
     step_down: ?*const Style = null,
-    /// ::step-up
-    /// The ::step-up pseudo-element represents the button that increments the value inside a number input when activated.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-step-up
     step_up: ?*const Style = null,
-    /// ::target-text
-    /// The ::target-text pseudo-element represents text directly targeted by the document URL’s fragment, if any.
-    /// - **W3C**: https://drafts.csswg.org/css-pseudo-4/#selectordef-target-text
     target_text: ?*const Style = null,
-    /// ::view-transition
-    /// The ::view-transition pseudo-element is a tree-abiding pseudo-element that is also a pseudo-element root. Its originating element is the document’s document element, and its containing block is the snapshot containing block.
-    /// - **W3C**: https://drafts.csswg.org/css-view-transitions-2/#selectordef-view-transition
     view_transition: ?*const Style = null,
-    /// :active
-    /// The :active pseudo-class applies while an element is being “activated” by the user, as defined by the host language; for example, while a hyperlink is being triggered.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#active-pseudo
     active: ?*const Style = null,
-    /// :active-view-transition
-    /// The :active-view-transition pseudo-class applies to the root element of the document, if it has an active view transition.
-    /// - **W3C**: https://drafts.csswg.org/css-view-transitions-2/#active-view-transition-pseudo
     active_view_transition: ?*const Style = null,
-    /// :animated-image
-    /// The :animated-image pseudo-class represents content image elements where a animated image has been loaded. For the animated-image pseudo-class to match, the image must not only be in a format that is capable of animation, but must also be an actually animated image.
-    /// - **W3C**: https://drafts.csswg.org/css-image-animation-1/#selectordef-animated-image
     animated_image: ?*const Style = null,
-    /// :any-link
-    /// The :any-link pseudo-class represents an element that acts as the source anchor of a hyperlink. For example, in [HTML5], any a or area elements with an href attribute are hyperlinks, and thus match :any-link. It matches an element if the element would match either :link or :visited, and is equivalent to :is(:link, :visited).
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#any-link-pseudo
     any_link: ?*const Style = null,
-    /// :autofill
-    /// The :autofill pseudo-class represents input elements that have been automatically filled by the user agent, and have not been subsequently altered by the user.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-autofill
     autofill: ?*const Style = null,
-    /// :blank
-    /// The :blank pseudo-class applies to user-input elements whose input value is empty (consists of the empty string or otherwise null input).
-    /// - **W3C**: https://drafts.csswg.org/selectors-5/#blank-pseudo
     blank: ?*const Style = null,
-    /// :buffering
-    /// The :buffering pseudo-class represents an element that is capable of being “played” or “paused”, when that element cannot continue playing because it is actively attempting to obtain media data but has not yet obtained enough data to resume playback. (Note that the element is still considered to be “playing” when it is “buffering”. Whenever :buffering matches an element, :playing also matches the element.)
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-buffering
     buffering: ?*const Style = null,
-    /// :checked
-    /// When such elements are toggled “on” the :checked pseudo-class applies. For example, [HTML5] defines that checked checkboxes, radio buttons, and selected <option> elements match :checked. Similarly, when such elements are toggled “off”, the :unchecked pseudo-class applies.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#checked-pseudo
     checked: ?*const Style = null,
-    /// :current
-    /// The :current pseudo-class represents the element, or an ancestor of the element, that is currently being displayed.
-    /// - **W3C**: https://drafts.csswg.org/selectors-5/#current-pseudo
     current: ?*const Style = null,
-    /// :default
-    /// The :default pseudo-class applies to the one or more UI elements that are the default among a set of similar elements. Typically applies to context menu items, buttons and select lists/menus.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#default-pseudo
     default: ?*const Style = null,
-    /// :defined
-    /// In some host languages, elements can have a distinction between being “defined”/“constructed” or not. The :defined pseudo-class matches elements that are fully defined, as dictated by the host language.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#defined-pseudo
     defined: ?*const Style = null,
-    /// :disabled
-    /// Conversely, the :disabled pseudo-class represents user interface elements that are in a disabled state; such elements must have a corresponding enabled state.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#disabled-pseudo
     disabled: ?*const Style = null,
-    /// :empty
-    /// The :empty pseudo-class represents an element that has no children except, optionally, document white space characters. In terms of the document tree, only element nodes and content nodes (such as [DOM] text nodes, and entity references) whose data has a non-zero length must be considered as affecting emptiness; comments, processing instructions, and other nodes must not affect whether an element is considered empty or not.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#empty-pseudo
     empty: ?*const Style = null,
-    /// :enabled
-    /// The :enabled pseudo-class represents user interface elements that are in an enabled state; such elements must have a corresponding disabled state.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#enabled-pseudo
     enabled: ?*const Style = null,
-    /// :first
-    /// Authors may also specify style for the first page of a document with the :first pseudo-class:
-    /// - **W3C**: https://drafts.csswg.org/css2/#selectordef-first
     first: ?*const Style = null,
-    /// :first-child
-    /// The :first-child pseudo-class represents an element that is first among its inclusive siblings. Same as :nth-child(1).
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#first-child-pseudo
     first_child: ?*const Style = null,
-    /// :first-of-page
-    /// Same as :nth-of-page(n), but where n = 1 (it is the first matched element on the page).
-    /// - **W3C**: https://drafts.csswg.org/css-gcpm-4/#selectordef-first-of-page
     first_of_page: ?*const Style = null,
-    /// :first-of-type
-    /// The :first-of-type pseudo-class represents the same element as :nth-of-type(1).
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#first-of-type-pseudo
     first_of_type: ?*const Style = null,
-    /// :focus
-    /// The :focus pseudo-class applies while an element (or pseudo-element) has the focus (accepts keyboard or other forms of input).
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#focus-pseudo
     focus: ?*const Style = null,
-    /// :focus-visible
-    /// While the :focus pseudo-class always matches the currently-focused element, UAs only sometimes visibly indicate focus (such as by drawing a “focus ring”), instead using a variety of heuristics to visibly indicate the focus only when it would be most helpful to the user. The :focus-visible pseudo-class matches a focused element (or pseudo-element) in these situations only, allowing authors to change the appearance of the focus indicator without changing when a focus indicator appears.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#focus-visible-pseudo
     focus_visible: ?*const Style = null,
-    /// :focus-within
-    /// The :focus-within pseudo-class applies to any element (or pseudo-element) for which the :focus pseudo-class applies, as well as to an element (or pseudo-element) whose descendant in the flat tree (including non-element nodes, such as text nodes) matches the conditions for matching :focus.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#focus-within-pseudo
     focus_within: ?*const Style = null,
-    /// :fullscreen
-    /// The :fullscreen pseudo-class represents an element which is displayed in a mode that takes up most (usually all) of the screen, such as that defined by the Fullscreen API. [FULLSCREEN]
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-fullscreen
     fullscreen: ?*const Style = null,
-    /// :future
-    /// The :future pseudo-class represents any element that is defined to occur entirely after a :current element. For example, the WebVTT spec defines the :future pseudo-class relative to the current playback position of a media element. If a time-based order of elements is not defined by the document language, then this represents any element that is a (possibly indirect) next sibling of a :current element.
-    /// - **W3C**: https://drafts.csswg.org/selectors-5/#future-pseudo
     future: ?*const Style = null,
-    /// :has-slotted
-    /// The :has-slotted pseudo-class matches slot elements which have a non-empty list of flattened slotted nodes.
-    /// - **W3C**: https://drafts.csswg.org/css-shadow-1/#selectordef-has-slotted
     has_slotted: ?*const Style = null,
-    /// :heading
-    /// The (non-functional) :heading pseudo-class matches an element which has a heading level, with respect to the semantics defined by the document language (e.g. [HTML5]).
-    /// - **W3C**: https://drafts.csswg.org/selectors-5/#heading-pseudo
     heading: ?*const Style = null,
-    /// :high-value
-    /// The :high-value pseudo-class matches on a meter element when its value is over the value specified by the high HTML attribute.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-high-value
     high_value: ?*const Style = null,
-    /// :host
-    /// The :host pseudo-class, when evaluated in the context of a shadow tree, matches the shadow tree’s shadow host. In any other context, it matches nothing.
-    /// - **W3C**: https://drafts.csswg.org/css-shadow-1/#selectordef-host
     host: ?*const Style = null,
-    /// :hover
-    /// The :hover pseudo-class applies while the user designates an element (or pseudo-element) with a pointing device, but does not necessarily activate it. For example, a visual user agent could apply this pseudo-class when the cursor (mouse pointer) hovers over a box generated by the element. Interactive user agents that cannot detect hovering due to hardware limitations (e.g., a pen device that does not detect hovering) are still conforming; the selector will simply never match in such a UA.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#hover-pseudo
     hover: ?*const Style = null,
-    /// :in-range
-    /// The :in-range and :out-of-range pseudo-classes apply only to elements that have range limitations. An element is :in-range or :out-of-range when the value that the element is bound to is in range or out of range with respect to its range limits as defined by the document language. An element that lacks data range limits or is not a form control is neither :in-range nor :out-of-range. E.g. a slider element with a value of 11 presented as a slider control that only represents the values from 1-10 is :out-of-range. Another example is a menu element with a value of "E" that happens to be presented in a popup menu that only has choices "A", "B" and "C".
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#in-range-pseudo
     in_range: ?*const Style = null,
-    /// :indeterminate
-    /// If an element that could match :checked or :unchecked is neither "on" nor "off", the :indeterminate pseudo-class applies. :indeterminate also matches elements which do not have a notion of being "checked", but whose "value" is still in an indeterminate state, such as a progress meter whose progress percentage is unknown.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#indeterminate-pseudo
     indeterminate: ?*const Style = null,
-    /// :interest-source
-    /// The :interest-source pseudo-class applies to an interest source element that the user is currently "showing interest" in, and the :interest-target pseudo-class applies to the associated interest target of an element matching :interest-source.
-    /// - **W3C**: https://drafts.csswg.org/selectors-5/#selectordef-interest-source
     interest_source: ?*const Style = null,
-    /// :interest-target
-    /// The :interest-source pseudo-class applies to an interest source element that the user is currently "showing interest" in, and the :interest-target pseudo-class applies to the associated interest target of an element matching :interest-source.
-    /// - **W3C**: https://drafts.csswg.org/selectors-5/#selectordef-interest-target
     interest_target: ?*const Style = null,
-    /// :invalid
-    /// An element is :valid or :invalid when its contents or value is, respectively, valid or invalid with respect to data validity semantics defined by the document language (e.g. [XFORMS11] or [HTML5]). An element which lacks data validity semantics is neither :valid nor :invalid.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#invalid-pseudo
     invalid: ?*const Style = null,
-    /// :last-child
-    /// The :last-child pseudo-class represents an element that is last among its inclusive siblings. Same as :nth-last-child(1).
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#last-child-pseudo
     last_child: ?*const Style = null,
-    /// :last-of-page
-    /// The element is the last matched element on the page.
-    /// - **W3C**: https://drafts.csswg.org/css-gcpm-4/#selectordef-last-of-page
     last_of_page: ?*const Style = null,
-    /// :last-of-type
-    /// The :last-of-type pseudo-class represents the same element as :nth-last-of-type(1).
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#last-of-type-pseudo
     last_of_type: ?*const Style = null,
-    /// :link
-    /// User agents commonly display unvisited hyperlinks differently from previously visited ones. Selectors provides the pseudo-classes :link and :visited to distinguish them:
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#link-pseudo
     link: ?*const Style = null,
-    /// :local-link
-    /// The :local-link pseudo-class allows authors to style hyperlinks based on the users current location within a site and to differentiate site-internal versus site-external links.
-    /// - **W3C**: https://drafts.csswg.org/selectors-5/#local-link-pseudo
     local_link: ?*const Style = null,
-    /// :low-value
-    /// The :low-value pseudo-class matches on a meter element when its value is under the value specified by the low HTML attribute.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-low-value
     low_value: ?*const Style = null,
-    /// :modal
-    /// The :modal pseudo-class represents an element which is in a state that excludes all interaction with elements outside it until it has been dismissed. Multiple elements can be :modal simultaneously, with only one of them active (able to receive input).
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-modal
     modal: ?*const Style = null,
-    /// :muted
-    /// The :muted pseudo-class represents an element that is capable of making sound, but is currently “muted“ (forced silent). (For the audio and video elements of HTML, see muted. [HTML])
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-muted
     muted: ?*const Style = null,
-    /// :only-child
-    /// The :only-child pseudo-class represents an element that has no siblings. Same as :first-child:last-child or :nth-child(1):nth-last-child(1), but with a lower specificity.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#only-child-pseudo
     only_child: ?*const Style = null,
-    /// :only-of-type
-    /// The :only-of-type pseudo-class represents the same element as :first-of-type:last-of-type.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#only-of-type-pseudo
     only_of_type: ?*const Style = null,
-    /// :open
-    /// The :open pseudo-class represents an element that has both “open” and “closed” states, and which is currently in the “open” state.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-open
     open: ?*const Style = null,
-    /// :optimal-value
-    /// The :optimal-value pseudo-class matches on a meter element when its value is in the range determined by the optimum / low / high HTML attributes.
-    /// - **W3C**: https://drafts.csswg.org/css-forms-1/#selectordef-optimal-value
     optimal_value: ?*const Style = null,
-    /// :optional
-    /// A form element is :required or :optional if a value for it is, respectively, required or optional before the form it belongs to can be validly submitted. Elements that are not form elements are neither required nor optional.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#optional-pseudo
     optional: ?*const Style = null,
-    /// :out-of-range
-    /// The :in-range and :out-of-range pseudo-classes apply only to elements that have range limitations. An element is :in-range or :out-of-range when the value that the element is bound to is in range or out of range with respect to its range limits as defined by the document language. An element that lacks data range limits or is not a form control is neither :in-range nor :out-of-range. E.g. a slider element with a value of 11 presented as a slider control that only represents the values from 1-10 is :out-of-range. Another example is a menu element with a value of "E" that happens to be presented in a popup menu that only has choices "A", "B" and "C".
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#out-of-range-pseudo
     out_of_range: ?*const Style = null,
-    /// :past
-    /// The :past pseudo-class represents any element that is defined to occur entirely prior to a :current element. For example, the WebVTT spec defines the :past pseudo-class relative to the current playback position of a media element. If a time-based order of elements is not defined by the document language, then this represents any element that is a (possibly indirect) previous sibling of a :current element.
-    /// - **W3C**: https://drafts.csswg.org/selectors-5/#past-pseudo
     past: ?*const Style = null,
-    /// :paused
-    /// The :paused pseudo-class represents an element that is capable of being “played” or “paused”, when that element is “paused” (i.e. not ”playing”). (This includes both an explicit “paused” state, and other non-playing states like “loaded, hasn’t been activated yet”, etc.)
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-paused
     paused: ?*const Style = null,
-    /// :picture-in-picture
-    /// The :picture-in-picture pseudo-class represents an element which is displayed in a mode that takes up most (usually all) of the viewport, and whose viewport is confined to part of the screen while being displayed over other content, for example when using the Picture-in-Picture API. [picture-in-picture]
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-picture-in-picture
     picture_in_picture: ?*const Style = null,
-    /// :placeholder-shown
-    /// Input elements can sometimes show placeholder text as a hint to the user on what to type in. See, for example, the placeholder attribute in [HTML5]. The :placeholder-shown pseudo-class matches an input element that is showing such placeholder text, whether that text is given by an attribute or a real element, or is otherwise implied by the UA.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#placeholder-shown-pseudo
     placeholder_shown: ?*const Style = null,
-    /// :playing
-    /// The :playing pseudo-class represents an element that is capable of being “played” or “paused”, when that element is “playing”. (This includes both when the element is explicitly playing, and when it’s temporarily stopped for some reason not connected to user intent, but will automatically resume when that reason is resolved, such as a “buffering” or “stalled” state.)
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-playing
     playing: ?*const Style = null,
-    /// :popover-open
-    /// The :popover-open pseudo-class represents an element that has both “popover-showing” and “popover-hidden” states and which is currently in the “popover-showing” state.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-popover-open
     popover_open: ?*const Style = null,
-    /// :read-only
-    /// An element matches :read-write if it is user-alterable, as defined by the document language. Otherwise, it is :read-only.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#read-only-pseudo
     read_only: ?*const Style = null,
-    /// :read-write
-    /// An element matches :read-write if it is user-alterable, as defined by the document language. Otherwise, it is :read-only.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#read-write-pseudo
     read_write: ?*const Style = null,
-    /// :required
-    /// A form element is :required or :optional if a value for it is, respectively, required or optional before the form it belongs to can be validly submitted. Elements that are not form elements are neither required nor optional.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#required-pseudo
     required: ?*const Style = null,
-    /// :root
-    /// The :root pseudo-class represents an element that is the root of the document.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#root-pseudo
     root: ?*const Style = null,
-    /// :scope
-    /// In some contexts, selectors are matched with respect to one or more scoping roots, such as when calling the querySelector() method in [DOM]. The :scope pseudo-class represents this scoping root, and may be either a true element or a virtual one (such as a DocumentFragment).
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#scope-pseudo
     scope: ?*const Style = null,
-    /// :seeking
-    /// The :seeking pseudo-class represents an element that is capable of ”seeking” when that element is ”seeking”. (For the audio and video elements of HTML, see HTML § 4.8.11.9 Seeking.)
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-seeking
     seeking: ?*const Style = null,
-    /// :snapped
-    /// The :snapped pseudo-class matches any scroll snap targets, regardless of axis. The longform physical and logical pseudo-class selectors allow for more finite snapped children styling as they can target an individual axis.
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-2/#selectordef-snapped
     snapped: ?*const Style = null,
-    /// :snapped-block
-    /// Matches the child snapped on the block axis.
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-2/#selectordef-snapped-block
     snapped_block: ?*const Style = null,
-    /// :snapped-inline
-    /// Matches the child snapped on the inline axis.
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-2/#selectordef-snapped-inline
     snapped_inline: ?*const Style = null,
-    /// :snapped-x
-    /// Matches the child snapped on the horizontal axis.
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-2/#selectordef-snapped-x
     snapped_x: ?*const Style = null,
-    /// :snapped-y
-    /// Matches the child snapped on the vertical axis.
-    /// - **W3C**: https://drafts.csswg.org/css-scroll-snap-2/#selectordef-snapped-y
     snapped_y: ?*const Style = null,
-    /// :stalled
-    /// The :stalled pseudo-class represents an element when that element cannot continue playing because it is actively attempting to obtain media data but it has failed to receive any data for some amount of time. For the audio and video elements of HTML, this amount of time is the media element stall timeout. [HTML] (Note that, like with the :buffering pseudo-class, the element is still considered to be “playing” when it is “stalled”. Whenever :stalled matches an element, :playing also matches the element.)
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-stalled
     stalled: ?*const Style = null,
-    /// :start-of-page
-    /// The element is the first matched element on the page, and neither it nor its ancestors have any previous siblings that appear on the page.
-    /// - **W3C**: https://drafts.csswg.org/css-gcpm-4/#selectordef-start-of-page
     start_of_page: ?*const Style = null,
-    /// :target
-    /// The :target pseudo-class matches the document’s target elements. If the document’s URL has no fragment identifier, then the document has no target elements.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#target-pseudo
     target: ?*const Style = null,
-    /// :target-after
-    /// In addition to the :target-current pseudo-class, this specification introduces the :target-before and :target-after pseudo-classes for use with scroll marker elements.
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-5/#selectordef-target-after
     target_after: ?*const Style = null,
-    /// :target-before
-    /// In addition to the :target-current pseudo-class, this specification introduces the :target-before and :target-after pseudo-classes for use with scroll marker elements.
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-5/#selectordef-target-before
     target_before: ?*const Style = null,
-    /// :target-current
-    /// Exactly one scroll marker within each scroll marker group is determined to be active at a time. Such "active" scroll markers match the :target-current pseudo-class.
-    /// - **W3C**: https://drafts.csswg.org/css-overflow-5/#selectordef-target-current
     target_current: ?*const Style = null,
-    /// :unchecked
-    /// When such elements are toggled “on” the :checked pseudo-class applies. For example, [HTML5] defines that checked checkboxes, radio buttons, and selected <option> elements match :checked. Similarly, when such elements are toggled “off”, the :unchecked pseudo-class applies.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#unchecked-pseudo
     unchecked: ?*const Style = null,
-    /// :user-invalid
-    /// The :user-invalid and the :user-valid pseudo-classes represent an element with incorrect or correct input, respectively, but only after the user has significantly interacted with it. Their purpose is to help the user identify mistakes in their input.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#user-invalid-pseudo
     user_invalid: ?*const Style = null,
-    /// :user-valid
-    /// The :user-invalid and the :user-valid pseudo-classes represent an element with incorrect or correct input, respectively, but only after the user has significantly interacted with it. Their purpose is to help the user identify mistakes in their input.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#user-valid-pseudo
     user_valid: ?*const Style = null,
-    /// :valid
-    /// An element is :valid or :invalid when its contents or value is, respectively, valid or invalid with respect to data validity semantics defined by the document language (e.g. [XFORMS11] or [HTML5]). An element which lacks data validity semantics is neither :valid nor :invalid.
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#valid-pseudo
     valid: ?*const Style = null,
-    /// :visited
-    /// User agents commonly display unvisited hyperlinks differently from previously visited ones. Selectors provides the pseudo-classes :link and :visited to distinguish them:
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#visited-pseudo
     visited: ?*const Style = null,
-    /// :volume-locked
-    /// The :volume-locked pseudo-class represents an element that is capable of making sound, and currently has its volume "locked" by the UA or the user, so the page author cannot change it. (For the audio and video elements of HTML, see the algorithm for setting the element’s effective media volume. [HTML])
-    /// - **W3C**: https://drafts.csswg.org/selectors-4/#selectordef-volume-locked
     volume_locked: ?*const Style = null,
-    /// :xr-overlay
-    /// The :xr-overlay pseudo-class MUST match the overlay element for the duration of an immersive session using a DOM Overlay.
-    /// - **W3C**: https://immersive-web.github.io/dom-overlays/#selectordef-xr-overlay
     xr_overlay: ?*const Style = null,
     sm: ?*const Style = null,
     md: ?*const Style = null,
     lg: ?*const Style = null,
     xl: ?*const Style = null,
-    extra: []const u8 = "",
+    extra: ?[]const u8 = null,
 
-    pub fn format(self: Style, w: *std.io.Writer) std.io.Writer.Error!void {
-        @setEvalBranchQuota(20000);
+    pub fn format(self: Style, w: anytype) std.Io.Writer.Error!void {
         inline for (std.meta.fields(Style)) |f| {
-            const T = f.type;
-            if (comptime std.mem.eql(u8, f.name, "extra")) continue;
-            if (comptime @typeInfo(T) == .@"union") {
-                const val = @field(self, f.name);
-                if (val != .none) {
-                    try core.formatKebab(f.name, w);
-                    try w.writeAll(": ");
-                    try val.format(w);
-                    try w.writeAll("; ");
-                }
-            }
+            try @import("core.zig").formatProperty(f.name, @field(self, f.name), w);
         }
-        if (self.extra.len > 0) try w.writeAll(self.extra);
-    }
-    pub fn toString(self: Style, allocator: std.mem.Allocator) ![]const u8 {
-        var list: std.ArrayList(u8) = .empty;
-        defer list.deinit(allocator);
-        const w = list.writer(allocator);
-        try self.format(w);
-        return list.toOwnedSlice(allocator);
     }
 };
+
+pub const Calc = CalcExpr;
+
+pub const StyleUnit = core.Unit;
+
+pub const StyleDimension = core.Dimension;
+
+pub const StyleColor = core.Color;

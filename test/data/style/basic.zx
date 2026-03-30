@@ -5,7 +5,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     };
     return (
         <div @allocator={allocator} style={style}>
-             Hello 
+            Hello
         </div>
     );
 }

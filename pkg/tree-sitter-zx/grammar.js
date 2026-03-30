@@ -151,10 +151,14 @@ module.exports = grammar(zig, {
       $.zx_template_string,
     ),
 
-    // Zig expression inside braces: {expr}
+    // Zig expression inside braces: {expr, expr}
     zx_expression_block: $ => seq(
       '{',
-      field('expression', $.expression),
+      optional(seq(
+        $.expression,
+        repeat(seq(',', $.expression)),
+        optional(','),
+      )),
       '}',
     ),
 

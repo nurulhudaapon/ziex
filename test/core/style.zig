@@ -1,9 +1,10 @@
 const std = @import("std");
 const zx = @import("zx");
 
+const S = zx.Style;
+
 test "Style formatting" {
-    const allocator = std.testing.allocator;
-    const style: zx.Style = .{
+    const style: S = .{
         .display = .flex,
         .flex_direction = .column,
         .background_color = .hex(0xff0000),
@@ -11,8 +12,8 @@ test "Style formatting" {
         .width = .px(100),
     };
 
-    const result = try std.fmt.allocPrint(allocator, "{f}", .{style});
-    defer allocator.free(result);
+    const result = try std.fmt.allocPrint(std.testing.allocator, "{f}", .{style});
+    defer std.testing.allocator.free(result);
 
     std.debug.print("\nGenerated CSS: {s}\n", .{result});
 
@@ -31,7 +32,7 @@ test "Style in Component" {
 
     var ctx = zx.allocInit(arena_allocator);
 
-    const style: zx.Style = .{
+    const style: S = .{
         .color = .hex(0x0000ff),
         .margin_top = .px(20),
     };
@@ -45,7 +46,6 @@ test "Style in Component" {
             ctx.txt("Hello with style"),
         },
     });
-    // deinit is not strictly needed with arena but good practice if we want to test it
     defer comp.deinit(arena_allocator);
 
     try std.testing.expectEqual(zx.ElementTag.div, comp.element.tag);
@@ -62,27 +62,29 @@ test "Style in Component" {
 }
 
 test "Style pseudo-states" {
-    const style: zx.Style = .{
+    const style: S = .{
         .background_color = .hex(0x0000ff),
-        .hover = &.{
+        .hover = &S{
             .background_color = .hex(0xff0000),
         },
     };
 
-    try std.testing.expect(style.hover != null);
-    try std.testing.expectEqual(zx.style.generated.BackgroundColor.hex(0xff0000), style.hover.?.background_color);
+    const result = try std.fmt.allocPrint(std.testing.allocator, "{f}", .{style});
+    defer std.testing.allocator.free(result);
+
+    try std.testing.expect(std.mem.indexOf(u8, result, "background-color: #0000ff;") != null);
+    try std.testing.expect(std.mem.indexOf(u8, result, "hover { background-color: #ff0000; }") != null);
 }
 
 test "Style shorthands" {
-    const allocator = std.testing.allocator;
-    const style: zx.Style = .{
+    const style: S = .{
         .padding = .px2(10, 20),
         .margin = .px4(5, 10, 15, 20),
     };
 
-    const result = try std.fmt.allocPrint(allocator, "{f}", .{style});
-    defer allocator.free(result);
-    
+    const result = try std.fmt.allocPrint(std.testing.allocator, "{f}", .{style});
+    defer std.testing.allocator.free(result);
+
     try std.testing.expect(std.mem.indexOf(u8, result, "padding: 10px 20px;") != null);
     try std.testing.expect(std.mem.indexOf(u8, result, "margin: 5px 10px 15px 20px;") != null);
 }

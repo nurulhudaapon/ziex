@@ -29,7 +29,13 @@ pub fn main() !void {
 }
 
 pub fn writeFile(allocator: std.mem.Allocator, path: []const u8) !void {
-    const source = try generate(allocator);
+    const source = generate(allocator) catch |err| {
+        if (err == error.InvalidGeneratedSource) {
+            // We can't easily get the raw buffer from File here without changes,
+            // but we can try to catch it in generate() or just look at what's happening.
+        }
+        return err;
+    };
     defer allocator.free(source);
 
     const file = try std.fs.cwd().createFile(path, .{});
@@ -194,20 +200,18 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
             _ = try prop_union.addMethod(fa, "", "hex", hex_sig, "return .{ .hex_ = v };");
         }
 
-        const format_sig = try std.fmt.allocPrint(fa, "(self: {s}, w: *std.io.Writer) std.io.Writer.Error!void", .{final_type_name});
+        const format_sig = try std.fmt.allocPrint(fa, "(self: {s}, w: anytype) std.Io.Writer.Error!void", .{final_type_name});
         _ = try prop_union.addMethod(fa, "", "format", format_sig, "return core.formatValue(self, w);");
     }
 
-    const style = try file.addStruct("Style");
+    const style_struct = try file.addStruct("Style");
     for (properties.items) |prop| {
         const name = prop.object.get("name").?.string;
-        const data = prop_data.get(name).?;
         const type_name_raw = try cleanName(a, name, .pascal);
         const final_type_name = if (std.mem.eql(u8, type_name_raw, "Color")) "CssColor" else type_name_raw;
         const clean_p = try cleanName(a, name, .snake);
         if (clean_p.len == 0) continue;
-        const field_doc = try docText(fa, name, data.prose, data.href);
-        try style.addField(fa, field_doc, clean_p, final_type_name, ".none");
+        try style_struct.addField(fa, "", clean_p, final_type_name, ".none");
     }
 
     var selector_tags = std.StringArrayHashMap(void).init(a);
@@ -215,8 +219,6 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
     for (selectors.items) |sel| {
         const name = sel.object.get("name").?.string;
         if (std.mem.indexOf(u8, name, "(") != null) continue;
-        const href = sel.object.get("href").?.string;
-        const prose = if (sel.object.get("prose")) |p| p.string else "";
         const clean_s = try cleanName(a, name, .snake);
         if (clean_s.len == 0) continue;
         if (selector_tags.contains(clean_s)) continue;
@@ -233,41 +235,26 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
         if (is_duplicate) continue;
 
         try selector_tags.put(clean_s, {});
-        const selector_doc = try docText(fa, name, prose, href);
-        try style.addField(fa, selector_doc, clean_s, "?*const Style", "null");
+        try style_struct.addField(fa, "", clean_s, "?*const Style", "null");
     }
 
-    try style.addField(fa, "", "sm", "?*const Style", "null");
-    try style.addField(fa, "", "md", "?*const Style", "null");
-    try style.addField(fa, "", "lg", "?*const Style", "null");
-    try style.addField(fa, "", "xl", "?*const Style", "null");
-    try style.addField(fa, "", "extra", "[]const u8", "\"\"");
+    try style_struct.addField(fa, "", "sm", "?*const Style", "null");
+    try style_struct.addField(fa, "", "md", "?*const Style", "null");
+    try style_struct.addField(fa, "", "lg", "?*const Style", "null");
+    try style_struct.addField(fa, "", "xl", "?*const Style", "null");
+    try style_struct.addField(fa, "", "extra", "?[]const u8", "null");
 
-    _ = try style.addMethod(fa, "", "format", "(self: Style, w: *std.io.Writer) std.io.Writer.Error!void",
-        \\@setEvalBranchQuota(20000);
+    _ = try style_struct.addMethod(fa, "", "format", "(self: Style, w: anytype) std.Io.Writer.Error!void", 
         \\inline for (std.meta.fields(Style)) |f| {
-        \\    const T = f.type;
-        \\    if (comptime std.mem.eql(u8, f.name, "extra")) continue;
-        \\    if (comptime @typeInfo(T) == .@"union") {
-        \\        const val = @field(self, f.name);
-        \\        if (val != .none) {
-        \\            try core.formatKebab(f.name, w);
-        \\            try w.writeAll(": ");
-        \\            try val.format(w);
-        \\            try w.writeAll("; ");
-        \\        }
-        \\    }
+        \\    try @import("core.zig").formatProperty(f.name, @field(self, f.name), w);
         \\}
-        \\if (self.extra.len > 0) try w.writeAll(self.extra);
     );
 
-    _ = try style.addMethod(fa, "", "toString", "(self: Style, allocator: std.mem.Allocator) ![]const u8",
-        \\var list: std.ArrayList(u8) = .empty;
-        \\defer list.deinit(allocator);
-        \\const w = list.writer(allocator);
-        \\try self.format(w);
-        \\return list.toOwnedSlice(allocator);
-    );
+    // Compatibility exports
+    _ = try file.addConst("Calc", "", "CalcExpr");
+    _ = try file.addConst("StyleUnit", "", "core.Unit");
+    _ = try file.addConst("StyleDimension", "", "core.Dimension");
+    _ = try file.addConst("StyleColor", "", "core.Color");
 
     return try file.finish();
 }
@@ -302,14 +289,10 @@ fn cleanName(allocator: std.mem.Allocator, name: []const u8, case: enum { pascal
         }
     }
     const result = try list.toOwnedSlice(allocator);
-    if (isZigKeyword(result) or (result.len > 0 and std.ascii.isDigit(result[0]))) {
-        const final = try std.fmt.allocPrint(allocator, "@\"{s}\"", .{result});
-        return final;
+    if (std.ascii.isDigit(result[0])) {
+        return try std.mem.concat(allocator, u8, &.{ "_", result });
     }
-    // Handle algebraic conflicts by adding a trailing underscore
-    if (std.mem.eql(u8, result, "add") or std.mem.eql(u8, result, "sub") or
-        std.mem.eql(u8, result, "mul") or std.mem.eql(u8, result, "div"))
-    {
+    if (isZigKeyword(result) or std.mem.eql(u8, result, "add") or std.mem.eql(u8, result, "sub") or std.mem.eql(u8, result, "mul") or std.mem.eql(u8, result, "div")) {
         return try std.mem.concat(allocator, u8, &.{ result, "_" });
     }
     return result;

@@ -152,6 +152,21 @@ pub fn build(b: *std.Build) !void {
         test_step.dependOn(&run_mod_tests.step);
         test_step.dependOn(&run_exe_tests.step);
         test_step.dependOn(&test_run.step);
+
+        const transpile_only = b.addExecutable(.{
+            .name = "transpile-only",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("test/transpile_only.zig"),
+                .target = target,
+                .optimize = optimize,
+                .imports = &.{
+                    .{ .name = "zx", .module = mod },
+                },
+            }),
+        });
+        const run_transpile_only = b.addRunArtifact(transpile_only);
+        const transpile_only_step = b.step("transpile-only", "Update snapshots without running full tests");
+        transpile_only_step.dependOn(&run_transpile_only.step);
     }
 
     // --- Steps: Dev (Runs dev step for site/) --- //
