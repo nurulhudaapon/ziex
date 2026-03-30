@@ -200,7 +200,7 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
             _ = try prop_union.addMethod(fa, "", "hex", hex_sig, "return .{ .hex_ = v };");
         }
 
-        const format_sig = try std.fmt.allocPrint(fa, "(self: {s}, w: *std.io.Writer) std.io.Writer.Error!void", .{final_type_name});
+        const format_sig = try std.fmt.allocPrint(fa, "(self: {s}, w: anytype) anyerror!void", .{final_type_name});
         _ = try prop_union.addMethod(fa, "", "format", format_sig, "return core.formatValue(self, w);");
     }
 
@@ -243,6 +243,18 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
     try style_struct.addField(fa, "", "lg", "?*const Style", "null");
     try style_struct.addField(fa, "", "xl", "?*const Style", "null");
     try style_struct.addField(fa, "", "extra", "?[]const u8", "null");
+
+    _ = try style_struct.addMethod(fa, "", "format", "(self: Style, w: anytype) anyerror!void", 
+        \\inline for (std.meta.fields(Style)) |f| {
+        \\    try @import("core.zig").formatProperty(f.name, @field(self, f.name), w);
+        \\}
+    );
+
+    // Compatibility exports
+    _ = try file.addConst("Calc", "", "CalcExpr");
+    _ = try file.addConst("StyleUnit", "", "core.Unit");
+    _ = try file.addConst("StyleDimension", "", "core.Dimension");
+    _ = try file.addConst("StyleColor", "", "core.Color");
 
     return try file.finish();
 }

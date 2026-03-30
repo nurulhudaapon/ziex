@@ -59,7 +59,7 @@ pub const Color = union(enum) {
         return .{ .keyword_ = k };
     }
 
-    pub fn format(self: Color, w: anytype) anyerror!void {
+    pub fn format(self: Color, w: anytype) std.Io.Writer.Error!void {
         switch (self) {
             .none => {},
             .hex_ => |h| try w.print("#{x:0>6}", .{h}),
@@ -70,7 +70,7 @@ pub const Color = union(enum) {
     }
 };
 
-pub fn formatKebab(name: []const u8, w: anytype) anyerror!void {
+pub fn formatKebab(name: []const u8, w: anytype) std.Io.Writer.Error!void {
     const prefixes = [_][]const u8{ "webkit", "moz", "ms", "apple", "epub", "hp", "atsc", "rim", "ro", "tc", "xhtml" };
     for (prefixes) |p| {
         if (std.mem.startsWith(u8, name, p) and name.len > p.len and (name[p.len] == '_' or std.ascii.isUpper(name[p.len]))) {
@@ -92,7 +92,7 @@ pub fn formatKebab(name: []const u8, w: anytype) anyerror!void {
     }
 }
 
-fn formatShorthand(v: [4]f32, unit: []const u8, w: anytype) anyerror!void {
+fn formatShorthand(v: [4]f32, unit: []const u8, w: anytype) std.Io.Writer.Error!void {
     if (v[0] == v[1] and v[1] == v[2] and v[2] == v[3]) {
         try w.print("{d}{s}", .{ v[0], unit });
     } else if (v[0] == v[2] and v[1] == v[3]) {
@@ -102,7 +102,7 @@ fn formatShorthand(v: [4]f32, unit: []const u8, w: anytype) anyerror!void {
     }
 }
 
-pub fn formatValue(value: anytype, w: anytype) anyerror!void {
+pub fn formatValue(value: anytype, w: anytype) std.Io.Writer.Error!void {
     @setEvalBranchQuota(100000);
     const T = @TypeOf(value);
     const ti = @typeInfo(T);
@@ -194,16 +194,9 @@ pub fn formatValue(value: anytype, w: anytype) anyerror!void {
             }
         }
     }
-
-    // Default formatting for other types if any
 }
 
-pub const StyleOutput = struct {
-    class: []const u8,
-    css: []const u8,
-};
-
-pub fn formatProperty(name: []const u8, val: anytype, w: anytype) anyerror!void {
+pub fn formatProperty(name: []const u8, val: anytype, w: anytype) std.Io.Writer.Error!void {
     @setEvalBranchQuota(100000);
     const T = @TypeOf(val);
     const ti = @typeInfo(T);
@@ -214,33 +207,17 @@ pub fn formatProperty(name: []const u8, val: anytype, w: anytype) anyerror!void 
     }
 
     if (ti == .pointer) {
-        if (ti.pointer.size == .One) {
+        if (ti.pointer.size == .one) {
+            // Check if child has format (like nested Style)
+            if (comptime @hasDecl(ti.pointer.child, "format")) {
+                try formatKebab(name, w);
+                try w.writeAll(" { ");
+                try val.format(w);
+                try w.writeAll("} ");
+                return;
+            }
             return formatProperty(name, val.*, w);
         }
-    }
-
-    // Special case for selectors (pseudo-classes, media queries)
-    // We check if the value is a struct or a pointer to one that is NOT a Color or other simple type
-    const is_style_struct = comptime blk: {
-        if (ti == .pointer and ti.pointer.size == .One) {
-            const child_ti = @typeInfo(ti.pointer.child);
-            break :blk child_ti == .@"struct" and !@hasDecl(ti.pointer.child, "format");
-        }
-        break :blk ti == .@"struct" and !@hasDecl(T, "format");
-    };
-
-    if (is_style_struct) {
-        try formatKebab(name, w);
-        try w.writeAll(" { ");
-        // Recursive call to write nested style
-        // Note: This needs access to the init logic or a simplified version
-        // For now, let's assume we just want to format its fields
-        const info = if (ti == .pointer) @typeInfo(ti.pointer.child).@"struct" else ti.@"struct";
-        inline for (info.fields) |f| {
-            try formatProperty(f.name, @field(val, f.name), w);
-        }
-        try w.writeAll("} ");
-        return;
     }
 
     // Check if it's .none
@@ -252,7 +229,9 @@ pub fn formatProperty(name: []const u8, val: anytype, w: anytype) anyerror!void 
     }
 
     if (std.mem.eql(u8, name, "extra")) {
-        if (comptime T == []const u8 or T == ?[]const u8) {
+        if (comptime T == []const u8 or T == []u8) {
+            try w.writeAll(val);
+        } else if (comptime T == ?[]const u8 or T == ?[]u8) {
             if (val) |v| try w.writeAll(v);
         }
         return;
@@ -260,53 +239,15 @@ pub fn formatProperty(name: []const u8, val: anytype, w: anytype) anyerror!void 
 
     try formatKebab(name, w);
     try w.writeAll(": ");
-    if (comptime @hasDecl(T, "format")) {
-        try val.format(w);
-    } else {
-        try formatValue(val, w);
+    switch (ti) {
+        .@"struct", .@"union", .@"enum", .@"opaque" => {
+            if (comptime @hasDecl(T, "format")) {
+                try val.format(w);
+            } else {
+                try formatValue(val, w);
+            }
+        },
+        else => try formatValue(val, w),
     }
     try w.writeAll("; ");
-}
-
-pub fn init(props: anytype) StyleOutput {
-    return comptime blk: {
-        @setEvalBranchQuota(1000000);
-        var css_buf: []const u8 = "";
-        const T = @TypeOf(props);
-        const ti = @typeInfo(T);
-
-        if (ti == .@"struct") {
-            for (ti.@"struct".fields) |f| {
-                var buf: [4096]u8 = undefined;
-                var fbs = std.io.fixedBufferStream(&buf);
-                formatProperty(f.name, @field(props, f.name), fbs.writer()) catch @panic("buffer overflow");
-                css_buf = css_buf ++ fbs.getWritten();
-            }
-        } else if (ti == .pointer or ti == .array) {
-            for (props) |p| {
-                var buf: [4096]u8 = undefined;
-                var fbs = std.io.fixedBufferStream(&buf);
-                // For union StyleProperty, we need to extract name and value
-                const p_ti = @typeInfo(@TypeOf(p));
-                if (p_ti == .@"union") {
-                    const tag = @as(p_ti.@"union".tag_type.?, p);
-                    for (p_ti.@"union".fields) |uf| {
-                        if (tag == @field(p_ti.@"union".tag_type.?, uf.name)) {
-                            const val = @field(p, uf.name);
-                            // Strip trailing _ from field name if it exists (internal union naming)
-                            const clean_name = if (std.mem.endsWith(u8, uf.name, "_")) uf.name[0 .. uf.name.len - 1] else uf.name;
-                            formatProperty(clean_name, val, fbs.writer()) catch @panic("buffer overflow");
-                        }
-                    }
-                }
-                css_buf = css_buf ++ fbs.getWritten();
-            }
-        }
-
-        const hash = std.hash.Wyhash.hash(0, css_buf);
-        break :blk .{
-            .class = std.fmt.comptimePrint("zx-{x}", .{hash}),
-            .css = css_buf,
-        };
-    };
 }

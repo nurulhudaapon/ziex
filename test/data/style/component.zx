@@ -1,0 +1,15 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const style: zx.Style = .{
+        .display = .flex,
+        .flex_direction = .column,
+        .padding_top = .px(10),
+        .width = .px(100),
+    };
+    return (
+        <div @allocator={allocator} style={style}>
+            Hello
+        </div>
+    );
+}
+
+const zx = @import("zx");

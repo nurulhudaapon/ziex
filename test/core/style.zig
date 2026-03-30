@@ -12,7 +12,8 @@ test "Style formatting" {
         .width = .px(100),
     };
 
-    const result = std.fmt.allocPrint(std.testing.allocator, "{f}", .{style});
+    const result = try std.fmt.allocPrint(std.testing.allocator, "{f}", .{style});
+    defer std.testing.allocator.free(result);
 
     std.debug.print("\nGenerated CSS: {s}\n", .{result});
 
@@ -63,12 +64,16 @@ test "Style in Component" {
 test "Style pseudo-states" {
     const style: S = .{
         .background_color = .hex(0x0000ff),
-        .hover = S{
+        .hover = &S{
             .background_color = .hex(0xff0000),
         },
     };
 
-    try std.testing.expect(std.mem.indexOf(u8, style.css, "background-color: #0000ff;") != null);
+    const result = try std.fmt.allocPrint(std.testing.allocator, "{f}", .{style});
+    defer std.testing.allocator.free(result);
+
+    try std.testing.expect(std.mem.indexOf(u8, result, "background-color: #0000ff;") != null);
+    try std.testing.expect(std.mem.indexOf(u8, result, "hover { background-color: #ff0000; }") != null);
 }
 
 test "Style shorthands" {
@@ -77,7 +82,8 @@ test "Style shorthands" {
         .margin = .px4(5, 10, 15, 20),
     };
 
-    const result = style.css;
+    const result = try std.fmt.allocPrint(std.testing.allocator, "{f}", .{style});
+    defer std.testing.allocator.free(result);
 
     try std.testing.expect(std.mem.indexOf(u8, result, "padding: 10px 20px;") != null);
     try std.testing.expect(std.mem.indexOf(u8, result, "margin: 5px 10px 15px 20px;") != null);

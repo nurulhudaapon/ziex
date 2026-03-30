@@ -70,21 +70,9 @@ pub fn lazy(allocator: Allocator, comptime func: anytype, props: anytype) Compon
 /// Context for creating components with allocator support
 pub const ZxContext = struct {
     allocator: ?std.mem.Allocator = null,
-    style_registry: ?*std.StringArrayHashMap([]const u8) = null,
 
     pub fn getAlloc(self: *ZxContext) std.mem.Allocator {
         return self.allocator orelse @panic("Allocator not set. Please provide @allocator attribute to the parent element.");
-    }
-
-    /// Check if a Style has any pseudo-states or media queries
-    fn hasSelectors(style_obj: zx.Style) bool {
-        const fields = std.meta.fields(zx.Style);
-        inline for (fields) |f| {
-            if (f.type == ?*const zx.Style) {
-                if (@field(style_obj, f.name) != null) return true;
-            }
-        }
-        return false;
     }
 
     fn escapeHtml(self: *ZxContext, text: []const u8) []const u8 {
@@ -301,62 +289,24 @@ pub const ZxContext = struct {
                     zx.EventHandler.wrap(val),
             },
             // Pre-built event handlers
-            .@"struct" => |info| if (T == zx.EventHandler) .{
+            .@"struct" => |_| if (T == zx.EventHandler) .{
                 .name = name,
                 .handler = val,
-            } else if (T == zx.style.Style) blk: {
-                const style_out = zx.style.init(val);
-                if (comptime std.mem.eql(u8, name, "style")) {
-                    if (hasSelectors(val)) {
-                        const style_str = style_out.css;
-
-                        if (self.style_registry) |reg| {
-                            const hash = std.hash.Wyhash.hash(0, style_str);
-                            const class_name = self.printf("zx-{x}", .{hash});
-
-                            if (!reg.contains(class_name)) {
-                                reg.put(class_name, style_str) catch @panic("OOM");
-                            }
-
-                            break :blk .{
-                                .name = "class",
-                                .value = class_name,
-                            };
-                        }
-
-                        break :blk .{
-                            .name = "class",
-                            .value = style_out.class,
-                        };
-                    }
-                }
+            } else if (comptime @hasDecl(T, "format")) blk: {
+                const allocator = self.getAlloc();
+                const str = std.fmt.allocPrint(allocator, "{f}", .{val}) catch @panic("OOM");
                 break :blk .{
                     .name = name,
-                    .value = style_out.css,
+                    .value = str,
                 };
-            } else if (info.is_tuple) {
-                // If it's a tuple of StyleProperty, automatically initialize it as a style
-                const fields = info.fields;
-                if (fields.len > 0 and fields[0].type == zx.Style) {
-                    const allocator = self.getAlloc();
-                    const props = allocator.alloc(zx.Style, fields.len) catch @panic("OOM");
-                    inline for (fields, 0..) |f, i| {
-                        props[i] = @field(val, f.name);
-                    }
-                    const style = zx.style.Style.init(allocator, props);
-                    return self.attr(name, style);
-                }
-                @compileError("Unsupported struct type for attribute: " ++ @typeName(T));
             } else @compileError("Unsupported struct type for attribute: " ++ @typeName(T)),
 
-            .@"union" => if (T == @import("style/generated.zig").StyleProperty) blk: {
-                var buf: [1024]u8 = undefined;
-                var fbs = std.io.fixedBufferStream(&buf);
-                var w = fbs.writer();
-                @import("style/core.zig").formatProperty(val, &w) catch @panic("OOM");
+            .@"union" => if (comptime @hasDecl(T, "format")) blk: {
+                const allocator = self.getAlloc();
+                const str = std.fmt.allocPrint(allocator, "{f}", .{val}) catch @panic("OOM");
                 break :blk .{
                     .name = name,
-                    .value = self.printf("{s}", .{fbs.getWritten()}),
+                    .value = str,
                 };
             } else @compileError("Unsupported union type for attribute: " ++ @typeName(T)),
 
