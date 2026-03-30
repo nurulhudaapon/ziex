@@ -301,45 +301,52 @@ pub const ZxContext = struct {
                     zx.EventHandler.wrap(val),
             },
             // Pre-built event handlers
-            .@"struct" => if (T == zx.EventHandler) .{
+            .@"struct" => |info| if (T == zx.EventHandler) .{
                 .name = name,
                 .handler = val,
             } else if (T == zx.style.Style) blk: {
+                const style_out = zx.style.init(val);
                 if (comptime std.mem.eql(u8, name, "style")) {
                     if (hasSelectors(val)) {
-                        // We need a deterministic hash of the style
-                        // For now, let's just use the formatted string as the key
-                        const style_str = val.css;
+                        const style_str = style_out.css;
 
-                        // Register style if registry exists
                         if (self.style_registry) |reg| {
                             const hash = std.hash.Wyhash.hash(0, style_str);
                             const class_name = self.printf("zx-{x}", .{hash});
 
                             if (!reg.contains(class_name)) {
-                                // Important: We store the Style object itself or its string representation.
-                                // For now, storing the string is easier for the final flush.
                                 reg.put(class_name, style_str) catch @panic("OOM");
                             }
 
-                            // Return class attribute instead of style
                             break :blk .{
                                 .name = "class",
                                 .value = class_name,
                             };
                         }
-                        
-                        // Return class attribute instead of style
+
                         break :blk .{
                             .name = "class",
-                            .value = val.class,
+                            .value = style_out.class,
                         };
                     }
                 }
                 break :blk .{
                     .name = name,
-                    .value = val.css,
+                    .value = style_out.css,
                 };
+            } else if (info.is_tuple) {
+                // If it's a tuple of StyleProperty, automatically initialize it as a style
+                const fields = info.fields;
+                if (fields.len > 0 and fields[0].type == zx.Style) {
+                    const allocator = self.getAlloc();
+                    const props = allocator.alloc(zx.Style, fields.len) catch @panic("OOM");
+                    inline for (fields, 0..) |f, i| {
+                        props[i] = @field(val, f.name);
+                    }
+                    const style = zx.style.Style.init(allocator, props);
+                    return self.attr(name, style);
+                }
+                @compileError("Unsupported struct type for attribute: " ++ @typeName(T));
             } else @compileError("Unsupported struct type for attribute: " ++ @typeName(T)),
 
             .@"union" => if (T == @import("style/generated.zig").StyleProperty) blk: {

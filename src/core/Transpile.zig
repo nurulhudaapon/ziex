@@ -396,21 +396,7 @@ pub fn transpileBuiltin(self: *Ast, node: ts.Node, ctx: *TranspileContext) !bool
                 builtin_identifier = try self.getNodeText(child);
             },
             .arguments => {
-                // If it's @style, handle its arguments specially to wrap in .{}
-                if (builtin_identifier) |ident| {
-                    if (std.mem.eql(u8, ident, "@style")) {
-                        const full_text = try self.getNodeText(node);
-                        const open_paren = std.mem.indexOfScalar(u8, full_text, '(') orelse return true;
-                        const close_paren = std.mem.lastIndexOfScalar(u8, full_text, ')') orelse return true;
-                        try ctx.writeM("zx.style.init", node.startByte(), self);
-                        try ctx.write("(.{");
-                        try writeStyleDsl(self, node.startByte() + @as(u32, @intCast(open_paren + 1)), node.startByte() + @as(u32, @intCast(close_paren)), ctx);
-                        try ctx.write("})");
-                        return true;
-                    }
-                }
-
-                // Look for string inside arguments (for @import)
+                // Look for string inside arguments
                 const args_child_count = child.childCount();
                 var j: u32 = 0;
                 while (j < args_child_count) : (j += 1) {
@@ -506,7 +492,7 @@ pub fn transpileReturn(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void 
                     // Check if we need to initialize _zx with allocator
                     const allocator_value = try getAllocatorAttribute(self, child);
 
-                    // Synthesized _zx init - no source mapping (it's boilerplate)
+                    // Synthesized _zx init — no source mapping (it's boilerplate)
                     try ctx.write("var _zx = @import(\"zx\").");
                     if (allocator_value) |alloc| {
                         try ctx.write("allocInit(");
@@ -516,17 +502,18 @@ pub fn transpileReturn(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void 
                         try ctx.write("init()");
                     }
                     try ctx.write(";\n");
+                    // Mark that _zx is now initialized for nested ZX blocks
                     ctx.zx_initialized = true;
-                    const indent_width = sourceIndentWidth(self.source, node.startByte());
-                    const saved_indent = ctx.indent_level;
-                    if (indent_width / 4 > ctx.indent_level) ctx.indent_level = indent_width / 4;
-                    try writeSourceIndent(self.source, node.startByte(), ctx);
+                    try ctx.writeIndent();
+                    // Map generated `return` to the source `return` keyword
                     try ctx.writeM("return", node.startByte(), self);
                     try ctx.write(" ");
 
+                    // Set the paren position for the upcoming element transpilation
                     ctx.paren_byte = paren_byte;
+
                     try transpileElement(self, child, ctx, true);
-                    ctx.indent_level = saved_indent;
+                    // Reset the flag after processing the return statement
                     ctx.zx_initialized = false;
                     return;
                 },
@@ -1366,7 +1353,7 @@ fn writeChildrenValue(self: *Ast, children: []const ts.Node, ctx: *TranspileCont
 /// When preserve_whitespace is true (e.g. for <pre>), text nodes won't be trimmed
 fn writeHtmlElement(self: *Ast, node: ts.Node, tag: []const u8, tag_name_byte: u32, end_tag_start_byte: u32, end_tag_end_byte: u32, attributes: []const ZxAttribute, children: []const ts.Node, ctx: *TranspileContext, preserve_whitespace: bool) !void {
     _ = node;
-    // _zx.ele( is synthesized - no source mapping
+    // _zx.ele( is synthesized — no source mapping
     try ctx.write("_zx.ele");
     if (ctx.paren_byte) |p| {
         try ctx.writeM("(", p, self);
@@ -2117,7 +2104,6 @@ pub const ZxAttribute = struct {
     /// Check if any attributes in the list are regular (non-builtin, non-spread)
     fn hasRegular(attrs: []const ZxAttribute) bool {
         for (attrs) |attr| {
-            if (std.mem.eql(u8, attr.name, "@style")) continue;
             if (!attr.is_builtin and !attr.is_spread) return true;
         }
         return false;
@@ -2132,227 +2118,13 @@ pub const ZxAttribute = struct {
     }
 };
 
-fn writeStyleDsl(self: *Ast, start_byte: u32, end_byte: u32, ctx: *TranspileContext) !void {
-    if (start_byte >= end_byte or end_byte > self.source.len) return;
-    try writeStyleDslText(self.source[start_byte..end_byte], ctx);
-}
-
-fn writeStyleDslText(text: []const u8, ctx: *TranspileContext) error{OutOfMemory}!void {
-    try writeStyleList(text, ctx);
-}
-
-fn writeStyleList(text: []const u8, ctx: *TranspileContext) error{OutOfMemory}!void {
-    var start: usize = 0;
-    var paren_depth: usize = 0;
-    var brace_depth: usize = 0;
-    var bracket_depth: usize = 0;
-    var i: usize = 0;
-    while (i < text.len) : (i += 1) {
-        switch (text[i]) {
-            '(' => paren_depth += 1,
-            ')' => {
-                if (paren_depth > 0) paren_depth -= 1;
-            },
-            '{' => brace_depth += 1,
-            '}' => {
-                if (brace_depth > 0) brace_depth -= 1;
-            },
-            '[' => bracket_depth += 1,
-            ']' => {
-                if (bracket_depth > 0) bracket_depth -= 1;
-            },
-            ',' => {
-                if (paren_depth == 0 and brace_depth == 0 and bracket_depth == 0) {
-                    try writeStyleSegment(text[start..i], ctx);
-                    try ctx.write(",");
-                    start = i + 1;
-                }
-            },
-            else => {},
-        }
-    }
-
-    if (start < text.len) {
-        try writeStyleSegment(text[start..], ctx);
-    }
-}
-
-fn writeStyleSegment(segment: []const u8, ctx: *TranspileContext) error{OutOfMemory}!void {
-    var start: usize = 0;
-    while (start < segment.len and std.ascii.isWhitespace(segment[start])) : (start += 1) {}
-
-    var end = segment.len;
-    while (end > start and std.ascii.isWhitespace(segment[end - 1])) : (end -= 1) {}
-
-    try ctx.write(segment[0..start]);
-    if (start < end) {
-        try writeStyleExpr(segment[start..end], ctx);
-    }
-    try ctx.write(segment[end..]);
-}
-
-fn writeStyleExpr(expr: []const u8, ctx: *TranspileContext) error{OutOfMemory}!void {
-    if (expr.len >= 8 and std.mem.startsWith(u8, expr, "@style(") and expr[expr.len - 1] == ')') {
-        try ctx.write("zx.style.init(.{");
-        try writeStyleList(expr[7 .. expr.len - 1], ctx);
-        try ctx.write("})");
-        return;
-    }
-
-    if (parseStylePropertyCall(expr)) |call| {
-        try ctx.write("@as(zx.style.StyleProperty, .{ .");
-        try ctx.write(call.name);
-        try ctx.write(" = ");
-        try writeStyleExpr(call.arg, ctx);
-        try ctx.write(" })");
-        return;
-    }
-
-    try ctx.write(expr);
-}
-
-fn parseStylePropertyCall(expr: []const u8) ?struct { name: []const u8, arg: []const u8 } {
-    if (expr.len < 4 or expr[0] != '.') return null;
-
-    var name_end: usize = 1;
-    while (name_end < expr.len and (std.ascii.isAlphanumeric(expr[name_end]) or expr[name_end] == '_')) : (name_end += 1) {}
-    if (name_end == 1 or name_end >= expr.len or expr[name_end] != '(') return null;
-
-    const name = expr[1..name_end];
-    if (isStyleValueFunction(name)) return null;
-
-    var paren_depth: usize = 0;
-    var brace_depth: usize = 0;
-    var bracket_depth: usize = 0;
-    var i = name_end;
-    while (i < expr.len) : (i += 1) {
-        switch (expr[i]) {
-            '(' => paren_depth += 1,
-            ')' => {
-                if (paren_depth == 0) return null;
-                paren_depth -= 1;
-                if (paren_depth == 0 and brace_depth == 0 and bracket_depth == 0) {
-                    if (i != expr.len - 1) return null;
-                    return .{ .name = name, .arg = expr[name_end + 1 .. i] };
-                }
-            },
-            '{' => brace_depth += 1,
-            '}' => {
-                if (brace_depth > 0) brace_depth -= 1;
-            },
-            '[' => bracket_depth += 1,
-            ']' => {
-                if (bracket_depth > 0) bracket_depth -= 1;
-            },
-            else => {},
-        }
-    }
-
-    return null;
-}
-
-fn isStyleValueFunction(name: []const u8) bool {
-    return std.mem.eql(u8, name, "hex") or
-        std.mem.eql(u8, name, "px") or
-        std.mem.eql(u8, name, "px2") or
-        std.mem.eql(u8, name, "px4") or
-        std.mem.eql(u8, name, "em") or
-        std.mem.eql(u8, name, "rem") or
-        std.mem.eql(u8, name, "rgb") or
-        std.mem.eql(u8, name, "rgba") or
-        std.mem.eql(u8, name, "raw") or
-        std.mem.eql(u8, name, "number") or
-        std.mem.eql(u8, name, "calc") or
-        std.mem.eql(u8, name, "percent");
-}
-
-fn sourceIndentWidth(source: []const u8, byte_offset: u32) u32 {
-    const end = @min(byte_offset, @as(u32, @intCast(source.len)));
-    var start = end;
-    while (start > 0 and source[start - 1] != '\n') : (start -= 1) {}
-    var width: u32 = 0;
-    var i = start;
-    while (i < end) : (i += 1) {
-        const c = source[i];
-        if (c == ' ') {
-            width += 1;
-        } else if (c == '\t') {
-            width += 4;
-        }
-    }
-    return width;
-}
-
-fn writeSourceIndent(source: []const u8, byte_offset: u32, ctx: *TranspileContext) !void {
-    const end = @min(byte_offset, @as(u32, @intCast(source.len)));
-    var start = end;
-    while (start > 0 and source[start - 1] != '\n') : (start -= 1) {}
-    var i = start;
-    while (i < end) : (i += 1) {
-        const c = source[i];
-        if (c == ' ' or c == '\t') try ctx.write(source[i .. i + 1]);
-    }
-}
-
-fn styleValueText(text: []const u8) []const u8 {
-    const trimmed = std.mem.trim(u8, text, " \t\r\n");
-    if (trimmed.len >= 2) {
-        const first = trimmed[0];
-        const last = trimmed[trimmed.len - 1];
-        if ((first == '{' and last == '}') or (first == '(' and last == ')')) {
-            return std.mem.trim(u8, trimmed[1 .. trimmed.len - 1], " \t\r\n");
-        }
-    }
-    return trimmed;
-}
-
-fn styleNeedsInit(text: []const u8) bool {
-    const trimmed = std.mem.trim(u8, text, " \t\r\n");
-    if (trimmed.len == 0) return false;
-    if (trimmed[0] == '.') return true;
-    if (std.mem.startsWith(u8, trimmed, "@style(")) return true;
-
-    var depth: usize = 0;
-    for (trimmed) |c| {
-        switch (c) {
-            '(' => depth += 1,
-            ')' => {
-                if (depth > 0) depth -= 1;
-            },
-            ',' => if (depth == 0) return true,
-            else => {},
-        }
-    }
-    return false;
-}
-
 /// Write builtin and regular attributes to the transpile context
 fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileContext) error{OutOfMemory}!void {
-    // Write @style if present
-    for (attributes) |attr| {
-        if (std.mem.eql(u8, attr.name, "@style")) {
-            try ctx.writeIndent();
-            const style_value = styleValueText(attr.value);
-            if (styleNeedsInit(style_value)) {
-                const multiline = std.mem.indexOfScalar(u8, style_value, '\n') != null;
-                try ctx.write(if (multiline) ".style = zx.style.init(.{" else ".style = zx.style.init(.{ ");
-                try writeStyleDslText(style_value, ctx);
-                try ctx.write(if (multiline) "}),\n" else " }),\n");
-            } else {
-                try ctx.write(".style = ");
-                try writeStyleDslText(style_value, ctx);
-                try ctx.write(",\n");
-            }
-            break;
-        }
-    }
-
     // Write builtin attributes first (like @allocator), but skip transpiler directives
     for (attributes) |attr| {
         if (!attr.is_builtin) continue;
         // Skip transpiler directives - not runtime attributes
         if (std.mem.eql(u8, attr.name, "@rendering")) continue;
-        if (std.mem.eql(u8, attr.name, "@style")) continue;
         try ctx.writeIndent();
         try ctx.write(".");
         try ctx.write(attr.name[1..]); // Skip @ prefix
@@ -2399,22 +2171,6 @@ fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileC
         if (attr.is_builtin) continue;
 
         try ctx.writeIndent();
-
-        // Handle @style(...) builtin attribute
-        if (std.mem.eql(u8, attr.name, "@style")) {
-            const style_value = styleValueText(attr.value);
-            if (styleNeedsInit(style_value)) {
-                const multiline = std.mem.indexOfScalar(u8, style_value, '\n') != null;
-                try ctx.write(if (multiline) "_zx.attr(\"style\", zx.style.init(.{" else "_zx.attr(\"style\", zx.style.init(.{ ");
-                try writeStyleDslText(style_value, ctx);
-                try ctx.write(if (multiline) "})),\n" else " })),\n");
-            } else {
-                try ctx.write("_zx.attr(\"style\", ");
-                try writeStyleDslText(style_value, ctx);
-                try ctx.write("),\n");
-            }
-            continue;
-        }
 
         // Handle spread attributes
         if (attr.is_spread) {

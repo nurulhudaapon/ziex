@@ -1,10 +1,18 @@
 const std = @import("std");
 const zx = @import("zx");
 
-test "Style formatting" {
-    const style = zx.style.init(&.{});
+const S = zx.Style;
 
-    const result = style.css;
+test "Style formatting" {
+    const style: S = .{
+        .display = .flex,
+        .flex_direction = .column,
+        .background_color = .hex(0xff0000),
+        .padding_top = .px(10),
+        .width = .px(100),
+    };
+
+    const result = std.fmt.allocPrint(std.testing.allocator, "{f}", .{style});
 
     std.debug.print("\nGenerated CSS: {s}\n", .{result});
 
@@ -23,10 +31,10 @@ test "Style in Component" {
 
     var ctx = zx.allocInit(arena_allocator);
 
-    const style = zx.style.init(&.{
-        .color(.hex(0x0000ff)),
-        .margin_top(.px(20)),
-    });
+    const style: S = .{
+        .color = .hex(0x0000ff),
+        .margin_top = .px(20),
+    };
 
     const comp = ctx.ele(.div, .{
         .attributes = &[_]zx.Element.Attribute{
@@ -53,21 +61,21 @@ test "Style in Component" {
 }
 
 test "Style pseudo-states" {
-    const style = zx.style.init(&.{
-        .background_color(.hex(0x0000ff)),
-        .hover(&zx.style.init(&.{
-            .background_color(.hex(0xff0000)),
-        })),
-    });
+    const style: S = .{
+        .background_color = .hex(0x0000ff),
+        .hover = S{
+            .background_color = .hex(0xff0000),
+        },
+    };
 
     try std.testing.expect(std.mem.indexOf(u8, style.css, "background-color: #0000ff;") != null);
 }
 
 test "Style shorthands" {
-    const style = zx.style.init(&.{
-        .padding(.px2(10, 20)),
-        .margin(.px4(5, 10, 15, 20)),
-    });
+    const style: S = .{
+        .padding = .px2(10, 20),
+        .margin = .px4(5, 10, 15, 20),
+    };
 
     const result = style.css;
 

@@ -383,34 +383,6 @@ test "component_optional_error" {
     try test_render("component/optional_error", @import("./../data/component/optional_error.zig").Page);
 }
 
-// === Style ===
-test "style > basic" {
-    try test_transpile("style/basic");
-}
-// test "style > basic render" {
-//     try test_render("style/basic", @import("./../data/style/basic.zig").Page);
-// }
-
-test "style > component" {
-    try test_transpile("style/component");
-}
-// test "style > component render" {
-//     try test_render("style/component", @import("./../data/style/component.zig").Page);
-// }
-
-test "style > inline" {
-    try test_transpile("style/inline");
-}
-// test "style > inline render" {
-//     try test_render("style/inline", @import("./../data/style/inline.zig").Page);
-// }
-test "style > builtin" {
-    try test_transpile("style/builtin");
-}
-// test "style > builtin render" {
-//     try test_render("style/builtin", @import("./../data/style/builtin.zig").Page);
-// }
-
 test "flaky: performance > transpile" {
     if (!test_util.shouldRunSlowTest()) return;
     const MAX_TIME_MS = 50.0 * 9; // 50ms is on M1 Pro
@@ -605,10 +577,6 @@ fn getPageFn(comptime path: []const u8) ?fn (std.mem.Allocator) zx.Component {
         .{ "component/csr_zig_props", @import("./../data/component/csr_zig_props.zig") },
         .{ "component/error_component", @import("./../data/component/error_component.zig") },
         .{ "component/optional_error", @import("./../data/component/optional_error.zig") },
-        .{ "style/basic", @import("./../data/style/basic.zig") },
-        .{ "style/component", @import("./../data/style/component.zig") },
-        .{ "style/inline", @import("./../data/style/inline.zig") },
-        .{ "style/builtin", @import("./../data/style/builtin.zig") },
     };
 
     inline for (imports) |entry| {

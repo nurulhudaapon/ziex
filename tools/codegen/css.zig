@@ -204,20 +204,14 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
         _ = try prop_union.addMethod(fa, "", "format", format_sig, "return core.formatValue(self, w);");
     }
 
-    const style_property = try file.addUnion("StyleProperty", "enum(u32)");
+    const style_struct = try file.addStruct("Style");
     for (properties.items) |prop| {
         const name = prop.object.get("name").?.string;
         const type_name_raw = try cleanName(a, name, .pascal);
         const final_type_name = if (std.mem.eql(u8, type_name_raw, "Color")) "CssColor" else type_name_raw;
         const clean_p = try cleanName(a, name, .snake);
         if (clean_p.len == 0) continue;
-        const field_name = try std.fmt.allocPrint(fa, "{s}_", .{clean_p});
-        try style_property.addField(fa, "", field_name, final_type_name, null);
-
-        // Constructor helper
-        const helper_sig = try std.fmt.allocPrint(fa, "(v: {s}) StyleProperty", .{final_type_name});
-        const helper_body = try std.fmt.allocPrint(fa, "return .{{ .{s}_ = v }};", .{clean_p});
-        _ = try style_property.addMethod(fa, "", clean_p, helper_sig, helper_body);
+        try style_struct.addField(fa, "", clean_p, final_type_name, ".none");
     }
 
     var selector_tags = std.StringArrayHashMap(void).init(a);
@@ -241,34 +235,14 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
         if (is_duplicate) continue;
 
         try selector_tags.put(clean_s, {});
-        const field_name = try std.fmt.allocPrint(fa, "{s}_", .{clean_s});
-        try style_property.addField(fa, "", field_name, "?*const Style", null);
-
-        const helper_sig = try std.fmt.allocPrint(fa, "(v: ?*const Style) StyleProperty", .{});
-        const helper_body = try std.fmt.allocPrint(fa, "return .{{ .{s}_ = v }};", .{clean_s});
-        _ = try style_property.addMethod(fa, "", clean_s, helper_sig, helper_body);
+        try style_struct.addField(fa, "", clean_s, "?*const Style", "null");
     }
 
-    try style_property.addField(fa, "", "sm_", "?*const Style", null);
-    try style_property.addField(fa, "", "md_", "?*const Style", null);
-    try style_property.addField(fa, "", "lg_", "?*const Style", null);
-    try style_property.addField(fa, "", "xl_", "?*const Style", null);
-    try style_property.addField(fa, "", "extra_", "[]const u8", null);
-
-    // Helpers for media queries and extra
-    _ = try style_property.addMethod(fa, "", "sm", "(v: ?*const Style) StyleProperty", "return .{ .sm_ = v };");
-    _ = try style_property.addMethod(fa, "", "md", "(v: ?*const Style) StyleProperty", "return .{ .md_ = v };");
-    _ = try style_property.addMethod(fa, "", "lg", "(v: ?*const Style) StyleProperty", "return .{ .lg_ = v };");
-    _ = try style_property.addMethod(fa, "", "xl", "(v: ?*const Style) StyleProperty", "return .{ .xl_ = v };");
-    _ = try style_property.addMethod(fa, "", "extra", "(v: []const u8) StyleProperty", "return .{ .extra_ = v };");
-
-    // Compatibility exports
-    _ = try file.addConst("Calc", "", "CalcExpr");
-    _ = try file.addFn("init", "(comptime props: []const StyleProperty) core.StyleOutput", "return core.init(StyleProperty, props);");
-    _ = try file.addConst("Style", "", "core.StyleOutput");
-    _ = try file.addConst("StyleUnit", "", "core.Unit");
-    _ = try file.addConst("StyleDimension", "", "core.Dimension");
-    _ = try file.addConst("StyleColor", "", "core.Color");
+    try style_struct.addField(fa, "", "sm", "?*const Style", "null");
+    try style_struct.addField(fa, "", "md", "?*const Style", "null");
+    try style_struct.addField(fa, "", "lg", "?*const Style", "null");
+    try style_struct.addField(fa, "", "xl", "?*const Style", "null");
+    try style_struct.addField(fa, "", "extra", "?[]const u8", "null");
 
     return try file.finish();
 }

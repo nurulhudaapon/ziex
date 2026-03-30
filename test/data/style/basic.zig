@@ -1,5 +1,8 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    const style = zx.style.init(&.{});
+    const style: zx.Style = .{
+        .display = .flex,
+        .background_color = .hex(0xff0000),
+    };
     var _zx = @import("zx").allocInit(allocator);
     return _zx.ele(
         .div,
@@ -9,7 +12,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                 _zx.attr("style", style),
             }),
             .children = &.{
-                _zx.txt("Hello"),
+                _zx.txt(" Hello"),
             },
         },
     );
