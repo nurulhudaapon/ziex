@@ -594,13 +594,20 @@ fn test_render_inner_with_cmp(comptime file_path: []const u8, comptime cmp: fn (
     const allocator = aa.allocator();
 
     const component = cmp(allocator);
+
+    if (no_expect) {
+        var trash: [4096]u8 = undefined;
+        var dw = std.io.Writer.Discarding.init(&trash);
+        try component.render(&dw.writer);
+        try testing.expect(dw.fullCount() > 0);
+        return;
+    }
+
     var aw = std.io.Writer.Allocating.init(allocator);
     defer aw.deinit();
     try component.render(&aw.writer);
     const rendered = aw.written();
     try testing.expect(rendered.len > 0);
-
-    if (no_expect) return;
 
     const html_path = "test/data/" ++ file_path ++ ".html";
 
