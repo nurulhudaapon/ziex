@@ -26,11 +26,11 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 var fetched = false;
 fn fetch() void {
     if (fetched) return;
-    fetched = true;
-    data.loadSettings();
+    if (!data.loadSettings()) return;
     const host = data.host;
     const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://")) host else std.fmt.allocPrint(zx.client_allocator, "http://{s}", .{host}) catch return;
     const url = std.fmt.allocPrint(zx.client_allocator, "{s}/.well-known/_zx/devtool?meta=true", .{base}) catch return;
+    fetched = true;
     _ = zx.fetch(.wasm(&onFetchText), zx.client_allocator, url, .{ .method = .GET }) catch {};
 }
 
@@ -179,7 +179,7 @@ fn containsIgnoreCase(haystack: []const u8, needle: []const u8) bool {
 }
 
 fn getRouteHref(allocator: std.mem.Allocator, path: []const u8) []const u8 {
-    data.loadSettings();
+    _ = data.loadSettings();
     const host = data.host;
     const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://"))
         host

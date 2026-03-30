@@ -24,11 +24,12 @@ fn findComponentById(comps: []const data.Component, id: []const u8) ?data.Compon
 
 fn fetch() void {
     if (fetched) return;
-    fetched = true;
-    data.loadSettings();
+    if (!data.loadSettings()) return;
     const host = data.host;
     const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://")) host else std.fmt.allocPrint(zx.client_allocator, "http://{s}", .{host}) catch return;
-    const url = std.fmt.allocPrint(zx.client_allocator, "{s}/.well-known/_zx/devtool?path=/", .{base}) catch return;
+    const include_native = if (data.show_native_elements) "1" else "0";
+    const url = std.fmt.allocPrint(zx.client_allocator, "{s}/.well-known/_zx/devtool?path=/&include_native={s}", .{ base, include_native }) catch return;
+    fetched = true;
     _ = zx.fetch(.wasm(&onFetchText), zx.client_allocator, url, .{ .method = .GET }) catch {};
 }
 
@@ -66,7 +67,7 @@ pub fn ComponentSearchInput(
 pub fn ComponentTree(
     ctx: *zx.ComponentCtx(ComponentTreeProps),
 ) zx.Component {
-    data.loadSettings();
+    _ = data.loadSettings();
     const sel = selected_component;
     const display_components = filterNativeElements(ctx.allocator, components);
     return (
@@ -153,6 +154,9 @@ pub fn NativeToggle(
 pub fn handleToggleNative(_: zx.client.Event) void {
     data.show_native_elements = !data.show_native_elements;
     data.saveSettings();
+    // Refetch so payload matches the selected native-elements mode.
+    fetched = false;
+    fetch();
     zx.client.rerender();
 }
 
@@ -230,7 +234,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
         );
     }
 
-    // Native element with children: expandable but starts COLLAPSED (no `checked`)
+    // Native element with children: starts collapsed to avoid noisy trees
     if (props.is_native) {
         return (
             <div @allocator={allocator} class={group_class}>
@@ -280,7 +284,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
         );
     }
 
-    // Non-native component that directly contains native children: starts COLLAPSED
+    // Non-native component that directly contains native children: starts collapsed
     return (
         <div @allocator={allocator} class={group_class}>
             <input type="checkbox" id={dom_id} class="component-toggle" />

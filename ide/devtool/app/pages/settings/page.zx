@@ -187,7 +187,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 pub fn NativeElementsSetting(
     ctx: *zx.ComponentCtx(NativeElementsSettingProps),
 ) zx.Component {
-    data.loadSettings();
+    _ = data.loadSettings();
     const checked = data.show_native_elements;
     const track_class = if (checked) "settings-toggle-track settings-toggle-track-on" else "settings-toggle-track settings-toggle-track-off";
     const knob_class = if (checked) "settings-toggle-knob settings-toggle-knob-on" else "settings-toggle-knob settings-toggle-knob-off";
@@ -255,7 +255,7 @@ pub fn handleNativeElementsToggle(_: zx.client.Event) void {
 const HostSettingProps = struct {};
 
 pub fn HostSetting(ctx: *zx.ComponentCtx(HostSettingProps)) zx.Component {
-    data.loadSettings();
+    _ = data.loadSettings();
     
     zx.client.eval(void,
         "setTimeout(function(){" ++

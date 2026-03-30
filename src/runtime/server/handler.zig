@@ -1091,8 +1091,10 @@ pub fn Handler(comptime AppCtxType: type) type {
                     (ElementInjector{ .allocator = pagectx.arena }).injectZxInjections(&page_component);
 
                     if (is_devtool) {
+                        const query = try req.query();
+                        const include_native = !std.mem.eql(u8, query.get("include_native") orelse "1", "0");
                         res.content_type = .JSON;
-                        try page_component.format(res.writer());
+                        try page_component.formatWithOptions(res.writer(), .{ .only_components = !include_native });
                         return;
                     }
 

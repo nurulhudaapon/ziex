@@ -30,15 +30,28 @@ var _show_native_elements_loaded = false;
 pub var show_native_elements: bool = true;
 pub var host: []const u8 = "localhost:3000";
 
-pub fn loadSettings() void {
-    if (_show_native_elements_loaded) return;
+pub fn loadSettings() bool {
+    if (_show_native_elements_loaded) return true;
+
+    // localStorage is only available in client runtime. If not ready yet,
+    // keep settings unresolved so callers can retry on a later render.
+    const storage_ready = zx.client.eval(f64, "typeof localStorage!=='undefined'?1:0") catch 0;
+    if (storage_ready < 1) return false;
+
+    var loaded_ok = true;
     // Returns 1.0 if stored "1" or not set, 0.0 if stored "0"
-    const result = zx.client.eval(f64, "+(localStorage.getItem('" ++ storage_key ++ "')??1)") catch 1;
+    const result = zx.client.eval(f64, "+(localStorage.getItem('" ++ storage_key ++ "')??1)") catch blk: {
+        loaded_ok = false;
+        break :blk 1;
+    };
     show_native_elements = result >= 1.0;
 
     // Read host from localStorage char-by-char using charCodeAt (eval with string return
     // is unsupported by jsz, but eval(f64) works fine — same pattern as native elements).
-    const len_f = zx.client.eval(f64, "(localStorage.getItem('" ++ host_storage_key ++ "')||'').length") catch 0;
+    const len_f = zx.client.eval(f64, "(localStorage.getItem('" ++ host_storage_key ++ "')||'').length") catch blk: {
+        loaded_ok = false;
+        break :blk 0;
+    };
     const len: usize = @intFromFloat(len_f);
     if (len > 0 and len <= 256) {
         if (zx.client_allocator.alloc(u8, len)) |buf| {
@@ -59,10 +72,17 @@ pub fn loadSettings() void {
                 };
                 buf[i] = @intFromFloat(code);
             }
-            if (all_ok) host = buf;
+            if (all_ok) {
+                host = buf;
+            } else {
+                loaded_ok = false;
+                zx.client_allocator.free(buf);
+            }
         } else |_| {}
     }
-    _show_native_elements_loaded = true;
+
+    if (loaded_ok) _show_native_elements_loaded = true;
+    return _show_native_elements_loaded;
 }
 
 pub fn saveSettings() void {
