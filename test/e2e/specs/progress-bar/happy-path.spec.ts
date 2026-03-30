@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 
 
-test.skip('Progress Bar Example', () => {
+test.describe('Progress Bar Example', () => {
   test('Progress Bar Controls', async ({ page }) => {
     // 1. Navigate to /examples/wasm/progress
     await page.goto('/examples/wasm/progress');
