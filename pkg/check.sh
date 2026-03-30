@@ -104,13 +104,13 @@ fi
 # Check bunx compatibility
 if command -v bunx &> /dev/null; then
   echo ""
-  BUNX_OUTPUT=$(timeout 60 env BUN_CONFIG_REGISTRY="$REGISTRY" BUN_CONFIG_IGNORE_SCRIPTS=true bunx --verbose @ziex/cli@dev version 2>&1) || true
+  BUNX_OUTPUT=$(env BUN_CONFIG_REGISTRY="$REGISTRY" BUN_CONFIG_IGNORE_SCRIPTS=true bunx --verbose @ziex/cli@dev version 2>&1) || true
   if echo "$BUNX_OUTPUT" | grep -q "$VERSION"; then
     pass "bunx @ziex/cli version > $VERSION"
   else
     fail "bunx @ziex/cli version expected '$VERSION', got: $BUNX_OUTPUT"
   fi
-  BUNX_ZIEX_OUTPUT=$(timeout 60 env BUN_CONFIG_REGISTRY="$REGISTRY" BUN_CONFIG_IGNORE_SCRIPTS=true bunx --verbose ziex@dev version 2>&1) || true
+  BUNX_ZIEX_OUTPUT=$(env BUN_CONFIG_REGISTRY="$REGISTRY" BUN_CONFIG_IGNORE_SCRIPTS=true bunx --verbose ziex@dev version 2>&1) || true
   if echo "$BUNX_ZIEX_OUTPUT" | grep -q "$VERSION"; then
     pass "bunx ziex version > $VERSION"
   else

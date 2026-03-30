@@ -183,10 +183,13 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   smoke-test:
-    name: Smoke Test Packages
-    runs-on: ubuntu-latest
+    name: Smoke Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     needs: [resolve-version, build-release]
     if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.target == 'npm')
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
 
@@ -215,22 +218,29 @@ jobs:
           done
 
       - name: Prepare @ziex packages
+        shell: bash
         run: |
           cd pkg/@ziex
           bash prepare.sh ${{ needs.resolve-version.outputs.version }}
 
-
       - name: Start Verdaccio
+        shell: bash
         env:
           CI: true
         run: |
           npm install -g verdaccio
           verdaccio --config pkg/@ziex/verdaccio.yaml --listen 4873 &
-          # Wait until the registry responds
-          timeout 30 bash -c 'until curl -sf http://localhost:4873 > /dev/null; do sleep 1; done'
-          echo "Verdaccio is up."
-          
+          # Wait until the registry responds (up to 30s)
+          for i in $(seq 1 60); do
+            if curl -sf http://localhost:4873 > /dev/null 2>&1; then
+              echo "Verdaccio is up."
+              break
+            fi
+            sleep 0.5
+          done
+
       - name: Run smoke tests
+        shell: bash
         run: bash pkg/check.sh ${{ needs.resolve-version.outputs.version }}
 
   publish-npm:
