@@ -30,7 +30,6 @@ pub fn build(b: *std.Build) !void {
     options.addOption([]const u8, "repository", build_zon.repository);
     options.addOption([]const u8, "homepage", build_zon.homepage);
     options.addOption([]const u8, "minimum_zig_version", build_zon.minimum_zig_version);
-    options.addOption([]const u8, "jsglue_version", build_zon.jsglue_version);
 
     const zx_runtime_options = b.addOptions();
     zx_runtime_options.addOption([]const u8, "staticdir", "zig-out/static");
