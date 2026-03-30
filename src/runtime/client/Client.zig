@@ -459,9 +459,8 @@ const Document = window.Document;
 const Console = window.Console;
 const areComponentsSameType = vtree_mod.areComponentsSameType;
 
-/// Handle DOM events from JS bridge.
 export fn __zx_eventbridge(velement_id: u64, event_type_id: u8, event_ref: u64) void {
-    if (builtin.os.tag != .freestanding) return;
+    if (zx.platform != .browser) return;
     if (global_client) |client| {
         const event_type: EventType = @enumFromInt(event_type_id);
         _ = client.dispatchEvent(velement_id, event_type, event_ref);

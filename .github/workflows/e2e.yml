@@ -1,0 +1,85 @@
+name: E2E
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'test/e2e/**'
+      - 'pkg/adapters/**'
+      - 'pkg/tree-sitter-zx/**'
+      - 'pkg/tree-sitter-mdzx/**'
+      - 'vendor/**'
+      - 'build.zig'
+      - 'build.zig.zon'
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: 'Base URL to run tests against (skips local dev server when set)'
+        required: false
+        type: string
+        default: ''
+  workflow_call:
+    inputs:
+      base_url:
+        description: 'Base URL to run tests against (skips local dev server when set)'
+        required: false
+        type: string
+        default: ''
+      report_name:
+        description: 'Name for the Playwright report artifact'
+        required: false
+        type: string
+        default: 'playwright-report'
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    name: E2E Tests
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Zig
+        if: ${{ !inputs.base_url }}
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.15.2
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install Site Dependencies
+        working-directory: site
+        run: bun install
+
+      - name: Install E2E Dependencies
+        working-directory: test/e2e
+        run: npm install
+
+      - name: Install Playwright Browsers
+        working-directory: test/e2e
+        run: npx playwright install --with-deps chromium
+
+
+      - name: Run E2E Tests
+        working-directory: test/e2e
+        run: npx playwright test --reporter=html,github
+        env:
+          CI: true
+          BASE_URL: ${{ inputs.base_url }}
+
+      - name: Upload Playwright Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ${{ inputs.report_name || 'playwright-report' }}
+          path: test/e2e/playwright-report/
+          retention-days: 30

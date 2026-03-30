@@ -20,6 +20,7 @@
     isShellPage: document.title === "ZX Dev",
     lastAppliedHtml: null,
     isRefreshing: false,
+    pendingMessage: null, // deferred message while tab is hidden
   };
 
   function log(type, payload) {
@@ -35,11 +36,15 @@
     ws.addEventListener("open", () => {
       setConnectionStatus("connected");
       if (state.everConnected) {
-        if (state.isShellPage) {
+        if (document.hidden) {
+          // Defer reconnect reload until tab is visible
+          state.pendingMessage = { type: "reload" };
+        } else if (state.isShellPage) {
           location.reload();
           return;
+        } else {
+          refreshDocument();
         }
-        refreshDocument();
       }
       state.everConnected = true;
     });
@@ -53,6 +58,20 @@
       }
 
       log(msg.type, msg);
+
+      if (document.hidden) {
+        // Defer actions while tab is hidden; keep only the latest pending message
+        // so we apply the final state when the user switches back.
+        // "connected" and "building" are status-only — always store them but
+        // don't discard a more important pending action (reload/error/asset_update).
+        if (msg.type === "connected" || msg.type === "building") {
+          if (!state.pendingMessage) state.pendingMessage = msg;
+        } else {
+          state.pendingMessage = msg;
+        }
+        return;
+      }
+
       handleMessage(msg);
     });
 
@@ -108,6 +127,10 @@
       case "building":
         showBuildingOverlay();
         return;
+      case "asset_update":
+        hideOverlay(true);
+        reloadAssets(msg.files || []);
+        return;
     }
   }
 
@@ -140,6 +163,53 @@
     } finally {
       state.isRefreshing = false;
     }
+  }
+
+  function reloadAssets(files) {
+    const timestamp = Date.now();
+    let cssReloaded = false;
+
+    const links = document.querySelectorAll('link[rel="stylesheet"]');
+    for (const link of links) {
+      const href = link.getAttribute("href");
+      if (!href) continue;
+
+      try {
+        const pathname = new URL(href, location.origin).pathname;
+        const matches =
+          files.length === 0 || files.some((f) => pathname === f || pathname.endsWith(f));
+        if (matches) {
+          const url = new URL(href, location.origin);
+          url.searchParams.set("_zx_t", timestamp);
+          link.setAttribute("href", url.pathname + url.search);
+          cssReloaded = true;
+        }
+      } catch (_) {}
+    }
+
+    if (!cssReloaded && files.length > 0) {
+      // Non-CSS assets changed (images, fonts, etc.) — bust cache on matching elements
+      const selectors = files
+        .filter((f) => !f.endsWith(".css"))
+        .map((f) => `img[src*="${f}"],source[srcset*="${f}"]`)
+        .join(",");
+      if (selectors) {
+        for (const el of document.querySelectorAll(selectors)) {
+          const attr = el.hasAttribute("srcset") ? "srcset" : "src";
+          const val = el.getAttribute(attr);
+          if (val) {
+            try {
+              const url = new URL(val, location.origin);
+              url.searchParams.set("_zx_t", timestamp);
+              el.setAttribute(attr, url.pathname + url.search);
+            } catch (_) {}
+          }
+        }
+      }
+    }
+
+    log("asset_update", { files, cssReloaded });
+    runClientReinitializers();
   }
 
   function applyDocumentUpdate(nextDoc, html) {
@@ -705,6 +775,15 @@
       showErrorIndicator();
     }
   }
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && state.pendingMessage) {
+      const msg = state.pendingMessage;
+      state.pendingMessage = null;
+      log(msg.type + " (deferred)", msg);
+      handleMessage(msg);
+    }
+  });
 
   connect();
 })();

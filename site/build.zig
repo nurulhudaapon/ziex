@@ -10,6 +10,10 @@ pub fn build(b: *std.Build) !void {
 
     // --- Deps --- //
     const playground_dep = b.dependency("playground", .{});
+    const ziex_dep = b.dependency("ziex", .{ .optimize = optimize, .target = target });
+    const tree_sitter_dep = ziex_dep.builder.dependency("tree_sitter", .{ .optimize = optimize, .target = target });
+    const tree_sitter_zx_dep = ziex_dep.builder.dependency("tree_sitter_zx", .{ .optimize = optimize, .target = target, .@"build-shared" = false });
+    // const tree_sitter_mdzx_dep = ziex_dep.builder.dependency("tree_sitter_mdzx", .{ .optimize = optimize, .target = target, .@"build-shared" = false });
 
     // --- Assets -- //
     const pg_assets = playground_dep.namedWriteFiles("playground_assets");
@@ -32,6 +36,8 @@ pub fn build(b: *std.Build) !void {
             .optimize = optimize,
         }),
     });
+    app_exe.root_module.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
+    app_exe.root_module.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
     app_exe.step.dependOn(&install_pg.step);
 
     // --- ZX setup: wires dependencies and adds `zx`/`dev` build steps --- //
@@ -86,6 +92,14 @@ pub fn build(b: *std.Build) !void {
                 b.path("app/pages/playground/scripts/workers/zig.ts"),
                 b.path("app/pages/playground/scripts/workers/zx.ts"),
                 b.path("app/pages/playground/scripts/workers/zls.ts"),
+            },
+            .define = &.{
+                .{
+                    .key = "COMMIT_HASH",
+                    .value = b.fmt("\"{s}\"", .{
+                        std.mem.trim(u8, b.run(&.{ "git", "rev-parse", "--short", "HEAD" }), "\n"),
+                    }),
+                },
             },
             // .outdir = assetsdir.path(b, "playground/"),
         },

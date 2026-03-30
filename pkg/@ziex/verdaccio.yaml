@@ -1,0 +1,18 @@
+storage: ./.verdaccio-storage
+auth:
+  htpasswd:
+    file: ./.verdaccio-htpasswd
+    max_users: 100
+uplinks:
+  npmjs:
+    url: https://registry.npmjs.org/
+packages:
+  '@ziex/*':
+    access: $anonymous
+    publish: $anonymous
+  '**':
+    access: $anonymous
+    publish: $anonymous
+    proxy: npmjs
+max_body_size: 500mb
+log: { type: stdout, format: pretty, level: warn }

@@ -55,6 +55,10 @@ fn innerInitSingle(b: *std.Build, build_item: Build) !Output {
     run.addArg("--outdir");
     const outdir = run.addOutputDirectoryArg("dist");
 
+    // Dep file for transitive dependency tracking (rebuilds when imported files change)
+    run.addArg("--dep-file");
+    _ = run.addDepFileOutputArg("dist.d");
+
     if (bun_path) |bp| {
         run.addArg("--bun-path");
         run.addFileArg(bp);

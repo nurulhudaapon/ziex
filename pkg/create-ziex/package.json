@@ -1,8 +1,10 @@
 {
   "name": "create-ziex",
-  "version": "0.1.0-dev.6",
+  "version": "0.1.0-dev.7",
   "type": "module",
-  "bin": "dist/index.js",
+  "bin": {
+    "create-ziex": "dist/index.js"
+  },
   "files": [
     "dist",
     "README.md",

@@ -17,7 +17,25 @@ pub fn remap(allocator: std.mem.Allocator, diagnostics: []Builder.Diagnostic) vo
         remapSingle(allocator, d) catch |err| {
             log.debug("sourcemap remap failed for {s}: {s}", .{ d.file, @errorName(err) });
         };
+
+        // Normalize path if it's a generated file in the zig-cache
+        normalizePath(allocator, d) catch |err| {
+            log.debug("path normalization failed for {s}: {s}", .{ d.file, @errorName(err) });
+        };
     }
+}
+
+fn normalizePath(allocator: std.mem.Allocator, d: *Builder.Diagnostic) !void {
+    const cache_pattern = ".zig-cache";
+    const app_pattern = "/app/";
+
+    const cache_pos = std.mem.indexOf(u8, d.file, cache_pattern) orelse return;
+    const app_pos = std.mem.indexOfPos(u8, d.file, cache_pos + cache_pattern.len, app_pattern) orelse return;
+
+    const relative_path = d.file[app_pos + 1 ..]; // "app/..."
+    const new_file = try allocator.dupe(u8, relative_path);
+    allocator.free(d.file);
+    d.file = new_file;
 }
 
 fn remapSingle(allocator: std.mem.Allocator, d: *Builder.Diagnostic) !void {

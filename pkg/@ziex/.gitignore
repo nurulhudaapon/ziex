@@ -1,0 +1,7 @@
+*/bin/zx
+!cli/bin/zx
+*/bin/zx.exe
+*/README.md
+
+.verdaccio-storage/
+.verdaccio-htpasswd

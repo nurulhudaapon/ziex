@@ -16,6 +16,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     const zx_dep = b.dependencyFromBuildZig(build_zig, .{
         .optimize = optimize,
         .target = target,
+        .@"exclude-core-lang" = true, // Users don't need parser/transpiler
     });
 
     const zx_host_dep = b.dependencyFromBuildZig(build_zig, .{
@@ -32,10 +33,12 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     const zx_wasm_dep = b.dependencyFromBuildZig(build_zig, .{
         .optimize = optimize,
         .target = wasm_target,
+        .@"exclude-core-lang" = true, // Users don't need parser/transpiler
+        .@"is-client" = true,
     });
 
     const zx_module = zx_dep.module("zx");
-    const zx_wasm_module = zx_wasm_dep.module("zx_wasm");
+    const zx_wasm_module = zx_wasm_dep.module("zx");
     const zx_exe = zx_host_dep.artifact("zx");
     const zx_full_exe = zx_full_dep.artifact("zx");
     const ziex_js_dep = zx_dep.builder.dependency("ziex_js", .{});
@@ -226,23 +229,10 @@ pub fn initInner(
         .root_source_file = injections_step.getOutput(),
     });
 
-    // --- ZX File Cache Invalidator ---
-    watch: {
-        const site_path = opts.site_path.getPath3(b, &transpile_cmd.step);
-        var site_dir = site_path.root_dir.handle.openDir(site_path.subPathOrDot(), .{ .iterate = true }) catch break :watch;
-        var itd = try site_dir.walk(transpile_cmd.step.owner.allocator);
-        defer itd.deinit();
-        while (try itd.next()) |entry| {
-            switch (entry.kind) {
-                .directory => {},
-                .file => {
-                    const entry_path = try site_path.join(transpile_cmd.step.owner.allocator, entry.path);
-                    transpile_cmd.addFileInput(b.path(entry_path.sub_path));
-                },
-                else => continue,
-            }
-        }
-    }
+    // --- ZX Watch Invalidator ---
+    // Use directory-level watch input so `zig build --watch` picks up changes.
+    // Cache invalidation for non-watch builds is handled by the dep file (--dep-file).
+    _ = try transpile_cmd.step.addDirectoryWatchInput(opts.site_path);
 
     // --- ZX Site Main Executable --- //
     var imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);

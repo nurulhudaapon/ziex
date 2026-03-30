@@ -18,6 +18,10 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const exclude_lsp = b.option(bool, "exclude-lsp", "Exclude the LSP server to speed up builds") orelse false;
+    const exclude_core_lang = b.option(bool, "exclude-core-lang", "Exclude core language tools (Ast/Parse/sourcemap) — only needed by CLI") orelse false;
+    const exclude_db = b.option(bool, "exclude-db", "Exclude database adapter to speed up builds") orelse false;
+    const is_client = b.option(bool, "is-client", "Building for the browser (client)") orelse false;
+    const is_edge = b.option(bool, "is-edge", "Building for a WASI-based edge runtime") orelse false;
 
     // Options
     const options = b.addOptions();
@@ -26,7 +30,6 @@ pub fn build(b: *std.Build) !void {
     options.addOption([]const u8, "repository", build_zon.repository);
     options.addOption([]const u8, "homepage", build_zon.homepage);
     options.addOption([]const u8, "minimum_zig_version", build_zon.minimum_zig_version);
-    options.addOption([]const u8, "jsglue_version", build_zon.jsglue_version);
 
     const zx_runtime_options = b.addOptions();
     zx_runtime_options.addOption([]const u8, "staticdir", "zig-out/static");
@@ -43,36 +46,51 @@ pub fn build(b: *std.Build) !void {
     const cachez_dep = b.dependency("cachez", .{ .target = target, .optimize = optimize });
     const adapters_dep = b.dependency("adapters", .{ .target = target, .optimize = optimize });
 
-    // Modules
+    // --- Sub-modules (cached independently) --- //
+
+    // Style module (35K lines, zero internal deps — cached after first compile)
+    const zx_style_mod = b.addModule("zx_style", .{ .root_source_file = b.path("src/style/root.zig"), .target = target, .optimize = optimize });
+
+    // Core language module (Ast, Parse, sourcemap — only compiled when referenced)
+    const zx_core_lang_mod = b.addModule("zx_core_lang", .{ .root_source_file = b.path("src/core/root.zig"), .target = target, .optimize = optimize });
+    zx_core_lang_mod.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
+    zx_core_lang_mod.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
+    zx_core_lang_mod.addImport("tree_sitter_mdzx", tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
+
+    // --- Main ZX Module --- //
     const mod = b.addModule("zx", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize });
+
+    // Module feature flags (controls what gets compiled)
+    const zx_module_options = b.addOptions();
+    zx_module_options.addOption(bool, "exclude_core_lang", exclude_core_lang);
+    zx_module_options.addOption(bool, "exclude_db", exclude_db);
+    zx_module_options.addOption(bool, "is_client", is_client);
+    zx_module_options.addOption(bool, "is_edge", is_edge);
 
     // Imports (zx)
     {
-        mod.addImport("db", adapters_dep.module("db"));
-        mod.addImport("db_sqlite", adapters_dep.module("db_sqlite"));
-        mod.addImport("cachez", cachez_dep.module("cache"));
-        mod.addImport("httpz", httpz_dep.module("httpz"));
-        mod.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
-        mod.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
-        mod.addImport("tree_sitter_mdzx", tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
+        if (!is_client) {
+            mod.addImport("db", adapters_dep.module("db"));
+            mod.addImport("db_sqlite", adapters_dep.module("db_sqlite"));
+            mod.addImport("cachez", cachez_dep.module("cache"));
+            mod.addImport("httpz", httpz_dep.module("httpz"));
+        }
+
+        if (is_client) {
+            const jsz_dep = b.dependency("zig_js", .{ .target = target, .optimize = optimize });
+            mod.addImport("js", jsz_dep.module("zig-js"));
+        }
+
+        if (!exclude_core_lang) mod.addImport("zx_core_lang", zx_core_lang_mod);
+        mod.addImport("zx_style", zx_style_mod);
         mod.addOptions("zx_info", options);
         mod.addOptions("zx_options", zx_runtime_options);
+        mod.addOptions("zx_module_options", zx_module_options);
 
         // Stubs
         mod.addAnonymousImport("zx_meta", .{ .root_source_file = b.path("src/build/stub_meta.zig"), .imports = &.{.{ .name = "zx", .module = mod }} });
         mod.addAnonymousImport("zx_injections", .{ .root_source_file = b.path("src/build/stubs/injections.zig") });
     }
-
-    // --- ZX WASM Module --- //
-    const zx_wasm_mod = b.addModule("zx_wasm", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize });
-    const jsz_dep = b.dependency("zig_js", .{ .target = target, .optimize = optimize });
-    zx_wasm_mod.addImport("js", jsz_dep.module("zig-js"));
-    zx_wasm_mod.addOptions("zx_info", options);
-    zx_wasm_mod.addOptions("zx_options", zx_runtime_options);
-    // Add stub meta for WASM builds (overridden in user projects with generated meta)
-    zx_wasm_mod.addAnonymousImport("zx_meta", .{ .root_source_file = b.path("src/build/stub_meta.zig"), .imports = &.{.{ .name = "zx", .module = zx_wasm_mod }} });
-    zx_wasm_mod.addAnonymousImport("zx_injections", .{ .root_source_file = b.path("src/build/stubs/injections.zig") });
-
     // --- ZX CLI (Transpiler, Exporter, Dev Server) --- //
     const zli_dep = b.dependency("zli", .{ .target = target, .optimize = optimize });
     const zls_dep = b.dependency("zls", .{ .target = target, .optimize = optimize });
@@ -218,14 +236,27 @@ pub fn build(b: *std.Build) !void {
             const release_tree_sitter_zx_dep = b.dependency("tree_sitter_zx", .{ .target = resolved_target, .optimize = .ReleaseSafe, .@"build-shared" = false });
             const release_tree_sitter_mdzx_dep = b.dependency("tree_sitter_mdzx", .{ .target = resolved_target, .optimize = .ReleaseSafe, .@"build-shared" = false });
             const release_zls_dep = b.dependency("zls", .{ .target = resolved_target, .optimize = .ReleaseSafe });
+
+            // Sub-modules for release
+            const release_style_mod = b.createModule(.{ .root_source_file = b.path("src/style/root.zig"), .target = resolved_target, .optimize = .ReleaseSafe });
+            const release_core_lang_mod = b.createModule(.{ .root_source_file = b.path("src/core/root.zig"), .target = resolved_target, .optimize = .ReleaseSafe });
+            release_core_lang_mod.addImport("tree_sitter", release_tree_sitter_dep.module("tree_sitter"));
+            release_core_lang_mod.addImport("tree_sitter_zx", release_tree_sitter_zx_dep.module("tree_sitter_zx"));
+            release_core_lang_mod.addImport("tree_sitter_mdzx", release_tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
+
             const release_mod = b.createModule(.{ .root_source_file = b.path("src/root.zig"), .target = resolved_target, .optimize = .ReleaseSafe });
 
+            // Release module options (CLI needs core_lang)
+            const release_module_options = b.addOptions();
+            release_module_options.addOption(bool, "exclude_core_lang", false);
+            release_module_options.addOption(bool, "exclude_db", false);
+
             release_mod.addImport("httpz", httpz_dep.module("httpz"));
-            release_mod.addImport("tree_sitter", release_tree_sitter_dep.module("tree_sitter"));
-            release_mod.addImport("tree_sitter_zx", release_tree_sitter_zx_dep.module("tree_sitter_zx"));
-            release_mod.addImport("tree_sitter_mdzx", release_tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
+            release_mod.addImport("zx_style", release_style_mod);
+            release_mod.addImport("zx_core_lang", release_core_lang_mod);
             release_mod.addOptions("zx_info", options);
             release_mod.addOptions("zx_options", zx_runtime_options);
+            release_mod.addOptions("zx_module_options", release_module_options);
 
             const release_exe = b.addExecutable(.{
                 .name = "zx",

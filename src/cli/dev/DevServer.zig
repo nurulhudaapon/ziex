@@ -29,6 +29,7 @@ pub const Notification = struct {
     type: Type,
     message: ?[]const u8 = null,
     diagnostics: ?[]const Diagnostic = null,
+    files: ?[]const []const u8 = null,
 
     pub const Type = enum {
         connected,
@@ -36,6 +37,7 @@ pub const Notification = struct {
         @"error",
         clear,
         building,
+        asset_update,
     };
 
     pub const Kind = enum {
@@ -167,7 +169,7 @@ fn updateStickyState(ds: *DevServer, notification: Notification, json: []const u
             if (ds.sticky_state_json) |prev| ds.gpa.free(prev);
             ds.sticky_state_json = duplicated;
         },
-        .clear, .reload, .connected => {
+        .clear, .reload, .connected, .asset_update => {
             if (ds.sticky_state_json) |prev| {
                 ds.gpa.free(prev);
                 ds.sticky_state_json = null;

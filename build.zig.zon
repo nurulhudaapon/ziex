@@ -1,7 +1,6 @@
 .{
     .name = .zx, // TODO: Rename to .ziex
-    .version = "0.1.0-dev.864",
-    .jsglue_version = "0.1.0-dev.852",
+    .version = "0.1.0-dev.928",
     .description = "Ziex is a framework for building web applications with Zig.",
     .repository = "https://github.com/ziex-dev/ziex",
     .homepage = "https://ziex.dev",
@@ -10,8 +9,8 @@
     .dependencies = .{
         // Ziex JS - The JavaScript glue code for csr/wasi/cloudflare/aws-lambda/vercel/react
         .ziex_js = .{
-            .url = "https://registry.npmjs.org/ziex/-/ziex-0.1.0-test.2.tgz",
-            .hash = "ziex_js-0.1.0-dev.804-v1W0GbMDAwBsd2oeoCUMGZ2FXs99xoOQdA-Fwc5q-oUT",
+            .url = "https://registry.npmjs.org/ziex/-/ziex-0.1.0-dev.928.tgz",
+            .hash = "ziex_js-0.1.0-dev.804-v1W0GcvlAgCID6b8xE2BACBEnB0DFxaGiKNctXB14NDn",
         },
         // httpz - HTTP server for Ziex
         .httpz = .{

@@ -941,7 +941,7 @@ fn CodePreviewExample(allocator: zx.Allocator, props: CodePreviewExampleProps) z
     const highlighted = resolveCode(allocator, props.source, props.section, props.code);
     return (
         <div @allocator={allocator} class="code-preview-example code-example code-example--compact">
-            <div class="code-example-header">
+            <div class="code-exampled-header">
                 <div class="code-example-dots">
                     <span></span>
                     <span></span>

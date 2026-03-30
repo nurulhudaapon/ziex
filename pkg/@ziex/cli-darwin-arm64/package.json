@@ -1,0 +1,21 @@
+{
+  "name": "@ziex/cli-darwin-arm64",
+  "version": "0.1.0-dev.928",
+  "description": "ziex CLI binary for macOS ARM64 (Apple Silicon)",
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "bin": {
+    "zx": "bin/zx",
+    "ziex": "bin/zx"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ziex-dev/ziex.git"
+  },
+  "license": "MIT",
+  "preferUnplugged": true
+}

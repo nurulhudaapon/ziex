@@ -42,7 +42,7 @@ const categories = [_]SidebarProps.Category{
             .{ .title = "Async Timer", .href =  ssg ++ "/examples/wasm/async" },
             .{ .title = "React Integration", .href = ssg ++ "/examples/wasm/react" },
             .{ .title = "Hydration", .href = ssg ++ "/examples/wasm/hydration" },
-            .{ .title = "Progress Bar", .href = ssg ++ "/examples/wasm/progress" },
+            // .{ .title = "Progress Bar", .href = ssg ++ "/examples/wasm/progress" },
             .{ .title = "Realtime Chat", .href = ssg ++ "/examples/realtime" },
             .{ .title = "Auth", .href = ssg ++ "/examples/auth" },
             .{ .title = "Form", .href = ssg ++ "/examples/form" },

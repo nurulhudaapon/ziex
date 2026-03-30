@@ -4,10 +4,66 @@ on:
   release:
     types: [created]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version tag (leave empty to use version from build.zig.zon)"
+        required: false
+        type: string
+      tag:
+        description: "npm dist-tag (e.g. dev, latest). Defaults to dev"
+        required: false
+        type: string
+        default: dev
+      target:
+        description: "Release target"
+        required: true
+        type: choice
+        default: npm
+        options:
+          - npm
+          - gh
 
 jobs:
+  resolve-version:
+    name: Resolve Version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      dist-tag: ${{ steps.resolve.outputs.dist_tag }}
+    steps:
+      - name: Resolve and validate version
+        id: resolve
+        run: |
+          RAW_VERSION="${{ inputs.version || github.event.release.tag_name }}"
+          if [ -z "$RAW_VERSION" ]; then
+            echo "No version provided, will use version from build.zig.zon"
+            exit 0
+          fi
+          # Trim v prefix
+          VERSION="${RAW_VERSION#v}"
+          # Validate semver (with optional pre-release and build metadata)
+          if ! echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.]+)?(\+[a-zA-Z0-9.]+)?$'; then
+            echo "::error::Invalid semantic version: '$RAW_VERSION' (resolved to '$VERSION')"
+            exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+          # Resolve npm dist-tag: use input if provided, detect from version, default to latest
+          INPUT_TAG="${{ inputs.tag }}"
+          if [ -n "$INPUT_TAG" ]; then
+            DIST_TAG="$INPUT_TAG"
+          elif echo "$VERSION" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+-'; then
+            # Prerelease version: extract identifier (e.g. "dev" from "0.1.0-dev.123")
+            DIST_TAG=$(echo "$VERSION" | sed -E 's/^[0-9]+\.[0-9]+\.[0-9]+-([a-zA-Z]+).*/\1/')
+          else
+            DIST_TAG="latest"
+          fi
+          echo "dist_tag=$DIST_TAG" >> "$GITHUB_OUTPUT"
+          echo "Resolved dist-tag: $DIST_TAG"
+
   build-release:
     name: Build Release Binaries
+    needs: resolve-version
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -56,6 +112,10 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-zig-release-
 
+      - name: Set version
+        if: needs.resolve-version.outputs.version != ''
+        run: bash tools/version "${{ needs.resolve-version.outputs.version }}"
+
       - name: Sync Template Files
         run: bash tools/synctemplate
 
@@ -90,7 +150,7 @@ jobs:
     name: Create Release Assets
     runs-on: ubuntu-latest
     needs: build-release
-    if: github.event_name == 'release'
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.target == 'gh')
     permissions:
       contents: write
 
@@ -121,6 +181,115 @@ jobs:
           files: dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  smoke-test:
+    name: Smoke Test Packages
+    runs-on: ubuntu-latest
+    needs: [resolve-version, build-release]
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.target == 'npm')
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Place binaries in zig-out/bin/release
+        shell: bash
+        run: |
+          mkdir -p zig-out/bin/release
+          for dir in dist/*/; do
+            for file in "$dir"*; do
+              case "$file" in
+                *.tar.gz) tar -xzf "$file" -C zig-out/bin/release ;;
+                *.zip)    unzip -o "$file" -d zig-out/bin/release ;;
+              esac
+            done
+          done
+
+      - name: Prepare @ziex packages
+        run: |
+          cd pkg/@ziex
+          bash prepare.sh ${{ needs.resolve-version.outputs.version }}
+
+
+      - name: Start Verdaccio
+        env:
+          CI: true
+        run: |
+          npm install -g verdaccio
+          verdaccio --config pkg/@ziex/verdaccio.yaml --listen 4873 &
+          # Wait until the registry responds
+          timeout 30 bash -c 'until curl -sf http://localhost:4873 > /dev/null; do sleep 1; done'
+          echo "Verdaccio is up."
+          
+      - name: Run smoke tests
+        run: bash pkg/check.sh ${{ needs.resolve-version.outputs.version }}
+
+  publish-npm:
+    name: Publish to NPM
+    runs-on: ubuntu-latest
+    needs: [resolve-version, build-release, smoke-test]
+    if: github.event_name == 'release' || (github.event_name == 'workflow_dispatch' && inputs.target == 'npm')
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+
+      - uses: oven-sh/setup-bun@v2
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Place binaries in zig-out/bin/release
+        shell: bash
+        run: |
+          mkdir -p zig-out/bin/release
+          for dir in dist/*/; do
+            for file in "$dir"*; do
+              case "$file" in
+                *.tar.gz) tar -xzf "$file" -C zig-out/bin/release ;;
+                *.zip)    unzip -o "$file" -d zig-out/bin/release ;;
+              esac
+            done
+          done
+
+      - name: Prepare @ziex packages
+        run: |
+          cd pkg/@ziex
+          bash prepare.sh ${{ needs.resolve-version.outputs.version }}
+
+      - name: Publish @ziex/cli* to NPM
+        env:
+          NODE_AUTH_TOKEN: ""
+        run: |
+          cd pkg/@ziex
+          npm publish --workspaces --access public --provenance --tag ${{ needs.resolve-version.outputs.dist-tag }}
+
+      - name: Build and publish ziex to NPM
+        env:
+          NODE_AUTH_TOKEN: ""
+        run: |
+          cd pkg/ziex
+          bun install
+          bun run build
+          cd dist
+          npm publish --access public --provenance --tag ${{ needs.resolve-version.outputs.dist-tag }}
 
   sync-templates:
     name: Sync & Release Templates

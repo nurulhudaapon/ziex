@@ -6,7 +6,8 @@ import { downloadTemplate } from 'giget';
 import { replaceInFile } from 'replace-in-file';
 
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { randomInt } from 'node:crypto';
+import { crc32 } from 'node:zlib';
 
 const STATIC_TEMPLATES = [
   { value: 'starter', label: 'Starter', hint: 'Ziex starter app' },
@@ -99,9 +100,9 @@ async function main() {
   }
 
   // 3. Perform String Replacements
+  const projectName = sanitizeProjectName(path.basename(targetDir));
   s.start('Customizing project files...');
   try {
-    const projectName = sanitizeProjectName(path.basename(targetDir));
     await replaceInFile({
       files: `${targetDir}/**/*`,
       from: /ziex_app/g,
@@ -112,25 +113,19 @@ async function main() {
     s.stop('Replacement failed', 1);
   }
 
-  // 4. Fix Zig fingerprint — Zig reports the correct value when the package
-  //    name changes; we capture it and patch build.zig.zon automatically.
+  // 4. Fix Zig fingerprint — the fingerprint is a u64 packed struct:
+  //    lower 32 bits = random id, upper 32 bits = CRC-32 of the package name.
   s.start('Updating package fingerprint...');
   try {
-    const result = spawnSync('zig', ['build'], { cwd: targetDir, encoding: 'utf8' });
-    const output = (result.stderr || '') + (result.stdout || '');
-    const match = output.match(/use this value: (0x[0-9a-f]+)/);
-    if (match) {
-      await replaceInFile({
-        files: `${targetDir}/build.zig.zon`,
-        from: /\.fingerprint = 0x[0-9a-f]+/,
-        to: `.fingerprint = ${match[1]}`,
-      });
-      s.stop('Package fingerprint updated!');
-    } else {
-      s.stop('Package fingerprint OK');
-    }
+    const fingerprint = generateZigFingerprint(projectName);
+    await replaceInFile({
+      files: `${targetDir}/build.zig.zon`,
+      from: /\.fingerprint = 0x[0-9a-f]+/,
+      to: `.fingerprint = ${fingerprint}`,
+    });
+    s.stop('Package fingerprint updated!');
   } catch (err) {
-    s.stop('Could not update fingerprint (is zig installed?)');
+    s.stop('Could not update fingerprint');
   }
 
   outro(`Successfully created ${color.cyan(project)}!`);
@@ -140,6 +135,15 @@ async function main() {
 // Make sure project name is suported Zig identifier
 function sanitizeProjectName(name) {
   return name.replace(/[^a-zA-Z0-9_]/g, '_');
+}
+
+// Generate a Zig package fingerprint: packed u64 with
+// lower 32 bits = random id in [1, 0xFFFFFFFE], upper 32 bits = CRC-32 of name
+export function generateZigFingerprint(name) {
+  const id = BigInt(randomInt(1, 0xfffffffe));
+  const checksum = BigInt(crc32(Buffer.from(name)) >>> 0);
+  const fingerprint = (checksum << 32n) | id;
+  return '0x' + fingerprint.toString(16).padStart(16, '0');
 }
 
 main().catch(console.error);

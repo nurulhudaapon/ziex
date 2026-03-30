@@ -3,9 +3,6 @@ const zx = @import("zx");
 
 const User = struct { id: u32, name: []const u8 };
 
-const MAX_USER_COUNT = 1000;
-var users: std.ArrayList(User) = .empty;
-
 const RequestInfo = struct {
     is_reset: bool,
     is_delete: bool,
@@ -15,9 +12,11 @@ const RequestInfo = struct {
 };
 
 pub fn handleRequest(ctx: zx.PageContext) RequestInfo {
-    start(ctx);
-    defer end(ctx);
-    // const fd = ctx.request.formData() catch @panic("OOM");
+    var users = std.ArrayList(User).empty;
+
+    // Load from KV synchronously
+    syncFromKv(ctx, &users);
+
     const qs = ctx.request.searchParams;
 
     const is_reset = qs.get("reset") != null;
@@ -25,25 +24,27 @@ pub fn handleRequest(ctx: zx.PageContext) RequestInfo {
     const is_add = qs.get("name") != null;
 
     if (is_reset) {
-        handleReset(ctx.allocator);
+        handleReset(&users);
     }
 
     if (is_delete) {
         if (qs.get("delete")) |delete_id| {
-            handleDeleteUser(delete_id);
+            handleDeleteUser(&users, delete_id);
         }
     }
 
     if (is_add) {
         if (qs.get("name")) |name| {
-            handleAddUser(ctx.allocator, name);
+            handleAddUser(ctx.arena, &users, name);
         }
     }
 
     const search_opt = qs.get("search");
-    const filtered_users = filterUsers(ctx.arena, search_opt);
+    const filtered_users = filterUsers(ctx.arena, &users, search_opt);
 
     if (is_delete or is_add or is_reset) {
+        // Save back to KV before redirecting
+        syncToKv(ctx, &users);
         ctx.response.setHeader("Location", "/examples/form");
         ctx.response.setStatus(.found);
     }
@@ -57,12 +58,12 @@ pub fn handleRequest(ctx: zx.PageContext) RequestInfo {
     };
 }
 
-fn handleReset(allocator: std.mem.Allocator) void {
-    users.clearAndFree(allocator);
+fn handleReset(users: *std.ArrayList(User)) void {
+    users.clearRetainingCapacity();
 }
 
-fn handleDeleteUser(delete_id_str: []const u8) void {
-    const delete_id = std.fmt.parseInt(u32, delete_id_str, 10) catch @panic("Invalid delete ID");
+fn handleDeleteUser(users: *std.ArrayList(User), delete_id_str: []const u8) void {
+    const delete_id = std.fmt.parseInt(u32, delete_id_str, 10) catch return;
 
     for (users.items, 0..) |user, i| {
         if (user.id == delete_id) {
@@ -72,15 +73,19 @@ fn handleDeleteUser(delete_id_str: []const u8) void {
     }
 }
 
-fn handleAddUser(allocator: std.mem.Allocator, name: []const u8) void {
+fn handleAddUser(allocator: std.mem.Allocator, users: *std.ArrayList(User), name: []const u8) void {
     if (name.len == 0) return;
 
-    const new_id: u32 = @intCast(users.items.len + 1);
+    var max_id: u32 = 0;
+    for (users.items) |user| {
+        if (user.id > max_id) max_id = user.id;
+    }
+    const new_id = max_id + 1;
     const name_copy = allocator.dupe(u8, name) catch @panic("OOM");
     users.append(allocator, User{ .id = new_id, .name = name_copy }) catch @panic("OOM");
 }
 
-fn filterUsers(allocator: std.mem.Allocator, search_opt: ?[]const u8) std.ArrayList(User) {
+fn filterUsers(allocator: std.mem.Allocator, users: *std.ArrayList(User), search_opt: ?[]const u8) std.ArrayList(User) {
     var filtered = std.ArrayList(User).empty;
 
     for (users.items) |user| {
@@ -96,13 +101,13 @@ fn filterUsers(allocator: std.mem.Allocator, search_opt: ?[]const u8) std.ArrayL
 }
 
 const kv = zx.kv.scope("examples/form");
-fn start(ctx: zx.PageContext) void {
-    users.clearRetainingCapacity();
+fn syncFromKv(ctx: zx.PageContext, users: *std.ArrayList(User)) void {
     const v = kv.get(ctx.arena, "users") catch return;
     const ul = zx.util.zxon.parse([]User, ctx.arena, v orelse return, .{}) catch return;
     users.appendSlice(ctx.arena, ul) catch return;
 }
-fn end(ctx: zx.PageContext) void {
+
+fn syncToKv(ctx: zx.PageContext, users: *std.ArrayList(User)) void {
     var aw: std.Io.Writer.Allocating = .init(ctx.arena);
     zx.util.zxon.serialize(users.items, &aw.writer, .{}) catch return;
     kv.put("users", aw.written(), .{}) catch return;

@@ -28,7 +28,6 @@ pub fn Server(comptime H: type) type {
         pub const Meta = ServerMeta;
         pub const Config = ServerConfig;
         pub const version = module_config.version;
-        pub const jsglue_version = module_config.jsglue_version;
 
         allocator: std.mem.Allocator,
         meta: ServerMeta,
@@ -41,7 +40,7 @@ pub fn Server(comptime H: type) type {
         const HandlerType = Handler(AppCtxType);
 
         pub fn init(allocator: std.mem.Allocator, config: ServerConfig, app_ctx: H) !*Self {
-            default_db.use();
+            if (!@import("zx_module_options").exclude_db) default_db.use();
 
             const self = try allocator.create(Self);
             errdefer allocator.destroy(self);

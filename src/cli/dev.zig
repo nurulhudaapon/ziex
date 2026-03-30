@@ -90,7 +90,25 @@ fn dev(ctx: zli.CommandContext) !void {
     defer env_map.deinit();
 
     var initial_build = std.process.Child.init(initial_build_args_array.items, allocator);
-    _ = initial_build.spawnAndWait() catch {};
+    const initial_term = initial_build.spawnAndWait() catch |err| {
+        log.err("Failed to run initial build: {any}", .{err});
+        std.process.exit(1);
+    };
+
+    switch (initial_term) {
+        .Exited => |code| {
+            if (code != 0) {
+                if (env_map.get("CI") != null) {
+                    std.process.exit(code);
+                }
+            }
+        },
+        else => {
+            if (env_map.get("CI") != null) {
+                std.process.exit(1);
+            }
+        },
+    }
 
     // Spin up the dev proxy: it owns the user-facing port for the entire session
     const outer_port: u16 = if (port != 0) @intCast(port) else 3000;
@@ -225,7 +243,7 @@ fn dev(ctx: zli.CommandContext) !void {
                 },
                 .resolved => {
                     last_was_no_change = false;
-                    try ctx.writer.print("{s} ✓ {s}All build errors have been resolved!{s}\n", .{ Colors.green, Colors.bold, Colors.reset });
+                    try ctx.writer.print("\n{s}✓ {s}All build errors have been resolved!{s}\n", .{ Colors.green, Colors.bold, Colors.reset });
                     dev_server.notify(.{ .type = .clear });
                 },
                 .build_complete_no_change => |_| {
@@ -241,6 +259,30 @@ fn dev(ctx: zli.CommandContext) !void {
                         }
                     }
                     dev_server.notify(.{ .type = .clear });
+                    rebuild_timer = null;
+                    rebuilding_shown = false;
+                    last_was_no_change = true;
+                },
+                .assets_installed => |result_val| {
+                    var result = result_val;
+                    defer result.deinit();
+
+                    if (use_spinner) {
+                        ctx.spinner.stop();
+                    }
+
+                    const prefix: []const u8 = if (last_was_no_change) "\x1b[1A\r" else if (rebuilding_shown) "\r" else "";
+                    if (result.files.len == 1) {
+                        try ctx.writer.print("{s}{s}✓ {s}Asset updated{s} {s}{s}{s}\x1b[K\n", .{
+                            prefix, Colors.cyan, Colors.bold, Colors.reset, Colors.gray, result.files[0], Colors.reset,
+                        });
+                    } else {
+                        try ctx.writer.print("{s}{s}✓ {s}Assets updated{s} {s}({d} files){s}\x1b[K\n", .{
+                            prefix, Colors.cyan, Colors.bold, Colors.reset, Colors.gray, result.files.len, Colors.reset,
+                        });
+                    }
+
+                    dev_server.notify(.{ .type = .asset_update, .files = result.files });
                     rebuild_timer = null;
                     rebuilding_shown = false;
                     last_was_no_change = true;
@@ -317,19 +359,13 @@ fn dev(ctx: zli.CommandContext) !void {
                     const restart_time_ms = timer.lap() / std.time.ns_per_ms;
 
                     if (rebuilding_shown) {
+                        const total_ms = wall_build_ms + restart_time_ms;
+                        const total_s: f64 = @as(f64, @floatFromInt(total_ms)) / 1000.0;
                         if (use_spinner) {
                             var spinner = ctx.spinner;
-                            if (wall_build_ms > 0) {
-                                try spinner.succeed("{s}Restarted in {s}[{d} + {d:.0}]ms{s}", .{ Colors.green, Colors.gray, wall_build_ms, restart_time_ms, Colors.reset });
-                            } else {
-                                try spinner.succeed("{s}Restarted in {d:.0}ms{s}", .{ Colors.green, restart_time_ms, Colors.reset });
-                            }
+                            try spinner.succeed("{s}Restarted {s}({d:.2}s){s}", .{ Colors.green, Colors.gray, total_s, Colors.reset });
                         } else {
-                            if (wall_build_ms > 0) {
-                                try ctx.writer.print("\r{s}✓ {s}Restarted in {s}[{d} + {d:.0}]ms{s}\x1b[K\n", .{ Colors.green, Colors.bold, Colors.gray, wall_build_ms, restart_time_ms, Colors.reset });
-                            } else {
-                                try ctx.writer.print("\r{s}✓ {s}Restarted in {d:.0} ms{s}\x1b[K\n", .{ Colors.green, Colors.bold, restart_time_ms, Colors.reset });
-                            }
+                            try ctx.writer.print("\r{s}✓ {s}Restarted {s}({d:.2}s){s}\x1b[K\n", .{ Colors.green, Colors.bold, Colors.gray, total_s, Colors.reset });
                         }
                     }
 

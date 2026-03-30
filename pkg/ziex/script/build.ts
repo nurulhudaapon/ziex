@@ -104,7 +104,7 @@ async function main() {
   pkgJson.repository = rootPackageJson.repository;
   pkgJson.author = rootPackageJson.author;
   pkgJson.license = rootPackageJson.license;
-  pkgJson.scripts = { postinstall: "node install.cjs" };
+  pkgJson.scripts = {};
   pkgJson.devDependencies = undefined;
   pkgJson.peerDependencies = undefined;
   pkgJson.private = undefined;
@@ -120,9 +120,8 @@ async function main() {
   copyFileSync(join(pkgDir, "build.zig.zon"), join(pkgDistDir, "build.zig.zon"));
   copyFileSync(join(pkgDir, "build.zig"), join(pkgDistDir, "build.zig"));
 
-  // Copy CLI files to dist
+  // Copy CLI bin stub to dist
   mkdirSync(join(pkgDistDir, "bin"), { recursive: true });
-  copyFileSync(join(pkgDir, "install.cjs"), join(pkgDistDir, "install.cjs"));
   copyFileSync(join(pkgDir, "bin/ziex"), join(pkgDistDir, "bin/ziex"));
   
   console.log(`\x1b[32m✅ ${pkgName} - Done\x1b[0m\n`);

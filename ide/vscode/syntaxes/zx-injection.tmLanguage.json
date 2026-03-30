@@ -1,9 +1,69 @@
 {
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "zx-injection",
-  "scopeName": "zx.injection",
+  "scopeName": "source.zx.injection",
   "injectionSelector": "L:source.zig",
   "patterns": [
+    {
+      "comment": "SQL injection for db.run, db.query, db.exec, db.prepare",
+      "begin": "(db\\.(?:run|query|exec|prepare))\\s*\\(",
+      "beginCaptures": {
+        "1": {
+          "name": "support.function.zig"
+        }
+      },
+      "end": "\\)",
+      "patterns": [
+        {
+          "comment": "Multiline SQL argument",
+          "begin": "(?=\\\\\\\\)",
+          "end": "(?=[,)])",
+          "patterns": [
+            {
+              "name": "string.quoted.other.multiline.zig",
+              "begin": "(\\\\\\\\)",
+              "beginCaptures": {
+                "1": {
+                  "name": "punctuation.definition.string.begin.zig"
+                }
+              },
+              "end": "$",
+              "contentName": "source.sql",
+              "patterns": [
+                {
+                  "include": "source.sql"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "comment": "Inline SQL argument",
+          "begin": "(\")",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.definition.string.begin.zig"
+            }
+          },
+          "end": "(\")",
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.definition.string.end.zig"
+            }
+          },
+          "name": "string.quoted.double.zig",
+          "contentName": "source.sql",
+          "patterns": [
+            {
+              "include": "source.sql"
+            }
+          ]
+        },
+        {
+          "include": "source.zig"
+        }
+      ]
+    },
     {
       "include": "source.zx#zx"
     }

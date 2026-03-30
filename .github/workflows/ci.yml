@@ -3,8 +3,28 @@ name: CI
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - '!test/e2e/**'
+      - 'pkg/adapters/**'
+      - 'pkg/tree-sitter-zx/**'
+      - 'pkg/tree-sitter-mdzx/**'
+      - 'vendor/**'
+      - 'build.zig'
+      - 'build.zig.zon'
   pull_request:
     branches: [ main ]
+    paths:
+      - 'src/**'
+      - 'test/**'
+      - '!test/e2e/**'
+      - 'pkg/adapters/**'
+      - 'pkg/tree-sitter-zx/**'
+      - 'pkg/tree-sitter-mdzx/**'
+      - 'vendor/**'
+      - 'build.zig'
+      - 'build.zig.zon'
 
 jobs:
   build:

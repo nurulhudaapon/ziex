@@ -1,0 +1,28 @@
+{
+  "name": "@ziex/org",
+  "version": "0.1.0-dev.928",
+  "private": true,
+  "description": "Ziex CLI distribution via npm",
+  "scripts": {
+    "prepare": "bash prepare.sh",
+    "publish": "npm publish --workspaces --access public",
+    "start:registry": "verdaccio --config verdaccio.yaml --listen 4873",
+    "publish:local": "npm publish --workspaces --registry http://localhost:4873",
+    "check": "bash check.sh",
+    "syncver": "npm version --ignore-scripts --workspace lib --workspace cli --workspace cli-darwin-arm64 --workspace cli-darwin-x64 --workspace cli-linux-x64 --workspace cli-linux-arm64 --workspace cli-win32-x64 --workspace cli-win32-arm64"
+  },
+  "workspaces": [
+    "cli",
+    "cli-darwin-arm64",
+    "cli-darwin-x64",
+    "cli-linux-x64",
+    "cli-linux-arm64",
+    "cli-win32-x64",
+    "cli-win32-arm64"
+  ],
+  "homepage": "https://ziex.dev",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ziex-dev/ziex.git"
+  }
+}
