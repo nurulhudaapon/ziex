@@ -4,9 +4,10 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const pkgName = `@ziex/cli-${process.platform}-${process.arch}`;
+const ext = process.platform === 'win32' ? '.exe' : '';
 
 try {
-  const binaryPath = require.resolve(`${pkgName}/bin/zx`);
+  const binaryPath = require.resolve(`${pkgName}/bin/zx${ext}`);
 
   const child = spawn(binaryPath, process.argv.slice(2), { 
     stdio: 'inherit',
