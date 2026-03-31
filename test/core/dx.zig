@@ -467,7 +467,9 @@ fn getSnippet(source: []const u8, line: i32, col: i32) []const u8 {
 }
 
 fn isSnapshotMode() bool {
-    return std.posix.getenv("SS") != null;
+    const val = std.process.getEnvVarOwned(testing.allocator, "SS") catch return false;
+    testing.allocator.free(val);
+    return true;
 }
 
 fn shouldGenerateDebugFiles() bool {
