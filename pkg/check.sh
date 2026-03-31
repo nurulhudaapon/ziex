@@ -82,7 +82,7 @@ check() {
   local name="$1" cmd="$2" expected="$3"
   local safe_name="${name//[\/[:space:]]/_}"
   local output
-  output=$(eval "$cmd" 2>&1) || true
+  output=$(timeout 30 bash -c "$cmd" 2>&1) || true
   if echo "$output" | grep -q "$expected"; then
     echo "PASS" > "$RESULTS_DIR/$safe_name"
     echo "  PASS: $name"
@@ -138,8 +138,8 @@ for pid in "${pids[@]}"; do wait "$pid" || true; done
 
 # --- Summary ---
 
-PASSED=$(grep -rl "PASS" "$RESULTS_DIR" 2>/dev/null | wc -l | tr -d ' ')
-FAILED=$(grep -rl "FAIL" "$RESULTS_DIR" 2>/dev/null | wc -l | tr -d ' ')
+PASSED=$( (grep -rl "PASS" "$RESULTS_DIR" 2>/dev/null || true) | wc -l | tr -d ' ')
+FAILED=$( (grep -rl "FAIL" "$RESULTS_DIR" 2>/dev/null || true) | wc -l | tr -d ' ')
 
 echo ""
 echo "  Results: $PASSED passed, $FAILED failed"
