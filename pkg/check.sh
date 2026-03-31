@@ -71,19 +71,23 @@ else
 fi
 
 # Create temp directory for testing
+# Use a fresh temp dir to avoid npx/bunx cache interference
+rm -rf "$SCRIPT_DIR/_check_tmp"
 mkdir -p "$SCRIPT_DIR/_check_tmp"
 cd "$SCRIPT_DIR/_check_tmp"
+export npm_config_cache="$SCRIPT_DIR/_check_tmp/.npm-cache"
 
 # Test runner — writes PASS/FAIL to $RESULTS_DIR so tests can run in parallel
 check() {
   local name="$1" cmd="$2" expected="$3"
+  local safe_name="${name//[\/[:space:]]/_}"
   local output
   output=$(eval "$cmd" 2>&1) || true
   if echo "$output" | grep -q "$expected"; then
-    echo "PASS" > "$RESULTS_DIR/$name"
+    echo "PASS" > "$RESULTS_DIR/$safe_name"
     echo "  PASS: $name"
   else
-    echo "FAIL" > "$RESULTS_DIR/$name"
+    echo "FAIL" > "$RESULTS_DIR/$safe_name"
     echo "  FAIL: $name — expected '$expected', got: $output"
   fi
 }

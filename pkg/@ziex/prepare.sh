@@ -16,8 +16,9 @@ else
   ZIEX_VER=$(sed -n 's/.*\.version *= *"\([^"]*\)".*/\1/p' "$ROOT_DIR/build.zig.zon")
 fi
 
-# Update version in all workspace package.json files
+# Update version in all workspace package.json files (in parallel)
 echo "Updating package versions to $ZIEX_VER..."
+pids=()
 for pkg in cli cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-win32-x64 cli-win32-arm64; do
   pkg_json="$SCRIPT_DIR/$pkg/package.json"
   [ -f "$pkg_json" ] || continue
@@ -34,7 +35,8 @@ for pkg in cli cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli
       }
     }
     fs.writeFileSync(pkgJson, JSON.stringify(p, null, 2) + '\n');
-  " "$pkg_json" "$ZIEX_VER"
+  " "$pkg_json" "$ZIEX_VER" &
+  pids+=($!)
 done
 
 # Also sync version in pkg/ziex (the main framework package)
@@ -55,8 +57,11 @@ if [ -f "$ZIEX_PKG_JSON" ]; then
       }
     }
     fs.writeFileSync(pkgJson, JSON.stringify(p, null, 2) + '\n');
-  " "$ZIEX_PKG_JSON" "$ZIEX_VER"
+  " "$ZIEX_PKG_JSON" "$ZIEX_VER" &
+  pids+=($!)
 fi
+
+for pid in "${pids[@]}"; do wait "$pid"; done
 
 # --version: only sync package versions, skip downloads
 if [[ "${1:-}" == "--version" ]]; then
@@ -92,10 +97,13 @@ for pkg in $PKGS; do
   fi
 done
 
-# Copy README.md to all packages
+# Copy README.md to all packages (in parallel)
 echo "Copying README.md to all packages..."
+pids=()
 for dir in cli cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli-win32-x64 cli-win32-arm64; do
-  cp "$SCRIPT_DIR/README.md" "$SCRIPT_DIR/$dir/README.md"
+  cp "$SCRIPT_DIR/README.md" "$SCRIPT_DIR/$dir/README.md" &
+  pids+=($!)
 done
+for pid in "${pids[@]}"; do wait "$pid"; done
 
 echo "All packages ready!"
