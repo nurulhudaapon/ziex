@@ -1,27 +1,18 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    const is_logged_in = false;
     var _zx = @import("zx").allocInit(allocator);
     return _zx.ele(
         .main,
         .{
             .allocator = allocator,
             .children = &.{
-                if (is_logged_in) _zx.ele(
-                    .p,
+                _zx.ele(
+                    .h1,
                     .{
                         .children = &.{
-                            _zx.txt("Welcome, User!"),
-                        },
-                    },
-                ) else _zx.ele(
-                    .p,
-                    .{
-                        .children = &.{
-                            _zx.txt("Please log in to continue."),
+                            _zx.txt("Welcome to the site!"),
                         },
                     },
                 ),
-                if (is_logged_in) _zx.txt("Welcome, User!") else _zx.txt("Please log in to continue."),
             },
         },
     );
