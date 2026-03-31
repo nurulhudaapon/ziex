@@ -22,18 +22,19 @@ for pkg in cli cli-darwin-arm64 cli-darwin-x64 cli-linux-x64 cli-linux-arm64 cli
   pkg_json="$SCRIPT_DIR/$pkg/package.json"
   [ -f "$pkg_json" ] || continue
   node -e "
-    const fs = require('fs');
-    const p = JSON.parse(fs.readFileSync('$pkg_json', 'utf8'));
-    p.version = '$ZIEX_VER';
-    // Update any @ziex/cli-* refs in dependencies / optionalDependencies
+    const fs = require('fs'), path = require('path');
+    const pkgJson = path.resolve(process.argv[1]);
+    const ver = process.argv[2];
+    const p = JSON.parse(fs.readFileSync(pkgJson, 'utf8'));
+    p.version = ver;
     for (const key of ['dependencies', 'optionalDependencies']) {
       if (!p[key]) continue;
       for (const dep of Object.keys(p[key])) {
-        if (dep.startsWith('@ziex/cli-')) p[key][dep] = '$ZIEX_VER';
+        if (dep.startsWith('@ziex/cli-')) p[key][dep] = ver;
       }
     }
-    fs.writeFileSync('$pkg_json', JSON.stringify(p, null, 2) + '\n');
-  "
+    fs.writeFileSync(pkgJson, JSON.stringify(p, null, 2) + '\n');
+  " "$pkg_json" "$ZIEX_VER"
 done
 
 # Also sync version in pkg/ziex (the main framework package)
@@ -41,18 +42,20 @@ ZIEX_PKG_JSON="$ROOT_DIR/pkg/ziex/package.json"
 if [ -f "$ZIEX_PKG_JSON" ]; then
   echo "Updating ziex package version to $ZIEX_VER..."
   node -e "
-    const fs = require('fs');
-    const p = JSON.parse(fs.readFileSync('$ZIEX_PKG_JSON', 'utf8'));
-    p.version = '$ZIEX_VER';
-    if (p.dependencies?.['@ziex/cli']) p.dependencies['@ziex/cli'] = '$ZIEX_VER';
+    const fs = require('fs'), path = require('path');
+    const pkgJson = path.resolve(process.argv[1]);
+    const ver = process.argv[2];
+    const p = JSON.parse(fs.readFileSync(pkgJson, 'utf8'));
+    p.version = ver;
+    if (p.dependencies?.['@ziex/cli']) p.dependencies['@ziex/cli'] = ver;
     for (const key of ['optionalDependencies']) {
       if (!p[key]) continue;
       for (const dep of Object.keys(p[key])) {
-        if (dep.startsWith('@ziex/cli')) p[key][dep] = '$ZIEX_VER';
+        if (dep.startsWith('@ziex/cli')) p[key][dep] = ver;
       }
     }
-    fs.writeFileSync('$ZIEX_PKG_JSON', JSON.stringify(p, null, 2) + '\n');
-  "
+    fs.writeFileSync(pkgJson, JSON.stringify(p, null, 2) + '\n');
+  " "$ZIEX_PKG_JSON" "$ZIEX_VER"
 fi
 
 # --version: only sync package versions, skip downloads
