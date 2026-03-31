@@ -8,16 +8,18 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 ROOT_DIR="$SCRIPT_DIR/.."
 VERDACCIO_DIR="$SCRIPT_DIR/@ziex"
 REGISTRY="http://localhost:4873"
-PASSED=0
-FAILED=0
 VERSION="${1:-}"
+IS_WINDOWS=false
+case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=true ;; esac
+
+RESULTS_DIR=$(mktemp -d)
 
 cleanup() {
   if [ -n "${VERDACCIO_PID:-}" ]; then
     kill "$VERDACCIO_PID" 2>/dev/null || true
     wait "$VERDACCIO_PID" 2>/dev/null || true
   fi
-  rm -rf "$SCRIPT_DIR/_check_tmp" "$SCRIPT_DIR/_check_npmrc"
+  rm -rf "$SCRIPT_DIR/_check_tmp" "$SCRIPT_DIR/_check_npmrc" "$RESULTS_DIR"
 }
 trap cleanup EXIT
 
@@ -42,7 +44,6 @@ if [ -z "${CI:-}" ]; then
   npx --yes verdaccio --config "$VERDACCIO_DIR/verdaccio.yaml" --listen 4873 &
   VERDACCIO_PID=$!
 
-  # Wait for Verdaccio to be ready (up to 60s; npx may need time to install verdaccio)
   for i in $(seq 1 120); do
     if curl -sf "$REGISTRY/-/ping" > /dev/null 2>&1; then break; fi
     sleep 0.5
@@ -56,69 +57,86 @@ echo "==> Publishing @ziex/cli* to local registry..."
 cd "$VERDACCIO_DIR"
 npm publish --workspaces --access public --tag dev --registry "$REGISTRY" 2>&1
 
-# Build and publish ziex to local registry
-echo "==> Building and publishing ziex to local registry..."
-cd "$SCRIPT_DIR/ziex"
-npm_config_registry="$REGISTRY" bun install
-bun run build
-cd dist
-npm publish --access public --tag dev --registry "$REGISTRY" 2>&1
+# Build and publish ziex to local registry (skip on Windows — bun build crashes)
+if [ "$IS_WINDOWS" = false ]; then
+  echo "==> Building and publishing ziex to local registry..."
+  cd "$SCRIPT_DIR/ziex"
+  rm -f bun.lock
+  BUN_CONFIG_REGISTRY="$REGISTRY" bun install --registry "$REGISTRY" 2>&1
+  bun run build
+  cd dist
+  npm publish --access public --tag dev --registry "$REGISTRY" 2>&1
+else
+  echo "==> Skipping ziex build on Windows (bun build not supported)"
+fi
 
 # Create temp directory for testing
 mkdir -p "$SCRIPT_DIR/_check_tmp"
 cd "$SCRIPT_DIR/_check_tmp"
 
-pass() { PASSED=$((PASSED + 1)); echo "  PASS: $1"; }
-fail() { FAILED=$((FAILED + 1)); echo "  FAIL: $1"; }
+# Test runner — writes PASS/FAIL to $RESULTS_DIR so tests can run in parallel
+check() {
+  local name="$1" cmd="$2" expected="$3"
+  local output
+  output=$(eval "$cmd" 2>&1) || true
+  if echo "$output" | grep -q "$expected"; then
+    echo "PASS" > "$RESULTS_DIR/$name"
+    echo "  PASS: $name"
+  else
+    echo "FAIL" > "$RESULTS_DIR/$name"
+    echo "  FAIL: $name — expected '$expected', got: $output"
+  fi
+}
 
-# --- Tests ---
+# --- Tests (run in parallel) ---
 
 echo ""
 echo "Running checks..."
-
-# Check @ziex/cli version command
 echo ""
-CLI_OUTPUT=$(npx --yes --registry "$REGISTRY" @ziex/cli@dev version 2>&1) || true
-if echo "$CLI_OUTPUT" | grep -q "$VERSION"; then
-  pass "npx @ziex/cli version > $VERSION"
-else
-  fail "npx @ziex/cli version expected '$VERSION', got: $CLI_OUTPUT"
+
+pids=()
+
+# @ziex/cli via npx
+check "npx @ziex/cli version" \
+  "npx --yes --registry '$REGISTRY' @ziex/cli@dev version" \
+  "$VERSION" &
+pids+=($!)
+
+# ziex via npx (skip on Windows — not built)
+if [ "$IS_WINDOWS" = false ]; then
+  check "npx ziex version" \
+    "npx --yes --registry '$REGISTRY' ziex@dev version" \
+    "$VERSION" &
+  pids+=($!)
+
+  check "npx ziex --help" \
+    "npx --yes --registry '$REGISTRY' ziex@dev --help" \
+    "." &
+  pids+=($!)
 fi
 
-# Check ziex version command (delegates to @ziex/cli)
-ZIEX_OUTPUT=$(npx --yes --registry "$REGISTRY" ziex@dev version 2>&1) || true
-if echo "$ZIEX_OUTPUT" | grep -q "$VERSION"; then
-  pass "npx ziex version > $VERSION"
-else
-  fail "npx ziex version expected '$VERSION', got: $ZIEX_OUTPUT"
-fi
-
-# Check that ziex resolves @ziex/cli as dependency
-ZIEX_HELP=$(npx --yes --registry "$REGISTRY" ziex@dev --help 2>&1) || true
-if [ -n "$ZIEX_HELP" ]; then
-  pass "npx ziex --help produces output"
-else
-  fail "npx ziex --help produced no output"
-fi
-
-# Check bunx compatibility
+# bunx compatibility
 if command -v bunx &> /dev/null; then
-  echo ""
-  BUNX_OUTPUT=$(env BUN_CONFIG_REGISTRY="$REGISTRY" BUN_CONFIG_IGNORE_SCRIPTS=true bunx --verbose @ziex/cli@dev version 2>&1) || true
-  if echo "$BUNX_OUTPUT" | grep -q "$VERSION"; then
-    pass "bunx @ziex/cli version > $VERSION"
-  else
-    fail "bunx @ziex/cli version expected '$VERSION', got: $BUNX_OUTPUT"
-  fi
-  BUNX_ZIEX_OUTPUT=$(env BUN_CONFIG_REGISTRY="$REGISTRY" BUN_CONFIG_IGNORE_SCRIPTS=true bunx --verbose ziex@dev version 2>&1) || true
-  if echo "$BUNX_ZIEX_OUTPUT" | grep -q "$VERSION"; then
-    pass "bunx ziex version > $VERSION"
-  else
-    fail "bunx ziex version expected '$VERSION', got: $BUNX_ZIEX_OUTPUT"
+  check "bunx @ziex/cli version" \
+    "env BUN_CONFIG_REGISTRY='$REGISTRY' BUN_CONFIG_IGNORE_SCRIPTS=true bunx --verbose @ziex/cli@dev version" \
+    "$VERSION" &
+  pids+=($!)
+
+  if [ "$IS_WINDOWS" = false ]; then
+    check "bunx ziex version" \
+      "env BUN_CONFIG_REGISTRY='$REGISTRY' BUN_CONFIG_IGNORE_SCRIPTS=true bunx --verbose ziex@dev version" \
+      "$VERSION" &
+    pids+=($!)
   fi
 fi
+
+for pid in "${pids[@]}"; do wait "$pid" || true; done
 
 # --- Summary ---
+
+PASSED=$(grep -rl "PASS" "$RESULTS_DIR" 2>/dev/null | wc -l | tr -d ' ')
+FAILED=$(grep -rl "FAIL" "$RESULTS_DIR" 2>/dev/null | wc -l | tr -d ' ')
+
 echo ""
 echo "  Results: $PASSED passed, $FAILED failed"
 
