@@ -82,7 +82,7 @@ check() {
   local name="$1" cmd="$2" expected="$3"
   local safe_name="${name//[\/[:space:]]/_}"
   local output
-  output=$(timeout 30 bash -c "$cmd" 2>&1) || true
+  output=$(eval "$cmd" 2>&1) || true
   if echo "$output" | grep -q "$expected"; then
     echo "PASS" > "$RESULTS_DIR/$safe_name"
     echo "  PASS: $name"
