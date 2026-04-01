@@ -25,75 +25,36 @@ pub const StateItem = zx.Component.Serializable.StateItem;
 
 const storage_key = "zx-devtool-show-native-elements";
 pub const host_storage_key = "zx-devtool-host-v2";
+const settings_namespace = "ide/devtool/settings";
+const theme_storage_key = "zx-devtool-theme-dark";
 
 var _show_native_elements_loaded = false;
 pub var show_native_elements: bool = true;
 pub var host: []const u8 = "localhost:3000";
 
+fn settingsKV() zx.kv.KVScope {
+    return zx.kv.scope(settings_namespace);
+}
+
 pub fn loadSettings() bool {
     if (_show_native_elements_loaded) return true;
-
-    // localStorage is only available in client runtime. If not ready yet,
-    // keep settings unresolved so callers can retry on a later render.
-    const storage_ready = zx.client.eval(f64, "typeof localStorage!=='undefined'?1:0") catch 0;
-    if (storage_ready < 1) return false;
-
-    var loaded_ok = true;
-    // Returns 1.0 if stored "1" or not set, 0.0 if stored "0"
-    const result = zx.client.eval(f64, "+(localStorage.getItem('" ++ storage_key ++ "')??1)") catch blk: {
-        loaded_ok = false;
-        break :blk 1;
-    };
-    show_native_elements = result >= 1.0;
-
-    // Read host from localStorage char-by-char using charCodeAt (eval with string return
-    // is unsupported by jsz, but eval(f64) works fine — same pattern as native elements).
-    const len_f = zx.client.eval(f64, "(localStorage.getItem('" ++ host_storage_key ++ "')||'').length") catch blk: {
-        loaded_ok = false;
-        break :blk 0;
-    };
-    const len: usize = @intFromFloat(len_f);
-    if (len > 0 and len <= 256) {
-        if (zx.client_allocator.alloc(u8, len)) |buf| {
-            var all_ok = true;
-            for (0..len) |i| {
-                const script = std.fmt.allocPrint(
-                    zx.client_allocator,
-                    "(localStorage.getItem('" ++ host_storage_key ++ "')||'').charCodeAt({d})",
-                    .{i},
-                ) catch {
-                    all_ok = false;
-                    break;
-                };
-                defer zx.client_allocator.free(script);
-                const code = zx.client.eval(f64, script) catch {
-                    all_ok = false;
-                    break;
-                };
-                buf[i] = @intFromFloat(code);
-            }
-            if (all_ok) {
-                host = buf;
-            } else {
-                loaded_ok = false;
-                zx.client_allocator.free(buf);
-            }
-        } else |_| {}
-    }
-
-    if (loaded_ok) _show_native_elements_loaded = true;
+    show_native_elements = settingsKV().as(zx.client_allocator, storage_key, bool) catch null orelse true;
+    host = settingsKV().get(zx.client_allocator, host_storage_key) catch null orelse host;
+    _show_native_elements_loaded = true;
     return _show_native_elements_loaded;
 }
 
 pub fn saveSettings() void {
-    const script = if (show_native_elements)
-        "localStorage.setItem('" ++ storage_key ++ "','1');"
-    else
-        "localStorage.setItem('" ++ storage_key ++ "','0');";
-    zx.client.eval(void, script) catch {};
+    settingsKV().putAs(storage_key, show_native_elements, .{}) catch {};
+    settingsKV().put(host_storage_key, host, .{}) catch {};
+}
 
-    const h = std.fmt.allocPrint(zx.client_allocator, "localStorage.setItem('{s}','{s}');", .{ host_storage_key, host }) catch return;
-    zx.client.eval(void, h) catch {};
+pub fn loadThemeIsDark() bool {
+    return settingsKV().as(zx.client_allocator, theme_storage_key, bool) catch null orelse true;
+}
+
+pub fn saveThemeIsDark(dark: bool) void {
+    settingsKV().putAs(theme_storage_key, dark, .{}) catch {};
 }
 
 pub const components = [_]Component{

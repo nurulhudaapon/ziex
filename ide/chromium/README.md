@@ -7,6 +7,7 @@
    cd ide/devtool
    zig build -Dplatform=chromium
    zig build zx -- export --outdir ../chromium/pages
+   mv ../chromium/pages/assets/ ../chromium/assets/
    ```
 
 3. Test the extension in Chrome by loading the `ide/chromium` directory

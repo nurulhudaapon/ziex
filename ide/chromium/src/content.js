@@ -3,7 +3,7 @@
 
 function detectZiex() {
   // Check if Ziex is loaded
-  const hasZiex = !!window.__ZIEX__ || !!window.Ziex;
+  const hasZiex = !!window.__ZIEX__ || !!window.Ziex || !!window.__zx_dev_reinit;
   
   if (hasZiex) {
     console.log('Ziex detected on page');

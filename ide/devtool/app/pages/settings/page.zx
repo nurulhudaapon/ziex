@@ -205,18 +205,33 @@ pub fn NativeElementsSetting(
 }
 
 fn currentThemeIsDark() bool {
-    const v = zx.client.eval(f64, "+(localStorage.getItem('" ++ theme_storage_key ++ "')??1)") catch 1;
-    return v >= 1.0;
+    _ = theme_storage_key;
+    return data.loadThemeIsDark();
+}
+
+fn applyTheme(dark: bool) void {
+    if (zx.platform != .browser) return;
+
+    const document = zx.client.Document.init(zx.client_allocator);
+    defer document.deinit();
+
+    const root = document.querySelector("html") catch return;
+    defer root.deinit();
+
+    const theme = if (dark) "dark" else "light";
+    root.setAttribute("data-theme", theme);
+    root.setAttribute("style", if (dark) "color-scheme: dark;" else "color-scheme: light;");
+
+    const local_storage = zx.client.js.global.get(zx.Client.js.Object, "localStorage") catch return;
+    defer local_storage.deinit();
+    local_storage.call(void, "setItem", .{
+        zx.Client.js.string(theme_storage_key),
+        zx.Client.js.string(if (dark) "1" else "0"),
+    }) catch {};
 }
 
 fn applyThemeFromStorage() void {
-    zx.client.eval(void,
-        "(function(){" ++
-        "var d=(+(localStorage.getItem('" ++ theme_storage_key ++ "')??1))>=1;" ++
-        "document.documentElement.setAttribute('data-theme',d?'dark':'light');" ++
-        "document.documentElement.style.colorScheme=d?'dark':'light';" ++
-        "})();"
-    ) catch {};
+    applyTheme(currentThemeIsDark());
 }
 
 pub fn ThemeSetting(ctx: *zx.ComponentCtx(ThemeSettingProps)) zx.Component {
@@ -234,15 +249,9 @@ pub fn ThemeSetting(ctx: *zx.ComponentCtx(ThemeSettingProps)) zx.Component {
 }
 
 pub fn handleThemeToggle(_: zx.client.Event) void {
-    zx.client.eval(void,
-        "(function(){" ++
-        "var d=(+(localStorage.getItem('" ++ theme_storage_key ++ "')??1))>=1;" ++
-        "var n=d?0:1;" ++
-        "localStorage.setItem('" ++ theme_storage_key ++ "',String(n));" ++
-        "document.documentElement.setAttribute('data-theme',n===1?'dark':'light');" ++
-        "document.documentElement.style.colorScheme=n===1?'dark':'light';" ++
-        "})();"
-    ) catch {};
+    const dark = !currentThemeIsDark();
+    data.saveThemeIsDark(dark);
+    applyTheme(dark);
     zx.client.rerender();
 }
 
@@ -256,13 +265,6 @@ const HostSettingProps = struct {};
 
 pub fn HostSetting(ctx: *zx.ComponentCtx(HostSettingProps)) zx.Component {
     _ = data.loadSettings();
-    
-    zx.client.eval(void,
-        "setTimeout(function(){" ++
-        "var v=localStorage.getItem('" ++ data.host_storage_key ++ "');" ++
-        "if(v){var e=document.getElementById('zx-host-input');if(e)e.value=v;}" ++
-        "},0);"
-    ) catch {};
     return (
         <div @allocator={ctx.allocator}>
             <label class="settings-label">Host</label>

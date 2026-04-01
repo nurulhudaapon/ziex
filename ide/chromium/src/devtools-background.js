@@ -21,7 +21,7 @@ function createPanelOnZiexDetected() {
 
   // Check if Ziex exists on the page
   chrome.devtools.inspectedWindow.eval(
-    '!!(window.__ZIEX__)',
+    '!!(window.__zx_dev_reinit)',
     (ziexDetected) => {
       if (!ziexDetected || created) return;
 

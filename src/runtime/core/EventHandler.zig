@@ -113,7 +113,7 @@ pub fn wrap(comptime func: anytype) Self {
     return .{
         .callback = &Wrapper.wrapper,
         .context = @as(*anyopaque, @ptrFromInt(1)),
-        .may_suspend = false,
+        .may_suspend = true,
     };
 }
 
@@ -156,7 +156,7 @@ pub fn runtime(func: *const fn (zx.client.Event) void) Self {
             }
         }.w,
         .context = @ptrCast(@constCast(func)),
-        .may_suspend = false,
+        .may_suspend = true,
     };
 }
 
@@ -171,7 +171,7 @@ pub fn runtimePtr(func: *const fn (*zx.client.Event) void) Self {
             }
         }.w,
         .context = @ptrCast(@constCast(func)),
-        .may_suspend = false,
+        .may_suspend = true,
     };
 }
 
@@ -186,7 +186,7 @@ pub fn client(comptime handler: anytype) Self {
     return .{
         .callback = &Wrap.w,
         .context = @as(*anyopaque, @ptrFromInt(1)),
-        .may_suspend = false,
+        .may_suspend = true,
     };
 }
 

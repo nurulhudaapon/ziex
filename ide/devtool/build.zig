@@ -1,5 +1,5 @@
 const std = @import("std");
-const zx = @import("zx");
+const ziex = @import("zx");
 
 const Platform = enum {
     chromium,
@@ -27,5 +27,15 @@ pub fn build(b: *std.Build) !void {
     });
 
     exe.root_module.addOptions("build_options", build_options);
-    _ = try zx.init(b, exe, .{});
+    var ziex_b = try ziex.init(b, exe, .{
+        .client = .{ .jsglue_href = "/assets/_/main.js" },
+    });
+    var assetsdir = ziex_b.assetsdir;
+
+    ziex_b.plugin(ziex.plugins.esbuild(b, .{
+        .bin = b.path("../../site/node_modules/.bin/esbuild"),
+        .input = b.path("app/scripts/client.ts"),
+        .output = assetsdir.path(b, "_/main.js"),
+        .optimize = optimize,
+    }));
 }
