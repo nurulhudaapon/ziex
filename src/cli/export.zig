@@ -32,13 +32,19 @@ fn @"export"(ctx: zli.CommandContext) !void {
     };
     defer std.zon.parse.free(ctx.allocator, app_meta);
 
-    const port = app_meta.config.server.port orelse 3000;
+    const port = DevServer.findFreePort() catch app_meta.config.server.port orelse 3000;
+    const port_str = try std.fmt.allocPrint(ctx.allocator, "{d}", .{port});
+    defer ctx.allocator.free(port_str);
     const appoutdir = app_meta.rootdir orelse "site/.zx";
     const host = app_meta.config.server.address orelse "0.0.0.0";
 
     var app_child = std.process.Child.init(&.{ app_meta.binpath.?, "--cli-command", "export" }, ctx.allocator);
     app_child.stdout_behavior = .Ignore;
     app_child.stderr_behavior = .Ignore;
+    const env_map = try ctx.allocator.create(std.process.EnvMap);
+    env_map.* = try std.process.getEnvMap(ctx.allocator);
+    try env_map.put("ZIEX_INNER_PORT", port_str);
+    app_child.env_map = env_map;
     try app_child.spawn();
     defer _ = app_child.kill() catch {};
     errdefer _ = app_child.kill() catch {};
@@ -348,5 +354,6 @@ const zli = @import("zli");
 const util = @import("shared/util.zig");
 const flag = @import("shared/flag.zig");
 const zx = @import("zx");
+const DevServer = @import("dev/DevServer.zig");
 const tui = @import("../tui/main.zig");
 const log = std.log.scoped(.cli);

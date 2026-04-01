@@ -648,7 +648,26 @@ type ActiveRuntime = {
     options: InitOptions;
 };
 
+type ZiexDevtoolsHook = {
+    location: {
+        href: string;
+        origin: string;
+        host: string;
+        pathname: string;
+    };
+    reinit: () => Promise<{ source: WebAssembly.WebAssemblyInstantiatedSource; bridge: ZxBridge }>;
+};
+
 let activeRuntime: ActiveRuntime | null = null;
+
+function buildDevtoolsLocation(): ZiexDevtoolsHook["location"] {
+    return {
+        href: window.location.href,
+        origin: window.location.origin,
+        host: window.location.host,
+        pathname: window.location.pathname,
+    };
+}
 
 function normalizeOptions(options: InitOptions = {}): InitOptions {
     return {
@@ -661,7 +680,12 @@ function normalizeOptions(options: InitOptions = {}): InitOptions {
 
 function registerDevReinit(options: InitOptions): void {
     if (typeof window === 'undefined') return;
-    window.__zx_dev_reinit = () => init(options);
+    const reinit = () => init(options);
+    window.__zx_dev_reinit = reinit;
+    window.__ZIEX_DEVTOOLS_GLOBAL_HOOK__ = {
+        location: buildDevtoolsLocation(),
+        reinit,
+    };
 }
 
 /** Initialize WASM with the ZX Bridge */
@@ -732,5 +756,6 @@ declare global {
 
     interface Window {
         __zx_dev_reinit?: () => Promise<{ source: WebAssembly.WebAssemblyInstantiatedSource; bridge: ZxBridge }>;
+        __ZIEX_DEVTOOLS_GLOBAL_HOOK__?: ZiexDevtoolsHook;
     }
 }

@@ -26,9 +26,10 @@ fn fetch() void {
     if (fetched) return;
     if (!data.loadSettings()) return;
     const host = data.host;
+    const path = data.current_path;
     const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://")) host else std.fmt.allocPrint(zx.client_allocator, "http://{s}", .{host}) catch return;
     const include_native = if (data.show_native_elements) "1" else "0";
-    const url = std.fmt.allocPrint(zx.client_allocator, "{s}/.well-known/_zx/devtool?path=/&include_native={s}", .{ base, include_native }) catch return;
+    const url = std.fmt.allocPrint(zx.client_allocator, "{s}/.well-known/_zx/devtool?path={s}&include_native={s}", .{ base, path, include_native }) catch return;
     fetched = true;
     _ = zx.fetch(.wasm(&onFetchText), zx.client_allocator, url, .{ .method = .GET }) catch {};
 }

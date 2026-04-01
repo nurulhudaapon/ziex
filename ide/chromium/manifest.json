@@ -30,10 +30,7 @@
     }
   ],
   "permissions": [
-    "scripting"
-  ],
-  "host_permissions": [
-    "<all_urls>"
+    "activeTab"
   ],
   "web_accessible_resources": [
     {
@@ -44,7 +41,8 @@
         "pages/*"
       ],
       "matches": [
-        "<all_urls>"
+        "http://localhost:*/*",
+        "http://127.0.0.1:*/*"
       ]
     }
   ],

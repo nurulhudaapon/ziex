@@ -89,11 +89,9 @@ pub fn ComponentRotes(
                 <div class="routes-children">
                     {for (routes) |route| (
                         <a
-                            @allocator={ctx.allocator}
                             class={getRouteItemClass(route)}
                             href={getRouteHref(ctx.allocator, route.path)}
-                            target="_blank"
-                            rel="noopener noreferrer"
+                            data-route-navigate={route.path}
                         >
                             <div class="route-head">
                                 <div class="route-main">

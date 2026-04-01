@@ -154,6 +154,8 @@ pub fn initInner(
 
     const zxjs_default_href = "/assets/_/main.js";
     var zxjs_href = opts.client.jsglue_href orelse zxjs_default_href;
+    const wasm_default_href = "/assets/_/main.wasm";
+    const wasm_href = opts.client.wasm_href orelse wasm_default_href;
     // --- Static Directory Setup --- //
     {
         // Install public directory into static (only if the directory exists)
@@ -212,8 +214,8 @@ pub fn initInner(
         .element = .{
             .tag = "link",
             .attributes = b.fmt(
-                "id=\"__$wasmlink\" rel=\"preload\" as=\"fetch\" href=\"/assets/_/main.wasm?{s}\" crossorigin",
-                .{version},
+                "id=\"__$wasmlink\" rel=\"preload\" as=\"fetch\" href=\"{s}?{s}\" crossorigin",
+                .{ wasm_href, version },
             ),
         },
     });

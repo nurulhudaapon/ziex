@@ -3,21 +3,10 @@
 
 function detectZiex() {
   // Check if Ziex is loaded
-  const hasZiex = !!window.__ZIEX__ || !!window.Ziex || !!window.__zx_dev_reinit;
-  
+  const hasZiex = !!window.__ZIEX__ || !!window.Ziex || !!window.__zx_dev_reinit || !!window.__ZIEX_DEVTOOLS_GLOBAL_HOOK__;
+
   if (hasZiex) {
     console.log('Ziex detected on page');
-    
-    // Inject hook for Ziex devtools
-    const script = document.createElement('script');
-    script.textContent = `
-      window.__ZIEX_DEVTOOLS_GLOBAL_HOOK__ = {
-        enabled: true,
-        version: '1.0.0'
-      };
-    `;
-    document.documentElement.appendChild(script);
-    script.remove();
   }
 }
 
@@ -30,3 +19,31 @@ if (document.readyState === 'loading') {
 } else {
   detectZiex();
 }
+
+// Detect SPA navigations (pushState/replaceState/popstate)
+// and notify the devtools panel so it can refetch components.
+(function observeNavigation() {
+  let lastHref = location.href;
+
+  function notifyNavigation() {
+    const href = location.href;
+    if (href === lastHref) return;
+    lastHref = href;
+    chrome.runtime.sendMessage({ type: 'zx-navigation', href }).catch(() => {});
+  }
+
+  // Patch History API
+  const origPushState = history.pushState;
+  const origReplaceState = history.replaceState;
+
+  history.pushState = function (...args) {
+    origPushState.apply(this, args);
+    notifyNavigation();
+  };
+  history.replaceState = function (...args) {
+    origReplaceState.apply(this, args);
+    notifyNavigation();
+  };
+
+  window.addEventListener('popstate', notifyNavigation);
+})();

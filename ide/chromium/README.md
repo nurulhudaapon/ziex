@@ -5,9 +5,7 @@
 2. Build and export the Ziex site:
    ```bash
    cd ide/devtool
-   zig build -Dplatform=chromium
-   zig build zx -- export --outdir ../chromium/pages
-   mv ../chromium/pages/assets/ ../chromium/assets/
+   zig build chromium
    ```
 
 3. Test the extension in Chrome by loading the `ide/chromium` directory
@@ -15,4 +13,4 @@
    - Enable "Developer mode"
    - Click "Load unpacked" and select the `ide/chromium` directory
 
-4. Open the ziex-app.html and open DevTools to see the extension in action!
+4. Browse to any Ziex app and open DevTools to see the extension in action!

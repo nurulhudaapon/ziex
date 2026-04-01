@@ -123,12 +123,12 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             </div>
 
             <div class="settings-grid">
-                <div>
-                    <h3 class="settings-section-title">Tabs</h3>
-                    <div class="settings-tabs-panel">
-                        {for (tab_items) |item| (<TabRow allocator={ctx.arena} name={item.name} icon={item.icon} pinned={item.pinned} checked={item.checked} />)}
-                    </div>
-                </div>
+                // <div>
+                //     <h3 class="settings-section-title">Tabs</h3>
+                //     <div class="settings-tabs-panel">
+                //         {for (tab_items) |item| (<TabRow allocator={ctx.arena} name={item.name} icon={item.icon} pinned={item.pinned} checked={item.checked} />)}
+                //     </div>
+                // </div>
 
                 <div>
                     <div class="settings-section">

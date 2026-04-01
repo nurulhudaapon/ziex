@@ -80,6 +80,7 @@ pub const ClientOptions = struct {
     pub const default: ClientOptions = .{};
 
     jsglue_href: ?[]const u8 = null,
+    wasm_href: ?[]const u8 = null,
 };
 
 /// Experimental features that may change in future versions.

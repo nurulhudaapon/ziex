@@ -25,12 +25,14 @@ pub const StateItem = zx.Component.Serializable.StateItem;
 
 const storage_key = "zx-devtool-show-native-elements";
 pub const host_storage_key = "zx-devtool-host-v2";
+pub const path_storage_key = "zx-devtool-path-v1";
 const settings_namespace = "ide/devtool/settings";
 const theme_storage_key = "zx-devtool-theme-dark";
 
 var _show_native_elements_loaded = false;
 pub var show_native_elements: bool = true;
 pub var host: []const u8 = "localhost:3000";
+pub var current_path: []const u8 = "/";
 
 fn settingsKV() zx.kv.KVScope {
     return zx.kv.scope(settings_namespace);
@@ -40,6 +42,7 @@ pub fn loadSettings() bool {
     if (_show_native_elements_loaded) return true;
     show_native_elements = settingsKV().as(zx.client_allocator, storage_key, bool) catch null orelse true;
     host = settingsKV().get(zx.client_allocator, host_storage_key) catch null orelse host;
+    current_path = settingsKV().get(zx.client_allocator, path_storage_key) catch null orelse current_path;
     _show_native_elements_loaded = true;
     return _show_native_elements_loaded;
 }

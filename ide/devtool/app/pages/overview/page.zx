@@ -13,8 +13,9 @@ fn ensureCountsFetch() void {
 fn fetchComponentsCount() void {
     if (components_fetch_started) return;
     const host = data.host;
+    const path = data.current_path;
     const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://")) host else std.fmt.allocPrint(zx.client_allocator, "http://{s}", .{host}) catch return;
-    const url = std.fmt.allocPrint(zx.client_allocator, "{s}/.well-known/_zx/devtool?path=/", .{base}) catch return;
+    const url = std.fmt.allocPrint(zx.client_allocator, "{s}/.well-known/_zx/devtool?path={s}", .{ base, path }) catch return;
     components_fetch_started = true;
     _ = zx.fetch(.wasm(&onFetchComponentsCount), zx.client_allocator, url, .{ .method = .GET }) catch {};
 }
