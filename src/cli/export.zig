@@ -42,6 +42,10 @@ fn @"export"(ctx: zli.CommandContext) !void {
     app_child.stdout_behavior = .Ignore;
     app_child.stderr_behavior = .Ignore;
     const env_map = try ctx.allocator.create(std.process.EnvMap);
+    defer {
+        env_map.deinit();
+        ctx.allocator.destroy(env_map);
+    }
     env_map.* = try std.process.getEnvMap(ctx.allocator);
     try env_map.put("ZIEX_INNER_PORT", port_str);
     app_child.env_map = env_map;
