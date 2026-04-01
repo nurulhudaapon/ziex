@@ -15,12 +15,16 @@ import {
     ZxBridgeCore,
     jsz,
     storeValueGetRef,
+    wrapPromisingExport,
+    invokeWasmExport,
     readString,
     writeBytes,
     textDecoder,
     textEncoder,
     getMemoryView,
 } from "./core";
+import { createKVImports, type KVNamespace } from "../kv";
+import { createBrowserKVBindings } from "../browser/kv";
 import type {
     WsOnOpenHandler,
     WsOnMessageHandler,
@@ -41,14 +45,35 @@ export class ZxBridge extends ZxBridgeCore {
     readonly #wsOnErrorHandler: WsOnErrorHandler | undefined;
     readonly #wsOnCloseHandler: WsOnCloseHandler | undefined;
     readonly #eventbridge: ((velementId: bigint, eventTypeId: number, eventRef: bigint) => void) | undefined;
+    readonly #eventbridgeAsync: ((velementId: bigint, eventTypeId: number, eventRef: bigint) => void) | undefined;
 
     constructor(exports: WebAssembly.Exports) {
         super(exports);
-        this.#wsOnOpenHandler = exports.__zx_ws_onopen as WsOnOpenHandler | undefined;
-        this.#wsOnMessageHandler = exports.__zx_ws_onmessage as WsOnMessageHandler | undefined;
-        this.#wsOnErrorHandler = exports.__zx_ws_onerror as WsOnErrorHandler | undefined;
-        this.#wsOnCloseHandler = exports.__zx_ws_onclose as WsOnCloseHandler | undefined;
+        this.#wsOnOpenHandler = wrapPromisingExport(exports.__zx_ws_onopen as WsOnOpenHandler | undefined);
+        this.#wsOnMessageHandler = wrapPromisingExport(exports.__zx_ws_onmessage as WsOnMessageHandler | undefined);
+        this.#wsOnErrorHandler = wrapPromisingExport(exports.__zx_ws_onerror as WsOnErrorHandler | undefined);
+        this.#wsOnCloseHandler = wrapPromisingExport(exports.__zx_ws_onclose as WsOnCloseHandler | undefined);
         this.#eventbridge = exports.__zx_eventbridge as ((velementId: bigint, eventTypeId: number, eventRef: bigint) => void) | undefined;
+        this.#eventbridgeAsync = wrapPromisingExport(
+            (exports.__zx_eventbridge_async ?? exports.__zx_eventbridge) as
+                ((velementId: bigint, eventTypeId: number, eventRef: bigint) => void) | undefined
+        );
+    }
+
+    eventMaySuspend(velementId: bigint, eventTypeId: number): boolean {
+        return !!((eventHandlerModes.get(velementId) ?? 0) & (1 << eventTypeId));
+    }
+
+    setEventHandlerMode(velementId: bigint, eventTypeId: number, maySuspend: boolean): void {
+        const bit = 1 << eventTypeId;
+        const current = eventHandlerModes.get(velementId) ?? 0;
+        const next = maySuspend ? (current | bit) : (current & ~bit);
+        if (next === 0) eventHandlerModes.delete(velementId);
+        else eventHandlerModes.set(velementId, next);
+    }
+
+    clearEventHandlerModes(velementId: bigint): void {
+        eventHandlerModes.delete(velementId);
     }
 
     /** Submit a form action with bound-state round-trip. */
@@ -97,7 +122,7 @@ export class ZxBridge extends ZxBridgeCore {
                 if (!handler) return;
                 const protocol = ws.protocol || '';
                 const { ptr, len } = this._writeStringToWasm(protocol);
-                handler(wsId, ptr, len);
+                invokeWasmExport(handler, wsId, ptr, len);
             };
 
             ws.onmessage = (event: MessageEvent) => {
@@ -108,14 +133,14 @@ export class ZxBridge extends ZxBridgeCore {
                     ? new Uint8Array(event.data as ArrayBuffer)
                     : textEncoder.encode(event.data as string);
                 const { ptr, len } = this._writeBytesToWasm(data);
-                handler(wsId, ptr, len, isBinary ? 1 : 0);
+                invokeWasmExport(handler, wsId, ptr, len, isBinary ? 1 : 0);
             };
 
             ws.onerror = (_event: Event) => {
                 const handler = this.#wsOnErrorHandler;
                 if (!handler) return;
                 const { ptr, len } = this._writeStringToWasm('WebSocket error');
-                handler(wsId, ptr, len);
+                invokeWasmExport(handler, wsId, ptr, len);
             };
 
             ws.onclose = (event: CloseEvent) => {
@@ -123,7 +148,7 @@ export class ZxBridge extends ZxBridgeCore {
                 if (!handler) return;
                 const reason = event.reason || '';
                 const { ptr, len } = this._writeStringToWasm(reason);
-                handler(wsId, event.code, ptr, len, event.wasClean ? 1 : 0);
+                invokeWasmExport(handler, wsId, event.code, ptr, len, event.wasClean ? 1 : 0);
                 this.#websockets.delete(wsId);
             };
 
@@ -133,7 +158,7 @@ export class ZxBridge extends ZxBridgeCore {
             if (handler) {
                 const msg = error instanceof Error ? error.message : 'WebSocket connection failed';
                 const { ptr, len } = this._writeStringToWasm(msg);
-                handler(wsId, ptr, len);
+                invokeWasmExport(handler, wsId, ptr, len);
             }
         }
     }
@@ -165,6 +190,7 @@ export class ZxBridge extends ZxBridgeCore {
 
     override dispose(): void {
         super.dispose();
+        eventHandlerModes.clear();
         for (const ws of this.#websockets.values()) {
             try {
                 ws.close();
@@ -177,9 +203,12 @@ export class ZxBridge extends ZxBridgeCore {
 
     /** Handle a DOM event (called by event delegation) */
     eventbridge(velementId: bigint, eventTypeId: number, event: Event): void {
-        if (!this.#eventbridge) return;
         const eventRef = storeValueGetRef(event);
-        this.#eventbridge(velementId, eventTypeId, eventRef);
+        if (this.eventMaySuspend(velementId, eventTypeId)) {
+            invokeWasmExport(this.#eventbridgeAsync, velementId, eventTypeId, eventRef);
+            return;
+        }
+        invokeWasmExport(this.#eventbridge, velementId, eventTypeId, eventRef);
     }
 
     /** Create the full browser import object for WASM instantiation (includes DOM + WebSocket). */
@@ -188,6 +217,12 @@ export class ZxBridge extends ZxBridgeCore {
             ...jsz.importObject(),
             __zx: {
                 _log: (level: number, ptr: number, len: number) => ZxBridgeCore.log(level, ptr, len),
+                _setEventHandlerMode: (vnodeId: bigint, eventTypeId: number, maySuspend: number) => {
+                    bridgeRef.current?.setEventHandlerMode(vnodeId, eventTypeId, maySuspend !== 0);
+                },
+                _clearEventHandlerModes: (vnodeId: bigint) => {
+                    bridgeRef.current?.clearEventHandlerModes(vnodeId);
+                },
                 _fetchAsync: (
                     urlPtr: number,
                     urlLen: number,
@@ -566,6 +601,8 @@ const EVENT_TYPE_MAP: Record<DelegatedEvent, number> = {
     'scroll': 18,
 };
 
+const eventHandlerModes = new Map<bigint, number>();
+
 /** Initialize event delegation */
 export function initEventDelegation(bridge: ZxBridge, rootSelector: string = 'body'): () => void {
     const root = document.querySelector(rootSelector);
@@ -601,6 +638,7 @@ export type InitOptions = {
     url?: string;
     eventDelegationRoot?: string;
     importObject?: WebAssembly.Imports;
+    kv?: Record<string, KVNamespace>;
 };
 
 const DEFAULT_URL = "/assets/_/main.wasm";
@@ -617,6 +655,7 @@ function normalizeOptions(options: InitOptions = {}): InitOptions {
         url: options.url,
         eventDelegationRoot: options.eventDelegationRoot,
         importObject: options.importObject,
+        kv: options.kv,
     };
 }
 
@@ -635,17 +674,29 @@ export async function init(options: InitOptions = {}): Promise<{ source: WebAsse
 
     const url = options.url ?? (document.getElementById("__$wasmlink") as HTMLLinkElement | null)?.href ?? DEFAULT_URL;
     const bridgeRef: { current: ZxBridge | null } = { current: null };
+    let wasmMemory: WebAssembly.Memory | null = null;
+
+    const kvBindings = options.kv ?? createBrowserKVBindings();
+    const kvImportObject = {
+        __zx_kv: createKVImports(kvBindings, () => {
+            if (wasmMemory) return wasmMemory;
+            if (jsz.memory) return jsz.memory;
+            throw new Error("WASM memory is not ready");
+        }),
+    };
 
     const importObject = Object.assign(
         {},
         ZxBridge.createImportObject(bridgeRef),
+        kvImportObject,
         options.importObject
     );
 
     const source = await WebAssembly.instantiateStreaming(fetch(url), importObject);
     const { instance } = source;
 
-    jsz.memory = instance.exports.memory as WebAssembly.Memory;
+    wasmMemory = instance.exports.memory as WebAssembly.Memory;
+    jsz.memory = wasmMemory;
 
     const bridge = new ZxBridge(instance.exports);
     bridgeRef.current = bridge;
@@ -654,8 +705,8 @@ export async function init(options: InitOptions = {}): Promise<{ source: WebAsse
 
     const disposeDelegation = initEventDelegation(bridge, options.eventDelegationRoot ?? 'body');
 
-    const main = instance.exports.mainClient;
-    if (typeof main === 'function') main();
+    const main = wrapPromisingExport(instance.exports.mainClient as (() => void) | undefined);
+    invokeWasmExport(main);
 
     activeRuntime = {
         options: normalizedOptions,

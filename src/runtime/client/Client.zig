@@ -231,6 +231,9 @@ pub fn registerVElement(self: *Client, velement: *vtree_mod.VElement) void {
 pub fn registerHandler(self: *Client, velement_id: u64, event_type: EventType, handler: zx.EventHandler) void {
     const key = HandlerKey{ .velement_id = velement_id, .event_type = event_type };
     self.handler_registry.put(key, handler) catch {};
+    if (zx.platform == .browser) {
+        window.ext._setEventHandlerMode(velement_id, @intFromEnum(event_type), if (handler.may_suspend) 1 else 0);
+    }
 }
 
 /// Look up a handler by VElement ID and event type
@@ -242,6 +245,9 @@ pub fn getHandler(self: *Client, velement_id: u64, event_type: EventType) ?zx.Ev
 /// Unregister a VElement and all its children from the registry
 pub fn unregisterVElement(self: *Client, velement: *vtree_mod.VElement) void {
     _ = self.id_to_velement.remove(velement.id);
+    if (zx.platform == .browser) {
+        window.ext._clearEventHandlerModes(velement.id);
+    }
 
     // Recursively unregister children
     for (velement.children.items) |child| {
@@ -465,6 +471,10 @@ export fn __zx_eventbridge(velement_id: u64, event_type_id: u8, event_ref: u64) 
         const event_type: EventType = @enumFromInt(event_type_id);
         _ = client.dispatchEvent(velement_id, event_type, event_ref);
     }
+}
+
+export fn __zx_eventbridge_async(velement_id: u64, event_type_id: u8, event_ref: u64) void {
+    __zx_eventbridge(velement_id, event_type_id, event_ref);
 }
 
 /// Handle async callbacks (setTimeout, setInterval, fetch) from JS bridge.

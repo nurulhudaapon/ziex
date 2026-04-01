@@ -4,7 +4,7 @@
 
 const std = @import("std");
 const builtin = @import("builtin");
-const ext = @import("window/extern.zig");
+pub const ext = @import("window/extern.zig");
 
 const zx = @import("../../root.zig");
 /// Whether we're running in a browser environment (WASM)

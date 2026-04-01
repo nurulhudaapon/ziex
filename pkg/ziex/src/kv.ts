@@ -6,6 +6,13 @@ export interface KVNamespace {
     list(options?: { prefix?: string }): Promise<{ keys: { name: string }[] }>;
 }
 
+export interface SyncKVNamespace extends KVNamespace {
+    getSync(key: string): string | null;
+    putSync(key: string, value: string, options?: { expiration?: number; expirationTtl?: number }): void;
+    deleteSync(key: string): void;
+    listSync(options?: { prefix?: string }): { keys: { name: string }[] };
+}
+
 /**
  * In-memory KV namespace. Used as the default shim on platforms that don't
  * provide a real KV binding (e.g. Vercel). Data lives only for the lifetime
@@ -26,10 +33,20 @@ export function createMemoryKV(): KVNamespace {
     };
 }
 
+function isSyncKVNamespace(binding: KVNamespace): binding is SyncKVNamespace {
+    const candidate = binding as Partial<SyncKVNamespace>;
+    return (
+        typeof candidate.getSync === "function" &&
+        typeof candidate.putSync === "function" &&
+        typeof candidate.deleteSync === "function" &&
+        typeof candidate.listSync === "function"
+    );
+}
+
 /**
  * Create a `__zx_kv` import object for use with `run({ kv: ... })`.
- * Always returns a valid import object. When JSPI is unavailable all KV
- * operations are stubbed (get → not-found, put/delete → success, list → []).
+ * Always returns a valid import object. When JSPI is unavailable it uses
+ * synchronous bindings when available, otherwise falls back to stubbed no-ops.
  */
 export function createKVImports(
     bindings: Record<string, KVNamespace>,
@@ -54,13 +71,38 @@ export function createKVImports(
 
     const Suspending = (WebAssembly as any).Suspending;
     if (typeof Suspending !== 'function') {
-        // No JSPI: KV cannot be async. Stub all operations with sync no-ops.
+        function syncBinding(ns: string): SyncKVNamespace | null {
+            const candidate = binding(ns);
+            return candidate && isSyncKVNamespace(candidate) ? candidate : null;
+        }
+
         return {
-            kv_get: (_ns: number, _nsLen: number, _key: number, _keyLen: number, _buf: number, _max: number): number => -1,
-            kv_put: (_ns: number, _nsLen: number, _key: number, _keyLen: number, _val: number, _valLen: number): number => 0,
-            kv_delete: (_ns: number, _nsLen: number, _key: number, _keyLen: number): number => 0,
-            kv_list: (_ns: number, _nsLen: number, _pfx: number, _pfxLen: number, buf_ptr: number, buf_max: number): number =>
-                writeBytes(buf_ptr, buf_max, encoder.encode("[]")),
+            kv_get: (ns_ptr: number, ns_len: number, key_ptr: number, key_len: number, buf_ptr: number, buf_max: number): number => {
+                const b = syncBinding(readStr(ns_ptr, ns_len));
+                if (!b) return -1;
+                const value = b.getSync(readStr(key_ptr, key_len));
+                if (value === null) return -1;
+                return writeBytes(buf_ptr, buf_max, encoder.encode(value));
+            },
+            kv_put: (ns_ptr: number, ns_len: number, key_ptr: number, key_len: number, val_ptr: number, val_len: number): number => {
+                const b = syncBinding(readStr(ns_ptr, ns_len));
+                if (!b) return 0;
+                b.putSync(readStr(key_ptr, key_len), readStr(val_ptr, val_len));
+                return 0;
+            },
+            kv_delete: (ns_ptr: number, ns_len: number, key_ptr: number, key_len: number): number => {
+                const b = syncBinding(readStr(ns_ptr, ns_len));
+                if (!b) return 0;
+                b.deleteSync(readStr(key_ptr, key_len));
+                return 0;
+            },
+            kv_list: (ns_ptr: number, ns_len: number, pfx_ptr: number, pfx_len: number, buf_ptr: number, buf_max: number): number => {
+                const b = syncBinding(readStr(ns_ptr, ns_len));
+                if (!b) return writeBytes(buf_ptr, buf_max, encoder.encode("[]"));
+                const prefix = readStr(pfx_ptr, pfx_len);
+                const result = b.listSync(prefix.length > 0 ? { prefix } : undefined);
+                return writeBytes(buf_ptr, buf_max, encoder.encode(JSON.stringify(result.keys.map((k) => k.name))));
+            },
         };
     }
 

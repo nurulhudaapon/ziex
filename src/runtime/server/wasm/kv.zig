@@ -28,7 +28,7 @@ fn list(_: *anyopaque, ns: []const u8, allocator: std.mem.Allocator, prefix: []c
     return keys;
 }
 
-const vtable = kv.VTable{
+pub const vtable = kv.VTable{
     .get = &get,
     .put = &put,
     .delete = &delete,

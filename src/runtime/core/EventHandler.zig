@@ -43,6 +43,9 @@ server_event_fn: ?*const fn (*zx.server.Event) void = null,
 handler_id: u32 = 0,
 /// States to serialize/deserialize for server event round-trips.
 bound_states: []const Bound = &.{},
+/// True when the handler may reach suspending browser imports and must be
+/// invoked through the async/JSPI event path.
+may_suspend: bool = false,
 
 const Self = @This();
 
@@ -110,6 +113,7 @@ pub fn wrap(comptime func: anytype) Self {
     return .{
         .callback = &Wrapper.wrapper,
         .context = @as(*anyopaque, @ptrFromInt(1)),
+        .may_suspend = false,
     };
 }
 
@@ -131,11 +135,12 @@ pub fn action(comptime func: anytype) Self {
                     func(ctx.data(arg_type));
                 }
             };
-            return .{
-                .callback = &actionHandler,
-                .context = @as(*anyopaque, @ptrFromInt(1)),
-                .action_fn = &DirectTyped.w,
-            };
+    return .{
+        .callback = &actionHandler,
+        .context = @as(*anyopaque, @ptrFromInt(1)),
+        .action_fn = &DirectTyped.w,
+        .may_suspend = false,
+    };
         }
     }
     return wrap(func);
@@ -151,6 +156,7 @@ pub fn runtime(func: *const fn (zx.client.Event) void) Self {
             }
         }.w,
         .context = @ptrCast(@constCast(func)),
+        .may_suspend = false,
     };
 }
 
@@ -165,6 +171,7 @@ pub fn runtimePtr(func: *const fn (*zx.client.Event) void) Self {
             }
         }.w,
         .context = @ptrCast(@constCast(func)),
+        .may_suspend = false,
     };
 }
 
@@ -179,6 +186,7 @@ pub fn client(comptime handler: anytype) Self {
     return .{
         .callback = &Wrap.w,
         .context = @as(*anyopaque, @ptrFromInt(1)),
+        .may_suspend = false,
     };
 }
 
@@ -197,6 +205,7 @@ pub fn clientS(comptime handler: anytype, alloc: Allocator, component_id: []cons
     return .{
         .callback = &Wrap.w,
         .context = @ptrCast(cid),
+        .may_suspend = true,
     };
 }
 

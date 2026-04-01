@@ -82,6 +82,26 @@ export function writeBytes(ptr: number, data: Uint8Array): void {
     getMemoryView().set(data, ptr);
 }
 
+export function wrapPromisingExport<F extends (...args: any[]) => any>(fn: F | undefined): F | undefined {
+    if (!fn) return undefined;
+    const promising = (WebAssembly as any).promising;
+    if (typeof promising !== "function") return fn;
+    return promising(fn) as F;
+}
+
+export function invokeWasmExport<F extends (...args: any[]) => any>(
+    fn: F | undefined,
+    ...args: Parameters<F>
+): void {
+    if (!fn) return;
+    const result = fn(...args);
+    if (result && typeof (result as PromiseLike<unknown>).then === "function") {
+        void (result as PromiseLike<unknown>).then(undefined, (error) => {
+            console.error(error);
+        });
+    }
+}
+
 /**
  * Core ZX Bridge — works in both browser and edge runtimes.
  * Contains fetch, timers, and logging. No DOM or browser-WebSocket references.
@@ -97,8 +117,12 @@ export class ZxBridgeCore {
 
     constructor(exports: WebAssembly.Exports) {
         this._alloc = exports.__zx_alloc as (size: number) => number;
-        this.#handler = exports.__zx_cb as CallbackHandler | undefined;
-        this.#fetchCompleteHandler = exports.__zx_fetch_complete as FetchCompleteHandler;
+        this.#handler = wrapPromisingExport(exports.__zx_cb as CallbackHandler | undefined);
+        const fetchCompleteHandler = wrapPromisingExport(exports.__zx_fetch_complete as FetchCompleteHandler | undefined);
+        if (!fetchCompleteHandler) {
+            throw new Error("__zx_fetch_complete not exported from WASM");
+        }
+        this.#fetchCompleteHandler = fetchCompleteHandler;
         if (exports.memory) jsz.memory = exports.memory as WebAssembly.Memory;
     }
 
@@ -110,7 +134,7 @@ export class ZxBridgeCore {
             return;
         }
         const dataRef = storeValueGetRef(data);
-        handler(type, id, dataRef);
+        invokeWasmExport(handler, type, id, dataRef);
     }
 
     /**
@@ -176,7 +200,7 @@ export class ZxBridgeCore {
         const encoded = textEncoder.encode(body);
         const ptr = this._alloc(encoded.length);
         writeBytes(ptr, encoded);
-        handler(fetchId, statusCode, ptr, encoded.length, isError ? 1 : 0);
+        invokeWasmExport(handler, fetchId, statusCode, ptr, encoded.length, isError ? 1 : 0);
     }
 
     /** Set a timeout and callback when it fires */

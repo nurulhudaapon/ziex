@@ -1,13 +1,59 @@
 pub fn Page(ctx: zx.PageContext) !zx.Component {
-    const prev = try zx.kv.get(ctx.arena, "count");
-    const count = if (prev) |s| (try std.fmt.parseInt(u64, s, 10)) + 1 else 1;
-    try zx.kv.put("count", try ctx.fmt("{d}", .{count}), .{});
+    const prev = try zx.kv.as(ctx.arena, "c", u64);
+    const count = if (prev) |s| s + 1 else 1;
+    try zx.kv.putAs("c", count, .{});
 
     return (
-        <main @allocator={ctx.arena} lang="en">
+        <main @allocator={ctx.arena}>
             <p>Visit count: {count}</p>
+            <ClientCounter @rendering={.client} />
         </main>
     );
+}
+
+var initialized: bool = false;
+pub fn ClientCounter(ctx: *zx.ComponentContext) !zx.Component {
+    const count = ctx.state(u64, 0);
+    init(count) catch {};
+
+    return (
+        <div @allocator={ctx.allocator}>
+            <button onclick={ctx.bind(onclick)}>
+                Client count: {if (count.get() == 0)("...")else (<>{count}</>)}
+            </button>
+        </div>
+    );
+}
+
+fn onclick(ctx: *zx.client.Event.Stateful) void {
+    zx.log.info("counter click\n", .{});
+    tryonclick(ctx) catch |e| {
+        zx.log.err("Error in onclick handler: {s}", .{@errorName(e)});
+    };
+}
+
+fn init(count: *zx.State(u64)) !void {
+    if (zx.platform != .browser or initialized)
+        return;
+
+    initialized = true;
+    const prev = try zx.kv.as(zx.client_allocator, "c", u64);
+    const count_value = if (prev) |s| s else 0;
+    zx.log.info("Initializing count: {d}\n", .{count_value});
+    count.set(count_value);
+}
+
+fn tryonclick(ctx: *zx.client.Event.Stateful) !void {
+    zx.log.info("counter click inner\n", .{});
+
+    const count_state = ctx.state(u64);
+
+    const prev = try zx.kv.as(zx.client_allocator, "c", u64);
+    const count = if (prev) |s| s + 1 else 1;
+    try zx.kv.putAs("c", count, .{});
+    count_state.set(count);
+
+    zx.log.info("Button clicked: pc: {d}, count: {d}", .{ prev orelse 0, count });
 }
 
 const zx = @import("zx");
