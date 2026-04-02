@@ -295,3 +295,11 @@ pub fn build(b: *std.Build) !void {
         }
     }
 }
+
+pub const info = .{
+    .version = build_zon.version,
+    .description = build_zon.description,
+    .repository = build_zon.repository,
+    .homepage = build_zon.homepage,
+    .minimum_zig_version = build_zon.minimum_zig_version,
+};

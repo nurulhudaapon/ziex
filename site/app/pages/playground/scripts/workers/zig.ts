@@ -1,6 +1,8 @@
 import { WASI, PreopenDirectory, Fd, File, OpenFile, Inode } from "@bjorn3/browser_wasi_shim";
 import { getLatestZigArchive, getZxArchive, stderrOutput, fetchWithCache } from "../utils";
 
+declare const ZIG_VERSION: string;
+
 let currentlyRunning = false;
 let compiledModule: WebAssembly.Module | null = null;
 
@@ -57,7 +59,7 @@ async function run(files: { [filename: string]: string }) {
     let wasi = new WASI(args, env, fds, { debug: false });
 
     if (!compiledModule) {
-        const response = await fetchWithCache("/assets/playground/zig.wasm");
+        const response = await fetchWithCache(`/assets/playground/zig-${ZIG_VERSION}.wasm`);
         compiledModule = await WebAssembly.compileStreaming(response);
     }
     const instance = await WebAssembly.instantiate(compiledModule, {

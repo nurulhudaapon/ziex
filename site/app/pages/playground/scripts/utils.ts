@@ -2,10 +2,10 @@ import { untar } from "@andrewbranch/untar.js";
 import { Directory, File, ConsoleStdout, wasi as wasi_defs } from "@bjorn3/browser_wasi_shim";
 
 declare const VERSION: string;
+declare const ZIG_VERSION: string;
 
 export async function fetchWithCache(url: string): Promise<Response> {
-    const cacheName = typeof VERSION !== "undefined" ? "playground-" + VERSION : "playground-dev";
-    const cache = await caches.open(cacheName.trim());
+    const cache = await caches.open(`playground-${VERSION}`);
     let response = await cache.match(url);
     if (!response) {
         response = await fetch(url);
@@ -22,7 +22,7 @@ let _cachedZigRoot: TreeNode | null = null;
 export async function getLatestZigArchive() {
     if (_cachedZigRoot) return convert(_cachedZigRoot);
 
-    const response = await fetchWithCache("/assets/playground/zig.tar.gz");
+    const response = await fetchWithCache(`/assets/playground/zig-${ZIG_VERSION}.tar.gz`);
     let arrayBuffer = await response.arrayBuffer();
     const magicNumber = new Uint8Array(arrayBuffer).slice(0, 2);
     if (magicNumber[0] == 0x1F && magicNumber[1] == 0x8B) { // gzip
@@ -61,7 +61,7 @@ let _cachedZxRoot: TreeNode | null = null;
 export async function getZxArchive() {
     if (_cachedZxRoot) return convert(_cachedZxRoot);
 
-    const response = await fetchWithCache("/assets/playground/zx.tar.gz");
+    const response = await fetchWithCache(`/assets/playground/zx-${VERSION}.tar.gz`);
     let arrayBuffer = await response.arrayBuffer();
     const magicNumber = new Uint8Array(arrayBuffer).slice(0, 2);
     if (magicNumber[0] == 0x1F && magicNumber[1] == 0x8B) { // gzip

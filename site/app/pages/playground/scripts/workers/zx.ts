@@ -1,6 +1,7 @@
 import { File, Inode, OpenFile, PreopenDirectory, WASI } from "@bjorn3/browser_wasi_shim";
 import { fetchWithCache, stderrOutput, stdoutOutput } from "../utils";
 
+declare const VERSION: string;
 let currentlyRunning = false;
 let compiledModule: WebAssembly.Module | null = null;
 
@@ -27,7 +28,7 @@ async function run(filename: string, content: string, subcommand?: string) {
     let wasi = new WASI(args, env, fds, { debug: false });
 
     if (!compiledModule) {
-        const response = await fetchWithCache("/assets/playground/zx.wasm");
+        const response = await fetchWithCache(`/assets/playground/zx-${VERSION}.wasm`);
         compiledModule = await WebAssembly.compileStreaming(response);
     }
     const instance = await WebAssembly.instantiate(compiledModule, {
