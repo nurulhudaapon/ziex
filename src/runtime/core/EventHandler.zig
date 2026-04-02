@@ -3,7 +3,7 @@ const builtin = @import("builtin");
 const zx = @import("../../root.zig");
 const reactivity = @import("../client/reactivity.zig");
 
-const is_wasm = zx.platform == .browser;
+const is_wasm = zx.platform.role == .client;
 const Allocator = std.mem.Allocator;
 
 fn getGlobalAllocator() std.mem.Allocator {

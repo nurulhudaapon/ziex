@@ -3,8 +3,8 @@ const zx = @import("zx");
 const Context = @import("Context.zig");
 
 pub fn main() !void {
-    if (zx.platform == .browser) return zx.Client.run();
-    if (zx.platform == .edge) return zx.Edge.run();
+    if (zx.platform.role == .client) return zx.Client.run();
+    if (zx.platform.isEdge()) return zx.Edge.run();
 
     var gpa = std.heap.DebugAllocator(.{}){};
     const allocator = gpa.allocator();

@@ -22,6 +22,7 @@ pub fn build(b: *std.Build) !void {
     const exclude_db = b.option(bool, "exclude-db", "Exclude database adapter to speed up builds") orelse false;
     const is_client = b.option(bool, "is-client", "Building for the browser (client)") orelse false;
     const is_edge = b.option(bool, "is-edge", "Building for a WASI-based edge runtime") orelse false;
+    const is_playground = b.option(bool, "is-playground", "Building for the ZX Playground (WASM)") orelse false;
 
     // Options
     const options = b.addOptions();
@@ -66,6 +67,7 @@ pub fn build(b: *std.Build) !void {
     zx_module_options.addOption(bool, "exclude_db", exclude_db);
     zx_module_options.addOption(bool, "is_client", is_client);
     zx_module_options.addOption(bool, "is_edge", is_edge);
+    zx_module_options.addOption(bool, "is_playground", is_playground);
 
     // Imports (zx)
     {
@@ -91,6 +93,7 @@ pub fn build(b: *std.Build) !void {
         mod.addAnonymousImport("zx_meta", .{ .root_source_file = b.path("src/build/stub_meta.zig"), .imports = &.{.{ .name = "zx", .module = mod }} });
         mod.addAnonymousImport("zx_injections", .{ .root_source_file = b.path("src/build/stubs/injections.zig") });
     }
+
     // --- ZX CLI (Transpiler, Exporter, Dev Server) --- //
     const zli_dep = b.dependency("zli", .{ .target = target, .optimize = optimize });
     const zls_dep = b.dependency("zls", .{ .target = target, .optimize = optimize });

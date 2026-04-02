@@ -85,7 +85,7 @@ const initial_todos = [_]Todo{
 
 fn addTodo(e: *zx.client.Event.Stateful) void {
     e.preventDefault();
-    if (!zx.platform.isBrowser()) return;
+    if (!zx.platform.isClient()) return;
 
     const todos_state = e.state(TodoList);
     const id_state = e.state(u32);
@@ -106,7 +106,7 @@ fn addTodo(e: *zx.client.Event.Stateful) void {
 }
 
 fn toggleTodo(e: *zx.client.Event.Stateful) void {
-    if (!zx.platform.isBrowser()) return;
+    if (!zx.platform.isClient()) return;
     const todos_state = e.state(TodoList);
     _ = e.state(u32); // skip next_id
 
@@ -138,7 +138,7 @@ fn clearTodos(e: *zx.client.Event.Stateful) void {
 }
 
 fn deleteTodo(e: *zx.client.Event.Stateful) void {
-    if (!zx.platform.isBrowser()) return;
+    if (!zx.platform.isClient()) return;
     const todos_state = e.state(TodoList);
     _ = e.state(u32); // skip next_id
 

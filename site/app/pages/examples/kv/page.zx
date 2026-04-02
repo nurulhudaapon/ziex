@@ -33,7 +33,7 @@ fn onclick(ctx: *zx.client.Event.Stateful) void {
 }
 
 fn init(count: *zx.State(u64)) !void {
-    if (zx.platform != .browser or initialized)
+    if (zx.platform.role != .client or initialized)
         return;
 
     initialized = true;

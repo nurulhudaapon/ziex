@@ -158,7 +158,7 @@ pub fn ActionButtons(ctx: *zx.ComponentCtx(struct {})) zx.Component {
 fn handleRunClick(ctx: zx.client.Event) void {
     _ = ctx;
 
-    if (zx.platform != .browser) return;
+    if (zx.platform.role != .client) return;
 
     const document = zx.client.Document.init(zx.client_allocator);
 

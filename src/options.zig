@@ -76,9 +76,9 @@ pub const ProxyOptions = struct {
 /// pub const std_options = zx.std_options;
 /// ```
 pub const std_options: std.Options = .{
-    .logFn = switch (platform) {
-        .browser => Client.logFn,
-        .edge => Edge.logFn,
+    .logFn = switch (platform.os) {
+        .freestanding => Client.logFn,
+        .wasi => Edge.logFn,
         else => std.log.defaultLog,
     },
 };

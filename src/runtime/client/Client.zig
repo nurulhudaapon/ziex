@@ -182,14 +182,17 @@ pub fn deinit(self: *Client) void {
 }
 
 fn mainClient() callconv(.c) void {
-    if (zx.platform != .browser) return;
+    if (zx.platform.role != .client) return;
+    kv_wasm.use();
 
     clnt.info();
     clnt.renderAll();
 }
 
 var clnt = init(zx.client_allocator, .{});
+const kv_wasm = @import("../server/wasm/kv.zig");
 pub fn run() !void {
+    // kv_wasm.use();
     @export(&mainClient, .{ .name = "mainClient" });
 }
 
@@ -231,7 +234,7 @@ pub fn registerVElement(self: *Client, velement: *vtree_mod.VElement) void {
 pub fn registerHandler(self: *Client, velement_id: u64, event_type: EventType, handler: zx.EventHandler) void {
     const key = HandlerKey{ .velement_id = velement_id, .event_type = event_type };
     self.handler_registry.put(key, handler) catch {};
-    if (zx.platform == .browser) {
+    if (zx.platform.role == .client) {
         window.ext._setEventHandlerMode(velement_id, @intFromEnum(event_type), if (handler.may_suspend) 1 else 0);
     }
 }
@@ -245,7 +248,7 @@ pub fn getHandler(self: *Client, velement_id: u64, event_type: EventType) ?zx.Ev
 /// Unregister a VElement and all its children from the registry
 pub fn unregisterVElement(self: *Client, velement: *vtree_mod.VElement) void {
     _ = self.id_to_velement.remove(velement.id);
-    if (zx.platform == .browser) {
+    if (zx.platform.role == .client) {
         window.ext._clearEventHandlerModes(velement.id);
     }
 
@@ -466,7 +469,7 @@ const Console = window.Console;
 const areComponentsSameType = vtree_mod.areComponentsSameType;
 
 export fn __zx_eventbridge(velement_id: u64, event_type_id: u8, event_ref: u64) void {
-    if (zx.platform != .browser) return;
+    if (zx.platform.role != .client) return;
     if (global_client) |client| {
         const event_type: EventType = @enumFromInt(event_type_id);
         _ = client.dispatchEvent(velement_id, event_type, event_ref);

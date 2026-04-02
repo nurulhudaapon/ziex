@@ -59,7 +59,7 @@ pub fn propsSerializer(comptime Props: type, allocator: std.mem.Allocator, props
     ptr: ?*const anyopaque,
     writeFn: ?*const fn (*std.Io.Writer, *const anyopaque) anyerror!void,
 } {
-    if (platform == .browser) return .{ .ptr = null, .writeFn = null };
+    if (platform.role == .client) return .{ .ptr = null, .writeFn = null };
     const type_info = @typeInfo(Props);
 
     if (type_info != .@"struct") return .{ .ptr = null, .writeFn = null };

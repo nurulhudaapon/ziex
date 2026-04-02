@@ -5,8 +5,8 @@ const zx = @import("zx");
 const config = zx.Server(AppCtx).Config{ .server = .{ .port = 5588 } };
 
 pub fn main() !void {
-    if (zx.platform == .browser) return try zx.Client.run();
-    if (zx.platform == .edge) return try zx.Edge.run();
+    if (zx.platform.role == .client) return try zx.Client.run();
+    if (zx.platform.isEdge()) return try zx.Edge.run();
 
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     const allocator = gpa.allocator();

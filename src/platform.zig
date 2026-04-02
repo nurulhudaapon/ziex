@@ -1,37 +1,57 @@
 const builtin = @import("builtin");
 
-pub const Platform = enum {
-    /// Browser environment (WASM)
-    browser,
-    /// Server environment
-    server,
-
-    /// Edge runtime (e.g. Cloudflare Workers
-    edge,
-
-    /// Future - Android environment
-    android,
-    /// Future - iOS environment
-    ios,
-    /// Future - macOS environment
+pub const Os = enum {
+    freestanding,
+    wasi,
+    linux,
     macos,
-    /// Future - Windows environment
     windows,
+    ios,
+    android,
+    other,
+};
 
-    pub inline fn isBrowser(self: Platform) bool {
-        return self == .browser;
+pub const Role = enum {
+    /// Server environment (native binary or WASI edge runtime)
+    server,
+    /// Client environment (browser WASM or future native mobile/desktop)
+    client,
+};
+
+pub const Platform = struct {
+    os: Os,
+    role: Role,
+
+    pub inline fn isClient(self: Platform) bool {
+        return self.role == .client;
+    }
+
+    pub inline fn isServer(self: Platform) bool {
+        return self.role == .server;
+    }
+
+    pub inline fn isWasm(self: Platform) bool {
+        return self.os == .freestanding or self.os == .wasi;
+    }
+
+    pub inline fn isEdge(self: Platform) bool {
+        return self.os == .wasi and self.role == .server;
     }
 };
 
-/// The platform the code is running on
-/// - `browser` if running in a browser environment (WASM)
-/// - `server` if running on a server environment
-/// - `android` if running on an Android environment
-/// - `ios` if running on an iOS environment
-/// - `macos` if running on a macOS environment
-/// - `windows` if running on a Windows environment
-pub const platform: Platform = switch (builtin.os.tag) {
-    .wasi => .edge,
-    .freestanding => .browser,
-    else => .server,
+/// The platform the code is running on, determined at comptime from the build target.
+pub const platform: Platform = .{
+    .os = switch (builtin.os.tag) {
+        .freestanding => .freestanding,
+        .wasi => .wasi,
+        .linux => .linux,
+        .macos => .macos,
+        .windows => .windows,
+        .ios => .ios,
+        else => .other,
+    },
+    .role = switch (builtin.os.tag) {
+        .freestanding => .client,
+        else => .server,
+    },
 };

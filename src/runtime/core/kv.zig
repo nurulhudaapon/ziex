@@ -22,7 +22,7 @@ pub const VTable = struct {
 // -- Global state -- //
 var _stateless: u8 = 0;
 var _ctx: *anyopaque = @ptrCast(&_stateless);
-var _vtable: *const VTable = if (builtin.cpu.arch == .wasm32) &kv_wasm.vtable else &filesystem_vtable;
+var _vtable: *const VTable = if (builtin.cpu.arch == .wasm32) &noop_vtable else &filesystem_vtable;
 
 /// Override the active backend. Called once at startup by platform adapters.
 pub fn adapter(ctx: *anyopaque, vtable: *const VTable) void {

@@ -92,6 +92,8 @@ pub const StateHandle = @import("runtime/core/Event.zig").StateHandle;
 
 pub const BuiltinAttribute = @import("attributes.zig").builtin;
 pub const Platform = plfm.Platform;
+pub const Os = plfm.Os;
+pub const Role = plfm.Role;
 
 // --- Routing --- //
 pub const Router = @import("runtime/core/Router.zig");

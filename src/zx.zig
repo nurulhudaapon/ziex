@@ -79,7 +79,7 @@ pub const ZxContext = struct {
         // On browser, DOM APIs (textContent) handle escaping automatically
         // We only need to escape when generating HTML strings on the server
         // TODO: we would want to move the escaping logic at the time of rendering the element, and simply not use escapeHtml for client side rendering
-        if (platform == .browser) return text;
+        if (platform.role == .client) return text;
 
         const allocator = self.getAlloc();
         // Use a buffer writer to leverage the shared escaping logic
@@ -548,7 +548,7 @@ pub const ZxContext = struct {
         // Render the component on the server for SSR, then hydrate on client.
         // On Browser (already on the client), skip the CSR wrapper — just render
         // the component directly as a component_fn.
-        if (options.client != null and zx.platform == .browser) {
+        if (options.client != null and zx.platform.role == .client) {
             return .{ .component_fn = comp_fn };
         }
         if (options.client) |client_opts| {

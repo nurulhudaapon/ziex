@@ -9,7 +9,7 @@ const pltfm = @import("../../platform.zig");
 const client = @import("window.zig");
 const reactivity = client.reactivity;
 
-const platform = pltfm.platform;
+const platform_role = pltfm.platform.role;
 const gpa = if (@import("builtin").os.tag == .freestanding) std.heap.wasm_allocator else std.heap.page_allocator;
 
 const Event = @This();
@@ -37,7 +37,7 @@ pub fn preventDefault(self: Event) void {
 
 /// Get the input value from event.target.value
 pub fn value(self: Event) ?[]const u8 {
-    if (platform != .browser) return null;
+    if (platform_role != .client) return null;
     const real_js = @import("js");
     const event = self.getEvent();
     const target = event.ref.get(real_js.Object, "target") catch return null;
@@ -46,7 +46,7 @@ pub fn value(self: Event) ?[]const u8 {
 
 /// Get the key from keyboard event
 pub fn key(self: Event) ?[]const u8 {
-    if (platform != .browser) return null;
+    if (platform_role != .client) return null;
     const real_js = @import("js");
     const event = self.getEvent();
     return event.ref.getAlloc(real_js.String, gpa, "key") catch null;

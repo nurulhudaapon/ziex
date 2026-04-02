@@ -97,13 +97,13 @@ pub fn ComponentCtx(comptime PropsType: type) type {
             comptime if (!(params.len == 1 and params[0].type.? == *ServerEvent.Stateful))
                 @compileError("sbind: handler must be fn(*zx.server.Event.Stateful) void");
 
-            const alloc = if (platform == .browser) client_allocator else self.allocator;
+            const alloc = if (platform.role == .client) client_allocator else self.allocator;
             const bound_states = zx.EventHandler.buildStates(alloc, states);
             return zx.EventHandler.serverSS(handler, alloc, &self._handler_index, bound_states);
         }
 
         pub fn bind(self: *Self, comptime handler: anytype) zx.EventHandler {
-            const alloc = if (platform == .browser) client_allocator else self.allocator;
+            const alloc = if (platform.role == .client) client_allocator else self.allocator;
 
             const HandlerType = @TypeOf(handler);
             const FnType = switch (@typeInfo(HandlerType)) {

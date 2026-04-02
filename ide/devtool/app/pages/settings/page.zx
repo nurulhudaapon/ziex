@@ -210,7 +210,7 @@ fn currentThemeIsDark() bool {
 }
 
 fn applyTheme(dark: bool) void {
-    if (zx.platform != .browser) return;
+    if (zx.platform.role != .client) return;
 
     const document = zx.client.Document.init(zx.client_allocator);
     defer document.deinit();

@@ -12,7 +12,7 @@ pub fn component(
     props: anytype,
     options: ComponentOptions,
 ) zx.Component {
-    if (zx.platform == .client) {
+    if (zx.platform.role == .client) {
         @compileError(
             \\ Client side zx.Component can't have JSX Component as children, 
             \\ Because we the std.json serializer needs to be included in the WASM bundle, which will pollute the

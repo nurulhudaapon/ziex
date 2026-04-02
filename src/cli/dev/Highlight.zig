@@ -41,7 +41,7 @@ const HighlightCache = struct {
 };
 
 pub fn highlightZx(allocator: std.mem.Allocator, source: []const u8) ![]u8 {
-    if (zx.platform == .browser) return try allocator.dupe(u8, source);
+    if (zx.platform.role == .client) return try allocator.dupe(u8, source);
 
     const cache = try HighlightCache.getOrInit(std.heap.page_allocator);
     cache.mutex.lock();

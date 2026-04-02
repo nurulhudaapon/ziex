@@ -98,7 +98,7 @@ var ws: ?zx.WebSocket = null;
 var current_username: []const u8 = "";
 
 fn joinChat(username: []const u8) void {
-    if (zx.platform != .browser) return;
+    if (zx.platform.role != .client) return;
 
     std.log.info("joinChat: {s}", .{username});
     current_username = zx.client_allocator.dupe(u8, username) catch return;
@@ -119,7 +119,7 @@ fn joinChat(username: []const u8) void {
 }
 
 fn leaveChat(_: zx.client.Event) void {
-    if (zx.platform != .browser) return;
+    if (zx.platform.role != .client) return;
 
     if (ws) |*w| {
         w.close(.{ .code = 1000, .reason = "User left" });
@@ -141,7 +141,7 @@ fn leaveChat(_: zx.client.Event) void {
 }
 
 fn sendMessage(e: zx.client.Event) void {
-    if (zx.platform != .browser) return;
+    if (zx.platform.role != .client) return;
     e.preventDefault();
 
     const document = zx.client.Document.init(zx.client_allocator);
@@ -162,7 +162,7 @@ fn sendMessage(e: zx.client.Event) void {
 fn onWsOpen(_: *zx.WebSocket) void {}
 
 fn onWsMessage(_: *zx.WebSocket, event: zx.WebSocket.MessageEvent) void {
-    if (zx.platform != .browser) return;
+    if (zx.platform.role != .client) return;
 
     const data = event.text() orelse return;
     const is_system = std.mem.startsWith(u8, data, "system:");
@@ -189,7 +189,7 @@ fn onWsMessage(_: *zx.WebSocket, event: zx.WebSocket.MessageEvent) void {
 }
 
 fn onWsClose(_: *zx.WebSocket, _: zx.WebSocket.CloseEvent) void {
-    if (zx.platform != .browser) return;
+    if (zx.platform.role != .client) return;
 
     if (messages) |msgs_state| {
         var msgs = msgs_state.get();
@@ -203,7 +203,7 @@ fn onWsClose(_: *zx.WebSocket, _: zx.WebSocket.CloseEvent) void {
 }
 
 fn onWsError(_: *zx.WebSocket, _: zx.WebSocket.ErrorEvent) void {
-    if (zx.platform != .browser) return;
+    if (zx.platform.role != .client) return;
 
     if (messages) |msgs_state| {
         var msgs = msgs_state.get();
