@@ -478,7 +478,7 @@ fn defaultLocation() ?[]const u8 {
     return if (builtin.os.tag == .wasi or builtin.os.tag == .freestanding)
         "default"
     else
-        "zig-out/data/db/default.sql";
+        "zig-out/data/db/default.db";
 }
 
 fn parseDatabaseUrl(input: ?[]const u8) !?[]const u8 {
