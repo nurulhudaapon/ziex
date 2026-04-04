@@ -1,0 +1,24 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    const class_name = "container";
+    const is_active = true;
+
+    return (
+        <div @allocator={allocator}>
+            <section
+                class={class_name}
+                id="main"
+                data-active={is_active}
+            >
+                <p>Multiline attributes</p>
+            </section>
+            <input
+                type="text"
+                class="input"
+                placeholder="Enter text"
+            />
+            <button class="btn" id="submit">Submit</button>
+        </div>
+    );
+}
+
+const zx = @import("zx");

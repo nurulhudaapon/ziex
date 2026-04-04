@@ -38,7 +38,7 @@ fn freeProfile(profile: Profile) void {
     allocator.free(profile.name);
 }
 
-test "cache: put/get/delete roundtrip" {
+test "put/get/delete roundtrip" {
     try ensureCache();
     defer cache.deinit();
 
@@ -58,7 +58,7 @@ test "cache: put/get/delete roundtrip" {
     try std.testing.expect((try cache.get(allocator, key)) == null);
 }
 
-test "cache: del reports whether key existed" {
+test "del reports whether key existed" {
     try ensureCache();
     defer cache.deinit();
 
@@ -72,7 +72,7 @@ test "cache: del reports whether key existed" {
     try std.testing.expect(!cache.del(key));
 }
 
-test "cache: list and delPrefix work for live entries" {
+test "list and delPrefix work for live entries" {
     try ensureCache();
     defer cache.deinit();
 
@@ -116,7 +116,7 @@ test "cache: list and delPrefix work for live entries" {
     try std.testing.expect((try cache.get(allocator, key2)) == null);
 }
 
-test "cache: scoped namespaces are isolated" {
+test "scoped namespaces are isolated" {
     try ensureCache();
     defer cache.deinit();
 
@@ -141,7 +141,7 @@ test "cache: scoped namespaces are isolated" {
     try std.testing.expectEqualStrings("default-value", default_value);
 }
 
-test "cache: putAs/as roundtrip typed value" {
+test "putAs/as roundtrip typed value" {
     try ensureCache();
     defer cache.deinit();
 
@@ -164,7 +164,7 @@ test "cache: putAs/as roundtrip typed value" {
     try std.testing.expect(profile.active);
 }
 
-test "cache: as returns invalid type on schema mismatch" {
+test "as returns invalid type on schema mismatch" {
     try ensureCache();
     defer cache.deinit();
 
@@ -182,7 +182,7 @@ test "cache: as returns invalid type on schema mismatch" {
     try std.testing.expectError(error.InvalidType, cache.as(allocator, key, ProfileAlias));
 }
 
-test "cache: scoped putAs/as roundtrip typed value" {
+test "scoped putAs/as roundtrip typed value" {
     try ensureCache();
     defer cache.deinit();
 
@@ -209,7 +209,7 @@ test "cache: scoped putAs/as roundtrip typed value" {
     try std.testing.expect(profile.active);
 }
 
-test "cache: expired entries are filtered from get and list" {
+test "expired entries are filtered from get and list" {
     try ensureCache();
     defer cache.deinit();
 
@@ -278,7 +278,7 @@ fn runConcurrentWorker(ctx: *WorkerContext) void {
     }
 }
 
-test "cache: concurrent reads and writes are threadsafe" {
+test "concurrent reads and writes are threadsafe" {
     try ensureCache();
     defer cache.deinit();
 

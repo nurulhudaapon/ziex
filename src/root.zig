@@ -19,6 +19,7 @@ const reactivity = @import("runtime/client/reactivity.zig");
 // -- Core Language (separate cached module — excluded by default for user builds) --//
 pub const Ast = if (!module_options.exclude_core_lang) @import("zx_core_lang").Ast else @compileError("core_lang is excluded. Set exclude-core-lang=false to enable.");
 pub const Parse = if (!module_options.exclude_core_lang) @import("zx_core_lang").Parse else @compileError("core_lang is excluded. Set exclude-core-lang=false to enable.");
+pub const Validate = if (!module_options.exclude_core_lang) @import("zx_core_lang").Validate else @compileError("core_lang is excluded. Set exclude-core-lang=false to enable.");
 pub const sourcemap = if (!module_options.exclude_core_lang) @import("zx_core_lang").sourcemap else @compileError("core_lang is excluded. Set exclude-core-lang=false to enable.");
 
 // -- Core -- //

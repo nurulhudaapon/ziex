@@ -44,7 +44,7 @@ pub fn main() !void {
         .config = &config,
     }) catch unreachable;
 
-    var handler: Handler = .init(gpa, zls_server);
+    var handler: Handler = .init(gpa, zls_server, transport);
     defer handler.deinit();
 
     try lsp.basic_server.run(
@@ -72,14 +72,16 @@ const ZxFileState = struct {
 pub const Handler = struct {
     allocator: std.mem.Allocator,
     zls: *zls.Server,
+    transport: *lsp.Transport,
     offset_encoding: lsp.offsets.Encoding,
     zx_files: std.StringHashMap(ZxFileState),
 
-    fn init(allocator: std.mem.Allocator, zls_server: *zls.Server) Handler {
+    fn init(allocator: std.mem.Allocator, zls_server: *zls.Server, transport: *lsp.Transport) Handler {
         return .{
             .allocator = allocator,
             .zls = zls_server,
-            .offset_encoding = .@"utf-16",
+            .transport = transport,
+            .offset_encoding = .@"utf-8",
             .zx_files = std.StringHashMap(ZxFileState).init(allocator),
         };
     }
@@ -116,11 +118,25 @@ pub const Handler = struct {
         };
         defer result.deinit(handler.allocator);
 
+        handler.publishZxDiagnostics(uri, result.diagnostics) catch |err| {
+            std.log.err("Failed to publish diagnostics for {s}: {}", .{ uri, err });
+        };
+
+        if (result.diagnostics.hasErrors() or !std.unicode.utf8ValidateSlice(result.zx_source)) {
+            handler.updateStoredSource(uri, source_z);
+            return error.HasErrors;
+        }
+
         const sm = result.sourcemap orelse return error.NoSourceMap;
         const decoded = try sm.decode(handler.allocator);
 
         const zig_uri = try toZigUri(handler.allocator, uri);
         const uri_key = try handler.allocator.dupe(u8, uri);
+        const zig_source_owned = try handler.allocator.dupe(u8, result.zx_source);
+        errdefer handler.allocator.free(zig_source_owned);
+
+        const source_owned = try handler.allocator.dupe(u8, source_z[0..source_z.len]);
+        errdefer handler.allocator.free(source_owned);
 
         // Clean up old state if present
         if (handler.zx_files.fetchRemove(uri)) |old| {
@@ -132,42 +148,75 @@ pub const Handler = struct {
         try handler.zx_files.put(uri_key, .{
             .decoded_map = decoded,
             .zig_uri = zig_uri,
-            .source = try handler.allocator.dupe(u8, source),
-            .zig_source = try handler.allocator.dupe(u8, result.zx_source),
+            .source = source_owned,
+            .zig_source = zig_source_owned,
         });
 
         return try handler.allocator.dupe(u8, result.zx_source);
+    }
+
+    fn updateStoredSource(handler: *Handler, uri: []const u8, source: []const u8) void {
+        if (handler.zx_files.getPtr(uri)) |state| {
+            const new_source = handler.allocator.dupe(u8, source) catch return;
+            handler.allocator.free(state.source);
+            state.source = new_source;
+        }
+    }
+
+    fn publishZxDiagnostics(handler: *Handler, uri: []const u8, diag_list: zx.Validate.DiagnosticList) !void {
+        var aa = std.heap.ArenaAllocator.init(handler.allocator);
+        defer aa.deinit();
+        const arena = aa.allocator();
+
+        const lsp_diags = try arena.alloc(lsp.types.Diagnostic, diag_list.items.len);
+        for (diag_list.items, 0..) |d, i| {
+            lsp_diags[i] = .{
+                .range = .{
+                    .start = .{ .line = d.start_line, .character = d.start_column },
+                    .end = .{ .line = d.end_line, .character = d.end_column },
+                },
+                .severity = switch (d.severity) {
+                    .err => .Error,
+                    .warning => .Warning,
+                },
+                .source = "zx",
+                .message = d.message,
+            };
+        }
+
+        handler.transport.writeNotification(
+            arena,
+            "textDocument/publishDiagnostics",
+            lsp.types.PublishDiagnosticsParams,
+            .{ .uri = uri, .diagnostics = lsp_diags },
+            .{ .emit_null_optional_fields = false },
+        ) catch |err| {
+            std.log.err("Failed to write publishDiagnostics: {}", .{err});
+        };
     }
 
     /// Remap a position from source (.zx) to generated (.zig) coordinates.
     fn remapPositionToGenerated(handler: *Handler, uri: []const u8, pos: lsp.types.Position) struct { uri: []const u8, pos: lsp.types.Position } {
         const state = handler.zx_files.get(uri) orelse return .{ .uri = uri, .pos = pos };
 
-        // Convert UTF-16 column to byte column for mapping lookup
-        const byte_col = utf16ToByteOnLine(state.source, @intCast(pos.line), @intCast(pos.character));
-
-        if (state.decoded_map.sourceToGenerated(@intCast(pos.line), @intCast(byte_col))) |m| {
-            // Mapping returns byte column, convert back to UTF-16 for LSP
-            const gen_utf16 = byteToUtf16OnLine(state.zig_source, @intCast(m.generated_line), @intCast(m.generated_column));
+        if (state.decoded_map.sourceToGenerated(@intCast(pos.line), @intCast(pos.character))) |m| {
             return .{
                 .uri = state.zig_uri,
-                .pos = .{ .line = @intCast(m.generated_line), .character = @intCast(gen_utf16) },
+                .pos = .{ .line = @intCast(m.generated_line), .character = @intCast(m.generated_column) },
             };
         }
         return .{ .uri = state.zig_uri, .pos = pos };
     }
 
     /// Remap a position from generated (.zig) back to source (.zx) coordinates.
+    /// Positions are in byte offsets (utf-8 encoding negotiated at init).
     fn remapPositionToSource(handler: *Handler, uri: []const u8, pos: lsp.types.Position) lsp.types.Position {
         var it = handler.zx_files.iterator();
         while (it.next()) |entry| {
             if (std.mem.eql(u8, entry.value_ptr.zig_uri, uri)) {
                 const state = entry.value_ptr;
-                const byte_col = utf16ToByteOnLine(state.zig_source, @intCast(pos.line), @intCast(pos.character));
-
-                if (state.decoded_map.generatedToSource(@intCast(pos.line), @intCast(byte_col))) |m| {
-                    const src_utf16 = byteToUtf16OnLine(state.source, @intCast(m.source_line), @intCast(m.source_column));
-                    return .{ .line = @intCast(m.source_line), .character = @intCast(src_utf16) };
+                if (state.decoded_map.generatedToSource(@intCast(pos.line), @intCast(pos.character))) |m| {
+                    return .{ .line = @intCast(m.source_line), .character = @intCast(m.source_column) };
                 }
                 return pos;
             }
@@ -189,7 +238,7 @@ pub const Handler = struct {
         arena: std.mem.Allocator,
         request: lsp.types.InitializeParams,
     ) lsp.types.InitializeResult {
-        const result = handler.zls.sendRequestSync(arena, "initialize", request) catch |err| {
+        var result = handler.zls.sendRequestSync(arena, "initialize", request) catch |err| {
             std.log.err("zls initialize failed: {}", .{err});
             return .{
                 .serverInfo = .{ .name = "zxls", .version = "0.1.0" },
@@ -197,7 +246,20 @@ pub const Handler = struct {
             };
         };
 
-        if (result.capabilities.positionEncoding) |encoding| {
+        const client_supports_utf8 = if (request.capabilities.general) |general|
+            if (general.positionEncodings) |encodings| blk: {
+                for (encodings) |enc| {
+                    if (enc == .@"utf-8") break :blk true;
+                }
+                break :blk false;
+            } else false
+        else
+            false;
+
+        if (client_supports_utf8) {
+            result.capabilities.positionEncoding = .@"utf-8";
+            handler.offset_encoding = .@"utf-8";
+        } else if (result.capabilities.positionEncoding) |encoding| {
             handler.offset_encoding = switch (encoding) {
                 .@"utf-8" => .@"utf-8",
                 .@"utf-16" => .@"utf-16",
@@ -375,6 +437,15 @@ pub const Handler = struct {
         params: lsp.types.DidCloseTextDocumentParams,
     ) !void {
         if (isZxUri(params.textDocument.uri)) {
+            // Clear diagnostics for the closed file
+            handler.transport.writeNotification(
+                arena,
+                "textDocument/publishDiagnostics",
+                lsp.types.PublishDiagnosticsParams,
+                .{ .uri = params.textDocument.uri, .diagnostics = &.{} },
+                .{ .emit_null_optional_fields = false },
+            ) catch {};
+
             if (handler.zx_files.fetchRemove(params.textDocument.uri)) |old| {
                 const zig_uri = old.value.zig_uri;
                 handler.zls.sendNotificationSync(arena, "textDocument/didClose", .{
@@ -601,29 +672,24 @@ pub const Handler = struct {
                 const source_z = try handler.allocator.dupeZ(u8, state.source);
                 defer handler.allocator.free(source_z);
 
-                const format_result = zx.Ast.fmt(handler.allocator, source_z) catch |err| {
+                var format_result = zx.Ast.fmt(handler.allocator, source_z) catch |err| {
                     std.log.err("zx.Ast.fmt failed for {s}: {s}", .{ params.textDocument.uri, @errorName(err) });
                     return null;
                 };
-                var format_result_cl = format_result;
-                defer format_result_cl.deinit(handler.allocator);
+                defer format_result.deinit(handler.allocator);
 
-                if (std.mem.eql(u8, format_result.source, state.source)) {
+                const formatted = format_result.source orelse return null;
+                if (std.mem.eql(u8, formatted, state.source)) {
                     return null;
                 }
-
-                const line_count = std.mem.count(u8, state.source, "\n");
-                const last_line_start = if (std.mem.lastIndexOfScalar(u8, state.source, '\n')) |idx| idx + 1 else 0;
-                const last_line_len = state.source.len - last_line_start;
-                const utf16_col = byteToUtf16OnLine(state.source, @intCast(line_count), @intCast(last_line_len));
 
                 const edits = try arena.alloc(lsp.types.TextEdit, 1);
                 edits[0] = .{
                     .range = .{
                         .start = .{ .line = 0, .character = 0 },
-                        .end = .{ .line = @intCast(line_count), .character = @intCast(utf16_col) },
+                        .end = .{ .line = std.math.maxInt(u32), .character = std.math.maxInt(u32) },
                     },
-                    .newText = try arena.dupe(u8, format_result.source),
+                    .newText = try arena.dupe(u8, formatted),
                 };
                 return edits;
             }
@@ -714,49 +780,5 @@ pub const Handler = struct {
         handler.zls.handleResponse(response) catch |err| {
             std.log.err("zls handleResponse failed: {}", .{err});
         };
-    }
-
-    /// Convert a byte offset on a specific line to a UTF-16 code unit offset.
-    fn byteToUtf16OnLine(source: []const u8, line_idx: i32, byte_col: i32) i32 {
-        var it = std.mem.splitScalar(u8, source, '\n');
-        var curr_line: i32 = 0;
-        while (it.next()) |line| : (curr_line += 1) {
-            if (curr_line == line_idx) {
-                const limit = if (byte_col > line.len) line.len else @as(usize, @intCast(byte_col));
-                var utf16_count: i32 = 0;
-                var i: usize = 0;
-                while (i < limit) {
-                    const byte_len = std.unicode.utf8ByteSequenceLength(line[i]) catch 1;
-                    const char = std.unicode.utf8Decode(line[i..@min(line.len, i + byte_len)]) catch line[i];
-                    utf16_count += if (char > 0xFFFF) @as(i32, 2) else @as(i32, 1);
-                    i += byte_len;
-                }
-                return utf16_count;
-            }
-        }
-        return byte_col;
-    }
-
-    // TODO: Remove neccessity of conversions
-    /// Convert a UTF-16 code unit offset on a specific line to a byte offset.
-    fn utf16ToByteOnLine(source: []const u8, line_idx: i32, utf16_col: i32) i32 {
-        var it = std.mem.splitScalar(u8, source, '\n');
-        var curr_line: i32 = 0;
-        while (it.next()) |line| : (curr_line += 1) {
-            if (curr_line == line_idx) {
-                var utf16_count: i32 = 0;
-                var byte_count: i32 = 0;
-                var i: usize = 0;
-                while (i < line.len and utf16_count < utf16_col) {
-                    const byte_len = std.unicode.utf8ByteSequenceLength(line[i]) catch 1;
-                    const char = std.unicode.utf8Decode(line[i..@min(line.len, i + byte_len)]) catch line[i];
-                    utf16_count += if (char > 0xFFFF) @as(i32, 2) else @as(i32, 1);
-                    byte_count += @intCast(byte_len);
-                    i += byte_len;
-                }
-                return byte_count;
-            }
-        }
-        return utf16_col;
     }
 };

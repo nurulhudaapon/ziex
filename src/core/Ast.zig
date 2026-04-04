@@ -4,26 +4,30 @@ pub fn fmt(allocator: std.mem.Allocator, source: [:0]const u8) !FmtResult {
     const arena = aa.allocator();
 
     var parser_result = try Parser.parse(arena, source, .zx);
-    defer parser_result.deinit(allocator);
+    defer parser_result.deinit(arena);
 
-    // Don't format if tree has syntax errors
-    if (parser_result.tree.rootNode().hasError()) {
-        return error.TreeHasErrors;
+    var diagnostics = try Validate.validate(allocator, &parser_result);
+    errdefer diagnostics.deinit();
+
+    if (diagnostics.hasErrors()) {
+        return FmtResult{ .source = null, .diagnostics = diagnostics };
     }
 
     const render_result = try parser_result.renderAlloc(arena, .{ .mode = .zx, .sourcemap = false, .path = null });
     const formatted_sourcez = try allocator.dupeZ(u8, render_result.source);
 
-    return .{
-        .source = formatted_sourcez,
-    };
+    return FmtResult{ .source = formatted_sourcez, .diagnostics = diagnostics };
 }
 
 pub const FmtResult = struct {
-    source: [:0]const u8,
+    /// Formatted source, or `null` when `diagnostics` contains errors.
+    source: ?[:0]const u8,
+    /// Populated when the source has syntax errors; empty otherwise.
+    diagnostics: Validate.DiagnosticList,
 
     pub fn deinit(self: *FmtResult, allocator: std.mem.Allocator) void {
-        allocator.free(self.source);
+        if (self.source) |s| allocator.free(s);
+        self.diagnostics.deinit();
     }
 };
 
@@ -54,6 +58,10 @@ pub fn parse(gpa: std.mem.Allocator, zx_source: [:0]const u8, options: ParseOpti
 
     var parse_result = try Parser.parse(arena, zx_source, options.lang);
     defer parse_result.deinit(arena);
+
+    var diagnostics = try Validate.validate(gpa, &parse_result);
+    errdefer diagnostics.deinit();
+
     const render_result = try parse_result.renderAlloc(arena, .{ .mode = .zig, .sourcemap = options.map.enabled(), .path = options.path });
     var zig_ast = try std.zig.Ast.parse(gpa, try arena.dupeZ(u8, render_result.source), .zig);
     const zig_sourcez = try arena.dupeZ(u8, if (zig_ast.errors.len == 0) try zig_ast.renderAlloc(arena) else render_result.source);
@@ -82,6 +90,7 @@ pub fn parse(gpa: std.mem.Allocator, zx_source: [:0]const u8, options: ParseOpti
         .zig_source = try gpa.dupeZ(u8, zig_sourcez),
         .client_components = components,
         .sourcemap = result_sourcemap,
+        .diagnostics = diagnostics,
     };
 }
 
@@ -91,6 +100,7 @@ pub const ParseResult = struct {
     zig_source: [:0]const u8,
     client_components: std.ArrayList(ClientComponentMetadata),
     sourcemap: ?sourcemap.SourceMap = null,
+    diagnostics: Validate.DiagnosticList,
 
     pub fn deinit(self: *ParseResult, allocator: std.mem.Allocator) void {
         self.zig_ast.deinit(allocator);
@@ -105,6 +115,7 @@ pub const ParseResult = struct {
         if (self.sourcemap) |*sm| {
             sm.deinit(allocator);
         }
+        self.diagnostics.deinit();
     }
 };
 
@@ -114,4 +125,5 @@ const log = std.log.scoped(.ast);
 
 const std = @import("std");
 const Parser = @import("Parse.zig");
+const Validate = @import("Validate.zig");
 const sourcemap = @import("sourcemap.zig");

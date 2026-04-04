@@ -289,7 +289,7 @@ pub fn renderNodeWithContext(
             try renderFragment(self, node, w, ctx);
         },
         .zx_start_tag => {
-            try renderStartTag(self, node, w);
+            try renderStartTag(self, node, w, ctx);
         },
         .zx_end_tag => {
             try renderEndTag(self, node, w);
@@ -560,7 +560,7 @@ fn renderElement(
 
     // Render start tag
     if (start_tag_node) |st| {
-        try renderStartTag(self, st, w);
+        try renderStartTag(self, st, w, ctx);
         ctx.suppress_leading_space = false;
     }
 
@@ -687,7 +687,6 @@ fn renderSelfClosingElement(
     w: *std.io.Writer,
     ctx: *FormatContext,
 ) !void {
-    _ = ctx;
     try w.writeAll("<");
 
     // Tag name
@@ -698,9 +697,16 @@ fn renderSelfClosingElement(
     }
 
     // Attributes
-    try renderAttributesFromNode(self, node, w);
+    var multiline_close = false;
+    try renderAttributesFromNode(self, node, w, ctx, &multiline_close);
 
-    try w.writeAll(" />");
+    if (multiline_close) {
+        try w.writeAll("\n");
+        try ctx.writeIndent(w);
+        try w.writeAll("/>");
+    } else {
+        try w.writeAll(" />");
+    }
 }
 
 /// Render start tag: <tag attrs>
@@ -708,6 +714,7 @@ fn renderStartTag(
     self: *Ast,
     node: ts.Node,
     w: *std.io.Writer,
+    ctx: *FormatContext,
 ) !void {
     try w.writeAll("<");
 
@@ -719,9 +726,16 @@ fn renderStartTag(
     }
 
     // Attributes
-    try renderAttributesFromNode(self, node, w);
+    var multiline_close = false;
+    try renderAttributesFromNode(self, node, w, ctx, &multiline_close);
 
-    try w.writeAll(">");
+    if (multiline_close) {
+        try w.writeAll("\n");
+        try ctx.writeIndent(w);
+        try w.writeAll(">");
+    } else {
+        try w.writeAll(">");
+    }
 }
 
 /// Render end tag: </tag>
@@ -2200,19 +2214,47 @@ fn renderBlockInlineWithMultiline(
 }
 
 /// Render attributes from a node (start tag or self-closing element)
+/// If the first attribute in the source starts on a different line than the tag name,
+/// all attributes are formatted one-per-line with proper indentation.
 fn renderAttributesFromNode(
     self: *Ast,
     node: ts.Node,
     w: *std.io.Writer,
+    ctx: *FormatContext,
+    multiline_close: *bool,
 ) !void {
     const child_count = node.childCount();
+
+    // Detect multiline: check if the first attribute starts on a different line than the tag name
+    const tag_name_node = node.childByFieldName("name");
+    const tag_line = if (tag_name_node) |n| n.startPoint().row else 0;
+    var is_multiline = false;
+    {
+        var j: u32 = 0;
+        while (j < child_count) : (j += 1) {
+            const child = node.child(j) orelse continue;
+            if (NodeKind.fromNode(child) == .zx_attribute) {
+                is_multiline = child.startPoint().row != tag_line;
+                break;
+            }
+        }
+    }
+
+    multiline_close.* = is_multiline;
+
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
         const child_kind = NodeKind.fromNode(child);
 
         if (child_kind == .zx_attribute) {
-            try w.writeAll(" ");
+            if (is_multiline) {
+                try w.writeAll("\n");
+                // Indent one level deeper than the tag
+                for (0..(ctx.indent_level + 1) * 4) |_| try w.writeAll(" ");
+            } else {
+                try w.writeAll(" ");
+            }
 
             // Get the actual attribute (first child)
             const attr_child = child.child(0) orelse continue;

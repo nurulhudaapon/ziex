@@ -286,6 +286,12 @@ test "attribute_spread" {
 test "attribute_event_handler" {
     try test_fmt("attribute/event_handler");
 }
+test "attribute_multiline" {
+    try test_fmt("attribute/multiline");
+}
+test "attribute_multiline_normalize" {
+    try expect_fmt("attribute/multiline_normalize");
+}
 
 // === Element ===
 test "element_void" {
@@ -382,7 +388,7 @@ fn test_fmt_inner(comptime file_path: []const u8, comptime has_diff_expected: bo
         };
         const expected_source_z = try allocator.dupeZ(u8, expected_source);
         defer allocator.free(expected_source_z);
-        try testing.expectEqualStrings(expected_source_z, result.source);
+        try testing.expectEqualStrings(expected_source_z, result.source orelse return error.FmtHadErrors);
     }
 }
 

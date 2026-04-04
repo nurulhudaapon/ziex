@@ -25,7 +25,7 @@ fn freeUser(user: User) void {
     allocator.free(user.name);
 }
 
-test "kv default impl: put/get/delete roundtrip" {
+test "put/get/delete roundtrip" {
     var key_buf: [64]u8 = undefined;
     const key = try uniqueLabel("kv-default-key", &key_buf);
     const value = "hello from kv";
@@ -43,7 +43,7 @@ test "kv default impl: put/get/delete roundtrip" {
     try std.testing.expect((try kv.get(std.testing.allocator, key)) == null);
 }
 
-test "kv default impl: list returns prefixed keys" {
+test "list returns prefixed keys" {
     var prefix_buf: [64]u8 = undefined;
     const prefix = try uniqueLabel("kv-list-prefix", &prefix_buf);
 
@@ -82,7 +82,7 @@ test "kv default impl: list returns prefixed keys" {
     try std.testing.expect(saw_key2);
 }
 
-test "kv default impl: scoped namespaces are isolated" {
+test "scoped namespaces are isolated" {
     var ns_buf: [64]u8 = undefined;
     const namespace = try uniqueLabel("kv-scope", &ns_buf);
 
@@ -105,7 +105,7 @@ test "kv default impl: scoped namespaces are isolated" {
     try std.testing.expectEqualStrings("default-value", default_value);
 }
 
-test "kv default impl: putAs/as roundtrip typed value" {
+test "putAs/as roundtrip typed value" {
     var key_buf: [64]u8 = undefined;
     const key = try uniqueLabel("kv-typed-key", &key_buf);
 
@@ -125,7 +125,7 @@ test "kv default impl: putAs/as roundtrip typed value" {
     try std.testing.expect(user.active);
 }
 
-test "kv default impl: as returns invalid type on schema mismatch" {
+test "as returns invalid type on schema mismatch" {
     var key_buf: [64]u8 = undefined;
     const key = try uniqueLabel("kv-typed-mismatch", &key_buf);
 
@@ -140,7 +140,7 @@ test "kv default impl: as returns invalid type on schema mismatch" {
     try std.testing.expectError(error.InvalidType, kv.as(allocator, key, UserAlias));
 }
 
-test "kv default impl: scoped putAs/as roundtrip typed value" {
+test "scoped putAs/as roundtrip typed value" {
     var ns_buf: [64]u8 = undefined;
     var key_buf: [64]u8 = undefined;
 

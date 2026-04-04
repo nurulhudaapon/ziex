@@ -91,16 +91,17 @@ fn formatFromStdin(allocator: std.mem.Allocator, writer: *std.Io.Writer) !void {
     const input = try buffer.toOwnedSliceSentinel(0);
     defer allocator.free(input);
 
-    var format_result = zx.Ast.fmt(allocator, input) catch |err| switch (err) {
-        error.TreeHasErrors => {
-            log.err("Cannot format: source contains syntax errors\n", .{});
-            return;
-        },
-        else => return err,
-    };
+    var format_result = try zx.Ast.fmt(allocator, input);
     defer format_result.deinit(allocator);
 
-    try writer.writeAll(format_result.source);
+    if (format_result.source == null) {
+        for (format_result.diagnostics.items) |d| {
+            log.err("{}:{}: {s}", .{ d.start_line + 1, d.start_column + 1, d.message });
+        }
+        return;
+    }
+
+    try writer.writeAll(format_result.source.?);
 }
 
 fn formatFile(
@@ -125,22 +126,25 @@ fn formatFile(
     const source_z = try allocator.dupeZ(u8, source);
     defer allocator.free(source_z);
 
-    var format_result = zx.Ast.fmt(allocator, source_z) catch |err| switch (err) {
-        error.TreeHasErrors => {
-            log.err("Skipping {s}: source contains syntax errors\n", .{full_path});
-            return;
-        },
-        else => return err,
-    };
+    var format_result = try zx.Ast.fmt(allocator, source_z);
     defer format_result.deinit(allocator);
 
+    if (format_result.source == null) {
+        for (format_result.diagnostics.items) |d| {
+            log.err("{s}:{}:{}: {s}", .{ full_path, d.start_line + 1, d.start_column + 1, d.message });
+        }
+        return;
+    }
+
+    const formatted = format_result.source.?;
+
     if (use_stdout) {
-        try writer.writeAll(format_result.source);
+        try writer.writeAll(formatted);
         return;
     }
 
     // Skip writing if content unchanged
-    if (std.mem.eql(u8, format_result.source, source)) {
+    if (std.mem.eql(u8, formatted, source)) {
         return;
     }
 
@@ -148,7 +152,7 @@ fn formatFile(
     var atomic_file = try base_dir.atomicFile(sub_path, .{ .write_buffer = &.{} });
     defer atomic_file.deinit();
 
-    try atomic_file.file_writer.interface.writeAll(format_result.source);
+    try atomic_file.file_writer.interface.writeAll(formatted);
     try atomic_file.finish();
     try writer.print("{s}\n", .{full_path});
 }
@@ -188,26 +192,25 @@ fn formatDir(
         const source_z = try allocator.dupeZ(u8, source);
         defer allocator.free(source_z);
 
-        var format_result = zx.Ast.fmt(allocator, source_z) catch |err| switch (err) {
-            error.ParseError => {
-                log.err("Error formatting {s}: {}\n", .{ full_path, err });
-                continue;
-            },
-            error.TreeHasErrors => {
-                log.err("Skipping {s}: source contains syntax errors\n", .{full_path});
-                continue;
-            },
-            else => return err,
-        };
+        var format_result = try zx.Ast.fmt(allocator, source_z);
         defer format_result.deinit(allocator);
 
+        if (format_result.source == null) {
+            for (format_result.diagnostics.items) |d| {
+                log.err("{s}:{}:{}: {s}", .{ full_path, d.start_line + 1, d.start_column + 1, d.message });
+            }
+            continue;
+        }
+
+        const formatted = format_result.source.?;
+
         if (use_stdout) {
-            try writer.writeAll(format_result.source);
+            try writer.writeAll(formatted);
             continue;
         }
 
         // Skip writing if content unchanged
-        if (std.mem.eql(u8, format_result.source, source)) {
+        if (std.mem.eql(u8, formatted, source)) {
             continue;
         }
 
@@ -215,7 +218,7 @@ fn formatDir(
         var atomic_file = try entry.dir.atomicFile(entry.basename, .{ .write_buffer = &.{} });
         defer atomic_file.deinit();
 
-        try atomic_file.file_writer.interface.writeAll(format_result.source);
+        try atomic_file.file_writer.interface.writeAll(formatted);
         try atomic_file.finish();
         try writer.print("{s}\n", .{full_path});
     }

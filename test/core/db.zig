@@ -8,7 +8,7 @@ test "db tests:beforeAll" {
     zx.server.db.use();
 }
 
-test "db api: module surface compiles" {
+test "api > module surface compiles" {
     const options = db.OpenOptions{
         .readonly = true,
         .create = false,
@@ -69,7 +69,7 @@ test "db api: module surface compiles" {
     _ = db.Statement.paramsCount;
 }
 
-test "db api: database open and run" {
+test "api > database open and run" {
     var database = try openTestDatabase();
     defer database.deinit();
 
@@ -93,7 +93,7 @@ test "db api: database open and run" {
     try std.testing.expect(insert_result.last_insert_rowid > 0);
 }
 
-test "db api: statement get/all/values and metadata" {
+test "api > statement get/all/values and metadata" {
     var database = try openSeededDatabase();
     defer database.deinit();
 
@@ -149,7 +149,7 @@ test "db api: statement get/all/values and metadata" {
     try std.testing.expectEqualStrings("Ada", expectText(values_rows[0][1]));
 }
 
-test "db api: statement run with named bindings" {
+test "api > statement run with named bindings" {
     var database = try openTestDatabase();
     defer database.deinit();
 
@@ -180,7 +180,7 @@ test "db api: statement run with named bindings" {
     try expectIntField(row, "total", 1);
 }
 
-test "db api: transaction commit and rollback" {
+test "api > transaction commit and rollback" {
     var database = try openTestDatabase();
     defer database.deinit();
 
@@ -200,7 +200,7 @@ test "db api: transaction commit and rollback" {
     try std.testing.expectEqual(@as(i64, 1), try countUsers(&database));
 }
 
-test "db api: file url persists across reopen" {
+test "api > file url persists across reopen" {
     const url = try makeTestDatabaseUrl(std.testing.allocator);
     defer freeTestDatabaseUrl(std.testing.allocator, url);
 
@@ -236,7 +236,7 @@ test "db api: file url persists across reopen" {
     }
 }
 
-test "db api: implicit default connection helpers" {
+test "api > implicit default connection helpers" {
     const url = try makeTestDatabaseUrl(std.testing.allocator);
     defer freeTestDatabaseUrl(std.testing.allocator, url);
     defer db.closeDefault();
@@ -266,7 +266,7 @@ test "db api: implicit default connection helpers" {
     try expectIntField(row, "total", 1);
 }
 
-test "db api: implicit default scope covers prepare exec and connection reuse" {
+test "api > implicit default scope covers prepare exec and connection reuse" {
     const url = try makeTestDatabaseUrl(std.testing.allocator);
     defer freeTestDatabaseUrl(std.testing.allocator, url);
     defer db.closeDefault();

@@ -3,7 +3,7 @@ const zx = @import("zx");
 
 const S = zx.Style;
 
-test "Style formatting" {
+test "formatting" {
     const style: S = .{
         .display = .flex,
         .flex_direction = .column,
@@ -15,7 +15,7 @@ test "Style formatting" {
     const result = try std.fmt.allocPrint(std.testing.allocator, "{f}", .{style});
     defer std.testing.allocator.free(result);
 
-    std.debug.print("\nGenerated CSS: {s}\n", .{result});
+    // std.debug.print("\nGenerated CSS: {s}\n", .{result});
 
     try std.testing.expect(std.mem.indexOf(u8, result, "display: flex;") != null);
     try std.testing.expect(std.mem.indexOf(u8, result, "flex-direction: column;") != null);
@@ -24,7 +24,7 @@ test "Style formatting" {
     try std.testing.expect(std.mem.indexOf(u8, result, "width: 100px;") != null);
 }
 
-test "Style in Component" {
+test "in Component" {
     const allocator = std.testing.allocator;
     var arena = std.heap.ArenaAllocator.init(allocator);
     defer arena.deinit();
@@ -61,7 +61,7 @@ test "Style in Component" {
     try std.testing.expect(found_style);
 }
 
-test "Style pseudo-states" {
+test "pseudo-states" {
     const style: S = .{
         .background_color = .hex(0x0000ff),
         .hover = &S{
@@ -76,7 +76,7 @@ test "Style pseudo-states" {
     try std.testing.expect(std.mem.indexOf(u8, result, "hover { background-color: #ff0000; }") != null);
 }
 
-test "Style shorthands" {
+test "shorthands" {
     const style: S = .{
         .padding = .px2(10, 20),
         .margin = .px4(5, 10, 15, 20),
