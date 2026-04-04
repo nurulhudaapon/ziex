@@ -234,32 +234,6 @@ pub fn redirect(self: *const Response, location: []const u8, redirect_status: ?u
     self.setHeader("Location", location);
 }
 
-/// **Extension to Web Standard:**
-/// Sets a cookie on the response.
-///
-/// https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies
-///
-/// **Parameters:**
-/// - `name`: The cookie name.
-/// - `value`: The cookie value.
-/// - `options`: Optional cookie options (path, domain, max_age, secure, http_only, etc.).
-/// @deprecated Use `cookies.set(name, value, options)` instead.
-pub fn setCookie(self: *const Response, name: []const u8, value: []const u8, options: ?CookieOptions) void {
-    self.cookies.set(name, value, options);
-}
-
-/// **Extension to Web Standard:**
-/// Deletes a cookie by setting it with an expired max-age.
-///
-///
-/// **Parameters:**
-/// - `name`: The cookie name to delete.
-/// - `options`: Optional cookie options (path and domain should match the original cookie).
-/// @deprecated Use `cookies.delete(name, options)` instead.
-pub fn deleteCookie(self: *const Response, name: []const u8, options: ?CookieOptions) void {
-    self.cookies.delete(name, options);
-}
-
 /// Gets the response writer for streaming content.
 ///
 /// **Zig Note:** This is an extension method not present in the web standard.

@@ -2,6 +2,7 @@ const httpz = @import("httpz");
 const log = std.log.scoped(.app);
 const zx_injections = @import("zx_injections");
 const tree = @import("../core/tree.zig");
+const core_handler = @import("../core/Handler.zig");
 
 /// ElementInjector handles injecting elements into component trees
 const ElementInjector = struct {
@@ -27,22 +28,7 @@ const ElementInjector = struct {
     }
 
     pub fn injectZxInjections(self: ElementInjector, page: *Component) void {
-        if (zx_injections.head_starting.len > 0) {
-            if (tree.getElementByName(page, self.allocator, .head)) |el|
-                tree.prependChild(el, self.allocator, .{ .text = zx_injections.head_starting }) catch {};
-        }
-        if (zx_injections.head_ending.len > 0) {
-            if (tree.getElementByName(page, self.allocator, .head)) |el|
-                tree.appendChild(el, self.allocator, .{ .text = zx_injections.head_ending }) catch {};
-        }
-        if (zx_injections.body_starting.len > 0) {
-            if (tree.getElementByName(page, self.allocator, .body)) |el|
-                tree.prependChild(el, self.allocator, .{ .text = zx_injections.body_starting }) catch {};
-        }
-        if (zx_injections.body_ending.len > 0) {
-            if (tree.getElementByName(page, self.allocator, .body)) |el|
-                tree.appendChild(el, self.allocator, .{ .text = zx_injections.body_ending }) catch {};
-        }
+        core_handler.injectZxInjections(self.allocator, page);
     }
 };
 
@@ -281,8 +267,9 @@ const PageCache = struct {
     }
 };
 
-/// Generic Handler that stores application context and injects it into page/layout contexts.
-/// The AppCtxType is the type of your application context struct.
+/// httpz backend handler.
+/// Converts httpz types to abstract Request/Response, then delegates to core Handler.
+/// Handles httpz-specific concerns: caching, dev logging, streaming, static files, WebSockets.
 pub fn Handler(comptime AppCtxType: type) type {
     return struct {
         const Self = @This();
@@ -333,8 +320,8 @@ pub fn Handler(comptime AppCtxType: type) type {
                 const elapsed_ns = timer.?.lap();
                 const elapsed_ms = @as(f64, @floatFromInt(elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
                 const c = struct {
-                    const reset = "\x1b[0m";
-                    const method = "\x1b[1;34m"; // bold blue
+                    const reset_c = "\x1b[0m";
+                    const method_c = "\x1b[1;34m"; // bold blue
                     const path_color = "\x1b[36m"; // cyan
                     fn time(ms: f64) []const u8 {
                         return if (ms < 10) "\x1b[92m" else if (ms < 100) "\x1b[93m" else "\x1b[91m";
@@ -344,21 +331,23 @@ pub fn Handler(comptime AppCtxType: type) type {
                     }
                 };
 
-                std.log.info("{s}{s}{s}{s} {s}{s}{s} {s}{d}{s} {s}{d:.3}ms{s}\x1b[K", .{
+                var buf: [512]u8 = undefined;
+                const msg = std.fmt.bufPrint(&buf, "{s}{s}{s}{s} {s}{s}{s} {s}{d}{s} {s}{d:.3}ms{s}\x1b[K", .{
                     StatusIndicator.get(cache_status, res.status),
-                    c.method,
+                    c.method_c,
                     @tagName(req.method),
-                    c.reset,
+                    c.reset_c,
                     c.path_color,
                     req.url.path,
-                    c.reset,
+                    c.reset_c,
                     c.status(res.status),
                     res.status,
-                    c.reset,
+                    c.reset_c,
                     c.time(elapsed_ms),
                     elapsed_ms,
-                    c.reset,
-                });
+                    c.reset_c,
+                }) catch "[log line too long]";
+                std.log.info("{s}", .{msg});
             }
         }
 
@@ -378,46 +367,45 @@ pub fn Handler(comptime AppCtxType: type) type {
             const abstract_res = httpz_adapter.createResponse(res, req.arena);
 
             // Execute proxy handlers for the closest route before handling notfound
-            // This allows auth/logging proxies to run even for 404 pages
-            if (self.findRoute(path, .{ .match = .closest })) |route| {
-                const proxy_result = try self.executeNotFoundProxy(route, path, abstract_req, abstract_res, req.arena);
+            if (zx.Router.findRoute(path, .{ .match = .closest })) |_| {
+                const proxy_result = core_handler.executeNotFoundProxy(path, abstract_req, abstract_res, req.arena);
                 if (proxy_result.aborted) {
-                    // Proxy handled the request, don't continue
+                    ProxyStatus.markAborted();
                     return;
                 }
+                if (proxy_result.state_ptr != null) ProxyStatus.markExecuted();
             }
 
             res.status = 404;
             res.content_type = .HTML;
 
-            const notfoundctx = zx.NotFoundContext.init(abstract_req, abstract_res, self.allocator);
+            // Delegate to core handler for not-found rendering
+            const matched_route: ?*const App.Meta.Route = if (req.route_data) |rd|
+                @ptrCast(@alignCast(rd))
+            else
+                null;
 
-            // First try to get notfound from route_data if available
-            var notfound_fn: ?*const fn (zx.NotFoundContext) Component = null;
-            if (req.route_data) |rd| {
-                const route: *const App.Meta.Route = @ptrCast(@alignCast(rd));
-                notfound_fn = route.notfound;
-            }
+            if (core_handler.renderNotFound(path, abstract_req, abstract_res, self.allocator, matched_route)) |cmp| {
+                var component = cmp;
 
-            // If no notfound from route_data, find the closest route with notfound handler
-            if (notfound_fn == null) {
-                if (self.findRoute(path, .{ .match = .closest, .has_notfound = true })) |route| {
-                    notfound_fn = route.notfound;
+                // Dev mode: inject dev script
+                if (self.meta.cli_command == .dev) {
+                    injectDevScript(req.arena, &component);
                 }
-            }
 
-            // If still no notfound handler found, return plain error
-            const nf_fn = notfound_fn orelse {
+                // Write to response
+                res.clearWriter();
+                const writer = res.writer();
+                writer.writeAll("<!DOCTYPE html>\n") catch {
+                    res.body = "404 Not Found";
+                    return;
+                };
+                component.render(writer) catch {
+                    res.body = "404 Not Found";
+                };
+            } else {
                 res.body = "404 Not Found";
-                return;
-            };
-
-            // Render the notfound component wrapped in layouts
-            const notfound_cmp = nf_fn(notfoundctx);
-            res.clearWriter();
-            self.renderErrorPage(req, res, notfound_cmp, .{
-                .fallback_message = "Internal Server Error, notfound page rendering failed",
-            });
+            }
         }
 
         pub fn uncaughtError(self: *Self, req: *httpz.Request, res: *httpz.Response, err: anyerror) void {
@@ -428,368 +416,34 @@ pub fn Handler(comptime AppCtxType: type) type {
 
             const abstract_req = httpz_adapter.createRequest(req);
             const abstract_res = httpz_adapter.createResponse(res, req.arena);
-            const errorctx = zx.ErrorContext.init(abstract_req, abstract_res, self.allocator, err);
 
-            // Find the closest route with error handler
-            var error_fn: ?*const fn (zx.ErrorContext) Component = null;
-            if (self.findRoute(path, .{ .match = .closest, .has_error = true })) |route| {
-                error_fn = route.@"error";
-            }
+            // Delegate to core handler for error rendering
+            if (core_handler.renderError(path, abstract_req, abstract_res, self.allocator, err)) |cmp| {
+                var component = cmp;
 
-            // If no error handler found, return plain error
-            const err_fn = error_fn orelse {
+                // Dev mode: inject dev script
+                if (self.meta.cli_command == .dev) {
+                    injectDevScript(req.arena, &component);
+                }
+
+                // Write to response
+                res.clearWriter();
+                const writer = res.writer();
+                writer.writeAll("<!DOCTYPE html>\n") catch {
+                    res.body = "500 Internal Server Error";
+                    return;
+                };
+                component.render(writer) catch {
+                    res.body = "500 Internal Server Error";
+                };
+            } else {
                 res.body = "500 Internal Server Error";
-                return;
-            };
-
-            // Render the error component wrapped in layouts
-            const error_cmp = err_fn(errorctx);
-            res.clearWriter();
-            self.renderErrorPage(req, res, error_cmp, .{
-                .fallback_message = "Internal Server Error, error page rendering failed",
-            });
+            }
         }
-
-        const RenderErrorPageOptions = struct {
-            fallback_message: []const u8 = "Internal Server Error",
-        };
 
         fn injectDevScript(arena: Allocator, component: *Component) void {
             const inj = ElementInjector{ .allocator = arena };
             _ = inj.injectScriptIntoBody(component, "/.well-known/_zx/devscript.js");
-        }
-
-        /// Shared method to render error/notfound pages wrapped in parent layouts
-        fn renderErrorPage(
-            self: *Self,
-            req: *httpz.Request,
-            res: *httpz.Response,
-            page_component: Component,
-            opts: RenderErrorPageOptions,
-        ) void {
-            const path = req.url.path;
-            const abstract_req = httpz_adapter.createRequest(req);
-            const abstract_res = httpz_adapter.createResponse(res, req.arena);
-            const layoutctx = zx.LayoutContext.initWithAppPtr(self.app_ctx, abstract_req, abstract_res, self.allocator);
-            const is_dev_mode = self.meta.cli_command == .dev;
-
-            var component = page_component;
-
-            // Collect all parent layouts from root to deepest
-            var layouts_to_apply: [10]App.Meta.LayoutHandler = undefined;
-            var layouts_count: usize = 0;
-
-            // Build list of paths from deepest to shallowest
-            var paths_to_check: [32][]const u8 = undefined;
-            var path_count: usize = 0;
-
-            // First, include the current path itself (if it's not just "/")
-            if (path.len > 1) {
-                paths_to_check[path_count] = path;
-                path_count += 1;
-            }
-
-            // Build parent paths by removing trailing segments (deepest to shallowest)
-            var current_path = path;
-            while (current_path.len > 1) {
-                if (std.mem.lastIndexOfScalar(u8, current_path[0 .. current_path.len - 1], '/')) |last_slash| {
-                    if (last_slash == 0) {
-                        paths_to_check[path_count] = "/";
-                        path_count += 1;
-                        break;
-                    } else {
-                        current_path = current_path[0..last_slash];
-                        paths_to_check[path_count] = current_path;
-                        path_count += 1;
-                    }
-                } else {
-                    break;
-                }
-            }
-
-            // Ensure root "/" is included if not already
-            if (path_count == 0 or !std.mem.eql(u8, paths_to_check[path_count - 1], "/")) {
-                paths_to_check[path_count] = "/";
-                path_count += 1;
-            }
-
-            // Collect layouts from shallowest (root) to deepest
-            // We iterate in reverse since paths_to_check is ordered deepest to shallowest
-            var i: usize = path_count;
-            while (i > 0) {
-                i -= 1;
-                if (self.findRoute(paths_to_check[i], .{ .match = .exact })) |route| {
-                    if (route.layout) |layout_fn| {
-                        if (layouts_count < layouts_to_apply.len) {
-                            layouts_to_apply[layouts_count] = layout_fn;
-                            layouts_count += 1;
-                        }
-                    }
-                }
-            }
-
-            // Apply layouts in reverse order (deepest first, then parent layouts wrap around)
-            // This means root layout is applied last, wrapping everything
-            var injector: ?ElementInjector = null;
-            if (is_dev_mode) {
-                injector = ElementInjector{ .allocator = req.arena };
-            }
-
-            var j: usize = layouts_count;
-            while (j > 0) {
-                j -= 1;
-                component = layouts_to_apply[j](layoutctx, component);
-                // In dev mode, inject dev script into body element of root layout (last one applied, j == 0)
-                if (j == 0 and injector != null) {
-                    injectDevScript(req.arena, &component);
-                    injector = null;
-                }
-            }
-
-            // If no layouts were applied but we're in dev mode, still try to inject
-            if (layouts_count == 0 and is_dev_mode) {
-                injectDevScript(req.arena, &component);
-            }
-
-            // Inject build-time HTML (scripts, styles, etc.) into head/body
-            const inj = ElementInjector{ .allocator = req.arena };
-            inj.injectZxInjections(&component);
-
-            // Render the final component
-            const writer = res.writer();
-            writer.writeAll("<!DOCTYPE html>\n") catch {
-                res.body = opts.fallback_message;
-                return;
-            };
-            component.render(writer) catch {
-                res.body = opts.fallback_message;
-            };
-        }
-
-        const FindRouteOptions = struct {
-            match: enum { closest, exact } = .exact,
-            has_notfound: bool = false,
-            has_error: bool = false,
-            has_layout: bool = false,
-            has_page_opts: bool = false,
-            has_layout_opts: bool = false,
-            has_notfound_opts: bool = false,
-            has_error_opts: bool = false,
-        };
-
-        pub fn findRoute(
-            self: *Self,
-            path: []const u8,
-            opts: FindRouteOptions,
-        ) ?*const App.Meta.Route {
-            switch (opts.match) {
-                .closest => {
-                    // For closest match, we want to find the deepest route that matches
-                    // by building up the path progressively from root to leaf.
-                    // E.g., for "/users/profile/settings", check:
-                    // "/users/profile/settings", then "/users/profile", then "/users", then "/"
-                    // Return the first (deepest) match that has the required handlers.
-
-                    const no_filters =
-                        !opts.has_layout and
-                        !opts.has_notfound and
-                        !opts.has_error and
-                        !opts.has_page_opts and
-                        !opts.has_layout_opts and
-                        !opts.has_notfound_opts and
-                        !opts.has_error_opts;
-
-                    // Build list of paths to check from deepest to shallowest
-                    var paths_to_check: [32][]const u8 = undefined;
-                    var path_count: usize = 0;
-
-                    // Start with the full path
-                    if (path.len > 0) {
-                        paths_to_check[path_count] = path;
-                        path_count += 1;
-                    }
-
-                    // Build parent paths by removing trailing segments
-                    var current_path = path;
-                    while (current_path.len > 1) {
-                        // Find the last '/' and truncate
-                        if (std.mem.lastIndexOfScalar(u8, current_path[0 .. current_path.len - 1], '/')) |last_slash| {
-                            if (last_slash == 0) {
-                                // Parent is root "/"
-                                paths_to_check[path_count] = "/";
-                                path_count += 1;
-                                break;
-                            } else {
-                                current_path = current_path[0..last_slash];
-                                paths_to_check[path_count] = current_path;
-                                path_count += 1;
-                            }
-                        } else {
-                            break;
-                        }
-                    }
-
-                    // Ensure root "/" is included if not already
-                    if (path_count == 0 or !std.mem.eql(u8, paths_to_check[path_count - 1], "/")) {
-                        paths_to_check[path_count] = "/";
-                        path_count += 1;
-                    }
-
-                    // Check paths from deepest to shallowest
-                    for (paths_to_check[0..path_count]) |check_path| {
-                        if (self.findRoute(check_path, .{ .match = .exact })) |route| {
-                            // If no filters specified, return first match
-                            if (no_filters) {
-                                return route;
-                            }
-
-                            // Check if route matches any of the requested filters
-                            const matches_filter =
-                                (opts.has_layout and route.layout != null) or
-                                (opts.has_notfound and route.notfound != null) or
-                                (opts.has_error and route.@"error" != null) or
-                                (opts.has_page_opts and route.page_opts != null) or
-                                (opts.has_layout_opts and route.layout_opts != null) or
-                                (opts.has_notfound_opts and route.notfound_opts != null) or
-                                (opts.has_error_opts and route.error_opts != null);
-
-                            if (matches_filter) {
-                                return route;
-                            }
-                        }
-                    }
-
-                    return null;
-                },
-                .exact => {
-                    for (self.meta.routes) |*route| {
-                        if (std.mem.eql(u8, route.path, path)) {
-                            return route;
-                        }
-                    }
-                },
-            }
-            return null;
-        }
-
-        /// Collect all cascading Proxy() handlers from root to the given path
-        /// Returns the count of handlers collected
-        fn collectCascadingProxies(self: *Self, path: []const u8, proxies: *[16]App.Meta.ProxyHandler, arena: std.mem.Allocator) usize {
-            var count: usize = 0;
-
-            // Build path segments to traverse
-            var path_segments = std.array_list.Managed([]const u8).init(arena);
-            defer path_segments.deinit();
-            var path_iter = std.mem.splitScalar(u8, path, '/');
-            while (path_iter.next()) |segment| {
-                if (segment.len > 0) {
-                    path_segments.append(segment) catch break;
-                }
-            }
-
-            // First check root path "/" for proxy
-            for (self.meta.routes) |*route| {
-                if (std.mem.eql(u8, route.path, "/")) {
-                    if (route.proxy) |proxy_fn| {
-                        if (count < proxies.len) {
-                            proxies[count] = proxy_fn;
-                            count += 1;
-                        }
-                    }
-                    break;
-                }
-            }
-
-            // Traverse from root to target path, collecting Proxy() handlers
-            for (1..path_segments.items.len + 1) |depth| {
-                var path_buf: [256]u8 = undefined;
-                var offset: usize = 0;
-                for (0..depth) |d| {
-                    path_buf[offset] = '/';
-                    offset += 1;
-                    const seg = path_segments.items[d];
-                    @memcpy(path_buf[offset .. offset + seg.len], seg);
-                    offset += seg.len;
-                }
-                const check_path = path_buf[0..offset];
-
-                // Skip root (already handled)
-                if (std.mem.eql(u8, check_path, "/")) continue;
-
-                for (self.meta.routes) |*route| {
-                    if (std.mem.eql(u8, route.path, check_path)) {
-                        if (route.proxy) |proxy_fn| {
-                            if (count < proxies.len) {
-                                proxies[count] = proxy_fn;
-                                count += 1;
-                            }
-                        }
-                        break;
-                    }
-                }
-            }
-
-            return count;
-        }
-
-        /// Result of proxy chain execution
-        const ProxyResult = struct {
-            aborted: bool = false,
-            state_ptr: ?*const anyopaque = null,
-        };
-
-        /// Execute proxy chain: cascading Proxy() handlers + optional local proxy
-        /// Returns ProxyResult with abort status and any state set by proxy
-        fn executeProxyChain(
-            self: *Self,
-            path: []const u8,
-            local_proxy: ?App.Meta.ProxyHandler,
-            local_proxy_name: []const u8,
-            req: zx.server.Request,
-            res: zx.server.Response,
-            arena: std.mem.Allocator,
-        ) !ProxyResult {
-            _ = local_proxy_name;
-            var proxy_ctx = zx.ProxyContext.init(req, res, arena, arena);
-
-            // Execute cascading Proxy() handlers (root to current path)
-            var proxies: [16]App.Meta.ProxyHandler = undefined;
-            const count = self.collectCascadingProxies(path, &proxies, arena);
-            for (proxies[0..count]) |proxy_fn| {
-                ProxyStatus.markExecuted();
-                try proxy_fn(&proxy_ctx);
-                if (proxy_ctx.isAborted()) {
-                    ProxyStatus.markAborted();
-                    return .{ .aborted = true, .state_ptr = proxy_ctx._state_ptr };
-                }
-            }
-
-            // Execute local proxy (does NOT cascade)
-            if (local_proxy) |proxy_fn| {
-                ProxyStatus.markExecuted();
-                try proxy_fn(&proxy_ctx);
-                if (proxy_ctx.isAborted()) {
-                    ProxyStatus.markAborted();
-                    return .{ .aborted = true, .state_ptr = proxy_ctx._state_ptr };
-                }
-            }
-
-            return .{ .aborted = false, .state_ptr = proxy_ctx._state_ptr };
-        }
-
-        /// Execute proxy handlers for page routes
-        fn executePageProxy(self: *Self, route: *const App.Meta.Route, req: zx.server.Request, res: zx.server.Response, arena: std.mem.Allocator) !ProxyResult {
-            return self.executeProxyChain(route.path, route.page_proxy, "PageProxy", req, res, arena);
-        }
-
-        /// Execute proxy handlers for API routes
-        fn executeRouteProxy(self: *Self, route: *const App.Meta.Route, req: zx.server.Request, res: zx.server.Response, arena: std.mem.Allocator) !ProxyResult {
-            return self.executeProxyChain(route.path, route.route_proxy, "RouteProxy", req, res, arena);
-        }
-
-        /// Execute proxy handlers for notfound routes (only cascading Proxy(), no local proxies)
-        fn executeNotFoundProxy(self: *Self, _: *const App.Meta.Route, path: []const u8, req: zx.server.Request, res: zx.server.Response, arena: std.mem.Allocator) !ProxyResult {
-            return self.executeProxyChain(path, null, "", req, res, arena);
         }
 
         pub fn api(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
@@ -797,84 +451,79 @@ pub fn Handler(comptime AppCtxType: type) type {
             const abstract_req = httpz_adapter.createRequest(req);
             const abstract_res = httpz_adapter.createResponse(res, req.arena);
 
-            // Execute proxy handlers before API handling
-            var proxy_state_ptr: ?*const anyopaque = null;
-            if (req.route_data) |rd| {
-                const route_data: *const App.Meta.Route = @ptrCast(@alignCast(rd));
-                const proxy_result = try self.executeRouteProxy(route_data, abstract_req, abstract_res, req.arena);
-                if (proxy_result.aborted) {
-                    // Proxy handled the request, don't continue
-                    return;
-                }
-                proxy_state_ptr = proxy_result.state_ptr;
+            // Get route data
+            const route_data: *const App.Meta.Route = if (req.route_data) |rd|
+                @ptrCast(@alignCast(rd))
+            else
+                return self.notFound(req, res);
+
+            // Execute proxy via core handler
+            const proxy_result = core_handler.executeRouteProxy(route_data, abstract_req, abstract_res, req.arena);
+            if (proxy_result.aborted) {
+                ProxyStatus.markAborted();
+                return;
             }
+            if (proxy_result.state_ptr != null) ProxyStatus.markExecuted();
 
-            if (req.route_data) |rd| {
-                const route_data: *const App.Meta.Route = @ptrCast(@alignCast(rd));
-                const handlers = route_data.route orelse return self.notFound(req, res);
+            const handlers = route_data.route orelse return self.notFound(req, res);
 
-                // Find the appropriate handler based on HTTP method
-                const route_fn: ?App.Meta.RouteHandler = switch (req.method) {
-                    .GET => handlers.get orelse handlers.handler,
-                    .POST => handlers.post orelse handlers.handler,
-                    .PUT => handlers.put orelse handlers.handler,
-                    .DELETE => handlers.delete orelse handlers.handler,
-                    .PATCH => handlers.patch orelse handlers.handler,
-                    .HEAD => handlers.head orelse handlers.handler,
-                    .OPTIONS => handlers.options orelse handlers.handler,
-                    .OTHER => blk: {
-                        // Look up custom method handler by method string
-                        if (handlers.custom_methods) |custom_methods| {
-                            for (custom_methods) |custom| {
-                                if (std.mem.eql(u8, custom.method, req.method_string)) {
-                                    break :blk custom.handler;
-                                }
-                            }
-                        }
-                        break :blk handlers.handler;
-                    },
-                    else => handlers.handler,
+            // Check if this route has a Socket handler and might want to upgrade
+            if (handlers.socket) |socket_handler| {
+                // Create upgrade context for socket operations
+                var upgrade_ctx = httpz_adapter.SocketUpgradeContext{
+                    .allocator = allocator,
+                    .req = req,
+                    .res = res,
                 };
+                const socket = httpz_adapter.createUpgradeSocket(&upgrade_ctx);
 
-                const handler = route_fn orelse return self.notFound(req, res);
+                // Delegate to core handler
+                const result = core_handler.handleApi(
+                    route_data,
+                    abstract_req,
+                    abstract_res,
+                    allocator,
+                    self.app_ctx,
+                    proxy_result.state_ptr,
+                    socket,
+                );
 
-                // Check if this route has a Socket handler and might want to upgrade
-                if (handlers.socket) |socket_handler| {
-                    // Create upgrade context for socket operations
-                    var upgrade_ctx = httpz_adapter.SocketUpgradeContext{
-                        .allocator = self.allocator,
-                        .req = req,
-                        .res = res,
+                switch (result) {
+                    .not_found => return self.notFound(req, res),
+                    .handler_error => |err| return self.uncaughtError(req, res, err),
+                    .handled => {},
+                }
+
+                // If the handler called socket.upgrade(), perform the actual WebSocket upgrade
+                if (upgrade_ctx.upgraded) {
+                    const ws_ctx = WebsocketContext{
+                        .socket_handler = socket_handler,
+                        .socket_open_handler = handlers.socket_open,
+                        .socket_close_handler = handlers.socket_close,
+                        .allocator = allocator,
+                        .upgrade_data = upgrade_ctx.upgrade_data,
                     };
-                    const socket = httpz_adapter.createUpgradeSocket(&upgrade_ctx);
-                    var routectx = zx.RouteContext.initWithAppPtrAndSocket(self.app_ctx, abstract_req, abstract_res, socket, allocator);
-                    routectx._state_ptr = proxy_state_ptr;
-
-                    handler(routectx) catch |err| {
-                        return self.uncaughtError(req, res, err);
-                    };
-
-                    // If the handler called socket.upgrade(), perform the actual WebSocket upgrade
-                    if (upgrade_ctx.upgraded) {
-                        const ws_ctx = WebsocketContext{
-                            .socket_handler = socket_handler,
-                            .socket_open_handler = handlers.socket_open,
-                            .socket_close_handler = handlers.socket_close,
-                            .allocator = allocator,
-                            .upgrade_data = upgrade_ctx.upgrade_data,
-                        };
-                        if (try httpz.upgradeWebsocket(WebsocketHandler, req, res, ws_ctx) == false) {
-                            res.status = 400;
-                            res.body = "Invalid WebSocket handshake";
-                        }
+                    if (try httpz.upgradeWebsocket(WebsocketHandler, req, res, ws_ctx) == false) {
+                        res.status = 400;
+                        res.body = "Invalid WebSocket handshake";
                     }
-                } else {
-                    // No socket handler, use regular route context
-                    var routectx = zx.RouteContext.initWithAppPtr(self.app_ctx, abstract_req, abstract_res, allocator);
-                    routectx._state_ptr = proxy_state_ptr;
-                    handler(routectx) catch |err| {
-                        return self.uncaughtError(req, res, err);
-                    };
+                }
+            } else {
+                // No socket handler, use regular route context
+                const result = core_handler.handleApi(
+                    route_data,
+                    abstract_req,
+                    abstract_res,
+                    allocator,
+                    self.app_ctx,
+                    proxy_result.state_ptr,
+                    .{}, // empty socket
+                );
+
+                switch (result) {
+                    .not_found => return self.notFound(req, res),
+                    .handler_error => |err| return self.uncaughtError(req, res, err),
+                    .handled => {},
                 }
             }
         }
@@ -907,189 +556,42 @@ pub fn Handler(comptime AppCtxType: type) type {
             const abstract_req = httpz_adapter.createRequest(req);
             const abstract_res = httpz_adapter.createResponse(res, req.arena);
 
-            // Execute proxy handlers before page handling
-            var proxy_state_ptr: ?*const anyopaque = null;
-            if (req.route_data) |rd| {
-                const route: *const App.Meta.Route = @ptrCast(@alignCast(rd));
-                const proxy_result = try self.executePageProxy(route, abstract_req, abstract_res, req.arena);
-                if (proxy_result.aborted) {
-                    // Proxy handled the request, don't continue
-                    return;
-                }
-                proxy_state_ptr = proxy_result.state_ptr;
+            // Get route data
+            const route: *const App.Meta.Route = if (req.route_data) |rd|
+                @ptrCast(@alignCast(rd))
+            else
+                return self.notFound(req, res);
+
+            // Execute proxy via core handler
+            const proxy_result = core_handler.executePageProxy(route, abstract_req, abstract_res, req.arena);
+            if (proxy_result.aborted) {
+                ProxyStatus.markAborted();
+                return;
             }
+            if (proxy_result.state_ptr != null) ProxyStatus.markExecuted();
 
-            // Create page and layout contexts with type-erased app context and proxy state
-            var pagectx = zx.PageContext.initWithAppPtr(self.app_ctx, abstract_req, abstract_res, allocator);
-            pagectx._state_ptr = proxy_state_ptr;
-            var layoutctx = zx.LayoutContext.initWithAppPtr(self.app_ctx, abstract_req, abstract_res, allocator);
-            layoutctx._state_ptr = proxy_state_ptr;
+            // Delegate to core handler for page handling
+            const result = try core_handler.handlePage(
+                route,
+                abstract_req,
+                abstract_res,
+                allocator,
+                req.arena,
+                self.app_ctx,
+                proxy_result.state_ptr,
+            );
 
-            // log.debug("cli command: {s}", .{@tagName(meta.cli_command orelse .serve)});
+            switch (result) {
+                .component => |cmp| {
+                    var page_component = cmp;
 
-            if (req.route_data) |rd| {
-                const route: *const App.Meta.Route = @ptrCast(@alignCast(rd));
-
-                // Check if this route has a page handler
-                const page_fn = route.page orelse return self.notFound(req, res);
-
-                // -- Server action dispatch --
-                // Triggered by JS fetch (x-zx-action header) or no-JS form POST (__$action body field).
-                switch (try server_dispatch.dispatchAction(abstract_req, abstract_res, allocator, req.arena, route.path, pagectx, page_fn)) {
-                    .not_triggered => {},
-                    .ok => |r| {
-                        if (r.body) |body| {
-                            res.content_type = .JSON;
-                            res.body = body;
-                        }
-                        return;
-                    },
-                    .ok_native => {},
-                    .not_found => {
-                        res.status = 400;
-                        res.body = "No action handler registered for this route";
-                        return;
-                    },
-                    .page_error => |err| return self.uncaughtError(req, res, err),
-                }
-
-                // -- Server event dispatch --
-                switch (try server_dispatch.dispatchServerEvent(abstract_req, allocator, req.arena, route.path, pagectx, page_fn)) {
-                    .not_triggered => {},
-                    .ok_native => {},
-                    .ok => |r| {
-                        res.content_type = .JSON;
-                        res.body = r.body orelse "{}";
-                        return;
-                    },
-                    .not_found => {
-                        res.status = 400;
-                        res.body = "No server event handler registered for this route";
-                        return;
-                    },
-                    .page_error => |err| return self.uncaughtError(req, res, err),
-                }
-
-                // Handle route rendering with error handling
-                blk: {
-                    const normalized_route_path = route.path;
-
-                    // Set route path so render pass registers any action handlers.
-                    rndr.current_route_path = route.path;
-                    defer rndr.current_route_path = null;
-
-                    var page_component = page_fn(pagectx) catch |err| {
-                        return self.uncaughtError(req, res, err);
-                    };
-
-                    const is_devtool = is_dev_mode and std.mem.eql(u8, req.url.path, "/.well-known/_zx/devtool");
-
-                    // Find and apply parent layouts based on path hierarchy
-                    // Collect all parent layouts from root to this route
-                    var layouts_to_apply: [10]App.Meta.LayoutHandler = undefined;
-                    var layouts_count: usize = 0;
-
-                    // Build the path segments to traverse from root to current route
-                    var path_segments = std.array_list.Managed([]const u8).init(pagectx.arena);
-                    const segments_path = if (is_devtool) (try req.query()).get("path") orelse "/" else req.url.path;
-                    var path_iter = std.mem.splitScalar(u8, segments_path, '/');
-                    while (path_iter.next()) |segment| {
-                        if (segment.len > 0) {
-                            path_segments.append(segment) catch break :blk;
-                        }
-                    }
-
-                    // First check root path "/"
-                    // Only add root layout if current route is NOT the root route
-                    // (root route's layout will be applied later as route.layout)
-                    const is_root_route = std.mem.eql(u8, normalized_route_path, "/");
-                    if (!is_root_route) {
-                        for (self.meta.routes) |parent_route| {
-                            const normalized_parent = parent_route.path;
-                            if (std.mem.eql(u8, normalized_parent, "/")) {
-                                if (parent_route.layout) |layout_fn| {
-                                    if (layouts_count < layouts_to_apply.len) {
-                                        layouts_to_apply[layouts_count] = layout_fn;
-                                        layouts_count += 1;
-                                    }
-                                }
-                                break;
-                            }
-                        }
-                    }
-
-                    // Traverse from root to current route, collecting layouts
-                    // Only iterate if there are path segments beyond root
-                    if (path_segments.items.len > 1) {
-                        for (1..path_segments.items.len) |depth| {
-                            // Build the path up to this depth
-                            var path_buf: [256]u8 = undefined;
-                            var path_stream = std.io.fixedBufferStream(&path_buf);
-                            const path_writer = path_stream.writer();
-                            _ = path_writer.write("/") catch break;
-
-                            for (0..depth) |i| {
-                                _ = path_writer.write(path_segments.items[i]) catch break;
-                                if (i < depth - 1) {
-                                    _ = path_writer.write("/") catch break;
-                                }
-                            }
-                            const parent_path = path_buf[0..@intCast(path_stream.getPos() catch break)];
-
-                            // Find route with matching path
-                            // Skip if this parent path matches the current route (avoid double application)
-                            if (std.mem.eql(u8, parent_path, normalized_route_path)) {
-                                continue;
-                            }
-                            for (self.meta.routes) |parent_route| {
-                                const normalized_parent = parent_route.path;
-                                if (std.mem.eql(u8, normalized_parent, parent_path)) {
-                                    if (parent_route.layout) |layout_fn| {
-                                        if (layouts_count < layouts_to_apply.len) {
-                                            layouts_to_apply[layouts_count] = layout_fn;
-                                            layouts_count += 1;
-                                        }
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    // Apply this route's own layout first
-                    if (route.layout) |layout_fn| {
-                        page_component = layout_fn(layoutctx, page_component);
-                    }
-
-                    // Apply parent layouts in reverse order (leaf to root, most parent applied last)
-                    var injector: ?ElementInjector = null;
+                    // Dev mode: inject dev script
                     if (is_dev_mode) {
-                        injector = ElementInjector{ .allocator = pagectx.arena };
+                        injectDevScript(req.arena, &page_component);
                     }
 
-                    var i: usize = layouts_count;
-                    while (i > 0) {
-                        i -= 1;
-                        page_component = layouts_to_apply[i](layoutctx, page_component);
-                        // In dev mode, inject dev script into body element of root layout (last one applied, i == 0)
-                        if (i == 0) {
-                            if (injector != null) {
-                                injectDevScript(pagectx.arena, &page_component);
-                                injector = null; // Only inject once
-                            }
-                        }
-                    }
-
-                    // Handle root route's own layout - inject dev script since it's the most parent
-                    if (is_root_route) {
-                        if (injector != null) {
-                            injectDevScript(pagectx.arena, &page_component);
-                        }
-                    }
-
-                    // Inject build-time HTML (scripts, styles, etc.) into head/body
-                    (ElementInjector{ .allocator = pagectx.arena }).injectZxInjections(&page_component);
-
+                    // Handle devtool request
+                    const is_devtool = is_dev_mode and std.mem.eql(u8, req.url.path, "/.well-known/_zx/devtool");
                     if (is_devtool) {
                         const query = try req.query();
                         const include_native = !std.mem.eql(u8, query.get("include_native") orelse "1", "0");
@@ -1099,27 +601,69 @@ pub fn Handler(comptime AppCtxType: type) type {
                     }
 
                     // Check if streaming is enabled
-                    const streaming_enabled = if (route.page_opts) |opts| opts.streaming else false;
-
-                    if (streaming_enabled) {
-                        // Streaming mode: render shell, collect async components, stream results
-                        try self.renderStreaming(res, &page_component, pagectx.arena);
+                    if (core_handler.isStreamingEnabled(route)) {
+                        try self.renderStreaming(res, &page_component, req.arena);
                     } else {
                         // Normal mode: render everything at once
                         const writer = &res.buffer.writer;
                         _ = writer.write("<!DOCTYPE html>\n") catch |err| {
                             std.debug.print("Error writing HTML: {}\n", .{err});
-                            break :blk;
+                            return;
                         };
                         page_component.render(writer) catch |err| {
                             std.debug.print("Error rendering page: {}\n", .{err});
                             return self.uncaughtError(req, res, err);
                         };
                     }
-                }
 
-                res.content_type = .HTML;
-                return;
+                    res.content_type = .HTML;
+                },
+                .action_handled => |r| {
+                    if (r.body) |body| {
+                        res.content_type = .JSON;
+                        res.body = body;
+                    }
+                },
+                .action_native => {
+                    // Action was invoked natively (form POST), re-render the page
+                    // Re-delegate to get the rendered component
+                    const re_result = try core_handler.handlePage(
+                        route,
+                        abstract_req,
+                        abstract_res,
+                        allocator,
+                        req.arena,
+                        self.app_ctx,
+                        proxy_result.state_ptr,
+                    );
+                    switch (re_result) {
+                        .component => |cmp| {
+                            var page_component = cmp;
+                            if (is_dev_mode) injectDevScript(req.arena, &page_component);
+                            const writer = &res.buffer.writer;
+                            _ = writer.write("<!DOCTYPE html>\n") catch return;
+                            page_component.render(writer) catch |err| return self.uncaughtError(req, res, err);
+                            res.content_type = .HTML;
+                        },
+                        .page_error => |err| return self.uncaughtError(req, res, err),
+                        .not_found => return self.notFound(req, res),
+                        else => {},
+                    }
+                },
+                .event_handled => |r| {
+                    res.content_type = .JSON;
+                    res.body = r.body orelse "{}";
+                },
+                .not_found => return self.notFound(req, res),
+                .page_error => |err| return self.uncaughtError(req, res, err),
+                .action_not_found => {
+                    res.status = 400;
+                    res.body = "No action handler registered for this route";
+                },
+                .event_not_found => {
+                    res.status = 400;
+                    res.body = "No server event handler registered for this route";
+                },
             }
         }
 
@@ -1137,14 +681,14 @@ pub fn Handler(comptime AppCtxType: type) type {
             const query = try req.query();
             const is_meta = query.get("meta") != null;
             if (is_meta) {
-                const meta = try zx.server.SerilizableAppMeta.init(req.arena, self.meta, self.config.server);
+                const meta_data = try zx.server.SerilizableAppMeta.init(req.arena, self.meta, self.config.server);
                 res.content_type = .JSON;
-                try meta.serializeRoutes(res.writer());
+                try meta_data.serializeRoutes(res.writer());
                 return;
             }
             const target_path = query.get("path") orelse "/";
 
-            if (self.findRoute(target_path, .{ .match = .exact })) |route| {
+            if (zx.Router.findRoute(target_path, .{ .match = .exact })) |route| {
                 req.route_data = @constCast(route);
                 return self.page(req, res);
             } else {
@@ -1152,19 +696,19 @@ pub fn Handler(comptime AppCtxType: type) type {
             }
         }
 
-        fn resolveStaticParams(self: *Self, allocator: Allocator, static_opts: zx.PageOptions.Static) ![]const []const zx.PageOptions.StaticParam {
-            _ = self; // currently unused but keeps signature flexible
+        fn resolveStaticParams(self: *Self, allocator_arg: Allocator, static_opts: zx.PageOptions.Static) ![]const []const zx.PageOptions.StaticParam {
+            _ = self;
             var params = std.ArrayList([]const zx.PageOptions.StaticParam).empty;
             if (static_opts.params) |p| {
-                try params.appendSlice(allocator, p);
+                try params.appendSlice(allocator_arg, p);
             }
 
             if (static_opts.getParams) |getter| {
-                const p = try getter(allocator);
-                try params.appendSlice(allocator, p);
+                const p = try getter(allocator_arg);
+                try params.appendSlice(allocator_arg, p);
             }
 
-            return try params.toOwnedSlice(allocator);
+            return try params.toOwnedSlice(allocator_arg);
         }
 
         /// Render a page with streaming SSR support
@@ -1172,8 +716,8 @@ pub fn Handler(comptime AppCtxType: type) type {
         fn renderStreaming(self: *Self, res: *httpz.Response, page_component: *Component, arena: std.mem.Allocator) !void {
             _ = self;
 
-            var shell_writer = std.io.Writer.Allocating.init(arena);
-            const async_components = page_component.stream(arena, &shell_writer.writer) catch |err| {
+            var shell_writer = std.Io.Writer.Allocating.init(arena);
+            const async_components = rndr.stream(page_component.*, arena, &shell_writer.writer) catch |err| {
                 std.debug.print("Error streaming page: {}\n", .{err});
                 return err;
             };
@@ -1203,8 +747,8 @@ pub fn Handler(comptime AppCtxType: type) type {
                 };
                 defer std.heap.page_allocator.free(results);
 
-                for (results) |*result| {
-                    result.* = .{};
+                for (results) |*result_entry| {
+                    result_entry.* = .{};
                 }
 
                 var remaining = std.atomic.Value(usize).init(async_components.len);
@@ -1212,16 +756,16 @@ pub fn Handler(comptime AppCtxType: type) type {
                 const TaskContext = struct {
                     async_comp: rndr.AsyncComponent,
                     result: *AsyncResult,
-                    remaining: *std.atomic.Value(usize),
+                    remaining_ref: *std.atomic.Value(usize),
 
                     fn work(ctx: *@This()) void {
                         defer {
-                            _ = ctx.remaining.fetchSub(1, .seq_cst);
+                            _ = ctx.remaining_ref.fetchSub(1, .seq_cst);
                             std.heap.page_allocator.destroy(ctx);
                         }
 
-                        const script = ctx.async_comp.renderScript(std.heap.page_allocator) catch |err| {
-                            std.debug.print("Error rendering async component {d}: {}\n", .{ ctx.async_comp.id, err });
+                        const script = ctx.async_comp.renderScript(std.heap.page_allocator) catch |work_err| {
+                            std.debug.print("Error rendering async component {d}: {}\n", .{ ctx.async_comp.id, work_err });
                             ctx.result.done.store(true, .seq_cst);
                             return;
                         };
@@ -1245,7 +789,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                     ctx.* = .{
                         .async_comp = async_comp,
                         .result = &results[i],
-                        .remaining = &remaining,
+                        .remaining_ref = &remaining,
                     };
 
                     threads[i] = std.Thread.spawn(.{}, TaskContext.work, .{ctx}) catch blk: {
@@ -1266,13 +810,13 @@ pub fn Handler(comptime AppCtxType: type) type {
                 var completed: usize = 0;
                 var connection_closed = false;
                 while (completed < async_components.len and !connection_closed) {
-                    for (results, 0..) |*result, i| {
+                    for (results, 0..) |*result_entry, i| {
                         if (streamed[i]) continue;
 
-                        if (result.done.load(.seq_cst)) {
-                            if (result.script.len > 0) {
-                                res.chunk(result.script) catch |err| {
-                                    std.debug.print("Error streaming async component: {}\n", .{err});
+                        if (result_entry.done.load(.seq_cst)) {
+                            if (result_entry.script.len > 0) {
+                                res.chunk(result_entry.script) catch |chunk_err| {
+                                    std.debug.print("Error streaming async component: {}\n", .{chunk_err});
                                     connection_closed = true;
                                     break;
                                 };
@@ -1302,13 +846,13 @@ pub fn Handler(comptime AppCtxType: type) type {
         }
 
         pub inline fn static(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
-            const allocator = self.allocator;
+            const allocator_s = self.allocator;
 
             const rootdir = self.meta.rootdir orelse zx_options.staticdir;
-            const assets_path = try std.fs.path.join(allocator, &.{ rootdir, req.url.path });
-            defer allocator.free(assets_path);
+            const assets_path = try std.fs.path.join(allocator_s, &.{ rootdir, req.url.path });
+            defer allocator_s.free(assets_path);
 
-            const body = std.fs.cwd().readFileAlloc(allocator, assets_path, std.math.maxInt(usize)) catch |err| {
+            const body = std.fs.cwd().readFileAlloc(allocator_s, assets_path, std.math.maxInt(usize)) catch |err| {
                 switch (err) {
                     error.FileNotFound => return self.notFound(req, res),
                     else => return self.uncaughtError(req, res, err),
@@ -1335,7 +879,7 @@ pub fn Handler(comptime AppCtxType: type) type {
             socket_handler: ?App.Meta.SocketHandler,
             socket_open_handler: ?App.Meta.SocketOpenHandler,
             socket_close_handler: ?App.Meta.SocketCloseHandler,
-            allocator: std.mem.Allocator,
+            ws_allocator: std.mem.Allocator,
             upgrade_data: ?[]const u8,
             /// Subscriber data for pub/sub (stored directly on connection)
             subscriber: pubsub.SubscriberData,
@@ -1346,7 +890,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                     .socket_handler = ctx.socket_handler,
                     .socket_open_handler = ctx.socket_open_handler,
                     .socket_close_handler = ctx.socket_close_handler,
-                    .allocator = ctx.allocator,
+                    .ws_allocator = ctx.allocator,
                     .upgrade_data = ctx.upgrade_data,
                     .subscriber = pubsub.SubscriberData.init(conn, ctx.allocator),
                 };
@@ -1356,7 +900,7 @@ pub fn Handler(comptime AppCtxType: type) type {
             pub fn afterInit(self: *WebsocketHandler) !void {
                 if (self.socket_open_handler) |handler| {
                     const socket = self.createSocket();
-                    handler(socket, self.upgrade_data, self.allocator, self.allocator) catch |err| {
+                    handler(socket, self.upgrade_data, self.ws_allocator, self.ws_allocator) catch |err| {
                         log.err("SocketOpen handler error: {}", .{err});
                     };
                 }
@@ -1371,7 +915,7 @@ pub fn Handler(comptime AppCtxType: type) type {
 
                 if (self.socket_handler) |handler| {
                     const socket = self.createSocket();
-                    handler(socket, data, msg_type, self.upgrade_data, self.allocator, self.allocator) catch |err| {
+                    handler(socket, data, msg_type, self.upgrade_data, self.ws_allocator, self.ws_allocator) catch |err| {
                         log.err("Socket handler error: {}", .{err});
                     };
                 } else {
@@ -1387,7 +931,7 @@ pub fn Handler(comptime AppCtxType: type) type {
 
                 if (self.socket_close_handler) |handler| {
                     const socket = self.createSocket();
-                    handler(socket, self.upgrade_data, self.allocator);
+                    handler(socket, self.upgrade_data, self.ws_allocator);
                 }
 
                 // Free the upgrade_data that was allocated with page_allocator during upgrade
@@ -1478,9 +1022,6 @@ const httpz_adapter = @import("adapter.zig");
 const pubsub = @import("pubsub.zig");
 const rndr = @import("render.zig");
 const ctxs = @import("../../contexts.zig");
-const registry = @import("registry.zig");
-const server_dispatch = @import("dispatch.zig");
-const render = @import("render.zig");
 const Allocator = std.mem.Allocator;
 const Component = zx.Component;
 const App = zx.Server(void);

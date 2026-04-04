@@ -1,24 +1,13 @@
 const builtin = @import("builtin");
-const std = @import("std");
 const zx = @import("zx");
 
-const config = zx.Server(AppCtx).Config{ .server = .{ .port = 5588 } };
-
 pub fn main() !void {
-    if (zx.platform.role == .client) return try zx.Client.run();
-    if (zx.platform.isEdge()) return try zx.Edge.run();
-
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
-
     var app_ctx = AppCtx{ .port = 5588 };
 
-    const server = try zx.Server(*AppCtx).init(allocator, config, &app_ctx);
-    defer server.deinit();
+    var app = try zx.App(*AppCtx).init(zx.allocator, .{ .server = .{ .port = 5588 } }, &app_ctx);
+    defer app.deinit();
 
-    server.info();
-    try server.start();
+    try app.start();
 }
 
 pub const std_options = zx.std_options;

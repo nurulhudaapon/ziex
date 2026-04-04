@@ -3,32 +3,11 @@ const zx = @import("../../../root.zig");
 const db = @import("db.zig");
 const kv = @import("kv.zig");
 const render = @import("../../server/render.zig");
-const server_dispatch = @import("../../server/dispatch.zig");
 const ext = @import("extern.zig");
-const zx_injections = @import("zx_injections");
-const tree = @import("../../core/tree.zig");
+const core_handler = @import("../../core/Handler.zig");
 
 const Router = zx.Router;
 const Component = zx.Component;
-
-fn injectZxInjections(allocator: std.mem.Allocator, page: *Component) void {
-    if (zx_injections.head_starting.len > 0) {
-        if (tree.getElementByName(page, allocator, .head)) |el|
-            tree.prependChild(el, allocator, .{ .text = zx_injections.head_starting }) catch {};
-    }
-    if (zx_injections.head_ending.len > 0) {
-        if (tree.getElementByName(page, allocator, .head)) |el|
-            tree.appendChild(el, allocator, .{ .text = zx_injections.head_ending }) catch {};
-    }
-    if (zx_injections.body_starting.len > 0) {
-        if (tree.getElementByName(page, allocator, .body)) |el|
-            tree.prependChild(el, allocator, .{ .text = zx_injections.body_starting }) catch {};
-    }
-    if (zx_injections.body_ending.len > 0) {
-        if (tree.getElementByName(page, allocator, .body)) |el|
-            tree.appendChild(el, allocator, .{ .text = zx_injections.body_ending }) catch {};
-    }
-}
 
 pub fn run() !void {
     db.use();
@@ -144,12 +123,12 @@ pub fn run() !void {
         },
     };
 
-    // --- Route matching and unified proxy/handler/layout logic --- //
+    // --- Route matching --- //
     const route_match = Router.matchRoute(pathname, .{ .match = .exact });
     wasi_req.route_match = route_match;
     const matched_route = if (route_match) |m| m.route else null;
 
-    // Unified proxy chain execution (cascading + local proxy)
+    // --- Proxy chain execution (via core handler) --- //
     const local_proxy = if (matched_route) |r| r.page_proxy orelse r.route_proxy else null;
     const proxy_result = Router.executeProxyChain(
         pathname,
@@ -164,18 +143,19 @@ pub fn run() !void {
     }
 
     if (matched_route) |route| {
-        var pagectx = zx.PageContext{
-            .request = request,
-            .response = response,
-            .allocator = allocator,
-            .arena = allocator,
-        };
+        // --- Server Action Dispatch (via core handler) --- //
+        const page_result = try core_handler.handlePage(
+            route,
+            request,
+            response,
+            allocator,
+            allocator,
+            null, // no app_ctx in WASI
+            proxy_result.state_ptr,
+        );
 
-        // --- Server Action Dispatch --- //
-        switch (try server_dispatch.dispatchAction(request, response, allocator, allocator, route.path, pagectx, route.page)) {
-            .not_triggered => {},
-            .ok_native => {},
-            .ok => |r| {
+        switch (page_result) {
+            .action_handled => |r| {
                 if (r.body) |body| {
                     wasi_res.setContentTypeStr("application/json");
                     wasi_res.body.deinit();
@@ -185,7 +165,7 @@ pub fn run() !void {
                 try sendResponse(stdout, stderr, &wasi_res);
                 return;
             },
-            .not_found => {
+            .action_not_found => {
                 wasi_res.status = 400;
                 wasi_res.body.deinit();
                 wasi_res.body = .init(allocator);
@@ -193,18 +173,7 @@ pub fn run() !void {
                 try sendResponse(stdout, stderr, &wasi_res);
                 return;
             },
-            .page_error => {
-                wasi_res.status = 500;
-                try sendResponse(stdout, stderr, &wasi_res);
-                return;
-            },
-        }
-
-        // --- Server Event Dispatch --- //
-        switch (try server_dispatch.dispatchServerEvent(request, allocator, allocator, route.path, pagectx, route.page)) {
-            .not_triggered => {},
-            .ok_native => {},
-            .ok => |r| {
+            .event_handled => |r| {
                 wasi_res.setContentTypeStr("application/json");
                 wasi_res.body.deinit();
                 wasi_res.body = .init(allocator);
@@ -212,7 +181,7 @@ pub fn run() !void {
                 try sendResponse(stdout, stderr, &wasi_res);
                 return;
             },
-            .not_found => {
+            .event_not_found => {
                 wasi_res.status = 404;
                 wasi_res.body.deinit();
                 wasi_res.body = .init(allocator);
@@ -222,39 +191,112 @@ pub fn run() !void {
             },
             .page_error => {
                 wasi_res.status = 500;
+                if (core_handler.renderError(pathname, request, response, allocator, page_result.page_error)) |cmp| {
+                    wasi_res.body.deinit();
+                    wasi_res.body = .init(allocator);
+                    render.current_route_path = pathname;
+                    cmp.render(&wasi_res.body.writer) catch {};
+                }
                 try sendResponse(stdout, stderr, &wasi_res);
+                return;
+            },
+            .action_native => {
+                // Action was invoked natively, continue to render the page below
+            },
+            .not_found => {
+                // No page handler — fall through to API route dispatch below
+            },
+            .component => |cmp| {
+                // Page rendered successfully — write it out
+                wasi_res.setContentTypeStr("text/html");
+
+                const streaming_enabled = core_handler.isStreamingEnabled(route);
+                if (streaming_enabled) {
+                    try wasi_res.header_entries.append(allocator, .{ .name = "content-encoding", .value = "identify" });
+
+                    // Write metadata to stderr first
+                    try writeEdgeMeta(stderr, &wasi_res, true);
+
+                    render.current_route_path = pathname;
+                    var shell_writer = std.Io.Writer.Allocating.init(allocator);
+                    var page_component = cmp;
+                    const async_components = render.stream(page_component, allocator, &shell_writer.writer) catch {
+                        // Fallback: render the whole page at once
+                        var aw = std.Io.Writer.Allocating.init(allocator);
+                        page_component.render(&aw.writer) catch {};
+                        render.current_route_path = null;
+                        try stdout.writeAll("<!DOCTYPE html>");
+                        try stdout.writeAll(aw.written());
+                        try stdout.flush();
+                        return;
+                    };
+                    render.current_route_path = null;
+
+                    try stdout.writeAll("<!DOCTYPE html>");
+                    try stdout.writeAll(shell_writer.written());
+                    try stdout.flush();
+
+                    if (async_components.len > 0) {
+                        try stdout.writeAll(render.streaming_bootstrap_script);
+                        for (async_components) |async_comp| {
+                            const script = async_comp.renderScript(allocator) catch continue;
+                            try stdout.writeAll(script);
+                            try stdout.flush();
+                        }
+                    }
+                    return;
+                }
+
+                var aw = std.Io.Writer.Allocating.init(allocator);
+                defer aw.deinit();
+                render.current_route_path = pathname;
+                var page_cmp = cmp;
+                page_cmp.render(&aw.writer) catch {};
+                render.current_route_path = null;
+
+                try writeEdgeMeta(stderr, &wasi_res, false);
+                try stdout.print("<!DOCTYPE html>{s}", .{aw.written()});
+                try stdout.flush();
                 return;
             },
         }
 
-        // --- API route dispatch --- //
+        // --- API route dispatch (via core handler) --- //
         if (route.route) |handlers| {
-            if (Router.resolveCustomHandler(handlers, method, null)) |handler_fn| {
+            if (Router.resolveCustomHandler(handlers, method, null)) |_| {
                 var wasi_socket = WasiSocket{};
                 const socket: zx.Socket = if (handlers.socket != null) .{
                     .backend_ctx = @ptrCast(&wasi_socket),
                     .vtable = &WasiSocket.vtable,
                 } else .{};
 
-                var route_ctx = zx.RouteContext{
-                    .request = request,
-                    .response = response,
-                    .socket = socket,
-                    .allocator = allocator,
-                    .arena = allocator,
-                };
-                route_ctx._state_ptr = proxy_result.state_ptr;
-                handler_fn(route_ctx) catch |err| {
-                    if (!wasi_socket.upgraded) {
-                        wasi_res.status = 500;
-                        if (Router.renderErrorComponent(allocator, request, response, pathname, err)) |cmp| {
-                            wasi_res.body.deinit();
-                            wasi_res.body = .init(allocator);
-                            render.current_route_path = pathname;
-                            cmp.render(&wasi_res.body.writer) catch {};
+                const api_result = core_handler.handleApi(
+                    route,
+                    request,
+                    response,
+                    allocator,
+                    null, // no app_ctx in WASI
+                    proxy_result.state_ptr,
+                    socket,
+                );
+
+                switch (api_result) {
+                    .handler_error => |err| {
+                        if (!wasi_socket.upgraded) {
+                            wasi_res.status = 500;
+                            if (core_handler.renderError(pathname, request, response, allocator, err)) |error_cmp| {
+                                wasi_res.body.deinit();
+                                wasi_res.body = .init(allocator);
+                                render.current_route_path = pathname;
+                                error_cmp.render(&wasi_res.body.writer) catch {};
+                            }
                         }
-                    }
-                };
+                    },
+                    .not_found => {
+                        // Fall through to not-found below
+                    },
+                    .handled => {},
+                }
 
                 if (wasi_socket.upgraded) {
                     // WebSocket message loop — do not send HTTP response
@@ -280,88 +322,11 @@ pub fn run() !void {
                     return;
                 }
 
-                try sendResponse(stdout, stderr, &wasi_res);
-                return;
-            }
-        }
-
-        // --- Page route rendering --- //
-        if (route.page) |page_fn| {
-            pagectx._state_ptr = proxy_result.state_ptr;
-
-            var layoutctx = zx.LayoutContext{
-                .request = request,
-                .response = response,
-                .allocator = allocator,
-                .arena = allocator,
-            };
-            layoutctx._state_ptr = proxy_result.state_ptr;
-
-            var page_component = page_fn(pagectx) catch |err| {
-                wasi_res.status = 500;
-                if (Router.renderErrorComponent(allocator, request, response, pathname, err)) |cmp| {
-                    wasi_res.body.deinit();
-                    wasi_res.body = .init(allocator);
-                    render.current_route_path = pathname;
-                    cmp.render(&wasi_res.body.writer) catch {};
-                }
-                wasi_res.setContentTypeStr("text/html");
-                try sendResponse(stdout, stderr, &wasi_res);
-                return;
-            };
-
-            page_component = Router.applyLayouts(route, pathname, layoutctx, page_component);
-            injectZxInjections(allocator, &page_component);
-
-            wasi_res.setContentTypeStr("text/html");
-
-            const streaming_enabled = if (route.page_opts) |opts| opts.streaming else false;
-            if (streaming_enabled) {
-                try wasi_res.header_entries.append(allocator, .{ .name = "content-encoding", .value = "identify" });
-
-                // Write metadata to stderr first — the JS worker reads it to build the
-                // Response headers before WASM finishes, enabling a streaming body.
-                try writeEdgeMeta(stderr, &wasi_res, true);
-
-                render.current_route_path = pathname;
-                var shell_writer = std.Io.Writer.Allocating.init(allocator);
-                const async_components = render.stream(page_component, allocator, &shell_writer.writer) catch {
-                    // Fallback: render the whole page at once.
-                    var aw = std.Io.Writer.Allocating.init(allocator);
-                    page_component.render(&aw.writer) catch {};
-                    render.current_route_path = null;
-                    try stdout.writeAll("<!DOCTYPE html>");
-                    try stdout.writeAll(aw.written());
-                    try stdout.flush();
+                if (api_result != .not_found) {
+                    try sendResponse(stdout, stderr, &wasi_res);
                     return;
-                };
-                render.current_route_path = null;
-
-                try stdout.writeAll("<!DOCTYPE html>");
-                try stdout.writeAll(shell_writer.written());
-                try stdout.flush();
-
-                if (async_components.len > 0) {
-                    try stdout.writeAll(render.streaming_bootstrap_script);
-                    for (async_components) |async_comp| {
-                        const script = async_comp.renderScript(allocator) catch continue;
-                        try stdout.writeAll(script);
-                        try stdout.flush();
-                    }
                 }
-                return;
             }
-
-            var aw = std.Io.Writer.Allocating.init(allocator);
-            defer aw.deinit();
-            render.current_route_path = pathname;
-            page_component.render(&aw.writer) catch {};
-            render.current_route_path = null;
-
-            try writeEdgeMeta(stderr, &wasi_res, false);
-            try stdout.print("<!DOCTYPE html>{s}", .{aw.written()});
-            try stdout.flush();
-            return;
         }
     }
 
@@ -369,11 +334,11 @@ pub fn run() !void {
     wasi_res.status = 404;
     wasi_res.setContentTypeStr("text/html");
 
-    if (Router.renderNotFoundComponent(allocator, request, response, pathname, matched_route)) |cmp| {
+    if (core_handler.renderNotFound(pathname, request, response, allocator, matched_route)) |not_found_cmp| {
         var aw = std.Io.Writer.Allocating.init(allocator);
         defer aw.deinit();
         render.current_route_path = pathname;
-        cmp.render(&aw.writer) catch {};
+        not_found_cmp.render(&aw.writer) catch {};
 
         try writeEdgeMeta(stderr, &wasi_res, false);
         try stdout.print("<!DOCTYPE html>{s}", .{aw.written()});
@@ -569,26 +534,23 @@ const WasiMultiFormData = struct {
     const vtable = zx.server.Request.MultiFormDataVTable{
         .get = &get,
         .has = &has,
-        .entries = &entries,
+        .entries = &mfEntries,
         .getAll = &getAll,
     };
 
-    fn getBoundary(content_type: []const u8) ?[]const u8 {
+    fn getBoundary(ct: []const u8) ?[]const u8 {
         const needle = "boundary=";
-        const idx = std.mem.indexOf(u8, content_type, needle) orelse return null;
-        const rest = content_type[idx + needle.len ..];
+        const idx = std.mem.indexOf(u8, ct, needle) orelse return null;
+        const rest = ct[idx + needle.len ..];
         const end = std.mem.indexOfAny(u8, rest, "; \t\r\n") orelse rest.len;
         return if (end == 0) null else rest[0..end];
     }
 
-    /// Extract a named parameter value from a header directive string.
-    /// e.g. extractParam(`form-data; name="foo"; filename="bar"`, "name") -> "foo"
     fn extractParam(directive: []const u8, param: []const u8) ?[]const u8 {
         var i: usize = 0;
         while (i < directive.len) {
             while (i < directive.len and (directive[i] == ' ' or directive[i] == ';' or directive[i] == '\t')) i += 1;
             if (i >= directive.len) break;
-            // Check param=
             if (i + param.len + 1 <= directive.len and
                 std.ascii.eqlIgnoreCase(directive[i .. i + param.len], param) and
                 directive[i + param.len] == '=')
@@ -606,7 +568,6 @@ const WasiMultiFormData = struct {
                     return directive[start..i];
                 }
             }
-            // Skip to next semicolon
             while (i < directive.len and directive[i] != ';') i += 1;
         }
         return null;
@@ -619,7 +580,6 @@ const WasiMultiFormData = struct {
 
         const boundary = getBoundary(self.content_type) orelse return;
 
-        // Delimiter line is "--" + boundary
         var delim_buf: [256]u8 = undefined;
         if (boundary.len + 2 > delim_buf.len) return;
         delim_buf[0] = '-';
@@ -627,30 +587,27 @@ const WasiMultiFormData = struct {
         @memcpy(delim_buf[2 .. boundary.len + 2], boundary);
         const delim = delim_buf[0 .. boundary.len + 2];
 
-        const body = self.body;
+        const mf_body = self.body;
         var pos: usize = 0;
 
-        // Seek to first boundary
-        const first = std.mem.indexOf(u8, body[pos..], delim) orelse return;
+        const first = std.mem.indexOf(u8, mf_body[pos..], delim) orelse return;
         pos += first + delim.len;
-        if (pos < body.len and body[pos] == '\r') pos += 1;
-        if (pos < body.len and body[pos] == '\n') pos += 1;
+        if (pos < mf_body.len and mf_body[pos] == '\r') pos += 1;
+        if (pos < mf_body.len and mf_body[pos] == '\n') pos += 1;
 
-        while (pos < body.len and self.count < self.keys.len) {
-            // Check for closing delimiter "--boundary--"
-            if (pos + delim.len + 2 <= body.len and
-                std.mem.eql(u8, body[pos .. pos + delim.len], delim) and
-                body[pos + delim.len] == '-') break;
+        while (pos < mf_body.len and self.count < self.keys.len) {
+            if (pos + delim.len + 2 <= mf_body.len and
+                std.mem.eql(u8, mf_body[pos .. pos + delim.len], delim) and
+                mf_body[pos + delim.len] == '-') break;
 
-            // Parse part headers
             var name: ?[]const u8 = null;
             var filename: ?[]const u8 = null;
 
-            while (pos < body.len) {
-                const line_end = std.mem.indexOf(u8, body[pos..], "\r\n") orelse break;
-                const line = body[pos .. pos + line_end];
+            while (pos < mf_body.len) {
+                const line_end = std.mem.indexOf(u8, mf_body[pos..], "\r\n") orelse break;
+                const line = mf_body[pos .. pos + line_end];
                 pos += line_end + 2;
-                if (line.len == 0) break; // blank line ends headers
+                if (line.len == 0) break;
 
                 const cd_prefix = "content-disposition:";
                 if (line.len > cd_prefix.len and std.ascii.eqlIgnoreCase(line[0..cd_prefix.len], cd_prefix)) {
@@ -660,21 +617,19 @@ const WasiMultiFormData = struct {
                 }
             }
 
-            // Find end of part body (next delimiter, preceded by \r\n)
-            const part_end = std.mem.indexOf(u8, body[pos..], delim) orelse break;
-            var part_body = body[pos .. pos + part_end];
-            // Strip trailing CRLF that belongs to the boundary
+            const part_end = std.mem.indexOf(u8, mf_body[pos..], delim) orelse break;
+            var part_body = mf_body[pos .. pos + part_end];
             if (part_body.len >= 2 and part_body[part_body.len - 2] == '\r' and part_body[part_body.len - 1] == '\n') {
                 part_body = part_body[0 .. part_body.len - 2];
             }
             pos += part_end + delim.len;
-            if (pos < body.len and body[pos] == '\r') pos += 1;
-            if (pos < body.len and body[pos] == '\n') pos += 1;
+            if (pos < mf_body.len and mf_body[pos] == '\r') pos += 1;
+            if (pos < mf_body.len and mf_body[pos] == '\n') pos += 1;
 
             if (name) |n| {
-                const i = self.count;
-                self.keys[i] = n;
-                self.values[i] = .{ .data = part_body, .filename = filename };
+                const idx = self.count;
+                self.keys[idx] = n;
+                self.values[idx] = .{ .data = part_body, .filename = filename };
                 self.count += 1;
             }
         }
@@ -693,15 +648,15 @@ const WasiMultiFormData = struct {
         return get(ctx, name) != null;
     }
 
-    fn getAll(ctx: *anyopaque, name: []const u8, allocator: std.mem.Allocator) ?[]const zx.server.Request.MultiFormData.Value {
+    fn getAll(ctx: *anyopaque, name: []const u8, alloc: std.mem.Allocator) ?[]const zx.server.Request.MultiFormData.Value {
         const self: *WasiMultiFormData = @ptrCast(@alignCast(ctx));
         self.parse();
-        var count: usize = 0;
+        var cnt: usize = 0;
         for (self.keys[0..self.count]) |key| {
-            if (std.mem.eql(u8, key, name)) count += 1;
+            if (std.mem.eql(u8, key, name)) cnt += 1;
         }
-        if (count == 0) return null;
-        const result = allocator.alloc(zx.server.Request.MultiFormData.Value, count) catch return null;
+        if (cnt == 0) return null;
+        const result = alloc.alloc(zx.server.Request.MultiFormData.Value, cnt) catch return null;
         var idx: usize = 0;
         for (self.keys[0..self.count], 0..) |key, i| {
             if (std.mem.eql(u8, key, name)) {
@@ -712,7 +667,7 @@ const WasiMultiFormData = struct {
         return result;
     }
 
-    fn entries(ctx: *anyopaque) ?zx.server.Request.MultiFormData.Iterator {
+    fn mfEntries(ctx: *anyopaque) ?zx.server.Request.MultiFormData.Iterator {
         const self: *WasiMultiFormData = @ptrCast(@alignCast(ctx));
         self.parse();
         return .{
@@ -758,7 +713,7 @@ const WasiResponse = struct {
     status: u16 = 200,
     body: std.Io.Writer.Allocating,
     header_entries: std.ArrayList(HeaderEntry),
-    allocator: std.mem.Allocator,
+    wr_allocator: std.mem.Allocator,
 
     const vtable = zx.server.Response.VTable{
         .setStatus = &setStatus,
@@ -778,7 +733,7 @@ const WasiResponse = struct {
 
     fn init(alloc: std.mem.Allocator) WasiResponse {
         return .{
-            .allocator = alloc,
+            .wr_allocator = alloc,
             .body = .init(alloc),
             .header_entries = .empty,
         };
@@ -786,7 +741,7 @@ const WasiResponse = struct {
 
     fn deinit(self: *WasiResponse) void {
         self.body.deinit();
-        self.header_entries.deinit(self.allocator);
+        self.header_entries.deinit(self.wr_allocator);
     }
 
     fn written(self: *WasiResponse) []const u8 {
@@ -800,7 +755,7 @@ const WasiResponse = struct {
                 return;
             }
         }
-        self.header_entries.append(self.allocator, .{ .name = "Content-Type", .value = ct }) catch {};
+        self.header_entries.append(self.wr_allocator, .{ .name = "Content-Type", .value = ct }) catch {};
     }
 
     fn setStatus(ctx: *anyopaque, code: u16) void {
@@ -811,7 +766,7 @@ const WasiResponse = struct {
     fn setBody(ctx: *anyopaque, content: []const u8) void {
         const self: *WasiResponse = @ptrCast(@alignCast(ctx));
         self.body.deinit();
-        self.body = .init(self.allocator);
+        self.body = .init(self.wr_allocator);
         self.body.writer.writeAll(content) catch {};
     }
 
@@ -823,7 +778,7 @@ const WasiResponse = struct {
                 return;
             }
         }
-        self.header_entries.append(self.allocator, .{ .name = name, .value = value }) catch {};
+        self.header_entries.append(self.wr_allocator, .{ .name = name, .value = value }) catch {};
     }
 
     fn getHeader(ctx: *anyopaque, name: []const u8) ?[]const u8 {
@@ -836,7 +791,7 @@ const WasiResponse = struct {
 
     fn addHeader(ctx: *anyopaque, name: []const u8, value: []const u8) void {
         const self: *WasiResponse = @ptrCast(@alignCast(ctx));
-        self.header_entries.append(self.allocator, .{ .name = name, .value = value }) catch {};
+        self.header_entries.append(self.wr_allocator, .{ .name = name, .value = value }) catch {};
     }
 
     fn getWriter(ctx: *anyopaque) *std.Io.Writer {
@@ -852,41 +807,39 @@ const WasiResponse = struct {
     fn clearWriter(ctx: *anyopaque) void {
         const self: *WasiResponse = @ptrCast(@alignCast(ctx));
         self.body.deinit();
-        self.body = .init(self.allocator);
+        self.body = .init(self.wr_allocator);
     }
 
     fn setCookie(ctx: *anyopaque, name: []const u8, value: []const u8, opts: zx.server.Response.CookieOptions) anyerror!void {
         const self: *WasiResponse = @ptrCast(@alignCast(ctx));
 
-        var buf = std.Io.Writer.Allocating.init(self.allocator);
-        defer buf.deinit();
+        var cookie_buf = std.Io.Writer.Allocating.init(self.wr_allocator);
+        defer cookie_buf.deinit();
 
-        try buf.writer.print("{s}={s}", .{ name, value });
-        if (opts.path.len > 0) try buf.writer.print("; Path={s}", .{opts.path});
-        if (opts.domain.len > 0) try buf.writer.print("; Domain={s}", .{opts.domain});
-        if (opts.max_age) |max_age| try buf.writer.print("; Max-Age={d}", .{max_age});
-        if (opts.secure) try buf.writer.writeAll("; Secure");
-        if (opts.http_only) try buf.writer.writeAll("; HttpOnly");
-        if (opts.same_site) |ss| try buf.writer.print("; SameSite={s}", .{switch (ss) {
+        try cookie_buf.writer.print("{s}={s}", .{ name, value });
+        if (opts.path.len > 0) try cookie_buf.writer.print("; Path={s}", .{opts.path});
+        if (opts.domain.len > 0) try cookie_buf.writer.print("; Domain={s}", .{opts.domain});
+        if (opts.max_age) |max_age| try cookie_buf.writer.print("; Max-Age={d}", .{max_age});
+        if (opts.secure) try cookie_buf.writer.writeAll("; Secure");
+        if (opts.http_only) try cookie_buf.writer.writeAll("; HttpOnly");
+        if (opts.same_site) |ss| try cookie_buf.writer.print("; SameSite={s}", .{switch (ss) {
             .lax => "Lax",
             .strict => "Strict",
             .none => "None",
         }});
-        if (opts.partitioned) try buf.writer.writeAll("; Partitioned");
+        if (opts.partitioned) try cookie_buf.writer.writeAll("; Partitioned");
 
-        const cookie_str = try self.allocator.dupe(u8, buf.written());
-        try self.header_entries.append(self.allocator, .{ .name = "Set-Cookie", .value = cookie_str });
+        const cookie_str = try self.wr_allocator.dupe(u8, cookie_buf.written());
+        try self.header_entries.append(self.wr_allocator, .{ .name = "Set-Cookie", .value = cookie_str });
     }
 };
 
 /// std.log-compatible logFn for the edge (WASI) target.
-/// Plug into std_options to route all std.log.* calls through the JS console
-/// instead of writing formatted text to stderr.
 pub fn logFn(
     comptime message_level: std.log.Level,
     comptime scope: @TypeOf(.enum_literal),
     comptime format: []const u8,
-    args: anytype,
+    log_args: anytype,
 ) void {
     const level: u8 = switch (message_level) {
         .err => 0,
@@ -895,7 +848,7 @@ pub fn logFn(
         .debug => 3,
     };
     const prefix = if (scope == .default) "" else "(" ++ @tagName(scope) ++ ") ";
-    const msg = std.fmt.allocPrint(std.heap.wasm_allocator, prefix ++ format, args) catch return;
+    const msg = std.fmt.allocPrint(std.heap.wasm_allocator, prefix ++ format, log_args) catch return;
     defer std.heap.wasm_allocator.free(msg);
     ext._log(level, msg.ptr, msg.len);
 }
@@ -903,8 +856,6 @@ pub fn logFn(
 /// WASI Socket backend for the Cloudflare Worker edge environment.
 const WasiSocket = struct {
     upgraded: bool = false,
-    /// Raw bytes of the upgrade data struct passed via ctx.socket.upgrade(data).
-    /// Fixed-size buffer avoids allocation; 256 bytes covers all current use cases.
     upgrade_data_buf: [256]u8 = undefined,
     upgrade_data_len: usize = 0,
 
@@ -948,7 +899,7 @@ const WasiSocket = struct {
 
     fn readFn(ctx: *anyopaque) ?[]const u8 {
         _ = ctx;
-        return null; // reads come via ws_recv in the message loop
+        return null;
     }
 
     fn closeFn(ctx: *anyopaque) void {

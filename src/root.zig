@@ -46,6 +46,10 @@ pub const Server = app_module.Server;
 pub const Edge = @import("runtime/server/wasm/entrypoint.zig");
 pub const Client = @import("runtime/client/Client.zig");
 
+const app_mod = @import("App.zig");
+pub const App = app_mod.App;
+pub const allocator = app_mod.allocator;
+
 // --- Namespaces --- //
 pub const client = @import("runtime/client.zig");
 pub const server = @import("runtime/server.zig");

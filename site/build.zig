@@ -14,8 +14,6 @@ pub fn build(b: *std.Build) !void {
     const tree_sitter_zx_dep = ziex_dep.builder.dependency("tree_sitter_zx", .{ .optimize = optimize, .target = target, .@"build-shared" = false });
     // const tree_sitter_mdzx_dep = ziex_dep.builder.dependency("tree_sitter_mdzx", .{ .optimize = optimize, .target = target, .@"build-shared" = false });
 
-    std.debug.print("ziex version: {s}\n\n\n", .{ziex.info.version});
-
     // --- Playground Assets --- //
     const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .wasi });
     const wasm_optimize: std.builtin.OptimizeMode = .ReleaseSmall;

@@ -161,15 +161,6 @@ pub fn json(self: *const Request, comptime T: type, opts: std.json.ParseOptions)
     return parsed.value;
 }
 
-/// Returns a URL parameter by name (from route matching).
-///
-/// **Zig Note:** This is an extension method not present in the web standard Request.
-/// Used for accessing dynamic route parameters (e.g., /users/:id -> params.get("id")).
-/// @deprecated Use `params.get(name)` instead.
-pub fn getParam(self: *const Request, name: []const u8) ?[]const u8 {
-    return self.params.get(name);
-}
-
 /// Returns a FormData object representing the URL-encoded form data of the request body.
 ///
 /// https://developer.mozilla.org/en-US/docs/Web/API/Request/formData

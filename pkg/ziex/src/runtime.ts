@@ -300,10 +300,10 @@ export async function run({
         return new Response(null, { status: 101, webSocket: server.client } as ResponseInit);
     }
 
-    const { stderrText } = collectOutput();
-    const meta = parseEdgeMeta(stderrText);
+    const { stderrText: earlyStderrText } = collectOutput();
+    const earlyMeta = parseEdgeMeta(earlyStderrText);
 
-    if (meta.streaming) {
+    if (earlyMeta.streaming) {
         // Page opted into streaming (zx.PageOptions{ .streaming = true }) —
         // pipe stdout incrementally to the client as WASM yields via sleep_ms.
         const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
@@ -312,12 +312,12 @@ export async function run({
         for (const chunk of stdoutChunks) void streamWriter.write(chunk);
         stdoutChunks.length = 0;
         void wasmPromise.finally(() => streamWriter?.close());
-        return new Response(readable, { status: meta.status, headers: meta.headers });
+        return new Response(readable, { status: earlyMeta.status, headers: earlyMeta.headers });
     }
 
-    // Default: wait for WASM to finish, then return a fixed-size response with
-    // Content-Length so the runtime uses content-length framing, not chunked.
     await wasmPromise;
+    const { stderrText } = collectOutput();
+    const meta = parseEdgeMeta(stderrText);
     const body = mergeUint8Arrays(stdoutChunks);
     meta.headers.delete('transfer-encoding');
     if (!meta.headers.has('content-length')) meta.headers.set('content-length', String(body.byteLength));
