@@ -10,6 +10,34 @@ const sourcemap = zx.sourcemap;
 const base64 = std.base64.standard;
 const SOURCEMAP_PREFIX = "//# sourceMappingURL=data:application/json;base64,";
 
+pub fn dedupe(allocator: std.mem.Allocator, diagnostics: []Builder.Diagnostic) []Builder.Diagnostic {
+    var write: usize = 0;
+    for (0..diagnostics.len) |read| {
+        var is_dup = false;
+        for (0..write) |prev| {
+            if (diagnostics[read].line == diagnostics[prev].line and
+                diagnostics[read].col == diagnostics[prev].col and
+                diagnostics[read].kind == diagnostics[prev].kind and
+                std.mem.eql(u8, diagnostics[read].file, diagnostics[prev].file) and
+                std.mem.eql(u8, diagnostics[read].message, diagnostics[prev].message))
+            {
+                is_dup = true;
+                break;
+            }
+        }
+        if (is_dup) {
+            allocator.free(diagnostics[read].file);
+            allocator.free(diagnostics[read].message);
+            if (diagnostics[read].source_line) |sl| allocator.free(sl);
+            if (diagnostics[read].caret_line) |cl| allocator.free(cl);
+        } else {
+            diagnostics[write] = diagnostics[read];
+            write += 1;
+        }
+    }
+    return diagnostics[0..write];
+}
+
 /// Remap diagnostics from generated .zig files back to original .zx source files
 /// using inlined sourcemaps. Modifies diagnostics in-place (replaces file/line/col).
 pub fn remap(allocator: std.mem.Allocator, diagnostics: []Builder.Diagnostic) void {

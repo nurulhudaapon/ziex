@@ -391,7 +391,7 @@ fn freeDiagnostics(allocator: std.mem.Allocator, diagnostics: *std.ArrayList(Dia
 }
 
 /// Try to parse `file:line:col: kind: message`. Returns null if no match.
-fn parseDiagnostic(allocator: std.mem.Allocator, line: []const u8) ?Diagnostic {
+pub fn parseDiagnostic(allocator: std.mem.Allocator, line: []const u8) ?Diagnostic {
     const KindMatch = struct { kind: DiagKind, marker: []const u8 };
     const matches = [_]KindMatch{
         .{ .kind = .@"error", .marker = ": error: " },

@@ -207,7 +207,8 @@ fn dev(ctx: zli.CommandContext) !void {
                     defer build_result.deinit();
 
                     Diagnostics.remap(allocator, build_result.diagnostics);
-                    const identical_check = try Builder.formatDiagnostics(allocator, build_result.diagnostics);
+                    const deduped = Diagnostics.dedupe(allocator, build_result.diagnostics);
+                    const identical_check = try Builder.formatDiagnostics(allocator, deduped);
                     defer allocator.free(identical_check);
 
                     const is_identical = if (last_error_formatted) |prev|
@@ -220,7 +221,7 @@ fn dev(ctx: zli.CommandContext) !void {
                         last_error_formatted = try allocator.dupe(u8, identical_check);
                     }
 
-                    const formatted_oxlint = try Diagnostics.formatOxlint(allocator, build_result.diagnostics);
+                    const formatted_oxlint = try Diagnostics.formatOxlint(allocator, deduped);
                     defer allocator.free(formatted_oxlint);
 
                     if (use_spinner and rebuilding_shown) {
@@ -238,7 +239,7 @@ fn dev(ctx: zli.CommandContext) !void {
                         try ctx.writer.writeAll(formatted_oxlint);
                     }
 
-                    notifyBuildError(allocator, &dev_server, formatted_oxlint, build_result.diagnostics);
+                    notifyBuildError(allocator, &dev_server, formatted_oxlint, deduped);
                     rebuilding_shown = false;
                 },
                 .resolved => {
