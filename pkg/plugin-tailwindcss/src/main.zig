@@ -19,13 +19,14 @@ pub fn main() !void {
     defer args.deinit();
 
     // --- Flags --- //
-    var bun_path: []const u8 = "bun"; // default to "bun" in PATH
+    var node_path: []const u8 = "node"; // default to "node" in PATH
     var output_path: ?[]const u8 = null;
     var dep_file_path: ?[]const u8 = null;
-    const runner_script = @embedFile("builder.ts");
+    const runner_script = @embedFile("builder.js");
 
     while (args.next()) |arg| {
-        if (std.mem.eql(u8, arg, "--bun-path")) bun_path = args.next() orelse return error.MissingBunPath;
+        if (std.mem.eql(u8, arg, "--node-path")) node_path = args.next() orelse return error.MissingNodePath;
+        if (std.mem.eql(u8, arg, "--bun-path")) node_path = args.next() orelse return error.MissingNodePath;
         if (std.mem.eql(u8, arg, "--output")) output_path = args.next() orelse return error.MissingOutputPath;
         if (std.mem.eql(u8, arg, "--dep-file")) dep_file_path = args.next() orelse return error.MissingDepFilePath;
     }
@@ -52,7 +53,7 @@ pub fn main() !void {
     defer allocator.free(modified_json);
 
     var child = std.process.Child.init(
-        &.{ bun_path, "-e", runner_script },
+        &.{ node_path, "-e", runner_script },
         allocator,
     );
     child.stdin_behavior = .Pipe;
@@ -60,7 +61,7 @@ pub fn main() !void {
     child.stderr_behavior = .Inherit;
     try child.spawn();
 
-    // Write config to bun's stdin, then close so bun sees EOF
+    // Write config to the JS runtime's stdin, then close so it sees EOF
     try child.stdin.?.writeAll(modified_json);
     child.stdin.?.close();
     child.stdin = null;
@@ -150,10 +151,10 @@ pub fn main() !void {
 
     const term = child.wait() catch |err| {
         if (err == error.FileNotFound) {
-            std.debug.print("Failed to execute bun: executable not found at '{s}'\n", .{bun_path});
-            return error.BunNotFound;
+            std.debug.print("Failed to execute JS runtime: executable not found at '{s}'\n", .{node_path});
+            return error.NodeNotFound;
         }
-        std.debug.print("Failed to wait for bun process: {any}\n", .{err});
+        std.debug.print("Failed to wait for JS runtime process: {any}\n", .{err});
         return error.WaitFailed;
     };
     const exit_code: u8 = switch (term) {

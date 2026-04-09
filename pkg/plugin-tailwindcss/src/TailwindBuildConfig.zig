@@ -17,6 +17,9 @@ map: bool = false,
 /// Base directory for resolving imports [default: dirname(input)]
 base: ?std.Build.LazyPath = null,
 
+/// Additional source file paths to scan for class names
+sources: ?[]const std.Build.LazyPath = null,
+
 pub fn toJsonValue(self: TailwindBuildConfig, b: *std.Build, arena: std.mem.Allocator) !std.json.Value {
     var obj = std.json.ObjectMap.init(arena);
 
@@ -26,6 +29,14 @@ pub fn toJsonValue(self: TailwindBuildConfig, b: *std.Build, arena: std.mem.Allo
     try obj.put("map", .{ .bool = self.map });
 
     if (self.base) |base| try obj.put("base", .{ .string = base.getPath(b) });
+
+    if (self.sources) |sources| {
+        var arr = try std.json.Array.initCapacity(arena, sources.len);
+        for (sources) |source| {
+            arr.appendAssumeCapacity(.{ .string = source.getPath(b) });
+        }
+        try obj.put("sources", .{ .array = arr });
+    }
 
     return .{ .object = obj };
 }

@@ -1,1 +1,8 @@
 @import "tailwindcss";
+@source "./";
+
+.test {
+    a {
+        @apply text-blue-500;
+    }
+}

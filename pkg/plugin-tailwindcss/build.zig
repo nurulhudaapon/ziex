@@ -11,10 +11,15 @@ pub const Output = struct {
     run: *std.Build.Step.Run,
 };
 
-pub var bun_path: ?std.Build.LazyPath = null;
+pub var node_path: ?std.Build.LazyPath = null;
 
+pub fn setNodePath(path: std.Build.LazyPath) void {
+    node_path = path;
+}
+
+// Compatibility alias for older callers that still configure Bun explicitly.
 pub fn setBunPath(path: std.Build.LazyPath) void {
-    bun_path = path;
+    node_path = path;
 }
 
 pub fn addBuild(b: *std.Build, build_item: Build) Output {
@@ -59,9 +64,9 @@ fn innerInitSingle(b: *std.Build, build_item: Build) !Output {
     run.addArg("--dep-file");
     _ = run.addDepFileOutputArg("output.d");
 
-    if (bun_path) |bp| {
-        run.addArg("--bun-path");
-        run.addFileArg(bp);
+    if (node_path) |np| {
+        run.addArg("--node-path");
+        run.addFileArg(np);
     }
 
     run.addFileInput(build_item.config.input);

@@ -1,0 +1,9 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <div @allocator={ctx.arena} class="mt-4">
+            <link  rel="stylesheet" href="/assets/styles-out.css" />
+        </div>
+    );
+}
+
+const zx = @import("zx");
