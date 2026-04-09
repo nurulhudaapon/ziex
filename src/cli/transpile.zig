@@ -150,8 +150,9 @@ fn transpile(ctx: zli.CommandContext) !void {
     // Path is a file
     if (stat.kind == .file) {
         const is_zx = std.mem.endsWith(u8, path, ".zx");
+        const is_mdzx = std.mem.endsWith(u8, path, ".mdzx");
 
-        if (is_zx) {
+        if (is_zx or is_mdzx) {
             // If outdir is default and path is a file, output to stdout
             if (is_default_outdir) {
                 // Read the source file
@@ -1260,7 +1261,11 @@ fn transpileFile(
     }
     defer if (rel_path_allocated) allocator.free(relative_source_path);
 
-    var result = try zx.Ast.parse(allocator, source_z, .{ .path = relative_source_path, .map = opts.map });
+    var result = try zx.Ast.parse(allocator, source_z, .{
+        .path = relative_source_path,
+        .map = opts.map,
+        .lang = if (std.mem.endsWith(u8, source_path, ".mdzx")) .mdzx else .zx,
+    });
     defer result.deinit(allocator);
 
     // Extract route from source path
@@ -1445,13 +1450,14 @@ fn transpileDirectory(
         }
 
         const is_zx = std.mem.endsWith(u8, entry.path, ".zx");
+        const is_mdzx = std.mem.endsWith(u8, entry.path, ".mdzx");
 
         const input_path = try std.fs.path.join(allocator, &.{ opts.path, entry.path });
         defer allocator.free(input_path);
 
-        if (is_zx) {
+        if (is_zx or is_mdzx) {
             const output_rel_path = try std.mem.concat(allocator, u8, &.{
-                entry.path[0 .. entry.path.len - (".zx").len],
+                entry.path[0 .. entry.path.len - (if (is_zx) ".zx" else ".mdzx").len],
                 ".zig",
             });
             defer allocator.free(output_rel_path);
@@ -1639,9 +1645,10 @@ fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void 
         },
         .file => {
             const is_zx = std.mem.endsWith(u8, opts.path, ".zx");
+            const is_mdzx = std.mem.endsWith(u8, opts.path, ".mdzx");
 
-            if (!is_zx) {
-                std.debug.print("Error: File must have .zx extension, got '{s}'\n", .{opts.path});
+            if (!is_zx and !is_mdzx) {
+                std.debug.print("Error: File must have .zx or .mdzx extension, got '{s}'\n", .{opts.path});
                 return error.InvalidFileExtension;
             }
 
@@ -1649,7 +1656,8 @@ fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void 
             defer task.end();
 
             const basename = getBasename(opts.path);
-            const output_rel_path = try std.mem.concat(allocator, u8, &.{ basename[0 .. basename.len - (".zx").len], ".zig" });
+            const ext_len = if (is_mdzx) ".mdzx".len else ".zx".len;
+            const output_rel_path = try std.mem.concat(allocator, u8, &.{ basename[0 .. basename.len - ext_len], ".zig" });
             defer allocator.free(output_rel_path);
             const outpath = try std.fs.path.join(allocator, &.{ opts.outdir, output_rel_path });
             defer allocator.free(outpath);

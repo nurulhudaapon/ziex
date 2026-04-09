@@ -22,8 +22,17 @@
         {
           "type": "REPEAT",
           "content": {
-            "type": "SYMBOL",
-            "name": "_block"
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "_blank_line"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "_block"
+              }
+            ]
           }
         }
       ]
@@ -6629,8 +6638,15 @@
           }
         },
         {
-          "type": "STRING",
-          "value": ">"
+          "type": "TOKEN",
+          "content": {
+            "type": "PREC",
+            "value": 5,
+            "content": {
+              "type": "STRING",
+              "value": ">"
+            }
+          }
         }
       ]
     },
@@ -6650,8 +6666,15 @@
           }
         },
         {
-          "type": "STRING",
-          "value": ">"
+          "type": "TOKEN",
+          "content": {
+            "type": "PREC",
+            "value": 5,
+            "content": {
+              "type": "STRING",
+              "value": ">"
+            }
+          }
         }
       ]
     },
@@ -6678,8 +6701,15 @@
           }
         },
         {
-          "type": "STRING",
-          "value": "/>"
+          "type": "TOKEN",
+          "content": {
+            "type": "PREC",
+            "value": 5,
+            "content": {
+              "type": "STRING",
+              "value": "/>"
+            }
+          }
         }
       ]
     },
@@ -6705,7 +6735,7 @@
     },
     "zx_tag_name": {
       "type": "PATTERN",
-      "value": "[a-zA-Z_][a-zA-Z0-9_]*"
+      "value": "[a-zA-Z_][a-zA-Z0-9_]*(\\.[a-zA-Z_][a-zA-Z0-9_]*)*"
     },
     "zx_attribute": {
       "type": "CHOICE",
@@ -6899,12 +6929,49 @@
           "value": "{"
         },
         {
-          "type": "FIELD",
-          "name": "expression",
-          "content": {
-            "type": "SYMBOL",
-            "name": "expression"
-          }
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "SYMBOL",
+                  "name": "expression"
+                },
+                {
+                  "type": "REPEAT",
+                  "content": {
+                    "type": "SEQ",
+                    "members": [
+                      {
+                        "type": "STRING",
+                        "value": ","
+                      },
+                      {
+                        "type": "SYMBOL",
+                        "name": "expression"
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "CHOICE",
+                  "members": [
+                    {
+                      "type": "STRING",
+                      "value": ","
+                    },
+                    {
+                      "type": "BLANK"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
         },
         {
           "type": "STRING",
@@ -7234,25 +7301,34 @@
         {
           "type": "SYMBOL",
           "name": "paragraph"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "_blank_line"
         }
       ]
     },
     "mdzx_component": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "SYMBOL",
-          "name": "zx_element"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "zx_self_closing_element"
-        }
-      ]
+      "type": "PREC",
+      "value": 3,
+      "content": {
+        "type": "SEQ",
+        "members": [
+          {
+            "type": "CHOICE",
+            "members": [
+              {
+                "type": "SYMBOL",
+                "name": "zx_element"
+              },
+              {
+                "type": "SYMBOL",
+                "name": "zx_self_closing_element"
+              }
+            ]
+          },
+          {
+            "type": "SYMBOL",
+            "name": "_newline"
+          }
+        ]
+      }
     },
     "atx_heading": {
       "type": "CHOICE",
@@ -9153,7 +9229,7 @@
       "type": "TOKEN",
       "content": {
         "type": "PREC",
-        "value": -1,
+        "value": 1,
         "content": {
           "type": "PATTERN",
           "value": "[ \\t]*\\n"

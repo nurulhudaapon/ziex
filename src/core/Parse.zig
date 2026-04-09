@@ -96,14 +96,15 @@ pub fn parse(allocator: std.mem.Allocator, source: []const u8, lang: Language) !
     const parser = ts.Parser.create();
     parser.setLanguage(ts.Language.fromRaw(@import("tree_sitter_zx").language())) catch return error.LoadingLang;
 
-    const tree = switch (lang) {
-        .zx => parser.parseString(source, null) orelse return error.ParseError,
-        .mdzx, .md => parser.parseString(try mdzxTozx(source), null) orelse return error.ParseError,
+    const effective_source = switch (lang) {
+        .zx => source,
+        .mdzx, .md => try mdzxTozx(source),
     };
+    const tree = parser.parseString(effective_source, null) orelse return error.ParseError;
 
     return Parse{
         .tree = tree,
-        .source = source,
+        .source = effective_source,
         .lang = lang,
         .allocator = allocator,
     };
@@ -172,22 +173,7 @@ pub fn renderAlloc(
 fn mdzxTozx(
     source: []const u8,
 ) ![]const u8 {
-    const parser = ts.Parser.create();
-    parser.setLanguage(ts.Language.fromRaw(@import("tree_sitter_mdzx").language())) catch return error.LoadingLang;
-    const tree = parser.parseString(source, null) orelse return error.ParseError;
-    defer tree.destroy();
-
-    const root = tree.rootNode();
-    if (root.childCount() == 0) {
-        return "";
-    }
-
-    const first_child = root.child(0) orelse return "";
-    if (std.mem.eql(u8, first_child.kind(), "ERROR")) {
-        return "";
-    }
-    // TODO: Transpile the mdzx to zx;
-    return source[first_child.startByte()..first_child.endByte()];
+    return Markdown.transpile(std.heap.page_allocator, source);
 }
 
 pub fn getNodeText(self: *Parse, node: ts.Node) ![]const u8 {

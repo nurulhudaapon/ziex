@@ -32,7 +32,7 @@ module.exports = grammar(zx, {
     // ==========================================
     source_file: $ => seq(
       optional($.frontmatter),
-      repeat($._block),
+      repeat(choice($._blank_line, $._block)),
     ),
 
     // ==========================================
@@ -84,13 +84,36 @@ module.exports = grammar(zx, {
       $.list,
       $.link_reference_definition,
       $.paragraph,
-      $._blank_line,
     ),
 
     // MDZX-specific: ZX components in markdown
-    mdzx_component: $ => choice(
-      $.zx_element,
-      $.zx_self_closing_element,
+    // Must consume trailing newline like other block elements (headings, paragraphs, etc.)
+    mdzx_component: $ => prec(3, seq(
+      choice(
+        $.zx_element,
+        $.zx_self_closing_element,
+      ),
+      $._newline,
+    )),
+
+    // Override ZX element rules to give '>' and '/>' higher precedence than
+    // block_quote '>' marker (prec 2) in markdown context
+    zx_self_closing_element: $ => seq(
+      '<',
+      field('name', $.zx_tag_name),
+      repeat($.zx_attribute),
+      token(prec(5, '/>')),
+    ),
+    zx_start_tag: $ => seq(
+      '<',
+      field('name', $.zx_tag_name),
+      repeat($.zx_attribute),
+      token(prec(5, '>')),
+    ),
+    zx_end_tag: $ => seq(
+      '</',
+      field('name', $.zx_tag_name),
+      token(prec(5, '>')),
     ),
 
     // ==========================================
@@ -378,7 +401,7 @@ module.exports = grammar(zx, {
     _word: _$ => new RegExp('[^' + PUNCTUATION_CHARACTERS_REGEX + ' \\t\\n\\r]+'),
     _whitespace: _$ => /[ \t]+/,
     _punctuation: _$ => new RegExp('[' + PUNCTUATION_CHARACTERS_REGEX + ']'),
-    _blank_line: _$ => token(prec(-1, /[ \t]*\n/)),
+    _blank_line: _$ => token(prec(1, /[ \t]*\n/)),
     
     // Override Zig comment to have very low precedence in markdown context
     // so that // in URLs is not mistaken for comments

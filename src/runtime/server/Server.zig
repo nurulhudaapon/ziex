@@ -760,7 +760,9 @@ pub const ServerMeta = struct {
     /// Handles both zx.PageContext (void app/state) and zx.PageCtx(AppCtx, State) (custom context).
     /// The app context and state are read from type-erased pointers and cast to the appropriate types.
     pub fn page(comptime T: type) PageHandler {
-        const pageFn = T.Page;
+        const is_md = @hasDecl(T, "_zx_md");
+        const pageFn = if (is_md) T._zx_md else T.Page;
+
         const FnType = @TypeOf(pageFn);
         const fn_info = @typeInfo(FnType).@"fn";
         const CtxType = fn_info.params[0].type.?;
@@ -768,6 +770,8 @@ pub const ServerMeta = struct {
 
         return struct {
             fn wrapper(ctx: zx.PageContext) anyerror!Component {
+                const allocator = ctx.arena;
+
                 // If page expects standard PageContext, pass it directly
                 if (CtxType == zx.PageContext) {
                     if (R == Component) {
@@ -775,6 +779,18 @@ pub const ServerMeta = struct {
                     } else {
                         return try pageFn(ctx);
                     }
+                } else if (is_md) {
+                    // TODO: figure out a better design for page.mdzx file, we need a better way to use PageContext in md file without magic
+                    const CCtxType = @typeInfo(CtxType).pointer.child;
+
+                    const cctx = (allocator.create(CCtxType) catch @panic("OOM"));
+                    cctx.allocator = allocator;
+                    const md_has_ctx = @hasDecl(T, "page_ctx");
+                    if (md_has_ctx) {
+                        T.page_ctx = ctx;
+                    }
+
+                    return pageFn(cctx);
                 } else {
                     // Page expects custom context type - cast app pointer and state to correct types
                     // ctx.app for void is ?*const anyopaque (type-erased pointer)
