@@ -3,21 +3,13 @@ const zx = @import("zx");
 const Context = @import("Context.zig");
 
 pub fn main() !void {
-    if (zx.platform.role == .client) return zx.Client.run();
-    if (zx.platform.isEdge()) return zx.Edge.run();
-
-    var gpa = std.heap.DebugAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
-
-    const db_uri = std.process.getEnvVarOwned(allocator, "DATABASE_URL") catch
+    const db_uri = std.process.getEnvVarOwned(zx.allocator, "DATABASE_URL") catch
         "postgresql://postgres:db_password@localhost:5432/ziex";
 
-    var ctx: Context = .{ .db = try .init(allocator, db_uri) };
-    const app = try zx.Server(*Context).init(allocator, .{}, &ctx);
+    var ctx: Context = .{ .db = try .init(zx.allocator, db_uri) };
+    var app = try zx.App(*Context).init(zx.allocator, .{}, &ctx);
     defer app.deinit();
 
-    app.info();
     try app.start();
 }
 

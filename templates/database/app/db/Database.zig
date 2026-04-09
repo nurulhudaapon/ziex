@@ -1,11 +1,14 @@
 const std = @import("std");
-const pg = @import("pg");
+const zx = @import("zx");
+const pg = if (zx.platform.isClient()) void else @import("pg");
 
 const Database = @This();
 
-pool: *pg.Pool,
+pool: if (zx.platform.isClient()) void else *pg.Pool,
 
 pub fn getCount(self: Database) !i64 {
+    if (zx.platform.isClient()) return error.ClientHasNoDatabase;
+
     var result = try self.pool.query("SELECT count FROM ziex", .{});
     defer result.deinit();
 
@@ -25,6 +28,8 @@ pub fn setup(self: Database) !void {
 }
 
 pub fn init(allocator: std.mem.Allocator, uri: []const u8) !Database {
+    if (zx.platform.isClient()) return error.ClientHasNoDatabase;
+
     if (uri.len == 0) return error.InvalidDatabaseUrl;
 
     const pgUri = try std.Uri.parse(uri);
@@ -37,5 +42,6 @@ pub fn init(allocator: std.mem.Allocator, uri: []const u8) !Database {
 }
 
 pub fn deinit(self: *Database) void {
+    if (zx.platform.isClient()) return;
     self.db_pool.deinit();
 }
