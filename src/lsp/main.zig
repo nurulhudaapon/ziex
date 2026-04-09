@@ -168,15 +168,18 @@ pub const Handler = struct {
         const joined = std.fs.path.join(handler.allocator, &.{ doc_dir, rel_path }) catch return;
         defer handler.allocator.free(joined);
 
-        const abs_path = std.fs.cwd().realpathAlloc(handler.allocator, joined) catch return;
-        defer handler.allocator.free(abs_path);
+        const resolved_path = switch (builtin.os.tag) {
+            .wasi, .freestanding => handler.allocator.dupe(u8, joined) catch return,
+            else => std.fs.cwd().realpathAlloc(handler.allocator, joined) catch return,
+        };
+        defer handler.allocator.free(resolved_path);
 
-        const zx_uri = std.fmt.allocPrint(handler.allocator, "file://{s}", .{abs_path}) catch return;
+        const zx_uri = std.fmt.allocPrint(handler.allocator, "file://{s}", .{resolved_path}) catch return;
         defer handler.allocator.free(zx_uri);
 
         if (handler.zx_files.contains(zx_uri)) return;
 
-        const content = std.fs.cwd().readFileAlloc(handler.allocator, abs_path, 4 * 1024 * 1024) catch return;
+        const content = std.fs.cwd().readFileAlloc(handler.allocator, resolved_path, 4 * 1024 * 1024) catch return;
         defer handler.allocator.free(content);
 
         handler.storeAndDiagnose(zx_uri, content);

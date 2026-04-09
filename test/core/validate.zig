@@ -134,6 +134,31 @@ test "validate: diagnostic message is non-empty" {
     try testing.expect(diags.items[0].message.len > 0);
 }
 
+test "validate: broken line does not expand diagnostic to whole file" {
+    const allocator = std.testing.allocator;
+
+    const source: [:0]const u8 =
+        \\pub fn Page(allocator: zx.Allocator) zx.Component {
+        \\    const broken = ;
+        \\    return (<div>Hello</div>);
+        \\}
+        \\const zx = @import("zx");
+    ;
+
+    var parse_result = try Parser.parse(allocator, source, .zx);
+    defer parse_result.deinit(allocator);
+
+    var diags = try Validate.validate(allocator, &parse_result);
+    defer diags.deinit();
+
+    try testing.expect(diags.hasErrors());
+    try testing.expect(diags.items.len > 0);
+
+    const last_line: u32 = 4;
+    try testing.expectEqual(@as(u32, 1), diags.items[0].start_line);
+    try testing.expect(diags.items[0].end_line < last_line);
+}
+
 test "validate: Ast.parse on valid source has empty diagnostics" {
     const allocator = std.testing.allocator;
 
