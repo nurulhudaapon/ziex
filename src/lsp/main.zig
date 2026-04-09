@@ -107,6 +107,105 @@ pub const Handler = struct {
         return uri;
     }
 
+    /// Rewrite `@import("*.zx")` → `@import("*.zig")` so ZLS can resolve cross-file imports.
+    fn rewriteZxImports(allocator: std.mem.Allocator, source: []const u8) ?[]const u8 {
+        const needle = "@import(\"";
+        var buf = std.ArrayList(u8).empty;
+        var copied_to: usize = 0;
+        var search_from: usize = 0;
+        var found_any = false;
+
+        while (std.mem.indexOfPos(u8, source, search_from, needle)) |start| {
+            const path_start = start + needle.len;
+            if (std.mem.indexOfPos(u8, source, path_start, "\")")) |path_end| {
+                const import_path = source[path_start..path_end];
+                if (std.mem.endsWith(u8, import_path, ".zx")) {
+                    found_any = true;
+                    const ext_start = path_end - 3; // points to ".zx"
+                    buf.appendSlice(allocator, source[copied_to..ext_start]) catch return null;
+                    buf.appendSlice(allocator, ".zig") catch return null;
+                    copied_to = path_end; // resume copying after ".zx"
+                }
+                search_from = path_end + 2;
+            } else break;
+        }
+
+        if (!found_any) return null;
+
+        buf.appendSlice(allocator, source[copied_to..]) catch return null;
+        return buf.toOwnedSlice(allocator) catch null;
+    }
+
+    /// Resolve file:// URI to a filesystem path (strips the file:// prefix).
+    fn uriToPath(uri: []const u8) ?[]const u8 {
+        if (std.mem.startsWith(u8, uri, "file://")) return uri[7..];
+        return null;
+    }
+
+    /// For each @import("*.zx") in source, ensure the referenced .zx file is opened in ZLS.
+    /// This is a known issue with ZLS not auto opening imported files in some case.
+    fn openZxImportsInZls(handler: *Handler, arena: std.mem.Allocator, document_uri: []const u8, source: []const u8) void {
+        const doc_path = uriToPath(document_uri) orelse return;
+        const doc_dir = std.fs.path.dirname(doc_path) orelse return;
+
+        const needle = "@import(\"";
+        var pos: usize = 0;
+        while (std.mem.indexOfPos(u8, source, pos, needle)) |start| {
+            const path_start = start + needle.len;
+            if (std.mem.indexOfPos(u8, source, path_start, "\")")) |path_end| {
+                const import_path = source[path_start..path_end];
+                if (std.mem.endsWith(u8, import_path, ".zx")) {
+                    handler.ensureZxFileOpenInZls(arena, doc_dir, import_path);
+                }
+                pos = path_end + 2;
+            } else break;
+        }
+    }
+
+    /// Open a .zx file in ZLS if not already tracked — reads from disk, transpiles to .zig, sends didOpen.
+    /// For imported files we send transpiled .zig (not raw .zx) so ZLS can resolve exported types.
+    fn ensureZxFileOpenInZls(handler: *Handler, arena: std.mem.Allocator, doc_dir: []const u8, rel_path: []const u8) void {
+        const joined = std.fs.path.join(handler.allocator, &.{ doc_dir, rel_path }) catch return;
+        defer handler.allocator.free(joined);
+
+        const abs_path = std.fs.cwd().realpathAlloc(handler.allocator, joined) catch return;
+        defer handler.allocator.free(abs_path);
+
+        const zx_uri = std.fmt.allocPrint(handler.allocator, "file://{s}", .{abs_path}) catch return;
+        defer handler.allocator.free(zx_uri);
+
+        if (handler.zx_files.contains(zx_uri)) return;
+
+        const content = std.fs.cwd().readFileAlloc(handler.allocator, abs_path, 4 * 1024 * 1024) catch return;
+        defer handler.allocator.free(content);
+
+        handler.storeAndDiagnose(zx_uri, content);
+
+        const zig_uri = handler.getZlsUri(zx_uri);
+
+        const source_z = handler.allocator.dupeZ(u8, content) catch return;
+        defer handler.allocator.free(source_z);
+
+        var parse_result = zx.Ast.parse(handler.allocator, source_z, .{}) catch null;
+        defer if (parse_result) |*r| r.deinit(handler.allocator);
+
+        const zls_text: []const u8 = if (parse_result) |r| r.zig_source else content;
+
+        const rewritten = rewriteZxImports(handler.allocator, zls_text) orelse zls_text;
+        defer if (rewritten.ptr != zls_text.ptr) handler.allocator.free(rewritten);
+
+        handler.openZxImportsInZls(arena, zx_uri, content);
+
+        handler.zls.sendNotificationSync(arena, "textDocument/didOpen", .{
+            .textDocument = .{
+                .uri = zig_uri,
+                .languageId = "zig",
+                .version = @as(i32, 0),
+                .text = rewritten,
+            },
+        }) catch {};
+    }
+
     /// Store .zx file state and publish zx-specific diagnostics.
     fn storeAndDiagnose(handler: *Handler, uri: []const u8, source: []const u8) void {
         const source_z = handler.allocator.dupeZ(u8, source) catch return;
@@ -262,12 +361,19 @@ pub const Handler = struct {
         if (isZxUri(params.textDocument.uri)) {
             handler.storeAndDiagnose(params.textDocument.uri, params.textDocument.text);
             const zig_uri = handler.getZlsUri(params.textDocument.uri);
+
+            // Rewrite .zx imports to .zig so ZLS can resolve them
+            const zls_text = rewriteZxImports(handler.allocator, params.textDocument.text) orelse params.textDocument.text;
+            defer if (zls_text.ptr != params.textDocument.text.ptr) handler.allocator.free(zls_text);
+
+            handler.openZxImportsInZls(arena, params.textDocument.uri, params.textDocument.text);
+
             handler.zls.sendNotificationSync(arena, "textDocument/didOpen", .{
                 .textDocument = .{
                     .uri = zig_uri,
                     .languageId = "zig",
                     .version = params.textDocument.version,
-                    .text = params.textDocument.text,
+                    .text = zls_text,
                 },
             }) catch {};
             return;
@@ -312,13 +418,19 @@ pub const Handler = struct {
 
             handler.storeAndDiagnose(params.textDocument.uri, full_text);
 
+            // Rewrite .zx imports to .zig so ZLS can resolve them
+            const zls_text = rewriteZxImports(handler.allocator, full_text) orelse full_text;
+            defer if (zls_text.ptr != full_text.ptr) handler.allocator.free(zls_text);
+
+            handler.openZxImportsInZls(arena, params.textDocument.uri, full_text);
+
             const zig_uri = handler.getZlsUri(params.textDocument.uri);
             handler.zls.sendNotificationSync(arena, "textDocument/didChange", .{
                 .textDocument = .{
                     .uri = zig_uri,
                     .version = params.textDocument.version,
                 },
-                .contentChanges = &.{.{ .literal_1 = .{ .text = full_text } }},
+                .contentChanges = &.{.{ .literal_1 = .{ .text = zls_text } }},
             }) catch {};
             return;
         }
