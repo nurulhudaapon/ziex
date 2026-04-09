@@ -35,15 +35,51 @@ fn LinearMap(comptime V: type) type {
 }
 
 var mu: std.Thread.Mutex = .{};
-var map: LinearMap(ActionFn) = .{};
 var event_map: LinearMap(ServerEventFn) = .{};
 
-/// Register an action handler for a route. Route paths are comptime-stable
-/// string literals so no duplication of the key is needed.
-pub fn register(route_path: []const u8, action_fn: ActionFn) void {
+const ActionEntry = struct {
+    route_path: []const u8,
+    action_id: u32,
+    action_fn: ActionFn,
+};
+
+var action_entries: std.ArrayListUnmanaged(ActionEntry) = .empty;
+
+/// Register an action handler for a route and return its stable action ID.
+pub fn register(route_path: []const u8, preferred_action_id: u32, action_fn: ActionFn) u32 {
     mu.lock();
     defer mu.unlock();
-    map.put(route_path, action_fn);
+
+    if (preferred_action_id != 0) {
+        for (action_entries.items) |*entry| {
+            if (entry.action_id == preferred_action_id and std.mem.eql(u8, entry.route_path, route_path)) {
+                entry.action_fn = action_fn;
+                return preferred_action_id;
+            }
+        }
+
+        action_entries.append(allocator, .{
+            .route_path = route_path,
+            .action_id = preferred_action_id,
+            .action_fn = action_fn,
+        }) catch return preferred_action_id;
+        return preferred_action_id;
+    }
+
+    var max_action_id: u32 = 0;
+    for (action_entries.items) |entry| {
+        if (!std.mem.eql(u8, entry.route_path, route_path)) continue;
+        if (entry.action_fn == action_fn) return entry.action_id;
+        max_action_id = @max(max_action_id, entry.action_id);
+    }
+
+    const action_id = max_action_id + 1;
+    action_entries.append(allocator, .{
+        .route_path = route_path,
+        .action_id = action_id,
+        .action_fn = action_fn,
+    }) catch return action_id;
+    return action_id;
 }
 
 pub fn registerEvent(route_path: []const u8, handler_id: u32, event_fn: ServerEventFn) void {
@@ -68,9 +104,15 @@ pub fn getEvent(route_path: []const u8, handler_id: u32) ?ServerEventFn {
     return event_map.get(key);
 }
 
-/// Look up a registered action handler by route path.
-pub fn get(route_path: []const u8) ?ActionFn {
+/// Look up a registered action handler by route path and action ID.
+pub fn get(route_path: []const u8, action_id: u32) ?ActionFn {
     mu.lock();
     defer mu.unlock();
-    return map.get(route_path);
+
+    for (action_entries.items) |entry| {
+        if (entry.action_id == action_id and std.mem.eql(u8, entry.route_path, route_path)) {
+            return entry.action_fn;
+        }
+    }
+    return null;
 }

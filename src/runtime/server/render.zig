@@ -214,6 +214,7 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
 
             // Handle attributes
             var has_action_handler = false;
+            var action_id: u32 = 1;
             if (elem.attributes) |attributes| {
                 var has_method = false;
 
@@ -222,7 +223,7 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
                         // Register ActionContext handlers so the server can dispatch them.
                         if (handler.action_fn) |action_fn| {
                             if (current_route_path) |rp| {
-                                registry.register(rp, action_fn);
+                                action_id = registry.register(rp, handler.handler_id, action_fn);
                             }
                             has_action_handler = true;
                         }
@@ -263,7 +264,7 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
 
             // Inject hidden field so no-JS form submissions can be identified as action requests
             if (elem.tag == .form and has_action_handler) {
-                try writer.writeAll("<input type=\"hidden\" name=\"__$action\" value=\"1\">");
+                try writer.print("<input type=\"hidden\" name=\"__$action\" value=\"{d}\">", .{action_id});
             }
 
             // Render children (recursively collect slots if needed)

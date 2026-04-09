@@ -34,6 +34,21 @@ pub fn isActionRequest(request: zx.server.Request) bool {
             std.mem.indexOf(u8, body, "name=\"__$action\"") != null);
 }
 
+fn parseActionId(request: zx.server.Request) u32 {
+    if (request.headers.get("x-zx-action")) |raw| {
+        return std.fmt.parseInt(u32, raw, 10) catch 1;
+    }
+
+    const content_type = request.headers.get("content-type") orelse "";
+    if (std.mem.indexOf(u8, content_type, "multipart/form-data") != null) {
+        const raw = request.multiFormData().getValue("__$action") orelse return 1;
+        return std.fmt.parseInt(u32, raw, 10) catch 1;
+    }
+
+    const raw = request.formData().get("__$action") orelse return 1;
+    return std.fmt.parseInt(u32, raw, 10) catch 1;
+}
+
 fn serializeStateOutputs(sc: anytype, allocator: std.mem.Allocator) !?[]u8 {
     var aw = std.Io.Writer.Allocating.init(allocator);
     try zx.util.zxon.serialize(sc._outputs, &aw.writer, .{});
@@ -69,6 +84,7 @@ pub fn dispatchAction(
     if (!isActionRequest(request)) return .not_triggered;
 
     const is_js = request.headers.has("x-zx-action");
+    const action_id = parseActionId(request);
 
     // TODO: cleanup
     // const sr = request.multiFormData().getValue("__$states") orelse "null";
@@ -86,7 +102,7 @@ pub fn dispatchAction(
         break :blk zx.util.zxon.parse([]const []const u8, arena, states_raw, .{}) catch null;
     };
 
-    if (registry.get(route_path)) |action_fn| {
+    if (registry.get(route_path, action_id)) |action_fn| {
         var action_ctx = zx.server.Action{
             .request = request,
             .response = response,
@@ -106,7 +122,7 @@ pub fn dispatchAction(
         }
     }
 
-    if (registry.get(route_path)) |action_fn| {
+    if (registry.get(route_path, action_id)) |action_fn| {
         var action_ctx = zx.server.Action{
             .request = request,
             .response = response,
