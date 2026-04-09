@@ -7,7 +7,6 @@ const builtin = @import("builtin");
 const zls = @import("zls");
 const lsp = zls.lsp;
 const zx = @import("zx");
-const sourcemap = zx.sourcemap;
 
 var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 
@@ -56,16 +55,12 @@ pub fn main() !void {
 }
 
 const ZxFileState = struct {
-    decoded_map: sourcemap.DecodedMap,
     zig_uri: []const u8,
     source: []const u8,
-    zig_source: []const u8,
 
     fn deinit(self: *ZxFileState, allocator: std.mem.Allocator) void {
-        self.decoded_map.deinit();
         allocator.free(self.zig_uri);
         allocator.free(self.source);
-        allocator.free(self.zig_source);
     }
 };
 
@@ -102,65 +97,51 @@ pub const Handler = struct {
     }
 
     fn toZigUri(allocator: std.mem.Allocator, zx_uri: []const u8) ![]const u8 {
-        // Replace .zx suffix with .zig
         const base = zx_uri[0 .. zx_uri.len - 3];
         return std.fmt.allocPrint(allocator, "{s}.zig", .{base});
     }
 
-    /// Transpile .zx source via zx.Ast, store the sourcemap, and return the generated Zig source.
-    fn transpileAndStore(handler: *Handler, uri: []const u8, source: []const u8) ![]const u8 {
-        const source_z = try handler.allocator.dupeZ(u8, source);
+    /// Get the ZLS-facing URI for a document (maps .zx → .zig, passes others through).
+    fn getZlsUri(handler: *Handler, uri: []const u8) []const u8 {
+        if (handler.zx_files.get(uri)) |state| return state.zig_uri;
+        return uri;
+    }
+
+    /// Store .zx file state and publish zx-specific diagnostics.
+    fn storeAndDiagnose(handler: *Handler, uri: []const u8, source: []const u8) void {
+        const source_z = handler.allocator.dupeZ(u8, source) catch return;
         defer handler.allocator.free(source_z);
 
-        var result = zx.Ast.parse(handler.allocator, source_z, .{ .map = .inlined }) catch |err| {
-            std.log.err("zx.Ast.parse failed for {s}: {}", .{ uri, err });
-            return error.ParseFailed;
-        };
+        var result = zx.Ast.parse(handler.allocator, source_z, .{}) catch return;
         defer result.deinit(handler.allocator);
 
-        handler.publishZxDiagnostics(uri, result.diagnostics) catch |err| {
-            std.log.err("Failed to publish diagnostics for {s}: {}", .{ uri, err });
+        handler.publishZxDiagnostics(uri, result.diagnostics) catch {};
+
+        const zig_uri = toZigUri(handler.allocator, uri) catch return;
+        const uri_key = handler.allocator.dupe(u8, uri) catch {
+            handler.allocator.free(zig_uri);
+            return;
+        };
+        const source_owned = handler.allocator.dupe(u8, source) catch {
+            handler.allocator.free(zig_uri);
+            handler.allocator.free(uri_key);
+            return;
         };
 
-        if (result.diagnostics.hasErrors() or !std.unicode.utf8ValidateSlice(result.zx_source)) {
-            handler.updateStoredSource(uri, source_z);
-            return error.HasErrors;
-        }
-
-        const sm = result.sourcemap orelse return error.NoSourceMap;
-        const decoded = try sm.decode(handler.allocator);
-
-        const zig_uri = try toZigUri(handler.allocator, uri);
-        const uri_key = try handler.allocator.dupe(u8, uri);
-        const zig_source_owned = try handler.allocator.dupe(u8, result.zx_source);
-        errdefer handler.allocator.free(zig_source_owned);
-
-        const source_owned = try handler.allocator.dupe(u8, source_z[0..source_z.len]);
-        errdefer handler.allocator.free(source_owned);
-
-        // Clean up old state if present
         if (handler.zx_files.fetchRemove(uri)) |old| {
             handler.allocator.free(old.key);
             var old_state = old.value;
             old_state.deinit(handler.allocator);
         }
 
-        try handler.zx_files.put(uri_key, .{
-            .decoded_map = decoded,
+        handler.zx_files.put(uri_key, .{
             .zig_uri = zig_uri,
             .source = source_owned,
-            .zig_source = zig_source_owned,
-        });
-
-        return try handler.allocator.dupe(u8, result.zx_source);
-    }
-
-    fn updateStoredSource(handler: *Handler, uri: []const u8, source: []const u8) void {
-        if (handler.zx_files.getPtr(uri)) |state| {
-            const new_source = handler.allocator.dupe(u8, source) catch return;
-            handler.allocator.free(state.source);
-            state.source = new_source;
-        }
+        }) catch {
+            handler.allocator.free(zig_uri);
+            handler.allocator.free(uri_key);
+            handler.allocator.free(source_owned);
+        };
     }
 
     fn publishZxDiagnostics(handler: *Handler, uri: []const u8, diag_list: zx.Validate.DiagnosticList) !void {
@@ -195,42 +176,15 @@ pub const Handler = struct {
         };
     }
 
-    /// Remap a position from source (.zx) to generated (.zig) coordinates.
-    fn remapPositionToGenerated(handler: *Handler, uri: []const u8, pos: lsp.types.Position) struct { uri: []const u8, pos: lsp.types.Position } {
-        const state = handler.zx_files.get(uri) orelse return .{ .uri = uri, .pos = pos };
-
-        if (state.decoded_map.sourceToGenerated(@intCast(pos.line), @intCast(pos.character))) |m| {
-            return .{
-                .uri = state.zig_uri,
-                .pos = .{ .line = @intCast(m.generated_line), .character = @intCast(m.generated_column) },
-            };
-        }
-        return .{ .uri = state.zig_uri, .pos = pos };
+    /// Remap a TextDocumentPositionParams URI for .zx files before forwarding to ZLS.
+    fn remapUri(handler: *Handler, comptime T: type, params: T) T {
+        if (!isZxUri(params.textDocument.uri)) return params;
+        var new_params = params;
+        new_params.textDocument = .{ .uri = handler.getZlsUri(params.textDocument.uri) };
+        return new_params;
     }
 
-    /// Remap a position from generated (.zig) back to source (.zx) coordinates.
-    /// Positions are in byte offsets (utf-8 encoding negotiated at init).
-    fn remapPositionToSource(handler: *Handler, uri: []const u8, pos: lsp.types.Position) lsp.types.Position {
-        var it = handler.zx_files.iterator();
-        while (it.next()) |entry| {
-            if (std.mem.eql(u8, entry.value_ptr.zig_uri, uri)) {
-                const state = entry.value_ptr;
-                if (state.decoded_map.generatedToSource(@intCast(pos.line), @intCast(pos.character))) |m| {
-                    return .{ .line = @intCast(m.source_line), .character = @intCast(m.source_column) };
-                }
-                return pos;
-            }
-        }
-        return pos;
-    }
-
-    /// Remap a range from generated (.zig) back to source (.zx) coordinates.
-    fn remapRangeToSource(handler: *Handler, uri: []const u8, range: lsp.types.Range) lsp.types.Range {
-        return .{
-            .start = handler.remapPositionToSource(uri, range.start),
-            .end = handler.remapPositionToSource(uri, range.end),
-        };
-    }
+    // -- Lifecycle handlers --
 
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialize
     pub fn initialize(
@@ -297,6 +251,8 @@ pub const Handler = struct {
         handler.zls.sendNotificationSync(arena, "exit", {}) catch {};
     }
 
+    // -- Document sync: send raw .zx source to ZLS (as .zig URI) --
+
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didOpen
     pub fn @"textDocument/didOpen"(
         handler: *Handler,
@@ -304,20 +260,14 @@ pub const Handler = struct {
         params: lsp.types.DidOpenTextDocumentParams,
     ) !void {
         if (isZxUri(params.textDocument.uri)) {
-            const zig_source = handler.transpileAndStore(params.textDocument.uri, params.textDocument.text) catch {
-                // Fallback: send original source to ZLS
-                handler.zls.sendNotificationSync(arena, "textDocument/didOpen", params) catch {};
-                return;
-            };
-            defer handler.allocator.free(zig_source);
-
-            const state = handler.zx_files.get(params.textDocument.uri).?;
+            handler.storeAndDiagnose(params.textDocument.uri, params.textDocument.text);
+            const zig_uri = handler.getZlsUri(params.textDocument.uri);
             handler.zls.sendNotificationSync(arena, "textDocument/didOpen", .{
                 .textDocument = .{
-                    .uri = state.zig_uri,
+                    .uri = zig_uri,
                     .languageId = "zig",
                     .version = params.textDocument.version,
-                    .text = zig_source,
+                    .text = params.textDocument.text,
                 },
             }) catch {};
             return;
@@ -332,7 +282,7 @@ pub const Handler = struct {
         params: lsp.types.DidChangeTextDocumentParams,
     ) !void {
         if (isZxUri(params.textDocument.uri)) {
-            // Build the full text by applying content changes to the stored source.
+            // Build full text by applying incremental changes to stored source.
             const current_source = if (handler.zx_files.get(params.textDocument.uri)) |state|
                 state.source
             else
@@ -360,19 +310,15 @@ pub const Handler = struct {
                 }
             }
 
-            const zig_source = handler.transpileAndStore(params.textDocument.uri, full_text) catch {
-                handler.zls.sendNotificationSync(arena, "textDocument/didChange", params) catch {};
-                return;
-            };
-            defer handler.allocator.free(zig_source);
+            handler.storeAndDiagnose(params.textDocument.uri, full_text);
 
-            const state = handler.zx_files.get(params.textDocument.uri).?;
+            const zig_uri = handler.getZlsUri(params.textDocument.uri);
             handler.zls.sendNotificationSync(arena, "textDocument/didChange", .{
                 .textDocument = .{
-                    .uri = state.zig_uri,
+                    .uri = zig_uri,
                     .version = params.textDocument.version,
                 },
-                .contentChanges = &.{.{ .literal_1 = .{ .text = zig_source } }},
+                .contentChanges = &.{.{ .literal_1 = .{ .text = full_text } }},
             }) catch {};
             return;
         }
@@ -419,13 +365,11 @@ pub const Handler = struct {
         params: lsp.types.DidSaveTextDocumentParams,
     ) !void {
         if (isZxUri(params.textDocument.uri)) {
-            if (handler.zx_files.get(params.textDocument.uri)) |state| {
-                handler.zls.sendNotificationSync(arena, "textDocument/didSave", .{
-                    .textDocument = .{ .uri = state.zig_uri },
-                    .text = params.text,
-                }) catch {};
-                return;
-            }
+            handler.zls.sendNotificationSync(arena, "textDocument/didSave", .{
+                .textDocument = .{ .uri = handler.getZlsUri(params.textDocument.uri) },
+                .text = params.text,
+            }) catch {};
+            return;
         }
         handler.zls.sendNotificationSync(arena, "textDocument/didSave", params) catch {};
     }
@@ -460,17 +404,7 @@ pub const Handler = struct {
         handler.zls.sendNotificationSync(arena, "textDocument/didClose", params) catch {};
     }
 
-    // -- Request handlers with position remapping --
-
-    /// Helper: remap a TextDocumentPositionParams for .zx files before forwarding to ZLS.
-    fn remapTextDocPositionParams(handler: *Handler, comptime T: type, params: T) T {
-        if (!isZxUri(params.textDocument.uri)) return params;
-        const remapped = handler.remapPositionToGenerated(params.textDocument.uri, params.position);
-        var new_params = params;
-        new_params.textDocument = .{ .uri = remapped.uri };
-        new_params.position = remapped.pos;
-        return new_params;
-    }
+    // -- Request handlers: forward to ZLS with URI remapping only (no position remapping) --
 
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_hover
     pub fn @"textDocument/hover"(
@@ -478,14 +412,8 @@ pub const Handler = struct {
         arena: std.mem.Allocator,
         params: lsp.types.HoverParams,
     ) ?lsp.types.Hover {
-        const mapped = handler.remapTextDocPositionParams(lsp.types.HoverParams, params);
-        var result = handler.zls.sendRequestSync(arena, "textDocument/hover", mapped) catch return null;
-        if (result) |*hover| {
-            if (hover.range) |range| {
-                hover.range = handler.remapRangeToSource(mapped.textDocument.uri, range);
-            }
-        }
-        return result;
+        const mapped = handler.remapUri(lsp.types.HoverParams, params);
+        return handler.zls.sendRequestSync(arena, "textDocument/hover", mapped) catch null;
     }
 
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_completion
@@ -494,7 +422,7 @@ pub const Handler = struct {
         arena: std.mem.Allocator,
         params: lsp.types.CompletionParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/completion") {
-        const mapped = handler.remapTextDocPositionParams(lsp.types.CompletionParams, params);
+        const mapped = handler.remapUri(lsp.types.CompletionParams, params);
         return handler.zls.sendRequestSync(arena, "textDocument/completion", mapped) catch null;
     }
 
@@ -504,7 +432,7 @@ pub const Handler = struct {
         arena: std.mem.Allocator,
         params: lsp.types.SignatureHelpParams,
     ) error{OutOfMemory}!?lsp.types.SignatureHelp {
-        const mapped = handler.remapTextDocPositionParams(lsp.types.SignatureHelpParams, params);
+        const mapped = handler.remapUri(lsp.types.SignatureHelpParams, params);
         return handler.zls.sendRequestSync(arena, "textDocument/signatureHelp", mapped) catch null;
     }
 
@@ -514,7 +442,7 @@ pub const Handler = struct {
         arena: std.mem.Allocator,
         params: lsp.types.DefinitionParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/definition") {
-        const mapped = handler.remapTextDocPositionParams(lsp.types.DefinitionParams, params);
+        const mapped = handler.remapUri(lsp.types.DefinitionParams, params);
         return handler.zls.sendRequestSync(arena, "textDocument/definition", mapped) catch null;
     }
 
@@ -524,7 +452,7 @@ pub const Handler = struct {
         arena: std.mem.Allocator,
         params: lsp.types.TypeDefinitionParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/typeDefinition") {
-        const mapped = handler.remapTextDocPositionParams(lsp.types.TypeDefinitionParams, params);
+        const mapped = handler.remapUri(lsp.types.TypeDefinitionParams, params);
         return handler.zls.sendRequestSync(arena, "textDocument/typeDefinition", mapped) catch null;
     }
 
@@ -534,7 +462,7 @@ pub const Handler = struct {
         arena: std.mem.Allocator,
         params: lsp.types.ImplementationParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/implementation") {
-        const mapped = handler.remapTextDocPositionParams(lsp.types.ImplementationParams, params);
+        const mapped = handler.remapUri(lsp.types.ImplementationParams, params);
         return handler.zls.sendRequestSync(arena, "textDocument/implementation", mapped) catch null;
     }
 
@@ -544,7 +472,7 @@ pub const Handler = struct {
         arena: std.mem.Allocator,
         params: lsp.types.DeclarationParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/declaration") {
-        const mapped = handler.remapTextDocPositionParams(lsp.types.DeclarationParams, params);
+        const mapped = handler.remapUri(lsp.types.DeclarationParams, params);
         return handler.zls.sendRequestSync(arena, "textDocument/declaration", mapped) catch null;
     }
 
@@ -554,7 +482,7 @@ pub const Handler = struct {
         arena: std.mem.Allocator,
         params: lsp.types.PrepareRenameParams,
     ) ?lsp.types.PrepareRenameResult {
-        const mapped = handler.remapTextDocPositionParams(lsp.types.PrepareRenameParams, params);
+        const mapped = handler.remapUri(lsp.types.PrepareRenameParams, params);
         return handler.zls.sendRequestSync(arena, "textDocument/prepareRename", mapped) catch null;
     }
 
@@ -564,7 +492,7 @@ pub const Handler = struct {
         arena: std.mem.Allocator,
         params: lsp.types.RenameParams,
     ) error{OutOfMemory}!?lsp.types.WorkspaceEdit {
-        const mapped = handler.remapTextDocPositionParams(lsp.types.RenameParams, params);
+        const mapped = handler.remapUri(lsp.types.RenameParams, params);
         return handler.zls.sendRequestSync(arena, "textDocument/rename", mapped) catch null;
     }
 
@@ -574,9 +502,8 @@ pub const Handler = struct {
         arena: std.mem.Allocator,
         params: lsp.types.ReferenceParams,
     ) error{OutOfMemory}!?[]const lsp.types.Location {
-        const mapped = handler.remapTextDocPositionParams(lsp.types.ReferenceParams, params);
-        const result = handler.zls.sendRequestSync(arena, "textDocument/references", mapped) catch null;
-        return result;
+        const mapped = handler.remapUri(lsp.types.ReferenceParams, params);
+        return handler.zls.sendRequestSync(arena, "textDocument/references", mapped) catch null;
     }
 
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_documentHighlight
@@ -585,12 +512,11 @@ pub const Handler = struct {
         arena: std.mem.Allocator,
         params: lsp.types.DocumentHighlightParams,
     ) error{OutOfMemory}!?[]const lsp.types.DocumentHighlight {
-        const mapped = handler.remapTextDocPositionParams(lsp.types.DocumentHighlightParams, params);
-        const result = handler.zls.sendRequestSync(arena, "textDocument/documentHighlight", mapped) catch null;
-        return result;
+        const mapped = handler.remapUri(lsp.types.DocumentHighlightParams, params);
+        return handler.zls.sendRequestSync(arena, "textDocument/documentHighlight", mapped) catch null;
     }
 
-    // -- Handlers that operate on the whole document (no position remapping needed on input) --
+    // -- Document-wide handlers --
 
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_willSaveWaitUntil
     pub fn @"textDocument/willSaveWaitUntil"(
@@ -598,8 +524,7 @@ pub const Handler = struct {
         arena: std.mem.Allocator,
         params: lsp.types.WillSaveTextDocumentParams,
     ) error{OutOfMemory}!?[]const lsp.types.TextEdit {
-        const result = handler.zls.sendRequestSync(arena, "textDocument/willSaveWaitUntil", params) catch null;
-        return result;
+        return handler.zls.sendRequestSync(arena, "textDocument/willSaveWaitUntil", params) catch null;
     }
 
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_semanticTokens_full
@@ -609,11 +534,9 @@ pub const Handler = struct {
         params: lsp.types.SemanticTokensParams,
     ) error{OutOfMemory}!?lsp.types.SemanticTokens {
         if (isZxUri(params.textDocument.uri)) {
-            if (handler.zx_files.get(params.textDocument.uri)) |state| {
-                var new_params = params;
-                new_params.textDocument = .{ .uri = state.zig_uri };
-                return handler.zls.sendRequestSync(arena, "textDocument/semanticTokens/full", new_params) catch null;
-            }
+            var new_params = params;
+            new_params.textDocument = .{ .uri = handler.getZlsUri(params.textDocument.uri) };
+            return handler.zls.sendRequestSync(arena, "textDocument/semanticTokens/full", new_params) catch null;
         }
         return handler.zls.sendRequestSync(arena, "textDocument/semanticTokens/full", params) catch null;
     }
@@ -634,15 +557,11 @@ pub const Handler = struct {
         params: lsp.types.InlayHintParams,
     ) error{OutOfMemory}!?[]const lsp.types.InlayHint {
         if (isZxUri(params.textDocument.uri)) {
-            if (handler.zx_files.get(params.textDocument.uri)) |state| {
-                var new_params = params;
-                new_params.textDocument = .{ .uri = state.zig_uri };
-                const result = handler.zls.sendRequestSync(arena, "textDocument/inlayHint", new_params) catch null;
-                return result;
-            }
+            var new_params = params;
+            new_params.textDocument = .{ .uri = handler.getZlsUri(params.textDocument.uri) };
+            return handler.zls.sendRequestSync(arena, "textDocument/inlayHint", new_params) catch null;
         }
-        const result = handler.zls.sendRequestSync(arena, "textDocument/inlayHint", params) catch null;
-        return result;
+        return handler.zls.sendRequestSync(arena, "textDocument/inlayHint", params) catch null;
     }
 
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_documentSymbol
@@ -652,11 +571,9 @@ pub const Handler = struct {
         params: lsp.types.DocumentSymbolParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/documentSymbol") {
         if (isZxUri(params.textDocument.uri)) {
-            if (handler.zx_files.get(params.textDocument.uri)) |state| {
-                var new_params = params;
-                new_params.textDocument = .{ .uri = state.zig_uri };
-                return handler.zls.sendRequestSync(arena, "textDocument/documentSymbol", new_params) catch null;
-            }
+            var new_params = params;
+            new_params.textDocument = .{ .uri = handler.getZlsUri(params.textDocument.uri) };
+            return handler.zls.sendRequestSync(arena, "textDocument/documentSymbol", new_params) catch null;
         }
         return handler.zls.sendRequestSync(arena, "textDocument/documentSymbol", params) catch null;
     }
@@ -704,12 +621,9 @@ pub const Handler = struct {
         params: lsp.types.CodeActionParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/codeAction") {
         if (isZxUri(params.textDocument.uri)) {
-            if (handler.zx_files.get(params.textDocument.uri)) |state| {
-                var new_params = params;
-                new_params.textDocument = .{ .uri = state.zig_uri };
-                new_params.range = handler.remapRangeToSource(state.zig_uri, params.range);
-                return handler.zls.sendRequestSync(arena, "textDocument/codeAction", new_params) catch null;
-            }
+            var new_params = params;
+            new_params.textDocument = .{ .uri = handler.getZlsUri(params.textDocument.uri) };
+            return handler.zls.sendRequestSync(arena, "textDocument/codeAction", new_params) catch null;
         }
         return handler.zls.sendRequestSync(arena, "textDocument/codeAction", params) catch null;
     }
@@ -721,15 +635,11 @@ pub const Handler = struct {
         params: lsp.types.FoldingRangeParams,
     ) error{OutOfMemory}!?[]const lsp.types.FoldingRange {
         if (isZxUri(params.textDocument.uri)) {
-            if (handler.zx_files.get(params.textDocument.uri)) |state| {
-                var new_params = params;
-                new_params.textDocument = .{ .uri = state.zig_uri };
-                const result = handler.zls.sendRequestSync(arena, "textDocument/foldingRange", new_params) catch null;
-                return result;
-            }
+            var new_params = params;
+            new_params.textDocument = .{ .uri = handler.getZlsUri(params.textDocument.uri) };
+            return handler.zls.sendRequestSync(arena, "textDocument/foldingRange", new_params) catch null;
         }
-        const result = handler.zls.sendRequestSync(arena, "textDocument/foldingRange", params) catch null;
-        return result;
+        return handler.zls.sendRequestSync(arena, "textDocument/foldingRange", params) catch null;
     }
 
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_selectionRange
@@ -738,9 +648,10 @@ pub const Handler = struct {
         arena: std.mem.Allocator,
         params: lsp.types.SelectionRangeParams,
     ) error{OutOfMemory}!?[]const lsp.types.SelectionRange {
-        const result = handler.zls.sendRequestSync(arena, "textDocument/selectionRange", params) catch null;
-        return result;
+        return handler.zls.sendRequestSync(arena, "textDocument/selectionRange", params) catch null;
     }
+
+    // -- Workspace handlers --
 
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#workspace_didChangeWatchedFiles
     pub fn @"workspace/didChangeWatchedFiles"(
