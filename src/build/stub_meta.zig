@@ -7,6 +7,7 @@ pub const routes: []const zx.server.ServerMeta.Route = &.{};
 pub const meta = zx.server.ServerMeta{
     .routes = &routes,
     .rootdir = "",
+    .base_path = null,
 };
 
 /// Re-export components (stub for standalone builds)

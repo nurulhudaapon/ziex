@@ -63,6 +63,12 @@ pub const AppOptions = struct {
     /// and other app assets. Defaults to "app" if not specified in InitOptions.
     path: LazyPath,
 
+    /// Base path for all routes in your app (e.g. if your app is served from "/blog", set this to "/blog").
+    ///
+    /// This will be used to prefix all route URLs and asset paths in your app.
+    /// If `null`, defaults to root path ("/").
+    base_path: ?[]const u8 = null,
+
     /// Copy embedded `.zx` source files to the transpile output directory.
     ///
     /// When enabled, any `.zx` files referenced via `@embedFile` in your templates

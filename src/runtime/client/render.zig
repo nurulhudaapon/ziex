@@ -1,4 +1,9 @@
+const html_util = @import("../../util/html.zig");
 const vdom = @import("../core/vdom.zig");
+
+pub const RenderOptions = struct {
+    base_path: ?[]const u8 = base_path,
+};
 
 pub const VDOMTree = vdom;
 pub const VNode = vdom.VNode;
@@ -14,6 +19,7 @@ pub fn applyPatches(
     allocator: zx.Allocator,
     client: anytype, // *Client
     patches: std.ArrayList(Patch),
+    options: RenderOptions,
 ) !void {
     for (patches.items) |*patch| {
         switch (patch.type) {
@@ -36,7 +42,7 @@ pub fn applyPatches(
             .PLACEMENT => {
                 const data = &patch.data.PLACEMENT;
 
-                _ = try createPlatformNodes(allocator, data.vnode, client);
+                _ = try createPlatformNodes(allocator, data.vnode, client, options);
 
                 if (data.reference_id) |ref_id| {
                     ext._ib(data.parent_id, data.vnode.id, ref_id);
@@ -71,7 +77,7 @@ pub fn applyPatches(
             .REPLACE => {
                 const data = &patch.data.REPLACE;
 
-                _ = try createPlatformNodes(allocator, data.new_vnode, client);
+                _ = try createPlatformNodes(allocator, data.new_vnode, client, options);
 
                 ext._rpc(data.parent_id, data.new_vnode.id, data.old_vnode_id);
 
@@ -185,7 +191,7 @@ fn formActionCallback(ctx: *anyopaque, event: zx.client.Event) void {
 }
 
 /// Build DOM nodes for a VNode subtree and register every node in the JS
-pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anytype) anyerror!Document.HTMLNode {
+pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anytype, options: RenderOptions) anyerror!Document.HTMLNode {
     if (!is_wasm) return .{ .text = Document.HTMLText.init(allocator, {}) };
 
     const resolved_component = try vdom.resolveComponent(allocator, vnode.component);
@@ -220,7 +226,25 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                     const val = attr.value orelse "";
                     // defaultValue is a DOM property; the HTML attribute equivalent is "value"
                     const attr_name = if (std.mem.eql(u8, attr.name, "defaultValue")) "value" else attr.name;
-                    ext._sa(vnode.id, attr_name.ptr, attr_name.len, val.ptr, val.len);
+
+                    // Prefix href/src/action attributes with base_path when applicable
+                    var final_val = val;
+                    var prefixed_val: ?[]const u8 = null;
+                    if (options.base_path) |bp| {
+                        const normalized = html_util.normalizeBasePathForPrefixing(bp);
+                        if (normalized) |nb| {
+                            const is_prefixable = std.mem.eql(u8, attr_name, "href") or
+                                std.mem.eql(u8, attr_name, "src") or
+                                std.mem.eql(u8, attr_name, "action");
+                            if (is_prefixable and html_util.shouldPrefixPathWithBasePath(nb, val)) {
+                                prefixed_val = try std.mem.concat(allocator, u8, &.{ nb, val });
+                                final_val = prefixed_val.?;
+                            }
+                        }
+                    }
+                    defer if (prefixed_val) |pv| allocator.free(pv);
+
+                    ext._sa(vnode.id, attr_name.ptr, attr_name.len, final_val.ptr, final_val.len);
                 }
 
                 // Mimic Next.js: auto-inject method="post" enctype="multipart/form-data"
@@ -248,7 +272,7 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
             }
 
             for (vnode.children.items) |child| {
-                _ = try createPlatformNodes(allocator, child, client);
+                _ = try createPlatformNodes(allocator, child, client, options);
                 ext._ac(vnode.id, child.id);
             }
 
@@ -286,3 +310,7 @@ const ext = @import("window/extern.zig");
 const zx = @import("../../root.zig");
 const std = @import("std");
 const Document = zx.client.Document;
+const zx_options = @import("zx_options");
+
+/// Base path for the application, read from build options at comptime.
+pub const base_path: ?[]const u8 = zx_options.app_base_path;

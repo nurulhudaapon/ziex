@@ -25,7 +25,7 @@ pub fn component(
     const props_json = std.json.Stringify.valueAlloc(options.allocator, props, .{}) catch @panic("OOM");
 
     var aw: std.Io.Writer.Allocating = .init(allocator);
-    if (options.children) |c| c.render(&aw.writer);
+    if (options.children) |c| c.render(&aw.writer, .{});
 
     return zx.Component{ .element = .{ .tag = .div, .attributes = &.{
         &.{

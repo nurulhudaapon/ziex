@@ -5,6 +5,7 @@ const kv = @import("kv.zig");
 const render = @import("../../server/render.zig");
 const ext = @import("extern.zig");
 const core_handler = @import("../../core/Handler.zig");
+const app_meta = @import("zx_meta").meta;
 
 const Router = zx.Router;
 const Component = zx.Component;
@@ -152,6 +153,7 @@ pub fn run() !void {
             allocator,
             null, // no app_ctx in WASI
             proxy_result.state_ptr,
+            app_meta.base_path,
         );
 
         switch (page_result) {
@@ -195,7 +197,7 @@ pub fn run() !void {
                     wasi_res.body.deinit();
                     wasi_res.body = .init(allocator);
                     render.current_route_path = pathname;
-                    cmp.render(&wasi_res.body.writer) catch {};
+                    cmp.render(&wasi_res.body.writer, .{ .base_path = app_meta.base_path }) catch {};
                 }
                 try sendResponse(stdout, stderr, &wasi_res);
                 return;
@@ -220,10 +222,10 @@ pub fn run() !void {
                     render.current_route_path = pathname;
                     var shell_writer = std.Io.Writer.Allocating.init(allocator);
                     var page_component = cmp;
-                    const async_components = render.stream(page_component, allocator, &shell_writer.writer) catch {
+                    const async_components = render.stream(page_component, allocator, &shell_writer.writer, .{ .base_path = app_meta.base_path }) catch {
                         // Fallback: render the whole page at once
                         var aw = std.Io.Writer.Allocating.init(allocator);
-                        page_component.render(&aw.writer) catch {};
+                        page_component.render(&aw.writer, .{ .base_path = app_meta.base_path }) catch {};
                         render.current_route_path = null;
                         try stdout.writeAll("<!DOCTYPE html>");
                         try stdout.writeAll(aw.written());
@@ -251,7 +253,7 @@ pub fn run() !void {
                 defer aw.deinit();
                 render.current_route_path = pathname;
                 var page_cmp = cmp;
-                page_cmp.render(&aw.writer) catch {};
+                page_cmp.render(&aw.writer, .{ .base_path = app_meta.base_path }) catch {};
                 render.current_route_path = null;
 
                 try writeEdgeMeta(stderr, &wasi_res, false);
@@ -288,7 +290,7 @@ pub fn run() !void {
                                 wasi_res.body.deinit();
                                 wasi_res.body = .init(allocator);
                                 render.current_route_path = pathname;
-                                error_cmp.render(&wasi_res.body.writer) catch {};
+                                error_cmp.render(&wasi_res.body.writer, .{ .base_path = app_meta.base_path }) catch {};
                             }
                         }
                     },
@@ -338,7 +340,7 @@ pub fn run() !void {
         var aw = std.Io.Writer.Allocating.init(allocator);
         defer aw.deinit();
         render.current_route_path = pathname;
-        not_found_cmp.render(&aw.writer) catch {};
+        not_found_cmp.render(&aw.writer, .{ .base_path = app_meta.base_path }) catch {};
 
         try writeEdgeMeta(stderr, &wasi_res, false);
         try stdout.print("<!DOCTYPE html>{s}", .{aw.written()});

@@ -35,6 +35,7 @@ pub fn build(b: *std.Build) !void {
     const zx_runtime_options = b.addOptions();
     zx_runtime_options.addOption([]const u8, "staticdir", "zig-out/static");
     zx_runtime_options.addOption([]const u8, "datadir", "zig-out/data");
+    zx_runtime_options.addOption(?[]const u8, "app_base_path", null);
 
     const cli_options_dev = b.addOptions();
     cli_options_dev.addOption([]const u8, "zig_exe", b.graph.zig_exe);

@@ -400,7 +400,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                     res.body = "404 Not Found";
                     return;
                 };
-                component.render(writer) catch {
+                component.render(writer, .{ .base_path = zx_options.app_base_path }) catch {
                     res.body = "404 Not Found";
                 };
             } else {
@@ -433,7 +433,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                     res.body = "500 Internal Server Error";
                     return;
                 };
-                component.render(writer) catch {
+                component.render(writer, .{ .base_path = zx_options.app_base_path }) catch {
                     res.body = "500 Internal Server Error";
                 };
             } else {
@@ -579,6 +579,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                 req.arena,
                 self.app_ctx,
                 proxy_result.state_ptr,
+                zx_options.app_base_path,
             );
 
             switch (result) {
@@ -610,7 +611,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                             std.debug.print("Error writing HTML: {}\n", .{err});
                             return;
                         };
-                        page_component.render(writer) catch |err| {
+                        page_component.render(writer, .{ .base_path = zx_options.app_base_path }) catch |err| {
                             std.debug.print("Error rendering page: {}\n", .{err});
                             return self.uncaughtError(req, res, err);
                         };
@@ -635,6 +636,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                         req.arena,
                         self.app_ctx,
                         proxy_result.state_ptr,
+                        zx_options.app_base_path,
                     );
                     switch (re_result) {
                         .component => |cmp| {
@@ -642,7 +644,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                             if (is_dev_mode) injectDevScript(req.arena, &page_component);
                             const writer = &res.buffer.writer;
                             _ = writer.write("<!DOCTYPE html>\n") catch return;
-                            page_component.render(writer) catch |err| return self.uncaughtError(req, res, err);
+                            page_component.render(writer, .{ .base_path = zx_options.app_base_path }) catch |err| return self.uncaughtError(req, res, err);
                             res.content_type = .HTML;
                         },
                         .page_error => |err| return self.uncaughtError(req, res, err),
@@ -713,11 +715,9 @@ pub fn Handler(comptime AppCtxType: type) type {
 
         /// Render a page with streaming SSR support
         /// Sends the initial shell immediately, then streams async components as they complete
-        fn renderStreaming(self: *Self, res: *httpz.Response, page_component: *Component, arena: std.mem.Allocator) !void {
-            _ = self;
-
+        fn renderStreaming(_: *Self, res: *httpz.Response, page_component: *Component, arena: std.mem.Allocator) !void {
             var shell_writer = std.Io.Writer.Allocating.init(arena);
-            const async_components = rndr.stream(page_component.*, arena, &shell_writer.writer) catch |err| {
+            const async_components = rndr.stream(page_component.*, arena, &shell_writer.writer, .{ .base_path = zx_options.app_base_path }) catch |err| {
                 std.debug.print("Error streaming page: {}\n", .{err});
                 return err;
             };

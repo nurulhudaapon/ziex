@@ -9,7 +9,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const zx_example_if = @embedFile("../examples/if.zx");
     const zig_example_if = @embedFile("../examples/if.zig");
     const html_page_if = @import("../examples/if.zig").Conditional(allocator);
-    html_page_if.render(&aw_if.writer) catch unreachable;
+    html_page_if.render(&aw_if.writer, .{}) catch unreachable;
     const html_example_if = allocator.dupe(u8, aw_if.written()) catch unreachable;
 
     // Switch example
@@ -17,7 +17,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const zx_example_switch = @embedFile("../examples/switch.zx");
     const zig_example_switch = @embedFile("../examples/switch.zig");
     const html_page_switch = @import("../examples/switch.zig").RoleSwitch(allocator);
-    html_page_switch.render(&aw_switch.writer) catch unreachable;
+    html_page_switch.render(&aw_switch.writer, .{}) catch unreachable;
     const html_example_switch = allocator.dupe(u8, aw_switch.written()) catch unreachable;
 
     // For example
@@ -25,7 +25,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const zx_example_for = @embedFile("../examples/for.zx");
     const zig_example_for = @embedFile("../examples/for.zig");
     const html_page_for = @import("../examples/for.zig").UserList(allocator);
-    html_page_for.render(&aw_for.writer) catch unreachable;
+    html_page_for.render(&aw_for.writer, .{}) catch unreachable;
     const html_example_for = allocator.dupe(u8, aw_for.written()) catch unreachable;
 
     // While example
@@ -33,7 +33,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const zx_example_while = @embedFile("../examples/while.zx");
     const zig_example_while = @embedFile("../examples/while.zig");
     const html_page_while = @import("../examples/while.zig").Counter(allocator);
-    html_page_while.render(&aw_while.writer) catch unreachable;
+    html_page_while.render(&aw_while.writer, .{}) catch unreachable;
     const html_example_while = allocator.dupe(u8, aw_while.written()) catch unreachable;
 
     // Expression example
@@ -41,7 +41,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const zx_example_expr = @embedFile("../examples/text.zx");
     const zig_example_expr = @embedFile("../examples/text.zig");
     const html_page_expr = try @import("../examples/text.zig").Expressions(allocator);
-    html_page_expr.render(&aw_expr.writer) catch unreachable;
+    html_page_expr.render(&aw_expr.writer, .{}) catch unreachable;
     const html_example_expr = allocator.dupe(u8, aw_expr.written()) catch unreachable;
 
     // Components example
@@ -49,7 +49,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const zx_example_components = @embedFile("../examples/components.zx");
     const zig_example_components = @embedFile("../examples/components.zig");
     const html_page_components = @import("../examples/components.zig").ButtonDemo(ctx);
-    html_page_components.render(&aw_components.writer) catch unreachable;
+    html_page_components.render(&aw_components.writer, .{}) catch unreachable;
     const html_example_components = allocator.dupe(u8, aw_components.written()) catch unreachable;
 
     // Routing example
@@ -57,7 +57,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const zx_example_routing = @embedFile("../examples/routing.zx");
     const zig_example_routing = @embedFile("../examples/routing.zig");
     const html_page_routing = @import("../examples/routing.zig").Page(ctx);
-    html_page_routing.render(&aw_routing.writer) catch unreachable;
+    html_page_routing.render(&aw_routing.writer, .{}) catch unreachable;
     const html_example_routing = allocator.dupe(u8, aw_routing.written()) catch unreachable;
 
     // Layout example - use simple example like learn page
@@ -66,7 +66,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const zig_example_layout = @embedFile("../learn/examples/layout_example.zig");
     const layoutctx = zx.LayoutContext.init(ctx.request, ctx.response, ctx.allocator);
     const html_page_layout = @import("../learn/examples/layout_example.zig").Layout(layoutctx, zx.Component{ .text = "Hello, World!" });
-    html_page_layout.render(&aw_layout.writer) catch unreachable;
+    html_page_layout.render(&aw_layout.writer, .{}) catch unreachable;
     const html_example_layout = allocator.dupe(u8, aw_layout.written()) catch unreachable;
 
     // Allocator example
@@ -74,7 +74,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const zx_example_allocator = @embedFile("../examples/allocator.zx");
     const zig_example_allocator = @embedFile("../examples/allocator.zig");
     const html_page_allocator = @import("../examples/allocator.zig").AllocatorDemo(ctx);
-    html_page_allocator.render(&aw_allocator.writer) catch unreachable;
+    html_page_allocator.render(&aw_allocator.writer, .{}) catch unreachable;
     const html_example_allocator = allocator.dupe(u8, aw_allocator.written()) catch unreachable;
 
     const expr_syntax = "{expression}";
@@ -234,7 +234,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const zx_example_escaping = @embedFile("../examples/escaping.zx");
     const zig_example_escaping = @embedFile("../examples/escaping.zig");
     const html_page_escaping = @import("../examples/escaping.zig").RawHtml(allocator);
-    html_page_escaping.render(&aw_escaping.writer) catch unreachable;
+    html_page_escaping.render(&aw_escaping.writer, .{}) catch unreachable;
     const html_example_escaping = allocator.dupe(u8, aw_escaping.written()) catch unreachable;
 
     // CSR example
@@ -242,7 +242,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const zx_example_csr = @embedFile("../examples/react.zx");
     const zig_example_csr = @embedFile("../examples/react.zig");
     const html_page_csr = @import("../examples/react.zig").ReactDemo(allocator);
-    html_page_csr.render(&aw_csr.writer) catch unreachable;
+    html_page_csr.render(&aw_csr.writer, .{}) catch unreachable;
     const html_example_csr = allocator.dupe(u8, aw_csr.written()) catch unreachable;
 
     // Importing example
@@ -250,7 +250,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const zx_example_importing = @embedFile("../examples/importing.zx");
     const zig_example_importing = @embedFile("../examples/importing.zig");
     const html_page_importing = @import("../examples/importing.zig").ImportDemo(allocator);
-    html_page_importing.render(&aw_importing.writer) catch unreachable;
+    html_page_importing.render(&aw_importing.writer, .{}) catch unreachable;
     const html_example_importing = allocator.dupe(u8, aw_importing.written()) catch unreachable;
 
     // Dynamic route example
@@ -258,7 +258,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const zx_example_dynamic = @embedFile("../examples/dynamic_route.zx");
     const zig_example_dynamic = @embedFile("../examples/dynamic_route.zig");
     const html_page_dynamic = @import("../examples/dynamic_route.zig").UserProfile(ctx);
-    html_page_dynamic.render(&aw_dynamic.writer) catch unreachable;
+    html_page_dynamic.render(&aw_dynamic.writer, .{}) catch unreachable;
     const html_example_dynamic = allocator.dupe(u8, aw_dynamic.written()) catch unreachable;
 
     // API and WebSocket examples
@@ -270,7 +270,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const zx_example_fragment = @embedFile("../examples/fragment.zx");
     const zig_example_fragment = @embedFile("../examples/fragment.zig");
     const html_page_fragment = @import("../examples/fragment.zig").FragmentDemo(allocator);
-    html_page_fragment.render(&aw_fragment.writer) catch unreachable;
+    html_page_fragment.render(&aw_fragment.writer, .{}) catch unreachable;
     const html_example_fragment = allocator.dupe(u8, aw_fragment.written()) catch unreachable;
 
     // Children example
@@ -278,7 +278,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const zx_example_children = @embedFile("../examples/children.zx");
     const zig_example_children = @embedFile("../examples/children.zig");
     const html_page_children = @import("../examples/children.zig").CardDemo(allocator);
-    html_page_children.render(&aw_children.writer) catch unreachable;
+    html_page_children.render(&aw_children.writer, .{}) catch unreachable;
     const html_example_children = allocator.dupe(u8, aw_children.written()) catch unreachable;
 
     // const setup_elapsed_ns = page_timer.read();

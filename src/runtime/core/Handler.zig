@@ -80,6 +80,7 @@ pub fn handlePage(
     arena: Allocator,
     app_ctx: ?*anyopaque,
     proxy_state_ptr: ?*const anyopaque,
+    base_path: ?[]const u8,
 ) !PageResult {
     var pagectx = zx.PageContext.initWithAppPtr(app_ctx, request, response, allocator);
     pagectx._state_ptr = proxy_state_ptr;
@@ -87,7 +88,7 @@ pub fn handlePage(
     const page_fn = route.page orelse return .not_found;
 
     // -- Server action dispatch --
-    switch (try server_dispatch.dispatchAction(request, response, allocator, arena, route.path, pagectx, page_fn)) {
+    switch (try server_dispatch.dispatchAction(request, response, allocator, arena, route.path, pagectx, page_fn, base_path)) {
         .not_triggered => {},
         .ok => |r| return .{ .action_handled = .{ .body = r.body } },
         .ok_native => {},
@@ -96,7 +97,7 @@ pub fn handlePage(
     }
 
     // -- Server event dispatch --
-    switch (try server_dispatch.dispatchServerEvent(request, allocator, arena, route.path, pagectx, page_fn)) {
+    switch (try server_dispatch.dispatchServerEvent(request, allocator, arena, route.path, pagectx, page_fn, base_path)) {
         .not_triggered => {},
         .ok => |r| return .{ .event_handled = .{ .body = r.body } },
         .ok_native => {},

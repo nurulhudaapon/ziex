@@ -18,7 +18,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     const zx_for = @embedFile("./sandbox/for_loop.zx");
     const zig_for = @embedFile("./sandbox/for_loop.zig");
     const html_page_for = @import("./sandbox/for_loop.zig").Page(allocator);
-    html_page_for.render(&aw_for.writer) catch unreachable;
+    html_page_for.render(&aw_for.writer, .{}) catch unreachable;
     const html_for = allocator.dupe(u8, aw_for.written()) catch unreachable;
 
     // If/Else example
@@ -26,7 +26,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     const zx_if = @embedFile("./sandbox/if_else.zx");
     const zig_if = @embedFile("./sandbox/if_else.zig");
     const html_page_if = @import("./sandbox/if_else.zig").Page(allocator);
-    html_page_if.render(&aw_if.writer) catch unreachable;
+    html_page_if.render(&aw_if.writer, .{}) catch unreachable;
     const html_if = allocator.dupe(u8, aw_if.written()) catch unreachable;
 
     // Switch example
@@ -34,7 +34,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     const zx_switch = @embedFile("./sandbox/switch_expr.zx");
     const zig_switch = @embedFile("./sandbox/switch_expr.zig");
     const html_page_switch = @import("./sandbox/switch_expr.zig").Page(allocator);
-    html_page_switch.render(&aw_switch.writer) catch unreachable;
+    html_page_switch.render(&aw_switch.writer, .{}) catch unreachable;
     const html_switch = allocator.dupe(u8, aw_switch.written()) catch unreachable;
 
     // Form example
@@ -42,7 +42,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     const zx_form = @embedFile("./sandbox/form_handling.zx");
     const zig_form = @embedFile("./sandbox/form_handling.zig");
     const html_page_form = @import("./sandbox/form_handling.zig").Page(allocator);
-    html_page_form.render(&aw_form.writer) catch unreachable;
+    html_page_form.render(&aw_form.writer, .{}) catch unreachable;
     const html_form = allocator.dupe(u8, aw_form.written()) catch unreachable;
 
     // Components example
@@ -50,7 +50,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     const zx_components = @embedFile("./sandbox/components.zx");
     const zig_components = @embedFile("./sandbox/components.zig");
     const html_page_components = @import("./sandbox/components.zig").Page(allocator);
-    html_page_components.render(&aw_components.writer) catch unreachable;
+    html_page_components.render(&aw_components.writer, .{}) catch unreachable;
     const html_components = allocator.dupe(u8, aw_components.written()) catch unreachable;
 
     // Dynamic attributes example
@@ -58,7 +58,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     const zx_dynattr = @embedFile("./sandbox/dynamic_attr.zx");
     const zig_dynattr = @embedFile("./sandbox/dynamic_attr.zig");
     const html_page_dynattr = @import("./sandbox/dynamic_attr.zig").Page(allocator);
-    html_page_dynattr.render(&aw_dynattr.writer) catch unreachable;
+    html_page_dynattr.render(&aw_dynattr.writer, .{}) catch unreachable;
     const html_dynattr = allocator.dupe(u8, aw_dynattr.written()) catch unreachable;
 
     return (

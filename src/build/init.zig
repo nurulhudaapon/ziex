@@ -1,5 +1,6 @@
 const std = @import("std");
 const injection = @import("init/injection.zig");
+const html_util = @import("../util/html.zig");
 
 const LazyPath = std.Build.LazyPath;
 const AddElementOptions = injection.AddElementOptions;
@@ -44,6 +45,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     const ziex_js_dep = zx_dep.builder.dependency("ziex_js", .{});
 
     var opts: InitInnerOptions = .{
+        .base_path = null,
         .site_path = b.path("app"),
         .cli_path = null,
         .site_outdir = null,
@@ -59,6 +61,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     if (options.app) |site_opts| {
         opts.site_path = site_opts.path;
         opts.copy_embedded_sources = site_opts.copy_embedded_sources;
+        opts.base_path = site_opts.base_path;
     }
 
     opts.cli_path = options.cli.path;
@@ -72,6 +75,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
 
 const InitInnerOptions = struct {
     site_path: LazyPath,
+    base_path: ?[]const u8,
     cli_path: ?LazyPath,
     site_outdir: ?LazyPath,
     steps: InitOptions.CliOptions.Steps,
@@ -121,6 +125,9 @@ pub fn initInner(
     // --- ZX Options --- //
     const zx_options = b.addOptions();
     zx_options.addOption(?[]const u8, "jsglue_href", opts.client.jsglue_href);
+    zx_options.addOption(?[]const u8, "wasm_href", opts.client.wasm_href);
+    zx_options.addOption(?[]const u8, "app_base_path", opts.base_path);
+
     zx_module.addOptions("zx_options", zx_options);
 
     // --- Dirs Setup --- //
@@ -146,6 +153,9 @@ pub fn initInner(
     if (opts.copy_embedded_sources) {
         transpile_cmd.addArg("--copy-embedded-sources");
     }
+    if (opts.base_path) |bp| {
+        transpile_cmd.addArgs(&.{ "--base-path", bp });
+    }
     // Always generate inlined sourcemaps so dev mode can remap errors to .zx files
     transpile_cmd.addArgs(&.{ "--map", "inline" });
     const cache_path_arg = b.pathJoin(&.{ b.cache_root.path orelse ".zig-cache", "zx_transpile" });
@@ -153,9 +163,9 @@ pub fn initInner(
     transpile_cmd.expectExitCode(0);
 
     const zxjs_default_href = "/assets/_/main.js";
-    var zxjs_href = opts.client.jsglue_href orelse zxjs_default_href;
+    var zxjs_href = html_util.prefixPathWithBasePath(b.allocator, opts.base_path, opts.client.jsglue_href orelse zxjs_default_href);
     const wasm_default_href = "/assets/_/main.wasm";
-    const wasm_href = opts.client.wasm_href orelse wasm_default_href;
+    const wasm_href = html_util.prefixPathWithBasePath(b.allocator, opts.base_path, opts.client.wasm_href orelse wasm_default_href);
     // --- Static Directory Setup --- //
     {
         // Install public directory into static (only if the directory exists)
@@ -322,6 +332,7 @@ pub fn initInner(
     });
 
     site_wasm_module.addImport("zx_meta", wasm_zx_meta_module);
+    site_wasm_module.addOptions("zx_options", zx_options);
     wasm_exe.root_module.addImport("zx", site_wasm_module);
     wasm_exe.step.dependOn(&transpile_cmd.step);
 

@@ -1,5 +1,6 @@
 const std = @import("std");
 const html = @import("zx").util.html;
+const zx = @import("zx");
 
 const testing = std.testing;
 
@@ -160,4 +161,22 @@ test "roundtrip: escapeText then unescape" {
     const unescaped = try escape(html.unescape, escaped);
     defer testing.allocator.free(unescaped);
     try testing.expectEqualStrings(original, unescaped);
+}
+
+test "prefixBasePath: prefixes root-relative paths" {
+    const prefixed = html.prefixPathWithBasePath(testing.allocator, "/docs", "/guide");
+    defer if (prefixed.ptr != "/guide".ptr) testing.allocator.free(prefixed);
+    try testing.expectEqualStrings("/docs/guide", prefixed);
+}
+
+test "prefixBasePath: skips already-prefixed paths" {
+    const prefixed = html.prefixPathWithBasePath(testing.allocator, "/docs", "/docs/guide");
+    try testing.expectEqualStrings("/docs/guide", prefixed);
+}
+
+test "prefixBasePath: skips external and protocol-relative URLs" {
+    const external = html.prefixPathWithBasePath(testing.allocator, "/docs", "https://example.com/a");
+    const protocol_relative = html.prefixPathWithBasePath(testing.allocator, "/docs", "//cdn.example.com/a");
+    try testing.expectEqualStrings("https://example.com/a", external);
+    try testing.expectEqualStrings("//cdn.example.com/a", protocol_relative);
 }

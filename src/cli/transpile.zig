@@ -61,6 +61,13 @@ const cachedir_flag = zli.Flag{
     .default_value = .{ .String = "" },
 };
 
+const base_path_flag = zli.Flag{
+    .name = "base-path",
+    .description = "Base path for the application (e.g., /test)",
+    .type = .String,
+    .default_value = .{ .String = "" },
+};
+
 pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
     const cmd = try zli.Command.init(writer, reader, allocator, .{
         .name = "transpile",
@@ -75,6 +82,7 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
     try cmd.addFlag(rootdir_flag);
     try cmd.addFlag(depfile_flag);
     try cmd.addFlag(cachedir_flag);
+    try cmd.addFlag(base_path_flag);
     try cmd.addPositionalArg(.{
         .name = "path",
         .description = "Path to .zx file or directory",
@@ -96,6 +104,8 @@ fn transpile(ctx: zli.CommandContext) !void {
     const dep_file: ?[]const u8 = if (depfile_str.len > 0) depfile_str else null;
     const cache_dir_str = ctx.flag("cache-dir", []const u8);
     const cache_dir: ?[]const u8 = if (cache_dir_str.len > 0) cache_dir_str else null;
+    const base_path_str = ctx.flag("base-path", []const u8);
+    const base_path: ?[]const u8 = if (base_path_str.len > 0) base_path_str else null;
     const map: zx.Ast.ParseOptions.MapMode = if (std.mem.eql(u8, sourcemap_str, "inline"))
         .inlined
     else if (std.mem.eql(u8, sourcemap_str, "none"))
@@ -138,6 +148,7 @@ fn transpile(ctx: zli.CommandContext) !void {
                 .rootdir = rootdir,
                 .dep_file = dep_file,
                 .cache_dir = cache_dir,
+                .base_path = base_path,
             });
             return;
         },
@@ -226,6 +237,7 @@ fn transpile(ctx: zli.CommandContext) !void {
         .rootdir = rootdir,
         .dep_file = dep_file,
         .cache_dir = cache_dir,
+        .base_path = base_path,
     });
 }
 
@@ -797,7 +809,7 @@ const Route = struct {
     }
 };
 
-fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, rootdir: ?[]const u8, verbose: bool) !void {
+fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, rootdir: ?[]const u8, base_path: ?[]const u8, verbose: bool) !void {
     var routes = std.array_list.Managed(Route).init(allocator);
     defer {
         for (routes.items) |*route| {
@@ -884,6 +896,9 @@ fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, rootdir: ?[]c
     try writer.writeAll("pub const meta = zx.server.ServerMeta{\n");
     try writer.writeAll("    .routes = &routes,\n");
     try writer.print("    .rootdir = \"{s}\",\n", .{escaped_path});
+    if (base_path) |bp| {
+        try writer.print("    .base_path = \"{s}\",\n", .{bp});
+    }
     try writer.writeAll("};\n\n");
     try writer.writeAll("const zx = @import(\"zx\");\n");
     // Re-export components from components.zig (same directory, same module tree)
@@ -1610,6 +1625,7 @@ const TranspileOptions = struct {
     rootdir: ?[]const u8 = null,
     dep_file: ?[]const u8 = null,
     cache_dir: ?[]const u8 = null,
+    base_path: ?[]const u8 = null,
 };
 
 fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void {
@@ -1683,7 +1699,7 @@ fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void 
     }
 
     // Generate routes
-    genRoutes(allocator, opts.outdir, opts.rootdir, opts.verbose) catch |err| {
+    genRoutes(allocator, opts.outdir, opts.rootdir, opts.base_path, opts.verbose) catch |err| {
         std.debug.print("Warning: Failed to generate meta.zig: {}\n", .{err});
     };
 

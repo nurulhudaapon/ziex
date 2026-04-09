@@ -1,6 +1,7 @@
 const std = @import("std");
 const zx = @import("../../root.zig");
 const registry = @import("registry.zig");
+const html_util = zx.util.html;
 
 /// Set by handler.zig before calling render/stream so that any ActionContext
 /// handlers encountered during the render pass are registered for this route.
@@ -19,7 +20,7 @@ pub const AsyncComponent = struct {
         var aw = std.io.Writer.Allocating.init(allocator);
         errdefer aw.deinit();
 
-        try self.component.render(&aw.writer);
+        try self.component.render(&aw.writer, .{});
         const html = aw.written();
 
         // Build minimal script: <script>$ZX(id,`content`)</script>
@@ -44,9 +45,13 @@ pub const AsyncComponent = struct {
     }
 };
 
+pub const RenderOptions = struct {
+    base_path: ?[]const u8 = null,
+};
+
 /// Stream method that renders HTML while collecting async components
 /// Writes placeholders for @async={.stream} components and returns them for parallel rendering
-pub fn stream(self: zx.Component, allocator: std.mem.Allocator, writer: *std.Io.Writer) ![]AsyncComponent {
+pub fn stream(self: zx.Component, allocator: std.mem.Allocator, writer: *std.Io.Writer, options: RenderOptions) ![]AsyncComponent {
     var async_components = std.array_list.Managed(AsyncComponent).init(allocator);
     errdefer async_components.deinit();
 
@@ -56,6 +61,7 @@ pub fn stream(self: zx.Component, allocator: std.mem.Allocator, writer: *std.Io.
         .rendering = .server,
         .async_components = &async_components,
         .async_counter = &counter,
+        .base_path = options.base_path,
     });
     return async_components.toOwnedSlice();
 }
@@ -65,10 +71,11 @@ pub const RenderInnerOptions = struct {
     rendering: ?zx.BuiltinAttribute.Rendering = .server,
     async_components: ?*std.array_list.Managed(AsyncComponent) = null,
     async_counter: ?*u32 = null,
+    base_path: ?[]const u8 = null,
 };
 
-pub fn render(self: zx.Component, writer: *std.Io.Writer) !void {
-    try renderInner(self, writer, .{ .escaping = .html, .rendering = .server });
+pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions) !void {
+    try renderInner(self, writer, .{ .escaping = .html, .rendering = .server, .base_path = options.base_path });
 }
 
 pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderInnerOptions) !void {
@@ -243,7 +250,20 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
                     }
                     if (attribute.value) |value| {
                         try writer.writeAll("=\"");
-                        try zx.util.html.escapeAttr(writer, value);
+                        // Prefix href/src/action attributes with base_path when applicable
+                        if (options.base_path) |bp| {
+                            const normalized = html_util.normalizeBasePathForPrefixing(bp);
+                            if (normalized) |nb| {
+                                const name = attribute.name;
+                                const is_prefixable = std.mem.eql(u8, name, "href") or
+                                    std.mem.eql(u8, name, "src") or
+                                    std.mem.eql(u8, name, "action");
+                                if (is_prefixable and html_util.shouldPrefixPathWithBasePath(nb, value)) {
+                                    try writer.writeAll(nb);
+                                }
+                            }
+                        }
+                        try html_util.escapeAttr(writer, value);
                         try writer.writeAll("\"");
                     }
                 }
@@ -275,6 +295,7 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
                     .rendering = elem.rendering orelse options.rendering,
                     .async_components = options.async_components,
                     .async_counter = options.async_counter,
+                    .base_path = options.base_path,
                 };
                 for (children) |child| {
                     try renderInner(child, writer, child_options);

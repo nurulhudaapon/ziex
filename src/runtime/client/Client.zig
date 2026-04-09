@@ -334,7 +334,7 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
         const vtree_ptr = self.vtrees.getPtr(cmp.id).?;
 
         // Map the VDOM to platform-specific nodes (DOM)
-        const dom_node = try vtree_mod.createPlatformNodes(allocator, vtree_ptr.vtree, self);
+        const dom_node = try vtree_mod.createPlatformNodes(allocator, vtree_ptr.vtree, self, .{});
         try marker.replaceContent(dom_node);
 
         // registerVElement is already called recursively inside createPlatformNodes
@@ -352,7 +352,7 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
             try self.vtrees.put(cmp.id, new_vtree);
             const vtree_ptr = self.vtrees.getPtr(cmp.id).?;
 
-            const dom_node = try vtree_mod.createPlatformNodes(allocator, vtree_ptr.vtree, self);
+            const dom_node = try vtree_mod.createPlatformNodes(allocator, vtree_ptr.vtree, self, .{});
             try marker.replaceContent(dom_node);
             return;
         }
@@ -410,7 +410,7 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
             patches.deinit(allocator);
         }
 
-        try vtree_mod.applyPatches(allocator, self, patches);
+        try vtree_mod.applyPatches(allocator, self, patches, .{});
 
         // Re-register VElements to pick up any new elements created by PLACEMENT patches
         // This ensures event handlers are registered for newly created elements

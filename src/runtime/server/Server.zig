@@ -892,6 +892,7 @@ pub const ServerMeta = struct {
 
     routes: []const Route,
     rootdir: ?[]const u8,
+    base_path: ?[]const u8 = null,
     cli_command: ?CliCommand = null,
 };
 

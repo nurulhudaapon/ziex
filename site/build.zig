@@ -101,6 +101,7 @@ pub fn build(b: *std.Build) !void {
     var ziex_b = try ziex.init(b, app_exe, .{
         .app = .{
             .path = b.path("app"),
+            // .base_path = "/test",
             .copy_embedded_sources = true,
         },
         .client = .{ .jsglue_href = "/assets/_/main.js" },
@@ -110,14 +111,14 @@ pub fn build(b: *std.Build) !void {
     var assetsdir = ziex_b.assetsdir;
     const tailwindcss_b = tailwindcss.addBuild(b, .{
         .config = .{
-            .input = b.path("app/assets/docs.css"),
-            // .output = assetsdir.path(b, "docs.css"),
-            .minify = true,
-            .optimize = true,
-            .map = false,
+            .input = b.path("app/styles/tailwind.css"),
+            // .minify = true,
+            // .optimize = true,
+            // .map = false,
         },
     });
-    _ = b.addInstallFile(tailwindcss_b.file, "static/assets/docs.css");
+    const css_install = b.addInstallFile(tailwindcss_b.file, "static/assets/_/tailwind.css");
+    b.default_step.dependOn(&css_install.step);
 
     ziex_b.plugin(ziex.plugins.esbuild(b, .{
         .input = b.path("app/scripts/react.ts"),

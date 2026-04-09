@@ -1,0 +1,7 @@
+@import "tailwindcss";
+@source "./app/**/*.zx";
+
+
+.test2 {
+    @apply bg-red-500;
+}

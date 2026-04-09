@@ -11,7 +11,7 @@ pub fn main() !void {
     }
 
     const component = resolveComponent(allocator);
-    try component.render(&aw.writer);
+    try component.render(&aw.writer, .{});
     try std.fs.File.stdout().writeAll(aw.written());
 }
 
