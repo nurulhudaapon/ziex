@@ -1593,6 +1593,10 @@ fn transpileDirectory(
 
             try std.fs.cwd().copyFile(input_path, std.fs.cwd(), output_path, .{});
             if (opts.verbose) std.debug.print("Copied: {s} -> {s}\n", .{ input_path, output_path });
+
+            const abs_input = std.fs.cwd().realpathAlloc(allocator, input_path) catch
+                try allocator.dupe(u8, input_path);
+            try input_files.append(abs_input);
         }
     }
 }
