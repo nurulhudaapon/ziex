@@ -323,6 +323,7 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
     // can register re-render subscriptions against this component.
     current_render_id = cmp.id;
     reactivity.active_component_id = cmp.id;
+    core_vdom.current_component_owner = cmp.id;
     const Component = cmp.import(allocator, cmp.name, marker.props_zon);
     reactivity.active_component_id = null;
     const existing_vtree = self.vtrees.getPtr(cmp.id);
@@ -454,6 +455,7 @@ pub const js = if (builtin.cpu.arch == .wasm32) @import("js") else struct {
 
 const zx = @import("../../root.zig");
 const vtree_mod = @import("render.zig");
+const core_vdom = @import("../core/vdom.zig");
 
 const std = @import("std");
 const builtin = @import("builtin");

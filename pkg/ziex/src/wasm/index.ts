@@ -290,6 +290,18 @@ export class ZxBridge extends ZxBridgeCore {
                     (domNodes.get(vnodeId) as Element | undefined)
                         ?.setAttribute(readString(namePtr, nameLen), readString(valPtr, valLen));
                 },
+                _sp: (vnodeId: bigint, namePtr: number, nameLen: number, valPtr: number, valLen: number) => {
+                    const el = domNodes.get(vnodeId) as any;
+                    if (el) {
+                        const name = readString(namePtr, nameLen);
+                        const val = readString(valPtr, valLen);
+                        if (name === "checked" || name === "selected" || name === "muted") {
+                            el[name] = val !== "false";
+                        } else {
+                            el[name] = val;
+                        }
+                    }
+                },
                 _ra: (vnodeId: bigint, namePtr: number, nameLen: number) => {
                     (domNodes.get(vnodeId) as Element | undefined)
                         ?.removeAttribute(readString(namePtr, nameLen));

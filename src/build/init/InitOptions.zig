@@ -61,7 +61,7 @@ pub const AppOptions = struct {
     ///
     /// This directory should contain your `.zx` template files, layouts,
     /// and other app assets. Defaults to "app" if not specified in InitOptions.
-    path: LazyPath,
+    path: ?LazyPath = null,
 
     /// Base path for all routes in your app (e.g. if your app is served from "/blog", set this to "/blog").
     ///

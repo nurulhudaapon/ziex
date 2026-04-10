@@ -32,6 +32,7 @@ pub const Component = union(enum) {
     pub const ComponentFn = struct {
         propsPtr: ?*const anyopaque,
         callFn: *const fn (propsPtr: ?*const anyopaque, allocator: Allocator) anyerror!Component,
+        setIdentityFn: ?*const fn (propsPtr: ?*const anyopaque, component_id: []const u8, instance_id: u16) void = null,
         getStateItems: ?*const anyopaque = null,
         allocator: Allocator,
         deinitFn: ?*const fn (propsPtr: ?*const anyopaque, allocator: Allocator) void,
@@ -39,6 +40,7 @@ pub const Component = union(enum) {
         fallback: ?*const Component = null,
         caching: ?BuiltinAttribute.Caching = null,
         name: []const u8,
+        key: ?[]const u8 = null,
 
         pub fn init(comptime func: anytype, name: []const u8, allocator: Allocator, props: anytype) ComponentFn {
             const FuncInfo = @typeInfo(@TypeOf(func));
@@ -146,6 +148,14 @@ pub const Component = union(enum) {
                     unreachable;
                 }
 
+                fn setIdentity(propsPtr: ?*const anyopaque, component_id: []const u8, instance_id: u16) void {
+                    if (!first_is_ctx_ptr) return;
+                    const CtxType = @typeInfo(FirstPropType).pointer.child;
+                    const ctx_ptr: *CtxType = @ptrCast(@alignCast(@constCast(propsPtr orelse return)));
+                    if (@hasField(CtxType, "_component_id")) ctx_ptr._component_id = component_id;
+                    if (@hasField(CtxType, "_id")) ctx_ptr._id = instance_id;
+                }
+
                 fn deinit(propsPtr: ?*const anyopaque, alloc: Allocator) void {
                     if (first_is_ctx_ptr) {
                         const CtxType = @typeInfo(FirstPropType).pointer.child;
@@ -165,10 +175,12 @@ pub const Component = union(enum) {
             return .{
                 .propsPtr = props_copy,
                 .callFn = Wrapper.call,
+                .setIdentityFn = if (first_is_ctx_ptr) Wrapper.setIdentity else null,
                 .getStateItems = @ptrCast(devtool.ComponentSerializable.createGetStateItemsFn(func)),
                 .allocator = allocator,
                 .deinitFn = Wrapper.deinit,
                 .name = name,
+                .key = keyFromProps(allocator, props),
             };
         }
 
@@ -177,8 +189,15 @@ pub const Component = union(enum) {
         }
 
         pub fn deinit(self: ComponentFn) void {
+            if (self.key) |key| self.allocator.free(key);
             if (self.deinitFn) |deinit_fn| {
                 deinit_fn(self.propsPtr, self.allocator);
+            }
+        }
+
+        pub fn setIdentity(self: ComponentFn, component_id: []const u8, instance_id: u16) void {
+            if (self.setIdentityFn) |set_identity_fn| {
+                set_identity_fn(self.propsPtr, component_id, instance_id);
             }
         }
     };
@@ -241,6 +260,11 @@ pub const Component = union(enum) {
         try serializable.serialize(w);
     }
 };
+
+fn keyFromProps(allocator: Allocator, props: anytype) ?[]const u8 {
+    if (!@hasField(@TypeOf(props), "key")) return null;
+    return std.fmt.allocPrint(allocator, "{any}", .{@field(props, "key")}) catch null;
+}
 
 pub const Element = struct {
     pub const Attribute = struct {

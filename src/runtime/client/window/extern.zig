@@ -12,6 +12,11 @@ pub extern "__zx" fn _ct(ptr: [*]const u8, len: usize, vnode_id: u64) u64;
 /// setAttribute on the element identified by vnode_id.
 pub extern "__zx" fn _sa(vnode_id: u64, name_ptr: [*]const u8, name_len: usize, val_ptr: [*]const u8, val_len: usize) void;
 
+/// Set a DOM property (not attribute) on the element identified by vnode_id.
+/// Used for properties like checked, value, selected, muted where
+/// setAttribute does not reflect the current state after user interaction.
+pub extern "__zx" fn _sp(vnode_id: u64, name_ptr: [*]const u8, name_len: usize, val_ptr: [*]const u8, val_len: usize) void;
+
 /// removeAttribute on the element identified by vnode_id.
 pub extern "__zx" fn _ra(vnode_id: u64, name_ptr: [*]const u8, name_len: usize) void;
 

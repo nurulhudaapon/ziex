@@ -59,7 +59,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     };
 
     if (options.app) |site_opts| {
-        opts.site_path = site_opts.path;
+        opts.site_path = site_opts.path orelse opts.site_path;
         opts.copy_embedded_sources = site_opts.copy_embedded_sources;
         opts.base_path = site_opts.base_path;
     }

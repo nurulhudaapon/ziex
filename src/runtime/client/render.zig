@@ -29,10 +29,16 @@ pub fn applyPatches(
                 while (attr_iter.next()) |entry| {
                     const name = entry.key_ptr.*;
                     const val = entry.value_ptr.*;
-                    ext._sa(data.vnode_id, name.ptr, name.len, val.ptr, val.len);
+                    setAttrOrProp(data.vnode_id, name, val);
                 }
                 for (data.removed_attributes.items) |name| {
                     ext._ra(data.vnode_id, name.ptr, name.len);
+                    // For DOM properties, also reset the property to ensure
+                    // the live state is updated (e.g. unchecking a checkbox).
+                    if (isDomProperty(name)) {
+                        const false_val = "false";
+                        ext._sp(data.vnode_id, name.ptr, name.len, false_val.ptr, false_val.len);
+                    }
                 }
             },
             .TEXT => {
@@ -194,7 +200,7 @@ fn formActionCallback(ctx: *anyopaque, event: zx.client.Event) void {
 pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anytype, options: RenderOptions) anyerror!Document.HTMLNode {
     if (!is_wasm) return .{ .text = Document.HTMLText.init(allocator, {}) };
 
-    const resolved_component = try vdom.resolveComponent(allocator, vnode.component);
+    const resolved_component = try vdom.resolveComponent(allocator, vnode.component, vnode.owner_component_id, 0);
 
     const node: Document.HTMLNode = switch (resolved_component) {
         .none => blk: {
@@ -244,7 +250,7 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                     }
                     defer if (prefixed_val) |pv| allocator.free(pv);
 
-                    ext._sa(vnode.id, attr_name.ptr, attr_name.len, final_val.ptr, final_val.len);
+                    setAttrOrProp(vnode.id, attr_name, final_val);
                 }
 
                 // Mimic Next.js: auto-inject method="post" enctype="multipart/form-data"
@@ -314,3 +320,18 @@ const zx_options = @import("zx_options");
 
 /// Base path for the application, read from build options at comptime.
 pub const base_path: ?[]const u8 = zx_options.app_base_path;
+
+fn isDomProperty(name: []const u8) bool {
+    return std.mem.eql(u8, name, "checked") or
+        std.mem.eql(u8, name, "value") or
+        std.mem.eql(u8, name, "selected") or
+        std.mem.eql(u8, name, "muted");
+}
+
+fn setAttrOrProp(vnode_id: u64, name: []const u8, val: []const u8) void {
+    if (isDomProperty(name)) {
+        ext._sp(vnode_id, name.ptr, name.len, val.ptr, val.len);
+    } else {
+        ext._sa(vnode_id, name.ptr, name.len, val.ptr, val.len);
+    }
+}
