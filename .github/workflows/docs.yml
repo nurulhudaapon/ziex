@@ -95,8 +95,11 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Deploy ssr.ziex.dev
-        run: bash tools/docdeploy
+      - name: Build and start containers
+        run: cd site && docker compose up -d --build
+
+      - name: Connect to npm network
+        run: docker network connect npm ziex.dev || true
 
   deploy_edge:
     environment:
