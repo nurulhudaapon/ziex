@@ -5,8 +5,8 @@
   "injectionSelector": "L:source.zig",
   "patterns": [
     {
-      "comment": "SQL injection for db.run, db.query, db.exec, db.prepare",
-      "begin": "(db\\.(?:run|query|exec|prepare))\\s*\\(",
+      "comment": "SQL injection for db/database run/query/exec/prepare",
+      "begin": "((?:db|database)\\.(?:run|query|exec|prepare))\\s*\\(",
       "beginCaptures": {
         "1": {
           "name": "support.function.zig"
