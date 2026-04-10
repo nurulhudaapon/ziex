@@ -45,10 +45,6 @@ pub const AsyncComponent = struct {
     }
 };
 
-pub const RenderOptions = struct {
-    base_path: ?[]const u8 = null,
-};
-
 /// Stream method that renders HTML while collecting async components
 /// Writes placeholders for @async={.stream} components and returns them for parallel rendering
 pub fn stream(self: zx.Component, allocator: std.mem.Allocator, writer: *std.Io.Writer, options: RenderOptions) ![]AsyncComponent {
@@ -56,7 +52,7 @@ pub fn stream(self: zx.Component, allocator: std.mem.Allocator, writer: *std.Io.
     errdefer async_components.deinit();
 
     var counter: u32 = 0;
-    try renderInner(self, writer, .{
+    try render(self, writer, .{
         .escaping = .html,
         .rendering = .server,
         .async_components = &async_components,
@@ -66,7 +62,7 @@ pub fn stream(self: zx.Component, allocator: std.mem.Allocator, writer: *std.Io.
     return async_components.toOwnedSlice();
 }
 
-pub const RenderInnerOptions = struct {
+pub const RenderOptions = struct {
     escaping: ?zx.BuiltinAttribute.Escaping = .html,
     rendering: ?zx.BuiltinAttribute.Rendering = .server,
     async_components: ?*std.array_list.Managed(AsyncComponent) = null,
@@ -75,10 +71,6 @@ pub const RenderInnerOptions = struct {
 };
 
 pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions) !void {
-    try renderInner(self, writer, .{ .escaping = .html, .rendering = .server, .base_path = options.base_path });
-}
-
-pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderInnerOptions) !void {
     switch (self) {
         .none => {
             // Render nothing
@@ -119,7 +111,7 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
                         // Render to buffer for caching
                         var buf_writer = std.Io.Writer.Allocating.init(func.allocator);
                         const component = try func.call();
-                        try renderInner(component, &buf_writer.writer, options);
+                        try render(component, &buf_writer.writer, options);
 
                         const rendered = buf_writer.written();
                         try zx.cache.put(key, rendered, .{ .expiration_ttl = caching.seconds });
@@ -133,7 +125,7 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
 
             // No caching or cache miss - render directly
             const component = try func.call();
-            try renderInner(component, writer, options);
+            try render(component, writer, options);
         },
         .component_csr => |component_csr| {
             // Start comment marker format: <!--$id {"prop":"value"}--> (JSON)
@@ -169,7 +161,7 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
 
             // Render SSR content
             if (component_csr.children) |children| {
-                try renderInner(children.*, writer, options);
+                try render(children.*, writer, options);
             }
 
             // End comment marker: <!--/$id-->
@@ -186,7 +178,7 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
 
                 // Render fallback content if provided
                 if (elem.fallback) |fallback| {
-                    try renderInner(fallback.*, writer, .{
+                    try render(fallback.*, writer, .{
                         .escaping = options.escaping,
                         .rendering = options.rendering,
                     });
@@ -206,7 +198,7 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
             if (elem.tag == .fragment) {
                 if (elem.children) |children| {
                     for (children) |child| {
-                        try renderInner(child, writer, options);
+                        try render(child, writer, options);
                     }
                 }
                 return;
@@ -290,7 +282,7 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
             // Render children (recursively collect slots if needed)
             if (elem.children) |children| {
                 // Use element's escaping setting if set, otherwise inherit from parent
-                const child_options = RenderInnerOptions{
+                const child_options = RenderOptions{
                     .escaping = elem.escaping orelse options.escaping,
                     .rendering = elem.rendering orelse options.rendering,
                     .async_components = options.async_components,
@@ -298,7 +290,7 @@ pub fn renderInner(self: zx.Component, writer: *std.Io.Writer, options: RenderIn
                     .base_path = options.base_path,
                 };
                 for (children) |child| {
-                    try renderInner(child, writer, child_options);
+                    try render(child, writer, child_options);
                 }
             }
 
