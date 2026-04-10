@@ -23,7 +23,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     var stmt = try zx.db.query(
         \\SELECT id, title, status 
         \\FROM tasks 
-        \\WHERE status <> 2
+        \\WHERE status is not 2
         \\ORDER BY id DESC
     );
     defer stmt.deinit();

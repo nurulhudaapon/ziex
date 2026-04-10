@@ -117,7 +117,8 @@
         "scopeName": "source.zx.injection",
         "path": "./syntaxes/zx-injection.tmLanguage.json",
         "injectTo": [
-          "source.zig"
+          "source.zig",
+          "source.zx"
         ]
       }
     ]

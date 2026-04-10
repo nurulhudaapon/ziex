@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "zx-injection",
   "scopeName": "source.zx.injection",
-  "injectionSelector": "L:source.zig",
+  "injectionSelector": "L:source.zig, L:source.zx",
   "patterns": [
     {
       "comment": "SQL injection for db/database run/query/exec/prepare",
