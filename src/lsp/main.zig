@@ -107,6 +107,68 @@ pub const Handler = struct {
         return uri;
     }
 
+    fn getEditorUri(handler: *Handler, uri: []const u8) []const u8 {
+        var it = handler.zx_files.iterator();
+        while (it.next()) |entry| {
+            if (std.mem.eql(u8, entry.value_ptr.zig_uri, uri)) {
+                return entry.key_ptr.*;
+            }
+        }
+        return uri;
+    }
+
+    fn isByteSlice(comptime T: type) bool {
+        return switch (@typeInfo(T)) {
+            .pointer => |pointer| pointer.size == .slice and pointer.child == u8 and pointer.is_const,
+            else => false,
+        };
+    }
+
+    fn fieldLooksLikeUri(comptime name: []const u8) bool {
+        return std.mem.eql(u8, name, "uri") or std.mem.indexOf(u8, name, "Uri") != null;
+    }
+
+    fn remapUrisInValue(handler: *Handler, value: anytype) void {
+        const T = @TypeOf(value.*);
+        switch (@typeInfo(T)) {
+            .@"struct" => |info| inline for (info.fields) |field| {
+                const field_ptr = &@field(value.*, field.name);
+                if (comptime fieldLooksLikeUri(field.name) and isByteSlice(field.type)) {
+                    @constCast(field_ptr).* = handler.getEditorUri(field_ptr.*);
+                } else {
+                    handler.remapUrisInValue(field_ptr);
+                }
+            },
+            .@"union" => |info| {
+                if (info.tag_type) |Tag| {
+                    switch (value.*) {
+                        inline else => |*payload, tag| {
+                            _ = @as(Tag, tag);
+                            handler.remapUrisInValue(payload);
+                        },
+                    }
+                }
+            },
+            .optional => {
+                if (value.*) |*payload| handler.remapUrisInValue(payload);
+            },
+            .pointer => |pointer| switch (pointer.size) {
+                .slice => {
+                    if (pointer.child == u8) return;
+                    for (value.*) |*item| handler.remapUrisInValue(item);
+                },
+                else => {},
+            },
+            else => {},
+        }
+    }
+
+    fn remapResponseUris(handler: *Handler, result: anytype) @TypeOf(result) {
+        var remapped = result;
+        handler.remapUrisInValue(&remapped);
+        return remapped;
+    }
+
     /// Rewrite `@import("*.zx")` → `@import("*.zig")` so ZLS can resolve cross-file imports.
     fn rewriteZxImports(allocator: std.mem.Allocator, source: []const u8) ?[]const u8 {
         const needle = "@import(\"";
@@ -558,7 +620,8 @@ pub const Handler = struct {
         params: lsp.types.DefinitionParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/definition") {
         const mapped = handler.remapUri(lsp.types.DefinitionParams, params);
-        return handler.zls.sendRequestSync(arena, "textDocument/definition", mapped) catch null;
+        const result = handler.zls.sendRequestSync(arena, "textDocument/definition", mapped) catch null;
+        return handler.remapResponseUris(result);
     }
 
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_typeDefinition
@@ -568,7 +631,8 @@ pub const Handler = struct {
         params: lsp.types.TypeDefinitionParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/typeDefinition") {
         const mapped = handler.remapUri(lsp.types.TypeDefinitionParams, params);
-        return handler.zls.sendRequestSync(arena, "textDocument/typeDefinition", mapped) catch null;
+        const result = handler.zls.sendRequestSync(arena, "textDocument/typeDefinition", mapped) catch null;
+        return handler.remapResponseUris(result);
     }
 
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_implementation
@@ -578,7 +642,8 @@ pub const Handler = struct {
         params: lsp.types.ImplementationParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/implementation") {
         const mapped = handler.remapUri(lsp.types.ImplementationParams, params);
-        return handler.zls.sendRequestSync(arena, "textDocument/implementation", mapped) catch null;
+        const result = handler.zls.sendRequestSync(arena, "textDocument/implementation", mapped) catch null;
+        return handler.remapResponseUris(result);
     }
 
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_declaration
@@ -588,7 +653,8 @@ pub const Handler = struct {
         params: lsp.types.DeclarationParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/declaration") {
         const mapped = handler.remapUri(lsp.types.DeclarationParams, params);
-        return handler.zls.sendRequestSync(arena, "textDocument/declaration", mapped) catch null;
+        const result = handler.zls.sendRequestSync(arena, "textDocument/declaration", mapped) catch null;
+        return handler.remapResponseUris(result);
     }
 
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_prepareRename
@@ -608,7 +674,8 @@ pub const Handler = struct {
         params: lsp.types.RenameParams,
     ) error{OutOfMemory}!?lsp.types.WorkspaceEdit {
         const mapped = handler.remapUri(lsp.types.RenameParams, params);
-        return handler.zls.sendRequestSync(arena, "textDocument/rename", mapped) catch null;
+        const result = handler.zls.sendRequestSync(arena, "textDocument/rename", mapped) catch null;
+        return handler.remapResponseUris(result);
     }
 
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_references
@@ -618,7 +685,8 @@ pub const Handler = struct {
         params: lsp.types.ReferenceParams,
     ) error{OutOfMemory}!?[]const lsp.types.Location {
         const mapped = handler.remapUri(lsp.types.ReferenceParams, params);
-        return handler.zls.sendRequestSync(arena, "textDocument/references", mapped) catch null;
+        const result = handler.zls.sendRequestSync(arena, "textDocument/references", mapped) catch null;
+        return handler.remapResponseUris(result);
     }
 
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_documentHighlight
