@@ -16,6 +16,7 @@ pub const ExampleBlockProps = struct {
     zig_code: []const u8 = "",
     html_code: []const u8,
     filename: []const u8 = "page.zx",
+    preview_component: ?zx.Component = null,
 };
 
 pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Component {
@@ -115,7 +116,11 @@ pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Compon
                         </div>
                     </div>
                     <div class="sandbox-preview-content" id={preview_content_id}>
-                        <iframe class="sandbox-preview-frame" srcdoc={html_with_style} title="Code example preview"></iframe>
+                        {if (props.preview_component) |preview| (
+                            <div class="sandbox-preview-live" @allocator={allocator}>{preview}</div>
+                        ) else (
+                            <iframe class="sandbox-preview-frame" srcdoc={html_with_style} title="Code example preview"></iframe>
+                        )}
                     </div>
                     <div class="sandbox-preview-content sandbox-code-content" id={html_content_id}>
                         <pre translate="no"><code class="language-markup">{props.html_code}</code></pre>

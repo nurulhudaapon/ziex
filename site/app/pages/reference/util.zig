@@ -102,6 +102,63 @@ pub fn removeCommonIndentation(allocator: zx.Allocator, content: []const u8) []c
     return allocator.dupe(u8, result.items) catch unreachable;
 }
 
+fn isIdentStart(c: u8) bool {
+    return std.ascii.isAlphabetic(c) or c == '_';
+}
+
+fn isIdentContinue(c: u8) bool {
+    return std.ascii.isAlphanumeric(c) or c == '_';
+}
+
+fn shouldStripDedupePrefix(token: []const u8, sep: usize) bool {
+    if (sep == 0 or sep + 2 >= token.len) return false;
+
+    const prefix = token[0..sep];
+    const rest = token[sep + 2 ..];
+    if (prefix.len == 0 or rest.len == 0) return false;
+
+    // Keep this conservative to avoid rewriting random snake_case names.
+    return std.ascii.isUpper(prefix[0]) and isIdentStart(rest[0]);
+}
+
+/// Strip dedupe prefixes in identifiers, e.g. `Learn__Page` -> `Page`.
+pub fn stripDedupePrefixes(allocator: zx.Allocator, content: []const u8) []const u8 {
+    var out = std.array_list.Managed(u8).init(allocator);
+    defer out.deinit();
+
+    var i: usize = 0;
+    while (i < content.len) {
+        const ch = content[i];
+        if (isIdentStart(ch)) {
+            const start = i;
+            i += 1;
+            while (i < content.len and isIdentContinue(content[i])) : (i += 1) {}
+
+            const token = content[start..i];
+            if (std.mem.indexOf(u8, token, "__")) |sep| {
+                if (shouldStripDedupePrefix(token, sep)) {
+                    out.appendSlice(token[sep + 2 ..]) catch unreachable;
+                    continue;
+                }
+            }
+
+            out.appendSlice(token) catch unreachable;
+            continue;
+        }
+
+        out.append(ch) catch unreachable;
+        i += 1;
+    }
+
+    return allocator.dupe(u8, out.items) catch unreachable;
+}
+
+pub fn renderComponentToHtml(allocator: zx.Allocator, component: zx.Component) []const u8 {
+    var aw: std.io.Writer.Allocating = .init(allocator);
+    component.render(&aw.writer, .{}) catch unreachable;
+    return allocator.dupe(u8, aw.written()) catch unreachable;
+}
+
 /// Extract a section by marker comment, e.g. "Control Flow: if"
 /// The marker format is: // --- <section> ---
 pub fn extractSection(allocator: zx.Allocator, content: []const u8, section: []const u8) []const u8 {
@@ -155,7 +212,139 @@ pub fn extractSection(allocator: zx.Allocator, content: []const u8, section: []c
         result.appendSlice(line) catch unreachable;
     }
 
-    return removeCommonIndentation(allocator, result.items);
+    const dedented = removeCommonIndentation(allocator, result.items);
+    return stripDedupePrefixes(allocator, dedented);
+}
+
+/// Extract a section that is wrapped in a helper function body (e.g. unwrap__...)
+/// and return only the function body content with normalized indentation.
+pub fn extractUnwrapSection(allocator: zx.Allocator, content: []const u8, section: []const u8) []const u8 {
+    const wrapped = extractSection(allocator, content, section);
+    const open = std.mem.indexOfScalar(u8, wrapped, '{') orelse return wrapped;
+
+    var depth: usize = 0;
+    var in_string = false;
+    var string_char: ?u8 = null;
+    var i = open;
+
+    while (i < wrapped.len) : (i += 1) {
+        const ch = wrapped[i];
+
+        if (!in_string and ch == '/' and i + 1 < wrapped.len and wrapped[i + 1] == '/') {
+            // Skip line comments so apostrophes/braces in comments don't affect parsing.
+            i += 2;
+            while (i < wrapped.len and wrapped[i] != '\n') : (i += 1) {}
+            continue;
+        }
+
+        if (ch == '"') {
+            var escaped = false;
+            if (i > 0) {
+                var backslashes: usize = 0;
+                var j = i - 1;
+                while (wrapped[j] == '\\') {
+                    backslashes += 1;
+                    if (j == 0) break;
+                    j -= 1;
+                }
+                escaped = (backslashes % 2) == 1;
+            }
+
+            if (!escaped) {
+                if (!in_string) {
+                    in_string = true;
+                    string_char = ch;
+                } else if (string_char == ch) {
+                    in_string = false;
+                    string_char = null;
+                }
+            }
+        }
+
+        if (in_string) continue;
+
+        if (ch == '{') {
+            depth += 1;
+        } else if (ch == '}') {
+            if (depth == 0) break;
+            depth -= 1;
+            if (depth == 0 and i > open + 1) {
+                const body = removeCommonIndentation(allocator, wrapped[open + 1 .. i]);
+                const uncommented = uncommentIfCommentOnly(allocator, body);
+                return stripDiscardPrefixLines(allocator, uncommented);
+            }
+        }
+    }
+
+    return wrapped;
+}
+
+fn uncommentIfCommentOnly(allocator: zx.Allocator, content: []const u8) []const u8 {
+    var lines = std.array_list.Managed([]const u8).init(allocator);
+    defer lines.deinit();
+
+    var it = std.mem.splitScalar(u8, content, '\n');
+    while (it.next()) |line| {
+        lines.append(line) catch unreachable;
+    }
+
+    var has_non_empty = false;
+    for (lines.items) |line| {
+        const trimmed = std.mem.trim(u8, line, " \t");
+        if (trimmed.len == 0) continue;
+        has_non_empty = true;
+        if (!std.mem.startsWith(u8, trimmed, "//")) return content;
+    }
+
+    if (!has_non_empty) return content;
+
+    var out = std.array_list.Managed(u8).init(allocator);
+    defer out.deinit();
+
+    for (lines.items, 0..) |line, i| {
+        if (i > 0) out.append('\n') catch unreachable;
+
+        const trimmed = std.mem.trim(u8, line, " \t");
+        if (trimmed.len == 0) continue;
+
+        var uncommented = trimmed[2..];
+        if (uncommented.len > 0 and uncommented[0] == ' ') {
+            uncommented = uncommented[1..];
+        }
+        out.appendSlice(uncommented) catch unreachable;
+    }
+
+    return removeCommonIndentation(allocator, out.items);
+}
+
+fn stripDiscardPrefixLines(allocator: zx.Allocator, content: []const u8) []const u8 {
+    var lines = std.array_list.Managed([]const u8).init(allocator);
+    defer lines.deinit();
+
+    var it = std.mem.splitScalar(u8, content, '\n');
+    while (it.next()) |line| {
+        lines.append(line) catch unreachable;
+    }
+
+    var out = std.array_list.Managed(u8).init(allocator);
+    defer out.deinit();
+
+    for (lines.items, 0..) |line, i| {
+        if (i > 0) out.append('\n') catch unreachable;
+
+        var indent: usize = 0;
+        while (indent < line.len and (line[indent] == ' ' or line[indent] == '\t')) : (indent += 1) {}
+
+        const rest = line[indent..];
+        if (std.mem.startsWith(u8, rest, "_ = ")) {
+            out.appendSlice(line[0..indent]) catch unreachable;
+            out.appendSlice(rest[4..]) catch unreachable;
+        } else {
+            out.appendSlice(line) catch unreachable;
+        }
+    }
+
+    return allocator.dupe(u8, out.items) catch unreachable;
 }
 
 /// Extract content inside return (...) for ZX code

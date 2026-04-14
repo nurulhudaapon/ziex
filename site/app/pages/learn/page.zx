@@ -8,119 +8,79 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     }
 
     const allocator = ctx.arena;
+    const examples_content = @embedFile("../examples/feature_examples.zx");
+    const examples = @import("../examples/feature_examples.zx");
+    const util = @import("../reference/util.zig");
 
-    // Greeting example
-    var aw_greeting: std.io.Writer.Allocating = .init(allocator);
-    const zx_greeting = @embedFile("./examples/greeting.zx");
-    const zig_greeting = @embedFile("./examples/greeting.zig");
-    const html_page_greeting = @import("./examples/greeting.zig").HelloWorld(allocator);
-    html_page_greeting.render(&aw_greeting.writer, .{}) catch unreachable;
-    const html_greeting = allocator.dupe(u8, aw_greeting.written()) catch unreachable;
+    const zx_greeting = util.extractSection(allocator, examples_content, "Learn: greeting");
+    const zig_greeting = zx_greeting;
 
-    // Markup example
-    var aw_markup: std.io.Writer.Allocating = .init(allocator);
-    const zx_markup = @embedFile("./examples/markup.zx");
-    const zig_markup = @embedFile("./examples/markup.zig");
-    const html_page_markup = @import("./examples/markup.zig").AboutSection(allocator);
-    html_page_markup.render(&aw_markup.writer, .{}) catch unreachable;
-    const html_markup = allocator.dupe(u8, aw_markup.written()) catch unreachable;
+    const zx_markup = util.extractSection(allocator, examples_content, "Learn: markup");
+    const zig_markup = zx_markup;
 
-    // Text expression example
-    var aw_text: std.io.Writer.Allocating = .init(allocator);
-    const zx_text = @embedFile("./examples/text_expr.zx");
-    const zig_text = @embedFile("./examples/text_expr.zig");
-    const html_page_text = @import("./examples/text_expr.zig").UserGreeting(allocator);
-    html_page_text.render(&aw_text.writer, .{}) catch unreachable;
-    const html_text = allocator.dupe(u8, aw_text.written()) catch unreachable;
+    const zx_text = util.extractSection(allocator, examples_content, "Learn: text expression");
+    const zig_text = zx_text;
 
-    // Format expression example (now just showing types)
-    var aw_format: std.io.Writer.Allocating = .init(allocator);
-    const zx_format = @embedFile("./examples/format_expr.zx");
-    const zig_format = @embedFile("./examples/format_expr.zig");
-    const html_page_format = @import("./examples/format_expr.zig").ProductInfo(allocator);
-    html_page_format.render(&aw_format.writer, .{}) catch unreachable;
-    const html_format = allocator.dupe(u8, aw_format.written()) catch unreachable;
+    const zx_format = util.extractSection(allocator, examples_content, "Learn: format expression");
+    const zig_format = zx_format;
 
-    // Conditional example
-    var aw_conditional: std.io.Writer.Allocating = .init(allocator);
-    const zx_conditional = @embedFile("./examples/conditional.zx");
-    const zig_conditional = @embedFile("./examples/conditional.zig");
-    const html_page_conditional = @import("./examples/conditional.zig").UserStatus(allocator);
-    html_page_conditional.render(&aw_conditional.writer, .{}) catch unreachable;
-    const html_conditional = allocator.dupe(u8, aw_conditional.written()) catch unreachable;
+    const zx_conditional = util.extractSection(allocator, examples_content, "Learn: conditional");
+    const zig_conditional = zx_conditional;
 
-    // Switch example
-    var aw_switch: std.io.Writer.Allocating = .init(allocator);
-    const zx_switch = @embedFile("./examples/switch_expr.zx");
-    const zig_switch = @embedFile("./examples/switch_expr.zig");
-    const html_page_switch = @import("./examples/switch_expr.zig").RoleBadge(allocator);
-    html_page_switch.render(&aw_switch.writer, .{}) catch unreachable;
-    const html_switch = allocator.dupe(u8, aw_switch.written()) catch unreachable;
+    const zx_switch = util.extractSection(allocator, examples_content, "Learn: switch");
+    const zig_switch = zx_switch;
 
-    // List example
-    var aw_list: std.io.Writer.Allocating = .init(allocator);
-    const zx_list = @embedFile("./examples/list.zx");
-    const zig_list = @embedFile("./examples/list.zig");
-    const html_page_list = @import("./examples/list.zig").ProductList(allocator);
-    html_page_list.render(&aw_list.writer, .{}) catch unreachable;
-    const html_list = allocator.dupe(u8, aw_list.written()) catch unreachable;
+    const zx_list = util.extractSection(allocator, examples_content, "Learn: list");
+    const zig_list = zx_list;
 
-    // Props example
-    var aw_props: std.io.Writer.Allocating = .init(allocator);
-    const zx_props = @embedFile("./examples/props.zx");
-    const zig_props = @embedFile("./examples/props.zig");
-    const html_page_props = @import("./examples/props.zig").ButtonDemo(allocator);
-    html_page_props.render(&aw_props.writer, .{}) catch unreachable;
-    const html_props = allocator.dupe(u8, aw_props.written()) catch unreachable;
+    const zx_props = util.extractSection(allocator, examples_content, "Learn: props");
+    const zig_props = zx_props;
 
-    // Page example
-    var aw_page: std.io.Writer.Allocating = .init(allocator);
-    const zx_page = @embedFile("./examples/page_example.zx");
-    const zig_page = @embedFile("./examples/page_example.zig");
-    const html_page_page = @import("./examples/page_example.zig").Page(ctx);
-    html_page_page.render(&aw_page.writer, .{}) catch unreachable;
-    const html_page = allocator.dupe(u8, aw_page.written()) catch unreachable;
+    const zx_page = util.extractSection(allocator, examples_content, "Learn: page");
+    const zig_page = zx_page;
 
-    // Layout example (just show code, no preview)
-    const zx_layout = @embedFile("./examples/layout_example.zx");
+    const zx_layout = util.extractSection(allocator, examples_content, "Learn: layout");
 
-    // Build manual example
-    const build_manual_code = @embedFile("./examples/build_manual.zig");
+    const build_manual_code = util.extractSection(allocator, examples_content, "Learn: build manual");
 
-    // Dynamic route example
-    var aw_dynamic: std.io.Writer.Allocating = .init(allocator);
-    const zx_dynamic = @embedFile("./examples/dynamic_route.zx");
-    const zig_dynamic = @embedFile("./examples/dynamic_route.zig");
-    const html_page_dynamic = @import("./examples/dynamic_route.zig").UserProfile(ctx);
-    html_page_dynamic.render(&aw_dynamic.writer, .{}) catch unreachable;
-    const html_dynamic = allocator.dupe(u8, aw_dynamic.written()) catch unreachable;
+    const zx_dynamic = util.extractSection(allocator, examples_content, "Learn: dynamic route");
+    const zig_dynamic = zx_dynamic;
 
-    // Fragment example
-    var aw_fragment: std.io.Writer.Allocating = .init(allocator);
-    const zx_fragment = @embedFile("./examples/fragment.zx");
-    const zig_fragment = @embedFile("./examples/fragment.zig");
-    const html_page_fragment = @import("./examples/fragment.zig").FragmentDemo(allocator);
-    html_page_fragment.render(&aw_fragment.writer, .{}) catch unreachable;
-    const html_fragment = allocator.dupe(u8, aw_fragment.written()) catch unreachable;
+    const zx_fragment = util.extractSection(allocator, examples_content, "Learn: fragment");
+    const zig_fragment = zx_fragment;
 
-    // Children example
-    var aw_children: std.io.Writer.Allocating = .init(allocator);
-    const zx_children = @embedFile("./examples/children.zx");
-    const zig_children = @embedFile("./examples/children.zig");
-    const html_page_children = @import("./examples/children.zig").CardDemo(allocator);
-    html_page_children.render(&aw_children.writer, .{}) catch unreachable;
-    const html_children = allocator.dupe(u8, aw_children.written()) catch unreachable;
+    const zx_children = util.extractSection(allocator, examples_content, "Learn: children");
+    const zig_children = zx_children;
 
-    // Dynamic attributes example
-    var aw_dynattr: std.io.Writer.Allocating = .init(allocator);
-    const zx_dynattr = @embedFile("./examples/dynamic_attr.zx");
-    const zig_dynattr = @embedFile("./examples/dynamic_attr.zig");
-    const html_page_dynattr = @import("./examples/dynamic_attr.zig").DynamicAttrs(allocator);
-    html_page_dynattr.render(&aw_dynattr.writer, .{}) catch unreachable;
-    const html_dynattr = allocator.dupe(u8, aw_dynattr.written()) catch unreachable;
+    const zx_dynattr = util.extractSection(allocator, examples_content, "Learn: dynamic attributes");
+    const zig_dynattr = zx_dynattr;
 
-    // API route example
-    const zig_api = @embedFile("./examples/route.zig");
+    const zx_onclick = util.extractSection(allocator, examples_content, "Learn: onclick");
+    const zx_onclick_state = util.extractSection(allocator, examples_content, "Client-side Rendering");
+    const zx_state_mgmt = util.extractSection(allocator, examples_content, "Learn: state management");
+
+    const zig_api = util.extractSection(allocator, examples_content, "Learn: api route");
+
+    const html_greeting = util.renderComponentToHtml(allocator, examples.Learn__HelloWorld(allocator));
+    const html_markup = util.renderComponentToHtml(allocator, examples.Learn__AboutSection(allocator));
+    const html_text = util.renderComponentToHtml(allocator, examples.Learn__UserGreeting(allocator));
+    const html_format = util.renderComponentToHtml(allocator, examples.Learn__ProductInfo(allocator));
+    const html_conditional = util.renderComponentToHtml(allocator, examples.Learn__UserStatus(allocator));
+    const html_switch = util.renderComponentToHtml(allocator, examples.Learn__RoleBadge(allocator));
+    const html_list = util.renderComponentToHtml(allocator, examples.Learn__ProductList(allocator));
+    const html_props = util.renderComponentToHtml(allocator, examples.Learn__ButtonDemo(allocator));
+    const html_page = util.renderComponentToHtml(allocator, examples.Learn__Page(ctx));
+    const html_dynamic = util.renderComponentToHtml(allocator, examples.Learn__UserProfile(ctx));
+    const html_fragment = util.renderComponentToHtml(allocator, examples.Learn__FragmentDemo(allocator));
+    const html_children = util.renderComponentToHtml(allocator, examples.Learn__CardDemo(allocator));
+    const html_dynattr = util.renderComponentToHtml(allocator, examples.Learn__DynamicAttrs(allocator));
+    const html_onclick = util.renderComponentToHtml(allocator, examples.Learn__ClickDemo(allocator));
+    const html_onclick_state = util.renderComponentToHtml(allocator, examples.Client(allocator));
+    const html_state_mgmt = util.renderComponentToHtml(allocator, examples.Learn__StateDemo(allocator));
+
+    const preview_onclick = examples.Learn__ClickDemo(allocator);
+    const preview_onclick_state = examples.Client(allocator);
+    const preview_state_mgmt = examples.Learn__StateDemo(allocator);
 
     return (
         <fragment @{allocator}>
@@ -134,6 +94,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
             <Fragments zx_code={zx_fragment} zig_code={zig_fragment} html_code={html_fragment} />
             <DisplayingData zx_text={zx_text} zig_text={zig_text} html_text={html_text} zx_format={zx_format} zig_format={zig_format} html_format={html_format} />
             <DynamicAttributes zx_code={zx_dynattr} zig_code={zig_dynattr} html_code={html_dynattr} />
+            <Interactivity zx_onclick={zx_onclick} html_onclick={html_onclick} zx_onclick_state={zx_onclick_state} html_onclick_state={html_onclick_state} zx_state_mgmt={zx_state_mgmt} html_state_mgmt={html_state_mgmt} preview_onclick={preview_onclick} preview_onclick_state={preview_onclick_state} preview_state_mgmt={preview_state_mgmt} />
             <ConditionalRendering zx_conditional={zx_conditional} zig_conditional={zig_conditional} html_conditional={html_conditional} zx_switch={zx_switch} zig_switch={zig_switch} html_switch={html_switch} />
             <RenderingLists zx_code={zx_list} zig_code={zig_list} html_code={html_list} />
             <PassingProps zx_code={zx_props} zig_code={zig_props} html_code={html_props} />
@@ -481,6 +442,49 @@ fn DynamicAttributes(allocator: zx.Allocator, props: DynamicAttributesProps) zx.
     );
 }
 
+const InteractivityProps = struct {
+    zx_onclick: []const u8,
+    html_onclick: []const u8,
+    zx_onclick_state: []const u8,
+    html_onclick_state: []const u8,
+    zx_state_mgmt: []const u8,
+    html_state_mgmt: []const u8,
+    preview_onclick: zx.Component,
+    preview_onclick_state: zx.Component,
+    preview_state_mgmt: zx.Component,
+};
+
+fn Interactivity(allocator: zx.Allocator, props: InteractivityProps) zx.Component {
+    return (
+        <section id="interactivity" class="section" @allocator={allocator}>
+            <h2>Adding interactivity</h2>
+            <p>Interactivity can be added using native HTML attributes, you will provide a function as an handler to the event and take action upon that event.</p>
+
+            <h3>Event handlers</h3>
+            <p>Attach event handlers to elements using the <code>{"on<event_name>"}</code> syntax:</p>
+            <ExampleBlock id="onclick" zx_code={props.zx_onclick} html_code={props.html_onclick} filename="events.zig" preview_component={props.preview_onclick} />
+            <p>Common event handlers include <code>onclick</code>, <code>onsubmit</code>, <code>onchange</code>, <code>onblur</code>, and more. Handler functions receive a <code>zx.client.Event</code> parameter with access to the DOM event object.</p>
+
+            <h3>Binding state to events</h3>
+            <p>To update component state in response to events, use <code>ctx.bind(handler)</code> and access state through the event handler:</p>
+            <ExampleBlock id="onclick-state" zx_code={props.zx_onclick_state} html_code={props.html_onclick_state} filename="events.zig" preview_component={props.preview_onclick_state} />
+            <p>When you use <code>ctx.bind()</code>, the handler receives a <code>zx.server.Event.Stateful</code> which provides access to component state through <code>event.state(T)</code>.</p>
+
+            // <h3>State management patterns</h3>
+            // <p>For complex applications, organize your state into structs and pass handlers for different operations:</p>
+            // <ExampleBlock id="state-mgmt" zx_code={props.zx_state_mgmt} html_code={props.html_state_mgmt} filename="events.zig" preview_component={props.preview_state_mgmt} />
+            // <p>This pattern scales well for e-commerce apps, dashboards, and other stateful interfaces. Each handler can read and modify the state, and all changes are persisted on the server.</p>
+
+            // <div class="callout tip">
+            //     <strong>Tip:</strong>
+            //      Server event handlers can read and validate all state updates before applying them. This ensures data integrity and prevents invalid state transitions.
+            // </div>
+
+            // <p>Learn more about event handling in the <a href="/reference#events">Events documentation</a>.</p>
+        </section>
+    );
+}
+
 const ConditionalRenderingProps = struct {
     zx_conditional: []const u8,
     zig_conditional: []const u8,
@@ -572,7 +576,6 @@ const PagesAndLayoutsProps = struct {
 };
 
 fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Component {
-    const layout_code = @embedFile("./examples/layout_example.zx");
     const layout_html =
         \\<html><head><title>My App</title></head><body><nav><a href="/">Home</a> <a href="/about">About</a></nav><main><h1>About Us</h1><p>Welcome!</p></main><footer>© 2025 My App</footer></body></html>
     ;
@@ -595,7 +598,7 @@ fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Comp
 
             <h3>Creating layouts</h3>
             <p>Layouts wrap pages with common UI. Create a <code>layout.zx</code> file:</p>
-            <ExampleBlock id="layout-example" files={layoutFiles(allocator, layout_code, props.zx_page)} zig_code={layout_code} html_code={layout_html} />
+            <ExampleBlock id="layout-example" files={layoutFiles(allocator, props.zx_layout, props.zx_page)} zig_code={props.zx_layout} html_code={layout_html} />
 
             <h3>PageContext and LayoutContext</h3>
             <p>Both contexts provide:</p>
@@ -633,8 +636,10 @@ fn APIRoutes(allocator: zx.Allocator, props: APIRoutesProps) zx.Component {
 }
 
 fn Plugins(allocator: zx.Allocator) zx.Component {
-    const tailwind_example = @embedFile("./examples/tailwind_plugin.zig");
-    const esbuild_example = @embedFile("./examples/esbuild_plugin.zig");
+    const util = @import("../reference/util.zig");
+    const examples_source = @embedFile("../examples/feature_examples.zx");
+    const tailwind_example = util.extractSection(allocator, examples_source, "Plugin: tailwind");
+    const esbuild_example = util.extractSection(allocator, examples_source, "Plugin: esbuild");
     const link_css_example = "<link rel=\"stylesheet\" href=\"/assets/styles.css\" />";
     const link_js_example = "<script src=\"/assets/main.js\"></script>";
 
@@ -709,6 +714,7 @@ const CodeBlock = @import("../components/code_block.zx").CodeBlock;
 const ProjectTree = @import("../components/project_tree.zx").ProjectTree;
 const InstallCLI = @import("../components/install_guide.zx").InstallCLI;
 const InstallZig = @import("../components/install_guide.zx").InstallZig;
+const exmpls = @import("./examples.zx");
 
 // Helper to allocate files on heap to avoid stack lifetime issues
 fn layoutFiles(allocator: zx.Allocator, layout_code: []const u8, page_code: []const u8) []const File {

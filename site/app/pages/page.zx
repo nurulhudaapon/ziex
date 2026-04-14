@@ -356,10 +356,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     };
 
     // const overview_code = @embedFile("./examples/overview.zx");
-    const feature_examples = normalizeFeatureExamples(
-        allocator,
-        @embedFile("./examples/feature_examples.zx"),
-    );
+    const feature_examples = @embedFile("./examples/feature_examples.zx");
 
     const control_tabs = [_]CodeTab{
         .{ .id = "control-tab-if", .label = "If", .section = "Control Flow: if", .code = "", .checked = true },
@@ -501,9 +498,16 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 // </section>
             </main>
             <footer class="footer">
+                <div class="footer-runner">
+                    <div class="footer-runner-wrap">
+                        <div class="footer-runner-bubble">catch me!</div>
+                        <img class="footer-runner-mascot" src="/assets/mascot.svg" alt="Running Ziguana" />
+                    </div>
+                </div>
                 <p>Copyright © {current_year} {" ziex.dev"}</p>
             </footer>
             <script src=`/assets/clipboard.js?v={zx.info.version}` defer="true"></script>
+            <script src=`/assets/runner.js?v={zx.info.version}` defer="true"></script>
         </div>
     );
 }
@@ -867,26 +871,6 @@ const CodeWindowProps = struct {
     source: []const u8,
 };
 
-fn normalizeFeatureExamples(allocator: zx.Allocator, content: []const u8) []const u8 {
-    const step1 = replaceAll(allocator, content, "Caching__Page", "Page");
-    return replaceAll(allocator, step1, "Routing__Page", "Page");
-}
-
-fn replaceAll(allocator: zx.Allocator, input: []const u8, needle: []const u8, replacement: []const u8) []const u8 {
-    var out = std.array_list.Managed(u8).init(allocator);
-    defer out.deinit();
-
-    var start: usize = 0;
-    while (std.mem.indexOfPos(u8, input, start, needle)) |idx| {
-        out.appendSlice(input[start..idx]) catch unreachable;
-        out.appendSlice(replacement) catch unreachable;
-        start = idx + needle.len;
-    }
-    out.appendSlice(input[start..]) catch unreachable;
-
-    return allocator.dupe(u8, out.items) catch unreachable;
-}
-
 const CodeTab = struct {
     id: []const u8,
     label: []const u8,
@@ -941,7 +925,7 @@ fn CodePreviewExample(allocator: zx.Allocator, props: CodePreviewExampleProps) z
     const highlighted = resolveCode(allocator, props.source, props.section, props.code);
     return (
         <div @allocator={allocator} class="code-preview-example code-example code-example--compact">
-            <div class="code-exampled-header">
+            <div class="code-example-header">
                 <div class="code-example-dots">
                     <span></span>
                     <span></span>

@@ -231,6 +231,77 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     );
 }
 
+// --- Expressions ---
+pub fn Expressions(allocator: zx.Allocator) zx.Component {
+    const name = "Alice";
+    const count: u32 = 42;
+    const price: f32 = 19.99;
+    const active = true;
+    return (
+        <main @allocator={allocator}>
+            <p>{name}</p>
+            <p>{count}</p>
+            <p>${price}</p>
+            <p>{active}</p>
+        </main>
+    );
+}
+
+// --- Builtin Attributes: allocator ---
+pub fn AllocatorDemo(ctx: zx.PageContext) zx.Component {
+    const message = "Allocator is inherited by children";
+    return (
+        <main @allocator={ctx.arena}>
+            <section>
+                <h2>{message}</h2>
+                <p>Use ctx.arena for request-scoped allocations.</p>
+            </section>
+        </main>
+    );
+}
+
+// --- Builtin Attributes: escaping ---
+pub fn RawHtml(allocator: zx.Allocator) zx.Component {
+    const trusted = "<strong>Trusted HTML</strong>";
+    return (
+        <main @allocator={allocator}>
+            <div>{trusted}</div>
+            <div @escaping={.none}>{trusted}</div>
+        </main>
+    );
+}
+
+// --- Importing ---
+pub fn ImportDemo(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <ControlIf is_admin={true} />
+            <ControlSwitch role={Role.member} />
+        </main>
+    );
+}
+
+// --- Component: children ---
+const CardChildrenProps = struct { title: []const u8, children: zx.Component };
+pub fn CardDemo(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <Card title="Welcome">
+                <p>This content is passed as children.</p>
+            </Card>
+        </main>
+    );
+}
+
+fn Card(allocator: zx.Allocator, props: CardChildrenProps) zx.Component {
+    return (
+        <div @allocator={allocator} class="card">
+            <h2>{props.title}</h2>
+            <div>{props.children}</div>
+        </div>
+    );
+}
+
 // --- API Route ---
 pub fn PUT(ctx: zx.RouteContext) !void {
     try ctx.response.json(.{ .status = "ok" });
@@ -270,8 +341,8 @@ pub fn Counter(ctx: *zx.ComponentCtx(void)) zx.Component {
     const count = ctx.state(i32, 0);
     return (
         <div @allocator={ctx.allocator} class="counter">
-            <button onclick={ctx.bind(&increment)}>
-                Click Me: {count.get()}
+            <button onclick={ctx.bind(increment)}>
+                Click Me: {count}
             </button>
         </div>
     );
@@ -279,6 +350,598 @@ pub fn Counter(ctx: *zx.ComponentCtx(void)) zx.Component {
 fn increment(e: *zx.client.Event.Stateful) void {
     const count = e.state(i32);
     count.set(count.get() + 1);
+}
+
+// --- Plugin: tailwind ---
+pub fn buildTailwind(b: *std.Build) !void {
+    const exe = b.addExecutable(.{ .name = "my-app" });
+    var zx_build = try zx.init(b, exe, .{});
+    var assetsdir = zx_build.assetsdir;
+    zx_build.plugin(
+        zx.plugins.tailwind(b, .{
+            .input = b.path("app/assets/style.css"),
+            .output = assetsdir.path(b, "style.css"),
+        }),
+    );
+}
+
+// --- Plugin: esbuild ---
+pub fn buildEsbuild(b: *std.Build) !void {
+    const exe = b.addExecutable(.{ .name = "my-app" });
+    var zx_build = try zx.init(b, exe, .{});
+    var assetsdir = zx_build.assetsdir;
+    zx_build.plugin(
+        zx.plugins.esbuild(b, .{
+            .input = b.path("app/main.ts"),
+            .output = assetsdir.path(b, "main.js"),
+        }),
+    );
+}
+
+// --- Learn: greeting ---
+pub fn Learn__HelloWorld(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <h1>Welcome to my app</h1>
+            <Learn__Greeting />
+        </main>
+    );
+}
+
+fn Learn__Greeting(allocator: zx.Allocator) zx.Component {
+    return (<p @allocator={allocator}>Hello, World!</p>);
+}
+
+// --- Learn: markup ---
+pub fn Learn__AboutSection(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <h1>About</h1>
+            <p>Hello there.<br />How are you?</p>
+            <Learn__AboutCard />
+        </main>
+    );
+}
+
+fn Learn__AboutCard(allocator: zx.Allocator) zx.Component {
+    return (
+        <div @allocator={allocator} class="card">
+            <h2>User Profile</h2>
+            <p>Welcome to the card component!</p>
+        </div>
+    );
+}
+
+// --- Learn: text expression ---
+pub fn Learn__UserGreeting(allocator: zx.Allocator) zx.Component {
+    const user_name = "Alice";
+    const greeting = "Welcome back";
+    return (
+        <main @allocator={allocator}>
+            <h1>{greeting}, {user_name}!</h1>
+            <p>Your profile is ready.</p>
+        </main>
+    );
+}
+
+// --- Learn: format expression ---
+pub fn Learn__ProductInfo(allocator: zx.Allocator) zx.Component {
+    const price: f32 = 19.99;
+    const quantity: u32 = 3;
+    const is_available = true;
+    return (
+        <main @allocator={allocator}>
+            <p>Price: ${price}</p>
+            <p>Quantity: {quantity}</p>
+            <p>Available: {is_available}</p>
+        </main>
+    );
+}
+
+// --- Learn: conditional ---
+pub fn Learn__UserStatus(allocator: zx.Allocator) zx.Component {
+    const is_logged_in = true;
+    const is_admin = false;
+    return (
+        <main @allocator={allocator}>
+            {if (is_logged_in) (<p>Welcome back!</p>) else (<p>Please log in.</p>)}
+            {if (is_admin) (<button>Admin Panel</button>)}
+        </main>
+    );
+}
+
+// --- Learn: switch ---
+const Learn__Role = enum { admin, member, guest };
+pub fn Learn__RoleBadge(allocator: zx.Allocator) zx.Component {
+    const role: Learn__Role = .admin;
+    return (
+        <main @allocator={allocator}>
+            <span class="badge">
+                {switch (role) {
+                    .admin => (<strong>Admin</strong>),
+                    .member => ("Member"),
+                    .guest => ("Guest"),
+                }}
+            </span>
+        </main>
+    );
+}
+
+// --- Learn: list ---
+pub fn Learn__ProductList(allocator: zx.Allocator) zx.Component {
+    const products = [_][]const u8{ "Apple", "Banana", "Orange" };
+    return (
+        <main @allocator={allocator}>
+            <h2>Products</h2>
+            <ul>{for (products) |product| (<li>{product}</li>)}</ul>
+        </main>
+    );
+}
+
+// --- Learn: props ---
+const Learn__ButtonProps = struct {
+    title: []const u8 = "Click Me",
+    class: []const u8 = "btn",
+};
+pub fn Learn__ButtonDemo(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <Learn__Button title="Submit" class="primary" />
+            <Learn__Button title="Cancel" />
+            <Learn__Button />
+        </main>
+    );
+}
+
+fn Learn__Button(allocator: zx.Allocator, props: Learn__ButtonProps) zx.Component {
+    return (<button @allocator={allocator} class={props.class}>{props.title}</button>);
+}
+
+// --- Learn: page ---
+pub fn Learn__Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <main @allocator={ctx.arena}>
+            <h1>About Us</h1>
+            <p>Welcome to our website!</p>
+            <p>Path: {ctx.request.pathname}</p>
+        </main>
+    );
+}
+
+// --- Learn: layout ---
+pub fn Learn__Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+    return (
+        <html @allocator={ctx.arena}>
+            <head><title>My App</title></head>
+            <body>
+                <nav><a href="/">Home</a> <a href="/about">About</a></nav>
+                <main>{children}</main>
+                <footer>© 2025 My App</footer>
+            </body>
+        </html>
+    );
+}
+
+// --- Learn: build manual ---
+pub fn Learn__buildManual(b: *std.Build) !void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+    const app_exe = b.addExecutable(.{
+        .name = "ziex_app",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("app/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    _ = try zx.init(b, app_exe, .{});
+}
+
+// --- Learn: dynamic route ---
+pub fn Learn__UserProfile(ctx: zx.PageContext) zx.Component {
+    const user_id = ctx.request.params.get("id") orelse "unknown";
+    return (
+        <main @allocator={ctx.arena}>
+            <h1>User Profile</h1>
+            <p>User ID: {user_id}</p>
+        </main>
+    );
+}
+
+// --- Learn: fragment ---
+pub fn Learn__FragmentDemo(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <>
+                <h1>Welcome</h1>
+                <p>Multiple elements without a wrapper</p>
+            </>
+        </main>
+    );
+}
+
+// --- Learn: children ---
+const Learn__CardProps = struct { title: []const u8, children: zx.Component };
+pub fn Learn__CardDemo(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <Learn__Card title="Welcome">
+                <p>This content is passed as children.</p>
+                <button>Click me</button>
+            </Learn__Card>
+        </main>
+    );
+}
+
+fn Learn__Card(allocator: zx.Allocator, props: Learn__CardProps) zx.Component {
+    return (
+        <div @allocator={allocator} class="card">
+            <h2>{props.title}</h2>
+            <div class="card-body">{props.children}</div>
+        </div>
+    );
+}
+
+// --- Learn: dynamic attributes ---
+pub fn Learn__DynamicAttrs(allocator: zx.Allocator) zx.Component {
+    const class_name = "primary-btn";
+    const user_id = "user-123";
+    const is_active = true;
+    return (
+        <main @allocator={allocator}>
+            <button class={class_name} id={user_id}>Submit</button>
+            <div class={if (is_active) "active" else "inactive"}>Dynamic class</div>
+        </main>
+    );
+}
+
+// --- Learn: onclick ---
+pub fn Learn__ClickDemo(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <button onclick={Learn__handleClick}>Click me</button>
+            <form onsubmit={Learn__handleSubmit}>
+                <input type="text" name="username" placeholder="Enter name" />
+                <button type="submit">Submit</button>
+            </form>
+        </main>
+    );
+}
+
+fn Learn__handleClick(event: zx.client.Event) void {
+    _ = event;
+}
+
+fn Learn__handleSubmit(event: zx.client.Event) void {
+    _ = event;
+}
+
+// --- Learn: onnull ---
+
+// --- Reference Inline: attrs ---
+pub fn unwrap__template_attrs() void {
+    const count = 42;
+    const name = "John";
+    // ...
+    _ = (
+        <div class=`item-{count}` data-user=`user-{name}`>
+            <a href=`/users/{name}/profile`>Profile</a>
+        </div>
+    );
+    // Renders:
+    //<div class="item-42" data-user="user-John">
+    //  <a href="/users/John/profile">Profile</a>
+    //</div>
+}
+
+// --- Reference Inline: expr string ---
+pub fn unwrap__ref_expr_string() void {
+    const name = "Alice";
+    // ...
+    _ = (<p>{name}</p>); // <p>Alice</p>
+}
+
+// --- Reference Inline: expr int ---
+pub fn unwrap__ref_expr_int() void {
+    const count: u32 = 42;
+    // ...
+    _ = (<p>{count}</p>); // <p>42</p>
+}
+
+// --- Reference Inline: expr float ---
+pub fn unwrap__ref_expr_float() void {
+    const price: f32 = 19.99;
+    // ...
+    _ = (<p>${price}</p>); // <p>$19.99</p>
+}
+
+// --- Reference Inline: expr bool ---
+pub fn unwrap__ref_expr_bool() void {
+    const active = true;
+    // ...
+    _ = (<p>{active}</p>); // <p>true</p>
+}
+
+// --- Reference Inline: expr enum ---
+pub fn unwrap__ref_expr_enum() void {
+    const Status = enum { pending, approved, rejected };
+    const status = Status.approved;
+    // ...
+    _ = (<p>{status}</p>); // <p>approved</p>
+}
+
+// --- Reference Inline: expr optional ---
+pub fn unwrap__ref_expr_optional() void {
+    const maybe_name: ?[]const u8 = "Bob";
+    // ...
+    _ = (<p>{maybe_name}</p>); // <p>Bob</p>
+
+    const no_name: ?[]const u8 = null;
+    // ...
+    _ = (<p>{no_name}</p>); // <p></p> (empty)
+}
+
+// --- Reference Inline: expr component ---
+pub fn unwrap__ref_expr_component() void {
+    const header = zx.Component{ .text = "Header" };
+    // ...
+    _ = (<div>{header}</div>); // Renders the Header component
+}
+
+// --- Reference Inline: expr component array ---
+pub fn unwrap__ref_expr_component_array() void {
+    const items: []const zx.Component = &.{ zx.Component{ .text = "A" }, zx.Component{ .text = "B" } };
+    // ...
+    _ = (<ul>{items}</ul>); // Renders both Item components
+}
+
+// --- Reference Inline: optional capture ---
+pub fn unwrap__ref_optional_capture() void {
+    const user_name: ?[]const u8 = "Alice";
+    // ...
+    _ = if (user_name) |name| (<p>Welcome, {name}!</p>);
+
+    // With else branch:
+    _ = if (user_name) |name| (<p>Hello, {name}</p>) else (<p>Guest</p>);
+
+    // While with capture (iterator pattern):
+    var maybe_item: ?[]const u8 = "item";
+    _ = while (maybe_item) |item| : (maybe_item = null) (<li>{item}</li>);
+}
+
+// --- Reference Inline: error capture ---
+pub fn unwrap__ref_error_capture() void {
+    const parsed = std.fmt.parseInt(u32, "42", 10);
+
+    // If with error capture:
+    _ = if (parsed) |value| (<p>Value: {value}</p>) else |err| (<p>Error: {@errorName(err)}</p>);
+
+    // While with error capture:
+    var first = true;
+    _ = while (parseOnceRefInline(&first)) |value| (<li>{value}</li>) else |err| (<p>Iteration ended: {@errorName(err)}</p>);
+}
+
+fn parseOnceRefInline(first: *bool) !u32 {
+    if (first.*) {
+        first.* = false;
+        return 1;
+    }
+    return error.Done;
+}
+
+// --- Reference Inline: spread attrs ---
+pub fn unwrap__ref_spread_attrs() void {
+    const form_attrs = .{
+        .class = "form-control",
+        .@"data-validate" = "true",
+    };
+    const input_props = .{ .name = "email", .value = "test@example.com" };
+    // ...
+    _ = (
+        <form {..form_attrs}>
+            <input type="text" {..input_props} />
+        </form>
+    );
+}
+
+// --- Reference Inline: shorthand attrs ---
+pub fn unwrap__ref_shorthand_attrs() void {
+    const class = "btn-primary";
+    const disabled = true;
+    const @"data-id" = "123";
+    _ = (<button {class} {disabled} {@"data-id"}>Click</button>);
+    // Renders: <button class="btn-primary" disabled data-id="123">Click</button>
+}
+
+// --- Reference Inline: template attrs ---
+pub fn unwrap__ref_template_attrs() void {
+    const count = 42;
+    const name = "John";
+    // ...
+    _ = (
+        <div class=`item-{count}` data-user=`user-{name}`>
+            <a href=`/users/{name}/profile`>Profile</a>
+        </div>
+    );
+    // Renders:
+    //<div class="item-42" data-user="user-John">
+    //  <a href="/users/John/profile">Profile</a>
+    //</div>
+}
+
+// --- Reference Inline: component context ---
+pub fn unwrap__ref_component_ctx() void {
+    // ComponentContext: children only, no custom props
+    const Wrapper = struct {
+        fn render(ctx: *zx.ComponentContext) zx.Component {
+            return (
+                <div @allocator={ctx.allocator} class="wrapper">
+                    {ctx.children}
+                </div>
+            );
+        }
+    };
+    _ = Wrapper.render;
+}
+
+// --- Reference Inline: component ctx props ---
+pub fn unwrap__ref_component_ctx_props() void {
+    // ComponentCtx(Props): props and children access
+    const CardProps = struct { title: []const u8 };
+    const CardCtx = struct {
+        fn render(ctx: *zx.ComponentCtx(CardProps)) zx.Component {
+            return (
+                <article @allocator={ctx.allocator} class="card">
+                    <h2>{ctx.props.title}</h2>
+                    {ctx.children}
+                </article>
+            );
+        }
+    };
+    _ = CardCtx.render;
+}
+
+// --- Reference Inline: multiline strings ---
+pub fn unwrap__ref_multiline_strings() void {
+    // Multiline strings use Zig's \\ syntax:
+    _ = (
+        <pre>
+            {
+            \\const x = 1;
+            \\const y = 2;
+            \\const sum = x + y;
+        }
+        </pre>
+    );
+}
+
+// --- Reference Inline: comments ---
+pub fn unwrap__ref_comments() void {
+    // Single-line comments are supported in ZX:
+    _ = (
+        <div>
+            // This is a comment
+            <p>Visible content</p>
+            // Another comment
+        </div>
+    );
+}
+
+// --- Reference Inline: route ctx ---
+pub fn unwrap__ref_route_ctx() void {
+    // pub fn GET(ctx: zx.RouteContext) !void {
+    //     // ctx.request  - Request details
+    //     // ctx.response - Set headers, body, json, etc.
+    //     // ctx.socket   - WebSocket upgrade and pub/sub
+    //     // ctx.arena    - Request-scoped allocator
+    // }
+}
+
+// --- Reference Inline: socket ctx ---
+pub fn unwrap__ref_socket_ctx() void {
+    // pub fn Socket(ctx: zx.SocketContext) !void {
+    //     // ctx.socket   - WebSocket interface
+    //     // ctx.message  - Received message data
+    //     // ctx.data     - Custom data from upgrade
+    //     // ctx.arena    - Message-scoped allocator
+    // }
+}
+
+// --- Reference Inline: component caching basic ---
+pub fn unwrap__ref_component_caching_basic() void {
+    // Cache for 10 seconds
+    _ = (<header @caching="10s" />);
+
+    // Cache for 5 minutes
+    _ = (<aside @caching="5m" />);
+
+    // Cache for 1 hour
+    _ = (<footer @caching="1h" />);
+
+    // Cache for 1 day
+    _ = (<section @caching="1d" />);
+}
+
+// --- Reference Inline: component caching key ---
+pub fn unwrap__ref_component_caching_key() void {
+    // Cache with a custom key for manual invalidation
+    _ = (<section @caching="10m:user-profile" />);
+
+    // Cache navigation with key
+    _ = (<nav @caching="1h:main-nav" />);
+}
+
+// --- Reference Inline: page caching ---
+pub fn unwrap__ref_page_caching() void {
+    // pub fn Page(ctx: zx.PageContext) zx.Component {
+    //     return (
+    //         <div @allocator={ctx.arena}>
+    //             <h1>Cached Page</h1>
+    //             <p>This page is cached for 5 minutes.</p>
+    //         </div>
+    //     );
+    // }
+
+    // // Enable page-level caching
+    // pub const options = zx.PageOptions{
+    //     .caching = .{ .seconds = 300 }, // 5 minutes
+    // };
+}
+
+// --- Reference Inline: layout caching ---
+pub fn unwrap__ref_layout_caching() void {
+    // pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+    //     return (
+    //         <html @allocator={ctx.arena}>
+    //             <body>
+    //                 <Header />
+    //                 {children}
+    //                 <Footer />
+    //             </body>
+    //         </html>
+    //     );
+    // }
+
+    // // Cache the entire layout for 1 hour
+    // pub const options = zx.LayoutOptions{
+    //     .caching = .{ .seconds = 3600 },
+    // };
+}
+
+// --- Reference Inline: cache invalidation ---
+pub fn unwrap__ref_cache_invalidation() void {
+    // Delete a specific cache entry by key
+    _ = zx.cache.del("cmp:user-profile");
+
+    // Delete all entries matching a prefix
+    // Useful for invalidating related content
+    _ = zx.cache.delPrefix("cmp:user");
+}
+
+// --- Learn: state management ---
+pub fn Learn__StateDemo(allocator: zx.Allocator) zx.Component {
+    return (<Learn__StatePanel @allocator={allocator} @rendering={.client} />);
+}
+
+pub fn Learn__StatePanel(ctx: *zx.ComponentCtx(void)) zx.Component {
+    const count = ctx.state(i32, 0);
+    const title = ctx.state([]const u8, "Hello");
+    return (
+        <div @allocator={ctx.allocator}>
+            <h1>App State: {title.get()}</h1>
+            <p>Count: {count.get()}</p>
+            <button onclick={count.bind(Learn__incrementCount)}>Increment Count</button>
+        </div>
+    );
+}
+
+fn Learn__incrementCount(value: i32) i32 {
+    return value + 1;
+}
+
+// --- Learn: api route ---
+pub fn Learn__GET(ctx: zx.RouteContext) !void {
+    try ctx.response.json(.{ .message = "Hello World!" }, .{});
 }
 
 // --- Imports ---

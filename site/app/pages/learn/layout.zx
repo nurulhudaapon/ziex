@@ -42,6 +42,7 @@ const categories = [_]SidebarProps.Category{
                     .{ .href = "/learn#fragments", .text = "Fragments" },
                     .{ .href = "/learn#displaying-data", .text = "Displaying Data" },
                     .{ .href = "/learn#dynamic-attributes", .text = "Dynamic Attributes" },
+                    .{ .href = "/learn#interactivity", .text = "Interactivity" },
                     .{ .href = "/learn#passing-props", .text = "Passing Props" },
                     .{ .href = "/learn#children", .text = "Children Props" },
                 },

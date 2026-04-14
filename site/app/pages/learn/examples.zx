@@ -1,0 +1,361 @@
+// Learn page examples organized with section markers for extraction
+// Format: // --- section_name ---
+
+// --- greeting example ---
+pub fn HelloWorld(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <h1>Welcome to my app</h1>
+            <Greeting />
+        </main>
+    );
+}
+
+fn Greeting(allocator: zx.Allocator) zx.Component {
+    return (<p @allocator={allocator}>Hello, World!</p>);
+}
+
+// --- markup example ---
+pub fn AboutSection(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <h1>About</h1>
+            <p>Hello there.<br />How are you?</p>
+            <AboutCard />
+        </main>
+    );
+}
+
+fn AboutCard(allocator: zx.Allocator) zx.Component {
+    return (
+        <div @allocator={allocator} class="card">
+            <h2>User Profile</h2>
+            <p>Welcome to the card component!</p>
+        </div>
+    );
+}
+
+// --- text expression example ---
+pub fn UserGreeting(allocator: zx.Allocator) zx.Component {
+    const user_name = "Alice";
+    const greeting = "Welcome back";
+
+    return (
+        <main @allocator={allocator}>
+            <h1>{greeting}, {user_name}!</h1>
+            <p>Your profile is ready.</p>
+        </main>
+    );
+}
+
+// --- format expression example ---
+pub fn ProductInfo(allocator: zx.Allocator) zx.Component {
+    const price: f32 = 19.99;
+    const quantity: u32 = 3;
+    const is_available = true;
+
+    return (
+        <main @allocator={allocator}>
+            <p>Price: ${price}</p>
+            <p>Quantity: {quantity}</p>
+            <p>Available: {is_available}</p>
+        </main>
+    );
+}
+
+// --- conditional example ---
+pub fn UserStatus(allocator: zx.Allocator) zx.Component {
+    const is_logged_in = true;
+    const is_admin = false;
+
+    return (
+        <main @allocator={allocator}>
+            {if (is_logged_in) (
+                <p>Welcome back!</p>
+            ) else (
+                <p>Please log in.</p>
+            )}
+            {if (is_admin) (
+                <button>Admin Panel</button>
+            )}
+        </main>
+    );
+}
+
+// --- switch example ---
+pub fn RoleBadge(allocator: zx.Allocator) zx.Component {
+    const role: Role = .admin;
+
+    return (
+        <main @allocator={allocator}>
+            <span class="badge">
+                {switch (role) {
+                    .admin => (<strong>Admin</strong>),
+                    .member => ("Member"),
+                    .guest => ("Guest"),
+                }}
+            </span>
+        </main>
+    );
+}
+
+const Role = enum { admin, member, guest };
+
+// --- list example ---
+pub fn ProductList(allocator: zx.Allocator) zx.Component {
+    const products = [_][]const u8{ "Apple", "Banana", "Orange" };
+
+    return (
+        <main @allocator={allocator}>
+            <h2>Products</h2>
+            <ul>
+                {for (products) |product| (
+                    <li>{product}</li>
+                )}
+            </ul>
+        </main>
+    );
+}
+
+// --- props example ---
+pub fn ButtonDemo(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <Button title="Submit" class="primary" />
+            <Button title="Cancel" />
+            <Button />
+        </main>
+    );
+}
+
+const ButtonProps = struct {
+    title: []const u8 = "Click Me",
+    class: []const u8 = "btn",
+};
+
+fn Button(allocator: zx.Allocator, props: ButtonProps) zx.Component {
+    return (
+        <button @allocator={allocator} class={props.class}>
+            {props.title}
+        </button>
+    );
+}
+
+// --- page example ---
+pub fn AboutPage(ctx: zx.PageContext) zx.Component {
+    return (
+        <main @allocator={ctx.arena}>
+            <h1>About Us</h1>
+            <p>Welcome to our website!</p>
+            <p>Path: {ctx.request.pathname}</p>
+        </main>
+    );
+}
+
+// --- layout example ---
+pub fn ExampleLayout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+    return (
+        <html @allocator={ctx.arena}>
+            <head>
+                <title>My App</title>
+            </head>
+            <body>
+                <nav>
+                    <a href="/">Home</a>
+                    <a href="/about">About</a>
+                </nav>
+                <main>
+                    {children}
+                </main>
+                <footer>© 2025 My App</footer>
+            </body>
+        </html>
+    );
+}
+
+// --- build manual example ---
+pub fn build(b: *std.Build) !void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    const app_exe = b.addExecutable(.{
+        .name = "ziex_app",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("app/main.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+
+    _ = try zx.init(b, app_exe, .{});
+}
+
+// --- dynamic route example ---
+pub fn UserProfilePage(ctx: zx.PageContext) zx.Component {
+    const user_id = ctx.request.params.get("id") orelse "unknown";
+
+    return (
+        <main @allocator={ctx.arena}>
+            <h1>User Profile</h1>
+            <p>User ID: {user_id}</p>
+        </main>
+    );
+}
+
+// --- fragment example ---
+pub fn FragmentDemo(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <FragmentHeader />
+        </main>
+    );
+}
+
+fn FragmentHeader(allocator: zx.Allocator) zx.Component {
+    return (
+        <>
+            <h1 @allocator={allocator}>Welcome</h1>
+            <p>Multiple elements without a wrapper</p>
+        </>
+    );
+}
+
+// --- children example ---
+pub fn CardDemo(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <ChildrenCard title="Welcome">
+                <p>This content is passed as children.</p>
+                <button>Click me</button>
+            </ChildrenCard>
+        </main>
+    );
+}
+
+const ChildrenCardProps = struct { title: []const u8, children: zx.Component };
+fn ChildrenCard(allocator: zx.Allocator, props: ChildrenCardProps) zx.Component {
+    return (
+        <div @allocator={allocator} class="card">
+            <h2>{props.title}</h2>
+            <div class="card-body">{props.children}</div>
+        </div>
+    );
+}
+
+// --- dynamic attributes example ---
+pub fn DynamicAttrs(allocator: zx.Allocator) zx.Component {
+    const class_name = "primary-btn";
+    const user_id = "user-123";
+    const is_active = true;
+
+    return (
+        <main @allocator={allocator}>
+            <button class={class_name} id={user_id}>
+                Submit
+            </button>
+            <div class={if (is_active) "active" else "inactive"}>
+                Dynamic class
+            </div>
+        </main>
+    );
+}
+
+// --- onclick example ---
+pub fn ClickDemo(ctx: zx.ComponentContext) zx.Component {
+    return (
+        <main @allocator={ctx.allocator}>
+            <button onclick={handleClick}>Click me</button>
+            <input placeholder="Enter name" onchange={handleInputChange} />
+        </main>
+    );
+}
+
+fn handleClick(_: zx.client.Event) void {
+    zx.log.info("Button clicked!", .{});
+}
+
+fn handleInputChange(event: zx.client.Event) void {
+    zx.log.info("Input changed! {s}", .{event.value()});
+}
+
+// --- client-side rendering example ---
+pub fn ClientCounter(allocator: zx.Allocator) zx.Component {
+    return (<Counter @allocator={allocator} @rendering={.client} />);
+}
+
+pub fn Counter(ctx: *zx.ComponentCtx(void)) zx.Component {
+    const count = ctx.state(i32, 0);
+
+    return (
+        <div @allocator={ctx.allocator} class="counter">
+            <button onclick={ctx.bind(&increment)}>
+                Click Me: {count.get()}
+            </button>
+        </div>
+    );
+}
+
+fn increment(e: *zx.client.Event.Stateful) void {
+    const count = e.state(i32);
+    count.set(count.get() + 1);
+}
+
+// --- state management example ---
+pub fn StateDemo(allocator: zx.Allocator) zx.Component {
+    return (<StatePanel @allocator={allocator} @rendering={.client} />);
+}
+
+pub fn StatePanel(ctx: *zx.ComponentCtx(void)) zx.Component {
+    const count = ctx.state(i32, 0);
+    const title = ctx.state([]const u8, "Hello");
+
+    return (
+        <div @allocator={ctx.allocator}>
+            <h1>App State: {title.get()}</h1>
+            <p>Count: {count.get()}</p>
+            <button onclick={count.bind(incrementCount)}>Increment Count</button>
+        </div>
+    );
+}
+
+fn incrementCount(value: i32) i32 {
+    return value + 1;
+}
+
+// --- api route example ---
+pub fn GET(ctx: zx.RouteContext) !void {
+    try ctx.response.json(.{ .message = "Hello World!" }, .{});
+}
+
+// --- tailwind plugin example ---
+pub fn buildTailwind(b: *std.Build) !void {
+    const exe = b.addExecutable(.{ .name = "my-app" });
+
+    var zx_build = try zx.init(b, exe, .{});
+
+    var assetsdir = zx_build.assetsdir;
+    zx_build.plugin(
+        zx.plugins.tailwind(b, .{
+            .input = b.path("app/assets/style.css"),
+            .output = assetsdir.path(b, "style.css"),
+        }),
+    );
+}
+
+// --- esbuild plugin example ---
+pub fn buildEsbuild(b: *std.Build) !void {
+    const exe = b.addExecutable(.{ .name = "my-app" });
+
+    var zx_build = try zx.init(b, exe, .{});
+
+    var assetsdir = zx_build.assetsdir;
+    zx_build.plugin(
+        zx.plugins.esbuild(b, .{
+            .input = b.path("app/main.ts"),
+            .output = assetsdir.path(b, "main.js"),
+        }),
+    );
+}
+
+const zx = @import("zx");
+const std = @import("std");

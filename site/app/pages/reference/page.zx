@@ -1,285 +1,116 @@
 pub fn Page(ctx: zx.PageContext) !zx.Component {
     // var page_timer = std.time.Timer.start() catch unreachable;
     const allocator = ctx.arena;
+    const examples_source = @embedFile("../examples/feature_examples.zx");
+    const examples = @import("../examples/feature_examples.zx");
 
     // std.log.info("\x1b[1;36m[DOCS PAGE] Starting page generation...\x1b[0m", .{});
 
     // If example
-    var aw_if: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_if = @embedFile("../examples/if.zx");
-    const zig_example_if = @embedFile("../examples/if.zig");
-    const html_page_if = @import("../examples/if.zig").Conditional(allocator);
-    html_page_if.render(&aw_if.writer, .{}) catch unreachable;
-    const html_example_if = allocator.dupe(u8, aw_if.written()) catch unreachable;
+    const zx_example_if = util.extractSection(allocator, examples_source, "Control Flow: if");
+    const zig_example_if = zx_example_if;
+    const html_example_if = util.renderComponentToHtml(allocator, examples.ControlIf(allocator, .{ .is_admin = true }));
 
     // Switch example
-    var aw_switch: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_switch = @embedFile("../examples/switch.zx");
-    const zig_example_switch = @embedFile("../examples/switch.zig");
-    const html_page_switch = @import("../examples/switch.zig").RoleSwitch(allocator);
-    html_page_switch.render(&aw_switch.writer, .{}) catch unreachable;
-    const html_example_switch = allocator.dupe(u8, aw_switch.written()) catch unreachable;
+    const zx_example_switch = util.extractSection(allocator, examples_source, "Control Flow: switch");
+    const zig_example_switch = zx_example_switch;
+    const html_example_switch = util.renderComponentToHtml(allocator, examples.ControlSwitch(allocator, .{ .role = .member }));
 
     // For example
-    var aw_for: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_for = @embedFile("../examples/for.zx");
-    const zig_example_for = @embedFile("../examples/for.zig");
-    const html_page_for = @import("../examples/for.zig").UserList(allocator);
-    html_page_for.render(&aw_for.writer, .{}) catch unreachable;
-    const html_example_for = allocator.dupe(u8, aw_for.written()) catch unreachable;
+    const zx_example_for = util.extractSection(allocator, examples_source, "Control Flow: for");
+    const zig_example_for = zx_example_for;
+    const html_example_for = util.renderComponentToHtml(allocator, examples.ControlFor(allocator, .{ .items = &.{ "Alice", "Bob", "Charlie" } }));
 
     // While example
-    var aw_while: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_while = @embedFile("../examples/while.zx");
-    const zig_example_while = @embedFile("../examples/while.zig");
-    const html_page_while = @import("../examples/while.zig").Counter(allocator);
-    html_page_while.render(&aw_while.writer, .{}) catch unreachable;
-    const html_example_while = allocator.dupe(u8, aw_while.written()) catch unreachable;
+    const zx_example_while = util.extractSection(allocator, examples_source, "Control Flow: while");
+    const zig_example_while = zx_example_while;
+    const html_example_while = util.renderComponentToHtml(allocator, examples.ControlWhile(allocator));
 
     // Expression example
-    var aw_expr: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_expr = @embedFile("../examples/text.zx");
-    const zig_example_expr = @embedFile("../examples/text.zig");
-    const html_page_expr = try @import("../examples/text.zig").Expressions(allocator);
-    html_page_expr.render(&aw_expr.writer, .{}) catch unreachable;
-    const html_example_expr = allocator.dupe(u8, aw_expr.written()) catch unreachable;
+    const zx_example_expr = util.extractSection(allocator, examples_source, "Expressions");
+    const zig_example_expr = zx_example_expr;
+    const html_example_expr = util.renderComponentToHtml(allocator, examples.Expressions(allocator));
 
     // Components example
-    var aw_components: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_components = @embedFile("../examples/components.zx");
-    const zig_example_components = @embedFile("../examples/components.zig");
-    const html_page_components = @import("../examples/components.zig").ButtonDemo(ctx);
-    html_page_components.render(&aw_components.writer, .{}) catch unreachable;
-    const html_example_components = allocator.dupe(u8, aw_components.written()) catch unreachable;
+    const zx_example_components = util.extractSection(allocator, examples_source, "Component: basics");
+    const zig_example_components = zx_example_components;
+    const html_example_components = util.renderComponentToHtml(allocator, FeatureButtonDemo(allocator));
 
     // Routing example
-    var aw_routing: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_routing = @embedFile("../examples/routing.zx");
-    const zig_example_routing = @embedFile("../examples/routing.zig");
-    const html_page_routing = @import("../examples/routing.zig").Page(ctx);
-    html_page_routing.render(&aw_routing.writer, .{}) catch unreachable;
-    const html_example_routing = allocator.dupe(u8, aw_routing.written()) catch unreachable;
+    const zx_example_routing = util.extractSection(allocator, examples_source, "File System Routing: page");
+    const zig_example_routing = zx_example_routing;
+    const html_example_routing = util.renderComponentToHtml(allocator, examples.Routing__Page(ctx));
 
     // Layout example - use simple example like learn page
-    var aw_layout: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_layout = @embedFile("../learn/examples/layout_example.zx");
-    const zig_example_layout = @embedFile("../learn/examples/layout_example.zig");
+    const zx_example_layout = util.extractSection(allocator, examples_source, "File System Routing: layout");
+    const zig_example_layout = zx_example_layout;
     const layoutctx = zx.LayoutContext.init(ctx.request, ctx.response, ctx.allocator);
-    const html_page_layout = @import("../learn/examples/layout_example.zig").Layout(layoutctx, zx.Component{ .text = "Hello, World!" });
-    html_page_layout.render(&aw_layout.writer, .{}) catch unreachable;
-    const html_example_layout = allocator.dupe(u8, aw_layout.written()) catch unreachable;
+    const html_example_layout = util.renderComponentToHtml(allocator, examples.Layout(layoutctx, zx.Component{ .text = "Hello, World!" }));
 
     // Allocator example
-    var aw_allocator: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_allocator = @embedFile("../examples/allocator.zx");
-    const zig_example_allocator = @embedFile("../examples/allocator.zig");
-    const html_page_allocator = @import("../examples/allocator.zig").AllocatorDemo(ctx);
-    html_page_allocator.render(&aw_allocator.writer, .{}) catch unreachable;
-    const html_example_allocator = allocator.dupe(u8, aw_allocator.written()) catch unreachable;
+    const zx_example_allocator = util.extractSection(allocator, examples_source, "Builtin Attributes: allocator");
+    const zig_example_allocator = zx_example_allocator;
+    const html_example_allocator = util.renderComponentToHtml(allocator, examples.AllocatorDemo(ctx));
 
     const expr_syntax = "{expression}";
 
-    // Expression type examples
-    const expr_string_example =
-        \\const name = "Alice";
-        \\...
-        \\(<p>{name}</p>) // <p>Alice</p>
-    ;
-    const expr_int_example =
-        \\const count: u32 = 42;
-        \\...
-        \\(<p>{count}</p>) // <p>42</p>
-    ;
-    const expr_float_example =
-        \\const price: f32 = 19.99;
-        \\...
-        \\(<p>${price}</p>) // <p>$19.99</p>
-    ;
-    const expr_bool_example =
-        \\const active = true;
-        \\...
-        \\(<p>{active}</p>) // <p>true</p>
-    ;
-    const expr_enum_example =
-        \\const Status = enum { pending, approved, rejected };
-        \\const status = Status.approved;
-        \\...
-        \\(<p>{status}</p>) // <p>approved</p>
-    ;
-    const expr_optional_example =
-        \\const maybe_name: ?[]const u8 = "Bob";
-        \\...
-        \\(<p>{maybe_name}</p>) // <p>Bob</p>
-        \\
-        \\
-        \\const no_name: ?[]const u8 = null;
-        \\...
-        \\(<p>{no_name}</p>) // <p></p> (empty)
-    ;
-    const expr_component_example =
-        \\const header = Header(allocator);
-        \\...
-        \\(<div>{header}</div>) // Renders the Header component
-    ;
-    const expr_component_array_example =
-        \\const items: []zx.Component = &.{ Item("A"), Item("B") };
-        \\...
-        \\(<ul>{items}</ul>) // Renders both Item components
-    ;
+    // Reference inline snippets extracted from feature_examples unwrap__ wrappers
+    const expr_string_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: expr string");
+    const expr_int_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: expr int");
+    const expr_float_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: expr float");
+    const expr_bool_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: expr bool");
+    const expr_enum_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: expr enum");
+    const expr_optional_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: expr optional");
+    const expr_component_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: expr component");
+    const expr_component_array_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: expr component array");
 
-    // Control flow capture examples
-    const optional_capture_example =
-        \\const user_name: ?[]const u8 = "Alice";
-        \\...
-        \\{if (user_name) |name| (<p>Welcome, {name}!</p>)}
-        \\
-        \\// With else branch:
-        \\{if (user_name) |name| (<p>Hello, {name}</p>) else (<p>Guest</p>)}
-        \\
-        \\// While with capture (iterator pattern):
-        \\{while (iter.next()) |item| (<li>{item}</li>)}
-    ;
-    const error_capture_example =
-        \\// If with error capture:
-        \\{if (fetchUser()) |user| (
-        \\    <p>Welcome, {user.name}!</p>
-        \\) else |err| (
-        \\    <p>Error: {@errorName(err)}</p>
-        \\)}
-        \\
-        \\// While with error capture:
-        \\{while (iter.next()) |item| (
-        \\    <li>{item}</li>
-        \\) else |err| (
-        \\    <p>Iteration ended: {@errorName(err)}</p>
-        \\)}
-    ;
+    const optional_capture_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: optional capture");
+    const error_capture_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: error capture");
 
-    // Attribute examples
-    const spread_attrs_example =
-        \\const form_attrs = .{
-        \\    .class = "form-control",
-        \\    .@"data-validate" = "true",
-        \\};
-        \\const input_props = .{ .name = "email", .value = "test@example.com" };
-        \\...
-        \\(<form {..form_attrs}>
-        \\    <input type="text" {..input_props} />
-        \\</form>)
-    ;
-    const shorthand_attrs_example =
-        \\const class = "btn-primary";
-        \\const disabled = true;
-        \\const @"data-id" = "123";
-        \\...
-        \\(<button {class} {disabled} {@"data-id"}>Click</button>)
-        \\// Renders: <button class="btn-primary" disabled data-id="123">Click</button>
-    ;
-    const template_attrs_example =
-        \\const count = 42;
-        \\const name = "John";
-        \\...
-        \\(<div class=`item-{count}` data-user=`user-{name}`>
-        \\    <a href=`/users/{name}/profile`>Profile</a>
-        \\</div>)
-        \\// Renders: <div class="item-42" data-user="user-John">
-        \\//            <a href="/users/John/profile">Profile</a>
-        \\//          </div>
-    ;
+    const spread_attrs_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: spread attrs");
+    const shorthand_attrs_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: shorthand attrs");
+    const template_attrs_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: template attrs");
 
-    // Component context examples
-    const component_ctx_example =
-        \\// ComponentContext: children only, no custom props
-        \\fn Wrapper(ctx: *zx.ComponentContext) zx.Component {
-        \\    return (
-        \\        <div @allocator={ctx.allocator} class="wrapper">
-        \\            {ctx.children}
-        \\        </div>
-        \\    );
-        \\}
-    ;
-    const component_ctx_props_example =
-        \\// ComponentCtx(Props): props and children access
-        \\const CardProps = struct { title: []const u8 };
-        \\fn Card(ctx: *zx.ComponentCtx(CardProps)) zx.Component {
-        \\    return (
-        \\        <article @allocator={ctx.allocator} class="card">
-        \\            <h2>{ctx.props.title}</h2>
-        \\            {ctx.children}
-        \\        </article>
-        \\    );
-        \\}
-    ;
+    const component_ctx_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: component context");
+    const component_ctx_props_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: component ctx props");
 
-    // Syntax examples
-    const multiline_string_example =
-        \\// Multiline strings use Zig's \\ syntax:
-        \\(<pre>{
-        \\    \\const x = 1;
-        \\    \\const y = 2;
-        \\    \\const sum = x + y;
-        \\}</pre>)
-    ;
-    const comments_example =
-        \\// Single-line comments are supported in ZX:
-        \\(<div>
-        \\    // This is a comment
-        \\    <p>Visible content</p>
-        \\    // Another comment
-        \\</div>)
-    ;
+    const multiline_string_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: multiline strings");
+    const comments_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: comments");
 
     // Escaping example
-    var aw_escaping: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_escaping = @embedFile("../examples/escaping.zx");
-    const zig_example_escaping = @embedFile("../examples/escaping.zig");
-    const html_page_escaping = @import("../examples/escaping.zig").RawHtml(allocator);
-    html_page_escaping.render(&aw_escaping.writer, .{}) catch unreachable;
-    const html_example_escaping = allocator.dupe(u8, aw_escaping.written()) catch unreachable;
+    const zx_example_escaping = util.extractSection(allocator, examples_source, "Builtin Attributes: escaping");
+    const zig_example_escaping = zx_example_escaping;
+    const html_example_escaping = util.renderComponentToHtml(allocator, examples.RawHtml(allocator));
 
     // CSR example
-    var aw_csr: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_csr = @embedFile("../examples/react.zx");
-    const zig_example_csr = @embedFile("../examples/react.zig");
-    const html_page_csr = @import("../examples/react.zig").ReactDemo(allocator);
-    html_page_csr.render(&aw_csr.writer, .{}) catch unreachable;
-    const html_example_csr = allocator.dupe(u8, aw_csr.written()) catch unreachable;
+    const zx_example_csr = util.extractSection(allocator, examples_source, "Client-side Rendering");
+    const zig_example_csr = zx_example_csr;
+    const html_example_csr = util.renderComponentToHtml(allocator, examples.Client(allocator));
+    const preview_csr = examples.Client(allocator);
 
     // Importing example
-    var aw_importing: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_importing = @embedFile("../examples/importing.zx");
-    const zig_example_importing = @embedFile("../examples/importing.zig");
-    const html_page_importing = @import("../examples/importing.zig").ImportDemo(allocator);
-    html_page_importing.render(&aw_importing.writer, .{}) catch unreachable;
-    const html_example_importing = allocator.dupe(u8, aw_importing.written()) catch unreachable;
+    const zx_example_importing = util.extractSection(allocator, examples_source, "Importing");
+    const zig_example_importing = zx_example_importing;
+    const html_example_importing = util.renderComponentToHtml(allocator, examples.ImportDemo(allocator));
 
     // Dynamic route example
-    var aw_dynamic: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_dynamic = @embedFile("../examples/dynamic_route.zx");
-    const zig_example_dynamic = @embedFile("../examples/dynamic_route.zig");
-    const html_page_dynamic = @import("../examples/dynamic_route.zig").UserProfile(ctx);
-    html_page_dynamic.render(&aw_dynamic.writer, .{}) catch unreachable;
-    const html_example_dynamic = allocator.dupe(u8, aw_dynamic.written()) catch unreachable;
+    const zx_example_dynamic = util.extractSection(allocator, examples_source, "Dynamic Path");
+    const zig_example_dynamic = zx_example_dynamic;
+    const html_example_dynamic = util.renderComponentToHtml(allocator, examples.Page(ctx));
 
     // API and WebSocket examples
-    const zig_api_route = @embedFile("../examples/api-route/route.zig");
-    const zig_websocket_route = @embedFile("../examples/api-route/ws/route.zig");
+    const zig_api_route = util.extractSection(allocator, examples_source, "API Route");
+    const zig_websocket_route = util.extractSection(allocator, examples_source, "WebSocket");
 
     // Fragment example
-    var aw_fragment: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_fragment = @embedFile("../examples/fragment.zx");
-    const zig_example_fragment = @embedFile("../examples/fragment.zig");
-    const html_page_fragment = @import("../examples/fragment.zig").FragmentDemo(allocator);
-    html_page_fragment.render(&aw_fragment.writer, .{}) catch unreachable;
-    const html_example_fragment = allocator.dupe(u8, aw_fragment.written()) catch unreachable;
+    const zx_example_fragment = util.extractSection(allocator, examples_source, "Component: fragment");
+    const zig_example_fragment = zx_example_fragment;
+    const html_example_fragment = util.renderComponentToHtml(allocator, examples.Fragment(allocator));
 
     // Children example
-    var aw_children: std.io.Writer.Allocating = .init(allocator);
-    const zx_example_children = @embedFile("../examples/children.zx");
-    const zig_example_children = @embedFile("../examples/children.zig");
-    const html_page_children = @import("../examples/children.zig").CardDemo(allocator);
-    html_page_children.render(&aw_children.writer, .{}) catch unreachable;
-    const html_example_children = allocator.dupe(u8, aw_children.written()) catch unreachable;
+    const zx_example_children = util.extractSection(allocator, examples_source, "Component: children");
+    const zig_example_children = zx_example_children;
+    const html_example_children = util.renderComponentToHtml(allocator, examples.CardDemo(allocator));
 
     // const setup_elapsed_ns = page_timer.read();
     // const setup_elapsed_ms = @as(f64, @floatFromInt(setup_elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
@@ -451,7 +282,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                     <li><code>.react</code> - Client-side render with React (for imported React/TSX components)</li>
                     <li><code>.client</code> - Client-side render with Zig (compile component to WebAssembly)</li>
                 </ul>
-                <ExampleBlock id="react" zx_code={zx_example_csr} zig_code={zig_example_csr} html_code={html_example_csr} filename="react_demo.zx" />
+                <ExampleBlock id="react" zx_code={zx_example_csr} zig_code={zig_example_csr} html_code={html_example_csr} filename="react_demo.zx" preview_component={preview_csr} />
             </section>
             <section id="attribute-syntax" class="section">
                 <h2>Attribute Syntax</h2>
@@ -522,6 +353,15 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     );
 }
 
+fn FeatureButtonDemo(allocator: zx.Allocator) zx.Component {
+    const examples = @import("../examples/feature_examples.zx");
+    return (
+        <div @allocator={allocator}>
+            <examples.Button label="Click Me" />
+        </div>
+    );
+}
+
 const zx = @import("zx");
 const std = @import("std");
 const root = @import("root");
@@ -541,23 +381,9 @@ const APIAndWebSocketsProps = struct {
 };
 
 fn APIAndWebSockets(allocator: zx.Allocator, props: APIAndWebSocketsProps) zx.Component {
-    const route_ctx_example =
-        \\pub fn GET(ctx: zx.RouteContext) !void {
-        \\    // ctx.request  - Request details
-        \\    // ctx.response - Set headers, body, json, etc.
-        \\    // ctx.socket   - WebSocket upgrade and pub/sub
-        \\    // ctx.arena    - Request-scoped allocator
-        \\}
-    ;
-
-    const socket_ctx_example =
-        \\pub fn Socket(ctx: zx.SocketContext) !void {
-        \\    // ctx.socket   - WebSocket interface
-        \\    // ctx.message  - Received message data
-        \\    // ctx.data     - Custom data from upgrade
-        \\    // ctx.arena    - Message-scoped allocator
-        \\}
-    ;
+    const examples_source = @embedFile("../examples/feature_examples.zx");
+    const route_ctx_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: route ctx");
+    const socket_ctx_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: socket ctx");
 
     return (
         <section id="api-and-websockets" class="section" @allocator={allocator}>
@@ -606,8 +432,9 @@ fn APIAndWebSockets(allocator: zx.Allocator, props: APIAndWebSocketsProps) zx.Co
 }
 
 fn PluginsSection(allocator: zx.Allocator) zx.Component {
-    const tailwind_full_example = @embedFile("../learn/examples/tailwind_plugin.zig");
-    const esbuild_full_example = @embedFile("../learn/examples/esbuild_plugin.zig");
+    const examples_source = @embedFile("../examples/feature_examples.zx");
+    const tailwind_full_example = util.extractSection(allocator, examples_source, "Plugin: tailwind");
+    const esbuild_full_example = util.extractSection(allocator, examples_source, "Plugin: esbuild");
 
     return (
         <section id="plugins" class="section" @allocator={allocator}>
@@ -807,72 +634,13 @@ fn PluginsSection(allocator: zx.Allocator) zx.Component {
 }
 
 fn CachingSection(allocator: zx.Allocator) zx.Component {
-    // Component caching examples
-    const component_caching_basic =
-        \\// Cache for 10 seconds
-        \\(<Header @caching="10s" />)
-        \\
-        \\// Cache for 5 minutes
-        \\(<Sidebar @caching="5m" />)
-        \\
-        \\// Cache for 1 hour
-        \\(<Footer @caching="1h" />)
-        \\
-        \\// Cache for 1 day
-        \\(<StaticContent @caching="1d" />)
-    ;
+    const examples_source = @embedFile("../examples/feature_examples.zx");
 
-    const component_caching_key =
-        \\// Cache with a custom key for manual invalidation
-        \\(<UserProfile @caching="10m:user-profile" user={user} />)
-        \\
-        \\// Cache navigation with key
-        \\(<Navigation @caching="1h:main-nav" />)
-    ;
-
-    const page_caching_example =
-        \\pub fn Page(ctx: zx.PageContext) zx.Component {
-        \\    return (
-        \\        <div @allocator={ctx.arena}>
-        \\            <h1>Cached Page</h1>
-        \\            <p>This page is cached for 5 minutes.</p>
-        \\        </div>
-        \\    );
-        \\}
-        \\
-        \\// Enable page-level caching
-        \\pub const options = zx.PageOptions{
-        \\    .caching = .{ .seconds = 300 }, // 5 minutes
-        \\};
-    ;
-
-    const layout_caching_example =
-        \\pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
-        \\    return (
-        \\        <html @allocator={ctx.arena}>
-        \\            <body>
-        \\                <Header />
-        \\                {children}
-        \\                <Footer />
-        \\            </body>
-        \\        </html>
-        \\    );
-        \\}
-        \\
-        \\// Cache the entire layout for 1 hour
-        \\pub const options = zx.LayoutOptions{
-        \\    .caching = .{ .seconds = 3600 },
-        \\};
-    ;
-
-    const cache_invalidation_example =
-        \\// Delete a specific cache entry by key
-        \\_ = zx.cache.del("cmp:user-profile");
-        \\
-        \\// Delete all entries matching a prefix
-        \\// Useful for invalidating related content
-        \\_ = zx.cache.delPrefix("cmp:user");
-    ;
+    const component_caching_basic = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: component caching basic");
+    const component_caching_key = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: component caching key");
+    const page_caching_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: page caching");
+    const layout_caching_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: layout caching");
+    const cache_invalidation_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: cache invalidation");
 
     return (
         <section id="caching" class="section" @allocator={allocator}>
