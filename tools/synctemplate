@@ -17,10 +17,13 @@ cd src/cli/init/template
 echo "Updating template to ziex version: ${VERSION} of init template"
 zig fetch --save "git+https://github.com/ziex-dev/ziex#${VERSION}"
 
-npx --yes npm-check-updates -u
-# git commit -m"feat: update template to latest ziex"
-
 cd ../../../../
 cd templates/_base
 echo "Updating template to ziex version: ${VERSION} of base template"
+zig fetch --save "git+https://github.com/ziex-dev/ziex#${VERSION}"
+
+
+# Database Template
+cd ../database
+echo "Updating template to ziex version: ${VERSION} of database template"
 zig fetch --save "git+https://github.com/ziex-dev/ziex#${VERSION}"
