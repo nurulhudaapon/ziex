@@ -74,7 +74,7 @@ export default defineConfig({
       command: 'zig build dev',
       cwd: '../../',
       url: 'http://localhost:3000',
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: process.env.TEMPLATE_TESTS || !process.env.CI,
       // Wait for 5 mins for the server to start, since zig build can be slow on the first run
       timeout: 1000 * 60 * 5,
     },
