@@ -551,6 +551,7 @@ body {
     align-items: center;
     background: rgba(16, 18, 23, 0.95);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    min-width: 0;
     /* padding: 0.6rem 0.85rem; */
     /* overflow-x: auto;
     flex-wrap: nowrap;
@@ -561,6 +562,8 @@ body {
 .hero-install .install-box-content {
     padding: 1rem 1.1rem;
     background: linear-gradient(180deg, rgba(13, 16, 22, 0.98) 0%, rgba(10, 13, 18, 1) 100%);
+    min-width: 0;
+    overflow-x: hidden;
 }
 
 .hero-install .install-tab-label {
@@ -576,6 +579,7 @@ body {
 .hero-install .install-tab-labels {
     display: flex;
     gap: 0.4rem;
+    min-width: 0;
     /* overflow-x: auto;
     flex-wrap: nowrap;
     -webkit-overflow-scrolling: touch;
@@ -583,6 +587,11 @@ body {
 }
 
 .hero-install .install-tab-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1.2;
     padding: 0.4rem 0.7rem;
     font-weight: 600;
     color: rgba(255, 255, 255, 0.65);
@@ -601,6 +610,7 @@ body {
 
 .hero-install .install-tab-content {
     display: none;
+    min-width: 0;
 }
 
 .hero-install .install-box-header:has(#tab-unix:checked)+.install-box-content #content-unix,
@@ -665,6 +675,9 @@ body {
     font-size: 0.86rem;
     color: rgba(230, 237, 243, 0.9);
     display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     white-space: nowrap;
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
@@ -2899,6 +2912,38 @@ body {
 
 /* Additional responsive font size for very small screens */
 @media (max-width: 480px) {
+    .hero-install .install-box-header {
+        padding-right: 0.2rem;
+    }
+
+    .hero-install .install-box-header:has(#tab-unix) .install-tab-labels {
+        display: flex;
+        grid-template-columns: none;
+        min-width: 0;
+        gap: 0.2rem;
+    }
+
+    .hero-install .install-tab-label {
+        min-width: auto;
+        padding: 0.35rem 0.55rem;
+    }
+
+    .hero-install .copy-button {
+        margin-right: 2px;
+    }
+
+    .hero-install .install-box-content,
+    .hero-install .install-tab-content,
+    .hero-install .install-code {
+        min-width: 0;
+        width: 100%;
+        max-width: 100%;
+    }
+
+    .hero-install .install-code {
+        font-size: 0.6rem;
+    }
+
     .code-example pre {
         font-size: 0.65rem;
         padding: 1rem 0.75rem;

@@ -2240,48 +2240,48 @@ div:has(#tab-editor-zed:checked) #content-editor-zed {
 
 /* ===== Project Tree (Modern Style) ===== */
 .project-tree {
-    background: linear-gradient(135deg, rgba(248, 249, 250, 0.95) 0%, rgba(241, 243, 245, 0.95) 100%);
-    border-radius: 12px;
-    padding: 0.75rem;
+    background: #f8fafc;
+    border-radius: 10px;
+    padding: 0.625rem;
     font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    line-height: 1.5;
+    font-size: 0.8rem;
+    line-height: 1.45;
     overflow-x: auto;
-    border: 1px solid rgba(0, 0, 0, 0.08);
-    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.04);
+    border: 1px solid rgba(15, 23, 42, 0.12);
+    box-shadow: none;
 }
 
 @media (prefers-color-scheme: dark) {
     .project-tree {
-        background: linear-gradient(135deg, rgba(30, 32, 38, 0.95) 0%, rgba(24, 26, 31, 0.95) 100%);
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15);
+        background: #111827;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        box-shadow: none;
     }
 }
 
 .project-tree-container {
     display: flex;
     flex-direction: column;
-    gap: 1px;
+    gap: 2px;
 }
 
 .project-tree-row {
     display: flex;
     align-items: center;
-    gap: 0.75rem;
+    gap: 0.625rem;
     white-space: nowrap;
-    padding: 0.5rem 0.75rem;
-    border-radius: 8px;
-    transition: background 0.15s ease;
+    padding: 0.4rem 0.5rem;
+    border-radius: 6px;
+    transition: background 0.15s ease, color 0.15s ease;
 }
 
 .project-tree-row:hover {
-    background: rgba(0, 0, 0, 0.03);
+    background: rgba(15, 23, 42, 0.06);
 }
 
 @media (prefers-color-scheme: dark) {
     .project-tree-row:hover {
-        background: rgba(255, 255, 255, 0.04);
+        background: rgba(148, 163, 184, 0.12);
     }
 }
 
@@ -2307,7 +2307,7 @@ div:has(#tab-editor-zed:checked) #content-editor-zed {
 }
 
 .project-tree-folder {
-    color: #1e293b;
+    color: #0f172a;
     font-weight: 500;
 }
 
@@ -2318,7 +2318,7 @@ div:has(#tab-editor-zed:checked) #content-editor-zed {
 }
 
 .project-tree-file {
-    color: rgba(0, 0, 0, 0.7);
+    color: rgba(15, 23, 42, 0.76);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -2334,45 +2334,39 @@ div:has(#tab-editor-zed:checked) #content-editor-zed {
 .project-tree-desc {
     display: inline-flex;
     align-items: center;
-    color: rgba(0, 0, 0, 0.55);
-    font-size: 0.72rem;
+    color: rgba(15, 23, 42, 0.52);
+    font-size: 0.7rem;
     margin-left: auto;
-    padding: 0.2rem 0.55rem;
-    border-radius: 999px;
-    background: rgba(0, 0, 0, 0.04);
-    border: 1px solid rgba(0, 0, 0, 0.06);
+    padding: 0;
+    border-radius: 0;
+    background: transparent;
+    border: 0;
     max-width: 48%;
     overflow: hidden;
     text-overflow: ellipsis;
-    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.02);
 }
 
 @media (prefers-color-scheme: dark) {
     .project-tree-desc {
-        color: rgba(255, 255, 255, 0.6);
-        background: rgba(255, 255, 255, 0.06);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+        color: rgba(226, 232, 240, 0.55);
     }
 }
 
 .project-tree-row:hover .project-tree-desc {
-    background: rgba(0, 0, 0, 0.08);
-    border-color: rgba(0, 0, 0, 0.12);
+    color: rgba(15, 23, 42, 0.68);
 }
 
 @media (prefers-color-scheme: dark) {
     .project-tree-row:hover .project-tree-desc {
-        background: rgba(255, 255, 255, 0.1);
-        border-color: rgba(255, 255, 255, 0.14);
+        color: rgba(226, 232, 240, 0.72);
     }
 }
 
 .project-tree-icon {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     flex-shrink: 0;
-    opacity: 0.9;
+    opacity: 0.88;
 }
 
 .project-tree-icon-folder {
@@ -2414,7 +2408,7 @@ div:has(#tab-editor-zed:checked) #content-editor-zed {
 }
 
 .project-tree-icon-file {
-    color: rgba(0, 0, 0, 0.4);
+    color: rgba(15, 23, 42, 0.4);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -2427,12 +2421,12 @@ div:has(#tab-editor-zed:checked) #content-editor-zed {
 @media (max-width: 768px) {
     .project-tree {
         font-size: 0.75rem;
-        padding: 0.5rem;
+        padding: 0.45rem;
         border-radius: 8px;
     }
 
     .project-tree-row {
-        padding: 0.375rem 0.5rem;
+        padding: 0.35rem 0.45rem;
     }
 
     .project-tree-desc {

@@ -113,7 +113,9 @@ fn parseOnce(first: *bool) !u32 {
 }
 
 // --- Caching: component ---
-pub fn CacheComponent(allocator: zx.Allocator) zx.Component {
+pub fn CacheComponent(
+    allocator: zx.Allocator,
+) zx.Component {
     return (<Expensive @{allocator} @caching="10s" />);
 }
 
