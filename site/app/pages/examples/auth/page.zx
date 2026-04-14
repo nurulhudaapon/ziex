@@ -1,4 +1,4 @@
-pub fn Page(ctx: zx.PageContext, state: AuthState) zx.Component {
+pub fn Page(ctx: zx.PageContext, _: void, state: AuthState) zx.Component {
     const allocator = ctx.arena;
     const auth = state;
     const msg = ctx.request.queries.get("msg");
