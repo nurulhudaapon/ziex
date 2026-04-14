@@ -17,7 +17,7 @@ pub fn handleRequest(ctx: zx.PageContext) RequestInfo {
     // Load from KV synchronously
     syncFromKv(ctx, &users);
 
-    const qs = ctx.request.searchParams;
+    const qs = ctx.request.queries;
 
     const is_reset = qs.get("reset") != null;
     const is_delete = qs.get("delete") != null;

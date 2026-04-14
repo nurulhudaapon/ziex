@@ -43,7 +43,7 @@ pub fn handleRequest(ctx: zx.PageContext) BenchState {
     ctx.response.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
     ctx.response.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-    const qs = ctx.request.searchParams;
+    const qs = ctx.request.queries;
 
     const action = qs.get("action");
     if (action) |a| {

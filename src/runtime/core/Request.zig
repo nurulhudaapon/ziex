@@ -83,10 +83,10 @@ cookies: Cookies = .{ .header_value = "" },
 /// URL search parameters accessor.
 ///
 /// **Zig Note:** This is an extension field. In the web standard, you would use
-/// `new URL(request.url).searchParams` to access search parameters.
+/// `new URL(request.url).queries` to access search parameters.
 ///
 /// https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams
-searchParams: URLSearchParams = .{},
+queries: URLSearchParams = .{},
 
 /// URL parameters accessor (from route matching).
 ///
@@ -377,7 +377,7 @@ pub const Builder = struct {
                 .vtable = self.headers_vtable,
             },
             .cookies = .{ .header_value = self.cookie_header },
-            .searchParams = .{
+            .queries = .{
                 .backend_ctx = self.search_params_ctx,
                 .vtable = self.search_params_vtable,
             },

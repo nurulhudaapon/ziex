@@ -1,7 +1,7 @@
 pub fn Page(ctx: zx.PageCtx(void, AuthState)) zx.Component {
     const allocator = ctx.arena;
     const auth = ctx.state;
-    const msg = ctx.request.searchParams.get("msg");
+    const msg = ctx.request.queries.get("msg");
 
     // Handle login/logout POST actions
     handleAction(ctx);

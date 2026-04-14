@@ -82,20 +82,20 @@ test "Request.headers: has returns false without backend" {
 
 // --- URLSearchParams --- //
 
-test "Request.searchParams: get returns null without backend" {
+test "Request.queries: get returns null without backend" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
     const req = (Request.Builder{ .arena = fba.allocator() }).build();
-    try std.testing.expect(req.searchParams.get("q") == null);
+    try std.testing.expect(req.queries.get("q") == null);
 }
 
-test "Request.searchParams: has returns false without backend" {
+test "Request.queries: has returns false without backend" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
     const req = (Request.Builder{ .arena = fba.allocator() }).build();
-    try std.testing.expect(!req.searchParams.has("q"));
+    try std.testing.expect(!req.queries.has("q"));
 }
 
 // --- Builder --- //

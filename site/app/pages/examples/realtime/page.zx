@@ -1,7 +1,7 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
     var chat_username = ctx.request.cookies.get("username") orelse "";
-    const set_username = ctx.request.searchParams.get("username") orelse "";
-    var leave_username = ctx.request.searchParams.get("leave") orelse "";
+    const set_username = ctx.request.queries.get("username") orelse "";
+    var leave_username = ctx.request.queries.get("leave") orelse "";
     if (set_username.len > 0) {
         ctx.response.cookies.set("username", set_username, .{});
         chat_username = set_username;

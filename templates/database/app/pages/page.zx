@@ -2,7 +2,7 @@ pub const options = zx.PageOptions{ .methods = &.{ .GET, .POST } };
 const Context = @import("../Context.zig");
 
 pub fn Page(ctx: zx.PageCtx(Context, void)) zx.Component {
-    const query = ctx.request.searchParams;
+    const query = ctx.request.queries;
 
     count = ctx.app.db.getCount() catch -1;
 

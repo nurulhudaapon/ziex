@@ -6,7 +6,7 @@ var remaining_clients = std.atomic.Value(u32).init(CLIENTS_TO_WAIT_FOR);
 
 pub fn GET(ctx: zx.RouteContext) !void {
     const current = remaining_clients.load(.monotonic);
-    const name = ctx.request.searchParams.get("name") orelse
+    const name = ctx.request.queries.get("name") orelse
         std.fmt.allocPrint(ctx.arena, "Client #{d}", .{CLIENTS_TO_WAIT_FOR - current}) catch "Client";
 
     try ctx.socket.upgrade(SocketData{

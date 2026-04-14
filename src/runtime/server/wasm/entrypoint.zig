@@ -92,7 +92,7 @@ pub fn run() !void {
             .backend_ctx = @ptrCast(&wasi_headers),
             .vtable = &WasiHeaders.vtable,
         },
-        .searchParams = .{
+        .queries = .{
             .backend_ctx = @ptrCast(&wasi_search),
             .vtable = &WasiSearchParams.vtable,
         },
