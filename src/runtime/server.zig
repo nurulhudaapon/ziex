@@ -11,4 +11,3 @@ pub const ServerMeta = server.ServerMeta;
 // Legacy -- may be kept
 pub const Request = @import("core/Request.zig");
 pub const Response = @import("core/Response.zig");
-pub const ServerConfig = server.ServerConfig;

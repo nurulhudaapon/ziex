@@ -26,20 +26,20 @@ pub fn Server(comptime H: type) type {
         const Self = @This();
 
         pub const Meta = ServerMeta;
-        pub const Config = ServerConfig;
         pub const version = module_config.version;
 
         allocator: std.mem.Allocator,
         meta: ServerMeta,
         handler: HandlerType,
         server: httpz.Server(*HandlerType),
+        config: AppConfig,
         app_ctx: H,
 
         _is_listening: bool = false,
 
         const HandlerType = Handler(AppCtxType);
 
-        pub fn init(allocator: std.mem.Allocator, config: ServerConfig, app_ctx: H) !*Self {
+        pub fn init(allocator: std.mem.Allocator, config: AppConfig, app_ctx: H) !*Self {
             if (!@import("zx_module_options").exclude_db) default_db.use();
 
             const self = try allocator.create(Self);
@@ -58,9 +58,10 @@ pub fn Server(comptime H: type) type {
             else
                 &self.app_ctx;
 
+            self.config = config;
             self.handler = try HandlerType.init(allocator, &self.meta, config, app_ctx_ptr);
             errdefer self.handler.deinit();
-            self.server = try httpz.Server(*HandlerType).init(allocator, config.server, &self.handler);
+            self.server = try httpz.Server(*HandlerType).init(allocator, mapStruct(httpz.Config, config.server), &self.handler);
 
             // -- Routing -- //
             var router = try self.server.router(.{});
@@ -179,8 +180,10 @@ pub fn Server(comptime H: type) type {
                             std.debug.print("To kill the port, run:\n  {s}kill -9 $(lsof -t -i:{d}){s}\n\n", .{ colors.dim, port, colors.reset_all });
                             self.server.config.port = new_port;
 
+                            var retry_config = self.config;
+                            retry_config.server.port = new_port;
                             self.server.deinit();
-                            var retry_server = try init(self.allocator, .{ .server = self.server.config }, self.app_ctx);
+                            var retry_server = try init(self.allocator, retry_config, self.app_ctx);
                             defer retry_server.deinit();
 
                             retry_server.info();
@@ -287,7 +290,7 @@ pub fn Server(comptime H: type) type {
                 var aw = std.Io.Writer.Allocating.init(self.allocator);
                 defer aw.deinit();
 
-                var serilizable_meta = try SerilizableAppMeta.init(self.allocator, &self.meta, self.server.config);
+                var serilizable_meta = try SerilizableAppMeta.init(self.allocator, &self.meta, self.config.server);
                 defer serilizable_meta.deinit(self.allocator);
                 try serilizable_meta.serialize(&aw.writer);
 
@@ -318,7 +321,7 @@ pub const SerilizableAppMeta = struct {
         is_dynamic: bool = false,
     };
     pub const Config = struct {
-        server: httpz.Config,
+        server: AppConfig.ServerConfig,
     };
 
     binpath: ?[]const u8 = null,
@@ -328,7 +331,7 @@ pub const SerilizableAppMeta = struct {
     version: []const u8,
     cli_command: ?ServerMeta.CliCommand = null,
 
-    pub fn init(allocator: std.mem.Allocator, meta: *ServerMeta, config: httpz.Config) !SerilizableAppMeta {
+    pub fn init(allocator: std.mem.Allocator, meta: *ServerMeta, config: AppConfig.ServerConfig) !SerilizableAppMeta {
         var routes = try allocator.alloc(Route, meta.routes.len);
 
         for (meta.routes, 0..) |route, i| {
@@ -896,12 +899,24 @@ pub const ServerMeta = struct {
     cli_command: ?CliCommand = null,
 };
 
-pub const ServerConfig = struct {
-    pub const init: ServerConfig = .{ .server = .{} };
-
-    server: httpz.Config = .{},
-    cache: CacheConfig = .{},
-};
+/// Comptime-map any struct into a target struct type by matching field names.
+/// Used to convert our AppConfig.ServerConfig into httpz.Config without manually
+/// listing each field. Only fields present in both are copied; nested structs
+/// recurse. This keeps AppConfig decoupled from httpz (so wasm/wasi builds work).
+pub fn mapStruct(comptime T: type, src: anytype) T {
+    var out: T = .{};
+    const S = @TypeOf(src);
+    inline for (@typeInfo(T).@"struct".fields) |f| {
+        if (@hasField(S, f.name)) {
+            const sv = @field(src, f.name);
+            switch (@typeInfo(f.type)) {
+                .@"struct" => @field(out, f.name) = mapStruct(f.type, sv),
+                else => @field(out, f.name) = sv,
+            }
+        }
+    }
+    return out;
+}
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -911,7 +926,8 @@ const zx = @import("../../root.zig");
 const module_config = @import("zx_info");
 const Constant = @import("../../constant.zig");
 const Handler = @import("handler.zig").Handler;
-const CacheConfig = @import("handler.zig").CacheConfig;
+const AppConfig = @import("../../AppConfig.zig");
+const CacheConfig = AppConfig.CacheConfig;
 const default_db = if (builtin.os.tag == .wasi or builtin.os.tag == .freestanding)
     @import("wasm/db.zig")
 else

@@ -49,6 +49,7 @@ pub const Client = @import("runtime/client/Client.zig");
 
 const app_mod = @import("App.zig");
 pub const App = app_mod.App;
+pub const AppConfig = app_mod.Config;
 pub const allocator = app_mod.allocator;
 
 // --- Namespaces --- //

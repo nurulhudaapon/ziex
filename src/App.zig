@@ -46,14 +46,7 @@ fn AppInstance(comptime H: type) type {
     };
 }
 
-const NonNativeConfig = struct { server: struct { port: u16 = 0 } = .{} };
-const Config = switch (platform.role) {
-    .client => NonNativeConfig,
-    .server => switch (platform.os) {
-        .wasi => NonNativeConfig,
-        else => server.ServerConfig,
-    },
-};
+pub const Config = @import("AppConfig.zig");
 
 var debug_allocator: std.heap.DebugAllocator(.{}) = .{};
 pub const allocator = switch (builtin.os.tag) {

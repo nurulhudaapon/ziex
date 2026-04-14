@@ -32,14 +32,6 @@ const ElementInjector = struct {
     }
 };
 
-pub const CacheConfig = struct {
-    /// Maximum number of cached pages
-    max_size: u32 = 1000,
-
-    /// Default TTL in seconds for cached pages
-    default_ttl: u32 = 10,
-};
-
 /// ProxyStatus tracks proxy execution for dev logging
 /// Uses thread-local storage to avoid race conditions in multi-threaded server
 const ProxyStatus = struct {
@@ -137,10 +129,10 @@ const PageCache = struct {
     };
 
     cache: cachez.Cache(CacheValue),
-    config: CacheConfig,
+    config: AppConfig.CacheConfig,
     allocator: Allocator,
 
-    pub fn init(allocator: Allocator, config: CacheConfig) !PageCache {
+    pub fn init(allocator: Allocator, config: AppConfig.CacheConfig) !PageCache {
         return .{
             .allocator = allocator,
             .config = config,
@@ -275,12 +267,12 @@ pub fn Handler(comptime AppCtxType: type) type {
         const Self = @This();
 
         meta: *App.Meta,
-        config: App.Config,
+        config: AppConfig,
         page_cache: PageCache,
         allocator: std.mem.Allocator,
         app_ctx: *AppCtxType,
 
-        pub fn init(allocator: std.mem.Allocator, meta: *App.Meta, config: App.Config, app_ctx: *AppCtxType) !Self {
+        pub fn init(allocator: std.mem.Allocator, meta: *App.Meta, config: AppConfig, app_ctx: *AppCtxType) !Self {
             const cache_config = config.cache;
             // Initialize unified component cache
             try zx.cache.init(allocator, .{
@@ -1025,5 +1017,6 @@ const ctxs = @import("../../contexts.zig");
 const Allocator = std.mem.Allocator;
 const Component = zx.Component;
 const App = zx.Server(void);
+const AppConfig = @import("../../AppConfig.zig");
 const Request = @import("../core/Request.zig");
 const Response = @import("../core/Response.zig");
