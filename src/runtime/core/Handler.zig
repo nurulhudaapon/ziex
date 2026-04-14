@@ -82,13 +82,13 @@ pub fn handlePage(
     proxy_state_ptr: ?*const anyopaque,
     base_path: ?[]const u8,
 ) !PageResult {
-    var pagectx = zx.PageContext.initWithAppPtr(app_ctx, request, response, allocator);
-    pagectx._state_ptr = proxy_state_ptr;
+    const app_ptr: ?*const anyopaque = if (app_ctx) |p| @ptrCast(p) else null;
+    const pagectx = zx.PageContext.init(request, response, allocator);
 
     const page_fn = route.page orelse return .not_found;
 
     // -- Server action dispatch --
-    switch (try server_dispatch.dispatchAction(request, response, allocator, arena, route.path, pagectx, page_fn, base_path)) {
+    switch (try server_dispatch.dispatchAction(request, response, allocator, arena, route.path, pagectx, page_fn, app_ptr, proxy_state_ptr, base_path)) {
         .not_triggered => {},
         .ok => |r| return .{ .action_handled = .{ .body = r.body } },
         .ok_native => {},
@@ -97,7 +97,7 @@ pub fn handlePage(
     }
 
     // -- Server event dispatch --
-    switch (try server_dispatch.dispatchServerEvent(request, allocator, arena, route.path, pagectx, page_fn, base_path)) {
+    switch (try server_dispatch.dispatchServerEvent(request, allocator, arena, route.path, pagectx, page_fn, app_ptr, proxy_state_ptr, base_path)) {
         .not_triggered => {},
         .ok => |r| return .{ .event_handled = .{ .body = r.body } },
         .ok_native => {},
@@ -108,15 +108,14 @@ pub fn handlePage(
     // -- Render page --
     render.current_route_path = route.path;
 
-    var page_component = page_fn(pagectx) catch |err| {
+    var page_component = page_fn(pagectx, app_ptr, proxy_state_ptr) catch |err| {
         render.current_route_path = null;
         return .{ .page_error = err };
     };
 
     // -- Apply layout hierarchy --
-    var layoutctx = zx.LayoutContext.initWithAppPtr(app_ctx, request, response, allocator);
-    layoutctx._state_ptr = proxy_state_ptr;
-    page_component = Router.applyLayouts(route, request.pathname, layoutctx, page_component);
+    const layoutctx = zx.LayoutContext.init(request, response, allocator);
+    page_component = Router.applyLayouts(route, request.pathname, layoutctx, page_component, app_ptr, proxy_state_ptr);
 
     // -- Inject build-time HTML (scripts, styles, etc.) --
     injectZxInjections(arena, &page_component);
@@ -148,14 +147,13 @@ pub fn handleApi(
     // Resolve handler for HTTP method
     const route_fn = Router.resolveCustomHandler(handlers, request.method, request.method_str) orelse return .not_found;
 
+    const app_ptr: ?*const anyopaque = if (app_ctx) |p| @ptrCast(p) else null;
     if (handlers.socket != null) {
-        var routectx = zx.RouteContext.initWithAppPtrAndSocket(app_ctx, request, response, socket, allocator);
-        routectx._state_ptr = proxy_state_ptr;
-        route_fn(routectx) catch |err| return .{ .handler_error = err };
+        const routectx = zx.RouteContext.initWithSocket(request, response, socket, allocator);
+        route_fn(routectx, app_ptr, proxy_state_ptr) catch |err| return .{ .handler_error = err };
     } else {
-        var routectx = zx.RouteContext.initWithAppPtr(app_ctx, request, response, allocator);
-        routectx._state_ptr = proxy_state_ptr;
-        route_fn(routectx) catch |err| return .{ .handler_error = err };
+        const routectx = zx.RouteContext.init(request, response, allocator);
+        route_fn(routectx, app_ptr, proxy_state_ptr) catch |err| return .{ .handler_error = err };
     }
 
     return .handled;

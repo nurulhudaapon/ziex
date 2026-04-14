@@ -429,7 +429,7 @@ pub const ServerMeta = struct {
     };
 
     /// Route handler function type for API routes
-    pub const RouteHandler = *const fn (ctx: zx.RouteContext) anyerror!void;
+    pub const RouteHandler = *const fn (ctx: zx.RouteContext, app_ptr: ?*const anyopaque, state_ptr: ?*const anyopaque) anyerror!void;
 
     /// Socket message handler function type for WebSocket connections
     /// Called for each message received from the client
@@ -660,54 +660,55 @@ pub const ServerMeta = struct {
         }.wrapper;
     }
 
+    fn injectApp(comptime AppType: type, app_ptr: ?*const anyopaque) AppType {
+        if (AppType == void) return {};
+        const ptr = app_ptr orelse return std.mem.zeroes(AppType);
+        if (@typeInfo(AppType) == .pointer) {
+            const loose: *align(1) const AppType = @ptrCast(ptr);
+            return loose;
+        } else {
+            const loose: *align(1) const AppType = @ptrCast(ptr);
+            return loose.*;
+        }
+    }
+
+    fn injectState(comptime StateType: type, state_ptr: ?*const anyopaque) StateType {
+        if (StateType == void) return {};
+        const ptr = state_ptr orelse return std.mem.zeroes(StateType);
+        if (@typeInfo(StateType) == .pointer) {
+            const loose: *align(1) const StateType = @ptrCast(ptr);
+            return loose;
+        } else {
+            const loose: *align(1) const StateType = @ptrCast(ptr);
+            return loose.*;
+        }
+    }
+
     /// Wrapper to allow routes to return void or !void.
-    /// Handles both zx.RouteContext (void app/state) and zx.RouteCtx(AppCtx, State) (custom context).
+    /// Route function shape: `(ctx: zx.RouteContext, app?: App, state?: State)` — positional.
     fn wrapRoute(comptime routeFn: anytype) RouteHandler {
         const FnInfo = @typeInfo(@TypeOf(routeFn)).@"fn";
         const R = FnInfo.return_type.?;
-        const CtxType = FnInfo.params[0].type.?;
+        const n_params = FnInfo.params.len;
 
         return struct {
-            fn wrapper(ctx: zx.RouteContext) anyerror!void {
-                if (CtxType == zx.RouteContext) {
-                    // Standard RouteContext, pass directly
-                    if (R == void) {
-                        routeFn(ctx);
-                    } else {
-                        try routeFn(ctx);
-                    }
-                } else {
-                    // Custom context type - cast app pointer and state
-                    const AppType = @TypeOf(@as(CtxType, undefined).app);
-                    const app: AppType = if (AppType == void) {} else if (AppType == ?*const anyopaque)
-                        ctx.app
-                    else if (@typeInfo(AppType) == .pointer)
-                        @ptrCast(@alignCast(ctx.app))
-                    else
-                        (@as(*const AppType, @ptrCast(@alignCast(ctx.app)))).*;
-
-                    // Cast state from type-erased pointer
-                    const StateType = @TypeOf(@as(CtxType, undefined).state);
-                    const state: StateType = if (StateType == void) {} else if (ctx._state_ptr) |ptr|
-                        (@as(*const StateType, @ptrCast(@alignCast(ptr)))).*
-                    else
-                        std.mem.zeroes(StateType);
-
-                    const custom_ctx = CtxType{
-                        .app = app,
-                        .state = state,
-                        .request = ctx.request,
-                        .response = ctx.response,
-                        .socket = ctx.socket,
-                        .allocator = ctx.allocator,
-                        .arena = ctx.arena,
-                    };
-                    if (R == void) {
-                        routeFn(custom_ctx);
-                    } else {
-                        try routeFn(custom_ctx);
-                    }
+            fn wrapper(ctx: zx.RouteContext, app_ptr: ?*const anyopaque, state_ptr: ?*const anyopaque) anyerror!void {
+                if (n_params == 1) {
+                    if (R == void) routeFn(ctx) else try routeFn(ctx);
+                    return;
                 }
+                if (n_params == 2) {
+                    const app = injectApp(FnInfo.params[1].type.?, app_ptr);
+                    if (R == void) routeFn(ctx, app) else try routeFn(ctx, app);
+                    return;
+                }
+                if (n_params == 3) {
+                    const app = injectApp(FnInfo.params[1].type.?, app_ptr);
+                    const state = injectState(FnInfo.params[2].type.?, state_ptr);
+                    if (R == void) routeFn(ctx, app, state) else try routeFn(ctx, app, state);
+                    return;
+                }
+                @compileError("Route function must have 1-3 parameters: (ctx, app?, state?)");
             }
         }.wrapper;
     }
@@ -754,123 +755,75 @@ pub const ServerMeta = struct {
     }
 
     /// Page handler function type
-    pub const PageHandler = *const fn (ctx: zx.PageContext) anyerror!Component;
+    pub const PageHandler = *const fn (ctx: zx.PageContext, app_ptr: ?*const anyopaque, state_ptr: ?*const anyopaque) anyerror!Component;
 
     /// Layout handler function type
-    pub const LayoutHandler = *const fn (ctx: zx.LayoutContext, component: Component) Component;
+    pub const LayoutHandler = *const fn (ctx: zx.LayoutContext, component: Component, app_ptr: ?*const anyopaque, state_ptr: ?*const anyopaque) Component;
 
     /// Comptime function to wrap a page module's Page function.
-    /// Handles both zx.PageContext (void app/state) and zx.PageCtx(AppCtx, State) (custom context).
-    /// The app context and state are read from type-erased pointers and cast to the appropriate types.
+    /// The app context and state are read from type-erased pointers in ctx and cast to the appropriate types.
     pub fn page(comptime T: type) PageHandler {
         const is_md = @hasDecl(T, "_zx_md");
         const pageFn = if (is_md) T._zx_md else T.Page;
 
         const FnType = @TypeOf(pageFn);
         const fn_info = @typeInfo(FnType).@"fn";
-        const CtxType = fn_info.params[0].type.?;
         const R = fn_info.return_type.?;
+        const n_params = fn_info.params.len;
 
         return struct {
-            fn wrapper(ctx: zx.PageContext) anyerror!Component {
-                const allocator = ctx.arena;
-
-                // If page expects standard PageContext, pass it directly
-                if (CtxType == zx.PageContext) {
-                    if (R == Component) {
-                        return pageFn(ctx);
-                    } else {
-                        return try pageFn(ctx);
-                    }
-                } else if (is_md) {
+            fn wrapper(ctx: zx.PageContext, app_ptr: ?*const anyopaque, state_ptr: ?*const anyopaque) anyerror!Component {
+                if (is_md) {
                     // TODO: figure out a better design for page.mdzx file, we need a better way to use PageContext in md file without magic
+                    const CtxType = fn_info.params[0].type.?;
                     const CCtxType = @typeInfo(CtxType).pointer.child;
-
+                    const allocator = ctx.arena;
                     const cctx = (allocator.create(CCtxType) catch @panic("OOM"));
                     cctx.allocator = allocator;
-                    const md_has_ctx = @hasDecl(T, "page_ctx");
-                    if (md_has_ctx) {
-                        T.page_ctx = ctx;
-                    }
-
+                    if (@hasDecl(T, "page_ctx")) T.page_ctx = ctx;
                     return pageFn(cctx);
-                } else {
-                    // Page expects custom context type - cast app pointer and state to correct types
-                    // ctx.app for void is ?*const anyopaque (type-erased pointer)
-                    const AppType = @TypeOf(@as(CtxType, undefined).app);
-                    const app: AppType = if (AppType == void) {} else if (AppType == ?*const anyopaque)
-                        ctx.app
-                    else if (@typeInfo(AppType) == .pointer)
-                        @ptrCast(@alignCast(ctx.app))
-                    else
-                        (@as(*const AppType, @ptrCast(@alignCast(ctx.app)))).*;
-
-                    // Cast state from type-erased pointer
-                    const StateType = @TypeOf(@as(CtxType, undefined).state);
-                    const state: StateType = if (StateType == void) {} else if (ctx._state_ptr) |ptr|
-                        (@as(*const StateType, @ptrCast(@alignCast(ptr)))).*
-                    else
-                        std.mem.zeroes(StateType);
-
-                    const custom_ctx = CtxType{
-                        .app = app,
-                        .state = state,
-                        .request = ctx.request,
-                        .response = ctx.response,
-                        .allocator = ctx.allocator,
-                        .arena = ctx.arena,
-                    };
-                    if (R == Component) {
-                        return pageFn(custom_ctx);
-                    } else {
-                        return try pageFn(custom_ctx);
-                    }
                 }
+
+                if (n_params == 1) {
+                    if (R == Component) return pageFn(ctx) else return try pageFn(ctx);
+                }
+                if (n_params == 2) {
+                    const app = injectApp(fn_info.params[1].type.?, app_ptr);
+                    if (R == Component) return pageFn(ctx, app) else return try pageFn(ctx, app);
+                }
+                if (n_params == 3) {
+                    const app = injectApp(fn_info.params[1].type.?, app_ptr);
+                    const state = injectState(fn_info.params[2].type.?, state_ptr);
+                    if (R == Component) return pageFn(ctx, app, state) else return try pageFn(ctx, app, state);
+                }
+                @compileError("Page function must have 1-3 parameters: (ctx, app?, state?)");
             }
         }.wrapper;
     }
 
     /// Comptime function to wrap a layout module's Layout function.
-    /// Handles both zx.LayoutContext (void app/state) and zx.LayoutCtx(AppCtx, State) (custom context).
+    /// Layout signature (positional): `(ctx: zx.LayoutContext, children: Component, app?, state?)`
     pub fn layout(comptime T: type) LayoutHandler {
         const layoutFn = T.Layout;
         const FnType = @TypeOf(layoutFn);
         const fn_info = @typeInfo(FnType).@"fn";
-        const CtxType = fn_info.params[0].type.?;
+        const n_params = fn_info.params.len;
 
         return struct {
-            fn wrapper(ctx: zx.LayoutContext, component: Component) Component {
-                // If layout expects standard LayoutContext, pass it directly
-                if (CtxType == zx.LayoutContext) {
+            fn wrapper(ctx: zx.LayoutContext, component: Component, app_ptr: ?*const anyopaque, state_ptr: ?*const anyopaque) Component {
+                if (n_params == 2) {
                     return layoutFn(ctx, component);
-                } else {
-                    // Layout expects custom context type - cast app pointer and state to correct types
-                    // ctx.app for void is ?*const anyopaque (type-erased pointer)
-                    const AppType = @TypeOf(@as(CtxType, undefined).app);
-                    const app: AppType = if (AppType == void) {} else if (AppType == ?*const anyopaque)
-                        ctx.app
-                    else if (@typeInfo(AppType) == .pointer)
-                        @ptrCast(@alignCast(ctx.app))
-                    else
-                        (@as(*const AppType, @ptrCast(@alignCast(ctx.app)))).*;
-
-                    // Cast state from type-erased pointer
-                    const StateType = @TypeOf(@as(CtxType, undefined).state);
-                    const state: StateType = if (StateType == void) {} else if (ctx._state_ptr) |ptr|
-                        (@as(*const StateType, @ptrCast(@alignCast(ptr)))).*
-                    else
-                        std.mem.zeroes(StateType);
-
-                    const custom_ctx = CtxType{
-                        .app = app,
-                        .state = state,
-                        .request = ctx.request,
-                        .response = ctx.response,
-                        .allocator = ctx.allocator,
-                        .arena = ctx.arena,
-                    };
-                    return layoutFn(custom_ctx, component);
                 }
+                if (n_params == 3) {
+                    const app = injectApp(fn_info.params[2].type.?, app_ptr);
+                    return layoutFn(ctx, component, app);
+                }
+                if (n_params == 4) {
+                    const app = injectApp(fn_info.params[2].type.?, app_ptr);
+                    const state = injectState(fn_info.params[3].type.?, state_ptr);
+                    return layoutFn(ctx, component, app, state);
+                }
+                @compileError("Layout function must have 2-4 parameters: (ctx, children, app?, state?)");
             }
         }.wrapper;
     }

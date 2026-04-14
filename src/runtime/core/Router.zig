@@ -378,12 +378,14 @@ pub fn applyLayouts(
     pathname: []const u8,
     layoutctx: zx.LayoutContext,
     page_component: Component,
+    app_ptr: ?*const anyopaque,
+    state_ptr: ?*const anyopaque,
 ) Component {
     var component = page_component;
 
     // Apply this route's own layout first
     if (route.layout) |layout_fn| {
-        component = layout_fn(layoutctx, component);
+        component = layout_fn(layoutctx, component, app_ptr, state_ptr);
     }
 
     // Collect parent layouts (root to deepest, excluding current route)
@@ -452,7 +454,7 @@ pub fn applyLayouts(
     var j: usize = layout_count;
     while (j > 0) {
         j -= 1;
-        component = layouts[j](layoutctx, component);
+        component = layouts[j](layoutctx, component, app_ptr, state_ptr);
     }
 
     return component;
@@ -464,6 +466,8 @@ pub fn applyLayoutsForPath(
     path: []const u8,
     layoutctx: zx.LayoutContext,
     page_component: Component,
+    app_ptr: ?*const anyopaque,
+    state_ptr: ?*const anyopaque,
 ) Component {
     var component = page_component;
 
@@ -523,7 +527,7 @@ pub fn applyLayoutsForPath(
     var j: usize = layout_count;
     while (j > 0) {
         j -= 1;
-        component = layouts[j](layoutctx, component);
+        component = layouts[j](layoutctx, component, app_ptr, state_ptr);
     }
 
     return component;
@@ -550,7 +554,7 @@ pub fn renderErrorComponent(
     };
 
     var component = err_fn(errorctx);
-    component = applyLayoutsForPath(path, layoutctx, component);
+    component = applyLayoutsForPath(path, layoutctx, component, null, null);
     return component;
 }
 
@@ -590,6 +594,6 @@ pub fn renderNotFoundComponent(
     };
 
     var component = nf_fn(notfoundctx);
-    component = applyLayoutsForPath(path, layoutctx, component);
+    component = applyLayoutsForPath(path, layoutctx, component, null, null);
     return component;
 }

@@ -74,18 +74,6 @@ test "PageContext: has allocator and arena fields" {
     _ = ctx.arena;
 }
 
-test "PageContext: parent_ctx is null by default" {
-    var buffer: [4096]u8 = undefined;
-    var fba = std.heap.FixedBufferAllocator.init(&buffer);
-    const alloc = fba.allocator();
-
-    const req = (Request.Builder{ .arena = alloc }).build();
-    const res = (Response.Builder{ .arena = alloc }).build();
-    const ctx = PageContext.init(req, res, alloc);
-
-    try std.testing.expect(ctx.parent_ctx == null);
-}
-
 // --- ErrorContext --- //
 
 test "ErrorContext: has error field" {

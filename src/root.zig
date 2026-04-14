@@ -74,16 +74,11 @@ pub const SocketOptions = routing.SocketOptions;
 
 /// --- Contexts --- //
 pub const ProxyContext = ctxs.ProxyContext;
-pub const AppCtx = routing.AppCtx;
 pub const PageContext = routing.PageContext;
-pub const PageCtx = routing.PageCtx;
 pub const LayoutContext = routing.LayoutContext;
-pub const LayoutCtx = routing.LayoutCtx;
 pub const NotFoundContext = routing.NotFoundContext;
-pub const NotFoundCtx = routing.NotFoundCtx;
 pub const ErrorContext = routing.ErrorContext;
 pub const RouteContext = routing.RouteContext;
-pub const RouteCtx = routing.RouteCtx;
 pub const SocketContext = routing.SocketContext;
 pub const SocketCtx = routing.SocketCtx;
 pub const SocketOpenContext = routing.SocketOpenContext;

@@ -1,7 +1,7 @@
-pub fn Page(ctx: zx.PageCtx(root.AppCtx, void)) zx.Component {
+pub fn Page(ctx: zx.PageContext, app: root.AppCtx) zx.Component {
     return (
         <main @allocator={ctx.arena}>
-            <p>{ctx.app.port}</p>
+            <p>{app.port}</p>
             <QuickExample />
         </main>
     );

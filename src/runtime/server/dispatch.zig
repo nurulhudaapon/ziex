@@ -8,7 +8,7 @@ const zx = @import("../../root.zig");
 const registry = @import("registry.zig");
 const render = @import("render.zig");
 
-pub const PageFn = *const fn (zx.PageContext) anyerror!zx.Component;
+pub const PageFn = *const fn (zx.PageContext, ?*const anyopaque, ?*const anyopaque) anyerror!zx.Component;
 
 pub const DispatchResult = union(enum) {
     /// Request did not match this handler type — continue normal handling.
@@ -60,9 +60,11 @@ fn slowPathRender(
     pagectx: zx.PageContext,
     route_path: []const u8,
     arena: std.mem.Allocator,
+    app_ptr: ?*const anyopaque,
+    state_ptr: ?*const anyopaque,
     base_path: ?[]const u8,
 ) ?anyerror {
-    var page_component = page_fn(pagectx) catch |err| return err;
+    var page_component = page_fn(pagectx, app_ptr, state_ptr) catch |err| return err;
     var discard = std.Io.Writer.Allocating.init(arena);
     render.current_route_path = route_path;
     page_component.render(&discard.writer, .{ .base_path = base_path }) catch {};
@@ -81,6 +83,8 @@ pub fn dispatchAction(
     route_path: []const u8,
     pagectx: zx.PageContext,
     page_fn: ?PageFn,
+    app_ptr: ?*const anyopaque,
+    state_ptr: ?*const anyopaque,
     base_path: ?[]const u8,
 ) !DispatchResult {
     if (!isActionRequest(request)) return .not_triggered;
@@ -119,7 +123,7 @@ pub fn dispatchAction(
 
     // Slow path: render the page to populate the registry, then retry.
     if (page_fn) |pfn| {
-        if (slowPathRender(pfn, pagectx, route_path, arena, base_path)) |err| {
+        if (slowPathRender(pfn, pagectx, route_path, arena, app_ptr, state_ptr, base_path)) |err| {
             return .{ .page_error = err };
         }
     }
@@ -150,6 +154,8 @@ pub fn dispatchServerEvent(
     route_path: []const u8,
     pagectx: zx.PageContext,
     page_fn: ?PageFn,
+    app_ptr: ?*const anyopaque,
+    state_ptr: ?*const anyopaque,
     base_path: ?[]const u8,
 ) !DispatchResult {
     if (!request.headers.has("x-zx-server-event")) return .not_triggered;
@@ -169,7 +175,7 @@ pub fn dispatchServerEvent(
 
     // Slow path: render the page to populate the registry, then retry.
     if (page_fn) |pfn| {
-        if (slowPathRender(pfn, pagectx, route_path, arena, base_path)) |err| {
+        if (slowPathRender(pfn, pagectx, route_path, arena, app_ptr, state_ptr, base_path)) |err| {
             return .{ .page_error = err };
         }
     }
