@@ -74,11 +74,11 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const html_fragment = util.renderComponentToHtml(allocator, examples.Learn__FragmentDemo(allocator));
     const html_children = util.renderComponentToHtml(allocator, examples.Learn__CardDemo(allocator));
     const html_dynattr = util.renderComponentToHtml(allocator, examples.Learn__DynamicAttrs(allocator));
-    const html_onclick = util.renderComponentToHtml(allocator, examples.Learn__ClickDemo(allocator));
+    const html_onclick = util.renderComponentToHtml(allocator, examples.Learn__Interactivity(allocator));
     const html_onclick_state = util.renderComponentToHtml(allocator, examples.Client(allocator));
     const html_state_mgmt = util.renderComponentToHtml(allocator, examples.Learn__StateDemo(allocator));
 
-    const preview_onclick = examples.Learn__ClickDemo(allocator);
+    const preview_onclick = examples.Learn__Interactivity(allocator);
     const preview_onclick_state = examples.Client(allocator);
     const preview_state_mgmt = examples.Learn__StateDemo(allocator);
 
@@ -714,7 +714,6 @@ const CodeBlock = @import("../components/code_block.zx").CodeBlock;
 const ProjectTree = @import("../components/project_tree.zx").ProjectTree;
 const InstallCLI = @import("../components/install_guide.zx").InstallCLI;
 const InstallZig = @import("../components/install_guide.zx").InstallZig;
-const exmpls = @import("./examples.zx");
 
 // Helper to allocate files on heap to avoid stack lifetime issues
 fn layoutFiles(allocator: zx.Allocator, layout_code: []const u8, page_code: []const u8) []const File {

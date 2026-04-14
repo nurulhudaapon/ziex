@@ -380,13 +380,12 @@ pub fn initInner(
         std.log.warn(
             \\Some imports were skipped for the client wasm build because they link libc/libc++:
             \\{s}
-            \\Please conditionally exclude these from wasm in your build.zig.
-            \\
-            \\Example:
-            \\  const target = b.standardTargetOptions(.{{}});
-            \\  if (target.result.cpu.arch != .wasm32) {{
-            \\      exe.root_module.addImport("module_name", your_module);
-            \\  }}
+            // \\Please conditionally exclude these from wasm in your build.zig.
+            // \\Example:
+            // \\  const target = b.standardTargetOptions(.{{}});
+            // \\  if (target.result.cpu.arch != .wasm32) {{
+            // \\      exe.root_module.addImport("module_name", your_module);
+            // \\  }}
         , .{skipped_details.items});
     }
 

@@ -94,11 +94,9 @@ pub fn build(b: *std.Build) !void {
         }),
     });
 
-    if (target.result.cpu.arch != .wasm32) {
-        app_exe.root_module.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
-        app_exe.root_module.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
-        app_exe.step.dependOn(&install_pg.step);
-    }
+    app_exe.root_module.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
+    app_exe.root_module.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
+    app_exe.step.dependOn(&install_pg.step);
 
     // --- ZX setup: wires dependencies and adds `zx`/`dev` build steps --- //
     var ziex_b = try ziex.init(b, app_exe, .{

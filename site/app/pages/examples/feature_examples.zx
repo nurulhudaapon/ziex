@@ -596,24 +596,25 @@ pub fn Learn__DynamicAttrs(allocator: zx.Allocator) zx.Component {
 }
 
 // --- Learn: onclick ---
-pub fn Learn__ClickDemo(allocator: zx.Allocator) zx.Component {
+pub fn Learn__Interactivity(allocator: zx.Allocator) zx.Component {
+    return (<Learn__EventHandling @{allocator} @rendering={.client} />);
+}
+pub fn Learn__EventHandling(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
             <button onclick={Learn__handleClick}>Click me</button>
-            <form onsubmit={Learn__handleSubmit}>
-                <input type="text" name="username" placeholder="Enter name" />
-                <button type="submit">Submit</button>
-            </form>
+            <input oninput={Learn__handleInput} />
         </main>
     );
 }
 
-fn Learn__handleClick(event: zx.client.Event) void {
-    _ = event;
+fn Learn__handleClick(_: zx.client.Event) void {
+    zx.log.info("Clicked!", .{});
 }
 
-fn Learn__handleSubmit(event: zx.client.Event) void {
-    _ = event;
+fn Learn__handleInput(event: zx.client.Event) void {
+    const v = event.value() orelse "";
+    zx.log.info("Input: {s}", .{v});
 }
 
 // --- Learn: onnull ---
