@@ -662,10 +662,17 @@ pub const ServerMeta = struct {
 
     fn injectApp(comptime AppType: type, app_ptr: ?*const anyopaque) AppType {
         if (AppType == void) return {};
-        const ptr = app_ptr orelse return std.mem.zeroes(AppType);
+
+        if (app_ptr == null) {
+            if (comptime @typeInfo(AppType) == .optional) return null;
+            @panic("Missing app context for non-optional app parameter");
+        }
+        const ptr = app_ptr.?;
+
         if (@typeInfo(AppType) == .pointer) {
-            const loose: *align(1) const AppType = @ptrCast(ptr);
-            return loose;
+            const addr = @intFromPtr(ptr);
+            const typed: AppType = @ptrFromInt(addr);
+            return typed;
         } else {
             const loose: *align(1) const AppType = @ptrCast(ptr);
             return loose.*;
@@ -674,10 +681,18 @@ pub const ServerMeta = struct {
 
     fn injectState(comptime StateType: type, state_ptr: ?*const anyopaque) StateType {
         if (StateType == void) return {};
-        const ptr = state_ptr orelse return std.mem.zeroes(StateType);
+
+        if (state_ptr == null) {
+            if (comptime @typeInfo(StateType) == .optional) return null;
+            if (comptime @typeInfo(StateType) == .pointer) @panic("Missing proxy state for non-optional state parameter");
+            return std.mem.zeroes(StateType);
+        }
+        const ptr = state_ptr.?;
+
         if (@typeInfo(StateType) == .pointer) {
-            const loose: *align(1) const StateType = @ptrCast(ptr);
-            return loose;
+            const addr = @intFromPtr(ptr);
+            const typed: StateType = @ptrFromInt(addr);
+            return typed;
         } else {
             const loose: *align(1) const StateType = @ptrCast(ptr);
             return loose.*;

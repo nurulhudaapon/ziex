@@ -7,6 +7,50 @@ const PageContext = zx.PageContext;
 const LayoutContext = zx.LayoutContext;
 const NotFoundContext = zx.NotFoundContext;
 const ErrorContext = zx.ErrorContext;
+const ServerMeta = zx.server.ServerMeta;
+
+const AppCtx = struct { port: u16 };
+const StateCtx = struct { count: i32 };
+
+var seen_page_app_port: u16 = 0;
+var seen_page_state_count: i32 = 0;
+
+var seen_layout_app_port: u16 = 0;
+var seen_layout_state_count: i32 = 0;
+
+const PageModule = struct {
+    pub fn Page(ctx: zx.PageContext, app: AppCtx, state: StateCtx) zx.Component {
+        _ = ctx;
+        seen_page_app_port = app.port;
+        seen_page_state_count = state.count;
+        return .{ .text = "ok" };
+    }
+};
+
+const LayoutModule = struct {
+    pub fn Layout(ctx: zx.LayoutContext, child: zx.Component, app: AppCtx, state: StateCtx) zx.Component {
+        _ = ctx;
+        seen_layout_app_port = app.port;
+        seen_layout_state_count = state.count;
+        return child;
+    }
+};
+
+const OptionalPageModule = struct {
+    pub var saw_null: bool = false;
+
+    pub fn Page(ctx: zx.PageContext, app: ?*const AppCtx) zx.Component {
+        _ = ctx;
+        saw_null = (app == null);
+        return .{ .text = "ok" };
+    }
+};
+
+fn makeReqRes(alloc: std.mem.Allocator) struct { req: Request, res: Response } {
+    const req = (Request.Builder{ .url = "/", .arena = alloc }).build();
+    const res = (Response.Builder{ .arena = alloc }).build();
+    return .{ .req = req, .res = res };
+}
 
 // --- Context Type Aliases --- //
 
@@ -122,4 +166,58 @@ test "ErrorContext: has allocator and arena fields" {
 
     _ = ctx.allocator;
     _ = ctx.arena;
+}
+
+test "ServerMeta.page injects app/state positional values" {
+    var buffer: [4096]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&buffer);
+    const alloc = fba.allocator();
+
+    const rr = makeReqRes(alloc);
+    const page_fn = ServerMeta.page(PageModule);
+    const ctx = zx.PageContext.init(rr.req, rr.res, alloc);
+
+    var app = AppCtx{ .port = 5588 };
+    var state = StateCtx{ .count = 42 };
+
+    _ = try page_fn(ctx, @ptrCast(&app), @ptrCast(&state));
+
+    try std.testing.expectEqual(@as(u16, 5588), seen_page_app_port);
+    try std.testing.expectEqual(@as(i32, 42), seen_page_state_count);
+}
+
+test "ServerMeta.layout injects app/state positional values" {
+    var buffer: [4096]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&buffer);
+    const alloc = fba.allocator();
+
+    const rr = makeReqRes(alloc);
+    const layout_fn = ServerMeta.layout(LayoutModule);
+    const ctx = zx.LayoutContext.init(rr.req, rr.res, alloc);
+
+    var app = AppCtx{ .port = 9000 };
+    var state = StateCtx{ .count = 7 };
+    const child = zx.Component{ .text = "child" };
+
+    const out = layout_fn(ctx, child, @ptrCast(&app), @ptrCast(&state));
+    _ = out;
+
+    try std.testing.expectEqual(@as(u16, 9000), seen_layout_app_port);
+    try std.testing.expectEqual(@as(i32, 7), seen_layout_state_count);
+}
+
+test "ServerMeta.page injects null for optional app parameter" {
+    var buffer: [4096]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&buffer);
+    const alloc = fba.allocator();
+
+    OptionalPageModule.saw_null = false;
+
+    const rr = makeReqRes(alloc);
+    const page_fn = ServerMeta.page(OptionalPageModule);
+    const ctx = zx.PageContext.init(rr.req, rr.res, alloc);
+
+    _ = try page_fn(ctx, null, null);
+
+    try std.testing.expect(OptionalPageModule.saw_null);
 }
