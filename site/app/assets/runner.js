@@ -3,6 +3,7 @@
     const FLEE_PX_PER_SEC = 420;
     const BOB_SLOW = "0.42s";
     const BOB_FAST = "0.14s";
+    const RUNNER_WIDTH = 72;
 
     const PERSONAS = [
         { idle: "catch me!",     clicked: "oops!",     sound: "aa",     fx: "fx-shake" },
@@ -41,7 +42,7 @@
         const bubble = wrap.querySelector(".footer-runner-bubble");
         if (!mascot) return;
 
-        let x = -80;
+        let x = -RUNNER_WIDTH;
         let dir = 1;
         let paused = false;
         let fleeUntil = 0;
@@ -71,11 +72,14 @@
                 setBob(fleeing ? BOB_FAST : BOB_SLOW);
 
                 x += dir * speed * dt;
-                const parentW = wrap.parentElement.clientWidth;
-                if (dir === 1 && x > parentW) {
+                const parentW = wrap.parentElement ? wrap.parentElement.clientWidth : 0;
+                const maxX = Math.max(0, parentW - RUNNER_WIDTH);
+                if (dir === 1 && x > maxX) {
+                    x = maxX;
                     dir = -1;
                     wrap.classList.add("is-flipped");
-                } else if (dir === -1 && x < -80) {
+                } else if (dir === -1 && x < -RUNNER_WIDTH) {
+                    x = -RUNNER_WIDTH;
                     dir = 1;
                     wrap.classList.remove("is-flipped");
                 }
