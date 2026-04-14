@@ -109,6 +109,49 @@ fn getTranspileOutdir(transpile_cmd: *std.Build.Step.Run, opts: InitInnerOptions
     return transpile_cmd.addOutputDirectoryArg("app");
 }
 
+fn moduleRequiresLibCRec(module: *std.Build.Module, visited: *std.AutoHashMap(*std.Build.Module, void)) !bool {
+    if (visited.contains(module)) return false;
+    try visited.put(module, {});
+
+    if ((module.link_libc orelse false) or (module.link_libcpp orelse false)) {
+        return true;
+    }
+
+    var it = module.import_table.iterator();
+    while (it.next()) |entry| {
+        if (try moduleRequiresLibCRec(entry.value_ptr.*, visited)) {
+            return true;
+        }
+    }
+
+    for (module.link_objects.items) |obj| {
+        switch (obj) {
+            .system_lib => |lib| {
+                if (std.mem.eql(u8, lib.name, "c") or
+                    std.mem.eql(u8, lib.name, "stdc++") or
+                    std.mem.eql(u8, lib.name, "c++"))
+                {
+                    return true;
+                }
+            },
+            .other_step => |compile_step| {
+                if (try moduleRequiresLibCRec(compile_step.root_module, visited)) {
+                    return true;
+                }
+            },
+            else => {},
+        }
+    }
+
+    return false;
+}
+
+fn moduleRequiresLibC(allocator: std.mem.Allocator, module: *std.Build.Module) !bool {
+    var visited = std.AutoHashMap(*std.Build.Module, void).init(allocator);
+    defer visited.deinit();
+    return moduleRequiresLibCRec(module, &visited);
+}
+
 pub fn initInner(
     b: *std.Build,
     exe: *std.Build.Step.Compile,
@@ -247,10 +290,15 @@ pub fn initInner(
     _ = try transpile_cmd.step.addDirectoryWatchInput(opts.site_path);
 
     // --- ZX Site Main Executable --- //
-    var imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
+    var user_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
     var import_it = exe.root_module.import_table.iterator();
     while (import_it.next()) |entry| {
-        try imports.append(.{ .name = entry.key_ptr.*, .module = entry.value_ptr.* });
+        try user_imports.append(.{ .name = entry.key_ptr.*, .module = entry.value_ptr.* });
+    }
+
+    var imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
+    for (user_imports.items) |import| {
+        try imports.append(import);
     }
 
     // Copy all imports from the original zx_module
@@ -305,6 +353,43 @@ pub fn initInner(
 
     // Create a site-specific wasm module (same approach as server module)
     var wasm_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
+    var skipped_wasm_imports = std.array_list.Managed([]const u8).init(b.allocator);
+    defer skipped_wasm_imports.deinit();
+    // Mirror imports from the server root module into wasm as well.
+    for (user_imports.items) |import| {
+        if (!std.mem.eql(u8, import.name, "zx")) {
+            const requires_libc = try moduleRequiresLibC(b.allocator, import.module);
+
+            if (requires_libc) {
+                try skipped_wasm_imports.append(import.name);
+                continue;
+            }
+
+            try wasm_imports.append(import);
+            wasm_exe.root_module.addImport(import.name, import.module);
+        }
+    }
+
+    if (skipped_wasm_imports.items.len > 0) {
+        var skipped_details = std.array_list.Managed(u8).init(b.allocator);
+        defer skipped_details.deinit();
+        for (skipped_wasm_imports.items) |name| {
+            try skipped_details.writer().print("- {s}\n", .{name});
+        }
+
+        std.log.warn(
+            \\Some imports were skipped for the client wasm build because they link libc/libc++:
+            \\{s}
+            \\Please conditionally exclude these from wasm in your build.zig.
+            \\
+            \\Example:
+            \\  const target = b.standardTargetOptions(.{{}});
+            \\  if (target.result.cpu.arch != .wasm32) {{
+            \\      exe.root_module.addImport("module_name", your_module);
+            \\  }}
+        , .{skipped_details.items});
+    }
+
     var wasm_import_it = zx_wasm_module.import_table.iterator();
     while (wasm_import_it.next()) |entry| {
         if (!std.mem.eql(u8, entry.key_ptr.*, "zx_meta")) {
@@ -458,7 +543,7 @@ pub const Build = struct {
     zx: BuildZiex,
 
     server: BuildServer,
-    client: ?BuildClient,
+    client: BuildClient,
 
     ziex_js: BuildZiexJs,
 
