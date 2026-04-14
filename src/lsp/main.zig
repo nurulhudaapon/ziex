@@ -30,12 +30,17 @@ pub fn main() !void {
 
     const global_cache_path: ?[]const u8 = blk: {
         const home = std.process.getEnvVarOwned(gpa, "HOME") catch break :blk null;
+        defer gpa.free(home);
         const cache_suffix = if (builtin.os.tag == .macos) "Library/Caches/zls" else ".cache/zls";
         break :blk std.fs.path.join(gpa, &.{ home, cache_suffix }) catch null;
     };
     defer if (global_cache_path) |p| gpa.free(p);
 
-    var config = zls.Config{ .global_cache_path = global_cache_path };
+    var config = zls.Config{
+        .global_cache_path = global_cache_path,
+        // .enable_build_on_save = false,
+        // .prefer_ast_check_as_child_process = false,
+    };
 
     const zls_server = zls.Server.create(.{
         .allocator = gpa,
@@ -46,12 +51,16 @@ pub fn main() !void {
     var handler: Handler = .init(gpa, zls_server, transport);
     defer handler.deinit();
 
-    try lsp.basic_server.run(
+    lsp.basic_server.run(
         gpa,
         transport,
         &handler,
         std.log.err,
-    );
+    ) catch |err| {
+        if (err != error.EndOfStream) {
+            return err;
+        }
+    };
 }
 
 const ZxFileState = struct {
@@ -356,7 +365,15 @@ pub const Handler = struct {
         arena: std.mem.Allocator,
         request: lsp.types.InitializeParams,
     ) lsp.types.InitializeResult {
-        var result = handler.zls.sendRequestSync(arena, "initialize", request) catch |err| {
+        var zls_request = request;
+        if (zls_request.capabilities.textDocument) |*text_document| {
+            text_document.publishDiagnostics = null;
+        }
+        if (zls_request.capabilities.general) |*general| {
+            general.positionEncodings = &.{.@"utf-8"};
+        }
+
+        var result = handler.zls.sendRequestSync(arena, "initialize", zls_request) catch |err| {
             std.log.err("zls initialize failed: {}", .{err});
             return .{
                 .serverInfo = .{ .name = "zxls", .version = "0.1.0" },
