@@ -136,6 +136,11 @@ pub fn build(b: *std.Build) !void {
         .output = assetsdir.path(b, "docs.js"),
         .optimize = optimize,
     }));
+    ziex_b.plugin(ziex.plugins.esbuild(b, .{
+        .input = b.path("app/scripts/home.ts"),
+        .output = assetsdir.path(b, "home.js"),
+        .optimize = optimize,
+    }));
 
     // TODO: Fix issue with outfile
     // bunjs.addBuildRun(b, .{ .config = .{

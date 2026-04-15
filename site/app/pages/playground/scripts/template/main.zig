@@ -35,58 +35,61 @@ pub fn main() !void {
 fn resolveComponent(allocator: zx.Allocator, comptime field_name: []const u8) zx.Component {
     const Cmp = @field(pg, field_name);
 
-    const FnInfo = @typeInfo(@TypeOf(Cmp)).@"fn";
-    const param_count = FnInfo.params.len;
-    const FirstParam = FnInfo.params[0].type.?;
+    switch (@typeInfo(@TypeOf(Cmp))) {
+        .@"fn" => |FnInfo| {
+            const param_count = FnInfo.params.len;
+            const FirstParam = FnInfo.params[0].type.?;
 
-    // fn(ctx: *zx.ComponentContext) zx.Component
-    if (param_count == 1 and @typeInfo(FirstParam) == .pointer and
-        @hasField(@typeInfo(FirstParam).pointer.child, "allocator") and
-        @hasField(@typeInfo(FirstParam).pointer.child, "children"))
-    {
-        const ctx = allocator.create(@typeInfo(FirstParam).pointer.child) catch @panic("OOM");
-        ctx.* = .{ .allocator = allocator, .props = {} };
-        return Cmp(ctx);
+            // fn(ctx: *zx.ComponentContext) zx.Component
+            if ((param_count == 1 and @typeInfo(FirstParam) == .pointer and
+                @hasField(@typeInfo(FirstParam).pointer.child, "allocator") and
+                @hasField(@typeInfo(FirstParam).pointer.child, "children")) or
+                (param_count == 1 and FirstParam == zx.Allocator) or
+                (param_count == 2 and FirstParam == zx.Allocator))
+            {
+                const cmp_fn = zx.Client.ComponentMeta.init(Cmp);
+                return cmp_fn(allocator, "Playground", null);
+            }
+
+            // fn(ctx: zx.PageContext) zx.Component
+            if (param_count == 1 and FirstParam == zx.PageContext) {
+                const ctx = zx.PageContext{
+                    .request = .{
+                        .url = "https://ziex.dev/playground",
+                        .method = .GET,
+                        .pathname = "playground",
+                        .headers = .{},
+                        .arena = allocator,
+                    },
+                    .response = .{ .arena = allocator },
+                    .allocator = allocator,
+                    .arena = allocator,
+                };
+                return Cmp(ctx);
+            }
+
+            // fn(ctx: zx.LayoutContext, children: zx.Component) zx.Component
+            if (param_count == 2 and FirstParam == zx.LayoutContext and FnInfo.params[1].type == zx.Component) {
+                const ctx = zx.LayoutContext{
+                    .request = .{
+                        .url = "https://ziex.dev/playground",
+                        .method = .GET,
+                        .pathname = "playground",
+                        .headers = .{},
+                        .arena = allocator,
+                    },
+                    .response = .{ .arena = allocator },
+                    .allocator = allocator,
+                    .arena = allocator,
+                };
+                return Cmp(ctx, .none);
+            }
+
+            @compileError("`Playground` must be `fn (*zx.ComponentContext) zx.Component` or `fn (zx.Allocator) zx.Component`");
+        },
+
+        else => {
+            return .none;
+        },
     }
-
-    // fn(allocator: zx.Allocator) zx.Component
-    if (param_count == 1 and FirstParam == zx.Allocator) {
-        return Cmp(allocator);
-    }
-
-    // fn(ctx: zx.PageContext) zx.Component
-    if (param_count == 1 and FirstParam == zx.PageContext) {
-        const ctx = zx.PageContext{
-            .request = .{
-                .url = "https://ziex.dev/playground",
-                .method = .GET,
-                .pathname = "playground",
-                .headers = .{},
-                .arena = allocator,
-            },
-            .response = .{ .arena = allocator },
-            .allocator = allocator,
-            .arena = allocator,
-        };
-        return Cmp(ctx);
-    }
-
-    // fn(ctx: zx.LayoutContext, children: zx.Component) zx.Component
-    if (param_count == 2 and FirstParam == zx.LayoutContext and FnInfo.params[1].type == zx.Component) {
-        const ctx = zx.LayoutContext{
-            .request = .{
-                .url = "https://ziex.dev/playground",
-                .method = .GET,
-                .pathname = "playground",
-                .headers = .{},
-                .arena = allocator,
-            },
-            .response = .{ .arena = allocator },
-            .allocator = allocator,
-            .arena = allocator,
-        };
-        return Cmp(ctx, .none);
-    }
-
-    @compileError("`Playground` must be `fn (*zx.ComponentContext) zx.Component` or `fn (zx.Allocator) zx.Component`");
 }

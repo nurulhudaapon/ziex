@@ -3003,3 +3003,57 @@ body {
     font-weight: 600;
     cursor: pointer;
 }
+
+/* Code Example Actions */
+.code-example-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+}
+
+.code-example-open-playground {
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
+    transition: background-color 0.2s ease, color 0.2s ease;
+    opacity: 0.6;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+}
+
+.code-example-open-playground:hover,
+.code-example-open-playground:focus {
+    opacity: 1;
+    background-color: rgba(74, 222, 128, 0.1);
+    outline: none;
+}
+
+/* Tooltip for the button */
+.code-example-open-playground[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.9);
+    color: #fff;
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    margin-bottom: 0.5rem;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 1000;
+}
+
+.code-example-open-playground:hover[data-tooltip]::after,
+.code-example-open-playground:focus[data-tooltip]::after {
+    opacity: 1;
+}
+}

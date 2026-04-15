@@ -120,14 +120,14 @@ pub fn CacheComponent(
 }
 
 fn Expensive(allocator: zx.Allocator) zx.Component {
-    // std.Thread.sleep(std.time.ns_per_s * 3);
+    std.Thread.sleep(std.time.ns_per_s * 3);
     return (<div @{allocator}></div>);
 }
 // --- Caching: page ---
 pub fn Caching__Page(
     ctx: zx.PageContext,
 ) zx.Component {
-    // std.Thread.sleep(std.time.ns_per_s * 3);
+    std.Thread.sleep(std.time.ns_per_s * 3);
     return (
         <div @allocator={ctx.arena}>
             <h1>Expensive Page</h1>

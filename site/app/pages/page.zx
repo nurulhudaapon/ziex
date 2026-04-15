@@ -508,6 +508,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             </footer>
             <script src=`/assets/clipboard.js?v={zx.info.version}` defer="true"></script>
             <script src=`/assets/runner.js?v={zx.info.version}` defer="true"></script>
+            <script src=`/assets/home.js?v={zx.info.version}` defer="true"></script>
         </div>
     );
 }
@@ -924,13 +925,18 @@ const CodePreviewExampleProps = struct {
 fn CodePreviewExample(allocator: zx.Allocator, props: CodePreviewExampleProps) zx.Component {
     const highlighted = resolveCode(allocator, props.source, props.section, props.code);
     return (
-        <div @allocator={allocator} class="code-preview-example code-example code-example--compact">
+        <div @allocator={allocator} class="code-preview-example code-example code-example--compact" data-code-container-type="preview">
             <div class="code-example-header">
                 <div class="code-example-dots">
                     <span></span>
                     <span></span>
                     <span></span>
                 </div>
+                // <div class="code-example-actions">
+                //     <button class="code-example-open-playground" data-code-section={props.section} data-code-source="preview" data-tooltip="Open in playground" aria-label="Open in playground">
+                //         ▶
+                //     </button>
+                // </div>
                 <div class="code-example-title">{props.title}</div>
             </div>
             <div class="code-preview-body">
@@ -994,6 +1000,11 @@ fn CodeWindowTabs(allocator: zx.Allocator, props: CodeWindowTabsProps) zx.Compon
                         ▶
                     </a>
                 )}
+                <div class="code-example-actions">
+                    <button class="code-example-open-playground" data-code-container-id={props.id} data-tooltip="Open in playground" aria-label="Open in playground">
+                        ▶
+                    </button>
+                </div>
                 {if (props.title.len > 0) (<div class="code-example-title">{props.title}</div>)}
             </div>
             <div class="code-example-panels">
@@ -1006,7 +1017,7 @@ fn CodeWindowTabs(allocator: zx.Allocator, props: CodeWindowTabsProps) zx.Compon
 fn renderTabPanel(allocator: zx.Allocator, source: []const u8, tab: CodeTab) zx.Component {
     const highlighted = resolveCode(allocator, source, tab.section, tab.code);
     return (
-        <div @allocator={allocator} class="code-example-panel" data-tab={tab.id}>
+        <div @allocator={allocator} class="code-example-panel" data-tab={tab.id} data-section={tab.section}>
             <pre><code class="hljs" @escaping={.none}>{highlighted}</code></pre>
         </div>
     );

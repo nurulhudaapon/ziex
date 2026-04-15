@@ -1,56 +1,8 @@
 export type PlaygroundFilesMap = Record<string, string>;
 
-export const DEFAULT_PLAYGROUND_MAIN = `const std = @import("std");
-const zx = @import("zx");
-const pg = @import("Playground.zig");
-
-pub fn main() !void {
-    const allocator = std.heap.page_allocator;
-    var aw = std.Io.Writer.Allocating.init(allocator);
-
-    const type_info = @typeInfo(pg);
-    const decls = type_info.@"struct".decls;
-
-    inline for (decls) |decl| {
-        const component = resolveComponent(allocator, decl.name);
-        try component.render(&aw.writer, .{});
-    }
-
-    try std.fs.File.stdout().writeAll(aw.written());
-}
-
-fn resolveComponent(allocator: zx.Allocator, comptime field_name: []const u8) zx.Component {
-    const Cmp = @field(pg, field_name);
-
-    const FnInfo = @typeInfo(@TypeOf(Cmp)).@"fn";
-    const param_count = FnInfo.params.len;
-    const FirstParam = FnInfo.params[0].type.?;
-
-    if (param_count == 1 and @typeInfo(FirstParam) == .pointer and
-        @hasField(@typeInfo(FirstParam).pointer.child, "allocator") and
-        @hasField(@typeInfo(FirstParam).pointer.child, "children"))
-    {
-        const ctx = allocator.create(@typeInfo(FirstParam).pointer.child) catch @panic("OOM");
-        ctx.* = .{ .allocator = allocator, .props = {} };
-        return Cmp(ctx);
-    }
-
-    if (param_count == 1 and FirstParam == zx.Allocator) {
-        return Cmp(allocator);
-    }
-}
-`;
-
-export const DEFAULT_PLAYGROUND_STYLE = `body {
-    background: #111;
-    color: #fff;
-    display: grid;
-    place-items: center;
-    height: 90vh;
-}
-`;
 
 const ZX_IMPORT_LINE = 'const zx = @import("zx");';
+const STD_IMPORT_LINE = 'const std = @import("std");';
 
 function ensureTopLevelZxImport(code: string): string {
     const hasTopLevelImport = code
@@ -65,10 +17,36 @@ function ensureTopLevelZxImport(code: string): string {
     return `${normalized}\n\n${ZX_IMPORT_LINE}`;
 }
 
+function ensureTopLevelStdImport(code: string): string {
+    // Check if code uses std.*
+    const usesStd = /std\.\w+/m.test(code);
+    
+    if (!usesStd) {
+        return code;
+    }
+
+    // Check if std import already exists
+    const hasTopLevelImport = code
+        .split(/\r?\n/)
+        .some((line) => /^const\s+std\s*=\s*@import\("std"\);\s*$/.test(line));
+
+    if (hasTopLevelImport) {
+        return code;
+    }
+
+    const normalized = code.replace(/\s+$/, "");
+    return `${normalized}\n\n${STD_IMPORT_LINE}`;
+}
+
 export function createDocsSnippetFiles(code: string, filename = "Playground.zx"): PlaygroundFilesMap {
     void filename;
+    let processedCode = code;
+    // Apply both import checks - order matters for proper formatting
+    processedCode = ensureTopLevelStdImport(processedCode);
+    processedCode = ensureTopLevelZxImport(processedCode);
+    
     return {
-        "Playground.zx": ensureTopLevelZxImport(code),
+        "Playground.zx": processedCode,
     };
 }
 
