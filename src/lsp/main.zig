@@ -8,6 +8,11 @@ const zls = @import("zls");
 const lsp = zls.lsp;
 const zx = @import("zx");
 
+const ByteRange = struct {
+    start: usize,
+    end: usize,
+};
+
 var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 
 pub fn main() !void {
@@ -66,10 +71,12 @@ pub fn main() !void {
 const ZxFileState = struct {
     zig_uri: []const u8,
     source: []const u8,
+    zx_block_ranges: []const ByteRange,
 
     fn deinit(self: *ZxFileState, allocator: std.mem.Allocator) void {
         allocator.free(self.zig_uri);
         allocator.free(self.source);
+        allocator.free(self.zx_block_ranges);
     }
 };
 
@@ -290,12 +297,16 @@ pub const Handler = struct {
 
         handler.publishZxDiagnostics(uri, result.diagnostics) catch {};
 
+        const zx_block_ranges = handler.collectZxBlockRanges(source) catch (handler.allocator.alloc(ByteRange, 0) catch return);
+
         const zig_uri = toZigUri(handler.allocator, uri) catch return;
         const uri_key = handler.allocator.dupe(u8, uri) catch {
+            handler.allocator.free(zx_block_ranges);
             handler.allocator.free(zig_uri);
             return;
         };
         const source_owned = handler.allocator.dupe(u8, source) catch {
+            handler.allocator.free(zx_block_ranges);
             handler.allocator.free(zig_uri);
             handler.allocator.free(uri_key);
             return;
@@ -310,11 +321,72 @@ pub const Handler = struct {
         handler.zx_files.put(uri_key, .{
             .zig_uri = zig_uri,
             .source = source_owned,
+            .zx_block_ranges = zx_block_ranges,
         }) catch {
+            handler.allocator.free(zx_block_ranges);
             handler.allocator.free(zig_uri);
             handler.allocator.free(uri_key);
             handler.allocator.free(source_owned);
         };
+    }
+
+    fn collectZxBlockRanges(handler: *Handler, source: []const u8) ![]const ByteRange {
+        var parse = try zx.Parse.parse(handler.allocator, source, .zx);
+        defer parse.deinit(handler.allocator);
+
+        var ranges = std.ArrayList(ByteRange).empty;
+        defer ranges.deinit(handler.allocator);
+
+        try collectZxBlockRangesNode(parse.tree.rootNode(), &ranges, handler.allocator);
+        return try ranges.toOwnedSlice(handler.allocator);
+    }
+
+    fn collectZxBlockRangesNode(node: anytype, ranges: *std.ArrayList(ByteRange), allocator: std.mem.Allocator) !void {
+        if (zx.Parse.NodeKind.fromNode(node) == .zx_block) {
+            try ranges.append(allocator, .{
+                .start = node.startByte(),
+                .end = node.endByte(),
+            });
+            return;
+        }
+
+        const child_count = node.childCount();
+        var i: u32 = 0;
+        while (i < child_count) : (i += 1) {
+            const child = node.child(i) orelse continue;
+            try collectZxBlockRangesNode(child, ranges, allocator);
+        }
+    }
+
+    fn offsetInAnyRange(offset: usize, ranges: []const ByteRange) bool {
+        for (ranges) |range| {
+            if (offset >= range.start and offset < range.end) return true;
+        }
+        return false;
+    }
+
+    fn filterInlayHintsForZxBlocks(
+        arena: std.mem.Allocator,
+        hints: []const lsp.types.InlayHint,
+        state: *const ZxFileState,
+    ) ![]const lsp.types.InlayHint {
+        if (hints.len == 0 or state.zx_block_ranges.len == 0) return hints;
+
+        var filtered = std.ArrayList(lsp.types.InlayHint).empty;
+        defer filtered.deinit(arena);
+        try filtered.ensureTotalCapacity(arena, hints.len);
+
+        for (hints) |hint| {
+            const offset = positionToOffset(state.source, hint.position) orelse {
+                try filtered.append(arena, hint);
+                continue;
+            };
+
+            if (offsetInAnyRange(offset, state.zx_block_ranges)) continue;
+            try filtered.append(arena, hint);
+        }
+
+        return try filtered.toOwnedSlice(arena);
     }
 
     fn publishZxDiagnostics(handler: *Handler, uri: []const u8, diag_list: zx.Validate.DiagnosticList) !void {
@@ -772,7 +844,13 @@ pub const Handler = struct {
         if (isZxUri(params.textDocument.uri)) {
             var new_params = params;
             new_params.textDocument = .{ .uri = handler.getZlsUri(params.textDocument.uri) };
-            return handler.zls.sendRequestSync(arena, "textDocument/inlayHint", new_params) catch null;
+            const hints = handler.zls.sendRequestSync(arena, "textDocument/inlayHint", new_params) catch null;
+            if (hints) |zls_hints| {
+                if (handler.zx_files.get(params.textDocument.uri)) |state| {
+                    return try filterInlayHintsForZxBlocks(arena, zls_hints, &state);
+                }
+            }
+            return hints;
         }
         return handler.zls.sendRequestSync(arena, "textDocument/inlayHint", params) catch null;
     }

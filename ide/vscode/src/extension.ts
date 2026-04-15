@@ -36,16 +36,6 @@ export async function activate(context: ExtensionContext) {
     ],
     traceOutputChannel: outputChannel,
     outputChannel,
-    initializationOptions: {
-      inlayHints: {
-        enabled: false,
-      },
-    },
-    middleware: {
-      provideInlayHints: () => {
-        return [];
-      },
-    },
   };
 
   client = new LanguageClient(
