@@ -6,17 +6,36 @@ pub fn main() !void {
     const allocator = std.heap.page_allocator;
     var aw = std.Io.Writer.Allocating.init(allocator);
 
-    if (!@hasDecl(pg, "Playground")) {
-        @compileError("`pub fn Playground` is required");
+    const type_info = @typeInfo(pg);
+    const decls = type_info.@"struct".decls;
+
+    if (decls.len == 0) {
+        try std.fs.File.stdout().writeAll(
+            \\<pre>
+            \\No pub component found in Playground.zig
+            \\
+            \\Please define component,
+            \\with one of the following signatures:
+            \\
+            \\- pub fn (allocator: zx.Allocator) zx.Component;
+            \\- pub fn (ctx: *zx.ComponentContext) zx.Component;
+            \\</pre>
+        );
+        return;
     }
 
-    const component = resolveComponent(allocator);
-    try component.render(&aw.writer, .{});
+    inline for (decls) |decl| {
+        const component = resolveComponent(allocator, decl.name);
+        try component.render(&aw.writer, .{});
+    }
+
     try std.fs.File.stdout().writeAll(aw.written());
 }
 
-fn resolveComponent(allocator: zx.Allocator) zx.Component {
-    const FnInfo = @typeInfo(@TypeOf(pg.Playground)).@"fn";
+fn resolveComponent(allocator: zx.Allocator, comptime field_name: []const u8) zx.Component {
+    const Cmp = @field(pg, field_name);
+
+    const FnInfo = @typeInfo(@TypeOf(Cmp)).@"fn";
     const param_count = FnInfo.params.len;
     const FirstParam = FnInfo.params[0].type.?;
 
@@ -27,12 +46,12 @@ fn resolveComponent(allocator: zx.Allocator) zx.Component {
     {
         const ctx = allocator.create(@typeInfo(FirstParam).pointer.child) catch @panic("OOM");
         ctx.* = .{ .allocator = allocator, .props = {} };
-        return pg.Playground(ctx);
+        return Cmp(ctx);
     }
 
     // fn(allocator: zx.Allocator) zx.Component
     if (param_count == 1 and FirstParam == zx.Allocator) {
-        return pg.Playground(allocator);
+        return Cmp(allocator);
     }
 
     @compileError("`Playground` must be `fn (*zx.ComponentContext) zx.Component` or `fn (zx.Allocator) zx.Component`");
