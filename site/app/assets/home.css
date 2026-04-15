@@ -2923,11 +2923,6 @@ body {
         gap: 0.2rem;
     }
 
-    .hero-install .install-tab-label {
-        min-width: auto;
-        padding: 0.35rem 0.55rem;
-    }
-
     .hero-install .copy-button {
         margin-right: 2px;
     }

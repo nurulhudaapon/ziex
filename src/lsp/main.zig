@@ -85,7 +85,7 @@ pub const Handler = struct {
             .allocator = allocator,
             .zls = zls_server,
             .transport = transport,
-            .offset_encoding = .@"utf-8",
+            .offset_encoding = .@"utf-16",
             .zx_files = std.StringHashMap(ZxFileState).init(allocator),
         };
     }
@@ -365,44 +365,57 @@ pub const Handler = struct {
         arena: std.mem.Allocator,
         request: lsp.types.InitializeParams,
     ) lsp.types.InitializeResult {
+        const client_encoding = choosePositionEncodingKind(request);
         var zls_request = request;
         if (zls_request.capabilities.textDocument) |*text_document| {
             text_document.publishDiagnostics = null;
         }
         if (zls_request.capabilities.general) |*general| {
-            general.positionEncodings = &.{.@"utf-8"};
+            general.positionEncodings = &.{client_encoding};
         }
 
         var result = handler.zls.sendRequestSync(arena, "initialize", zls_request) catch |err| {
             std.log.err("zls initialize failed: {}", .{err});
             return .{
-                .serverInfo = .{ .name = "zxls", .version = "0.1.0" },
+                .serverInfo = .{ .name = "zxls", .version = zx.info.version },
                 .capabilities = .{},
             };
         };
 
-        const client_supports_utf8 = if (request.capabilities.general) |general|
-            if (general.positionEncodings) |encodings| blk: {
-                for (encodings) |enc| {
-                    if (enc == .@"utf-8") break :blk true;
-                }
-                break :blk false;
-            } else false
-        else
-            false;
-
-        if (client_supports_utf8) {
-            result.capabilities.positionEncoding = .@"utf-8";
-            handler.offset_encoding = .@"utf-8";
-        } else if (result.capabilities.positionEncoding) |encoding| {
-            handler.offset_encoding = switch (encoding) {
-                .@"utf-8" => .@"utf-8",
-                .@"utf-16" => .@"utf-16",
-                .@"utf-32" => .@"utf-32",
-                .custom_value => .@"utf-16",
-            };
-        }
+        result.capabilities.positionEncoding = client_encoding;
+        handler.offset_encoding = toOffsetEncoding(client_encoding);
         return result;
+    }
+
+    fn choosePositionEncodingKind(request: lsp.types.InitializeParams) lsp.types.PositionEncodingKind {
+        if (request.capabilities.general) |general| {
+            if (general.positionEncodings) |encodings| {
+                for (encodings) |encoding| {
+                    if (encoding == .@"utf-16") return .@"utf-16";
+                }
+                for (encodings) |encoding| {
+                    if (encoding == .@"utf-8") return .@"utf-8";
+                }
+                for (encodings) |encoding| {
+                    switch (encoding) {
+                        .@"utf-32" => return .@"utf-32",
+                        .custom_value => return .@"utf-16",
+                        else => {},
+                    }
+                }
+            }
+        }
+
+        return .@"utf-16";
+    }
+
+    fn toOffsetEncoding(encoding: lsp.types.PositionEncodingKind) lsp.offsets.Encoding {
+        return switch (encoding) {
+            .@"utf-8" => .@"utf-8",
+            .@"utf-16" => .@"utf-16",
+            .@"utf-32" => .@"utf-32",
+            .custom_value => .@"utf-16",
+        };
     }
 
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#initialized
