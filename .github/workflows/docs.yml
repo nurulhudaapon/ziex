@@ -77,7 +77,7 @@ jobs:
 
   post_deploy:
     name: Post-deploy
-    needs: [deploy_ssg, deploy_edge]
+    needs: [deploy_ssg, deploy_edge, deploy_ssr]
     uses: ./.github/workflows/e2e.yml
     with:
       base_url: ${{ needs.deploy_ssg.outputs.page_url }}
@@ -154,7 +154,6 @@ jobs:
   build_edge:
     runs-on: ubuntu-latest
     name: Build (Edge)
-    needs: [pre_deploy]
     steps:
       - uses: actions/checkout@v4
 
