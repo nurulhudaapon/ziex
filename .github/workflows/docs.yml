@@ -188,7 +188,7 @@ jobs:
       url: https://site.ziex.workers.dev
     runs-on: ubuntu-latest
     name: Deploy (Edge)
-    needs: [build_edge]
+    needs: [build_edge, pre_deploy]
     steps:
       - uses: actions/checkout@v4
 
