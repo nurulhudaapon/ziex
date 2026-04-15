@@ -151,12 +151,9 @@ jobs:
       - name: Connect to npm network
         run: docker network connect npm ziex.dev || true
 
-  deploy_edge:
-    environment:
-      name: edge
-      url: https://site.ziex.workers.dev
+  build_edge:
     runs-on: ubuntu-latest
-    name: Deploy (Edge)
+    name: Build (Edge)
     needs: [pre_deploy]
     steps:
       - uses: actions/checkout@v4
@@ -174,8 +171,33 @@ jobs:
       - name: Install Node Dependencies
         run: cd site && bun install
 
-      - name: Build Site
-        run: cd site && zig build
+      - name: Build Edge bundle artifact
+        run: cd site && npx wrangler deploy --dry-run --outdir .wrangler-artifact --assets ./zig-out/static
+
+      - name: Upload Edge build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: edge-build-artifact
+          path: |
+            ./site/.wrangler-artifact
+            ./site/zig-out/static
+          retention-days: 1
+
+  deploy_edge:
+    environment:
+      name: edge
+      url: https://site.ziex.workers.dev
+    runs-on: ubuntu-latest
+    name: Deploy (Edge)
+    needs: [build_edge]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download Edge build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: edge-build-artifact
+          path: ./site
 
       - name: Deploy to Edge
         uses: cloudflare/wrangler-action@v3
@@ -183,5 +205,6 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: ./site
+          command: deploy .wrangler-artifact/main.js --no-bundle --assets ./zig-out/static
 
 

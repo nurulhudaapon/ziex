@@ -11,6 +11,7 @@ node_modules
 
 # Cloudflare
 .wrangler/
+.wrangler-artifact/
 
 .vercel
 .env*.local
