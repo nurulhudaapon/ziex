@@ -172,7 +172,7 @@ pub fn Button(
 ) zx.Component {
     return (
         <button @allocator={ctx.allocator}>
-            {ctx.props.label}
+            Click {ctx.props.label}
         </button>
     );
 }
