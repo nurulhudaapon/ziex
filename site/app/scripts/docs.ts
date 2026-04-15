@@ -1,4 +1,5 @@
 import "../assets/clipboard";
+import { createDocsSnippetFiles, createPlaygroundShareUrl } from "./playground_share";
 // import "./routing";
 
 // Dynamic import to reduce initial bundle size
@@ -89,7 +90,67 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Setup section heading anchor links
   setupSectionAnchors();
+  setupOpenInPlaygroundButtons();
 });
+
+function normalizeFileName(raw: string | null): string {
+  if (!raw) return "Playground.zx";
+  const compact = raw.replace(/\s+/g, " ").trim();
+  return compact || "Playground.zx";
+}
+
+function getActiveSandboxSnippet(sandbox: Element): { code: string; filename: string } | null {
+  const checkedRadio = sandbox.querySelector<HTMLInputElement>(".file-radio:checked");
+
+  if (checkedRadio) {
+    const radios = Array.from(sandbox.querySelectorAll<HTMLInputElement>(".file-radio"));
+    const idx = radios.findIndex((radio) => radio === checkedRadio);
+    if (idx >= 0) {
+      const codeBlocks = Array.from(
+        sandbox.querySelectorAll<HTMLElement>(".sandbox-editor .file-content code")
+      );
+      const labels = Array.from(
+        sandbox.querySelectorAll<HTMLLabelElement>(".sandbox-file-tabs .sandbox-tab")
+      );
+
+      const code = codeBlocks[idx]?.textContent?.trim() ?? "";
+      const filename = normalizeFileName(labels[idx]?.textContent ?? null);
+      if (code) return { code, filename };
+    }
+  }
+
+  const codeNode = sandbox.querySelector<HTMLElement>(".sandbox-code code");
+  if (!codeNode) return null;
+
+  const code = codeNode.textContent?.trim() ?? "";
+  if (!code) return null;
+
+  const filenameNode = sandbox.querySelector<HTMLElement>(".sandbox-editor-header .sandbox-tab");
+  const filename = normalizeFileName(filenameNode?.textContent ?? null);
+
+  return { code, filename };
+}
+
+function setupOpenInPlaygroundButtons() {
+  const buttons = document.querySelectorAll<HTMLButtonElement>(".sandbox-open-playground-btn");
+  if (buttons.length === 0) return;
+
+  buttons.forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      event.preventDefault();
+
+      const sandbox = button.closest(".sandbox");
+      if (!sandbox) return;
+
+      const snippet = getActiveSandboxSnippet(sandbox);
+      if (!snippet) return;
+
+      const files = createDocsSnippetFiles(snippet.code, snippet.filename);
+      const url = await createPlaygroundShareUrl(files, `${window.location.origin}/playground`);
+      window.open(url, "_blank", "noopener,noreferrer");
+    });
+  });
+}
 
 // Convert section headings with IDs into clickable anchor links
 function setupSectionAnchors() {
@@ -171,12 +232,12 @@ const os = getOS();
 document.body.classList.add(os);
 
 // Auto-select tabs based on OS
-const osTabs = {
+const osTabs: Partial<Record<ReturnType<typeof getOS>, string[]>> = {
   windows: ['tab-windows', 'tab-zig-win'],
   linux: ['tab-zig-other']
 };
 
-(osTabs[os] || []).forEach(id => {
+(osTabs[os] || []).forEach((id: string) => {
   const tab = document.getElementById(id);
   if (tab && tab instanceof HTMLInputElement) tab.checked = true;
 });

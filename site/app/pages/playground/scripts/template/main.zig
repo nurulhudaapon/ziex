@@ -54,5 +54,39 @@ fn resolveComponent(allocator: zx.Allocator, comptime field_name: []const u8) zx
         return Cmp(allocator);
     }
 
+    // fn(ctx: zx.PageContext) zx.Component
+    if (param_count == 1 and FirstParam == zx.PageContext) {
+        const ctx = zx.PageContext{
+            .request = .{
+                .url = "https://ziex.dev/playground",
+                .method = .GET,
+                .pathname = "playground",
+                .headers = .{},
+                .arena = allocator,
+            },
+            .response = .{ .arena = allocator },
+            .allocator = allocator,
+            .arena = allocator,
+        };
+        return Cmp(ctx);
+    }
+
+    // fn(ctx: zx.LayoutContext, children: zx.Component) zx.Component
+    if (param_count == 2 and FirstParam == zx.LayoutContext and FnInfo.params[1].type == zx.Component) {
+        const ctx = zx.LayoutContext{
+            .request = .{
+                .url = "https://ziex.dev/playground",
+                .method = .GET,
+                .pathname = "playground",
+                .headers = .{},
+                .arena = allocator,
+            },
+            .response = .{ .arena = allocator },
+            .allocator = allocator,
+            .arena = allocator,
+        };
+        return Cmp(ctx, .none);
+    }
+
     @compileError("`Playground` must be `fn (*zx.ComponentContext) zx.Component` or `fn (zx.Allocator) zx.Component`");
 }

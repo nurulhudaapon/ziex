@@ -6,6 +6,11 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             </style>
 
             <TopNavigation />
+            <div class="pg-feature-notice is-hidden" id="pg-feature-notice" role="status" aria-live="polite">
+                <span class="pg-feature-notice-icon" aria-hidden="true">i</span>
+                <p class="pg-feature-notice-text">Some framework features are not supported in Playground yet, including client-side rendering.</p>
+                <button class="pg-feature-notice-close" id="pg-feature-notice-close" type="button" aria-label="Dismiss notice" title="Dismiss">Dismiss</button>
+            </div>
             <div class="pg-ide-body" id="pg-ide-body">
                 <EditorPane />
                 <div class="pg-splitter" id="pg-splitter"></div>
@@ -60,11 +65,11 @@ pub fn EditorPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
                     Playground.zx
                     <span class="pg-tab-close" aria-label="Close tab" style="opacity: 0.3; pointer-events: none;">×</span>
                 </button>
-                <button class="pg-tab" data-file="style.css" id="pg-tab-2">
-                    <span class="pg-tab-icon type-css"><AllFileIcons /></span>
-                    style.css
-                    <span class="pg-tab-close" aria-label="Close tab">×</span>
-                </button>
+                // <button class="pg-tab" data-file="style.css" id="pg-tab-2">
+                //     <span class="pg-tab-icon type-css"><AllFileIcons /></span>
+                //     style.css
+                //     <span class="pg-tab-close" aria-label="Close tab">×</span>
+                // </button>
                 <button class="pg-tab-add" id="pg-add-file" aria-label="Add new file" title="New file">+</button>
             </div>
             <template id="pg-icons-template">

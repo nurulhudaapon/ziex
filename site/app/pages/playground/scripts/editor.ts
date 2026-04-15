@@ -16,6 +16,7 @@ import { fileManager, PlaygroundFile } from "./file";
 import { html } from "@codemirror/lang-html";
 import { css } from "@codemirror/lang-css";
 import { javascript } from "@codemirror/lang-javascript";
+import { createPlaygroundShareUrl, decodeFilesFromQuery } from "../../../scripts/playground_share";
 
 export default class ZlsClient extends LspClient {
     public worker: Worker;
@@ -74,6 +75,7 @@ export default class ZlsClient extends LspClient {
 }
 
 let client = new ZlsClient(new Worker('/assets/playground/workers/zls.js'));
+const PLAYGROUND_NOTICE_STORAGE_KEY = "playground_feature_notice_dismissed_v1";
 
 
 interface EditorFile {
@@ -304,44 +306,6 @@ function renameFile(index: number) {
     }
 }
 
-
-
-async function encodeFilesToQuery(filesMap: { [filename: string]: string }): Promise<string> {
-    const filtered: { [filename: string]: string } = {};
-    for (const [name, content] of Object.entries(filesMap)) {
-        filtered[name] = content;
-    }
-    const json = JSON.stringify(filtered);
-    const stream = new Blob([json]).stream().pipeThrough(new CompressionStream("deflate"));
-    const buffer = await new Response(stream).arrayBuffer();
-
-    let binString = '';
-    const bytes = new Uint8Array(buffer);
-    const CHUNK_SIZE = 0x8000;
-    for (let i = 0; i < bytes.length; i += CHUNK_SIZE) {
-        binString += String.fromCharCode.apply(null, Array.from(bytes.subarray(i, i + CHUNK_SIZE)));
-    }
-    const b64 = btoa(binString);
-    return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-async function decodeFilesFromQuery(query: string): Promise<{ [filename: string]: string } | null> {
-    try {
-        let b64 = query.replace(/-/g, '+').replace(/_/g, '/');
-        while (b64.length % 4) {
-            b64 += '=';
-        }
-        const binString = atob(b64);
-        const bytes = Uint8Array.from(binString, (m) => m.codePointAt(0)!);
-
-        const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate"));
-        const text = await new Response(stream).text();
-        return JSON.parse(text);
-    } catch {
-        return null;
-    }
-}
-
 async function copyText(text: string): Promise<boolean> {
     try {
         await navigator.clipboard.writeText(text);
@@ -376,9 +340,7 @@ document.getElementById("pg-share-btn")?.addEventListener("click", async () => {
     const filesMap = getCurrentFilesMap();
 
     // Create the URL promise for ClipboardItem (Safari needs this pattern for async clipboard)
-    const urlPromise = encodeFilesToQuery(filesMap).then(encoded =>
-        `${location.origin}${location.pathname}#data=${encoded}`
-    );
+    const urlPromise = createPlaygroundShareUrl(filesMap, `${location.origin}${location.pathname}`);
 
     // Try ClipboardItem with Promise first (Safari-friendly for async data)
     let success = false;
@@ -418,13 +380,69 @@ function loadTemplateFiles() {
     fileManager.addFile("style.css", zxstylecss);
 }
 
+function ensureBaselinePlaygroundFiles(filesDecoded: { [filename: string]: string }): { [filename: string]: string } {
+    const normalized: { [filename: string]: string } = { ...filesDecoded };
+
+    if (!normalized["Playground.zx"]) {
+        const firstZx = Object.keys(normalized).find((name) => name.endsWith(".zx"));
+        if (firstZx) {
+            normalized["Playground.zx"] = normalized[firstZx];
+            if (firstZx !== "Playground.zx") {
+                delete normalized[firstZx];
+            }
+        }
+    }
+
+    if (!normalized["Playground.zx"]) {
+        normalized["Playground.zx"] = zxModSource;
+    }
+    if (!normalized["main.zig"]) {
+        normalized["main.zig"] = zigMainSource;
+    }
+
+    return normalized;
+}
+
 function clearSharedDataHashFromUrl() {
     if (!location.hash.startsWith("#data=")) return;
     history.replaceState(null, "", `${location.pathname}${location.search}`);
 }
 
+function setupFeatureNotice() {
+    const notice = document.getElementById("pg-feature-notice");
+    if (!notice) return;
+
+    let dismissed = false;
+    try {
+        dismissed = localStorage.getItem(PLAYGROUND_NOTICE_STORAGE_KEY) === "1";
+    } catch {
+        dismissed = false;
+    }
+
+    if (dismissed) {
+        notice.classList.add("is-hidden");
+        return;
+    }
+
+    // Show after initial layout is stable to avoid immediate content jump on load.
+    window.setTimeout(() => {
+        notice.classList.remove("is-hidden");
+    }, 450);
+
+    const closeBtn = document.getElementById("pg-feature-notice-close");
+    closeBtn?.addEventListener("click", () => {
+        notice.classList.add("is-hidden");
+        try {
+            localStorage.setItem(PLAYGROUND_NOTICE_STORAGE_KEY, "1");
+        } catch {
+            // Ignore storage failures (private mode/quota).
+        }
+    });
+}
+
 
 window.addEventListener("DOMContentLoaded", async () => {
+    setupFeatureNotice();
     await client.initialize();
     let code = null;
     if (location.hash.startsWith("#data=")) {
@@ -434,8 +452,9 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (code) {
         const filesDecoded = await decodeFilesFromQuery(code);
         if (filesDecoded) {
+            const filesWithDefaults = ensureBaselinePlaygroundFiles(filesDecoded);
             fileManager.getAllFiles().forEach(f => fileManager.removeFile(f.name));
-            Object.entries(filesDecoded).forEach(([name, content]) => fileManager.addFile(name, content));
+            Object.entries(filesWithDefaults).forEach(([name, content]) => fileManager.addFile(name, content));
             const newFiles = fileManager.getAllFiles().map(f => ({
                 name: f.name,
                 state: createEditorState(f.name, f.content),

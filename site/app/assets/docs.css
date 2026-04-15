@@ -1824,6 +1824,64 @@ div:has(#tab-editor-zed:checked) #content-editor-zed {
     opacity: 0.6;
 }
 
+.sandbox-editor-actions {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    padding-right: 8px;
+}
+
+.sandbox-open-playground-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--sandbox-tab-text);
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.sandbox-open-playground-btn:hover {
+    color: var(--sandbox-tab-active);
+    background: color-mix(in srgb, var(--sandbox-border) 65%, transparent);
+}
+
+.sandbox-open-playground-btn[data-tooltip] {
+    position: relative;
+}
+
+.sandbox-open-playground-btn[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    right: 0;
+    bottom: calc(100% + 8px);
+    white-space: nowrap;
+    font-size: 11px;
+    line-height: 1;
+    padding: 6px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+    background: var(--tooltip-bg);
+    color: var(--zx-white);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(2px);
+    transition: opacity 0.15s ease, transform 0.15s ease, visibility 0.15s ease;
+    z-index: 30;
+}
+
+.sandbox-open-playground-btn[data-tooltip]:hover::after,
+.sandbox-open-playground-btn[data-tooltip]:focus-visible::after {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
 /* Code Area */
 .sandbox-code {
     flex: 1;

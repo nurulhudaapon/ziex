@@ -89,6 +89,19 @@ pub fn ExampleBlock(allocator: zx.Allocator, props: ExampleBlockProps) zx.Compon
                                 </>
                             )}
                         </div>
+                        {if (props.preview_component == null) (
+                            <div class="sandbox-editor-actions">
+                                <button class="sandbox-open-playground-btn" type="button" title="Open in playground" data-tooltip="Open in playground" aria-label="Open in playground">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                        <path d="M14 3h7v7" />
+                                        <path d="M10 14L21 3" />
+                                        <path d="M21 14v7h-7" />
+                                        <path d="M3 10V3h7" />
+                                        <path d="M3 21l11-11" />
+                                    </svg>
+                                </button>
+                            </div>
+                        )}
                     </div>
                     {for (files) |file| (
                         <div @allocator={allocator} class="sandbox-code file-content" id={file.content_id}>
