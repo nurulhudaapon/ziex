@@ -100,6 +100,7 @@ jobs:
         with:
           context: .
           file: ./site/Dockerfile
+          tags: ziex:latest
           outputs: type=docker,dest=/tmp/image-${{ env.BUILD_ARCH }}.tar
           cache-from: type=gha
           cache-to: type=gha,mode=max
