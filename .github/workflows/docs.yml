@@ -57,7 +57,6 @@ jobs:
 
   pre_deploy:
     name: Pre-deploy
-    needs: build_ssg
     uses: ./.github/workflows/e2e.yml
     with:
       report_name: playwright-report-pre-deploy
@@ -85,15 +84,10 @@ jobs:
       report_name: playwright-report-post-deploy
 
   build_ssr:
-    runs-on: ubuntu-latest
-    name: Build Docker Image
-    strategy:
-      matrix:
-        include:
-          - platform: linux/amd64
-            arch: amd64
-          - platform: linux/arm64
-            arch: arm64
+    runs-on: ubuntu-24.04-arm
+    name: Build (SSR)
+    env:
+      BUILD_ARCH: arm64
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -106,16 +100,15 @@ jobs:
         with:
           context: .
           file: ./site/Dockerfile
-          platforms: ${{ matrix.platform }}
-          outputs: type=docker,dest=/tmp/image-${{ matrix.arch }}.tar
+          outputs: type=docker,dest=/tmp/image-${{ env.BUILD_ARCH }}.tar
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Upload Docker image artifact
         uses: actions/upload-artifact@v4
         with:
-          name: docker-image-${{ matrix.arch }}
-          path: /tmp/image-${{ matrix.arch }}.tar
+          name: docker-image-${{ env.BUILD_ARCH }}
+          path: /tmp/image-${{ env.BUILD_ARCH }}.tar
           retention-days: 1
 
   deploy_ssr:
