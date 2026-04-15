@@ -121,11 +121,11 @@ pub fn build(b: *std.Build) !void {
     const css_install = b.addInstallFile(tailwindcss_b.file, "static/assets/_/tailwind.css");
     b.default_step.dependOn(&css_install.step);
 
-    ziex_b.plugin(ziex.plugins.esbuild(b, .{
-        .input = b.path("app/scripts/react.ts"),
-        .output = assetsdir.path(b, "react.js"),
-        .optimize = optimize,
-    }));
+    // ziex_b.plugin(ziex.plugins.esbuild(b, .{
+    //     .input = b.path("app/scripts/react.ts"),
+    //     .output = assetsdir.path(b, "react.js"),
+    //     .optimize = optimize,
+    // }));
     ziex_b.plugin(ziex.plugins.esbuild(b, .{
         .input = b.path("app/scripts/client.ts"),
         .output = assetsdir.path(b, "_/main.js"),

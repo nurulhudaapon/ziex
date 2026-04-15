@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 
 
-test.describe('React Integration Example', () => {
+test.skip('React Integration Example', () => {
   test('Increment and Decrement Visit Count', async ({ page }) => {
     // 1. Navigate to /examples/wasm/react
     await page.goto('/examples/wasm/react');
