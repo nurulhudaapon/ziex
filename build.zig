@@ -173,6 +173,15 @@ pub fn build(b: *std.Build) !void {
         transpile_only_step.dependOn(&run_transpile_only.step);
     }
 
+    // --- Steps: Dev (Runs e2e step for site/) --- //
+    {
+        const e2e_step = b.step("e2e", "Run the site in development mode");
+        const e2e_cmd = b.addSystemCommand(&.{ "npx", "playwright", "test" });
+        e2e_cmd.setCwd(b.path("test/e2e"));
+        e2e_step.dependOn(&e2e_cmd.step);
+        if (b.args) |args| e2e_cmd.addArgs(args);
+    }
+
     // --- Steps: Dev (Runs dev step for site/) --- //
     {
         const dev_step = b.step("dev", "Run the site in development mode");
