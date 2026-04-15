@@ -84,19 +84,75 @@ jobs:
       base_url: ${{ needs.deploy_ssg.outputs.page_url }}
       report_name: playwright-report-post-deploy
 
+  build_ssr:
+    runs-on: ubuntu-latest
+    name: Build Docker Image
+    strategy:
+      matrix:
+        include:
+          - platform: linux/amd64
+            arch: amd64
+          - platform: linux/arm64
+            arch: arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./site/Dockerfile
+          platforms: ${{ matrix.platform }}
+          outputs: type=docker,dest=/tmp/image-${{ matrix.arch }}.tar
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image-${{ matrix.arch }}
+          path: /tmp/image-${{ matrix.arch }}.tar
+          retention-days: 1
+
   deploy_ssr:
     environment:
       name: ssr
       url: https://ssr.ziex.dev
     runs-on: self-hosted
     name: Deploy (SSR)
-    needs: [pre_deploy]
+    needs: [pre_deploy, build_ssr]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build and start containers
-        run: cd site && docker compose up -d --build
+      - name: Detect architecture
+        id: arch
+        run: |
+          ARCH=$(uname -m)
+          if [[ "$ARCH" == "x86_64" ]]; then
+            echo "arch=amd64" >> $GITHUB_OUTPUT
+          elif [[ "$ARCH" == "aarch64" ]] || [[ "$ARCH" == "arm64" ]]; then
+            echo "arch=arm64" >> $GITHUB_OUTPUT
+          else
+            echo "Unsupported architecture: $ARCH"
+            exit 1
+          fi
+
+      - name: Download Docker image
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image-${{ steps.arch.outputs.arch }}
+          path: /tmp
+
+      - name: Load Docker image
+        run: docker load -i /tmp/image-${{ steps.arch.outputs.arch }}.tar
+
+      - name: Start containers
+        run: cd site && docker compose -f compose.yml up -d
 
       - name: Connect to npm network
         run: docker network connect npm ziex.dev || true

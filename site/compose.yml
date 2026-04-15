@@ -1,9 +1,7 @@
 name: "ziex"
 services:
   site:
-    build:
-      context: ../
-      dockerfile: site/Dockerfile
+    image: ziex:latest
     container_name: "ziex.dev"
     restart: unless-stopped
     networks:
