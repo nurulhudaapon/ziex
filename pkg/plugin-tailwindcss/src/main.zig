@@ -56,10 +56,25 @@ pub fn main() !void {
         &.{ node_path, "-e", runner_script },
         allocator,
     );
+
+    // Node warns when both NO_COLOR and FORCE_COLOR are set.
+    const env_map = try allocator.create(std.process.EnvMap);
+    env_map.* = try std.process.getEnvMap(allocator);
+    errdefer {
+        env_map.deinit();
+        allocator.destroy(env_map);
+    }
+    _ = env_map.remove("NO_COLOR");
+
+    child.env_map = env_map;
     child.stdin_behavior = .Pipe;
     child.stdout_behavior = .Pipe;
     child.stderr_behavior = .Inherit;
     try child.spawn();
+    defer {
+        env_map.deinit();
+        allocator.destroy(env_map);
+    }
 
     // Write config to the JS runtime's stdin, then close so it sees EOF
     try child.stdin.?.writeAll(modified_json);
