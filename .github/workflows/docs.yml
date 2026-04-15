@@ -180,6 +180,7 @@ jobs:
           path: |
             ./site/.wrangler-artifact
             ./site/zig-out/static
+          include-hidden-files: true
           retention-days: 1
 
   deploy_edge:
@@ -208,6 +209,7 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: 4
           workingDirectory: ./site
           command: deploy .wrangler-artifact/main.js --no-bundle --assets ./zig-out/static
 
