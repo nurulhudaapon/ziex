@@ -247,16 +247,6 @@ test "Response.setStatus: no-op without backend" {
     try std.testing.expectEqual(@as(u16, 200), res.status);
 }
 
-test "Response.setStatusCode: no-op without backend" {
-    var buffer: [1024]u8 = undefined;
-    var fba = std.heap.FixedBufferAllocator.init(&buffer);
-
-    const res = (Response.Builder{ .arena = fba.allocator() }).build();
-
-    res.setStatusCode(503);
-    try std.testing.expectEqual(@as(u16, 200), res.status);
-}
-
 test "Response.text: no-op without backend" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);

@@ -83,46 +83,35 @@ pub fn run() !void {
         .allocator = allocator,
     };
 
-    const request = zx.server.Request{
+    const request = (zx.server.Request.Builder{
         .url = "",
         .method = method,
+        .method_str = @tagName(method),
         .pathname = pathname,
         .search = search,
-        .headers = .{
-            .backend_ctx = @ptrCast(&wasi_headers),
-            .vtable = &WasiHeaders.vtable,
-        },
-        .queries = .{
-            .backend_ctx = @ptrCast(&wasi_search),
-            .vtable = &WasiSearchParams.vtable,
-        },
         .arena = allocator,
-        .backend_ctx = @ptrCast(&wasi_req),
+        .userdata = @ptrCast(&wasi_req),
         .vtable = &WasiRequest.vtable,
-        .params = .{
-            .backend_ctx = @ptrCast(&wasi_req),
-            .vtable = &WasiRequest.params_vtable,
-        },
-        .cookies = .{ .header_value = cookie_header },
-        .formdata_backend_ctx = @ptrCast(&wasi_form_data),
+        .headers_userdata = @ptrCast(&wasi_headers),
+        .headers_vtable = &WasiHeaders.vtable,
+        .cookie_header = cookie_header,
+        .search_params_userdata = @ptrCast(&wasi_search),
+        .search_params_vtable = &WasiSearchParams.vtable,
+        .params_userdata = @ptrCast(&wasi_req),
+        .params_vtable = &WasiRequest.params_vtable,
+        .formdata_userdata = @ptrCast(&wasi_form_data),
         .formdata_vtable = &WasiFormData.vtable,
-        .multiformdata_backend_ctx = @ptrCast(&wasi_multi_form_data),
+        .multiformdata_userdata = @ptrCast(&wasi_multi_form_data),
         .multiformdata_vtable = &WasiMultiFormData.vtable,
-    };
+    }).build();
 
-    const response = zx.server.Response{
+    const response = (zx.server.Response.Builder{
         .arena = allocator,
-        .backend_ctx = @ptrCast(&wasi_res),
+        .userdata = @ptrCast(&wasi_res),
         .vtable = &WasiResponse.vtable,
-        .headers = .{
-            .backend_ctx = @ptrCast(&wasi_res),
-            .vtable = &WasiResponse.headers_vtable,
-        },
-        .cookies = .{
-            .backend_ctx = @ptrCast(&wasi_res),
-            .vtable = &WasiResponse.vtable,
-        },
-    };
+        .headers_userdata = @ptrCast(&wasi_res),
+        .headers_vtable = &WasiResponse.headers_vtable,
+    }).build();
 
     // --- Route matching --- //
     const route_match = Router.matchRoute(pathname, .{ .match = .exact });

@@ -54,18 +54,18 @@ pub fn createRequest(inner: *httpz.Request) Request {
         .search = inner.url.query,
         .protocol = convertProtocol(inner.protocol),
         .arena = inner.arena,
-        .backend_ctx = @ptrCast(inner),
+        .userdata = @ptrCast(inner),
         .vtable = &request_vtable,
-        .headers_ctx = @ptrCast(inner),
+        .headers_userdata = @ptrCast(inner),
         .headers_vtable = &request_headers_vtable,
         .cookie_header = inner.headers.get("cookie") orelse "",
-        .search_params_ctx = @ptrCast(inner),
+        .search_params_userdata = @ptrCast(inner),
         .search_params_vtable = &search_params_vtable,
-        .params_ctx = @ptrCast(inner),
+        .params_userdata = @ptrCast(inner),
         .params_vtable = &params_vtable,
-        .formdata_ctx = @ptrCast(inner),
+        .formdata_userdata = @ptrCast(inner),
         .formdata_vtable = &formdata_vtable,
-        .multiformdata_ctx = @ptrCast(inner),
+        .multiformdata_userdata = @ptrCast(inner),
         .multiformdata_vtable = &multiformdata_vtable,
     }).build();
 }
@@ -206,9 +206,9 @@ pub fn createResponse(inner: *httpz.Response, arena: std.mem.Allocator) Response
     return (Response.Builder{
         .status = inner.status,
         .arena = arena,
-        .backend_ctx = @ptrCast(inner),
+        .userdata = @ptrCast(inner),
         .vtable = &response_vtable,
-        .headers_ctx = @ptrCast(inner),
+        .headers_userdata = @ptrCast(inner),
         .headers_vtable = &response_headers_vtable,
     }).build();
 }
@@ -386,7 +386,7 @@ fn headersResponseIterate(ctx: *anyopaque) ?Headers.Iterator {
 
 /// Get the underlying httpz.Request from an abstract Request
 pub fn getHttpzRequest(request: *const Request) ?*httpz.Request {
-    if (request.backend_ctx) |ctx| {
+    if (request._internal.userdata.request) |ctx| {
         return @ptrCast(@alignCast(ctx));
     }
     return null;
@@ -394,7 +394,7 @@ pub fn getHttpzRequest(request: *const Request) ?*httpz.Request {
 
 /// Get the underlying httpz.Response from an abstract Response
 pub fn getHttpzResponse(response: *const Response) ?*httpz.Response {
-    if (response.backend_ctx) |ctx| {
+    if (response._internal.userdata) |ctx| {
         return @ptrCast(@alignCast(ctx));
     }
     return null;

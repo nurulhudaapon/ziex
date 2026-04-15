@@ -1,13 +1,3 @@
-//! The Request interface of the Fetch API represents a resource request.
-//!
-//! You can create a new Request object using the Request.Builder, but you are more likely
-//! to encounter a Request object being returned as part of another API operation, such as
-//! a page handler context receiving an incoming HTTP request.
-//!
-//! This module is backend-agnostic. The actual implementation is provided via vtable.
-//!
-//! https://developer.mozilla.org/en-US/docs/Web/API/Request
-
 const std = @import("std");
 const common = @import("common.zig");
 const FormDataModule = @import("FormData.zig");
@@ -24,110 +14,90 @@ pub const Header = common.Header;
 pub const MultiFormEntry = common.MultiFormEntry;
 
 // --- Instance Properties --- //
-// https://developer.mozilla.org/en-US/docs/Web/API/Request#instance_properties
+// MDN: [Request instance properties](https://developer.mozilla.org/en-US/docs/Web/API/Request#instance_properties)
 
 /// Contains the URL of the request.
 ///
-/// https://developer.mozilla.org/en-US/docs/Web/API/Request/url
+/// MDN: [Request.url](https://developer.mozilla.org/en-US/docs/Web/API/Request/url)
 url: []const u8,
 
 /// Contains the request's method (GET, POST, etc.).
 ///
-/// https://developer.mozilla.org/en-US/docs/Web/API/Request/method
+/// In this implementation, it is represented as a `Method` enum. The original string is available via `method_str`.
 ///
-/// **Zig Note:** In the web standard, this is a string. In this implementation,
-/// it is represented as a `Method` enum for type safety. The original string
-/// is available via `method_str`.
+/// MDN: [Request.method](https://developer.mozilla.org/en-US/docs/Web/API/Request/method)
 method: Method,
 
 /// Contains the request's method as a string.
-///
-/// **Zig Note:** This is an extension field. In the web standard, `method` is
-/// already a string. This field preserves the original string representation.
 method_str: []const u8 = "",
 
 /// Contains the pathname portion of the URL.
 ///
-/// **Zig Note:** This is an extension field not present in the web standard Request.
-/// In the web standard, you would parse the URL to get the pathname.
-/// Example: https://foo.com/bar/baz -> /bar/baz
+/// Contains the pathname portion of the URL.
+///
+/// MDN: [URL.pathname](https://developer.mozilla.org/en-US/docs/Web/API/URL/pathname)
 pathname: []const u8,
 
 /// Contains the referrer of the request (e.g., client, no-referrer, or a URL).
 ///
-/// https://developer.mozilla.org/en-US/docs/Web/API/Request/referrer
-///
-/// **Zig Note:** In the web standard, this defaults to "about:client". In this
-/// implementation, it defaults to an empty string.
+/// MDN: [Request.referrer](https://developer.mozilla.org/en-US/docs/Web/API/Request/referrer)
 referrer: []const u8 = "",
 
 /// Contains the search/query string portion of the URL.
 ///
-/// **Zig Note:** This is an extension field not present in the web standard Request.
-/// In the web standard, you would parse the URL to get the search string.
-/// Example: https://foo.com/bar?q=qux -> q=qux
+/// MDN: [URL.search](https://developer.mozilla.org/en-US/docs/Web/API/URL/search)
 search: []const u8 = "",
 
 /// Contains the associated Headers object of the request.
 ///
-/// https://developer.mozilla.org/en-US/docs/Web/API/Request/headers
+/// MDN: [Request.headers](https://developer.mozilla.org/en-US/docs/Web/API/Request/headers)
 headers: Headers,
 
 /// Cookie accessor for parsing cookies from the Cookie header.
 ///
-/// **Zig Note:** This is an extension field not present in the web standard Request.
-/// In the web standard, you would access cookies via `document.cookie` or parse
-/// the Cookie header manually.
+/// MDN: [Cookies](https://developer.mozilla.org/en-US/docs/Web/HTTP/Cookies)
 cookies: Cookies = .{ .header_value = "" },
 
 /// URL search parameters accessor.
 ///
-/// **Zig Note:** This is an extension field. In the web standard, you would use
-/// `new URL(request.url).queries` to access search parameters.
-///
-/// https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams
+/// MDN: [URLSearchParams](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams)
 queries: URLSearchParams = .{},
 
-/// URL parameters accessor (from route matching).
-///
-/// **Zig Note:** This is an extension field not present in the web standard Request.
-/// Used for accessing dynamic route parameters (e.g., /users/:id -> params.get("id")).
+/// URL parameters accessor from route matching.
 params: Params = .{},
-formdata_backend_ctx: ?*anyopaque = null,
-formdata_vtable: ?*const FormDataVTable = null,
-multiformdata_backend_ctx: ?*anyopaque = null,
-multiformdata_vtable: ?*const MultiFormDataVTable = null,
 
 /// HTTP protocol version (HTTP/1.0 or HTTP/1.1).
-///
-/// **Zig Note:** This is an extension field not present in the web standard Request.
-/// The web standard Request doesn't expose the HTTP protocol version.
-/// Uses `std.http.Version` from the standard library.
 protocol: Version = .@"HTTP/1.1",
 
-// --- Internal Fields (not part of web standard) --- //
-
 /// Arena allocator for request-scoped allocations.
-///
-/// **Zig Note:** This is an internal field not present in the web standard.
-/// Used for memory management in the Zig implementation.
 arena: std.mem.Allocator,
 
-/// Backend-specific context pointer (null for WASM/client-side).
-///
-/// **Zig Note:** This is an internal field not present in the web standard.
-/// Provides the vtable pattern for backend abstraction.
-backend_ctx: ?*anyopaque = null,
+_internal: Internal = .{},
 
-/// VTable for backend-specific operations.
-///
-/// **Zig Note:** This is an internal field not present in the web standard.
-/// Allows different HTTP server backends to implement request operations.
-vtable: ?*const VTable = null,
+const Internal = struct {
+    const UserData = struct {
+        request: ?*anyopaque = null,
+        headers: ?*anyopaque = null,
+        search_params: ?*anyopaque = null,
+        params: ?*anyopaque = null,
+        formdata: ?*anyopaque = null,
+        multiformdata: ?*anyopaque = null,
+    };
+
+    const VTables = struct {
+        request: ?*const VTable = null,
+        headers: ?*const Headers.HeadersVTable = null,
+        search_params: ?*const URLSearchParams.URLSearchParamsVTable = null,
+        params: ?*const Params.ParamsVTable = null,
+        formdata: ?*const FormDataVTable = null,
+        multiformdata: ?*const MultiFormDataVTable = null,
+    };
+
+    userdata: UserData = .{},
+    vtable: VTables = .{},
+};
 
 /// VTable interface for backend-specific request operations.
-///
-/// **Zig Note:** This is an internal type not present in the web standard.
 pub const VTable = struct {
     /// Returns the request body as text.
     text: *const fn (ctx: *anyopaque) ?[]const u8 = &defaultText,
@@ -138,17 +108,14 @@ pub const VTable = struct {
 };
 
 // --- Instance Methods --- //
-// https://developer.mozilla.org/en-US/docs/Web/API/Request#instance_methods
+// MDN: [Request instance methods](https://developer.mozilla.org/en-US/docs/Web/API/Request#instance_methods)
 
-/// Returns a promise that resolves with a text representation of the request body.
+/// Returns the request body as text.
 ///
-/// https://developer.mozilla.org/en-US/docs/Web/API/Request/text
-///
-/// **Zig Note:** In the web standard, this returns a Promise<string>. In this
-/// implementation, it returns `?[]const u8` synchronously (null if no body).
+/// MDN: [Request.text](https://developer.mozilla.org/en-US/docs/Web/API/Request/text)
 pub fn text(self: *const Request) ?[]const u8 {
-    if (self.vtable) |vt| {
-        if (self.backend_ctx) |ctx| {
+    if (self._internal.vtable.request) |vt| {
+        if (self._internal.userdata.request) |ctx| {
             return vt.text(ctx);
         }
     }
@@ -161,29 +128,21 @@ pub fn json(self: *const Request, comptime T: type, opts: std.json.ParseOptions)
     return parsed.value;
 }
 
-/// Returns a FormData object representing the URL-encoded form data of the request body.
+/// Returns the URL-encoded form data of the request body.
 ///
-/// https://developer.mozilla.org/en-US/docs/Web/API/Request/formData
-///
-/// **Zig Note:** In the web standard, this returns a Promise<FormData>. In this
-/// implementation, it returns a FormData object synchronously which provides
-/// methods to access form fields. For multipart/form-data with file uploads,
-/// use `multiFormData()` instead.
+/// MDN: [Request.formData](https://developer.mozilla.org/en-US/docs/Web/API/Request/formData)
 pub fn formData(self: *const Request) FormDataModule {
     return (FormDataModule.Builder{
-        .backend_ctx = self.formdata_backend_ctx,
-        .vtable = self.formdata_vtable,
+        .backend_ctx = self._internal.userdata.formdata,
+        .vtable = self._internal.vtable.formdata,
     }).build();
 }
 
-/// Returns a MultiFormData object representing the multipart form data of the request body.
-///
-/// **Zig Note:** This is an extension method for handling multipart/form-data with file uploads.
-/// For simple key-value form data (application/x-www-form-urlencoded), use `formData()` instead.
+/// Returns the multipart form data of the request body.
 pub fn multiFormData(self: *const Request) MultiFormDataModule {
     return (MultiFormDataModule.Builder{
-        .backend_ctx = self.multiformdata_backend_ctx,
-        .vtable = self.multiformdata_vtable,
+        .backend_ctx = self._internal.userdata.multiformdata,
+        .vtable = self._internal.vtable.multiformdata,
     }).build();
 }
 
@@ -191,18 +150,18 @@ pub const FormDataVTable = FormDataModule.VTable;
 pub const MultiFormDataVTable = MultiFormDataModule.VTable;
 
 // --- URLSearchParams --- //
-// https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams
+// MDN: [URLSearchParams](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams)
 
-/// The URLSearchParams interface defines utility methods to work with the
-/// query string of a URL.
+/// The URLSearchParams interface defines utility methods to work with the query string of a URL.
 ///
-/// https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams
-///
-/// **Zig Note:** This is a simplified implementation that delegates to the backend.
-/// Not all methods from the web standard URLSearchParams interface are implemented.
+/// MDN: [URLSearchParams](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams)
 pub const URLSearchParams = struct {
-    backend_ctx: ?*anyopaque = null,
-    vtable: ?*const URLSearchParamsVTable = null,
+    _internal: State = .{},
+
+    const State = struct {
+        userdata: ?*anyopaque = null,
+        vtable: ?*const URLSearchParamsVTable = null,
+    };
 
     pub const URLSearchParamsVTable = struct {
         get: *const fn (ctx: *anyopaque, name: []const u8) ?[]const u8,
@@ -210,25 +169,22 @@ pub const URLSearchParams = struct {
     };
 
     /// Returns the first value associated with the given search parameter.
-    ///
-    /// https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams/get
-    ///
-    /// **Zig Note:** Returns `?[]const u8` instead of `string | null`.
+    /// MDN: [URLSearchParams.get](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams/get)
     pub fn get(self: *const URLSearchParams, name: []const u8) ?[]const u8 {
-        if (self.vtable) |vt| {
-            if (self.backend_ctx) |ctx| {
+        if (self._internal.vtable) |vt| {
+            if (self._internal.userdata) |ctx| {
                 return vt.get(ctx, name);
             }
         }
         return null;
     }
 
-    /// Returns a boolean indicating if such a given parameter exists.
+    /// Returns a boolean indicating if the given parameter exists.
     ///
-    /// https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams/has
+    /// MDN: [URLSearchParams.has](https://developer.mozilla.org/en-US/docs/Web/API/URLSearchParams/has)
     pub fn has(self: *const URLSearchParams, name: []const u8) bool {
-        if (self.vtable) |vt| {
-            if (self.backend_ctx) |ctx| {
+        if (self._internal.vtable) |vt| {
+            if (self._internal.userdata) |ctx| {
                 return vt.has(ctx, name);
             }
         }
@@ -241,8 +197,12 @@ pub const URLSearchParams = struct {
 /// The Params interface provides utility methods to work with URL parameters.
 /// extracted from dynamic routes.
 pub const Params = struct {
-    backend_ctx: ?*anyopaque = null,
-    vtable: ?*const ParamsVTable = null,
+    _internal: State = .{},
+
+    const State = struct {
+        userdata: ?*anyopaque = null,
+        vtable: ?*const ParamsVTable = null,
+    };
 
     pub const ParamsVTable = struct {
         getParam: *const fn (ctx: *anyopaque, name: []const u8) ?[]const u8 = &defaultGetParam,
@@ -254,8 +214,8 @@ pub const Params = struct {
 
     /// Returns the value of a URL parameter by name.
     pub fn get(self: *const Params, name: []const u8) ?[]const u8 {
-        if (self.vtable) |vt| {
-            if (self.backend_ctx) |ctx| {
+        if (self._internal.vtable) |vt| {
+            if (self._internal.userdata) |ctx| {
                 return vt.getParam(ctx, name);
             }
         }
@@ -281,34 +241,30 @@ pub const Params = struct {
 };
 
 // --- Headers --- //
-// https://developer.mozilla.org/en-US/docs/Web/API/Headers
+// MDN: [Headers](https://developer.mozilla.org/en-US/docs/Web/API/Headers)
 
-/// The Headers interface of the Fetch API allows you to perform various actions
-/// on HTTP request and response headers.
+/// The Headers interface of the Fetch API allows you to perform various actions on HTTP request and response headers.
 ///
-/// https://developer.mozilla.org/en-US/docs/Web/API/Headers
-///
-/// **Zig Note:** This is a simplified read-only implementation for request headers.
-/// Not all methods from the web standard Headers interface are implemented.
+/// MDN: [Headers](https://developer.mozilla.org/en-US/docs/Web/API/Headers)
 pub const Headers = struct {
-    backend_ctx: ?*anyopaque = null,
-    vtable: ?*const HeadersVTable = null,
+    _internal: State = .{},
+
+    const State = struct {
+        userdata: ?*anyopaque = null,
+        vtable: ?*const HeadersVTable = null,
+    };
 
     pub const HeadersVTable = struct {
         get: *const fn (ctx: *anyopaque, name: []const u8) ?[]const u8,
         has: *const fn (ctx: *anyopaque, name: []const u8) bool,
     };
 
-    /// Returns a String sequence of all the values of a header within a Headers
-    /// object with a given name.
+    /// Returns the values of a header with the given name.
     ///
-    /// https://developer.mozilla.org/en-US/docs/Web/API/Headers/get
-    ///
-    /// **Zig Note:** Returns `?[]const u8` instead of a string, returning `null`
-    /// if the header is not found.
+    /// MDN: [Headers.get](https://developer.mozilla.org/en-US/docs/Web/API/Headers/get)
     pub fn get(self: *const Headers, name: []const u8) ?[]const u8 {
-        if (self.vtable) |vt| {
-            if (self.backend_ctx) |ctx| {
+        if (self._internal.vtable) |vt| {
+            if (self._internal.userdata) |ctx| {
                 return vt.get(ctx, name);
             }
         }
@@ -317,10 +273,10 @@ pub const Headers = struct {
 
     /// Returns a boolean stating whether a Headers object contains a certain header.
     ///
-    /// https://developer.mozilla.org/en-US/docs/Web/API/Headers/has
+    /// MDN: [Headers.has](https://developer.mozilla.org/en-US/docs/Web/API/Headers/has)
     pub fn has(self: *const Headers, name: []const u8) bool {
-        if (self.vtable) |vt| {
-            if (self.backend_ctx) |ctx| {
+        if (self._internal.vtable) |vt| {
+            if (self._internal.userdata) |ctx| {
                 return vt.has(ctx, name);
             }
         }
@@ -328,14 +284,7 @@ pub const Headers = struct {
     }
 };
 
-// --- Builder (not part of web standard) --- //
-
 /// Builder for creating Request objects.
-///
-/// **Zig Note:** This is an internal type not present in the web standard.
-/// In the web standard, you would use the `new Request(input, init)` constructor.
-/// This builder pattern is used for backend implementations to construct
-/// Request objects with the appropriate vtable and context.
 pub const Builder = struct {
     url: []const u8 = "",
     method: Method = .GET,
@@ -345,18 +294,18 @@ pub const Builder = struct {
     search: []const u8 = "",
     protocol: Version = .@"HTTP/1.1",
     arena: std.mem.Allocator,
-    backend_ctx: ?*anyopaque = null,
+    userdata: ?*anyopaque = null,
     vtable: ?*const VTable = null,
-    headers_ctx: ?*anyopaque = null,
+    headers_userdata: ?*anyopaque = null,
     headers_vtable: ?*const Headers.HeadersVTable = null,
     cookie_header: []const u8 = "",
-    search_params_ctx: ?*anyopaque = null,
+    search_params_userdata: ?*anyopaque = null,
     search_params_vtable: ?*const URLSearchParams.URLSearchParamsVTable = null,
-    params_ctx: ?*anyopaque = null,
+    params_userdata: ?*anyopaque = null,
     params_vtable: ?*const Params.ParamsVTable = null,
-    formdata_ctx: ?*anyopaque = null,
+    formdata_userdata: ?*anyopaque = null,
     formdata_vtable: ?*const FormDataVTable = null,
-    multiformdata_ctx: ?*anyopaque = null,
+    multiformdata_userdata: ?*anyopaque = null,
     multiformdata_vtable: ?*const MultiFormDataVTable = null,
 
     /// Builds the Request object with all configured values.
@@ -370,25 +319,43 @@ pub const Builder = struct {
             .search = self.search,
             .protocol = self.protocol,
             .arena = self.arena,
-            .backend_ctx = self.backend_ctx,
-            .vtable = self.vtable,
+            ._internal = .{
+                .userdata = .{
+                    .request = self.userdata,
+                    .headers = self.headers_userdata,
+                    .search_params = self.search_params_userdata,
+                    .params = self.params_userdata,
+                    .formdata = self.formdata_userdata,
+                    .multiformdata = self.multiformdata_userdata,
+                },
+                .vtable = .{
+                    .request = self.vtable,
+                    .headers = self.headers_vtable,
+                    .search_params = self.search_params_vtable,
+                    .params = self.params_vtable,
+                    .formdata = self.formdata_vtable,
+                    .multiformdata = self.multiformdata_vtable,
+                },
+            },
             .headers = .{
-                .backend_ctx = self.headers_ctx,
-                .vtable = self.headers_vtable,
+                ._internal = .{
+                    .userdata = self.headers_userdata,
+                    .vtable = self.headers_vtable,
+                },
             },
             .cookies = .{ .header_value = self.cookie_header },
             .queries = .{
-                .backend_ctx = self.search_params_ctx,
-                .vtable = self.search_params_vtable,
+                ._internal = .{
+                    .userdata = self.search_params_userdata,
+                    .vtable = self.search_params_vtable,
+                },
             },
             .params = .{
-                .backend_ctx = self.params_ctx orelse self.backend_ctx,
-                .vtable = self.params_vtable,
+                ._internal = .{
+                    .userdata = self.params_userdata orelse self.userdata,
+                    .vtable = self.params_vtable,
+                },
             },
-            .formdata_backend_ctx = self.formdata_ctx,
-            .formdata_vtable = self.formdata_vtable,
-            .multiformdata_backend_ctx = self.multiformdata_ctx,
-            .multiformdata_vtable = self.multiformdata_vtable,
         };
     }
 };
