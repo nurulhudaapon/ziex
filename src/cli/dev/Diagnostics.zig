@@ -511,7 +511,7 @@ pub fn formatOxlint(allocator: std.mem.Allocator, diagnostics: []const Builder.D
 
         if (source_line) |sl| {
             // Show line content
-            const trimmed_sl = std.mem.trimLeft(u8, sl, " \t");
+            const trimmed_sl = std.mem.trimStart(u8, sl, " \t");
             const leading_spaces = sl.len - trimmed_sl.len;
 
             // Use faint (DIM) for line numbers to simulate smaller font

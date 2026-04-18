@@ -38,7 +38,7 @@ pub fn run() !void {
             if (std.mem.indexOfScalar(u8, header_str, ':')) |sep| {
                 try header_entries.append(allocator, .{
                     .name = header_str[0..sep],
-                    .value = std.mem.trimLeft(u8, header_str[sep + 1 ..], " "),
+                    .value = std.mem.trimStart(u8, header_str[sep + 1 ..], " "),
                 });
             }
         }
@@ -602,7 +602,7 @@ const WasiMultiFormData = struct {
 
                 const cd_prefix = "content-disposition:";
                 if (line.len > cd_prefix.len and std.ascii.eqlIgnoreCase(line[0..cd_prefix.len], cd_prefix)) {
-                    const rest = std.mem.trimLeft(u8, line[cd_prefix.len..], " \t");
+                    const rest = std.mem.trimStart(u8, line[cd_prefix.len..], " \t");
                     if (extractParam(rest, "name")) |n| name = n;
                     if (extractParam(rest, "filename")) |f| filename = f;
                 }

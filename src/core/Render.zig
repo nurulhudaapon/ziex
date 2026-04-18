@@ -10,7 +10,7 @@ pub const FormatContext = struct {
     in_block: bool = false,
     suppress_leading_space: bool = false,
 
-    fn writeIndent(self: *FormatContext, w: *std.io.Writer) !void {
+    fn writeIndent(self: *FormatContext, w: *std.Io.Writer) !void {
         for (0..self.indent_level * 4) |_| try w.writeAll(" ");
     }
 };
@@ -30,10 +30,10 @@ pub const ExtractBlockResult = struct {
 
 /// Extract zx_block content and replace with placeholders for Zig formatting
 pub fn extractBlocks(allocator: std.mem.Allocator, ast: *Ast) !ExtractBlockResult {
-    var blocks = std.ArrayList([]const u8){};
+    var blocks = std.ArrayList([]const u8).empty;
     defer blocks.deinit(allocator);
 
-    var cleaned_source = std.ArrayList(u8){};
+    var cleaned_source = std.ArrayList(u8).empty;
     defer cleaned_source.deinit(allocator);
 
     const root = ast.tree.rootNode();
@@ -141,7 +141,7 @@ fn parseBlockPlaceholder(source: []const u8, start: usize) struct { index: usize
 
 /// Replace __ZX_BLOCK_n__ placeholders with formatted zx_block content
 pub fn patchInBlocks(allocator: std.mem.Allocator, extract_result: ExtractBlockResult) ![:0]const u8 {
-    var result = std.ArrayList(u8){};
+    var result = std.ArrayList(u8).empty;
     defer result.deinit(allocator);
 
     var i: usize = 0;
@@ -160,7 +160,7 @@ pub fn patchInBlocks(allocator: std.mem.Allocator, extract_result: ExtractBlockR
                 var block_ast = try Parse.parse(allocator, zx_block, .zx);
                 defer block_ast.deinit(allocator);
 
-                var block_writer = std.io.Writer.Allocating.init(allocator);
+                var block_writer = std.Io.Writer.Allocating.init(allocator);
                 defer block_writer.deinit();
                 const root = block_ast.tree.rootNode();
                 var ctx = FormatContext{};
@@ -207,7 +207,7 @@ fn getIndentationLevel(source: []const u8, pos: usize) u32 {
     return spaces / 4;
 }
 
-pub fn renderNode(self: *Ast, node: ts.Node, w: *std.io.Writer) !void {
+pub fn renderNode(self: *Ast, node: ts.Node, w: *std.Io.Writer) !void {
     // Check if this is the root node - if so, do extraction/Zig formatting/patching
     const root = self.tree.rootNode();
     const is_root = node.startByte() == root.startByte() and
@@ -254,7 +254,7 @@ pub fn renderNode(self: *Ast, node: ts.Node, w: *std.io.Writer) !void {
 pub fn renderNodeWithContext(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) anyerror!void {
     const node_kind = NodeKind.fromNode(node);
@@ -322,7 +322,7 @@ pub fn renderNodeWithContext(
 fn renderSourceWithChildren(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) !void {
     const start_byte = node.startByte();
@@ -385,7 +385,7 @@ fn getSourceIndentLevel(source: []const u8, byte_offset: usize) u32 {
 fn renderBlock(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) !void {
     const child_count = node.childCount();
@@ -441,11 +441,11 @@ fn renderBlock(
 fn renderFragment(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) !void {
     const child_count = node.childCount();
-    var content_nodes = std.ArrayList(ts.Node){};
+    var content_nodes = std.ArrayList(ts.Node).empty;
     defer content_nodes.deinit(self.allocator);
 
     // Collect all child nodes (skip fragment opening/closing tags)
@@ -535,13 +535,13 @@ fn renderFragment(
 fn renderElement(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) !void {
     const child_count = node.childCount();
     var start_tag_node: ?ts.Node = null;
     var end_tag_node: ?ts.Node = null;
-    var content_nodes = std.ArrayList(ts.Node){};
+    var content_nodes = std.ArrayList(ts.Node).empty;
     defer content_nodes.deinit(self.allocator);
 
     // Collect all parts
@@ -684,7 +684,7 @@ fn renderElement(
 fn renderSelfClosingElement(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) !void {
     try w.writeAll("<");
@@ -713,7 +713,7 @@ fn renderSelfClosingElement(
 fn renderStartTag(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) !void {
     try w.writeAll("<");
@@ -742,7 +742,7 @@ fn renderStartTag(
 fn renderEndTag(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
 ) !void {
     try w.writeAll("</");
 
@@ -767,7 +767,7 @@ fn renderEndTag(
 fn renderText(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) !void {
     const start_byte = node.startByte();
@@ -857,7 +857,7 @@ fn renderText(
 fn renderTemplateString(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
 ) !void {
     const start_byte = node.startByte();
     const end_byte = node.endByte();
@@ -872,7 +872,7 @@ fn renderTemplateString(
 fn renderComment(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
 ) !void {
     const start_byte = node.startByte();
     const end_byte = node.endByte();
@@ -880,7 +880,7 @@ fn renderComment(
 
     const comment_text = self.source[start_byte..end_byte];
     // Trim leading whitespace (indentation is handled separately)
-    const trimmed = std.mem.trimLeft(u8, comment_text, &std.ascii.whitespace);
+    const trimmed = std.mem.trimStart(u8, comment_text, &std.ascii.whitespace);
     try w.writeAll(trimmed);
 }
 
@@ -937,7 +937,7 @@ fn hasInlineSpacesOnly(self: *Ast, node: ts.Node) bool {
 fn renderChild(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) !void {
     try renderChildInner(self, node, w, ctx, false);
@@ -947,7 +947,7 @@ fn renderChild(
 fn renderChildInner(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
     preserve_inline_spaces: bool,
 ) !void {
@@ -971,7 +971,7 @@ fn renderChildInner(
 fn renderExpressionBlock(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) anyerror!void {
     const child_count = node.childCount();
@@ -1019,7 +1019,7 @@ fn renderExpressionBlock(
 fn renderIfExpression(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) anyerror!void {
     var condition_node: ?ts.Node = null;
@@ -1140,7 +1140,7 @@ fn renderIfExpression(
 fn renderBranch(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) anyerror!void {
     try renderBranchWithMultiline(self, node, w, ctx, false);
@@ -1151,7 +1151,7 @@ fn renderBranch(
 fn renderBranchWithMultiline(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
     force_multiline: bool,
 ) anyerror!void {
@@ -1177,7 +1177,7 @@ fn renderBranchWithMultiline(
 fn renderIfExpressionInner(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) anyerror!void {
     try renderIfExpressionInnerWithMultiline(self, node, w, ctx, false);
@@ -1187,7 +1187,7 @@ fn renderIfExpressionInner(
 fn renderIfExpressionInnerWithMultiline(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
     force_multiline: bool,
 ) anyerror!void {
@@ -1284,10 +1284,10 @@ fn renderIfExpressionInnerWithMultiline(
 fn renderForExpression(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) !void {
-    var iterables = std.ArrayList(ts.Node){};
+    var iterables = std.ArrayList(ts.Node).empty;
     defer iterables.deinit(self.allocator);
     var payload_node: ?ts.Node = null;
     var body_node: ?ts.Node = null;
@@ -1387,7 +1387,7 @@ fn renderForExpression(
 fn renderParenthesizedBody(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) anyerror!void {
     const child_count = node.childCount();
@@ -1479,7 +1479,7 @@ fn renderParenthesizedBody(
 fn renderWhileExpression(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) !void {
     var condition_node: ?ts.Node = null;
@@ -1581,11 +1581,11 @@ fn renderWhileExpression(
 fn renderSwitchExpression(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) !void {
     var switch_expr_node: ?ts.Node = null;
-    var cases = std.ArrayList(struct { pattern: []const u8, payload: ?[]const u8, value: ts.Node }){};
+    var cases = std.ArrayList(struct { pattern: []const u8, payload: ?[]const u8, value: ts.Node }).empty;
     defer cases.deinit(self.allocator);
 
     const child_count = node.childCount();
@@ -1698,7 +1698,7 @@ fn renderSwitchExpression(
 fn renderCaseValue(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) anyerror!void {
     const kind = NodeKind.fromNode(node);
@@ -1807,10 +1807,10 @@ fn findSpecialChild(node: ts.Node) ?ts.Node {
 fn renderForExpressionInner(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) anyerror!void {
-    var iterables = std.ArrayList(ts.Node){};
+    var iterables = std.ArrayList(ts.Node).empty;
     defer iterables.deinit(self.allocator);
     var payload_node: ?ts.Node = null;
     var body_node: ?ts.Node = null;
@@ -1883,7 +1883,7 @@ fn renderForExpressionInner(
 fn renderWhileExpressionInner(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) anyerror!void {
     var condition_node: ?ts.Node = null;
@@ -1976,11 +1976,11 @@ fn renderWhileExpressionInner(
 fn renderSwitchExpressionInner(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) anyerror!void {
     var switch_expr_node: ?ts.Node = null;
-    var cases = std.ArrayList(struct { pattern: []const u8, payload: ?[]const u8, value: ts.Node }){};
+    var cases = std.ArrayList(struct { pattern: []const u8, payload: ?[]const u8, value: ts.Node }).empty;
     defer cases.deinit(self.allocator);
 
     const child_count = node.childCount();
@@ -2092,7 +2092,7 @@ fn renderSwitchExpressionInner(
 fn renderBlockInline(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
 ) !void {
     try renderBlockInlineWithMultiline(self, node, w, ctx, false);
@@ -2103,7 +2103,7 @@ fn renderBlockInline(
 fn renderBlockInlineWithMultiline(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
     force_multiline: bool,
 ) anyerror!void {
@@ -2219,7 +2219,7 @@ fn renderBlockInlineWithMultiline(
 fn renderAttributesFromNode(
     self: *Ast,
     node: ts.Node,
-    w: *std.io.Writer,
+    w: *std.Io.Writer,
     ctx: *FormatContext,
     multiline_close: *bool,
 ) !void {

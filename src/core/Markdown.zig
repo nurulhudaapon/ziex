@@ -24,7 +24,7 @@ pub fn transpile(allocator: std.mem.Allocator, source: []const u8) ![]const u8 {
     var out = Writer.init(allocator);
     errdefer out.deinit();
 
-    var blocks = std.ArrayList([]const u8){};
+    var blocks = std.ArrayList([]const u8).empty;
     defer {
         for (blocks.items) |b| allocator.free(b);
         blocks.deinit(allocator);
@@ -211,7 +211,7 @@ fn writeFencedCodeBlock(buf: *Writer, source: []const u8, node: ts.Node) !void {
     }
     try buf.append('>');
     if (content) |c| {
-        const trimmed = std.mem.trimRight(u8, c, "\n");
+        const trimmed = std.mem.trimEnd(u8, c, "\n");
         try appendEscaped(buf, trimmed);
     }
     try buf.appendSlice("</code></pre>");
@@ -228,7 +228,7 @@ fn writeIndentedCodeBlock(buf: *Writer, source: []const u8, node: ts.Node) !void
             line[4..]
         else
             line;
-        try appendEscaped(buf, std.mem.trimRight(u8, stripped, "\n"));
+        try appendEscaped(buf, std.mem.trimEnd(u8, stripped, "\n"));
         if (i + 1 < child_count) try buf.append('\n');
     }
     try buf.appendSlice("</code></pre>");

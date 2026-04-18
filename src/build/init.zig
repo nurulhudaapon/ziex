@@ -608,8 +608,9 @@ pub const Build = struct {
             }
         }
 
-        var plugin_run: PluginRun = .{};
-        return &plugin_run;
+        const plugin_run = self.build.allocator.create(PluginRun) catch @panic("OOM");
+        plugin_run.* = .{};
+        return plugin_run;
     }
 
     pub fn plugin(self: *Build, opts: InitOptions.PluginOptions) void {

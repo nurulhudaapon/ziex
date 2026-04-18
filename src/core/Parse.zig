@@ -148,7 +148,7 @@ pub fn renderAlloc(
 ) !RenderResult {
     switch (options.mode) {
         .zx => {
-            var aw = std.io.Writer.Allocating.init(allocator);
+            var aw = std.Io.Writer.Allocating.init(allocator);
             const root = self.tree.rootNode();
             try Render.renderNode(self, root, &aw.writer);
             return RenderResult{ .source = try aw.toOwnedSlice(), .client_components = &.{} };

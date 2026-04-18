@@ -1,6 +1,7 @@
 # General ignores
 .zig-cache/
 zig-out/
+zig-pkg/
 dist/
 bundle/
 node_modules/

@@ -363,7 +363,7 @@ fn isBuildCommandForOs(os_tag: std.Target.Os.Tag, line: []const u8) bool {
 }
 
 fn nextCommandToken(input: []const u8) ?struct { []const u8, []const u8 } {
-    const trimmed = std.mem.trimLeft(u8, input, " \t");
+    const trimmed = std.mem.trimStart(u8, input, " \t");
     if (trimmed.len == 0) return null;
 
     if (trimmed[0] == '"') {
@@ -457,7 +457,7 @@ pub fn parseDiagnostic(allocator: std.mem.Allocator, line: []const u8) ?Diagnost
 /// path (e.g. "favicon.ico" or "assets/styles.css") if it's a user asset install.
 /// Returns null for cache/package artifacts and non-asset installs.
 fn parseAssetInstallWebPath(line: []const u8) ?[]const u8 {
-    const trimmed = std.mem.trimLeft(u8, line, " \t");
+    const trimmed = std.mem.trimStart(u8, line, " \t");
     if (!std.mem.startsWith(u8, trimmed, "install ")) return null;
 
     // Skip installs from build cache or package cache (built artifacts like wasm/jsglue)

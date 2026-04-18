@@ -119,7 +119,7 @@ pub const TranspileContext = struct {
             .track_mappings = options.sourcemap,
             .js_imports = std.StringHashMap([]const u8).init(allocator),
             .file_path = options.path,
-            .client_components = std.ArrayList(ClientComponentMetadata){},
+            .client_components = std.ArrayList(ClientComponentMetadata).empty,
             .allocator = allocator,
         };
     }
@@ -677,7 +677,7 @@ pub fn transpileFragment(self: *Ast, node: ts.Node, ctx: *TranspileContext, is_r
     _ = is_root;
 
     // Collect all zx_child nodes from the fragment
-    var children = std.ArrayList(ts.Node){};
+    var children = std.ArrayList(ts.Node).empty;
     defer children.deinit(ctx.output.allocator);
 
     var end_tag_start_byte: u32 = node.endByte();
@@ -789,7 +789,7 @@ pub fn transpileSelfClosing(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
 
     var tag_name: ?[]const u8 = null;
     var tag_name_byte: u32 = node.startByte();
-    var attributes = std.ArrayList(ZxAttribute){};
+    var attributes = std.ArrayList(ZxAttribute).empty;
     defer attributes.deinit(ctx.output.allocator);
 
     // Parse the self-closing element
@@ -828,9 +828,9 @@ pub fn transpileFullElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
     // Parse element structure
     var tag_name: ?[]const u8 = null;
     var tag_name_byte: u32 = node.startByte();
-    var attributes = std.ArrayList(ZxAttribute){};
+    var attributes = std.ArrayList(ZxAttribute).empty;
     defer attributes.deinit(ctx.output.allocator);
-    var children = std.ArrayList(ts.Node){};
+    var children = std.ArrayList(ts.Node).empty;
     defer children.deinit(ctx.output.allocator);
 
     var end_tag_start_byte: u32 = node.endByte();
@@ -1139,11 +1139,11 @@ fn writeCustomComponent(self: *Ast, _: ts.Node, tag: []const u8, tag_name_byte: 
         try ctx.writeM(tag, tag_name_byte, self);
         try ctx.writeM(",\n", end_tag_start_byte, self);
 
-        var spreads = std.ArrayList(ZxAttribute){};
+        var spreads = std.ArrayList(ZxAttribute).empty;
         defer spreads.deinit(ctx.output.allocator);
-        var regular_props = std.ArrayList(ZxAttribute){};
+        var regular_props = std.ArrayList(ZxAttribute).empty;
         defer regular_props.deinit(ctx.output.allocator);
-        var builtin_attrs = std.ArrayList(ZxAttribute){};
+        var builtin_attrs = std.ArrayList(ZxAttribute).empty;
         defer builtin_attrs.deinit(ctx.output.allocator);
 
         for (attributes) |attr| {
@@ -1560,7 +1560,7 @@ fn transpileMultilineString(self: *Ast, node: ts.Node, ctx: *TranspileContext) !
     // Split by newlines and write each line with proper indentation
     var lines = std.mem.splitScalar(u8, expr_text, '\n');
     while (lines.next()) |line| {
-        const trimmed_line = std.mem.trimLeft(u8, line, " \t");
+        const trimmed_line = std.mem.trimStart(u8, line, " \t");
         if (trimmed_line.len == 0) continue;
 
         try ctx.writeIndent();
@@ -1679,7 +1679,7 @@ fn transpileBranch(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutO
 
 pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
     // for_expression: 'for' '(' iterable ')' payload body
-    var iterables = std.ArrayList(ts.Node){};
+    var iterables = std.ArrayList(ts.Node).empty;
     defer iterables.deinit(ctx.allocator);
     var first_iterable_node: ?ts.Node = null;
     var payload_text: ?[]const u8 = null;
@@ -2214,9 +2214,9 @@ fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileC
 
 /// Transpile a template string for component props to _zx.propf("format", .{ values })
 fn transpileTemplateStringProp(self: *Ast, template_node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
-    var format_parts = std.ArrayList(u8){};
+    var format_parts = std.ArrayList(u8).empty;
     defer format_parts.deinit(ctx.output.allocator);
-    var substitutions = std.ArrayList(ts.Node){};
+    var substitutions = std.ArrayList(ts.Node).empty;
     defer substitutions.deinit(ctx.output.allocator);
 
     const template_start = template_node.startByte();
@@ -2295,9 +2295,9 @@ fn transpileTemplateStringProp(self: *Ast, template_node: ts.Node, ctx: *Transpi
 /// Transpile a template string attribute to _zx.attrf("name", "format", .{ values })
 fn transpileTemplateStringAttr(self: *Ast, attr: ZxAttribute, template_node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
     // Collect template content and substitutions
-    var format_parts = std.ArrayList(u8){};
+    var format_parts = std.ArrayList(u8).empty;
     defer format_parts.deinit(ctx.output.allocator);
-    var substitutions = std.ArrayList(ts.Node){};
+    var substitutions = std.ArrayList(ts.Node).empty;
     defer substitutions.deinit(ctx.output.allocator);
 
     const template_start = template_node.startByte();

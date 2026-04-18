@@ -87,7 +87,7 @@ pub const VNode = struct {
             .text => |text| {
                 _ = text;
             },
-            .component_fn => |_| {
+            .component_fn => {
                 const next_owner_component_id = componentOwnerId(allocator, component, owner_component_id, sibling_index);
                 const resolved = try resolveComponent(allocator, component, owner_component_id, sibling_index);
                 allocator.destroy(self);

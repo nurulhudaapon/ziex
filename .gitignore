@@ -1,7 +1,7 @@
 # Zig
 .zig-cache
 zig-out
-zig-pkg
+zig-pkg/
 
 # Ziex
 dist

@@ -289,7 +289,7 @@ pub const ZxContext = struct {
                     zx.EventHandler.wrap(val),
             },
             // Pre-built event handlers
-            .@"struct" => |_| if (T == zx.EventHandler) .{
+            .@"struct" => if (T == zx.EventHandler) .{
                 .name = name,
                 .handler = val,
             } else if (comptime @hasDecl(T, "format")) blk: {

@@ -1313,7 +1313,7 @@ fn renderMultilineContent(content: []const u8, base_indent: u32, arena: Allocato
                 }
             }
             // Only consider lines with actual content
-            const trimmed = std.mem.trimLeft(u8, line, &std.ascii.whitespace);
+            const trimmed = std.mem.trimStart(u8, line, &std.ascii.whitespace);
             if (trimmed.len > 0 and line_indent < min_indent) {
                 min_indent = line_indent;
             }
@@ -1326,7 +1326,7 @@ fn renderMultilineContent(content: []const u8, base_indent: u32, arena: Allocato
         while (buffer_it.next()) |line| {
             if (!first_line) try w.writeAll("\n");
 
-            const trimmed_line = std.mem.trimLeft(u8, line, &std.ascii.whitespace);
+            const trimmed_line = std.mem.trimStart(u8, line, &std.ascii.whitespace);
             if (trimmed_line.len > 0) {
                 // Calculate current line's indentation
                 var line_indent: u32 = 0;
@@ -1366,7 +1366,7 @@ fn renderMultilineContentAsText(content: []const u8, base_indent: u32, w: *Write
     var first = true;
     var last_was_empty = false;
     while (it.next()) |line| {
-        const trimmed = std.mem.trimLeft(u8, line, &std.ascii.whitespace);
+        const trimmed = std.mem.trimStart(u8, line, &std.ascii.whitespace);
         const is_empty = trimmed.len == 0;
 
         // Skip consecutive empty lines (keep at most one)

@@ -78,7 +78,7 @@ pub const Cookies = struct {
     pub fn get(self: Cookies, name: []const u8) ?[]const u8 {
         var it = std.mem.splitScalar(u8, self.header_value, ';');
         while (it.next()) |kv| {
-            const trimmed = std.mem.trimLeft(u8, kv, " ");
+            const trimmed = std.mem.trimStart(u8, kv, " ");
             if (name.len >= trimmed.len) continue;
             if (!std.mem.startsWith(u8, trimmed, name)) continue;
             if (trimmed[name.len] != '=') continue;
@@ -90,7 +90,7 @@ pub const Cookies = struct {
     pub fn as(self: Cookies, name: []const u8, comptime T: type) ?T {
         var it = std.mem.splitScalar(u8, self.header_value, ';');
         while (it.next()) |kv| {
-            const trimmed = std.mem.trimLeft(u8, kv, " ");
+            const trimmed = std.mem.trimStart(u8, kv, " ");
             if (name.len >= trimmed.len) continue;
             if (!std.mem.startsWith(u8, trimmed, name)) continue;
             if (trimmed[name.len] != '=') continue;
