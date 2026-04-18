@@ -68,6 +68,11 @@ pub const Row = struct {
         }
         return null;
     }
+
+    pub fn getTyped(self: Row, comptime T: type, name: []const u8) !T {
+        const value = self.get(name) orelse return DbError.InvalidQuery;
+        return valueToType(T, value);
+    }
 };
 
 pub const NamedBinding = struct {
@@ -376,10 +381,27 @@ pub const Statement = struct {
         return vt.all(ctx, allocator, bindings);
     }
 
+    pub fn rows(self: *Statement, allocator: std.mem.Allocator, comptime T: type, bindings: Bindings) ![]const T {
+        const all_rows = try self.all(allocator, bindings);
+        const typed_rows = try allocator.alloc(T, all_rows.len);
+        errdefer allocator.free(typed_rows);
+
+        for (all_rows, 0..) |result_row, index| {
+            typed_rows[index] = try rowToType(T, result_row);
+        }
+        return typed_rows;
+    }
+
     pub fn get(self: *Statement, allocator: std.mem.Allocator, bindings: Bindings) !?Row {
         const ctx = try self.requireCtx();
         const vt = try self.requireVTable();
         return vt.get(ctx, allocator, bindings);
+    }
+
+    pub fn row(self: *Statement, allocator: std.mem.Allocator, comptime T: type, bindings: Bindings) !?T {
+        const maybe_row = try self.get(allocator, bindings);
+        const result_row = maybe_row orelse return null;
+        return try rowToType(T, result_row);
     }
 
     pub fn run(self: *Statement, bindings: Bindings) !RunResult {
@@ -456,6 +478,57 @@ pub const Statement = struct {
         return self.vtable orelse DbError.Closed;
     }
 };
+
+fn rowToType(comptime T: type, row: Row) !T {
+    const info = @typeInfo(T);
+    if (info != .@"struct") {
+        @compileError("db.Statement.row/rows expects a struct type, got " ++ @typeName(T));
+    }
+
+    var value: T = undefined;
+    inline for (info.@"struct".fields) |field| {
+        @field(value, field.name) = try row.getTyped(field.type, field.name);
+    }
+    return value;
+}
+
+fn valueToType(comptime T: type, value: Value) !T {
+    return switch (@typeInfo(T)) {
+        .int, .comptime_int => switch (value) {
+            .integer => |v| @as(T, @intCast(v)),
+            .float => |v| @as(T, @intFromFloat(v)),
+            .boolean => |v| @as(T, if (v) 1 else 0),
+            else => DbError.InvalidQuery,
+        },
+        .float, .comptime_float => switch (value) {
+            .float => |v| @as(T, @floatCast(v)),
+            .integer => |v| @as(T, @floatFromInt(v)),
+            .boolean => |v| @as(T, if (v) 1 else 0),
+            else => DbError.InvalidQuery,
+        },
+        .bool => switch (value) {
+            .boolean => |v| v,
+            .integer => |v| v != 0,
+            .float => |v| v != 0,
+            else => DbError.InvalidQuery,
+        },
+        .pointer => |ptr| blk: {
+            if (ptr.size == .slice and ptr.child == u8) {
+                break :blk switch (value) {
+                    .text => |v| v,
+                    .blob => |v| v,
+                    else => DbError.InvalidQuery,
+                };
+            }
+            @compileError("Unsupported db.Row.getTyped target: " ++ @typeName(T));
+        },
+        .optional => |opt| switch (value) {
+            .null => null,
+            else => try valueToType(opt.child, value),
+        },
+        else => @compileError("Unsupported db.Row.getTyped target: " ++ @typeName(T)),
+    };
+}
 
 fn resolveDatabaseLocation(filename: ?[]const u8) !?[]const u8 {
     const input = filename orelse configuredUrl() orelse defaultLocation();

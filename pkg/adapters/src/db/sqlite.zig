@@ -383,7 +383,7 @@ fn get(ctx: *anyopaque, allocator: std.mem.Allocator, bindings: db.Bindings) !?d
     defer exec.deinit();
 
     if (!try exec.stmt.step()) return null;
-    return try cloneRow(allocator, exec.stmt);
+    return try cloneRow(allocator, .{ .stmt = exec.stmt });
 }
 
 fn runStatement(ctx: *anyopaque, bindings: db.Bindings) !db.RunResult {
@@ -469,7 +469,7 @@ fn iterateNext(ctx: *anyopaque) !?db.Row {
         iter_ctx.done = true;
         return null;
     }
-    return try cloneRow(iter_ctx.allocator, iter_ctx.exec.stmt);
+    return try cloneRow(iter_ctx.allocator, .{ .stmt = iter_ctx.exec.stmt });
 }
 
 fn iterateDeinit(ctx: *anyopaque) void {
@@ -593,7 +593,7 @@ fn readAllRows(allocator: std.mem.Allocator, stmt: zqlite.Stmt) ![]const db.Row 
     }
 
     while (try stmt.step()) {
-        try rows.append(allocator, try cloneRow(allocator, stmt));
+        try rows.append(allocator, try cloneRow(allocator, .{ .stmt = stmt }));
     }
     return rows.toOwnedSlice(allocator);
 }
@@ -611,15 +611,15 @@ fn readAllValues(allocator: std.mem.Allocator, stmt: zqlite.Stmt) ![]const []con
     return rows.toOwnedSlice(allocator);
 }
 
-fn cloneRow(allocator: std.mem.Allocator, stmt: zqlite.Stmt) !db.Row {
-    const column_count: usize = @intCast(stmt.columnCount());
+fn cloneRow(allocator: std.mem.Allocator, row: zqlite.Row) !db.Row {
+    const column_count: usize = @intCast(row.columnCount());
     const fields = try allocator.alloc(db.Field, column_count);
     errdefer allocator.free(fields);
 
     for (0..column_count) |index| {
         fields[index] = .{
-            .name = try allocator.dupe(u8, std.mem.span(stmt.columnName(index))),
-            .value = try cloneValue(allocator, stmt, index),
+            .name = try allocator.dupe(u8, row.columnName(index)),
+            .value = try cloneValue(allocator, row, index),
         };
     }
 
@@ -631,18 +631,20 @@ fn cloneValueRow(allocator: std.mem.Allocator, stmt: zqlite.Stmt) ![]const db.Va
     const values_row = try allocator.alloc(db.Value, column_count);
     errdefer allocator.free(values_row);
 
+    const row: zqlite.Row = .{ .stmt = stmt };
+
     for (0..column_count) |index| {
-        values_row[index] = try cloneValue(allocator, stmt, index);
+        values_row[index] = try cloneValue(allocator, row, index);
     }
     return values_row;
 }
 
-fn cloneValue(allocator: std.mem.Allocator, stmt: zqlite.Stmt, index: usize) !db.Value {
-    return switch (stmt.columnType(index)) {
-        .int => .{ .integer = stmt.int(index) },
-        .float => .{ .float = stmt.float(index) },
-        .text => .{ .text = try allocator.dupe(u8, stmt.text(index)) },
-        .blob => .{ .blob = try allocator.dupe(u8, stmt.blob(index)) },
+fn cloneValue(allocator: std.mem.Allocator, row: zqlite.Row, index: usize) !db.Value {
+    return switch (row.columnType(index)) {
+        .int => .{ .integer = row.get(i64, index) },
+        .float => .{ .float = row.get(f64, index) },
+        .text => .{ .text = try allocator.dupe(u8, row.get([]const u8, index)) },
+        .blob => .{ .blob = try allocator.dupe(u8, row.get(zqlite.Blob, index)) },
         .null => .null,
         .unknown => .null,
     };

@@ -1,4 +1,9 @@
 pub fn Page(ctx: zx.PageContext) !zx.Component {
+    const VisitStats = struct {
+        total_visits: i64,
+        latest_visit: ?[]const u8,
+    };
+
     _ = try zx.db.run(
         \\CREATE TABLE IF NOT EXISTS page_visits (
         \\  id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,24 +25,14 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     );
     defer statement.deinit();
 
-    const row = (try statement.get(ctx.arena, .empty)).?;
-
-    const total_visits: i64 = switch (row.get("total_visits") orelse .null) {
-        .integer => |value| value,
-        .float => |value| @intFromFloat(value),
-        else => 0,
-    };
-
-    const latest_visit: []const u8 = switch (row.get("latest_visit") orelse .null) {
-        .text => |value| value,
-        else => "n/a",
-    };
+    const stats = (try statement.row(ctx.arena, VisitStats, .empty)).?;
+    const latest_visit = stats.latest_visit orelse "n/a";
 
     return (
         <main @allocator={ctx.arena} lang="en">
             <h1>Database Example</h1>
             <p>This page writesdd a row into the implicit default database on every request.</p>
-            <p>Total visits recorded: {total_visits}</p>
+            <p>Total visits recorded: {stats.total_visits}</p>
             <p>Latest visit: {latest_visit}</p>
             <p><a href="/examples/db/advance">Open the advance DB example</a></p>
         </main>
