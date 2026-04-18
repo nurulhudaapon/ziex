@@ -72,9 +72,9 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
             <FormSection zx_code={zx_form} zig_code={zig_form} html_code={html_form} />
             <CachingSection />
 
-            <div style="display: none">
-                <RenderTest />
-            </div>
+            // <div style="display: none">
+            //     <RenderTest />
+            // </div>
         </fragment>
     );
 }
