@@ -291,7 +291,7 @@ pub const CacheScope = struct {
             value: ValueType,
         };
 
-        var writer = std.Io.Writer.Allocating.init(zx.client_allocator);
+        var writer = std.Io.Writer.Allocating.init(zx.allocator);
         defer writer.deinit();
 
         try zx.util.zxon.serialize(TypedValue{

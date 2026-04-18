@@ -7,7 +7,7 @@ const is_wasm = zx.platform.role == .client;
 const Allocator = std.mem.Allocator;
 
 fn getGlobalAllocator() std.mem.Allocator {
-    return zx.client_allocator;
+    return zx.allocator;
 }
 
 pub const Bound = struct {
@@ -135,12 +135,12 @@ pub fn action(comptime func: anytype) Self {
                     func(ctx.data(arg_type));
                 }
             };
-    return .{
-        .callback = &actionHandler,
-        .context = @as(*anyopaque, @ptrFromInt(1)),
-        .action_fn = &DirectTyped.w,
-        .may_suspend = false,
-    };
+            return .{
+                .callback = &actionHandler,
+                .context = @as(*anyopaque, @ptrFromInt(1)),
+                .action_fn = &DirectTyped.w,
+                .may_suspend = false,
+            };
         }
     }
     return wrap(func);

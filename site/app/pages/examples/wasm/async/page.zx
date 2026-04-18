@@ -104,7 +104,7 @@ fn doFetch(_: zx.client.Event) void {
 
     _ = zx.fetch(
         .wasm(&onFetchComplete),
-        zx.client_allocator,
+        zx.allocator,
         "https://jsonplaceholder.typicode.com/todos/1",
         .{},
     ) catch |err| {

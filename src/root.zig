@@ -112,7 +112,6 @@ pub const Socket = routing.Socket;
 pub const fetch = Fetch.fetch;
 
 // --- Values --- //
-pub const client_allocator = if (builtin.cpu.arch == .wasm32) std.heap.wasm_allocator else std.heap.page_allocator;
 pub const platform: Platform = plfm.platform;
 pub const std_options: std.Options = opts.std_options;
 

@@ -192,7 +192,7 @@ fn mainClient() callconv(.c) void {
     clnt.renderAll();
 }
 
-var clnt = init(zx.client_allocator, .{});
+var clnt = init(zx.allocator, .{});
 const kv_wasm = @import("../server/wasm/kv.zig");
 pub fn run() !void {
     // kv_wasm.use();
@@ -526,7 +526,7 @@ pub fn logFn(
         .debug => 3,
     };
     const prefix = if (scope == .default) "" else "(" ++ @tagName(scope) ++ ") ";
-    const msg = std.fmt.allocPrint(zx.client_allocator, prefix ++ format, args) catch return;
-    defer zx.client_allocator.free(msg);
+    const msg = std.fmt.allocPrint(zx.allocator, prefix ++ format, args) catch return;
+    defer zx.allocator.free(msg);
     @import("window/extern.zig")._log(level, msg.ptr, msg.len);
 }

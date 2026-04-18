@@ -40,9 +40,9 @@ fn settingsKV() zx.kv.KVScope {
 
 pub fn loadSettings() bool {
     if (_show_native_elements_loaded) return true;
-    show_native_elements = settingsKV().as(zx.client_allocator, storage_key, bool) catch null orelse true;
-    host = settingsKV().get(zx.client_allocator, host_storage_key) catch null orelse host;
-    current_path = settingsKV().get(zx.client_allocator, path_storage_key) catch null orelse current_path;
+    show_native_elements = settingsKV().as(zx.allocator, storage_key, bool) catch null orelse true;
+    host = settingsKV().get(zx.allocator, host_storage_key) catch null orelse host;
+    current_path = settingsKV().get(zx.allocator, path_storage_key) catch null orelse current_path;
     _show_native_elements_loaded = true;
     return _show_native_elements_loaded;
 }
@@ -53,7 +53,7 @@ pub fn saveSettings() void {
 }
 
 pub fn loadThemeIsDark() bool {
-    return settingsKV().as(zx.client_allocator, theme_storage_key, bool) catch null orelse true;
+    return settingsKV().as(zx.allocator, theme_storage_key, bool) catch null orelse true;
 }
 
 pub fn saveThemeIsDark(dark: bool) void {

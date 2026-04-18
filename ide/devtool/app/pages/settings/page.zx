@@ -212,7 +212,7 @@ fn currentThemeIsDark() bool {
 fn applyTheme(dark: bool) void {
     if (zx.platform.role != .client) return;
 
-    const document = zx.client.Document.init(zx.client_allocator);
+    const document = zx.client.Document.init(zx.allocator);
     defer document.deinit();
 
     const root = document.querySelector("html") catch return;
@@ -276,7 +276,7 @@ pub fn HostSetting(ctx: *zx.ComponentCtx(HostSettingProps)) zx.Component {
 
 pub fn handleHostInput(ctx: zx.client.Event) void {
     if (ctx.value()) |val| {
-        data.host = zx.client_allocator.dupe(u8, val) catch val;
+        data.host = zx.allocator.dupe(u8, val) catch val;
         data.saveSettings();
         zx.client.rerender();
     }

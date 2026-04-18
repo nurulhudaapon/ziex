@@ -165,18 +165,18 @@ fn handleRunClick(ctx: zx.client.Event) void {
 
     if (zx.platform.role != .client) return;
 
-    const document = zx.client.Document.init(zx.client_allocator);
+    const document = zx.client.Document.init(zx.allocator);
 
     const editor_container = document.querySelector(".cm-content") catch unreachable;
 
     const c = zx.client.Console.init();
     c.log(.{editor_container.ref});
     
-    const inner_text: []const u8 = editor_container.ref.getAlloc(zx.Client.js.String, zx.client_allocator, "innerText") catch "NA";
+    const inner_text: []const u8 = editor_container.ref.getAlloc(zx.Client.js.String, zx.allocator, "innerText") catch "NA";
     std.log.info("Run clicked {s}", .{inner_text});
 
-    // const zx_sourcez = zx.client_allocator.dupeZ(u8, inner_text) catch return;
-    // const ast =  zx.Ast.parse(zx.client_allocator, zx_sourcez, .{}) catch return;
+    // const zx_sourcez = zx.allocator.dupeZ(u8, inner_text) catch return;
+    // const ast =  zx.Ast.parse(zx.allocator, zx_sourcez, .{}) catch return;
     // c.log(.{zx.client.js.String(ast.zig_source)});
 }
 

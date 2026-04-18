@@ -117,7 +117,7 @@ fn putTyped(ns: []const u8, key: []const u8, value: anytype, opts: PutOptions) !
         value: ValueType,
     };
 
-    var writer = std.Io.Writer.Allocating.init(zx.client_allocator);
+    var writer = std.Io.Writer.Allocating.init(zx.allocator);
     defer writer.deinit();
 
     try zx.util.zxon.serialize(TypedValue{

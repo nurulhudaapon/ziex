@@ -101,8 +101,8 @@ fn joinChat(username: []const u8) void {
     if (zx.platform.role != .client) return;
 
     std.log.info("joinChat: {s}", .{username});
-    current_username = zx.client_allocator.dupe(u8, username) catch return;
-    ws = zx.WebSocket.init(zx.client_allocator, "/examples/realtime/ws", .{}) catch return;
+    current_username = zx.allocator.dupe(u8, username) catch return;
+    ws = zx.WebSocket.init(zx.allocator, "/examples/realtime/ws", .{}) catch return;
 
     if (ws) |*w| {
         w.onopen = &onWsOpen;
@@ -129,12 +129,12 @@ fn leaveChat(_: zx.client.Event) void {
 
     if (messages) |msgs_state| {
         var msgs = msgs_state.get();
-        msgs.deinit(zx.client_allocator);
+        msgs.deinit(zx.allocator);
         msgs_state.set(.{});
     }
 
     // Clear input via DOM
-    const document = zx.client.Document.init(zx.client_allocator);
+    const document = zx.client.Document.init(zx.allocator);
     if (document.getElementById("message-input")) |input| {
         input.ref.set("value", zx.Client.js.string("")) catch {};
     } else |_| {}
@@ -144,9 +144,9 @@ fn sendMessage(e: zx.client.Event) void {
     if (zx.platform.role != .client) return;
     e.preventDefault();
 
-    const document = zx.client.Document.init(zx.client_allocator);
+    const document = zx.client.Document.init(zx.allocator);
     const input = document.getElementById("message-input") catch return;
-    const text = input.ref.getAlloc(zx.Client.js.String, zx.client_allocator, "value") catch return;
+    const text = input.ref.getAlloc(zx.Client.js.String, zx.allocator, "value") catch return;
 
     std.log.info("sendMessage: {s}", .{text});
     if (text.len == 0) return;
@@ -171,15 +171,15 @@ fn onWsMessage(_: *zx.WebSocket, event: zx.WebSocket.MessageEvent) void {
     var text: []const u8 = data;
 
     if (std.mem.indexOf(u8, data, ": ")) |colon_idx| {
-        username = zx.client_allocator.dupe(u8, data[0..colon_idx]) catch return;
-        text = zx.client_allocator.dupe(u8, data[colon_idx + 2 ..]) catch return;
+        username = zx.allocator.dupe(u8, data[0..colon_idx]) catch return;
+        text = zx.allocator.dupe(u8, data[colon_idx + 2 ..]) catch return;
     } else {
-        text = zx.client_allocator.dupe(u8, data) catch return;
+        text = zx.allocator.dupe(u8, data) catch return;
     }
 
     if (messages) |msgs_state| {
         var msgs = msgs_state.get();
-        msgs.insert(zx.client_allocator, 0, .{
+        msgs.insert(zx.allocator, 0, .{
             .username = username,
             .text = text,
             .is_system = is_system,
@@ -193,7 +193,7 @@ fn onWsClose(_: *zx.WebSocket, _: zx.WebSocket.CloseEvent) void {
 
     if (messages) |msgs_state| {
         var msgs = msgs_state.get();
-        msgs.insert(zx.client_allocator, 0, .{
+        msgs.insert(zx.allocator, 0, .{
             .username = "",
             .text = "Disconnected from server",
             .is_system = true,
@@ -207,7 +207,7 @@ fn onWsError(_: *zx.WebSocket, _: zx.WebSocket.ErrorEvent) void {
 
     if (messages) |msgs_state| {
         var msgs = msgs_state.get();
-        msgs.insert(zx.client_allocator, 0, .{
+        msgs.insert(zx.allocator, 0, .{
             .username = "",
             .text = "Connection error",
             .is_system = true,

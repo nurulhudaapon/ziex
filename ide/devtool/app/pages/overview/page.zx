@@ -14,26 +14,26 @@ fn fetchComponentsCount() void {
     if (components_fetch_started) return;
     const host = data.host;
     const path = data.current_path;
-    const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://")) host else std.fmt.allocPrint(zx.client_allocator, "http://{s}", .{host}) catch return;
-    const url = std.fmt.allocPrint(zx.client_allocator, "{s}/.well-known/_zx/devtool?path={s}", .{ base, path }) catch return;
+    const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://")) host else std.fmt.allocPrint(zx.allocator, "http://{s}", .{host}) catch return;
+    const url = std.fmt.allocPrint(zx.allocator, "{s}/.well-known/_zx/devtool?path={s}", .{ base, path }) catch return;
     components_fetch_started = true;
-    _ = zx.fetch(.wasm(&onFetchComponentsCount), zx.client_allocator, url, .{ .method = .GET }) catch {};
+    _ = zx.fetch(.wasm(&onFetchComponentsCount), zx.allocator, url, .{ .method = .GET }) catch {};
 }
 
 fn fetchRoutesCount() void {
     if (routes_fetch_started) return;
     const host = data.host;
-    const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://")) host else std.fmt.allocPrint(zx.client_allocator, "http://{s}", .{host}) catch return;
-    const url = std.fmt.allocPrint(zx.client_allocator, "{s}/.well-known/_zx/devtool?meta=true", .{base}) catch return;
+    const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://")) host else std.fmt.allocPrint(zx.allocator, "http://{s}", .{host}) catch return;
+    const url = std.fmt.allocPrint(zx.allocator, "{s}/.well-known/_zx/devtool?meta=true", .{base}) catch return;
     routes_fetch_started = true;
-    _ = zx.fetch(.wasm(&onFetchRoutesCount), zx.client_allocator, url, .{ .method = .GET }) catch {};
+    _ = zx.fetch(.wasm(&onFetchRoutesCount), zx.allocator, url, .{ .method = .GET }) catch {};
 }
 
 fn onFetchComponentsCount(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
     if (res) |r| {
         defer r.deinit();
         if (r.text()) |p| {
-            const parsed = zx.util.zxon.parse(zx.Component.Serializable, zx.client_allocator, p, .{}) catch return;
+            const parsed = zx.util.zxon.parse(zx.Component.Serializable, zx.allocator, p, .{}) catch return;
             overview_component_count = countSerializable(parsed.children orelse &.{}, 0);
         } else |_| {}
     }
@@ -63,7 +63,7 @@ fn onFetchRoutesCount(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
     if (res) |r| {
         defer r.deinit();
         if (r.text()) |p| {
-            const parsed = zx.util.zxon.parse([]const AppRoute, zx.client_allocator, p, .{}) catch return;
+            const parsed = zx.util.zxon.parse([]const AppRoute, zx.allocator, p, .{}) catch return;
             overview_route_count = parsed.len;
         } else |_| {}
     }

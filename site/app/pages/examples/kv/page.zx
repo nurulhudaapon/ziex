@@ -37,7 +37,7 @@ fn init(count: *zx.State(u64)) !void {
         return;
 
     initialized = true;
-    const prev = try zx.kv.as(zx.client_allocator, "c", u64);
+    const prev = try zx.kv.as(zx.allocator, "c", u64);
     const count_value = if (prev) |s| s else 0;
     zx.log.info("Initializing count: {d}\n", .{count_value});
     count.set(count_value);
@@ -48,7 +48,7 @@ fn tryonclick(ctx: *zx.client.Event.Stateful) !void {
 
     const count_state = ctx.state(u64);
 
-    const prev = try zx.kv.as(zx.client_allocator, "c", u64);
+    const prev = try zx.kv.as(zx.allocator, "c", u64);
     const count = if (prev) |s| s + 1 else 1;
     try zx.kv.putAs("c", count, .{});
     count_state.set(count);

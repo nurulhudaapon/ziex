@@ -27,20 +27,20 @@ fn fetch() void {
     if (!data.loadSettings()) return;
     const host = data.host;
     const path = data.current_path;
-    const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://")) host else std.fmt.allocPrint(zx.client_allocator, "http://{s}", .{host}) catch return;
+    const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://")) host else std.fmt.allocPrint(zx.allocator, "http://{s}", .{host}) catch return;
     const include_native = if (data.show_native_elements) "1" else "0";
-    const url = std.fmt.allocPrint(zx.client_allocator, "{s}/.well-known/_zx/devtool?path={s}&include_native={s}", .{ base, path, include_native }) catch return;
+    const url = std.fmt.allocPrint(zx.allocator, "{s}/.well-known/_zx/devtool?path={s}&include_native={s}", .{ base, path, include_native }) catch return;
     fetched = true;
-    _ = zx.fetch(.wasm(&onFetchText), zx.client_allocator, url, .{ .method = .GET }) catch {};
+    _ = zx.fetch(.wasm(&onFetchText), zx.allocator, url, .{ .method = .GET }) catch {};
 }
 
 fn onFetchText(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
     if (res) |r| {
         defer r.deinit();
         if (r.text()) |p| {
-            const parsed = zx.util.zxon.parse(zx.Component.Serializable, zx.client_allocator, p, .{}) catch return;
+            const parsed = zx.util.zxon.parse(zx.Component.Serializable, zx.allocator, p, .{}) catch return;
             if (parsed.children) |sc| {
-                const mapped = data.fromSerializableSlice(zx.client_allocator, sc) catch unreachable;
+                const mapped = data.fromSerializableSlice(zx.allocator, sc) catch unreachable;
                 std.log.info("Fetched {d} components", .{mapped.len});
                 components = mapped;
             }

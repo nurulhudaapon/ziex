@@ -90,16 +90,16 @@ fn addTodo(e: *zx.client.Event.Stateful) void {
     const todos_state = e.state(TodoList);
     const id_state = e.state(u32);
 
-    const document = zx.client.Document.init(zx.client_allocator);
+    const document = zx.client.Document.init(zx.allocator);
     const input = document.getElementById("todo-input") catch return;
-    const text = input.ref.getAlloc(js.String, zx.client_allocator, "value") catch return;
+    const text = input.ref.getAlloc(js.String, zx.allocator, "value") catch return;
     if (text.len == 0) return;
 
     const id = id_state.get();
     id_state.set(id + 1);
 
     var list = todos_state.get();
-    list.append(zx.client_allocator, .{ .id = id, .text = text, .completed = false }) catch return;
+    list.append(zx.allocator, .{ .id = id, .text = text, .completed = false }) catch return;
     todos_state.set(list);
 
     input.ref.set("value", js.string("")) catch return;
@@ -115,7 +115,7 @@ fn toggleTodo(e: *zx.client.Event.Stateful) void {
     var id: ?u32 = null;
     if (event.getTarget()) |target| {
         defer target.deinit();
-        if (target.getAlloc(js.String, zx.client_allocator, "value") catch null) |v| {
+        if (target.getAlloc(js.String, zx.allocator, "value") catch null) |v| {
             id = std.fmt.parseInt(u32, v, 10) catch null;
         }
     }
@@ -147,7 +147,7 @@ fn deleteTodo(e: *zx.client.Event.Stateful) void {
     var id: ?u32 = null;
     if (event.getTarget()) |target| {
         defer target.deinit();
-        if (target.getAlloc(js.String, zx.client_allocator, "value") catch null) |v| {
+        if (target.getAlloc(js.String, zx.allocator, "value") catch null) |v| {
             id = std.fmt.parseInt(u32, v, 10) catch null;
         }
     }

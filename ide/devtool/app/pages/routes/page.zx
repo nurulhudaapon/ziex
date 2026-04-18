@@ -28,10 +28,10 @@ fn fetch() void {
     if (fetched) return;
     if (!data.loadSettings()) return;
     const host = data.host;
-    const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://")) host else std.fmt.allocPrint(zx.client_allocator, "http://{s}", .{host}) catch return;
-    const url = std.fmt.allocPrint(zx.client_allocator, "{s}/.well-known/_zx/devtool?meta=true", .{base}) catch return;
+    const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://")) host else std.fmt.allocPrint(zx.allocator, "http://{s}", .{host}) catch return;
+    const url = std.fmt.allocPrint(zx.allocator, "{s}/.well-known/_zx/devtool?meta=true", .{base}) catch return;
     fetched = true;
-    _ = zx.fetch(.wasm(&onFetchText), zx.client_allocator, url, .{ .method = .GET }) catch {};
+    _ = zx.fetch(.wasm(&onFetchText), zx.allocator, url, .{ .method = .GET }) catch {};
 }
 
     pub const AppRoute = struct {
@@ -47,7 +47,7 @@ fn onFetchText(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
     if (res) |r| {
         defer r.deinit();
         if (r.text()) |p| {
-            routes = zx.util.zxon.parse([]const AppRoute, zx.client_allocator, p, .{}) catch return;
+            routes = zx.util.zxon.parse([]const AppRoute, zx.allocator, p, .{}) catch return;
         } else |_| {}
     }
     zx.client.rerender();

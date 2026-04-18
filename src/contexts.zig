@@ -14,7 +14,7 @@ const StateContext = CoreEvent.StateContext;
 const Allocator = std.mem.Allocator;
 
 const platform = zx.platform;
-const client_allocator = zx.client_allocator;
+const client_allocator = zx.allocator;
 
 /// Context passed to proxy middleware functions.
 pub const ProxyContext = struct {
@@ -49,7 +49,6 @@ pub const ProxyContext = struct {
         return self._aborted;
     }
 };
-
 
 //  ----- ComponentCtx ----- //
 const BindSignMsg =

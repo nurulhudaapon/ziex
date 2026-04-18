@@ -10,7 +10,7 @@ const js = zx.client.js;
 const is_wasm = zx.platform.role == .client;
 
 fn getGlobalAllocator() std.mem.Allocator {
-    return zx.client_allocator;
+    return zx.allocator;
 }
 
 const ComponentSubKey = struct {

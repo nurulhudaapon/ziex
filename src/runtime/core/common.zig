@@ -1,28 +1,9 @@
-//! Common types for the app module.
-//! These types are backend-independent and can be used with any HTTP server.
-//!
-//! This module re-exports types from `std.http` where available for consistency
-//! with Zig's standard library.
-
 const std = @import("std");
 
-// --- HTTP Header (from std.http) --- //
-
-/// HTTP header name/value pair - re-exported from std.http.Header for consistency.
-///
-/// Fields:
-/// - `name`: The header name (e.g., "Content-Type", "Authorization")
-/// - `value`: The header value
-///
-/// **Zig Note:** This uses `name` (as per RFC 7230) rather than `key`.
+/// HTTP header name/value pair
 pub const Header = std.http.Header;
 
-/// Alias for backward compatibility.
-/// @deprecated Use `Header` instead.
-pub const Entry = Header;
-
 /// HTTP header iterator for parsing raw header bytes.
-/// Re-exported from std.http.HeaderIterator for convenience.
 ///
 /// Useful for parsing HTTP headers from raw bytes. Initializes with `init(bytes)`
 /// and iterates via `next()` returning `?Header`.
@@ -51,26 +32,14 @@ pub const MultiFormEntry = struct {
 ///
 /// **Note:** Unlike some HTTP libraries, std.http.Method does not have an "OTHER"
 /// variant for unknown methods. All standard HTTP methods are supported.
+/// TODO: move to using own custom Method type that includes an "OTHER" variant for non-standard methods.
 pub const Method = std.http.Method;
 
-// --- HTTP Version (from std.http) --- //
-
-/// HTTP protocol versions - re-exported from std.http.Version for convenience.
-///
-/// Values:
-/// - `@"HTTP/1.0"`: HTTP/1.0 protocol
-/// - `@"HTTP/1.1"`: HTTP/1.1 protocol
+/// HTTP protocol versions
 pub const Version = std.http.Version;
-
-/// Alias for backward compatibility.
-/// @deprecated Use `Version` instead.
-pub const Protocol = Version;
-
-// --- Cookie Types --- //
 
 /// Cookie accessor - parses cookies from the Cookie header.
 ///
-/// **Zig Note:** This is an extension type not present in the web standard.
 /// In browsers, cookies are accessed via `document.cookie`.
 pub const Cookies = struct {
     header_value: []const u8,
@@ -163,10 +132,8 @@ pub fn statusCodeToText(code: u16) []const u8 {
 
 /// Common MIME content types.
 ///
-/// https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
+/// MDN: https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Common_types
 ///
-/// **Zig Note:** The standard library does not provide a ContentType enum.
-/// This enum uses the actual MIME type string as the tag name for convenience.
 pub const ContentType = enum {
     // Application types
     @"application/gzip",
@@ -226,19 +193,11 @@ pub const ContentType = enum {
     }
 };
 
-// --- Re-exports from std.http for convenience --- //
-
 /// HTTP content encoding - re-exported from std.http.ContentEncoding.
-///
-/// Values: zstd, gzip, deflate, compress, identity
 pub const ContentEncoding = std.http.ContentEncoding;
 
 /// HTTP transfer encoding - re-exported from std.http.TransferEncoding.
-///
-/// Values: chunked, none
 pub const TransferEncoding = std.http.TransferEncoding;
 
 /// HTTP connection type - re-exported from std.http.Connection.
-///
-/// Values: keep_alive, close
 pub const Connection = std.http.Connection;

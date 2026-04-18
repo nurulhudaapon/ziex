@@ -150,12 +150,12 @@ fn onFormActionResponse(
     _: ?@import("../core/Fetch.zig").FetchError,
 ) void {
     const cb_ctx: *FormActionCallbackCtx = @ptrCast(@alignCast(ctx_ptr));
-    defer zx.client_allocator.destroy(cb_ctx);
+    defer zx.allocator.destroy(cb_ctx);
 
     const resp = response orelse return;
     if (resp._body.len == 0) return;
 
-    const states = zx.util.zxon.parse([]const []const u8, zx.client_allocator, resp._body, .{}) catch return;
+    const states = zx.util.zxon.parse([]const []const u8, zx.allocator, resp._body, .{}) catch return;
     for (states, 0..) |state_json, i| {
         if (i >= cb_ctx.bound_states.len) break;
         const bs = cb_ctx.bound_states[i];
@@ -176,7 +176,7 @@ fn formActionCallback(ctx: *anyopaque, event: zx.client.Event) void {
     }
 
     // Stateful: serialise bound-state values → JSON array → __$states field.
-    const alloc = zx.client_allocator;
+    const alloc = zx.allocator;
     var states_list = std.ArrayList([]const u8).empty;
     for (form_ctx.bound_states) |bs| {
         states_list.append(alloc, bs.getJson(alloc, bs.state_ptr)) catch {};
