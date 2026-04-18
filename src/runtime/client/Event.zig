@@ -7,10 +7,12 @@ const std = @import("std");
 const zx = @import("../../root.zig");
 const pltfm = @import("../../platform.zig");
 const client = @import("window.zig");
+const generated_events = @import("events_generated.zig");
 const reactivity = client.reactivity;
 
 const platform_role = pltfm.platform.role;
 const gpa = if (@import("builtin").os.tag == .freestanding) std.heap.wasm_allocator else std.heap.page_allocator;
+pub const Kind = generated_events.Kind;
 
 const Event = @This();
 
@@ -52,6 +54,68 @@ pub fn key(self: Event) ?[]const u8 {
     return event.ref.getAlloc(real_js.String, gpa, "key") catch null;
 }
 
+/// Get the event data by providing zx.client.events.<Type>.
+pub fn as(self: Event, comptime T: type, allocator: std.mem.Allocator) T {
+    if (platform_role != .client) return std.mem.zeroInit(T, .{});
+    return readStruct(T, allocator, self.getEvent().ref);
+}
+
+pub fn data(self: Event, comptime kind: Kind, allocator: std.mem.Allocator) Data(kind) {
+    return self.as(Data(kind), allocator);
+}
+
+pub const Data = generated_events.Data;
+
+fn readStruct(comptime T: type, allocator: std.mem.Allocator, obj: @import("js").Object) T {
+    const info = @typeInfo(T).@"struct";
+    var result: T = std.mem.zeroInit(T, .{});
+    inline for (info.fields) |field| {
+        if (readField(field.type, allocator, obj, field.name)) |v| {
+            @field(result, field.name) = v;
+        }
+    }
+    return result;
+}
+
+fn readField(comptime F: type, allocator: std.mem.Allocator, obj: @import("js").Object, comptime name: []const u8) ?F {
+    const real_js = @import("js");
+    const finfo = @typeInfo(F);
+    const Child = if (finfo == .optional) finfo.optional.child else F;
+    const child_info = @typeInfo(Child);
+    const raw = obj.value.get(name) catch return null;
+    defer raw.deinit();
+
+    const raw_type = raw.typeOf();
+    if (raw_type == .null or raw_type == .undefined) return null;
+
+    switch (child_info) {
+        .@"struct" => {
+            if (raw_type != .object and raw_type != .function) return null;
+            const sub = real_js.Object{ .value = raw };
+            return readStruct(Child, allocator, sub);
+        },
+        .pointer => |p| {
+            if (p.size == .slice and p.child == u8) {
+                if (raw_type != .string) return null;
+                return raw.string(allocator) catch null;
+            }
+            @compileError("unsupported pointer field type in Event.as: " ++ @typeName(F));
+        },
+        .int, .float => {
+            if (raw_type != .number) return null;
+            if (child_info == .int) {
+                return @as(Child, @intFromFloat(raw.float() catch return null));
+            }
+            return @as(Child, @floatCast(raw.float() catch return null));
+        },
+        .bool => {
+            if (raw_type != .boolean) return null;
+            return raw.boolean() catch null;
+        },
+        else => @compileError("unsupported field type in Event.as: " ++ @typeName(F)),
+    }
+}
+
 // --- Stateful --- //
 
 /// Stateful client event - provides `state()` access to bound component state.
@@ -87,5 +151,13 @@ pub const Stateful = struct {
 
     pub fn key(self: Stateful) ?[]const u8 {
         return self._inner.key();
+    }
+
+    pub fn as(self: Stateful, comptime T: type, allocator: std.mem.Allocator) T {
+        return self._inner.as(T, allocator);
+    }
+
+    pub fn data(self: Stateful, comptime kind: Kind, allocator: std.mem.Allocator) Data(kind) {
+        return self._inner.data(kind, allocator);
     }
 };

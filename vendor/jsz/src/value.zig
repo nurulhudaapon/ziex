@@ -138,7 +138,7 @@ pub const Value = enum(u64) {
     /// Get the value of a property of an object.
     pub fn get(self: Value, n: []const u8) !Value {
         if (self.typeOf() != .object) return js.Error.InvalidType;
-        var result: u64 = undefined;
+        var result: u64 = @bitCast(js.Ref.undefined);
         ext.valueGet(&result, self.ref().id, n.ptr, n.len);
         return @enumFromInt(result);
     }
@@ -177,7 +177,7 @@ pub const Value = enum(u64) {
     }
 
     /// Returns the bool value if this is a boolean.
-    pub fn boolean(self: Value) !f64 {
+    pub fn boolean(self: Value) !bool {
         if (self.typeOf() != .boolean) return js.Error.InvalidType;
         return self == .true;
     }

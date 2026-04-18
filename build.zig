@@ -218,6 +218,28 @@ pub fn build(b: *std.Build) !void {
         css_gen_step.dependOn(&css_gen_run.step);
     }
 
+    // --- Steps: Events Generator --- //
+    {
+        const events_gen_step = b.step("eventsgen", "Generate DOM event types from webref");
+
+        const events_gen_exe = b.addExecutable(.{
+            .name = "eventsgen",
+            .root_module = b.createModule(.{
+                .root_source_file = b.path("tools/codegen/events.zig"),
+                .target = target,
+                .optimize = optimize,
+            }),
+        });
+        const events_gen_run = b.addRunArtifact(events_gen_exe);
+
+        if (std.fs.cwd().access("vendor/webref", .{})) |_| {} else |_| {
+            const sync_cmd = b.addSystemCommand(&.{ "./tools/syncvendor", "webref" });
+            events_gen_run.step.dependOn(&sync_cmd.step);
+        }
+
+        events_gen_step.dependOn(&events_gen_run.step);
+    }
+
     // --- ZX Releases (Cross-compilation targets for all platforms) --- //
     {
         const release_targets = [_]struct {

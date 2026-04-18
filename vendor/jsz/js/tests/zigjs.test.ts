@@ -179,6 +179,19 @@ test('valueSet: ref', () => {
   expect(globalThis[key]).toEqual(true);
 });
 
+test('storeValue: boolean uses predefined refs', () => {
+  const st = new ZigJS();
+  const memory = new WebAssembly.Memory({ initial: 1 });
+  const view = new DataView(memory.buffer);
+  st.memory = memory;
+
+  st.storeValue(0, true);
+  expect(view.getUint32(0, true)).toEqual(predefined.true);
+
+  st.storeValue(8, false);
+  expect(view.getUint32(8, true)).toEqual(predefined.false);
+});
+
 test('valueStringCreate', () => {
   const st = new ZigJS();
   const obj = st.importObject();

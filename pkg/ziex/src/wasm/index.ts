@@ -593,25 +593,27 @@ const TAG_NAMES = [
 ] as const;
 
 const DELEGATED_EVENTS = [
-    'click', 'dblclick',
-    'input', 'change', 'submit',
-    'focus', 'blur',
-    'keydown', 'keyup', 'keypress',
-    'mouseenter', 'mouseleave',
-    'mousedown', 'mouseup', 'mousemove',
-    'touchstart', 'touchend', 'touchmove',
-    'scroll',
+    { domType: 'click', eventTypeId: 0 },
+    { domType: 'dblclick', eventTypeId: 1 },
+    { domType: 'input', eventTypeId: 2 },
+    { domType: 'change', eventTypeId: 3 },
+    { domType: 'submit', eventTypeId: 4 },
+    // focus/blur do not bubble, so delegated handlers must listen to focusin/focusout.
+    { domType: 'focusin', eventTypeId: 5 },
+    { domType: 'focusout', eventTypeId: 6 },
+    { domType: 'keydown', eventTypeId: 7 },
+    { domType: 'keyup', eventTypeId: 8 },
+    { domType: 'keypress', eventTypeId: 9 },
+    { domType: 'mouseenter', eventTypeId: 10 },
+    { domType: 'mouseleave', eventTypeId: 11 },
+    { domType: 'mousedown', eventTypeId: 12 },
+    { domType: 'mouseup', eventTypeId: 13 },
+    { domType: 'mousemove', eventTypeId: 14 },
+    { domType: 'touchstart', eventTypeId: 15 },
+    { domType: 'touchend', eventTypeId: 16 },
+    { domType: 'touchmove', eventTypeId: 17 },
+    { domType: 'scroll', eventTypeId: 18 },
 ] as const;
-
-type DelegatedEvent = typeof DELEGATED_EVENTS[number];
-
-const EVENT_TYPE_MAP: Record<DelegatedEvent, number> = {
-    'click': 0, 'dblclick': 1, 'input': 2, 'change': 3, 'submit': 4,
-    'focus': 5, 'blur': 6, 'keydown': 7, 'keyup': 8, 'keypress': 9,
-    'mouseenter': 10, 'mouseleave': 11, 'mousedown': 12, 'mouseup': 13,
-    'mousemove': 14, 'touchstart': 15, 'touchend': 16, 'touchmove': 17,
-    'scroll': 18,
-};
 
 const eventHandlerModes = new Map<bigint, number>();
 
@@ -622,23 +624,23 @@ export function initEventDelegation(bridge: ZxBridge, rootSelector: string = 'bo
 
     const removers: Array<() => void> = [];
 
-    for (const eventType of DELEGATED_EVENTS) {
+    for (const delegatedEvent of DELEGATED_EVENTS) {
         const listener = (event: Event) => {
             let target = event.target as HTMLElement | null;
             while (target && target !== document.body) {
                 const zxRef = (target as any).__zx_ref;
                 if (zxRef !== undefined) {
-                    bridge.eventbridge(BigInt(zxRef), EVENT_TYPE_MAP[eventType] ?? 0, event);
+                    bridge.eventbridge(BigInt(zxRef), delegatedEvent.eventTypeId, event);
                     if (event.cancelBubble) break;
                 }
                 target = target.parentElement;
             }
         };
 
-        const options = { passive: eventType.startsWith('touch') || eventType === 'scroll' };
-        root.addEventListener(eventType, listener, options);
+        const options = { passive: delegatedEvent.domType.startsWith('touch') || delegatedEvent.domType === 'scroll' };
+        root.addEventListener(delegatedEvent.domType, listener, options);
         // @ts-ignore
-        removers.push(() => root.removeEventListener(eventType, listener, options));
+        removers.push(() => root.removeEventListener(delegatedEvent.domType, listener, options));
     }
 
     return () => {

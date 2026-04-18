@@ -19,17 +19,75 @@ pub fn ClientCounter(ctx: *zx.ComponentContext) !zx.Component {
     return (
         <div @allocator={ctx.allocator}>
             <button onclick={ctx.bind(onclick)}>
-                Client count: {if (count.get() == 0)("...")else (<>{count}</>)}
+                Client count: {if (count.get() == 0) ("...") else (<>{count}</>)}
             </button>
+            <div style="margin-top: 1rem;">
+                <input
+                    type="text"
+                    placeholder="Type here to test generated events"
+                    onfocus={ctx.bind(onfocus)}
+                    oninput={ctx.bind(oninput)}
+                    onkeydown={ctx.bind(onkeydown)}
+                />
+                <form onsubmit={ctx.bind(onsubmit)} style="margin-top: 0.75rem;">
+                    <button type="submit">Submit Test Form</button>
+                </form>
+            </div>
         </div>
     );
 }
 
 fn onclick(ctx: *zx.client.Event.Stateful) void {
     zx.log.info("counter click\n", .{});
+
+    const data = ctx.data(.mousedown, zx.allocator);
+    zx.log.info("event: type={s} at ({d},{d}) on <{s}>", .{
+        data.type,
+        data.clientX,
+        data.clientY,
+        if (data.target) |target| target.tagName else "unknown",
+    });
+
     tryonclick(ctx) catch |e| {
         zx.log.err("Error in onclick handler: {s}", .{@errorName(e)});
     };
+}
+
+fn onfocus(ctx: *zx.client.Event.Stateful) void {
+    const data = ctx.data(.focusin, zx.allocator);
+    zx.log.info("focus: type={s} relatedTarget?={any}", .{
+        data.type,
+        data.relatedTarget != null,
+    });
+}
+
+fn oninput(ctx: *zx.client.Event.Stateful) void {
+    const data = ctx.data(.input, zx.allocator);
+    zx.log.info("input: type={s} value={s} bubbles={any}", .{
+        data.type,
+        ctx.value() orelse "",
+        data.bubbles,
+    });
+}
+
+fn onkeydown(ctx: *zx.client.Event.Stateful) void {
+    const data = ctx.data(.keydown, zx.allocator);
+    zx.log.info("keydown: key={s} code={s} ctrl={any} shift={any}", .{
+        data.key,
+        data.code,
+        data.ctrlKey,
+        data.shiftKey,
+    });
+}
+
+fn onsubmit(ctx: *zx.client.Event.Stateful) void {
+    ctx.preventDefault();
+    const data = ctx.data(.submit, zx.allocator);
+    zx.log.info("submit: type={s} bubbles={any} cancelable={any}", .{
+        data.type,
+        data.bubbles,
+        data.cancelable,
+    });
 }
 
 fn init(count: *zx.State(u64)) !void {

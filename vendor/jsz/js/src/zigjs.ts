@@ -230,6 +230,12 @@ export class ZigJS {
       return;
     }
 
+    if (typeof val === "boolean") {
+      view.setUint32(out, val ? predefined.true : predefined.false, true);
+      view.setUint32(out + 4, NAN_PREFIX, true);
+      return;
+    }
+
     // Determine our ID
     let id = this.idPool.pop();
     if (id === undefined) {
