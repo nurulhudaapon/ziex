@@ -149,6 +149,61 @@ test "api > statement get/all/values and metadata" {
     try std.testing.expectEqualStrings("Ada", expectText(values_rows[0][1]));
 }
 
+test "api > statement typed row and rows" {
+    const UserRow = struct {
+        id: i64,
+        name: []const u8,
+        score: f64,
+    };
+
+    const UserName = struct {
+        id: i64,
+        name: []const u8,
+    };
+
+    var database = try openSeededDatabase();
+    defer database.deinit();
+
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    var one_stmt = try database.prepare(
+        \\SELECT id, name, score
+        \\FROM users
+        \\WHERE name = $name
+    );
+    defer one_stmt.deinit();
+
+    const typed_row = (try one_stmt.row(alloc, UserRow, db.Bindings.fromNamed(&.{
+        .{ .name = "$name", .value = .{ .text = "Ada" } },
+    }))).?;
+    try std.testing.expectEqual(@as(i64, 1), typed_row.id);
+    try std.testing.expectEqualStrings("Ada", typed_row.name);
+    try std.testing.expectApproxEqAbs(@as(f64, 9.5), typed_row.score, 0.0001);
+
+    var many_stmt = try database.prepare(
+        \\SELECT id, name
+        \\FROM users
+        \\ORDER BY id
+    );
+    defer many_stmt.deinit();
+
+    const typed_rows = try many_stmt.rows(alloc, UserName, .empty);
+    try std.testing.expectEqual(@as(usize, 2), typed_rows.len);
+    try std.testing.expectEqual(@as(i64, 1), typed_rows[0].id);
+    try std.testing.expectEqualStrings("Ada", typed_rows[0].name);
+    try std.testing.expectEqual(@as(i64, 2), typed_rows[1].id);
+    try std.testing.expectEqualStrings("Grace", typed_rows[1].name);
+
+    const raw_row = (try one_stmt.get(alloc, db.Bindings.fromNamed(&.{
+        .{ .name = "$name", .value = .{ .text = "Ada" } },
+    }))).?;
+    try std.testing.expectEqual(@as(i64, 1), try raw_row.getTyped(i64, "id"));
+    try std.testing.expectEqualStrings("Ada", try raw_row.getTyped([]const u8, "name"));
+    try std.testing.expectError(db.DbError.InvalidQuery, raw_row.getTyped(i64, "missing_column"));
+}
+
 test "api > statement run with named bindings" {
     var database = try openTestDatabase();
     defer database.deinit();
