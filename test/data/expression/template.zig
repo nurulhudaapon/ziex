@@ -2,7 +2,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     const count = 42;
     const name = "John";
 
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .section,
         .{
@@ -44,7 +44,7 @@ fn Component(ctx: *zx.ComponentCtx(struct {
     text: []const u8,
     name: []const u8,
 })) zx.Component {
-    var _zx = @import("zx").init();
+    var _zx = @import("zx").x.init();
     return _zx.ele(
         .div,
         .{

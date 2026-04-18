@@ -3,7 +3,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     const value: i32 = 42;
     const class = "b-1 bold";
 
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .form,
         .{

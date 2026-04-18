@@ -2,7 +2,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     const user_type: UserType = .admin;
     const admin_users = [_][]const u8{ "John", "Jane" };
     const member_users = [_][]const u8{ "Jim", "Jill" };
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .main,
         .{

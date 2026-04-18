@@ -1,6 +1,6 @@
 pub fn Collection(allocator: zx.Allocator, props: anytype) zx.Component {
     const cards = props.cards;
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .div,
         .{

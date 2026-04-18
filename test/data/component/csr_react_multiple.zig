@@ -1,7 +1,7 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     const max_count = 10;
 
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .main,
         .{

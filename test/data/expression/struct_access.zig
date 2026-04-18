@@ -2,7 +2,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     const user = User{ .name = "Alice", .age = 25 };
     const product = Product{ .title = "Book", .price = 29.99 };
 
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .main,
         .{

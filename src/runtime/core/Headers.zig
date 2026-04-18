@@ -1,33 +1,18 @@
-//! MDN Web API compliant Headers abstraction.
-//! This module is backend-agnostic. The actual implementation is provided via vtable.
-//! https://developer.mozilla.org/en-US/docs/Web/API/Headers
-
 const std = @import("std");
 const common = @import("common.zig");
 
 pub const Headers = @This();
 
-// Re-export types from std.http
 pub const Header = common.Header;
-/// @deprecated Use `Header` instead.
-pub const Entry = Header;
 
 /// HTTP header iterator for parsing raw header bytes.
-/// Re-exported from std.http.HeaderIterator for convenience.
 ///
 /// This is useful when you have raw HTTP protocol bytes and need to parse headers.
 /// For iterating over headers from a backend, use the `entries()` method which
 /// returns the vtable-based `Iterator`.
-///
-/// [Zig std.http Reference](https://ziglang.org/documentation/master/std/#std.http.HeaderIterator)
 pub const HeaderIterator = std.http.HeaderIterator;
 
-// --- Headers Data --- //
-
-/// Backend-specific context pointer (null for WASM/client-side)
 backend_ctx: ?*anyopaque = null,
-
-/// VTable for backend-specific operations
 vtable: ?*const VTable = null,
 
 /// Whether this Headers instance is read-only (from request)
@@ -69,6 +54,7 @@ pub fn has(self: *const Headers, name: []const u8) bool {
 }
 
 /// Appends a new value onto an existing header (response only, no-op for request).
+///
 /// https://developer.mozilla.org/en-US/docs/Web/API/Headers/append
 pub fn append(self: *Headers, name: []const u8, value: []const u8) void {
     if (self.read_only) return;
@@ -80,6 +66,7 @@ pub fn append(self: *Headers, name: []const u8, value: []const u8) void {
 }
 
 /// Sets a header value (response only, no-op for request).
+///
 /// https://developer.mozilla.org/en-US/docs/Web/API/Headers/set
 pub fn set(self: *Headers, name: []const u8, value: []const u8) void {
     if (self.read_only) return;
@@ -91,6 +78,7 @@ pub fn set(self: *Headers, name: []const u8, value: []const u8) void {
 }
 
 /// Deletes a header. Note: Most backends don't support header deletion.
+///
 /// https://developer.mozilla.org/en-US/docs/Web/API/Headers/delete
 pub fn delete(self: *Headers, name: []const u8) void {
     _ = self;
@@ -109,6 +97,7 @@ pub fn entries(self: *const Headers) ?Iterator {
 }
 
 /// Executes a provided function once for each header.
+///
 /// https://developer.mozilla.org/en-US/docs/Web/API/Headers/forEach
 pub fn forEach(self: *const Headers, callback: *const fn (value: []const u8, key: []const u8) void) void {
     if (self.entries()) |*iter| {
@@ -119,18 +108,6 @@ pub fn forEach(self: *const Headers, callback: *const fn (value: []const u8, key
     }
 }
 
-// --- Iterator (vtable-based, for backend abstraction) --- //
-
-/// Backend-agnostic iterator for iterating over headers.
-///
-/// Example:
-/// ```zig
-/// if (headers.entries()) |*iter| {
-///     while (iter.next()) |header| {
-///         std.debug.print("{s}: {s}\n", .{ header.name, header.value });
-///     }
-/// }
-/// ```
 pub const Iterator = struct {
     backend_ctx: ?*anyopaque = null,
     nextFn: ?*const fn (ctx: *anyopaque) ?Header = null,

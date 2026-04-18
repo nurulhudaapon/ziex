@@ -1,5 +1,5 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .main,
         .{
@@ -23,7 +23,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
 
 const CardProps = struct { title: []const u8, children: zx.Component };
 fn Card(allocator: zx.Allocator, props: CardProps) zx.Component {
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .div,
         .{
@@ -61,7 +61,7 @@ fn Card(allocator: zx.Allocator, props: CardProps) zx.Component {
 
 const ButtonProps = struct { label: []const u8 };
 fn Button(allocator: zx.Allocator, props: ButtonProps) zx.Component {
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .button,
         .{

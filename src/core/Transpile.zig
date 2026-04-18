@@ -501,7 +501,7 @@ pub fn transpileReturn(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void 
                     const allocator_value = try getAllocatorAttribute(self, child);
 
                     // Synthesized _zx init - no source mapping (it's boilerplate)
-                    try ctx.write("var _zx = @import(\"zx\").");
+                    try ctx.write("var _zx = @import(\"zx\").x.");
                     if (allocator_value) |alloc| {
                         try ctx.write("allocInit(");
                         try ctx.write(alloc);
@@ -580,7 +580,7 @@ pub fn transpileBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
 
                 ctx.indent_level += 1;
                 try ctx.writeIndent();
-                try ctx.write("var _zx = @import(\"zx\").");
+                try ctx.write("var _zx = @import(\"zx\").x.");
                 if (allocator_value) |alloc| {
                     try ctx.write("allocInit(");
                     try ctx.write(alloc);

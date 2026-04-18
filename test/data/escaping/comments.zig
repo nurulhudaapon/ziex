@@ -1,5 +1,5 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .section,
         .{
@@ -13,7 +13,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
 }
 
 pub fn Comments(_: zx.ComponentContext) zx.Component {
-    var _zx = @import("zx").init();
+    var _zx = @import("zx").x.init();
     return _zx.ele(
         .div,
         .{
@@ -30,7 +30,7 @@ pub fn Comments(_: zx.ComponentContext) zx.Component {
 }
 
 pub fn EmptyComments(_: zx.ComponentContext) zx.Element {
-    var _zx = @import("zx").init();
+    var _zx = @import("zx").x.init();
     return _zx.ele(
         .div,
         .{
@@ -49,7 +49,7 @@ pub fn EmptyComments(_: zx.ComponentContext) zx.Element {
 }
 
 pub fn CommentsWithSpecialChars(_: zx.ComponentContext) zx.Element {
-    var _zx = @import("zx").init();
+    var _zx = @import("zx").x.init();
     return _zx.ele(
         .div,
         .{
@@ -69,7 +69,7 @@ pub fn CommentsWithSpecialChars(_: zx.ComponentContext) zx.Element {
 
 pub fn CommentsWithExpressions(_: zx.ComponentContext) zx.Element {
     const value = "test";
-    var _zx = @import("zx").init();
+    var _zx = @import("zx").x.init();
     return _zx.ele(
         .div,
         .{
@@ -91,7 +91,7 @@ pub fn CommentsWithExpressions(_: zx.ComponentContext) zx.Element {
 }
 
 pub fn NestedComments(_: zx.ComponentContext) zx.Element {
-    var _zx = @import("zx").init();
+    var _zx = @import("zx").x.init();
     return _zx.ele(
         .div,
         .{
@@ -124,7 +124,7 @@ pub fn NestedComments(_: zx.ComponentContext) zx.Element {
 }
 
 pub fn CommentsWithAttributes(_: zx.ComponentContext) zx.Element {
-    var _zx = @import("zx").init();
+    var _zx = @import("zx").x.init();
     return _zx.ele(
         .div,
         .{
@@ -143,7 +143,7 @@ pub fn CommentsWithAttributes(_: zx.ComponentContext) zx.Element {
 }
 
 pub fn MixedCommentsAndContent(_: zx.ComponentContext) zx.Element {
-    var _zx = @import("zx").init();
+    var _zx = @import("zx").x.init();
     return _zx.ele(
         .ul,
         .{
@@ -178,7 +178,7 @@ pub fn MixedCommentsAndContent(_: zx.ComponentContext) zx.Element {
 }
 
 pub fn CommentsWithZigCode(_: zx.ComponentContext) zx.Element {
-    var _zx = @import("zx").init();
+    var _zx = @import("zx").x.init();
     return _zx.ele(
         .div,
         .{
@@ -197,7 +197,7 @@ pub fn CommentsWithZigCode(_: zx.ComponentContext) zx.Element {
 }
 
 pub fn CommentsOnlyComponent(_: zx.ComponentContext) zx.Element {
-    var _zx = @import("zx").init();
+    var _zx = @import("zx").x.init();
     return _zx.ele(
         .div,
         .{
@@ -207,7 +207,7 @@ pub fn CommentsOnlyComponent(_: zx.ComponentContext) zx.Element {
 }
 
 pub fn CommentsBetweenSiblings(_: zx.ComponentContext) zx.Element {
-    var _zx = @import("zx").init();
+    var _zx = @import("zx").x.init();
     return _zx.ele(
         .div,
         .{

@@ -14,6 +14,7 @@ node_modules
 # pkg/transformjs
 tmp
 test/data/assets/
+test/data/**/*.zxcache
 /package.json
 /bun.lock
 /src/cli/init/template/bun.lock

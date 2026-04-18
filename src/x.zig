@@ -26,7 +26,7 @@ pub const ComponentClientOptions = struct {
     id: []const u8,
 };
 
-const ZxOptions = struct {
+const Options = struct {
     children: ?[]const Component = null,
     attributes: ?[]const Element.Attribute = null,
     allocator: ?std.mem.Allocator = null,
@@ -41,23 +41,15 @@ const ZxOptions = struct {
     name: ?[]const u8 = null,
 };
 
-/// Initialize a ZxContext without an allocator
+/// Initialize a Context without an allocator
 /// The allocator must be provided via @allocator attribute on the parent element
-pub fn init() ZxContext {
+pub fn init() Context {
     return .{ .allocator = std.heap.page_allocator };
 }
 
-/// Initialize a ZxContext with an allocator (for backward compatibility with direct API usage)
-pub fn allocInit(allocator: std.mem.Allocator) ZxContext {
+/// Initialize a Context with an allocator (for backward compatibility with direct API usage)
+pub fn allocInit(allocator: std.mem.Allocator) Context {
     return .{ .allocator = allocator };
-}
-
-pub fn x(tag: ElementTag, options: ZxOptions) Component {
-    return .{ .element = .{
-        .tag = tag,
-        .children = options.children,
-        .attributes = options.attributes,
-    } };
 }
 
 /// Create a lazy component from a function
@@ -68,14 +60,14 @@ pub fn lazy(allocator: Allocator, comptime func: anytype, props: anytype) Compon
 }
 
 /// Context for creating components with allocator support
-pub const ZxContext = struct {
+const Context = struct {
     allocator: ?std.mem.Allocator = null,
 
-    pub fn getAlloc(self: *ZxContext) std.mem.Allocator {
+    pub fn getAlloc(self: *Context) std.mem.Allocator {
         return self.allocator orelse @panic("Allocator not set. Please provide @allocator attribute to the parent element.");
     }
 
-    fn escapeHtml(self: *ZxContext, text: []const u8) []const u8 {
+    fn escapeHtml(self: *Context, text: []const u8) []const u8 {
         // On browser, DOM APIs (textContent) handle escaping automatically
         // We only need to escape when generating HTML strings on the server
         // TODO: we would want to move the escaping logic at the time of rendering the element, and simply not use escapeHtml for client side rendering
@@ -90,7 +82,7 @@ pub const ZxContext = struct {
         return allocator.dupe(u8, aw.written()) catch @panic("OOM");
     }
 
-    pub fn ele(self: *ZxContext, tag: ElementTag, options: ZxOptions) Component {
+    pub fn ele(self: *Context, tag: ElementTag, options: Options) Component {
         // Set allocator from @allocator option if provided
         if (options.allocator) |allocator| {
             self.allocator = allocator;
@@ -123,12 +115,12 @@ pub const ZxContext = struct {
         } };
     }
 
-    pub fn txt(self: *ZxContext, text: []const u8) Component {
+    pub fn txt(self: *Context, text: []const u8) Component {
         const escaped = self.escapeHtml(text);
         return .{ .text = escaped };
     }
 
-    pub fn expr(self: *ZxContext, val: anytype) Component {
+    pub fn expr(self: *Context, val: anytype) Component {
         const T = @TypeOf(val);
 
         if (T == Component) return val;
@@ -209,13 +201,13 @@ pub const ZxContext = struct {
         return Cmp;
     }
 
-    pub fn fmt(self: *ZxContext, comptime format: []const u8, args: anytype) Component {
+    pub fn fmt(self: *Context, comptime format: []const u8, args: anytype) Component {
         const allocator = self.getAlloc();
         const text = std.fmt.allocPrint(allocator, format, args) catch @panic("OOM");
         return .{ .text = text };
     }
 
-    pub fn printf(self: *ZxContext, comptime format: []const u8, args: anytype) []const u8 {
+    pub fn printf(self: *Context, comptime format: []const u8, args: anytype) []const u8 {
         const allocator = self.getAlloc();
         const text = std.fmt.allocPrint(allocator, format, args) catch @panic("OOM");
         return text;
@@ -223,7 +215,7 @@ pub const ZxContext = struct {
 
     /// Create an attribute with type-aware value handling
     /// Returns null for values that should omit the attribute (false booleans, null optionals)
-    pub fn attr(self: *ZxContext, comptime name: []const u8, val: anytype) ?Element.Attribute {
+    pub fn attr(self: *Context, comptime name: []const u8, val: anytype) ?Element.Attribute {
         const T = @TypeOf(val);
 
         if (comptime isStatePointer(T)) {
@@ -314,13 +306,13 @@ pub const ZxContext = struct {
         };
     }
 
-    pub fn attrf(self: *ZxContext, comptime name: []const u8, comptime format: []const u8, args: anytype) ?Element.Attribute {
+    pub fn attrf(self: *Context, comptime name: []const u8, comptime format: []const u8, args: anytype) ?Element.Attribute {
         const allocator = self.getAlloc();
         const text = std.fmt.allocPrint(allocator, format, args) catch @panic("OOM");
         return self.attr(name, text);
     }
 
-    pub fn attrv(self: *ZxContext, val: anytype) []const u8 {
+    pub fn attrv(self: *Context, val: anytype) []const u8 {
         const attrkv = self.attr("f", val);
         if (attrkv) |a| {
             return a.value orelse "";
@@ -328,14 +320,14 @@ pub const ZxContext = struct {
         return "";
     }
 
-    pub fn propf(self: *ZxContext, comptime format: []const u8, args: anytype) []const u8 {
+    pub fn propf(self: *Context, comptime format: []const u8, args: anytype) []const u8 {
         const allocator = self.getAlloc();
         return std.fmt.allocPrint(allocator, format, args) catch @panic("OOM");
     }
     pub const propv = attrv;
 
     /// Filter and collect non-null attributes into a slice
-    pub fn attrs(self: *ZxContext, inputs: anytype) []const Element.Attribute {
+    pub fn attrs(self: *Context, inputs: anytype) []const Element.Attribute {
         const allocator = self.getAlloc();
         const InputType = @TypeOf(inputs);
         const input_info = @typeInfo(InputType);
@@ -376,7 +368,7 @@ pub const ZxContext = struct {
 
     /// Spread a struct's fields as attributes
     /// Takes a struct and returns a slice of attributes for each field
-    pub fn attrSpr(self: *ZxContext, props: anytype) []const ?Element.Attribute {
+    pub fn attrSpr(self: *Context, props: anytype) []const ?Element.Attribute {
         const allocator = self.getAlloc();
         const T = @TypeOf(props);
         const type_info = @typeInfo(T);
@@ -400,7 +392,7 @@ pub const ZxContext = struct {
 
     /// Merge two structs for component props spreading
     /// Later fields override earlier ones
-    pub fn propsM(_: *ZxContext, base: anytype, overrides: anytype) prp.MergedPropsType(@TypeOf(base), @TypeOf(overrides)) {
+    pub fn propsM(_: *Context, base: anytype, overrides: anytype) prp.MergedPropsType(@TypeOf(base), @TypeOf(overrides)) {
         const BaseType = @TypeOf(base);
         const OverrideType = @TypeOf(overrides);
         const ResultType = prp.MergedPropsType(BaseType, OverrideType);
@@ -433,7 +425,7 @@ pub const ZxContext = struct {
     /// - ?Element.Attribute (single attribute from attr())
     /// - []const ?Element.Attribute (slice from attrSpr())
     /// Later attributes with the same name override earlier ones (like JSX)
-    pub fn attrsM(self: *ZxContext, inputs: anytype) []const Element.Attribute {
+    pub fn attrsM(self: *Context, inputs: anytype) []const Element.Attribute {
         const allocator = self.getAlloc();
         const InputType = @TypeOf(inputs);
         const input_info = @typeInfo(InputType);
@@ -519,7 +511,7 @@ pub const ZxContext = struct {
         return result;
     }
 
-    pub fn cmp(self: *ZxContext, comptime func: anytype, options: ZxOptions, props: anytype) Component {
+    pub fn cmp(self: *Context, comptime func: anytype, options: Options, props: anytype) Component {
         const allocator = self.getAlloc();
 
         const FuncInfo = @typeInfo(@TypeOf(func));
@@ -600,7 +592,7 @@ pub const ZxContext = struct {
     }
 
     /// Allocates a Component and returns a pointer to it (used for @fallback)
-    pub fn ptr(self: *ZxContext, component: Component) *const Component {
+    pub fn ptr(self: *Context, component: Component) *const Component {
         const allocator = self.getAlloc();
         const allocated = allocator.create(Component) catch @panic("OOM");
         allocated.* = component;
@@ -609,7 +601,7 @@ pub const ZxContext = struct {
 
     /// Creates a React client-side rendered component.
     /// Uses JSON serialization for props to match React's expected format.
-    pub fn client(self: *ZxContext, options: ClientComponentOptions, props: anytype) Component {
+    pub fn client(self: *Context, options: ClientComponentOptions, props: anytype) Component {
         const allocator = self.getAlloc();
         const Props = @TypeOf(props);
 

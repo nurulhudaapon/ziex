@@ -1,5 +1,5 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .main,
         .{
@@ -40,7 +40,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
 
 /// Component using ComponentContext (void props, children only)
 pub fn Wrapper(ctx: *zx.ComponentContext) zx.Component {
-    var _zx = @import("zx").allocInit(ctx.allocator);
+    var _zx = @import("zx").x.allocInit(ctx.allocator);
     return _zx.ele(
         .div,
         .{
@@ -57,7 +57,7 @@ pub fn Wrapper(ctx: *zx.ComponentContext) zx.Component {
 
 /// Another component using ComponentContext
 fn Card(ctx: *zx.ComponentContext) zx.Component {
-    var _zx = @import("zx").allocInit(ctx.allocator);
+    var _zx = @import("zx").x.allocInit(ctx.allocator);
     return _zx.ele(
         .article,
         .{

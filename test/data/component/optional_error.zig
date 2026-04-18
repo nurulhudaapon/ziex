@@ -1,6 +1,6 @@
 /// Test: Components with error union of optional return type (!?Component)
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .main,
         .{
@@ -25,7 +25,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
 const MaybeProps = struct { show: bool };
 pub fn MaybeContent(ctx: *zx.ComponentCtx(MaybeProps)) !?zx.Component {
     if (!ctx.props.show) return null;
-    var _zx = @import("zx").allocInit(ctx.allocator);
+    var _zx = @import("zx").x.allocInit(ctx.allocator);
     return _zx.ele(
         .div,
         .{

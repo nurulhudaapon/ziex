@@ -8,13 +8,13 @@ const module_options = @import("zx_module_options");
 const element = @import("element.zig");
 const plfm = @import("platform.zig");
 const prp = @import("props.zig");
-const z = @import("zx.zig");
 
 const routing = @import("runtime/core/routing.zig");
 const app_module = @import("runtime/server/Server.zig");
 const opts = @import("options.zig");
 const ctxs = @import("contexts.zig");
 const reactivity = @import("runtime/client/reactivity.zig");
+const app_mod = @import("App.zig");
 
 // -- Core Language --//
 pub const Ast = if (!module_options.exclude_core_lang) @import("zx_core_lang").Ast else @compileError("core_lang is excluded. Set exclude-core-lang=false to enable.");
@@ -26,13 +26,9 @@ pub const sourcemap = if (!module_options.exclude_core_lang) @import("zx_core_la
 pub const ElementTag = element.Tag;
 pub const Component = @import("Component.zig").Component;
 pub const Element = @import("Component.zig").Element;
-const ZxOptions = z.ZxOptions;
-pub const ZxContext = z.ZxContext;
 
-pub const zx = z.x;
-pub const lazy = z.lazy;
-pub const init = z.init;
-pub const allocInit = z.allocInit;
+// Internal - Used by the .zx -> .zig transpiler
+pub const x = @import("x.zig");
 
 pub const routes = @import("zx_meta").routes;
 pub const components = @import("zx_meta").components.components;
@@ -43,14 +39,12 @@ pub const info = @import("zx_info");
 pub const Allocator = std.mem.Allocator;
 pub const log = std.log;
 
+// TODO: Legacy, should be removed
 pub const Server = app_module.Server;
-pub const Edge = @import("runtime/server/wasm/entrypoint.zig");
 pub const Client = @import("runtime/client/Client.zig");
 
-const app_mod = @import("App.zig");
 pub const App = app_mod.App;
 pub const AppConfig = app_mod.Config;
-pub const allocator = app_mod.allocator;
 
 // --- Namespaces --- //
 pub const client = @import("runtime/client.zig");
@@ -92,8 +86,6 @@ pub const StateHandle = @import("runtime/core/Event.zig").StateHandle;
 
 pub const BuiltinAttribute = @import("attributes.zig").builtin;
 pub const Platform = plfm.Platform;
-pub const Os = plfm.Os;
-pub const Role = plfm.Role;
 
 // --- Routing --- //
 pub const Router = @import("runtime/core/Router.zig");
@@ -112,6 +104,7 @@ pub const Socket = routing.Socket;
 pub const fetch = Fetch.fetch;
 
 // --- Values --- //
+pub const allocator = app_mod.allocator;
 pub const platform: Platform = plfm.platform;
 pub const std_options: std.Options = opts.std_options;
 

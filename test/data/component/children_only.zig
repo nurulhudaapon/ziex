@@ -1,5 +1,5 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .main,
         .{
@@ -48,7 +48,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
 
 const WrapperProps = struct { children: zx.Component };
 fn Wrapper(allocator: zx.Allocator, props: WrapperProps) zx.Component {
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .div,
         .{
@@ -65,7 +65,7 @@ fn Wrapper(allocator: zx.Allocator, props: WrapperProps) zx.Component {
 
 const ContainerProps = struct { children: zx.Component };
 fn Container(allocator: zx.Allocator, props: ContainerProps) zx.Component {
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .section,
         .{

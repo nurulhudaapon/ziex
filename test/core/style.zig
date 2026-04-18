@@ -30,7 +30,7 @@ test "in Component" {
     defer arena.deinit();
     const arena_allocator = arena.allocator();
 
-    var ctx = zx.allocInit(arena_allocator);
+    var ctx = zx.x.allocInit(arena_allocator);
 
     const style: S = .{
         .color = .hex(0x0000ff),

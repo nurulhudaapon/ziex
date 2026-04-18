@@ -1,5 +1,5 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .main,
         .{
@@ -37,7 +37,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
 /// Component using ComponentCtx with props (no children)
 const ButtonProps = struct { title: []const u8 };
 pub fn Button(ctx: *zx.ComponentCtx(ButtonProps)) zx.Component {
-    var _zx = @import("zx").allocInit(ctx.allocator);
+    var _zx = @import("zx").x.allocInit(ctx.allocator);
     return _zx.ele(
         .button,
         .{
@@ -55,7 +55,7 @@ pub fn Button(ctx: *zx.ComponentCtx(ButtonProps)) zx.Component {
 /// Component with multiple props
 const AlertProps = struct { message: []const u8, level: []const u8 };
 fn Alert(ctx: *zx.ComponentCtx(AlertProps)) zx.Component {
-    var _zx = @import("zx").allocInit(ctx.allocator);
+    var _zx = @import("zx").x.allocInit(ctx.allocator);
     return _zx.ele(
         .div,
         .{
@@ -74,7 +74,7 @@ fn Alert(ctx: *zx.ComponentCtx(AlertProps)) zx.Component {
 /// Component with props AND children
 const PanelProps = struct { title: []const u8 };
 fn Panel(ctx: *zx.ComponentCtx(PanelProps)) zx.Component {
-    var _zx = @import("zx").allocInit(ctx.allocator);
+    var _zx = @import("zx").x.allocInit(ctx.allocator);
     return _zx.ele(
         .section,
         .{

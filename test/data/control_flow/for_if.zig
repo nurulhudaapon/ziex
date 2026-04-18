@@ -4,7 +4,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .{ .name = "Jane", .is_active = false },
         .{ .name = "Jim", .is_active = true },
     };
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .main,
         .{

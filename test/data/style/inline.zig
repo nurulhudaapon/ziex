@@ -1,18 +1,14 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
-        .main,
+        .div,
         .{
             .allocator = allocator,
+            .attributes = _zx.attrs(.{
+                _zx.attr("style", .{ .display = .flex, .padding_top = .px(10), .width = .px(100) }),
+            }),
             .children = &.{
-                _zx.ele(
-                    .h1,
-                    .{
-                        .children = &.{
-                            _zx.txt("Welcome to the site!"),
-                        },
-                    },
-                ),
+                _zx.txt(" Hello"),
             },
         },
     );

@@ -1,6 +1,6 @@
 pub fn Page(allocator: zx.Allocator) zx.Component {
     const user_names = [_][]const u8{ "John", "Jane", "Jim", "Jill" };
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .main,
         .{
@@ -26,7 +26,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
 }
 
 pub fn StructCapture(allocator: zx.Allocator) zx.Component {
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .main,
         .{
@@ -54,7 +54,7 @@ pub fn StructCapture(allocator: zx.Allocator) zx.Component {
 }
 
 pub fn StructExtraCapture(allocator: zx.Allocator) zx.Component {
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .main,
         .{
@@ -85,7 +85,7 @@ pub fn StructExtraCapture(allocator: zx.Allocator) zx.Component {
 
 pub fn StructComplexParam(allocator: zx.Allocator) zx.Component {
     const data = .{ .users = users };
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .main,
         .{
@@ -139,7 +139,7 @@ fn getUsers() [users.len]User {
 }
 
 pub fn StructCaptureToComponent(allocator: zx.Allocator) zx.Component {
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .main,
         .{
@@ -170,7 +170,7 @@ const users = [_]User{
 };
 
 fn UserComponent(allocator: zx.Allocator, props: User) zx.Component {
-    var _zx = @import("zx").allocInit(allocator);
+    var _zx = @import("zx").x.allocInit(allocator);
     return _zx.ele(
         .p,
         .{
