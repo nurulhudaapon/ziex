@@ -64,7 +64,7 @@ async function main() {
     process.exit(0);
   }
 
-  // By now the user has been typing — give the fetch a short grace period
+  // By now the user has been typing - give the fetch a short grace period
   // in case it hasn't resolved yet, then fall back to the static list.
   const dynamicTemplates = await Promise.race([
     templatesFetch,
@@ -113,7 +113,7 @@ async function main() {
     s.stop('Replacement failed', 1);
   }
 
-  // 4. Fix Zig fingerprint — the fingerprint is a u64 packed struct:
+  // 4. Fix Zig fingerprint - the fingerprint is a u64 packed struct:
   //    lower 32 bits = random id, upper 32 bits = CRC-32 of the package name.
   s.start('Updating package fingerprint...');
   try {

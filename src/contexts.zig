@@ -75,15 +75,19 @@ pub fn ComponentCtx(comptime PropsType: type) type {
         allocator: Allocator,
         children: ?zx.Component = null,
 
-        _id: u16 = 0,
-        _component_id: []const u8 = "",
-        _state_index: u32 = 0,
-        _handler_index: u32 = 0,
+        _internal: Internal = .{},
+
+        pub const Internal = struct {
+            instance_id: u16 = 0,
+            component_id: []const u8 = "",
+            state_idx: u32 = 0,
+            handler_idx: u32 = 0,
+        };
 
         pub fn state(self: *Self, comptime T: type, initial: T) reactivity.StateInstance(T) {
-            const slot = (1 << 20) + self._state_index;
-            self._state_index += 1;
-            return reactivity.State(T).getOrCreate(self.allocator, self._component_id, slot, initial) catch @panic("State(T).getOrCreate");
+            const slot = (1 << 20) + self._internal.state_idx;
+            self._internal.state_idx += 1;
+            return reactivity.State(T).getOrCreate(self.allocator, self._internal.component_id, slot, initial) catch @panic("State(T).getOrCreate");
         }
 
         pub fn sbind(self: *Self, comptime handler: anytype, states: anytype) zx.EventHandler {
@@ -99,7 +103,7 @@ pub fn ComponentCtx(comptime PropsType: type) type {
 
             const alloc = if (platform.role == .client) client_allocator else self.allocator;
             const bound_states = zx.EventHandler.buildStates(alloc, states);
-            return zx.EventHandler.serverSS(handler, alloc, &self._handler_index, bound_states);
+            return zx.EventHandler.serverSS(handler, alloc, &self._internal.handler_idx, bound_states);
         }
 
         pub fn bind(self: *Self, comptime handler: anytype) zx.EventHandler {
@@ -116,20 +120,20 @@ pub fn ComponentCtx(comptime PropsType: type) type {
             return switch (FnType) {
                 // Client
                 fn (*ClientEvent) void => zx.EventHandler.client(handler),
-                fn (*ClientEvent.Stateful) void => zx.EventHandler.clientS(handler, alloc, self._component_id),
+                fn (*ClientEvent.Stateful) void => zx.EventHandler.clientS(handler, alloc, self._internal.component_id),
 
                 // Server
-                fn (*ServerEvent.Stateful) void => zx.EventHandler.serverS(handler, alloc, self._component_id, self._state_index, &self._handler_index),
-                fn (*ServerEvent) void => zx.EventHandler.server(handler, alloc, &self._handler_index),
+                fn (*ServerEvent.Stateful) void => zx.EventHandler.serverS(handler, alloc, self._internal.component_id, self._internal.state_idx, &self._internal.handler_idx),
+                fn (*ServerEvent) void => zx.EventHandler.server(handler, alloc, &self._internal.handler_idx),
 
                 // Server Actions
-                fn (*ActionContext.Stateful) void => zx.EventHandler.actionStateful(handler, alloc, self._component_id, self._state_index, &self._handler_index),
+                fn (*ActionContext.Stateful) void => zx.EventHandler.actionStateful(handler, alloc, self._internal.component_id, self._internal.state_idx, &self._internal.handler_idx),
                 fn (ActionContext, *StateContext) void => actionBind(handler, alloc, self),
                 fn (*ActionContext) void => actionBind(handler, alloc, self),
 
                 else => blk: {
                     if (comptime params.len == 1 and params[0].type.? == *ServerEvent) {
-                        break :blk zx.EventHandler.server(handler, alloc, &self._handler_index);
+                        break :blk zx.EventHandler.server(handler, alloc, &self._internal.handler_idx);
                     }
                     if (comptime params.len == 2 and
                         @typeInfo(params[0].type.?) == .@"struct" and
@@ -164,9 +168,9 @@ fn actionBind(comptime handler: anytype, alloc: Allocator, ctx: anytype) zx.Even
                 }
             }
         };
-        const bound = reactivity.collectStateBoundEntries(alloc, ctx._component_id, ctx._state_index);
-        ctx._handler_index += 1;
-        const h_id = ctx._handler_index;
+        const bound = reactivity.collectStateBoundEntries(alloc, ctx._internal.component_id, ctx._internal.state_idx);
+        ctx._internal.handler_idx += 1;
+        const h_id = ctx._internal.handler_idx;
         const ec = alloc.create(zx.EventHandler.Context) catch @panic("OOM");
         ec.* = .{ .handler_id = h_id, .bound_states = bound };
         return zx.EventHandler{

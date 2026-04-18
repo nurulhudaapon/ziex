@@ -700,7 +700,7 @@ pub const ServerMeta = struct {
     }
 
     /// Wrapper to allow routes to return void or !void.
-    /// Route function shape: `(ctx: zx.RouteContext, app?: App, state?: State)` — positional.
+    /// Route function shape: `(ctx: zx.RouteContext, app?: App, state?: State)` - positional.
     fn wrapRoute(comptime routeFn: anytype) RouteHandler {
         const FnInfo = @typeInfo(@TypeOf(routeFn)).@"fn";
         const R = FnInfo.return_type.?;

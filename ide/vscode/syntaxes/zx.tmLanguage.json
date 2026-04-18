@@ -267,7 +267,7 @@
       ]
     },
     "zig-multiline-string": {
-      "comment": "Zig multiline string literal lines (\\\\...) — must match before HTML tags",
+      "comment": "Zig multiline string literal lines (\\\\...) - must match before HTML tags",
       "name": "string.quoted.other.multiline.zig",
       "match": "^\\s*\\\\\\\\.*$"
     },

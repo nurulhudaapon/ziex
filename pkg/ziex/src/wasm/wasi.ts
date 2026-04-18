@@ -1,9 +1,9 @@
 /**
- * WASI/edge WASM bridge — zero dependencies on ZigJS (jsz) or browser globals.
+ * WASI/edge WASM bridge - zero dependencies on ZigJS (jsz) or browser globals.
  *
  * Import this (and only this) from edge/server runtimes. It provides the
  * minimal __zx import namespace needed by server-side WASM: log, fetch, and
- * timers. The jsz importObject is intentionally omitted — the server binary
+ * timers. The jsz importObject is intentionally omitted - the server binary
  * does not use jsz value-passing.
  */
 
@@ -19,7 +19,7 @@ export class ZxWasiBridge {
     readonly #cb: ((type: number, id: bigint, data: bigint) => void) | undefined;
     readonly #intervals: Map<bigint, ReturnType<typeof setInterval>> = new Map();
 
-    // Cached memory view — invalidated when the WASM buffer grows.
+    // Cached memory view - invalidated when the WASM buffer grows.
     #memView: Uint8Array | null = null;
     #memBuf: ArrayBufferLike | null = null;
 
@@ -128,7 +128,7 @@ export class ZxWasiBridge {
      * Create the WASI import object for WASM instantiation.
      *
      * Returns only the `__zx` namespace (log, fetch, timers).
-     * Does NOT include jsz.importObject() — the server binary does not use jsz.
+     * Does NOT include jsz.importObject() - the server binary does not use jsz.
      */
     static createImportObject(bridgeRef: { current: ZxWasiBridge | null }): { __zx: Record<string, unknown> } {
         return {

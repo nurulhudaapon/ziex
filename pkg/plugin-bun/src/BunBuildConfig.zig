@@ -23,7 +23,7 @@ sourcemap: ?Sourcemap = null,
 /// Minify the output (all sub-options at once)
 minify: ?bool = null,
 
-/// External packages — not bundled
+/// External packages - not bundled
 external: []const []const u8 = &.{},
 
 /// Public path prefix for asset URLs
@@ -40,7 +40,7 @@ splitting: ?bool = null,
 pub fn toJsonValue(self: BunBuildConfig, b: *std.Build, arena: std.mem.Allocator) !std.json.Value {
     var obj = std.json.ObjectMap.init(arena);
 
-    // entrypoints — required array
+    // entrypoints - required array
     var eps = std.json.Array.init(arena);
     for (self.entrypoints) |lp| {
         try eps.append(.{ .string = lp.getPath(b) });

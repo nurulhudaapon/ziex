@@ -11,7 +11,7 @@ const render = @import("render.zig");
 pub const PageFn = *const fn (zx.PageContext, ?*const anyopaque, ?*const anyopaque) anyerror!zx.Component;
 
 pub const DispatchResult = union(enum) {
-    /// Request did not match this handler type — continue normal handling.
+    /// Request did not match this handler type - continue normal handling.
     not_triggered,
     /// Handler was invoked successfully. `body` is serialized JSON state, or null if no state.
     ok: struct { body: ?[]u8 = null },

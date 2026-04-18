@@ -6,11 +6,11 @@ import type { WASI } from "./wasi";
 
 /**
  * Anything that can be resolved to a `WebAssembly.Module`:
- * - `WebAssembly.Module` — already compiled (Cloudflare Workers, wrangler)
- * - `ArrayBuffer` / `ArrayBufferView` — raw WASM bytes
- * - `Response` — a fetch() response whose body is the WASM binary
- * - `string` — an HTTP(S) URL or an absolute file path (Bun)
- * - `URL` — a URL object
+ * - `WebAssembly.Module` - already compiled (Cloudflare Workers, wrangler)
+ * - `ArrayBuffer` / `ArrayBufferView` - raw WASM bytes
+ * - `Response` - a fetch() response whose body is the WASM binary
+ * - `string` - an HTTP(S) URL or an absolute file path (Bun)
+ * - `URL` - a URL object
  */
 export type WasmInput =
     | WebAssembly.Module
@@ -22,7 +22,7 @@ export type WasmInput =
 
 /**
  * Resolve any supported WASM input to a compiled `WebAssembly.Module`.
- * The result is NOT cached here — cache it at the call site if needed.
+ * The result is NOT cached here - cache it at the call site if needed.
  */
 export async function resolveModule(input: WasmInput): Promise<WebAssembly.Module> {
     if (typeof input === 'string') {
@@ -49,7 +49,7 @@ export async function resolveModule(input: WasmInput): Promise<WebAssembly.Modul
     }
 
     // Anything else is assumed to be an already-compiled WebAssembly.Module.
-    // Intentionally avoid `instanceof WebAssembly.Module` — it fails across
+    // Intentionally avoid `instanceof WebAssembly.Module` - it fails across
     // different VM contexts (e.g. Vercel's edge runtime simulator).
     return input as unknown as WebAssembly.Module;
 }
@@ -62,7 +62,7 @@ type DOKey<Env> = { [K in keyof Env]: Env[K] extends DurableObjectNamespace ? K 
 type DBKey<Env> = { [K in keyof Env]: Env[K] extends D1Database ? K : never }[keyof Env];
 
 type ZiexOptions<Env> = {
-    /** WASM module — accepts any {@link WasmInput}. Resolved and cached on first request. */
+    /** WASM module - accepts any {@link WasmInput}. Resolved and cached on first request. */
     module: WasmInput;
     /** Optional pre-configured WASI instance. */
     wasi?: WASI;
@@ -71,8 +71,8 @@ type ZiexOptions<Env> = {
     /**
      * KV namespace bindings. Two forms are supported:
      *
-     * - **Env key**: a single key from `Env` whose value is a `KVNamespace` — used as the `"default"` binding.
-     * - **Name map**: `{ [bindingName]: envKey }` — map namespace names to env keys.
+     * - **Env key**: a single key from `Env` whose value is a `KVNamespace` - used as the `"default"` binding.
+     * - **Name map**: `{ [bindingName]: envKey }` - map namespace names to env keys.
      *
      * @example Single env key (becomes the "default" binding)
      * ```ts
@@ -104,7 +104,7 @@ type ZiexOptions<Env> = {
 };
 
 /**
- * Main Ziex application class. Mirrors the Hono API style — construct once,
+ * Main Ziex application class. Mirrors the Hono API style - construct once,
  * export as default, and the runtime calls `fetch` for you.
  *
  * Works on Cloudflare Workers, Bun, and Vercel Edge out of the box.
@@ -156,14 +156,14 @@ export class Ziex<Env = Record<string, unknown>> {
         const { kv } = this.options;
         if (kv === undefined) return undefined;
         if (typeof kv === 'object' && kv !== null) {
-            // { [name]: envKey } — map of namespace names to env keys
+            // { [name]: envKey } - map of namespace names to env keys
             const result: Record<string, KVNamespace> = {};
             for (const [name, key] of Object.entries(kv)) {
                 result[name] = env[key as keyof Env] as unknown as KVNamespace;
             }
             return result;
         }
-        // Single env key — becomes the "default" binding
+        // Single env key - becomes the "default" binding
         return { default: env[kv as keyof Env] as unknown as KVNamespace };
     }
 

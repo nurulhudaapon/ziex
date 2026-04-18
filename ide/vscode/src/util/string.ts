@@ -73,7 +73,7 @@ export function activateMultilineStringDecorator(
     ),
   );
 
-  // -- Copy command — strip \\ prefixes when copying from multiline string -- //
+  // -- Copy command - strip \\ prefixes when copying from multiline string -- //
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "zx.copyFromMultilineString",
@@ -81,7 +81,7 @@ export function activateMultilineStringDecorator(
     ),
   );
 
-  // -- Paste command — auto-prefix pasted text with \\ -- //
+  // -- Paste command - auto-prefix pasted text with \\ -- //
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "zx.pasteInMultilineString",
@@ -89,7 +89,7 @@ export function activateMultilineStringDecorator(
     ),
   );
 
-  // -- Folding provider — collapse multiline string blocks -- //
+  // -- Folding provider - collapse multiline string blocks -- //
   context.subscriptions.push(
     vscode.languages.registerFoldingRangeProvider(
       [{ language: "zx" }, { language: "zig" }],

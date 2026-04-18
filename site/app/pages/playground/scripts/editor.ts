@@ -835,7 +835,7 @@ outputsRun.addEventListener('click', async () => {
     ph.appendChild(phLabel);
     viewport.appendChild(ph);
 
-    // If a background prefetch is in flight, wait — result will be in cache
+    // If a background prefetch is in flight, wait - result will be in cache
     if (prefetchPromise) await prefetchPromise;
 
     const compiled = await runTranspileAndBuild(true);

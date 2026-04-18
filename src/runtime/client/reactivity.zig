@@ -82,7 +82,7 @@ pub fn State(comptime T: type) type {
         pub const ValueType = T;
 
         value: T,
-        /// The owning component ID — used to call scheduleRender on mutation.
+        /// The owning component ID - used to call scheduleRender on mutation.
         component_id: []const u8,
 
         pub fn init(value: T, component_id: []const u8) Self {
@@ -165,7 +165,7 @@ pub fn State(comptime T: type) type {
             if (state_store.get(key)) |entry| {
                 return @ptrCast(@alignCast(entry.ptr));
             }
-            @panic("State not found — ensure sc.state() is called in the same order as ctx.state()");
+            @panic("State not found - ensure sc.state() is called in the same order as ctx.state()");
         }
     };
 }
@@ -220,11 +220,10 @@ pub fn scheduleRender(component_id: []const u8) void {
                 return;
             }
         }
-        // component_id not registered — nested component inside a CSR parent.
+        // component_id not registered - nested component inside a CSR parent.
         // Re-render all so the parent picks up the state change.
         client.renderAll();
     }
 }
 
 pub const EventHandler = zx.EventHandler;
-

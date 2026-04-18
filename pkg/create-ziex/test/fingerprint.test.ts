@@ -25,7 +25,7 @@ describe("fingerprint", () => {
     const zigFp = zigGenerate(name);
     const nodeFp = generateZigFingerprint(name);
 
-    // Extract checksum (upper 32 bits) from both — the random id will differ
+    // Extract checksum (upper 32 bits) from both - the random id will differ
     const zigChecksum = BigInt(zigFp) >> 32n;
     const nodeChecksum = BigInt(nodeFp) >> 32n;
     expect(nodeChecksum).toBe(zigChecksum);

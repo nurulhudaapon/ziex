@@ -1,18 +1,18 @@
 //! Structured zig dbuidld output parser for watch mode.
 //!
 //! zig --watch stderr output order per build cycle:
-//!   1. [optional] `zig build-exe ...` — compilation started (change detected)
-//!   2. `Build Summary: N/M steps succeeded; X failed` — outcome
+//!   1. [optional] `zig build-exe ...` - compilation started (change detected)
+//!   2. `Build Summary: N/M steps succeeded; X failed` - outcome
 //!   3. Build tree (+/- lines per step)
 //!   4. Blank line
 //!   5. Error diagnostics (if failed): `file:line:col: error: msg` blocks
-//!   6. `error: the following command failed with N compilation errors:` — end of errors
+//!   6. `error: the following command failed with N compilation errors:` - end of errors
 //!
 //! Events returned from processLine:
-//!   change_detected  — a `zig build-exe/lib/obj` line seen → recompilation started
-//!   should_restart   — binary mtime changed after a successful Build Summary
-//!   errors           — structured diagnostics, emitted when the error block ends
-//!   resolved         — previous build had errors, current succeeded
+//!   change_detected  - a `zig build-exe/lib/obj` line seen → recompilation started
+//!   should_restart   - binary mtime changed after a successful Build Summary
+//!   errors           - structured diagnostics, emitted when the error block ends
+//!   resolved         - previous build had errors, current succeeded
 const std = @import("std");
 const builtin = @import("builtin");
 const log = std.log.scoped(.builder);
@@ -62,7 +62,7 @@ pub const Event = union(enum) {
     should_restart: u64, // build_duration_ms
     errors: BuildResult,
     resolved,
-    build_complete_no_change: u64, // build_duration_ms — successful build but binary unchanged
+    build_complete_no_change: u64, // build_duration_ms - successful build but binary unchanged
     assets_installed: AssetChange, // asset-only change (public/assets files copied, no recompilation)
 };
 
@@ -418,7 +418,7 @@ pub fn parseDiagnostic(allocator: std.mem.Allocator, line: []const u8) ?Diagnost
     const message = line[msg_start..];
     if (location.len == 0 or message.len == 0) return null;
 
-    // Parse "file:LINE:COL" — find the last two colons.
+    // Parse "file:LINE:COL" - find the last two colons.
     var last_colon: usize = 0;
     var prev_colon: usize = 0;
     var j: usize = 0;
@@ -853,7 +853,7 @@ pub fn main() !void {
     try child.spawn();
     defer _ = child.kill() catch {};
 
-    // Use a dummy binary path — we just want to see events
+    // Use a dummy binary path - we just want to see events
     var state = BuildState.init(allocator, "zig-out/bin/app", 0);
     state.first_build_done = true;
     defer state.deinit();

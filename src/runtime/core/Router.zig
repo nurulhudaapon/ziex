@@ -281,7 +281,7 @@ pub fn resolveRouteHandler(handlers: ServerMeta.RouteHandlers, method: zx.server
 }
 
 /// Execute cascading Proxy() handlers from root "/" down to the target path.
-/// Does NOT execute local page_proxy/route_proxy — those are handled by the caller.
+/// Does NOT execute local page_proxy/route_proxy - those are handled by the caller.
 pub fn executeCascadingProxies(
     path: []const u8,
     req: zx.server.Request,

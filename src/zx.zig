@@ -546,7 +546,7 @@ pub const ZxContext = struct {
 
         // If client option is set, return a client component (for @rendering={.client})
         // Render the component on the server for SSR, then hydrate on client.
-        // On Browser (already on the client), skip the CSR wrapper — just render
+        // On Browser (already on the client), skip the CSR wrapper - just render
         // the component directly as a component_fn.
         if (options.client != null and zx.platform.role == .client) {
             return .{ .component_fn = comp_fn };

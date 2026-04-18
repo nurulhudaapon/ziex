@@ -18,7 +18,7 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const exclude_lsp = b.option(bool, "exclude-lsp", "Exclude the LSP server to speed up builds") orelse false;
-    const exclude_core_lang = b.option(bool, "exclude-core-lang", "Exclude core language tools (Ast/Parse/sourcemap) — only needed by CLI") orelse false;
+    const exclude_core_lang = b.option(bool, "exclude-core-lang", "Exclude core language tools (Ast/Parse/sourcemap) - only needed by CLI") orelse false;
     const exclude_db = b.option(bool, "exclude-db", "Exclude database adapter to speed up builds") orelse false;
     const is_client = b.option(bool, "is-client", "Building for the browser (client)") orelse false;
     const is_edge = b.option(bool, "is-edge", "Building for a WASI-based edge runtime") orelse false;
@@ -48,12 +48,8 @@ pub fn build(b: *std.Build) !void {
     const cachez_dep = b.dependency("cachez", .{ .target = target, .optimize = optimize });
     const adapters_dep = b.dependency("adapters", .{ .target = target, .optimize = optimize });
 
-    // --- Sub-modules (cached independently) --- //
-
-    // Style module (35K lines, zero internal deps — cached after first compile)
+    // --- Features Module --- //
     const zx_style_mod = b.addModule("zx_style", .{ .root_source_file = b.path("src/style/root.zig"), .target = target, .optimize = optimize });
-
-    // Core language module (Ast, Parse, sourcemap — only compiled when referenced)
     const zx_core_lang_mod = b.addModule("zx_core_lang", .{ .root_source_file = b.path("src/core/root.zig"), .target = target, .optimize = optimize });
     zx_core_lang_mod.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
     zx_core_lang_mod.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));

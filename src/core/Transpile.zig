@@ -500,7 +500,7 @@ pub fn transpileReturn(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void 
                     // Check if we need to initialize _zx with allocator
                     const allocator_value = try getAllocatorAttribute(self, child);
 
-                    // Synthesized _zx init — no source mapping (it's boilerplate)
+                    // Synthesized _zx init - no source mapping (it's boilerplate)
                     try ctx.write("var _zx = @import(\"zx\").");
                     if (allocator_value) |alloc| {
                         try ctx.write("allocInit(");
@@ -1361,7 +1361,7 @@ fn writeChildrenValue(self: *Ast, children: []const ts.Node, ctx: *TranspileCont
 /// When preserve_whitespace is true (e.g. for <pre>), text nodes won't be trimmed
 fn writeHtmlElement(self: *Ast, node: ts.Node, tag: []const u8, tag_name_byte: u32, end_tag_start_byte: u32, end_tag_end_byte: u32, attributes: []const ZxAttribute, children: []const ts.Node, ctx: *TranspileContext, preserve_whitespace: bool) !void {
     _ = node;
-    // _zx.ele( is synthesized — no source mapping
+    // _zx.ele( is synthesized - no source mapping
     try ctx.write("_zx.ele");
     if (ctx.paren_byte) |p| {
         try ctx.writeM("(", p, self);

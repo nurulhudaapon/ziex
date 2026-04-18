@@ -83,7 +83,7 @@ fn remapSingle(allocator: std.mem.Allocator, d: *Builder.Diagnostic) !void {
     defer allocator.free(decoded);
     base64.Decoder.decode(decoded, b64_data) catch return;
 
-    // Parse JSON sourcemap — extract "sources" and "mappings" fields
+    // Parse JSON sourcemap - extract "sources" and "mappings" fields
     const source_file = extractJsonStringField(decoded, "sources") orelse return;
     const mappings_str = extractJsonStringField(decoded, "mappings") orelse return;
 

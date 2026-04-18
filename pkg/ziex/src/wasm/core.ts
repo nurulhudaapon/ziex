@@ -1,7 +1,7 @@
 import { ZigJS } from "../../../../vendor/jsz/js/src";
 
 /**
- * Core WASM bridge — environment-agnostic (browser + edge).
+ * Core WASM bridge - environment-agnostic (browser + edge).
  * Contains no references to browser globals (document, window, WebSocket, HTMLFormElement).
  */
 export const CallbackType = {
@@ -41,7 +41,7 @@ export function storeValueGetRef(val: any): bigint {
     return tempRefView.getBigUint64(0, true);
 }
 
-/** Shared encoder/decoder — avoids allocating new instances on every call. */
+/** Shared encoder/decoder - avoids allocating new instances on every call. */
 export const textDecoder = new TextDecoder();
 export const textEncoder = new TextEncoder();
 
@@ -103,7 +103,7 @@ export function invokeWasmExport<F extends (...args: any[]) => any>(
 }
 
 /**
- * Core ZX Bridge — works in both browser and edge runtimes.
+ * Core ZX Bridge - works in both browser and edge runtimes.
  * Contains fetch, timers, and logging. No DOM or browser-WebSocket references.
  *
  * Extend this class in browser environments to add DOM and WebSocket support.

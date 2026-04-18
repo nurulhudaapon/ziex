@@ -68,7 +68,7 @@ export function buildWsImports(
                 ws.recvResolve = (bytes) => resolve(deliver(bytes));
             });
         }) : (_buf_ptr: number, _buf_max: number): number => -1,
-        // Pub/sub — delegates to optional callbacks (real in DO, no-ops otherwise)
+        // Pub/sub - delegates to optional callbacks (real in DO, no-ops otherwise)
         ws_subscribe: (ptr: number, len: number): void => { ws.subscribe?.(readStr(ptr, len)); },
         ws_unsubscribe: (ptr: number, len: number): void => { ws.unsubscribe?.(readStr(ptr, len)); },
         ws_publish: (topic_ptr: number, topic_len: number, data_ptr: number, data_len: number): number => {
@@ -147,7 +147,7 @@ function executeWasm(
         return Promise.resolve();
     }
 
-    // NOTE: no await — start() runs synchronously until the first Suspending
+    // NOTE: no await - start() runs synchronously until the first Suspending
     // call, writing __EDGE_META__ to stderr and the HTML shell to stdout.
     // The runtime streams stdout to the client while WASM is suspended.
     const start = (WebAssembly as any).promising(instance.exports._start as Function);
@@ -218,9 +218,9 @@ export async function run({
     env?: unknown;
     ctx?: { waitUntil(promise: Promise<unknown>): void };
     module: WebAssembly.Module;
-    /** KV namespace bindings — `{ default: env.KV, otherName: env.OTHER_KV }` */
+    /** KV namespace bindings - `{ default: env.KV, otherName: env.OTHER_KV }` */
     kv?: Record<string, KVNamespace>;
-    /** D1 bindings — `{ default: env.DB, analytics: env.ANALYTICS_DB }` */
+    /** D1 bindings - `{ default: env.DB, analytics: env.ANALYTICS_DB }` */
     db?: Record<string, D1Database>;
     imports?: (mem: () => WebAssembly.Memory) => Record<string, Record<string, unknown>>;
     wasi?: WASI;
@@ -304,7 +304,7 @@ export async function run({
     const earlyMeta = parseEdgeMeta(earlyStderrText);
 
     if (earlyMeta.streaming) {
-        // Page opted into streaming (zx.PageOptions{ .streaming = true }) —
+        // Page opted into streaming (zx.PageOptions{ .streaming = true }) -
         // pipe stdout incrementally to the client as WASM yields via sleep_ms.
         const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
         streamWriter = writable.getWriter();

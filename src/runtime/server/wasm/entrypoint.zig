@@ -195,10 +195,10 @@ pub fn run() !void {
                 // Action was invoked natively, continue to render the page below
             },
             .not_found => {
-                // No page handler — fall through to API route dispatch below
+                // No page handler - fall through to API route dispatch below
             },
             .component => |cmp| {
-                // Page rendered successfully — write it out
+                // Page rendered successfully - write it out
                 wasi_res.setContentTypeStr("text/html");
 
                 const streaming_enabled = core_handler.isStreamingEnabled(route);
@@ -290,7 +290,7 @@ pub fn run() !void {
                 }
 
                 if (wasi_socket.upgraded) {
-                    // WebSocket message loop — do not send HTTP response
+                    // WebSocket message loop - do not send HTTP response
                     const upgrade_data = wasi_socket.upgradeData();
                     if (handlers.socket_open) |open_fn| {
                         open_fn(socket, upgrade_data, allocator, allocator) catch {};

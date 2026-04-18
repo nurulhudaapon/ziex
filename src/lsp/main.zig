@@ -240,7 +240,7 @@ pub const Handler = struct {
         }
     }
 
-    /// Open a .zx file in ZLS if not already tracked — reads from disk, transpiles to .zig, sends didOpen.
+    /// Open a .zx file in ZLS if not already tracked - reads from disk, transpiles to .zig, sends didOpen.
     /// For imported files we send transpiled .zig (not raw .zx) so ZLS can resolve exported types.
     fn ensureZxFileOpenInZls(handler: *Handler, arena: std.mem.Allocator, doc_dir: []const u8, rel_path: []const u8) void {
         const joined = std.fs.path.join(handler.allocator, &.{ doc_dir, rel_path }) catch return;

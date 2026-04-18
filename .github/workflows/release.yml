@@ -369,7 +369,7 @@ jobs:
             gh release create "$TAG" \
               --repo "$OWNER/$REPO_NAME" \
               --title "$TAG" \
-              --notes "Release ${TAG} — synced from [ziex-dev/ziex@${TAG}](https://github.com/ziex-dev/ziex/releases/tag/${TAG})" \
+              --notes "Release ${TAG} - synced from [ziex-dev/ziex@${TAG}](https://github.com/ziex-dev/ziex/releases/tag/${TAG})" \
               || echo "Release $TAG may already exist for $REPO_NAME, skipping..."
 
             cd -

@@ -57,7 +57,7 @@ echo "==> Publishing @ziex/cli* to local registry..."
 cd "$VERDACCIO_DIR"
 npm publish --workspaces --access public --tag dev --registry "$REGISTRY" 2>&1
 
-# Build and publish ziex to local registry (skip on Windows — bun build crashes)
+# Build and publish ziex to local registry (skip on Windows - bun build crashes)
 if [ "$IS_WINDOWS" = false ]; then
   echo "==> Building and publishing ziex to local registry..."
   cd "$SCRIPT_DIR/ziex"
@@ -77,7 +77,7 @@ mkdir -p "$SCRIPT_DIR/_check_tmp"
 cd "$SCRIPT_DIR/_check_tmp"
 export npm_config_cache="$SCRIPT_DIR/_check_tmp/.npm-cache"
 
-# Test runner — writes PASS/FAIL to $RESULTS_DIR so tests can run in parallel
+# Test runner - writes PASS/FAIL to $RESULTS_DIR so tests can run in parallel
 check() {
   local name="$1" cmd="$2" expected="$3"
   local safe_name="${name//[\/[:space:]]/_}"
@@ -88,7 +88,7 @@ check() {
     echo "  PASS: $name"
   else
     echo "FAIL" > "$RESULTS_DIR/$safe_name"
-    echo "  FAIL: $name — expected '$expected', got: $output"
+    echo "  FAIL: $name - expected '$expected', got: $output"
   fi
 }
 
@@ -106,7 +106,7 @@ check "npx @ziex/cli version" \
   "$VERSION" &
 pids+=($!)
 
-# ziex via npx (skip on Windows — not built)
+# ziex via npx (skip on Windows - not built)
 if [ "$IS_WINDOWS" = false ]; then
   check "npx ziex version" \
     "npx --yes --registry '$REGISTRY' ziex@dev version" \

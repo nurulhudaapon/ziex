@@ -1,4 +1,4 @@
-//! Client-side Event — wraps a browser JS event object.
+//! Client-side Event - wraps a browser JS event object.
 //!
 //! Provides DOM event methods: `value()`, `key()`, `preventDefault()`.
 //! For state access, use `Event.Stateful` via `ctx.bind()`.
@@ -52,10 +52,9 @@ pub fn key(self: Event) ?[]const u8 {
     return event.ref.getAlloc(real_js.String, gpa, "key") catch null;
 }
 
-
 // --- Stateful --- //
 
-/// Stateful client event — provides `state()` access to bound component state.
+/// Stateful client event - provides `state()` access to bound component state.
 /// Use `fn(*zx.client.Event.Stateful) void` with `ctx.bind()` to get this type.
 pub const Stateful = struct {
     _inner: *Event,
@@ -89,5 +88,4 @@ pub const Stateful = struct {
     pub fn key(self: Stateful) ?[]const u8 {
         return self._inner.key();
     }
-
 };

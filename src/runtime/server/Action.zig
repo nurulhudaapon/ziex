@@ -1,4 +1,4 @@
-//! Server-side Action — context for server form action handlers.
+//! Server-side Action - context for server form action handlers.
 //!
 //! Provides form data parsing via `data()`.
 //! For state access, use `Action.Stateful` via `ctx.bind()` or `fn(*zx.server.Action.Stateful) void`.
@@ -60,7 +60,7 @@ pub fn data(self: Action, comptime T: type) T {
     return result;
 }
 
-/// Stateful server action — provides `state()` access to bound component state.
+/// Stateful server action - provides `state()` access to bound component state.
 /// Use `fn(*zx.server.Action.Stateful) void` with `ctx.bind()` to get this type.
 pub const Stateful = struct {
     _inner: *Action,

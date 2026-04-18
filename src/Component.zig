@@ -85,9 +85,7 @@ pub const Component = union(enum) {
                 // allocator.create() does NOT run field default initializers, so explicitly
                 // set all fields that ComponentCtx defines with defaults.
                 ctx.allocator = allocator;
-                if (@hasField(CtxType, "_component_id")) ctx._component_id = "";
-                if (@hasField(CtxType, "_id")) ctx._id = 0;
-                if (@hasField(CtxType, "_state_index")) ctx._state_index = 0;
+                if (@hasField(CtxType, "_internal")) ctx._internal = .{};
                 ctx.children = if (@hasField(@TypeOf(props), "children")) props.children else null;
                 if (@hasField(CtxType, "props")) {
                     const PropsFieldType = @FieldType(CtxType, "props");
@@ -132,8 +130,10 @@ pub const Component = union(enum) {
                         const CtxType = @typeInfo(FirstPropType).pointer.child;
                         const ctx_ptr: *CtxType = @ptrCast(@alignCast(@constCast(propsPtr orelse @panic("ctx is null"))));
                         // Reset slot counters on every call so hooks run in stable order.
-                        if (@hasField(CtxType, "_state_index")) ctx_ptr._state_index = 0;
-                        if (@hasField(CtxType, "_handler_index")) ctx_ptr._handler_index = 0;
+                        if (@hasField(CtxType, "_internal")) {
+                            ctx_ptr._internal.state_idx = 0;
+                            ctx_ptr._internal.handler_idx = 0;
+                        }
                         return normalize(func(ctx_ptr));
                     }
                     if (first_is_allocator and param_count == 1) {
@@ -152,8 +152,10 @@ pub const Component = union(enum) {
                     if (!first_is_ctx_ptr) return;
                     const CtxType = @typeInfo(FirstPropType).pointer.child;
                     const ctx_ptr: *CtxType = @ptrCast(@alignCast(@constCast(propsPtr orelse return)));
-                    if (@hasField(CtxType, "_component_id")) ctx_ptr._component_id = component_id;
-                    if (@hasField(CtxType, "_id")) ctx_ptr._id = instance_id;
+                    if (@hasField(CtxType, "_internal")) {
+                        ctx_ptr._internal.component_id = component_id;
+                        ctx_ptr._internal.instance_id = instance_id;
+                    }
                 }
 
                 fn deinit(propsPtr: ?*const anyopaque, alloc: Allocator) void {

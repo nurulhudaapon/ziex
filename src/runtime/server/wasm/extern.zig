@@ -87,7 +87,7 @@ pub extern "__zx_db" fn db_values(
 ) i32;
 
 // ---------------------------------------------------------------------------
-// WebSocket WASI bridge — Cloudflare Worker binding
+// WebSocket WASI bridge - Cloudflare Worker binding
 // ---------------------------------------------------------------------------
 
 /// Extern imports provided by worker.ts via the __zx_ws import namespace.
@@ -106,7 +106,7 @@ pub extern "__zx_ws" fn ws_publish(topic_ptr: [*]const u8, topic_len: usize, dat
 pub extern "__zx_ws" fn ws_is_subscribed(topic_ptr: [*]const u8, topic_len: usize) i32;
 
 // ---------------------------------------------------------------------------
-// Logging bridge — forwards std.log calls to the JS console with level info
+// Logging bridge - forwards std.log calls to the JS console with level info
 // ---------------------------------------------------------------------------
 
 /// Provided by the JS runtime via the __zx namespace (ZxBridge).

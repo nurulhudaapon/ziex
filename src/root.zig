@@ -16,7 +16,7 @@ const opts = @import("options.zig");
 const ctxs = @import("contexts.zig");
 const reactivity = @import("runtime/client/reactivity.zig");
 
-// -- Core Language (separate cached module — excluded by default for user builds) --//
+// -- Core Language --//
 pub const Ast = if (!module_options.exclude_core_lang) @import("zx_core_lang").Ast else @compileError("core_lang is excluded. Set exclude-core-lang=false to enable.");
 pub const Parse = if (!module_options.exclude_core_lang) @import("zx_core_lang").Parse else @compileError("core_lang is excluded. Set exclude-core-lang=false to enable.");
 pub const Validate = if (!module_options.exclude_core_lang) @import("zx_core_lang").Validate else @compileError("core_lang is excluded. Set exclude-core-lang=false to enable.");
@@ -63,7 +63,6 @@ pub const EventHandler = @import("runtime/core/EventHandler.zig");
 pub const State = reactivity.State;
 
 // --- Options --- //
-pub const AppOptions = app_module.ServerConfig;
 pub const PageOptions = opts.PageOptions;
 pub const LayoutOptions = opts.LayoutOptions;
 pub const NotFoundOptions = opts.NotFoundOptions;

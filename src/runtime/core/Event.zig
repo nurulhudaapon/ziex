@@ -1,15 +1,15 @@
 //! Shared Event types for both client-side and server-side event handlers.
 //!
 //! Both `zx.client.Event` and `zx.server.Event` share this state interface:
-//!   - `Event.Stateful` — wrapper with `state()` for handlers bound via `ctx.bind()`
-//!   - `StateHandle(T)` — returned by `state()`, provides `.get()` / `.set()`
-//!   - `StateContext` — positional state accessor used internally by the bind wrappers
+//!   - `Event.Stateful` - wrapper with `state()` for handlers bound via `ctx.bind()`
+//!   - `StateHandle(T)` - returned by `state()`, provides `.get()` / `.set()`
+//!   - `StateContext` - positional state accessor used internally by the bind wrappers
 
 const std = @import("std");
 const zx = @import("../../root.zig");
 
 /// A handle to a single state value.
-/// Returned by `e.state(T)` or `sc.state(T)` — call `.get()` to read, `.set(val)` to write back.
+/// Returned by `e.state(T)` or `sc.state(T)` - call `.get()` to read, `.set(val)` to write back.
 pub fn StateHandle(comptime T: type) type {
     return struct {
         _ctx: *StateContext,
@@ -32,7 +32,7 @@ pub fn StateHandle(comptime T: type) type {
 /// Server-side accessor for component states round-tripped through a server event.
 ///
 /// Call `sc.state(T)` in the same order as `ctx.state(T)` in the render function
-/// to access each bound state — no index needed.
+/// to access each bound state - no index needed.
 pub const StateContext = struct {
     arena: std.mem.Allocator,
     _allocator: std.mem.Allocator,
@@ -61,7 +61,7 @@ pub const StateContext = struct {
     }
 
     /// Access the next bound state in call order, deserializing it to type `T`.
-    /// Returns a StateHandle with `.get()` / `.set()` — same ergonomics as Event.Stateful.state().
+    /// Returns a StateHandle with `.get()` / `.set()` - same ergonomics as Event.Stateful.state().
     pub fn state(self: *StateContext, comptime T: type) StateHandle(T) {
         const i = self._index;
         self._index += 1;

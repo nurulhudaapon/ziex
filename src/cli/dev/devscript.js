@@ -62,7 +62,7 @@
       if (document.hidden) {
         // Defer actions while tab is hidden; keep only the latest pending message
         // so we apply the final state when the user switches back.
-        // "connected" and "building" are status-only — always store them but
+        // "connected" and "building" are status-only - always store them but
         // don't discard a more important pending action (reload/error/asset_update).
         if (msg.type === "connected" || msg.type === "building") {
           if (!state.pendingMessage) state.pendingMessage = msg;
@@ -188,7 +188,7 @@
     }
 
     if (!cssReloaded && files.length > 0) {
-      // Non-CSS assets changed (images, fonts, etc.) — bust cache on matching elements
+      // Non-CSS assets changed (images, fonts, etc.) - bust cache on matching elements
       const selectors = files
         .filter((f) => !f.endsWith(".css"))
         .map((f) => `img[src*="${f}"],source[srcset*="${f}"]`)

@@ -391,11 +391,11 @@ fn DisplayingData(allocator: zx.Allocator, props: DisplayingDataProps) zx.Compon
             <h2>Displaying data</h2>
             <p>ZX lets you embed dynamic content using curly braces <code>{"{expression}"}</code>. Expressions are automatically formatted based on their type:</p>
             <ul>
-                <li><strong>Strings</strong> — displayed as text (HTML-escaped for safety)</li>
-                <li><strong>Numbers</strong> — formatted as decimal</li>
-                <li><strong>Booleans</strong> — displayed as "true" or "false"</li>
-                <li><strong>Enums</strong> — displayed as the tag name</li>
-                <li><strong>Optionals</strong> — unwrapped if present, otherwise renders nothing</li>
+                <li><strong>Strings</strong> - displayed as text (HTML-escaped for safety)</li>
+                <li><strong>Numbers</strong> - formatted as decimal</li>
+                <li><strong>Booleans</strong> - displayed as "true" or "false"</li>
+                <li><strong>Enums</strong> - displayed as the tag name</li>
+                <li><strong>Optionals</strong> - unwrapped if present, otherwise renders nothing</li>
             </ul>
             <ExampleBlock id="text-expr" zx_code={props.zx_text} zig_code={props.zig_text} html_code={props.html_text} filename="user_greeting.zx" />
             <p>Different types are automatically handled:</p>
@@ -558,7 +558,7 @@ fn ChildrenProps(allocator: zx.Allocator, props: ChildrenPropsProps) zx.Componen
     return (
         <section id="children" class="section" @allocator={allocator}>
             <h2>Passing children to components</h2>
-            <p>Components can accept <em>children</em> — content passed between opening and closing tags. Add a <code>children: zx.Component</code> field to your props:</p>
+            <p>Components can accept <em>children</em> - content passed between opening and closing tags. Add a <code>children: zx.Component</code> field to your props:</p>
             <ExampleBlock id="children" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="card_demo.zx" />
             <p>This pattern is useful for creating wrapper components like cards, modals, or layout containers. See the <a href="/reference#children-props">Children Props documentation</a> for more details.</p>
         </section>
@@ -603,10 +603,10 @@ fn PagesAndLayouts(allocator: zx.Allocator, props: PagesAndLayoutsProps) zx.Comp
             <h3>PageContext and LayoutContext</h3>
             <p>Both contexts provide:</p>
             <ul>
-                <li><code>request</code> — HTTP request with headers, query params, body</li>
-                <li><code>response</code> — HTTP response for setting headers</li>
-                <li><code>arena</code> — Request-scoped allocator (recommended)</li>
-                <li><code>allocator</code> — Global allocator for persistent allocations</li>
+                <li><code>request</code> - HTTP request with headers, query params, body</li>
+                <li><code>response</code> - HTTP response for setting headers</li>
+                <li><code>arena</code> - Request-scoped allocator (recommended)</li>
+                <li><code>allocator</code> - Global allocator for persistent allocations</li>
             </ul>
             <div class="callout tip">
                 <strong>Best practice:</strong>
@@ -651,8 +651,8 @@ fn Plugins(allocator: zx.Allocator) zx.Component {
             <h3>Builtin Plugins</h3>
             <p>ZX ships with the following builtin plugins available via <code>zx.plugins</code>:</p>
             <ul>
-                <li><strong><code>zx.plugins.tailwind</code></strong> — Compile Tailwind CSS styles</li>
-                <li><strong><code>zx.plugins.esbuild</code></strong> — Bundle TypeScript/JavaScript for client-side code</li>
+                <li><strong><code>zx.plugins.tailwind</code></strong> - Compile Tailwind CSS styles</li>
+                <li><strong><code>zx.plugins.esbuild</code></strong> - Bundle TypeScript/JavaScript for client-side code</li>
             </ul>
 
             <h3>Tailwind CSS Plugin</h3>

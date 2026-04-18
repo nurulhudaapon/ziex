@@ -314,7 +314,7 @@ fn serveWebSocket(ds: *DevServer, sock: *http.Server.WebSocket) !noreturn {
     };
     log.debug("ws: connected message sent", .{});
 
-    // Drain incoming frames on a dedicated thread — mirrors WebServer.zig's
+    // Drain incoming frames on a dedicated thread - mirrors WebServer.zig's
     // recvWebSocketMessages pattern. Without this, the connection stalls because
     // unread frames (pings, close frames, etc.) block the underlying TCP stream.
     const recv_thread = std.Thread.spawn(.{}, recvWebSocketFrames, .{sock}) catch |err| {
@@ -341,7 +341,7 @@ fn serveWebSocket(ds: *DevServer, sock: *http.Server.WebSocket) !noreturn {
     while (true) {
         const cur = ds.update_id.load(.acquire);
         if (cur == last_id) {
-            // No pending event — wait up to 30 s then ping to keep the connection alive.
+            // No pending event - wait up to 30 s then ping to keep the connection alive.
             std.Thread.Futex.timedWait(&ds.update_id, last_id, 30 * std.time.ns_per_s) catch {
                 try sock.writeMessage("", .ping);
                 continue;
@@ -396,8 +396,8 @@ fn serializeNotification(gpa: Allocator, notification: Notification) ![]u8 {
 }
 
 /// Proxy a request to the inner app binary.
-/// `head_buffer`     — raw HTTP request head (including terminating \r\n\r\n).
-/// `buffered_extra`  — body bytes already consumed by the http.Server reader.
+/// `head_buffer`     - raw HTTP request head (including terminating \r\n\r\n).
+/// `buffered_extra`  - body bytes already consumed by the http.Server reader.
 fn proxyToInner(
     ds: *DevServer,
     client: std.net.Stream,
@@ -406,7 +406,7 @@ fn proxyToInner(
 ) !void {
     const inner_addr = try std.net.Address.parseIp("127.0.0.1", ds.inner_port);
 
-    // Retry while the inner server is (re)starting — up to 2 s.
+    // Retry while the inner server is (re)starting - up to 2 s.
     const inner: std.net.Stream = for (0..200) |_| {
         if (std.net.tcpConnectToAddress(inner_addr)) |s| break s else |_| std.Thread.sleep(10 * std.time.ns_per_ms);
     } else return error.ConnectionRefused;

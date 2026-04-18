@@ -43,7 +43,7 @@ export function createWasiImports({
     const encodedArgs = argStrings.map((a) => encoder.encode(a + "\0"));
     const argBufSize = encodedArgs.reduce((s, a) => s + a.length, 0);
 
-    // WASM memory — set after instantiation
+    // WASM memory - set after instantiation
     let wasmMemory: WebAssembly.Memory = null!;
     const setMemory = (m: WebAssembly.Memory) => { wasmMemory = m; };
 
@@ -142,7 +142,7 @@ export function createWasiImports({
             return 0;
         },
         fd_prestat_get(_fd: number, _bufptr: number): number {
-            return 8; // WASI_EBADF — no preopened directories
+            return 8; // WASI_EBADF - no preopened directories
         },
         fd_prestat_dir_name(_fd: number, _path: number, _path_len: number): number {
             return 8; // WASI_EBADF
@@ -205,7 +205,7 @@ export function createWasiImports({
             v().setUint32(bufused_ptr, 0, true);
             return 76;
         },
-        // Stub for poll_oneoff — no blocking I/O in edge runtimes.
+        // Stub for poll_oneoff - no blocking I/O in edge runtimes.
         poll_oneoff(_in: number, _out: number, _nsubscriptions: number, nevents_ptr: number): number {
             v().setUint32(nevents_ptr, 0, true);
             return 0;

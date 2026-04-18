@@ -1,4 +1,4 @@
-//! Server-side Event — context for server event handlers.
+//! Server-side Event - context for server event handlers.
 //!
 //! Provides the event payload value via `value()`.
 //! For state access, use `Event.Stateful` via `ctx.bind()`.
@@ -26,7 +26,7 @@ pub fn value(self: Event) ?[]const u8 {
     return self.payload.value;
 }
 
-/// Stateful server event — provides `state()` access to bound component state.
+/// Stateful server event - provides `state()` access to bound component state.
 /// Use `fn(*zx.server.Event.Stateful) void` with `ctx.bind()` to get this type.
 pub const Stateful = struct {
     _inner: *Event,
@@ -42,4 +42,3 @@ pub const Stateful = struct {
         return self._inner.value();
     }
 };
-

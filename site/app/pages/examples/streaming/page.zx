@@ -101,7 +101,7 @@ fn SiteStats(allocator: zx.Allocator, props: struct { loading: bool }) zx.Compon
 /// Pause execution for `duration_ms` milliseconds.
 /// On native (dev server): uses std.Thread.sleep.
 /// On WASM (edge/Cloudflare): calls a Suspending JS import so the Worker can
-/// flush partial response chunks to the client before resuming — enabling
+/// flush partial response chunks to the client before resuming - enabling
 /// true streaming with JSPI.
 fn wait(duration_ms: u64) void {
     if (comptime builtin.cpu.arch == .wasm32) {
@@ -111,7 +111,7 @@ fn wait(duration_ms: u64) void {
     }
 }
 
-/// Suspending WASM import — implemented as `setTimeout` on the JS side.
+/// Suspending WASM import - implemented as `setTimeout` on the JS side.
 /// Only linked in WASM builds; dead-code-eliminated in native builds.
 extern "__zx_sys" fn sleep_ms(ms: u32) void;
 

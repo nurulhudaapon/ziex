@@ -64,6 +64,7 @@ pub const ComponentMeta = struct {
             }
 
             fn wrapper(allocator: std.mem.Allocator, cmp_name: []const u8, props_json: ?[]const u8) zx.Component {
+                _ = cmp_name;
                 // Case 1: Component takes only allocator - fn Component(allocator) Component
                 if (first_is_allocator and param_count == 1) {
                     return normalizeResult(func(allocator));
@@ -83,14 +84,16 @@ pub const ComponentMeta = struct {
                     ctx.allocator = allocator;
                     ctx.children = null;
 
-                    ctx._id = instance_counter;
+                    // Reset slot counters so hooks run in stable order every render.
+                    if (@hasField(CtxType, "_internal")) {
+                        ctx._internal = .{
+                            .instance_id = instance_counter,
+                            .component_id = current_render_id,
+                            .state_idx = 0,
+                            .handler_idx = 0,
+                        };
+                    }
                     instance_counter +%= 1; // Wrap around on overflow
-
-                    // Reset both slot counters so hooks run in stable order every render.
-                    ctx._component_id = current_render_id;
-                    ctx._state_index = 0;
-                    if (@hasField(CtxType, "_handler_index")) ctx._handler_index = 0;
-                    if (@hasField(CtxType, "_component_name")) ctx._component_name = cmp_name;
 
                     // Parse props if the context has a props field
                     if (@hasField(CtxType, "props")) {

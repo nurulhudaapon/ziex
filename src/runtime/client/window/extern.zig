@@ -25,17 +25,17 @@ pub extern "__zx" fn _snv(vnode_id: u64, ptr: [*]const u8, len: usize) void;
 
 // DOM tree mutation
 
-/// parent.appendChild(child) — both nodes looked up by vnode_id.
+/// parent.appendChild(child) - both nodes looked up by vnode_id.
 pub extern "__zx" fn _ac(parent_id: u64, child_id: u64) void;
 
-/// parent.insertBefore(child, ref) — all nodes looked up by vnode_id.
+/// parent.insertBefore(child, ref) - all nodes looked up by vnode_id.
 pub extern "__zx" fn _ib(parent_id: u64, child_id: u64, ref_id: u64) void;
 
-/// parent.removeChild(child) — looked up by vnode_id.
+/// parent.removeChild(child) - looked up by vnode_id.
 /// Also recursively removes all descendants from the JS domNodes registry.
 pub extern "__zx" fn _rc(parent_id: u64, child_id: u64) void;
 
-/// parent.replaceChild(new_child, old_child) — looked up by vnode_id.
+/// parent.replaceChild(new_child, old_child) - looked up by vnode_id.
 /// Also removes old_child subtree from the JS domNodes registry.
 pub extern "__zx" fn _rpc(parent_id: u64, new_id: u64, old_id: u64) void;
 

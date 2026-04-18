@@ -61,7 +61,7 @@ test "sm > sourceToGenerated exact match" {
     try testing.expectEqual(@as(i32, 5), result.generated_line);
     try testing.expectEqual(@as(i32, 8), result.generated_column);
 
-    // Position between two mappings on same source line — should use closest before
+    // Position between two mappings on same source line - should use closest before
     const between = decoded.sourceToGenerated(2, 7).?;
     try testing.expectEqual(@as(i32, 5), between.generated_line);
     // col 7 is 3 past the mapping at col 4, so generated col = 8 + 3 = 11
@@ -108,7 +108,7 @@ test "sm > lookup returns null for unmapped position" {
     var decoded = try sm.decode(allocator);
     defer decoded.deinit();
 
-    // Line before any mapping — should return null
+    // Line before any mapping - should return null
     const result = decoded.sourceToGenerated(0, 0);
     try testing.expectEqual(@as(?sourcemap.Mapping, null), result);
 }
@@ -233,7 +233,7 @@ test "sm > e2e expression in element" {
     }
 
     // The expression {name} at source line 3 should map somewhere in generated that contains "name"
-    // Find "name" in the source — it's at line 3, the expression is after "Hello "
+    // Find "name" in the source - it's at line 3, the expression is after "Hello "
     // In .zx, line 3 is: "        <p>Hello {name}</p>"
     // "name" starts at col 16 (after 8 spaces + "<p>Hello {")
     const expr_mapping = decoded.sourceToGenerated(3, 17).?;

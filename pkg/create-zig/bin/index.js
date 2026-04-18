@@ -63,7 +63,7 @@ async function main() {
     process.exit(0);
   }
 
-  // By now the user has been typing — give the fetch a short grace period
+  // By now the user has been typing - give the fetch a short grace period
   // in case it hasn't resolved yet, then fall back to the static list.
   const dynamicTemplates = await Promise.race([
     templatesFetch,
@@ -112,7 +112,7 @@ async function main() {
     s.stop('Replacement failed', 1);
   }
 
-  // 4. Fix Zig fingerprint — Zig reports the correct value when the package
+  // 4. Fix Zig fingerprint - Zig reports the correct value when the package
   //    name changes; we capture it and patch build.zig.zon automatically.
   s.start('Updating package fingerprint...');
   try {

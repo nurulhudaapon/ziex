@@ -451,8 +451,8 @@ fn PluginsSection(allocator: zx.Allocator) zx.Component {
             <h3 id="builtin-plugins">Builtin Plugins</h3>
             <p>ZX ships with the following builtin plugins available via <code>zx.plugins</code>:</p>
             <ul>
-                <li><strong><code>zx.plugins.tailwind</code></strong> — Compile Tailwind CSS styles</li>
-                <li><strong><code>zx.plugins.esbuild</code></strong> — Bundle TypeScript/JavaScript for client-side code</li>
+                <li><strong><code>zx.plugins.tailwind</code></strong> - Compile Tailwind CSS styles</li>
+                <li><strong><code>zx.plugins.esbuild</code></strong> - Bundle TypeScript/JavaScript for client-side code</li>
             </ul>
 
             <h3 id="tailwind-plugin">Tailwind CSS Plugin</h3>
@@ -619,8 +619,8 @@ fn PluginsSection(allocator: zx.Allocator) zx.Component {
 
             <h4>Plugin Lifecycle</h4>
             <ul>
-                <li><strong><code>before_transpile</code></strong> — Runs before ZX transpiles <code>.zx</code> files to Zig. Useful for preprocessing source files.</li>
-                <li><strong><code>after_transpile</code></strong> — Runs after ZX transpilation. Useful for post-processing like CSS compilation, JS bundling, or asset optimization.</li>
+                <li><strong><code>before_transpile</code></strong> - Runs before ZX transpiles <code>.zx</code> files to Zig. Useful for preprocessing source files.</li>
+                <li><strong><code>after_transpile</code></strong> - Runs after ZX transpilation. Useful for post-processing like CSS compilation, JS bundling, or asset optimization.</li>
             </ul>
 
             <h4>Using <code>{"{outdir}"}</code></h4>
@@ -650,9 +650,9 @@ fn CachingSection(allocator: zx.Allocator) zx.Component {
             <h3 id="caching-overview">Overview</h3>
             <p>Caching can be applied at three levels:</p>
             <ul>
-                <li><strong>Component caching</strong> — Cache individual components using the <code>@caching</code> attribute</li>
-                <li><strong>Page caching</strong> — Cache entire pages using <code>PageOptions.caching</code></li>
-                <li><strong>Layout caching</strong> — Cache layouts using <code>LayoutOptions.caching</code></li>
+                <li><strong>Component caching</strong> - Cache individual components using the <code>@caching</code> attribute</li>
+                <li><strong>Page caching</strong> - Cache entire pages using <code>PageOptions.caching</code></li>
+                <li><strong>Layout caching</strong> - Cache layouts using <code>LayoutOptions.caching</code></li>
             </ul>
 
             <h3 id="caching-components">Component Caching</h3>
@@ -716,18 +716,18 @@ fn CachingSection(allocator: zx.Allocator) zx.Component {
             <CodeBlock code={cache_invalidation_example} />
             <p><strong>Available functions:</strong></p>
             <ul>
-                <li><code>zx.cache.del(key)</code> — Delete a specific cache entry by exact key. Returns <code>true</code> if deleted.</li>
-                <li><code>zx.cache.delPrefix(prefix)</code> — Delete all entries matching a prefix. Returns the count of deleted entries.</li>
-                <li><code>zx.cache.get(key)</code> — Get cached HTML by key. Returns <code>?[]const u8</code>.</li>
+                <li><code>zx.cache.del(key)</code> - Delete a specific cache entry by exact key. Returns <code>true</code> if deleted.</li>
+                <li><code>zx.cache.delPrefix(prefix)</code> - Delete all entries matching a prefix. Returns the count of deleted entries.</li>
+                <li><code>zx.cache.get(key)</code> - Get cached HTML by key. Returns <code>?[]const u8</code>.</li>
             </ul>
 
             <h3 id="caching-best-practices">Best Practices</h3>
             <ul>
-                <li><strong>Cache static content aggressively</strong> — Headers, footers, navigation, and other rarely-changing content benefit most from caching.</li>
-                <li><strong>Use custom keys for related content</strong> — Group related cache entries with a common prefix for easy bulk invalidation.</li>
-                <li><strong>Be careful with user-specific content</strong> — Don't cache components that display user-specific data without including user identity in the cache key.</li>
-                <li><strong>Start with short TTLs</strong> — Begin with shorter cache durations and increase as you verify correctness.</li>
-                <li><strong>Invalidate on data changes</strong> — Call <code>zx.cache.del()</code> or <code>zx.cache.delPrefix()</code> when underlying data changes.</li>
+                <li><strong>Cache static content aggressively</strong> - Headers, footers, navigation, and other rarely-changing content benefit most from caching.</li>
+                <li><strong>Use custom keys for related content</strong> - Group related cache entries with a common prefix for easy bulk invalidation.</li>
+                <li><strong>Be careful with user-specific content</strong> - Don't cache components that display user-specific data without including user identity in the cache key.</li>
+                <li><strong>Start with short TTLs</strong> - Begin with shorter cache durations and increase as you verify correctness.</li>
+                <li><strong>Invalidate on data changes</strong> - Call <code>zx.cache.del()</code> or <code>zx.cache.delPrefix()</code> when underlying data changes.</li>
             </ul>
 
             <div class="callout tip">
@@ -926,7 +926,7 @@ fn CLICommand(allocator: zx.Allocator, props: struct { command: CLICommandInfo }
                     <h4>Arguments</h4>
                     <ul>
                         {for (args) |arg| (
-                            <li><code>{arg.name}</code> — {arg.description}</li>
+                            <li><code>{arg.name}</code> - {arg.description}</li>
                         )}
                     </ul>
                 </div>
@@ -937,7 +937,7 @@ fn CLICommand(allocator: zx.Allocator, props: struct { command: CLICommandInfo }
                     <h4>Flags</h4>
                     <ul>
                         {for (flags) |flag| (
-                            <li><code>{flag.name}</code> — {flag.description}</li>
+                            <li><code>{flag.name}</code> - {flag.description}</li>
                         )}
                     </ul>
                 </div>

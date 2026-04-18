@@ -75,7 +75,7 @@ pub const VNode = struct {
 
                 if (element.children) |children| {
                     // Flatten fragments: lift fragment children into this node's
-                    // children list (React-style — fragments produce no DOM node).
+                    // children list (React-style - fragments produce no DOM node).
                     const flat = try flattenComponents(allocator, children);
                     try self.children.ensureTotalCapacity(allocator, flat.len);
                     for (flat, 0..) |child, child_index| {
@@ -425,7 +425,7 @@ fn flattenInto(children: []const zx.Component, result: []zx.Component, idx: *usi
 ///               reused node whose old_index >= lastPlacedIndex → stays, update tracker.
 ///               no match → PLACEMENT.
 ///             Delete every old child not reused.
-///   Backward pass (our addition for reference_id) — emit PLACEMENT/MOVE patches
+///   Backward pass (our addition for reference_id) - emit PLACEMENT/MOVE patches
 ///             back-to-front so each patch's reference_id points to an already-resolved node.
 fn reconcileChildren(
     allocator: zx.Allocator,

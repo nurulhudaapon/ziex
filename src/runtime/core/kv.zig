@@ -144,7 +144,7 @@ fn storedTypeHash(raw: []const u8) !u64 {
     return std.fmt.parseUnsigned(u64, raw[start..i], 10);
 }
 
-// -- Impl: Noop (WASM default — replaced by edge adapter at startup) -- //
+// -- Impl: Noop (WASM default - replaced by edge adapter at startup) -- //
 
 fn noopGet(_: *anyopaque, _: []const u8, _: std.mem.Allocator, _: []const u8) anyerror!?[]u8 {
     return null;
@@ -162,7 +162,7 @@ const noop_vtable = VTable{
     .list = &noopList,
 };
 
-// -- Impl: Filesystem (native default — persists to datadir/kv/<ns>/) -- //
+// -- Impl: Filesystem (native default - persists to datadir/kv/<ns>/) -- //
 const kv_store_base = zx_options.datadir ++ std.fs.path.sep_str ++ "kv";
 
 fn keyPath(ns: []const u8, key: []const u8, buf: *[1024]u8) ?[]u8 {

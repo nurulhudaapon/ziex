@@ -33,7 +33,7 @@ import type {
 } from "./core";
 
 /**
- * Browser ZX Bridge — extends ZxBridgeCore with DOM, WebSocket, and form-action support.
+ * Browser ZX Bridge - extends ZxBridgeCore with DOM, WebSocket, and form-action support.
  * Import this from environments that have access to browser globals.
  * For edge runtimes, import ZxBridgeCore from ./core instead.
  */
