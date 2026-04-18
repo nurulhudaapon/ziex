@@ -1,8 +1,3 @@
-//! Shared server action and server event dispatch logic.
-//!
-//! Used by both handler.zig (full HTTP server) and Edge.zig (WASI edge functions)
-//! to avoid duplicating fast/slow-path dispatch logic.
-
 const std = @import("std");
 const zx = @import("../../root.zig");
 const registry = @import("registry.zig");
@@ -114,10 +109,10 @@ pub fn dispatchAction(
             .response = response,
             .allocator = allocator,
             .arena = arena,
-            ._inputs = action_inputs,
+            ._internal = .{ .inputs = action_inputs },
         };
         action_fn(&action_ctx);
-        const body = if (action_ctx._state_ctx) |sc| try serializeStateOutputs(sc, allocator) else null;
+        const body = if (action_ctx._internal.state_ctx) |sc| try serializeStateOutputs(sc, allocator) else null;
         return if (is_js) .{ .ok = .{ .body = body } } else .ok_native;
     }
 
@@ -134,10 +129,10 @@ pub fn dispatchAction(
             .response = response,
             .allocator = allocator,
             .arena = arena,
-            ._inputs = action_inputs,
+            ._internal = .{ .inputs = action_inputs },
         };
         action_fn(&action_ctx);
-        const body = if (action_ctx._state_ctx) |sc| try serializeStateOutputs(sc, allocator) else null;
+        const body = if (action_ctx._internal.state_ctx) |sc| try serializeStateOutputs(sc, allocator) else null;
         return if (is_js) .{ .ok = .{ .body = body } } else .ok_native;
     }
 
@@ -166,10 +161,10 @@ pub fn dispatchServerEvent(
         var event_ctx = zx.server.Event{
             .allocator = allocator,
             .arena = arena,
-            .payload = payload,
+            ._internal = .{ .payload = payload },
         };
         event_fn(&event_ctx);
-        const body = if (event_ctx._state_ctx) |sc| try serializeStateOutputs(sc, allocator) else null;
+        const body = if (event_ctx._internal.state_ctx) |sc| try serializeStateOutputs(sc, allocator) else null;
         return .{ .ok = .{ .body = body } };
     }
 
@@ -184,10 +179,10 @@ pub fn dispatchServerEvent(
         var event_ctx = zx.server.Event{
             .allocator = allocator,
             .arena = arena,
-            .payload = payload,
+            ._internal = .{ .payload = payload },
         };
         event_fn(&event_ctx);
-        const body = if (event_ctx._state_ctx) |sc| try serializeStateOutputs(sc, allocator) else null;
+        const body = if (event_ctx._internal.state_ctx) |sc| try serializeStateOutputs(sc, allocator) else null;
         return .{ .ok = .{ .body = body } };
     }
 

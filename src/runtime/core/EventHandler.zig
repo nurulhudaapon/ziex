@@ -35,9 +35,9 @@ pub const Context = struct {
 callback: *const fn (ctx: *anyopaque, event: zx.client.Event) void,
 context: *anyopaque,
 /// Non-null when created from a form `action={}` handler.
-/// Takes a pointer so the server wrapper can write `_state_ctx` back after the call.
+/// Takes a pointer so the server wrapper can write state back after the call.
 action_fn: ?*const fn (*zx.server.Action) void = null,
-/// Server-side handler; takes *ServerEventContext so the wrapper can set _state_ctx.
+/// Server-side handler; takes *ServerEventContext so the wrapper can set state.
 server_event_fn: ?*const fn (*zx.server.Event) void = null,
 /// Unique ID for this handler instance on the current page.
 handler_id: u32 = 0,
@@ -198,7 +198,8 @@ pub fn clientS(comptime handler: anytype, alloc: Allocator, component_id: []cons
         fn w(ctx: *anyopaque, event: zx.client.Event) void {
             const p: *[]const u8 = @ptrCast(@alignCast(ctx));
             var e = event;
-            var sf = zx.client.Event.Stateful{ ._inner = &e, ._component_id = p.* };
+            e._internal.component_id = p.*;
+            var sf = zx.client.Event.Stateful{ .inner = &e };
             handler(&sf);
         }
     };
@@ -228,8 +229,8 @@ pub fn serverS(
     handler_index: *u32,
 ) Self {
     const wrap_fn = makeServerWrap(handler, struct {
-        fn call(ctx: *zx.server.Event, sc: *zx.StateContext, h: anytype) void {
-            var sf = zx.server.Event.Stateful{ ._inner = ctx, ._state_ctx = sc };
+        fn call(ctx: *zx.server.Event, _: *zx.StateContext, h: anytype) void {
+            var sf = zx.server.Event.Stateful{ .inner = ctx };
             h(&sf);
         }
     }.call);
@@ -244,8 +245,8 @@ pub fn serverSS(
     bound_states: []const Bound,
 ) Self {
     const wrap_fn = makeServerWrap(handler, struct {
-        fn call(ctx: *zx.server.Event, sc: *zx.StateContext, h: anytype) void {
-            var sf = zx.server.Event.Stateful{ ._inner = ctx, ._state_ctx = sc };
+        fn call(ctx: *zx.server.Event, _: *zx.StateContext, h: anytype) void {
+            var sf = zx.server.Event.Stateful{ .inner = ctx };
             h(&sf);
         }
     }.call);
@@ -262,9 +263,9 @@ pub fn actionStateful(
 ) Self {
     const ActionWrap = struct {
         fn wrap(ctx: *zx.server.Action) void {
-            const sc = zx.StateContext.init(ctx.allocator, ctx.arena, ctx._inputs orelse &.{}) orelse return;
-            ctx._state_ctx = sc;
-            var sf = zx.server.Action.Stateful{ ._inner = ctx, ._state_ctx = sc };
+            const sc = zx.StateContext.init(ctx.allocator, ctx.arena, ctx._internal.inputs orelse &.{}) orelse return;
+            ctx._internal.state_ctx = sc;
+            var sf = zx.server.Action.Stateful{ .inner = ctx };
             handler(&sf);
         }
     };
@@ -324,8 +325,8 @@ fn makeServerWrap(
 ) fn (*zx.server.Event) void {
     return struct {
         fn wrap(ctx: *zx.server.Event) void {
-            const sc = zx.StateContext.init(ctx.allocator, ctx.arena, ctx.payload.states) orelse return;
-            ctx._state_ctx = sc;
+            const sc = zx.StateContext.init(ctx.allocator, ctx.arena, ctx._internal.payload.states) orelse return;
+            ctx._internal.state_ctx = sc;
             call(ctx, sc, handler);
         }
     }.wrap;

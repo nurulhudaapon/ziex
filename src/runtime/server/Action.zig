@@ -1,8 +1,3 @@
-//! Server-side Action - context for server form action handlers.
-//!
-//! Provides form data parsing via `data()`.
-//! For state access, use `Action.Stateful` via `ctx.bind()` or `fn(*zx.server.Action.Stateful) void`.
-
 const std = @import("std");
 const zx = @import("../../root.zig");
 const Request = @import("../core/Request.zig");
@@ -18,13 +13,17 @@ request: Request = undefined,
 response: Response = undefined,
 allocator: Allocator = undefined,
 arena: Allocator = undefined,
-action_ref: u64 = 0,
-_state_ctx: ?*StateContext = null,
-/// Populated by dispatch when a stateful action sends state values in the request body.
-_inputs: ?[]const []const u8 = null,
+
+_internal: Internal = .{},
+
+pub const Internal = struct {
+    action_ref: u64 = 0,
+    state_ctx: ?*StateContext = null,
+    inputs: ?[]const []const u8 = null,
+};
 
 pub fn init(action_ref: u64) Action {
-    return .{ .action_ref = action_ref };
+    return .{ ._internal = .{ .action_ref = action_ref } };
 }
 
 pub fn data(self: Action, comptime T: type) T {
@@ -63,22 +62,21 @@ pub fn data(self: Action, comptime T: type) T {
 /// Stateful server action - provides `state()` access to bound component state.
 /// Use `fn(*zx.server.Action.Stateful) void` with `ctx.bind()` to get this type.
 pub const Stateful = struct {
-    _inner: *Action,
-    _state_ctx: *StateContext,
+    inner: *Action,
 
     /// Access the component's state (server-side).
     /// Must be called in the same order as `ctx.state()` in the render function.
     pub fn state(self: *Stateful, comptime T: type) CoreEvent.StateHandle(T) {
-        return self._state_ctx.state(T);
+        return self.inner._internal.state_ctx.?.state(T);
     }
 
     /// Parse form data from the action request into struct type T.
     pub fn data(self: *Stateful, comptime T: type) T {
-        return self._inner.data(T);
+        return self.inner.data(T);
     }
 
     pub fn fmt(self: Stateful, comptime format: []const u8, args: anytype) ![]u8 {
-        var aw: std.Io.Writer.Allocating = .init(self._state_ctx.arena);
+        var aw: std.Io.Writer.Allocating = .init(self.inner._internal.state_ctx.?.arena);
         defer aw.deinit();
         aw.writer.print(format, args) catch |err| switch (err) {
             error.WriteFailed => return error.OutOfMemory,

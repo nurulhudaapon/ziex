@@ -1,22 +1,17 @@
-const std = @import("std");
-
 const zx = @import("root.zig");
-
 const reactivity = @import("runtime/client/reactivity.zig");
+
+const ActionContext = @import("runtime/server/Action.zig");
+const ClientEvent = @import("runtime/client/Event.zig");
+const CoreEvent = @import("runtime/core/Event.zig");
 const Request = @import("runtime/core/Request.zig");
 const Response = @import("runtime/core/Response.zig");
-const CoreEvent = @import("runtime/core/Event.zig");
-const ClientEvent = @import("runtime/client/Event.zig");
 const ServerEvent = @import("runtime/server/Event.zig");
-const ActionContext = @import("runtime/server/Action.zig");
 
 const StateContext = CoreEvent.StateContext;
-const Allocator = std.mem.Allocator;
+const Allocator = zx.Allocator;
 
-const platform = zx.platform;
-const client_allocator = zx.allocator;
-
-/// Context passed to proxy middleware functions.
+// TODO: Re-work proxy arhitecture to allow intercepting request before and after
 pub const ProxyContext = struct {
     request: Request,
     response: Response,
@@ -100,13 +95,13 @@ pub fn ComponentCtx(comptime PropsType: type) type {
             comptime if (!(params.len == 1 and params[0].type.? == *ServerEvent.Stateful))
                 @compileError("sbind: handler must be fn(*zx.server.Event.Stateful) void");
 
-            const alloc = if (platform.role == .client) client_allocator else self.allocator;
+            const alloc = if (zx.platform.role == .client) zx.allocator else self.allocator;
             const bound_states = zx.EventHandler.buildStates(alloc, states);
             return zx.EventHandler.serverSS(handler, alloc, &self._internal.handler_idx, bound_states);
         }
 
         pub fn bind(self: *Self, comptime handler: anytype) zx.EventHandler {
-            const alloc = if (platform.role == .client) client_allocator else self.allocator;
+            const alloc = if (zx.platform.role == .client) zx.allocator else self.allocator;
 
             const HandlerType = @TypeOf(handler);
             const FnType = switch (@typeInfo(HandlerType)) {
@@ -157,9 +152,9 @@ fn actionBind(comptime handler: anytype, alloc: Allocator, ctx: anytype) zx.Even
     {
         const FormActionWrapper = struct {
             fn wrap(action_ctx_ptr: *ActionContext) void {
-                const inputs = action_ctx_ptr._inputs orelse &.{};
+                const inputs = action_ctx_ptr._internal.inputs orelse &.{};
                 const sc = StateContext.init(action_ctx_ptr.arena, action_ctx_ptr.arena, inputs) orelse return;
-                action_ctx_ptr._state_ctx = sc;
+                action_ctx_ptr._internal.state_ctx = sc;
                 if (comptime arg0 == ActionContext) {
                     handler(action_ctx_ptr.*, sc);
                 } else {
