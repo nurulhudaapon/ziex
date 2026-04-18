@@ -1,6 +1,7 @@
 # Zig
 .zig-cache
 zig-out
+zig-pkg
 
 # ZX
 /dist
@@ -9,8 +10,19 @@ zig-out
 # Node.js
 node_modules
 
+# Vercel build artifacts
+.vercel
+.vercel/output
+
+# Repository metadata
+.git
+.github
+
+# OS/editor noise
+.DS_Store
+
 # Cloudflare
 .wrangler/
+.wrangler-artifact/
 
 app/assets/playground/
-.vercel
