@@ -1,7 +1,7 @@
 const window = @import("client/window.zig");
 
 pub const Event = @import("client/Event.zig");
-pub const events = @import("client/events_generated.zig");
+pub const events = @import("client/events/generated.zig");
 pub const jsx = @import("client/jsx.zig");
 
 // Legacy --- may get removed/renamed

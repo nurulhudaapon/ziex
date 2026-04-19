@@ -45,14 +45,15 @@ fn eql(a: []const u8, b: []const u8) bool {
 
 fn isZigKeyword(name: []const u8) bool {
     const keywords = [_][]const u8{
-        "addrspace", "align", "allowzero", "and", "anyframe", "anytype",
-        "asm", "async", "await", "break", "callconv", "catch", "comptime",
-        "const", "continue", "defer", "else", "enum", "errdefer", "error",
-        "export", "extern", "fn", "for", "if", "inline", "linksection",
-        "noalias", "noinline", "nosuspend", "opaque", "or", "orelse",
-        "packed", "pub", "resume", "return", "struct", "suspend", "switch",
-        "test", "threadlocal", "try", "union", "unreachable", "usingnamespace",
-        "var", "volatile", "while",
+        "addrspace", "align",  "allowzero",   "and",            "anyframe", "anytype",
+        "asm",       "async",  "await",       "break",          "callconv", "catch",
+        "comptime",  "const",  "continue",    "defer",          "else",     "enum",
+        "errdefer",  "error",  "export",      "extern",         "fn",       "for",
+        "if",        "inline", "linksection", "noalias",        "noinline", "nosuspend",
+        "opaque",    "or",     "orelse",      "packed",         "pub",      "resume",
+        "return",    "struct", "suspend",     "switch",         "test",     "threadlocal",
+        "try",       "union",  "unreachable", "usingnamespace", "var",      "volatile",
+        "while",
     };
     for (keywords) |keyword| {
         if (eql(name, keyword)) return true;
@@ -65,6 +66,32 @@ fn zigIdent(allocator: std.mem.Allocator, name: []const u8) ![]const u8 {
     return try std.fmt.allocPrint(allocator, "@\"{s}\"", .{name});
 }
 
+// Converts a camelCase WebIDL identifier to snake_case for Zig field naming.
+// Runs of uppercase letters are treated as acronyms, so `blockedURI` → `blocked_uri`
+// and `newURL` → `new_url`. The original camelCase is preserved separately as the
+// JS property name to read from the underlying DOM event object.
+fn camelToSnake(allocator: std.mem.Allocator, name: []const u8) ![]const u8 {
+    var out: std.ArrayListUnmanaged(u8) = .empty;
+    for (name, 0..) |c, i| {
+        const is_upper = c >= 'A' and c <= 'Z';
+        if (is_upper and i > 0) {
+            const prev = name[i - 1];
+            const prev_is_lower = prev >= 'a' and prev <= 'z';
+            const next_is_lower = (i + 1 < name.len) and name[i + 1] >= 'a' and name[i + 1] <= 'z';
+            const prev_is_upper = prev >= 'A' and prev <= 'Z';
+            if (prev_is_lower or (prev_is_upper and next_is_lower)) {
+                try out.append(allocator, '_');
+            }
+        }
+        if (is_upper) {
+            try out.append(allocator, c - 'A' + 'a');
+        } else {
+            try out.append(allocator, c);
+        }
+    }
+    return out.toOwnedSlice(allocator);
+}
+
 // A parsed interface: flat list of (name, zig_type) after resolving inheritance.
 const Interface = struct {
     name: []const u8,
@@ -73,6 +100,7 @@ const Interface = struct {
 
     const Field = struct {
         name: []const u8,
+        js_name: []const u8,
         zig_type: []const u8,
     };
 };
@@ -83,10 +111,10 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     const source = try generate(allocator);
     defer allocator.free(source);
-    const file = try std.fs.cwd().createFile("src/runtime/client/events_generated.zig", .{});
+    const file = try std.fs.cwd().createFile("src/runtime/client/events/generated.zig", .{});
     defer file.close();
     try file.writeAll(source);
-    std.debug.print("Generated src/runtime/client/events_generated.zig\n", .{});
+    std.debug.print("Generated src/runtime/client/events/generated.zig\n", .{});
 }
 
 pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
@@ -204,14 +232,16 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
         \\//!
         \\//! Provides typed Zig structs for all browser DOM events.
         \\//! Use with `event.as(events.MouseEvent, allocator)`.
+        \\const std = @import("std");
     );
 
-    // Emit EventTarget helper struct first
+    // Emit EventTarget helper struct first. Field names are snake_case; the
+    // original camelCase DOM property names are resolved via `jsName` below.
     try file.addRaw(
         \\/// Minimal representation of EventTarget/Element for use as a nested field.
         \\/// Contains the most commonly accessed DOM element properties.
         \\pub const EventTarget = struct {
-        \\    tagName: []const u8 = "",
+        \\    tag_name: []const u8 = "",
         \\    id: []const u8 = "",
         \\    name: []const u8 = "",
         \\    value: []const u8 = "",
@@ -220,6 +250,12 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
         \\    disabled: bool = false,
         \\};
     );
+
+    // Track snake_case → camelCase for every field whose names differ, so that
+    // `Event.as(T, …)` can translate Zig field names back to the JS property
+    // name when reading from the native DOM event object.
+    var js_name_pairs = std.StringHashMap([]const u8).init(a);
+    try js_name_pairs.put("tag_name", "tagName");
 
     // Emit each interface struct
     var iface_it = interfaces.iterator();
@@ -237,6 +273,9 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
                 break :blk "0";
             };
             try container.addField(file.arena.allocator(), "", try zigIdent(file.arena.allocator(), field.name), field.zig_type, default);
+            if (!eql(field.name, field.js_name)) {
+                _ = try js_name_pairs.getOrPutValue(field.name, field.js_name);
+            }
         }
     }
 
@@ -300,7 +339,34 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
         }
     }
     try w.writeAll("    };\n");
+    try w.writeAll("}\n\n");
+
+    // Emit the snake_case → camelCase map used by `Event.as` at runtime to
+    // translate Zig field names back to the original DOM property names.
+    try w.writeAll("/// Maps snake_case Zig field names to their camelCase DOM property names.\n");
+    try w.writeAll("/// Fields whose snake_case equals the DOM name are omitted; callers should\n");
+    try w.writeAll("/// fall back to the original identifier when no mapping is present.\n");
+    try w.writeAll("pub const js_field_names = std.StaticStringMap([]const u8).initComptime(.{\n");
+    var pair_it = js_name_pairs.iterator();
+    // Sort entries for deterministic output.
+    var sorted_keys: std.ArrayListUnmanaged([]const u8) = .empty;
+    while (pair_it.next()) |e| try sorted_keys.append(a, e.key_ptr.*);
+    std.mem.sort([]const u8, sorted_keys.items, {}, struct {
+        fn lt(_: void, l: []const u8, r: []const u8) bool {
+            return std.mem.lessThan(u8, l, r);
+        }
+    }.lt);
+    for (sorted_keys.items) |k| {
+        const v = js_name_pairs.get(k).?;
+        try w.print("    .{{ \"{s}\", \"{s}\" }},\n", .{ k, v });
+    }
+    try w.writeAll("});\n\n");
+    try w.writeAll("/// Resolves the DOM property name for a given Zig field name.\n");
+    try w.writeAll("/// Returns the mapped camelCase identifier, or the input unchanged when none exists.\n");
+    try w.writeAll("pub fn jsName(name: []const u8) []const u8 {\n");
+    try w.writeAll("    return js_field_names.get(name) orelse name;\n");
     try w.writeAll("}");
+
     try file.addRaw(try aliases.toOwnedSlice(a));
 
     return try file.finish();
@@ -351,7 +417,8 @@ fn resolveInterface(
                 const zig_type = idlToZig(raw_type.string, nullable) orelse continue;
 
                 try seen_names.put(field_name, {});
-                try fields.append(a, .{ .name = field_name, .zig_type = zig_type });
+                const snake = try camelToSnake(a, field_name);
+                try fields.append(a, .{ .name = snake, .js_name = field_name, .zig_type = zig_type });
             }
         }
         current = raw_inheritance.get(iname);

@@ -1,7 +1,7 @@
 const std = @import("std");
 const zx = @import("../../root.zig");
 const client = @import("window.zig");
-const generated_events = @import("events_generated.zig");
+const generated_events = @import("events/generated.zig");
 const js = zx.client.js;
 const reactivity = client.reactivity;
 
@@ -79,7 +79,8 @@ fn readField(comptime F: type, allocator: Allocator, obj: js.Object, comptime na
     const finfo = @typeInfo(F);
     const Child = if (finfo == .optional) finfo.optional.child else F;
     const child_info = @typeInfo(Child);
-    const raw = obj.value.get(name) catch return null;
+    const js_name = comptime generated_events.jsName(name);
+    const raw = obj.value.get(js_name) catch return null;
     defer raw.deinit();
 
     const raw_type = raw.typeOf();

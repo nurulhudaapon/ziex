@@ -43,9 +43,9 @@ fn onclick(ctx: *zx.client.Event.Stateful) void {
     const data = ctx.data(.mousedown, zx.allocator);
     zx.log.info("event: type={s} at ({d},{d}) on <{s}>", .{
         data.type,
-        data.clientX,
-        data.clientY,
-        if (data.target) |target| target.tagName else "unknown",
+        data.client_x,
+        data.client_y,
+        if (data.target) |target| target.tag_name else "unknown",
     });
 
     tryonclick(ctx) catch |e| {
@@ -57,7 +57,7 @@ fn onfocus(ctx: *zx.client.Event.Stateful) void {
     const data = ctx.data(.focusin, zx.allocator);
     zx.log.info("focus: type={s} relatedTarget?={any}", .{
         data.type,
-        data.relatedTarget != null,
+        data.related_target != null,
     });
 }
 
@@ -75,8 +75,8 @@ fn onkeydown(ctx: *zx.client.Event.Stateful) void {
     zx.log.info("keydown: key={s} code={s} ctrl={any} shift={any}", .{
         data.key,
         data.code,
-        data.ctrlKey,
-        data.shiftKey,
+        data.ctrl_key,
+        data.shift_key,
     });
 }
 
