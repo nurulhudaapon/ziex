@@ -1281,14 +1281,14 @@ body {
 }
 
 .feature-description {
-    color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.65);
     line-height: 1.6;
     font-size: 0.8125rem;
     transition: color 0.3s ease;
 }
 
 .feature-card:hover .feature-description {
-    color: rgba(255, 255, 255, 0.6);
+    color: rgba(255, 255, 255, 0.8);
 }
 
 /* Feature Examples Section */
@@ -1928,7 +1928,7 @@ body {
 
 .deployment-card-text {
     font-size: 0.8125rem;
-    color: rgba(255, 255, 255, 0.4);
+    color: rgba(255, 255, 255, 0.65);
     line-height: 1.6;
 }
 
