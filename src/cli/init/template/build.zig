@@ -17,5 +17,5 @@ pub fn build(b: *std.Build) !void {
     });
 
     // --- ZX setup: wires dependencies and adds `zx`/`dev` build steps ---
-    _ = try zx.init(b, app_exe, .{});
+    _ = try zx.init(b, app_exe, .{ .cli = .{ .optimize = optimize } });
 }

@@ -1,0 +1,17 @@
+{
+  "name": "_base",
+  "version": "1.0.0",
+  "description": ">This is a starter template for building web applications with [Ziex](https://ziex.dev), a full-stack web framework for Zig.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "esbuild": "^0.28.0"
+  },
+  "devDependencies": {}
+}
