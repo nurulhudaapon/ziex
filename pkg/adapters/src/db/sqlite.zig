@@ -41,9 +41,10 @@ const DatabaseCtx = struct {
     }
 
     fn acquire(self: *DatabaseCtx) !BorrowedConn {
+        const io = std.Options.debug_io;
         return switch (self.mode) {
             .single => .{ .conn = self.conn orelse return db.DbError.InvalidState },
-            .pooled => .{ .conn = (self.pool orelse return db.DbError.InvalidState).acquire(), .pool = self.pool },
+            .pooled => .{ .conn = try (self.pool orelse return db.DbError.InvalidState).acquire(io), .pool = self.pool },
         };
     }
 };
@@ -53,7 +54,7 @@ const BorrowedConn = struct {
     pool: ?*zqlite.Pool = null,
 
     fn deinit(self: *BorrowedConn) void {
-        if (self.pool != null) self.conn.release();
+        if (self.pool != null) self.conn.release(std.Options.debug_io);
     }
 };
 
@@ -695,7 +696,14 @@ fn ensureParentDir(path: []const u8) !void {
     if (isMemoryPath(path) or isUriPath(path)) return;
     const parent = std.fs.path.dirname(path) orelse return;
     if (parent.len == 0) return;
-    try std.fs.cwd().makePath(parent);
+    const io = std.Options.debug_io;
+    if (std.Io.Dir.cwd().statFile(io, parent, .{ .follow_symlinks = true })) |st| {
+        if (st.kind == .directory) return;
+    } else |_| {}
+    std.Io.Dir.cwd().createDirPath(io, parent) catch |err| switch (err) {
+        error.PathAlreadyExists => {},
+        else => return err,
+    };
 }
 
 fn isUriPath(path: []const u8) bool {

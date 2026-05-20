@@ -38,32 +38,32 @@ splitting: ?bool = null,
 /// Resolve all lazy paths and serialize to a `std.json.Value` that `bunjs`
 /// can pass directly as `Bun.BuildConfig`.
 pub fn toJsonValue(self: BunBuildConfig, b: *std.Build, arena: std.mem.Allocator) !std.json.Value {
-    var obj = std.json.ObjectMap.init(arena);
+    var obj = std.json.ObjectMap.empty;
 
     // entrypoints - required array
     var eps = std.json.Array.init(arena);
     for (self.entrypoints) |lp| {
         try eps.append(.{ .string = lp.getPath(b) });
     }
-    try obj.put("entrypoints", .{ .array = eps });
+    try obj.put(arena, "entrypoints", .{ .array = eps });
 
-    if (self.target) |v| try obj.put("target", .{ .string = @tagName(v) });
-    if (self.format) |v| try obj.put("format", .{ .string = @tagName(v) });
-    if (self.sourcemap) |v| try obj.put("sourcemap", .{ .string = @tagName(v) });
-    if (self.minify) |v| try obj.put("minify", .{ .bool = v });
-    if (self.splitting) |v| try obj.put("splitting", .{ .bool = v });
-    if (self.public_path) |v| try obj.put("publicPath", .{ .string = v });
+    if (self.target) |v| try obj.put(arena, "target", .{ .string = @tagName(v) });
+    if (self.format) |v| try obj.put(arena, "format", .{ .string = @tagName(v) });
+    if (self.sourcemap) |v| try obj.put(arena, "sourcemap", .{ .string = @tagName(v) });
+    if (self.minify) |v| try obj.put(arena, "minify", .{ .bool = v });
+    if (self.splitting) |v| try obj.put(arena, "splitting", .{ .bool = v });
+    if (self.public_path) |v| try obj.put(arena, "publicPath", .{ .string = v });
 
     if (self.external.len > 0) {
         var arr = std.json.Array.init(arena);
         for (self.external) |e| try arr.append(.{ .string = e });
-        try obj.put("external", .{ .array = arr });
+        try obj.put(arena, "external", .{ .array = arr });
     }
 
     if (self.define.len > 0) {
-        var def_obj = std.json.ObjectMap.init(arena);
-        for (self.define) |d| try def_obj.put(d.key, .{ .string = d.value });
-        try obj.put("define", .{ .object = def_obj });
+        var def_obj = std.json.ObjectMap.empty;
+        for (self.define) |d| try def_obj.put(arena, d.key, .{ .string = d.value });
+        try obj.put(arena, "define", .{ .object = def_obj });
     }
 
     return .{ .object = obj };

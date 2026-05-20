@@ -68,17 +68,9 @@ pub fn build(b: *std.Build) !void {
     });
     tests.root_module.addImport(library_name, module);
 
-    // HACK: fetch tree-sitter dependency only when testing this module
-    if (b.pkg_hash.len == 0) {
-        var args = try std.process.argsWithAllocator(b.allocator);
-        defer args.deinit();
-        while (args.next()) |a| {
-            if (std.mem.eql(u8, a, "test")) {
-                const ts_dep = b.lazyDependency("tree_sitter", .{}) orelse continue;
-                tests.root_module.addImport("tree_sitter", ts_dep.module("tree_sitter"));
-                break;
-            }
-        }
+    // Fetch tree-sitter lazily when available so tests work across build API versions.
+    if (b.lazyDependency("tree_sitter", .{})) |ts_dep| {
+        tests.root_module.addImport("tree_sitter", ts_dep.module("tree_sitter"));
     }
 
     const run_tests = b.addRunArtifact(tests);
@@ -88,6 +80,6 @@ pub fn build(b: *std.Build) !void {
 
 inline fn fileExists(b: *std.Build, filename: []const u8) bool {
     const dir = b.build_root.handle;
-    dir.access(filename, .{}) catch return false;
+    dir.access(b.graph.io, filename, .{}) catch return false;
     return true;
 }

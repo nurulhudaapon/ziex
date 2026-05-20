@@ -125,7 +125,7 @@ var _ctx: *anyopaque = @ptrCast(&_stateless);
 var _vtable: *const DriverVTable = &noop.vtable;
 var _default_config: DefaultConfig = .{};
 var _default_connection: ?Connection = null;
-var _default_connection_mutex: std.Thread.Mutex = .{};
+var _default_connection_mutex: std.atomic.Mutex = .unlocked;
 
 pub fn adapter(ctx: *anyopaque, vtable: *const DriverVTable) void {
     _ctx = ctx;
@@ -158,7 +158,7 @@ pub fn deserialize(bytes: []const u8, options: OpenOptions) !Connection {
 }
 
 pub fn connection() !*Connection {
-    _default_connection_mutex.lock();
+    while (!_default_connection_mutex.tryLock()) std.Thread.yield() catch {};
     defer _default_connection_mutex.unlock();
 
     if (_default_connection == null) {
@@ -169,7 +169,7 @@ pub fn connection() !*Connection {
 }
 
 pub fn closeDefault() void {
-    _default_connection_mutex.lock();
+    while (!_default_connection_mutex.tryLock()) std.Thread.yield() catch {};
     defer _default_connection_mutex.unlock();
 
     if (_default_connection) |*conn| {
@@ -538,12 +538,8 @@ fn resolveDatabaseLocation(filename: ?[]const u8) !?[]const u8 {
 fn configuredUrl() ?[]const u8 {
     if (_default_config.url) |url| return url;
     if (builtin.os.tag == .wasi or builtin.os.tag == .freestanding) return null;
-    if (std.process.getEnvVarOwned(std.heap.page_allocator, "ZX_DB_URL")) |value| {
-        return value;
-    } else |_| {}
-    if (std.process.getEnvVarOwned(std.heap.page_allocator, "DATABASE_URL")) |value| {
-        return value;
-    } else |_| {}
+    if (std.c.getenv("ZX_DB_URL")) |value| return std.mem.span(value);
+    if (std.c.getenv("DATABASE_URL")) |value| return std.mem.span(value);
     return null;
 }
 

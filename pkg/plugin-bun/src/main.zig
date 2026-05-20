@@ -10,13 +10,10 @@ const BuildEvent = struct {
     dependencies: []const []const u8 = &.{},
 };
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
+pub fn main(init: std.process.Init) !void {
+    var gpa = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer gpa.deinit();
     const allocator = gpa.allocator();
-
-    var args = try std.process.argsWithAllocator(allocator);
-    defer args.deinit();
 
     // --- Flags --- //
     var bun_path: []const u8 = "bun"; // default to "bun" in PATH
@@ -24,13 +21,23 @@ pub fn main() !void {
     var dep_file_path: ?[]const u8 = null;
     const runner_script = @embedFile("builder.ts");
 
+    var args = try init.minimal.args.iterateAllocator(allocator);
+    defer args.deinit();
+    _ = args.next(); // skip program name
+
     while (args.next()) |arg| {
         if (std.mem.eql(u8, arg, "--bun-path")) bun_path = args.next() orelse return error.MissingBunPath;
         if (std.mem.eql(u8, arg, "--outdir")) outdir_path = args.next() orelse return error.MissingOutdirPath;
         if (std.mem.eql(u8, arg, "--dep-file")) dep_file_path = args.next() orelse return error.MissingDepFilePath;
     }
 
-    const input_json = try std.fs.File.stdin().readToEndAlloc(allocator, 64 * 1024 * 1024);
+    // Read stdin into memory
+    var stdin_buffer: [4096]u8 = undefined;
+    var stdin_reader = std.Io.File.stdin().readerStreaming(init.io, &stdin_buffer);
+    var stdin_writer = std.Io.Writer.Allocating.init(allocator);
+    defer stdin_writer.deinit();
+    _ = try stdin_reader.interface.streamRemaining(&stdin_writer.writer);
+    const input_json = try stdin_writer.toOwnedSlice();
     defer allocator.free(input_json);
 
     // Parse and inject outdir into each build config
@@ -43,7 +50,7 @@ pub fn main() !void {
     if (outdir_path) |od| {
         for (builds) |*build_item| {
             const config_ptr = build_item.object.getPtr("config").?;
-            try config_ptr.object.put("outdir", .{ .string = od });
+            try config_ptr.object.put(allocator, "outdir", .{ .string = od });
         }
     }
 
@@ -51,21 +58,27 @@ pub fn main() !void {
     const modified_json = try std.json.Stringify.valueAlloc(allocator, parsed.value, .{});
     defer allocator.free(modified_json);
 
-    var child = std.process.Child.init(
-        &.{ bun_path, "-e", runner_script },
-        allocator,
-    );
-    child.stdin_behavior = .Pipe;
-    child.stdout_behavior = .Pipe;
-    child.stderr_behavior = .Inherit;
-    try child.spawn();
+    var child = try std.process.spawn(init.io, .{
+        .argv = &.{ bun_path, "-e", runner_script },
+        .stdin = .pipe,
+        .stdout = .pipe,
+        .stderr = .inherit,
+    });
 
-    // Write config to bun's stdin, then close so bun sees EOF
-    try child.stdin.?.writeAll(modified_json);
-    child.stdin.?.close();
-    child.stdin = null;
+    // Best-effort cleanup if we exit before the explicit wait below.
+    defer if (child.id != null) {
+        _ = child.wait(init.io) catch {};
+    };
 
-    var progress = std.Progress.start(.{
+    // Write config to bun's stdin, then close so bun sees EOF.
+    // Clear child.stdin so wait()'s cleanup doesn't double-close the handle.
+    if (child.stdin) |stdin_file| {
+        try stdin_file.writeStreamingAll(init.io, modified_json);
+        stdin_file.close(init.io);
+        child.stdin = null;
+    }
+
+    var progress = std.Progress.start(init.io, .{
         .root_name = "bun build",
         .estimated_total_items = build_count,
     });
@@ -86,66 +99,67 @@ pub fn main() !void {
     var all_deps = std.ArrayList([]const u8).empty;
     defer all_deps.deinit(allocator);
 
-    var stdout = child.stdout.?;
-    var buffer: [4096]u8 = undefined;
-    var streaming_reader = stdout.readerStreaming(&buffer);
-    const io_reader = &streaming_reader.interface;
-    var line_writer = std.Io.Writer.Allocating.init(allocator);
-    defer line_writer.deinit();
+    if (child.stdout) |stdout_file| {
+        var buffer: [4096]u8 = undefined;
+        var streaming_reader = stdout_file.readerStreaming(init.io, &buffer);
+        const io_reader = &streaming_reader.interface;
+        var line_writer = std.Io.Writer.Allocating.init(allocator);
+        defer line_writer.deinit();
 
-    var aa = std.heap.ArenaAllocator.init(allocator);
-    const arena = aa.allocator();
-    defer aa.deinit();
-    while (io_reader.streamDelimiter(&line_writer.writer, '\n')) |_| {
-        const line = line_writer.written();
-        _ = io_reader.takeByte() catch break;
+        var aa = std.heap.ArenaAllocator.init(allocator);
+        const arena = aa.allocator();
+        defer aa.deinit();
+        while (io_reader.streamDelimiter(&line_writer.writer, '\n')) |_| {
+            const line = line_writer.written();
+            _ = io_reader.takeByte() catch break;
 
-        const ev_parsed = std.json.parseFromSlice(BuildEvent, allocator, line, .{
-            .ignore_unknown_fields = true,
-        }) catch continue; // skip malformed lines
-        defer ev_parsed.deinit();
-        const ev = ev_parsed.value;
+            const ev_parsed = std.json.parseFromSlice(BuildEvent, allocator, line, .{
+                .ignore_unknown_fields = true,
+            }) catch continue; // skip malformed lines
+            defer ev_parsed.deinit();
+            const ev = ev_parsed.value;
 
-        const name = try std.fmt.allocPrint(arena, "{s} ({d})", .{ ev.name, ev.id });
+            const name = try std.fmt.allocPrint(arena, "{s} ({d})", .{ ev.name, ev.id });
 
-        switch (ev.type) {
-            .start => {
-                const node = progress.start(name, 0);
-                try nodes.put(name, node);
-            },
-            .result => {
-                if (ev.success == false) failed += 1;
-                for (ev.dependencies) |dep| {
-                    try all_deps.append(allocator, try arena.dupe(u8, dep));
-                }
-            },
-            .@"error" => {
-                failed += 1;
-                if (ev.@"error") |msg| {
-                    std.debug.print("bun build [{s}] error: {s}\n", .{ ev.name, msg });
-                }
-            },
-            .end => {
-                if (nodes.fetchRemove(name)) |kv| {
-                    kv.value.end();
-                }
-                progress.completeOne();
-            },
+            switch (ev.type) {
+                .start => {
+                    const node = progress.start(name, 0);
+                    try nodes.put(name, node);
+                },
+                .result => {
+                    if (ev.success == false) failed += 1;
+                    for (ev.dependencies) |dep| {
+                        try all_deps.append(allocator, try arena.dupe(u8, dep));
+                    }
+                },
+                .@"error" => {
+                    failed += 1;
+                    if (ev.@"error") |msg| {
+                        std.debug.print("bun build [{s}] error: {s}\n", .{ ev.name, msg });
+                    }
+                },
+                .end => {
+                    if (nodes.fetchRemove(name)) |kv| {
+                        kv.value.end();
+                    }
+                    progress.completeOne();
+                },
+            }
+
+            line_writer.clearRetainingCapacity();
+        } else |err| {
+            if (err == error.EndOfStream) {}
         }
-
-        line_writer.clearRetainingCapacity();
-    } else |err| {
-        if (err == error.EndOfStream) {}
     }
 
     // Write dep file before potential exit(1)
     if (dep_file_path) |dfp| {
-        writeDepFile(allocator, dfp, outdir_path orelse "dist", all_deps.items) catch |err| {
+        writeDepFile(allocator, init.io, dfp, outdir_path orelse "dist", all_deps.items) catch |err| {
             std.debug.print("Failed to write dep file: {any}\n", .{err});
         };
     }
 
-    const term = child.wait() catch |err| {
+    const term = child.wait(init.io) catch |err| {
         if (err == error.FileNotFound) {
             std.debug.print("Failed to execute bun: executable not found at '{s}'\n", .{bun_path});
             return error.BunNotFound;
@@ -154,7 +168,7 @@ pub fn main() !void {
         return error.WaitFailed;
     };
     const exit_code: u8 = switch (term) {
-        .Exited => |c| c,
+        .exited => |c| c,
         else => 1,
     };
 
@@ -164,7 +178,7 @@ pub fn main() !void {
     }
 }
 
-fn writeDepFile(allocator: std.mem.Allocator, path: []const u8, target: []const u8, deps: []const []const u8) !void {
+fn writeDepFile(allocator: std.mem.Allocator, io: std.Io, path: []const u8, target: []const u8, deps: []const []const u8) !void {
     var buf = std.ArrayList(u8).empty;
     defer buf.deinit(allocator);
     try buf.appendSlice(allocator, target);
@@ -180,7 +194,7 @@ fn writeDepFile(allocator: std.mem.Allocator, path: []const u8, target: []const 
         }
     }
     try buf.appendSlice(allocator, "\n");
-    const f = try std.fs.cwd().createFile(path, .{});
-    defer f.close();
-    try f.writeAll(buf.items);
+    const f = try std.Io.Dir.cwd().createFile(io, path, .{});
+    defer f.close(io);
+    try f.writeStreamingAll(io, buf.items);
 }

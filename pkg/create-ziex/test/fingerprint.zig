@@ -5,8 +5,9 @@ pub const Fingerprint = packed struct(u64) {
     checksum: u32,
 
     pub fn generate(name: []const u8) Fingerprint {
+        var source: std.Random.IoSource = .{ .io = std.testing.io };
         return .{
-            .id = std.crypto.random.intRangeLessThan(u32, 1, 0xffffffff),
+            .id = source.interface().intRangeLessThan(u32, 1, 0xffffffff),
             .checksum = std.hash.Crc32.hash(name),
         };
     }

@@ -37,10 +37,10 @@ fn innerInitSingle(b: *std.Build, build_item: Build) !Output {
     const alloc = arena.allocator();
 
     // Create config for single build (outdir is NOT in config - injected by exe from CLI arg)
-    var obj = std.json.ObjectMap.init(alloc);
-    try obj.put("name", .{ .string = build_item.name orelse "bun build" });
+    var obj = std.json.ObjectMap.empty;
+    try obj.put(alloc, "name", .{ .string = build_item.name orelse "bun build" });
     const config_val = try build_item.config.toJsonValue(b, alloc);
-    try obj.put("config", config_val);
+    try obj.put(alloc, "config", config_val);
     var arr = std.json.Array.init(alloc);
     try arr.append(.{ .object = obj });
     const json_buf = try std.json.Stringify.valueAlloc(alloc, std.json.Value{ .array = arr }, .{});

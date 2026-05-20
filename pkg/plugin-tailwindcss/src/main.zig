@@ -10,13 +10,14 @@ const BuildEvent = struct {
     dependencies: []const []const u8 = &.{},
 };
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
+pub fn main(init: std.process.Init) !void {
+    var gpa = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer gpa.deinit();
     const allocator = gpa.allocator();
 
-    var args = try std.process.argsWithAllocator(allocator);
+    var args = try init.minimal.args.iterateAllocator(allocator);
     defer args.deinit();
+    _ = args.next(); // skip program name
 
     // --- Flags --- //
     var node_path: []const u8 = "node"; // default to "node" in PATH
@@ -31,7 +32,13 @@ pub fn main() !void {
         if (std.mem.eql(u8, arg, "--dep-file")) dep_file_path = args.next() orelse return error.MissingDepFilePath;
     }
 
-    const input_json = try std.fs.File.stdin().readToEndAlloc(allocator, 64 * 1024 * 1024);
+    // Read stdin into memory
+    var buffer: [4096]u8 = undefined;
+    var reader = std.Io.File.stdin().readerStreaming(init.io, &buffer);
+    var writer = std.Io.Writer.Allocating.init(allocator);
+    defer writer.deinit();
+    _ = try reader.interface.streamRemaining(&writer.writer);
+    const input_json = try writer.toOwnedSlice();
     defer allocator.free(input_json);
 
     // Parse and inject output path into each build config
@@ -44,7 +51,7 @@ pub fn main() !void {
     if (output_path) |op| {
         for (builds) |*build_item| {
             const config_ptr = build_item.object.getPtr("config").?;
-            try config_ptr.object.put("output", .{ .string = op });
+            try config_ptr.object.put(allocator, "output", .{ .string = op });
         }
     }
 
@@ -52,36 +59,27 @@ pub fn main() !void {
     const modified_json = try std.json.Stringify.valueAlloc(allocator, parsed.value, .{});
     defer allocator.free(modified_json);
 
-    var child = std.process.Child.init(
-        &.{ node_path, "-e", runner_script },
-        allocator,
-    );
+    var child = try std.process.spawn(init.io, .{
+        .argv = &.{ node_path, "-e", runner_script },
+        .stdin = .pipe,
+        .stdout = .pipe,
+        .stderr = .inherit,
+    });
 
-    // Node warns when both NO_COLOR and FORCE_COLOR are set.
-    const env_map = try allocator.create(std.process.EnvMap);
-    env_map.* = try std.process.getEnvMap(allocator);
-    errdefer {
-        env_map.deinit();
-        allocator.destroy(env_map);
-    }
-    _ = env_map.remove("NO_COLOR");
+    // Best-effort cleanup if we exit before the explicit wait below.
+    defer if (child.id != null) {
+        _ = child.wait(init.io) catch {};
+    };
 
-    child.env_map = env_map;
-    child.stdin_behavior = .Pipe;
-    child.stdout_behavior = .Pipe;
-    child.stderr_behavior = .Inherit;
-    try child.spawn();
-    defer {
-        env_map.deinit();
-        allocator.destroy(env_map);
+    // Write config to the JS runtime's stdin, then close so it sees EOF.
+    // Clear child.stdin so wait()'s cleanup doesn't double-close the handle.
+    if (child.stdin) |stdin_file| {
+        try stdin_file.writeStreamingAll(init.io, modified_json);
+        stdin_file.close(init.io);
+        child.stdin = null;
     }
 
-    // Write config to the JS runtime's stdin, then close so it sees EOF
-    try child.stdin.?.writeAll(modified_json);
-    child.stdin.?.close();
-    child.stdin = null;
-
-    var progress = std.Progress.start(.{
+    var progress = std.Progress.start(init.io, .{
         .root_name = "tailwindcss",
         .estimated_total_items = build_count,
     });
@@ -102,69 +100,70 @@ pub fn main() !void {
     var all_deps = std.ArrayList([]const u8).empty;
     defer all_deps.deinit(allocator);
 
-    var stdout = child.stdout.?;
-    var buffer: [4096]u8 = undefined;
-    var streaming_reader = stdout.readerStreaming(&buffer);
-    const io_reader = &streaming_reader.interface;
-    var line_writer = std.Io.Writer.Allocating.init(allocator);
-    defer line_writer.deinit();
+    if (child.stdout) |stdout_file| {
+        var stdout_buffer: [4096]u8 = undefined;
+        var streaming_reader = stdout_file.readerStreaming(init.io, &stdout_buffer);
+        const io_reader = &streaming_reader.interface;
+        var line_writer = std.Io.Writer.Allocating.init(allocator);
+        defer line_writer.deinit();
 
-    var aa = std.heap.ArenaAllocator.init(allocator);
-    const arena = aa.allocator();
-    defer aa.deinit();
-    while (io_reader.streamDelimiter(&line_writer.writer, '\n')) |_| {
-        const line = line_writer.written();
-        _ = io_reader.takeByte() catch break;
+        var aa = std.heap.ArenaAllocator.init(allocator);
+        const arena = aa.allocator();
+        defer aa.deinit();
+        while (io_reader.streamDelimiter(&line_writer.writer, '\n')) |_| {
+            const line = line_writer.written();
+            _ = io_reader.takeByte() catch break;
 
-        const ev_parsed = std.json.parseFromSlice(BuildEvent, allocator, line, .{
-            .ignore_unknown_fields = true,
-        }) catch continue; // skip malformed lines
-        defer ev_parsed.deinit();
-        const ev = ev_parsed.value;
+            const ev_parsed = std.json.parseFromSlice(BuildEvent, allocator, line, .{
+                .ignore_unknown_fields = true,
+            }) catch continue; // skip malformed lines
+            defer ev_parsed.deinit();
+            const ev = ev_parsed.value;
 
-        std.Thread.sleep(10 * std.time.ns_per_ms);
+            try std.Io.sleep(init.io, .fromMilliseconds(10), .awake);
 
-        const name = try std.fmt.allocPrint(arena, "{s} ({d})", .{ ev.name, ev.id });
+            const name = try std.fmt.allocPrint(arena, "{s} ({d})", .{ ev.name, ev.id });
 
-        switch (ev.type) {
-            .start => {
-                const node = progress.start(name, 0);
-                try nodes.put(name, node);
-            },
-            .result => {
-                if (ev.success == false) failed += 1;
-                // Collect discovered dependencies for dep file
-                for (ev.dependencies) |dep| {
-                    try all_deps.append(allocator, try arena.dupe(u8, dep));
-                }
-            },
-            .@"error" => {
-                failed += 1;
-                if (ev.@"error") |msg| {
-                    std.debug.print("tailwindcss [{s}] error: {s}\n", .{ ev.name, msg });
-                }
-            },
-            .end => {
-                if (nodes.fetchRemove(name)) |kv| {
-                    kv.value.end();
-                }
-                progress.completeOne();
-            },
+            switch (ev.type) {
+                .start => {
+                    const node = progress.start(name, 0);
+                    try nodes.put(name, node);
+                },
+                .result => {
+                    if (ev.success == false) failed += 1;
+                    // Collect discovered dependencies for dep file
+                    for (ev.dependencies) |dep| {
+                        try all_deps.append(allocator, try arena.dupe(u8, dep));
+                    }
+                },
+                .@"error" => {
+                    failed += 1;
+                    if (ev.@"error") |msg| {
+                        std.debug.print("tailwindcss [{s}] error: {s}\n", .{ ev.name, msg });
+                    }
+                },
+                .end => {
+                    if (nodes.fetchRemove(name)) |kv| {
+                        kv.value.end();
+                    }
+                    progress.completeOne();
+                },
+            }
+
+            line_writer.clearRetainingCapacity();
+        } else |err| {
+            if (err == error.EndOfStream) {}
         }
-
-        line_writer.clearRetainingCapacity();
-    } else |err| {
-        if (err == error.EndOfStream) {}
     }
 
     // Write dep file before potential exit(1)
     if (dep_file_path) |dfp| {
-        writeDepFile(allocator, dfp, output_path orelse "output.css", all_deps.items) catch |err| {
+        writeDepFile(allocator, init.io, dfp, output_path orelse "output.css", all_deps.items) catch |err| {
             std.debug.print("Failed to write dep file: {any}\n", .{err});
         };
     }
 
-    const term = child.wait() catch |err| {
+    const term = child.wait(init.io) catch |err| {
         if (err == error.FileNotFound) {
             std.debug.print("Failed to execute JS runtime: executable not found at '{s}'\n", .{node_path});
             return error.NodeNotFound;
@@ -173,7 +172,7 @@ pub fn main() !void {
         return error.WaitFailed;
     };
     const exit_code: u8 = switch (term) {
-        .Exited => |c| c,
+        .exited => |c| c,
         else => 1,
     };
 
@@ -183,7 +182,7 @@ pub fn main() !void {
     }
 }
 
-fn writeDepFile(allocator: std.mem.Allocator, path: []const u8, target: []const u8, deps: []const []const u8) !void {
+fn writeDepFile(allocator: std.mem.Allocator, io: std.Io, path: []const u8, target: []const u8, deps: []const []const u8) !void {
     // Build dep file content in memory, then write in one shot
     var buf = std.ArrayList(u8).empty;
     defer buf.deinit(allocator);
@@ -200,7 +199,7 @@ fn writeDepFile(allocator: std.mem.Allocator, path: []const u8, target: []const 
         }
     }
     try buf.appendSlice(allocator, "\n");
-    const f = try std.fs.cwd().createFile(path, .{});
-    defer f.close();
-    try f.writeAll(buf.items);
+    const f = try std.Io.Dir.cwd().createFile(io, path, .{});
+    defer f.close(io);
+    try f.writeStreamingAll(io, buf.items);
 }

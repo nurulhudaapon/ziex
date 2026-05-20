@@ -21,21 +21,21 @@ base: ?std.Build.LazyPath = null,
 sources: ?[]const std.Build.LazyPath = null,
 
 pub fn toJsonValue(self: TailwindBuildConfig, b: *std.Build, arena: std.mem.Allocator) !std.json.Value {
-    var obj = std.json.ObjectMap.init(arena);
+    var obj = std.json.ObjectMap.empty;
 
-    try obj.put("input", .{ .string = self.input.getPath(b) });
-    try obj.put("minify", .{ .bool = self.minify });
-    try obj.put("optimize", .{ .bool = self.optimize });
-    try obj.put("map", .{ .bool = self.map });
+    try obj.put(arena, "input", .{ .string = self.input.getPath(b) });
+    try obj.put(arena, "minify", .{ .bool = self.minify });
+    try obj.put(arena, "optimize", .{ .bool = self.optimize });
+    try obj.put(arena, "map", .{ .bool = self.map });
 
-    if (self.base) |base| try obj.put("base", .{ .string = base.getPath(b) });
+    if (self.base) |base| try obj.put(arena, "base", .{ .string = base.getPath(b) });
 
     if (self.sources) |sources| {
         var arr = try std.json.Array.initCapacity(arena, sources.len);
         for (sources) |source| {
             arr.appendAssumeCapacity(.{ .string = source.getPath(b) });
         }
-        try obj.put("sources", .{ .array = arr });
+        try obj.put(arena, "sources", .{ .array = arr });
     }
 
     return .{ .object = obj };
