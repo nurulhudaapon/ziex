@@ -26,8 +26,8 @@
         .cachez = .{ .path = "vendor/cachez" },
         // Ziex Language Server utilities
         .zls = .{
-            .url = "git+https://github.com/zigtools/zls.git?ref=0.16.0#494486203c3a48927f2383aa3d5ce5fca112186d",
-            .hash = "zls-0.16.0-rmm5fs_JJgBG3dk5HwYK1FylE2_LMN0BYpX57tPzT-Xc",
+            .url = "git+https://github.com/ziex-dev/zls.git?ref=zx-0.16.0#9dc776aae7db3d522be18a8d20f77f2caa085554",
+            .hash = "zls-0.16.0-rmm5ftHOJgC9W6p-o3hJMFIbjWE4hKV1CIU_tOSjNiSj",
         },
     },
     .paths = .{
