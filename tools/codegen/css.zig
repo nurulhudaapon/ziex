@@ -38,7 +38,7 @@ pub fn writeFile(allocator: std.mem.Allocator, path: []const u8) !void {
     };
     defer allocator.free(source);
 
-    const file = try std.fs.cwd().createFile(path, .{});
+    const file = try std.Io.Dir.cwd().createFile(path, .{});
     defer file.close();
     try file.writeAll(source);
 }
@@ -48,7 +48,7 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
     defer arena.deinit();
     const a = arena.allocator();
 
-    const main_file = try std.fs.cwd().openFile("vendor/webref/ed/css.json", .{});
+    const main_file = try std.Io.Dir.cwd().openFile("vendor/webref/ed/css.json", .{});
     defer main_file.close();
     const main_content = try main_file.readToEndAlloc(a, 15 * 1024 * 1024);
     const main_parsed = try std.json.parseFromSlice(std.json.Value, a, main_content, .{});
@@ -71,7 +71,7 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
     defer prose_map.deinit();
     var kw_prose_map = std.StringHashMap(std.StringHashMap([]const u8)).init(a);
     defer kw_prose_map.deinit();
-    var dir = try std.fs.cwd().openDir("vendor/webref/ed/css/", .{ .iterate = true });
+    var dir = try std.Io.Dir.cwd().openDir("vendor/webref/ed/css/", .{ .iterate = true });
     defer dir.close();
     var dir_it = dir.iterate();
     while (try dir_it.next()) |entry| {
@@ -244,7 +244,7 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
     try style_struct.addField(fa, "", "xl", "?*const Style", "null");
     try style_struct.addField(fa, "", "extra", "?[]const u8", "null");
 
-    _ = try style_struct.addMethod(fa, "", "format", "(self: Style, w: anytype) std.Io.Writer.Error!void", 
+    _ = try style_struct.addMethod(fa, "", "format", "(self: Style, w: anytype) std.Io.Writer.Error!void",
         \\inline for (std.meta.fields(Style)) |f| {
         \\    try @import("core.zig").formatProperty(f.name, @field(self, f.name), w);
         \\}

@@ -87,10 +87,7 @@ pub const File = struct {
     decls: std.ArrayListUnmanaged(*DeclNode),
 
     pub fn init(child_allocator: std.mem.Allocator) File {
-        return .{ 
-            .arena = std.heap.ArenaAllocator.init(child_allocator), 
-            .decls = .empty
-        };
+        return .{ .arena = std.heap.ArenaAllocator.init(child_allocator), .decls = .empty };
     }
 
     pub fn deinit(self: *File) void {
@@ -171,7 +168,7 @@ pub const File = struct {
         };
         defer tree.deinit(final_allocator);
         if (tree.errors.len != 0) {
-            const f = try std.fs.cwd().createFile("ast_error.zig", .{});
+            const f = try std.Io.Dir.cwd().createFile("ast_error.zig", .{});
             defer f.close();
             try f.writeAll(raw);
             return error.InvalidGeneratedSource;

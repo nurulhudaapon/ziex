@@ -111,7 +111,7 @@ pub fn main() !void {
     const allocator = gpa.allocator();
     const source = try generate(allocator);
     defer allocator.free(source);
-    const file = try std.fs.cwd().createFile("src/runtime/client/events/generated.zig", .{});
+    const file = try std.Io.Dir.cwd().createFile("src/runtime/client/events/generated.zig", .{});
     defer file.close();
     try file.writeAll(source);
     std.debug.print("Generated src/runtime/client/events/generated.zig\n", .{});
@@ -131,7 +131,7 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
     ).init(a);
     var raw_inheritance = std.StringHashMap([]const u8).init(a);
 
-    var spec_dir = try std.fs.cwd().openDir("vendor/webref/ed/idlparsed", .{ .iterate = true });
+    var spec_dir = try std.Io.Dir.cwd().openDir("vendor/webref/ed/idlparsed", .{ .iterate = true });
     defer spec_dir.close();
     var it = spec_dir.iterate();
     while (try it.next()) |entry| {
@@ -204,7 +204,7 @@ pub fn generate(allocator: std.mem.Allocator) ![]const u8 {
     // -------------------------------------------------------------------------
     // Step 3: load events.json → event-name to interface map
     // -------------------------------------------------------------------------
-    const events_file = try std.fs.cwd().openFile("vendor/webref/ed/events.json", .{});
+    const events_file = try std.Io.Dir.cwd().openFile("vendor/webref/ed/events.json", .{});
     defer events_file.close();
     const events_content = try events_file.readToEndAlloc(a, 4 * 1024 * 1024);
     const events_parsed = try std.json.parseFromSlice(std.json.Value, a, events_content, .{});

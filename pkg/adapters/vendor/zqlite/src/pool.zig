@@ -2,14 +2,14 @@ const std = @import("std");
 const zqlite = @import("zqlite.zig");
 
 const Conn = zqlite.Conn;
-const Thread = std.Thread;
 const Allocator = std.mem.Allocator;
+const Io = std.Io;
 
 pub const Pool = struct {
     conns: []Conn,
     available: usize,
-    mutex: Thread.Mutex,
-    cond: Thread.Condition,
+    mutex: Io.Mutex,
+    cond: Io.Condition,
     allocator: Allocator,
 
     pub const Config = struct {
@@ -31,8 +31,8 @@ pub const Pool = struct {
         errdefer allocator.free(conns);
 
         pool.* = .{
-            .cond = .{},
-            .mutex = .{},
+            .cond = .init,
+            .mutex = .init,
             .conns = conns,
             .available = size,
             .allocator = allocator,
@@ -78,37 +78,39 @@ pub const Pool = struct {
         allocator.destroy(self);
     }
 
-    pub fn acquire(self: *Pool) Conn {
-        self.mutex.lock();
+    pub fn acquire(self: *Pool, io: Io) Io.Cancelable!Conn {
+        try self.mutex.lock(io);
         while (true) {
             const conns = self.conns;
             const available = self.available;
             if (available == 0) {
-                self.cond.wait(&self.mutex);
+                self.cond.waitUncancelable(io, &self.mutex);
                 continue;
             }
             const index = available - 1;
             const conn = conns[index];
             self.available = index;
-            self.mutex.unlock();
+            self.mutex.unlock(io);
             return conn;
         }
     }
 
-    pub fn release(self: *Pool, conn: Conn) void {
-        self.mutex.lock();
+    pub fn release(self: *Pool, io: Io, conn: Conn) void {
+        self.mutex.lockUncancelable(io);
 
         var conns = self.conns;
         const available = self.available;
         conns[available] = conn;
         self.available = available + 1;
-        self.mutex.unlock();
-        self.cond.signal();
+        self.mutex.unlock(io);
+        self.cond.signal(io);
     }
 };
 
 const t = std.testing;
 test "pool" {
+    const io = t.io;
+
     var context = TestCallbackContext{
         .a = 5,
         .b = 6,
@@ -124,16 +126,19 @@ test "pool" {
     });
     defer pool.deinit();
 
-    const t1 = try std.Thread.spawn(.{}, testPool, .{pool});
-    const t2 = try std.Thread.spawn(.{}, testPool, .{pool});
-    const t3 = try std.Thread.spawn(.{}, testPool, .{pool});
+    var t1 = try io.concurrent(testPool, .{ pool, io });
+    defer t1.cancel(io) catch {};
+    var t2 = try io.concurrent(testPool, .{ pool, io });
+    defer t2.cancel(io) catch {};
+    var t3 = try io.concurrent(testPool, .{ pool, io });
+    defer t3.cancel(io) catch {};
 
-    t1.join();
-    t2.join();
-    t3.join();
+    try t1.await(io);
+    try t2.await(io);
+    try t3.await(io);
 
-    const c1 = pool.acquire();
-    defer c1.release();
+    const c1 = try pool.acquire(io);
+    defer c1.release(io);
 
     const row = (try c1.row("select cnt from pool_test", .{})).?;
     try t.expectEqual(@as(i64, 3000), row.int(0));
@@ -147,14 +152,14 @@ const TestCallbackContext = struct {
     b: i32,
 };
 
-fn testPool(p: *Pool) void {
+fn testPool(p: *Pool, io: Io) Io.Cancelable!void {
     for (0..1000) |_| {
-        const conn = p.acquire();
+        const conn = try p.acquire(io);
         conn.execNoArgs("update pool_test set cnt = cnt + 1") catch |err| {
             std.debug.print("update err: {any}\n", .{err});
             unreachable;
         };
-        p.release(conn);
+        p.release(io, conn);
     }
 }
 

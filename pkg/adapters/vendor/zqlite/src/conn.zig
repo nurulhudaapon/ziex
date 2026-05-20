@@ -1,4 +1,5 @@
 const std = @import("std");
+const Io = std.Io;
 const c = @cImport(@cInclude("sqlite3.h"));
 
 const zqlite = @import("zqlite.zig");
@@ -24,8 +25,8 @@ pub const Conn = struct {
         return .{ .conn = conn.? };
     }
 
-    pub fn release(self: Conn) void {
-        self._pool.?.release(self);
+    pub fn release(self: Conn, io: Io) void {
+        self._pool.?.release(io, self);
     }
 
     pub fn close(self: Conn) void {
