@@ -165,14 +165,14 @@ pub fn getRunnablePath(io: std.Io, allocator: std.mem.Allocator, program_path: [
     if (builtin.os.tag == .windows) {
         // Create .zig-cache/tmp/.zx directory if it doesn't exist
         const cache_dir = ".zig-cache/tmp/.zx";
-        try std.Io.Dir.cwd().makePath(io, cache_dir);
+        try std.Io.Dir.cwd().createDirPath(io, cache_dir);
 
         const dest_dir = try std.Io.Dir.cwd().openDir(io, cache_dir, .{});
         defer dest_dir.close(io);
         const bin_name = std.fs.path.basename(program_path);
 
         // Copy the executable to the cache directory
-        try std.Io.Dir.cwd().copyFile(io, program_path, dest_dir, bin_name, .{});
+        try std.Io.Dir.cwd().copyFile(program_path, dest_dir, bin_name, io, .{});
 
         const copied_program_path = try std.fs.path.join(allocator, &.{ cache_dir, bin_name });
         return copied_program_path;

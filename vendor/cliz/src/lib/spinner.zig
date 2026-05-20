@@ -193,6 +193,7 @@ fn finalize(self: *Spinner, state: State, comptime format: []const u8, args: any
 }
 
 fn spinLoop(self: *Spinner) void {
+    const io = std.Io.Threaded.global_single_threaded.io();
     while (self.is_spinning.load(.acquire)) {
         self.writer.print("\r\x1b[2K", .{}) catch {};
 
@@ -201,7 +202,7 @@ fn spinLoop(self: *Spinner) void {
 
         self.frame_index.store((index + 1) % self.frames.len, .release);
 
-        _ = std.c.nanosleep(&.{ .sec = 0, .nsec = @intCast(self.refresh_rate_ms * std.time.ns_per_ms) }, null);
+        io.sleep(std.Io.Duration.fromNanoseconds(@intCast(self.refresh_rate_ms)), .awake) catch {};
     }
     self.writer.print("\r\x1b[2K", .{}) catch {}; // Clear the line one final time on exit
 }

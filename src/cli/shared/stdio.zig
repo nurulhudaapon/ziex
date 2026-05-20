@@ -114,7 +114,7 @@ pub const ChildOutput = struct {
     /// Wait for both streams to finish reading
     pub fn wait(self: *const ChildOutput) void {
         while (!self.isDone()) {
-            _ = std.c.nanosleep(&.{ .sec = 0, .nsec = 10 * std.time.ns_per_ms }, null);
+            self.stderr.io.sleep(.fromMilliseconds(10), .awake) catch {};
         }
     }
 
@@ -147,7 +147,7 @@ pub const ChildOutput = struct {
 
             if (stderr_captured or stdout_captured) return true;
             if (elapsed_ms >= timeout_ms) return false;
-            _ = std.c.nanosleep(&.{ .sec = 0, .nsec = 1 * std.time.ns_per_ms }, null);
+            self.stderr.io.sleep(.fromMilliseconds(1), .awake) catch {};
             elapsed_ms += 1;
         }
     }
@@ -186,10 +186,11 @@ pub fn captureChildOutput(
             _ = try std.Thread.spawn(.{}, readChildStream, .{stderr_ctx});
         }
     } else {
-        // No stderr pipe - mark as done immediately
+        // No stderr pipe - mark as done immediately.
+        // `file` is never read because done_flag is set true below.
         stderr_ctx.* = StreamContext{
             .io = io,
-            .file = std.Io.File{ .handle = -1, .flags = .{ .nonblocking = false } },
+            .file = undefined,
             .stream_name = "stderr",
             .allocator = allocator,
             .options = options.stderr,
@@ -218,7 +219,7 @@ pub fn captureChildOutput(
         // No stdout pipe - mark as done immediately
         stdout_ctx.* = StreamContext{
             .io = io,
-            .file = std.Io.File{ .handle = -1, .flags = .{ .nonblocking = false } },
+            .file = undefined,
             .stream_name = "stdout",
             .allocator = allocator,
             .options = options.stdout,
@@ -282,7 +283,7 @@ fn readChildStream(ctx: *StreamContext) void {
 
             // Continuously read lines and process them
             while (io_reader.streamDelimiter(&line_writer.writer, '\n')) |_| {
-                _ = std.c.nanosleep(&.{ .sec = 0, .nsec = 10 * std.time.ns_per_ms }, null);
+                io.sleep(.fromMilliseconds(10), .awake) catch {};
                 const line = line_writer.written();
 
                 if (line.len > 0) {
@@ -358,7 +359,7 @@ fn readChildStream(ctx: *StreamContext) void {
             var transparent_reader = ctx.file.readerStreaming(io, &transparent_buffer);
             const trans_reader = &transparent_reader.interface;
             while (trans_reader.readSliceShort(&transparent_buffer)) |bytes_read| {
-                _ = std.c.nanosleep(&.{ .sec = 0, .nsec = @as(c_long, @intCast(ctx.options.transparent_delay_ms * std.time.ns_per_ms)) }, null);
+                io.sleep(.fromMilliseconds(@intCast(ctx.options.transparent_delay_ms)), .awake) catch {};
 
                 if (bytes_read == 0) break;
 
