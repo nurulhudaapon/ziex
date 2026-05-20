@@ -107,7 +107,7 @@ fn wait(duration_ms: u64) void {
     if (comptime builtin.cpu.arch == .wasm32) {
         sleep_ms(@intCast(duration_ms));
     } else {
-        std.Thread.sleep(duration_ms * std.time.ns_per_ms);
+        std.Io.sleep(zx.io(), .fromMilliseconds(@intCast(duration_ms)), .awake) catch {};
     }
 }
 

@@ -37,7 +37,7 @@ fn JoinScreen(allocator: zx.Allocator) zx.Component {
 }
 
 pub fn ChatRoom(ctx: *zx.ComponentCtx(struct { username: []const u8 })) zx.Component {
-    const msgs_state = ctx.state(MessageList, .{});
+    const msgs_state = ctx.state(MessageList, .empty);
     messages = msgs_state;
 
     const connected = ws != null;
@@ -130,7 +130,7 @@ fn leaveChat(_: zx.client.Event) void {
     if (messages) |msgs_state| {
         var msgs = msgs_state.get();
         msgs.deinit(zx.allocator);
-        msgs_state.set(.{});
+        msgs_state.set(.empty);
     }
 
     // Clear input via DOM

@@ -154,7 +154,7 @@ pub fn stripDedupePrefixes(allocator: zx.Allocator, content: []const u8) []const
 }
 
 pub fn renderComponentToHtml(allocator: zx.Allocator, component: zx.Component) []const u8 {
-    var aw: std.io.Writer.Allocating = .init(allocator);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
     component.render(&aw.writer, .{}) catch unreachable;
     return allocator.dupe(u8, aw.written()) catch unreachable;
 }
@@ -434,7 +434,7 @@ const HighlightCache = struct {
     parser: *ts.Parser,
     language: *const ts.Language,
     query: *ts.Query,
-    mutex: std.Thread.Mutex = .{},
+    mutex: std.Io.Mutex = .init,
 
     var instance: ?*HighlightCache = null;
 
@@ -470,16 +470,16 @@ const HighlightCache = struct {
 pub fn highlightZx(allocator: std.mem.Allocator, source: []const u8) ![]u8 {
     if (builtin.os.tag == .freestanding) return try allocator.dupe(u8, source);
 
-    var total_timer = try std.time.Timer.start();
+    var total_timer = Timer.start();
 
     // Get cached objects (first call initializes, subsequent calls reuse)
-    var timer = try std.time.Timer.start();
+    var timer = Timer.start();
     const cache = try HighlightCache.getOrInit(std.heap.page_allocator);
     logTiming("Cache lookup/init", timer.lap());
 
     // Lock for thread safety (important in concurrent requests)
-    cache.mutex.lock();
-    defer cache.mutex.unlock();
+    cache.mutex.lock(zx.io()) catch return error.Cancelled;
+    defer cache.mutex.unlock(zx.io());
 
     timer.reset();
     const tree = cache.parser.parseString(source, null) orelse return error.ParseError;
@@ -565,6 +565,30 @@ fn appendHtmlEscapedPreserveWhitespace(out: *std.array_list.Managed(u8), text: [
         }
     }
 }
+
+const Timer = struct {
+    start_ts: std.Io.Timestamp,
+
+    fn start() Timer {
+        return .{ .start_ts = .now(zx.io(), .awake) };
+    }
+
+    fn lap(self: *Timer) u64 {
+        const now = std.Io.Timestamp.now(zx.io(), .awake);
+        const elapsed: u64 = @intCast(now.nanoseconds - self.start_ts.nanoseconds);
+        self.start_ts = now;
+        return elapsed;
+    }
+
+    fn read(self: Timer) u64 {
+        const now = std.Io.Timestamp.now(zx.io(), .awake);
+        return @intCast(now.nanoseconds - self.start_ts.nanoseconds);
+    }
+
+    fn reset(self: *Timer) void {
+        self.start_ts = .now(zx.io(), .awake);
+    }
+};
 
 fn logTiming(comptime label: []const u8, elapsed_ns: u64) void {
     if (true) return;

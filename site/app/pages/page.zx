@@ -349,7 +349,7 @@ const benchmark_tabs = [_]BenchmarkTab{
 pub fn Page(ctx: zx.PageContext) zx.Component {
     const allocator = ctx.arena;
     const current_year = blk: {
-        const timestamp = std.time.timestamp();
+        const timestamp: i64 = @intCast(@divFloor(std.Io.Timestamp.now(zx.io(), .real).nanoseconds, std.time.ns_per_s));
         const seconds_per_year = 365.25 * 24 * 60 * 60;
         const years_since_epoch = @as(i64, @intFromFloat(@as(f64, @floatFromInt(timestamp)) / seconds_per_year));
         break :blk 1970 + years_since_epoch;

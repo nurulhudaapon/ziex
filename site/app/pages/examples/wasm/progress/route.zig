@@ -6,7 +6,7 @@ pub fn POST(ctx: zx.RouteContext) !void {
     defer end(ctx);
 
     const delay = prng.random().intRangeAtMost(u64, 200, 800);
-    std.Thread.sleep(delay * std.time.ns_per_ms);
+    std.Io.sleep(zx.io(), .fromMilliseconds(@intCast(delay)), .awake) catch {};
 
     const increment = prng.random().intRangeAtMost(u32, 5, 25);
     progress += increment;
