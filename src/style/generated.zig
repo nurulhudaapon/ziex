@@ -137,7 +137,7 @@ pub const CalcExpr = struct {
         return self.combine(Self.numberLeaf(factor), .div);
     }
 
-    pub fn format(self: Self, w: *std.io.Writer) std.io.Writer.Error!void {
+    pub fn format(self: Self, w: *std.Io.Writer) std.Io.Writer.Error!void {
         try w.writeAll(self.text());
     }
 };

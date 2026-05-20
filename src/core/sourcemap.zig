@@ -171,10 +171,10 @@ pub const SourceMap = struct {
         source_content: []const u8,
         generated_content: ?[]const u8,
     ) ![]const u8 {
-        var json = std.array_list.Managed(u8).init(allocator);
+        var json = std.Io.Writer.Allocating.init(allocator);
         errdefer json.deinit();
 
-        const writer = json.writer();
+        const writer = &json.writer;
         try writer.writeAll("{\"version\":3,\"file\":\"");
         try escapeJSONString(writer, generated_file);
         try writer.writeAll("\",\"sources\":[\"");

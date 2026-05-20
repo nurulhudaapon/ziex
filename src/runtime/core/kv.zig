@@ -193,38 +193,41 @@ fn nsDir(ns: []const u8, buf: *[256]u8) ?[]u8 {
 }
 
 fn fsGet(_: *anyopaque, ns: []const u8, allocator: std.mem.Allocator, key: []const u8) !?[]u8 {
+    const io = std.Options.debug_io;
     var buf: [1024]u8 = undefined;
     const path = keyPath(ns, key, &buf) orelse return null;
-    const file = std.fs.cwd().openFile(path, .{}) catch return null;
-    defer file.close();
-    return file.readToEndAlloc(allocator, 10 * 1024 * 1024) catch null;
+    return std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(10 * 1024 * 1024)) catch null;
 }
 
 fn fsPut(_: *anyopaque, ns: []const u8, key: []const u8, value: []const u8, _: PutOptions) !void {
-    var dir_buf: [256]u8 = undefined;
-    const dir_path = nsDir(ns, &dir_buf) orelse return error.KeyTooLong;
-    try std.fs.cwd().makePath(dir_path);
+    const io = std.Options.debug_io;
     var buf: [1024]u8 = undefined;
     const path = keyPath(ns, key, &buf) orelse return error.KeyTooLong;
-    const file = try std.fs.cwd().createFile(path, .{});
-    defer file.close();
-    try file.writeAll(value);
+    var file = try std.Io.Dir.cwd().createFileAtomic(io, path, .{
+        .make_path = true,
+        .replace = true,
+    });
+    defer file.deinit(io);
+    try file.file.writeStreamingAll(io, value);
+    try file.replace(io);
 }
 
 fn fsDelete(_: *anyopaque, ns: []const u8, key: []const u8) !void {
+    const io = std.Options.debug_io;
     var buf: [1024]u8 = undefined;
     const path = keyPath(ns, key, &buf) orelse return;
-    std.fs.cwd().deleteFile(path) catch {};
+    std.Io.Dir.cwd().deleteFile(io, path) catch {};
 }
 
 fn fsList(_: *anyopaque, ns: []const u8, allocator: std.mem.Allocator, prefix: []const u8) ![][]u8 {
+    const io = std.Options.debug_io;
     var dir_buf: [256]u8 = undefined;
     const dir_path = nsDir(ns, &dir_buf) orelse return &[_][]u8{};
-    var dir = std.fs.cwd().openDir(dir_path, .{ .iterate = true }) catch return &[_][]u8{};
-    defer dir.close();
+    var dir = std.Io.Dir.cwd().openDir(io, dir_path, .{ .iterate = true }) catch return &[_][]u8{};
+    defer dir.close(io);
     var keys = std.ArrayList([]u8).empty;
     var iter = dir.iterate();
-    while (try iter.next()) |entry| {
+    while (try iter.next(io)) |entry| {
         if (entry.kind != .file) continue;
         const decoded_len = std.base64.url_safe_no_pad.Decoder.calcSizeForSlice(entry.name) catch continue;
         const key = try allocator.alloc(u8, decoded_len);

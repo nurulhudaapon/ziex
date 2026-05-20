@@ -248,7 +248,7 @@ pub const Handler = struct {
 
         const resolved_path = switch (builtin.os.tag) {
             .wasi, .freestanding => handler.allocator.dupe(u8, joined) catch return,
-            else => std.fs.cwd().realpathAlloc(handler.allocator, joined) catch return,
+            else => std.Io.Dir.cwd().realpathAlloc(handler.allocator, joined) catch return,
         };
         defer handler.allocator.free(resolved_path);
 
@@ -257,7 +257,7 @@ pub const Handler = struct {
 
         if (handler.zx_files.contains(zx_uri)) return;
 
-        const content = std.fs.cwd().readFileAlloc(handler.allocator, resolved_path, 4 * 1024 * 1024) catch return;
+        const content = std.Io.Dir.cwd().readFileAlloc(handler.allocator, resolved_path, 4 * 1024 * 1024) catch return;
         defer handler.allocator.free(content);
 
         handler.storeAndDiagnose(zx_uri, content);

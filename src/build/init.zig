@@ -225,6 +225,11 @@ pub fn initInner(
     zx_options.addOption(?[]const u8, "jsglue_href", opts.client.jsglue_href);
     zx_options.addOption(?[]const u8, "wasm_href", opts.client.wasm_href);
     zx_options.addOption(?[]const u8, "app_base_path", opts.base_path);
+    zx_options.addOption(?u16, "server_port", b.option(u16, "port", "Port to run the Ziex server on"));
+    zx_options.addOption(?[]const u8, "server_address", b.option([]const u8, "address", "Address to bind the Ziex server to"));
+    zx_options.addOption(?[]const u8, "server_rootdir", b.option([]const u8, "rootdir", "Static root directory for the Ziex server"));
+    zx_options.addOption(?[]const u8, "cli_command", b.option([]const u8, "cli-command", "Ziex CLI command mode for the app"));
+    zx_options.addOption(bool, "introspect", b.option(bool, "introspect", "Print Ziex app metadata and exit") orelse false);
 
     zx_module.addOptions("zx_options", zx_options);
 
@@ -242,6 +247,7 @@ pub fn initInner(
     transpile_cmd.setName("zx transpile");
     transpile_cmd.addArg("transpile");
     transpile_cmd.addDirectoryArg(opts.site_path);
+    // transpile_cmd.addArg("--verbose");
     transpile_cmd.addArg("--outdir");
     const transpile_outdir = getTranspileOutdir(transpile_cmd, opts);
     transpile_cmd.addArg("--rootdir");
@@ -268,7 +274,8 @@ pub fn initInner(
     {
         // Install public directory into static (only if the directory exists)
         const public_abs_path = opts.site_path.path(b, "public").getPath(b);
-        if (std.fs.accessAbsolute(public_abs_path, .{})) |_| {
+
+        if (std.Io.Dir.accessAbsolute(b.graph.io, public_abs_path, .{})) |_| {
             const install_static = b.addInstallDirectory(.{
                 .source_dir = opts.site_path.path(b, "public"),
                 .install_dir = .prefix,
@@ -279,7 +286,7 @@ pub fn initInner(
 
         // Also install the generated assets into static/assets (only if the directory exists)
         const assets_abs_path = opts.site_path.path(b, "assets").getPath(b);
-        if (std.fs.accessAbsolute(assets_abs_path, .{})) |_| {
+        if (std.Io.Dir.accessAbsolute(b.graph.io, assets_abs_path, .{})) |_| {
             const install_assets = b.addInstallDirectory(.{
                 .source_dir = opts.site_path.path(b, "assets"),
                 .install_dir = .prefix,
@@ -489,9 +496,9 @@ pub fn initInner(
         const dev_cmd = getZxRun(b, zx_exe, opts);
         dev_cmd.addArgs(&.{
             "dev",
-            // "--binpath",
+            "--binpath",
         });
-        // dev_cmd.addFileArg(exe.getEmittedBin());
+        dev_cmd.addFileArg(exe.getEmittedBin());
         const dev_step = b.step(dev_step_name, "Run the Ziex app in development mode");
         dev_step.dependOn(&dev_cmd.step);
         if (b.args) |args| dev_cmd.addArgs(args);

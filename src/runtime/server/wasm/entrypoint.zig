@@ -10,12 +10,12 @@ const app_meta = @import("zx_meta").meta;
 const Router = zx.Router;
 const Component = zx.Component;
 
-pub fn run() !void {
+pub fn run(process_init: std.process.Init) !void {
     db.use();
     kv.use();
     const allocator = std.heap.wasm_allocator;
 
-    var args = try std.process.argsWithAllocator(allocator);
+    var args = try process_init.minimal.args.iterateAllocator(allocator);
     defer args.deinit();
 
     var pathname: []const u8 = "/";
@@ -51,17 +51,17 @@ pub fn run() !void {
     defer wasi_res.deinit();
 
     // --- Stdout/stderr writers --- //
-    var stdout_writer = std.fs.File.stdout().writerStreaming(&.{});
+    var stdout_writer = std.Io.File.stdout().writerStreaming(process_init.io, &.{});
     var stdout = &stdout_writer.interface;
-
-    var stderr_writer = std.fs.File.stderr().writerStreaming(&.{});
+ 
+    var stderr_writer = std.Io.File.stderr().writerStreaming(process_init.io, &.{});
     const stderr = &stderr_writer.interface;
-
+ 
     var stdin_body_buf: std.Io.Writer.Allocating = .init(allocator);
     defer stdin_body_buf.deinit();
     var stdin_read_buf: [4096]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().readerStreaming(&stdin_read_buf);
-    _ = stdin_reader.interface.streamRemaining(&stdin_body_buf.writer) catch {};
+    var stdin_reader = std.Io.File.stdin().readerStreaming(process_init.io, &stdin_read_buf);
+    _ = stdin_reader.interface.streamRemaining(process_init.io, &stdin_body_buf.writer, .unlimited) catch {};
 
     var wasi_req = WasiRequest{ .body = stdin_body_buf.written() };
 

@@ -34,7 +34,7 @@ fn LinearMap(comptime V: type) type {
     };
 }
 
-var mu: std.Thread.Mutex = .{};
+var mu: std.Io.Mutex = .init;
 var event_map: LinearMap(ServerEventFn) = .{};
 
 const ActionEntry = struct {
@@ -47,8 +47,8 @@ var action_entries: std.ArrayListUnmanaged(ActionEntry) = .empty;
 
 /// Register an action handler for a route and return its stable action ID.
 pub fn register(route_path: []const u8, preferred_action_id: u32, action_fn: ActionFn) u32 {
-    mu.lock();
-    defer mu.unlock();
+    mu.lockUncancelable(std.Options.debug_io);
+    defer mu.unlock(std.Options.debug_io);
 
     if (preferred_action_id != 0) {
         for (action_entries.items) |*entry| {
@@ -83,8 +83,8 @@ pub fn register(route_path: []const u8, preferred_action_id: u32, action_fn: Act
 }
 
 pub fn registerEvent(route_path: []const u8, handler_id: u32, event_fn: ServerEventFn) void {
-    mu.lock();
-    defer mu.unlock();
+    mu.lockUncancelable(std.Options.debug_io);
+    defer mu.unlock(std.Options.debug_io);
 
     // Composite key: "route_path:handler_id"
     var buf: [1024]u8 = undefined;
@@ -95,8 +95,8 @@ pub fn registerEvent(route_path: []const u8, handler_id: u32, event_fn: ServerEv
 }
 
 pub fn getEvent(route_path: []const u8, handler_id: u32) ?ServerEventFn {
-    mu.lock();
-    defer mu.unlock();
+    mu.lockUncancelable(std.Options.debug_io);
+    defer mu.unlock(std.Options.debug_io);
 
     var buf: [1024]u8 = undefined;
     const key = std.fmt.bufPrint(&buf, "{s}:{d}", .{ route_path, handler_id }) catch return null;
@@ -106,8 +106,8 @@ pub fn getEvent(route_path: []const u8, handler_id: u32) ?ServerEventFn {
 
 /// Look up a registered action handler by route path and action ID.
 pub fn get(route_path: []const u8, action_id: u32) ?ActionFn {
-    mu.lock();
-    defer mu.unlock();
+    mu.lockUncancelable(std.Options.debug_io);
+    defer mu.unlock(std.Options.debug_io);
 
     for (action_entries.items) |entry| {
         if (entry.action_id == action_id and std.mem.eql(u8, entry.route_path, route_path)) {

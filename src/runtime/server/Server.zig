@@ -34,12 +34,13 @@ pub fn Server(comptime H: type) type {
         server: httpz.Server(*HandlerType),
         config: AppConfig,
         app_ctx: H,
+        io: std.Io,
 
         _is_listening: bool = false,
 
         const HandlerType = Handler(AppCtxType);
 
-        pub fn init(allocator: std.mem.Allocator, config: AppConfig, app_ctx: H) !*Self {
+        pub fn init(io: std.Io, allocator: std.mem.Allocator, config: AppConfig, app_ctx: H) !*Self {
             if (!@import("zx_module_options").exclude_db) default_db.use();
 
             const self = try allocator.create(Self);
@@ -48,6 +49,7 @@ pub fn Server(comptime H: type) type {
             self.allocator = allocator;
             self.meta = zx.meta;
             self.app_ctx = app_ctx;
+            self.io = io;
 
             // Get pointer to app context for handler initialization
             // When H is void, pass undefined; when H is pointer, use directly; when H is value, get pointer from self
@@ -59,9 +61,9 @@ pub fn Server(comptime H: type) type {
                 &self.app_ctx;
 
             self.config = config;
-            self.handler = try HandlerType.init(allocator, &self.meta, config, app_ctx_ptr);
+            self.handler = try HandlerType.init(self.io, allocator, &self.meta, config, app_ctx_ptr);
             errdefer self.handler.deinit();
-            self.server = try httpz.Server(*HandlerType).init(allocator, mapStruct(httpz.Config, config.server), &self.handler);
+            self.server = try httpz.Server(*HandlerType).init(self.io, allocator, mapStruct(httpz.Config, config.server), &self.handler);
 
             // -- Routing -- //
             var router = try self.server.router(.{});
@@ -157,12 +159,11 @@ pub fn Server(comptime H: type) type {
 
             // When running under the dev proxy, bind to the inner port on
             // loopback only - the proxy owns the user-facing port.
-            if (std.process.getEnvVarOwned(self.allocator, "ZIEX_INNER_PORT")) |port_str| {
+            if (envVar("ZIEX_INNER_PORT")) |port_str| {
                 if (std.fmt.parseInt(u16, port_str, 10)) |inner_port| {
-                    self.server.config.port = inner_port;
-                    self.server.config.address = "127.0.0.1";
+                    setServerAddress(&self.server.config, "127.0.0.1", inner_port);
                 } else |_| {}
-            } else |_| {}
+            }
 
             self.server.listen() catch |err| {
                 self._is_listening = false;
@@ -170,7 +171,7 @@ pub fn Server(comptime H: type) type {
                 switch (err) {
                     error.AddressInUse => {
                         const is_dev = self.meta.cli_command == .dev;
-                        const port = self.server.config.port.?;
+                        const port = serverPort(&self.server.config).?;
                         var max_retries: u8 = 10;
 
                         if (is_dev) while (max_retries > 0) : (max_retries -= 1) {
@@ -178,12 +179,12 @@ pub fn Server(comptime H: type) type {
                             self.infoWithCrossedOutPort(port);
                             std.debug.print("{s}Port {d} is already in use, {s}trying with port {d}...{s}\n\n", .{ colors.yellow, port, colors.reset_all, new_port, colors.reset_all });
                             std.debug.print("To kill the port, run:\n  {s}kill -9 $(lsof -t -i:{d}){s}\n\n", .{ colors.dim, port, colors.reset_all });
-                            self.server.config.port = new_port;
+                            setServerAddress(&self.server.config, "127.0.0.1", new_port);
 
                             var retry_config = self.config;
                             retry_config.server.port = new_port;
                             self.server.deinit();
-                            var retry_server = try init(self.allocator, retry_config, self.app_ctx);
+                            var retry_server = try init(self.io, self.allocator, retry_config, self.app_ctx);
                             defer retry_server.deinit();
 
                             retry_server.info();
@@ -207,10 +208,10 @@ pub fn Server(comptime H: type) type {
         /// Print the server info to the console
         /// ZX - v{version} | http://localhost:{port}
         pub fn info(self: *Self) void {
-            const display_port: u16 = if (std.process.getEnvVarOwned(self.allocator, "ZIEX_OUTER_PORT")) |s|
-                std.fmt.parseInt(u16, s, 10) catch self.server.config.port.?
-            else |_|
-                self.server.config.port.?;
+            const display_port: u16 = if (envVar("ZIEX_OUTER_PORT")) |s|
+                std.fmt.parseInt(u16, s, 10) catch serverPort(&self.server.config).?
+            else
+                serverPort(&self.server.config).?;
             std.debug.print("{s}ZX{s} {s}- v{s}{s} | http://localhost:{d}\n", .{ colors.bold, colors.reset_all, colors.dim, Self.version, colors.reset_all, display_port });
         }
 
@@ -235,58 +236,24 @@ pub fn Server(comptime H: type) type {
         }
 
         fn introspect(self: *Self) !void {
-            var args = try std.process.argsWithAllocator(self.allocator);
-            defer args.deinit();
+            const port = (if (zx_options.server_port != null) zx_options.server_port else serverPort(&self.server.config)) orelse Constant.default_port;
+            const address = zx_options.server_address orelse self.config.server.address orelse Constant.default_address;
 
-            // --- Flags --- //
-            // --introspect: Print the metadata to stdout and exit
-            var is_introspect = false;
-            var is_stdio = false;
-            var port = self.server.config.port orelse Constant.default_port;
-            var address = self.server.config.address orelse Constant.default_address;
-
-            while (args.next()) |arg| {
-                // --introspect: Print the metadata to stdout and exit
-                if (std.mem.eql(u8, arg, "--introspect")) is_introspect = true;
-
-                // --stdio: Start the server in stdio mode, where request responses will be read from stdin and written to stdout
-                if (std.mem.eql(u8, arg, "--stdio")) is_stdio = true;
-
-                // --port: Override the configured/default port
-                if (std.mem.eql(u8, arg, "--port")) {
-                    const port_str = args.next() orelse return error.MissingPort;
-                    const port_int = std.fmt.parseInt(u16, port_str, 10) catch return error.InvalidPort;
-                    port = port_int;
-                }
-
-                // --address: Override the configured/default address
-                if (std.mem.eql(u8, arg, "--address")) address = args.next() orelse return error.MissingAddress;
-
-                // --rootdir: Override the configured/default root directory
-                if (std.mem.eql(u8, arg, "--rootdir")) self.meta.rootdir = args.next() orelse return error.MissingRootdir;
-
-                // --cli-command: Override the CLI command
-                if (std.mem.eql(u8, arg, "--cli-command")) {
-                    const cli_command_str = args.next() orelse return error.MissingCliCommand;
-                    const cli_command = std.meta.stringToEnum(ServerMeta.CliCommand, cli_command_str) orelse return error.InvalidCliCommand;
-                    self.meta.cli_command = cli_command;
-                }
+            if (zx_options.server_rootdir) |rootdir| {
+                self.meta.rootdir = rootdir;
             }
 
-            var stdout_writer = std.fs.File.stdout().writerStreaming(&.{});
-            var stdout = &stdout_writer.interface;
-
-            var stdin_reader = std.fs.File.stdin().readerStreaming(&.{});
-            var stdin = &stdin_reader.interface;
-            stdin = stdin;
+            if (zx_options.cli_command) |cli_command_str| {
+                const cli_command = std.meta.stringToEnum(ServerMeta.CliCommand, cli_command_str) orelse return error.InvalidCliCommand;
+                self.meta.cli_command = cli_command;
+            }
 
             // Overriding or setting default configs
-            self.server.config.port = port;
-            self.server.config.address = address;
+            setServerAddress(&self.server.config, address, port);
             self.server.config.request.max_form_count = self.server.config.request.max_form_count orelse Constant.default_max_form_count;
             self.server.config.request.max_multiform_count = self.server.config.request.max_multiform_count orelse Constant.default_max_multiform_count;
 
-            if (is_introspect) {
+            if (zx_options.introspect) {
                 var aw = std.Io.Writer.Allocating.init(self.allocator);
                 defer aw.deinit();
 
@@ -294,7 +261,8 @@ pub fn Server(comptime H: type) type {
                 defer serilizable_meta.deinit(self.allocator);
                 try serilizable_meta.serialize(&aw.writer);
 
-                try stdout.print("{s}\n", .{aw.written()});
+                try std.Io.File.stdout().writeStreamingAll(self.io, aw.written());
+                try std.Io.File.stdout().writeStreamingAll(self.io, "\n");
                 std.process.exit(0);
             }
 
@@ -306,8 +274,6 @@ pub fn Server(comptime H: type) type {
 
                 zx_routes.all("/devtool", HandlerType.devtool, .{});
             }
-
-            try stdout.flush();
         }
     };
 }
@@ -875,7 +841,10 @@ pub fn mapStruct(comptime T: type, src: anytype) T {
     var out: T = .{};
     const S = @TypeOf(src);
     inline for (@typeInfo(T).@"struct".fields) |f| {
-        if (@hasField(S, f.name)) {
+        if (comptime T == httpz.Config and std.mem.eql(u8, f.name, "address")) {
+            // handled after the loop because our app config stores host/port
+            // separately while httpz expects a tagged union
+        } else if (@hasField(S, f.name)) {
             const sv = @field(src, f.name);
             switch (@typeInfo(f.type)) {
                 .@"struct" => @field(out, f.name) = mapStruct(f.type, sv),
@@ -883,7 +852,40 @@ pub fn mapStruct(comptime T: type, src: anytype) T {
             }
         }
     }
+    if (comptime T == httpz.Config) out.address = mapServerAddress(src);
     return out;
+}
+
+fn mapServerAddress(src: AppConfig.ServerConfig) httpz.Config.Address {
+    if (src.unix_path) |unix_path| return .{ .unix = unix_path };
+    const port = src.port orelse Constant.default_port;
+    const address = src.address orelse Constant.default_address;
+
+    if (std.mem.eql(u8, address, "localhost")) return httpz.Config.Address.localhost(port);
+    if (std.mem.eql(u8, address, "0.0.0.0")) return httpz.Config.Address.all(port);
+
+    return .{ .ip = std.Io.net.IpAddress.parse(address, port) catch .{ .ip4 = .{ .bytes = .{ 127, 0, 0, 1 }, .port = port } } };
+}
+
+fn serverPort(config: *const httpz.Config) ?u16 {
+    return switch (config.address) {
+        .ip => |ip| ip.getPort(),
+        .unix => null,
+    };
+}
+
+fn setServerAddress(config: *httpz.Config, address: []const u8, port: u16) void {
+    config.address = if (std.mem.eql(u8, address, "localhost"))
+        httpz.Config.Address.localhost(port)
+    else if (std.mem.eql(u8, address, "0.0.0.0"))
+        httpz.Config.Address.all(port)
+    else
+        .{ .ip = std.Io.net.IpAddress.parse(address, port) catch .{ .ip4 = .{ .bytes = .{ 127, 0, 0, 1 }, .port = port } } };
+}
+
+fn envVar(name_z: [*:0]const u8) ?[]const u8 {
+    const value = std.c.getenv(name_z) orelse return null;
+    return std.mem.span(value);
 }
 
 const std = @import("std");
@@ -892,6 +894,7 @@ const httpz = @import("httpz");
 const cachez = @import("cachez");
 const zx = @import("../../root.zig");
 const module_config = @import("zx_info");
+const zx_options = @import("zx_options");
 const Constant = @import("../../constant.zig");
 const Handler = @import("handler.zig").Handler;
 const AppConfig = @import("../../AppConfig.zig");

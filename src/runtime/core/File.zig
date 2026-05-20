@@ -1,6 +1,6 @@
 //! Represents an uploaded file from a multipart form submission.
 //!
-//! The `data` field is a type-erased `std.io.AnyReader` so call-site code
+//! The `data` field is a type-erased `std.Io.AnyReader` so call-site code
 //! is written against the reader interface today and will continue to compile
 //! unchanged when a streaming multipart parser is introduced in the future.
 //! Currently the reader is backed by the in-memory request body bytes.
@@ -22,7 +22,7 @@ size: usize = 0,
 /// Reader interface for the file content.
 /// Do not retain this value after the action handler returns; the backing
 /// memory belongs to the request arena.
-data: std.io.AnyReader = emptyReader(),
+data: std.Io.AnyReader = emptyReader(),
 
 /// Build a File backed by an in-memory byte slice.
 /// `fbs_alloc` must outlive the returned File (use the request arena).
@@ -32,12 +32,12 @@ pub fn fromBytes(
     content_type: []const u8,
     fbs_alloc: std.mem.Allocator,
 ) File {
-    const fbs = fbs_alloc.create(std.io.FixedBufferStream([]const u8)) catch return .{
+    const fbs = fbs_alloc.create(std.Io.FixedBufferStream([]const u8)) catch return .{
         .name = name,
         .content_type = content_type,
         .size = bytes.len,
     };
-    fbs.* = std.io.fixedBufferStream(bytes);
+    fbs.* = std.Io.fixedBufferStream(bytes);
     return .{
         .name = name,
         .content_type = content_type,
@@ -54,6 +54,6 @@ fn emptyReadFn(_: *const anyopaque, _: []u8) anyerror!usize {
 
 var empty_ctx: u8 = 0;
 
-fn emptyReader() std.io.AnyReader {
+fn emptyReader() std.Io.AnyReader {
     return .{ .context = &empty_ctx, .readFn = &emptyReadFn };
 }

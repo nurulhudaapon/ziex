@@ -17,14 +17,14 @@ pub const AsyncComponent = struct {
     component: zx.Component,
 
     pub fn renderScript(self: AsyncComponent, allocator: std.mem.Allocator) ![]const u8 {
-        var aw = std.io.Writer.Allocating.init(allocator);
+        var aw = std.Io.Writer.Allocating.init(allocator);
         errdefer aw.deinit();
 
         try self.component.render(&aw.writer, .{});
         const html = aw.written();
 
         // Build minimal script: <script>$ZX(id,`content`)</script>
-        var script_writer = std.io.Writer.Allocating.init(allocator);
+        var script_writer = std.Io.Writer.Allocating.init(allocator);
         errdefer script_writer.deinit();
 
         try script_writer.writer.print("<script>$ZX({d},`", .{self.id});

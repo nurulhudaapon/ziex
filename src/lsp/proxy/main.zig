@@ -8,7 +8,7 @@
 const std = @import("std");
 
 pub fn main() !void {
-    var gpa: std.heap.GeneralPurposeAllocator(.{}) = .init;
+    var gpa: std.heap.DebugAllocator(.{}) = .init;
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
@@ -141,7 +141,7 @@ fn tryFilterDiagnostics(allocator: std.mem.Allocator, body: []const u8) ![]u8 {
 
     if (removed == 0) return error.NothingFiltered;
 
-    var aw: std.io.Writer.Allocating = .init(allocator);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
     errdefer aw.deinit();
     try std.json.Stringify.value(parsed.value, .{}, &aw.writer);
     return aw.toOwnedSlice();

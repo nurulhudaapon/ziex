@@ -85,7 +85,7 @@ pub const PubSub = struct {
     /// Maps topic names to sets of subscribers
     topics: std.StringHashMapUnmanaged(SubscriberSet) = .{},
     /// RwLock for concurrent access (readers don't block each other)
-    lock: std.Thread.RwLock = .{},
+    lock: std.Io.RwLock = .init,
     /// Allocator for topic keys and sets
     allocator: Allocator,
 
@@ -112,8 +112,8 @@ pub const PubSub = struct {
 
     /// Add a subscriber to a topic
     pub fn addSubscriber(self: *PubSub, topic: []const u8, subscriber: *SubscriberData) void {
-        self.lock.lock();
-        defer self.lock.unlock();
+        self.lock.lockUncancelable(std.Options.debug_io);
+        defer self.lock.unlock(std.Options.debug_io);
 
         const result = self.topics.getOrPut(self.allocator, topic) catch return;
         if (!result.found_existing) {
@@ -126,8 +126,8 @@ pub const PubSub = struct {
 
     /// Remove a subscriber from a topic
     pub fn removeSubscriber(self: *PubSub, topic: []const u8, subscriber: *SubscriberData) void {
-        self.lock.lock();
-        defer self.lock.unlock();
+        self.lock.lockUncancelable(std.Options.debug_io);
+        defer self.lock.unlock(std.Options.debug_io);
 
         if (self.topics.getPtr(topic)) |subscriber_set| {
             _ = subscriber_set.remove(subscriber);
@@ -146,8 +146,8 @@ pub const PubSub = struct {
     /// Returns the number of messages sent
     pub fn publish(self: *PubSub, sender: ?*SubscriberData, topic: []const u8, message: []const u8) usize {
         // Use read lock - multiple publishers can run concurrently
-        self.lock.lockShared();
-        defer self.lock.unlockShared();
+        self.lock.lockSharedUncancelable(std.Options.debug_io);
+        defer self.lock.unlockShared(std.Options.debug_io);
 
         var sent: usize = 0;
 
@@ -173,8 +173,8 @@ pub const PubSub = struct {
 
     /// Get the number of subscribers for a topic
     pub fn subscriberCount(self: *PubSub, topic: []const u8) usize {
-        self.lock.lockShared();
-        defer self.lock.unlockShared();
+        self.lock.lockSharedUncancelable(std.Options.debug_io);
+        defer self.lock.unlockShared(std.Options.debug_io);
 
         if (self.topics.get(topic)) |subscriber_set| {
             return subscriber_set.count();

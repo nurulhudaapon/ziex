@@ -132,11 +132,11 @@ const PageCache = struct {
     config: AppConfig.CacheConfig,
     allocator: Allocator,
 
-    pub fn init(allocator: Allocator, config: AppConfig.CacheConfig) !PageCache {
+    pub fn init(io: std.Io, allocator: Allocator, config: AppConfig.CacheConfig) !PageCache {
         return .{
             .allocator = allocator,
             .config = config,
-            .cache = try cachez.Cache(CacheValue).init(allocator, .{
+            .cache = try cachez.Cache(CacheValue).init(io, allocator, .{
                 .max_size = config.max_size,
             }),
         };
@@ -271,8 +271,9 @@ pub fn Handler(comptime AppCtxType: type) type {
         page_cache: PageCache,
         allocator: std.mem.Allocator,
         app_ctx: *AppCtxType,
+        io: std.Io,
 
-        pub fn init(allocator: std.mem.Allocator, meta: *App.Meta, config: AppConfig, app_ctx: *AppCtxType) !Self {
+        pub fn init(io: std.Io, allocator: std.mem.Allocator, meta: *App.Meta, config: AppConfig, app_ctx: *AppCtxType) !Self {
             const cache_config = config.cache;
             // Initialize unified component cache
             try zx.cache.init(allocator, .{
@@ -283,8 +284,9 @@ pub fn Handler(comptime AppCtxType: type) type {
                 .meta = meta,
                 .config = config,
                 .allocator = allocator,
-                .page_cache = try PageCache.init(allocator, cache_config),
+                .page_cache = try PageCache.init(io, allocator, cache_config),
                 .app_ctx = app_ctx,
+                .io = io,
             };
         }
 
@@ -294,7 +296,7 @@ pub fn Handler(comptime AppCtxType: type) type {
 
         pub fn dispatch(self: *Self, action: httpz.Action(*Self), req: *httpz.Request, res: *httpz.Response) !void {
             const is_dev = self.meta.cli_command == .dev;
-            var timer = if (is_dev) try std.time.Timer.start() else null;
+            var start_time = if (is_dev) std.Io.Timestamp.now(self.io, .awake) else std.Io.Timestamp.zero;
 
             // Reset proxy status for this request (dev mode tracking)
             if (is_dev) ProxyStatus.reset();
@@ -309,7 +311,8 @@ pub fn Handler(comptime AppCtxType: type) type {
 
             // Dev mode logging (skip noisy paths)
             if (is_dev and !isNoisyPath(req.url.path)) {
-                const elapsed_ns = timer.?.lap();
+                const end_time = std.Io.Timestamp.now(self.io, .awake);
+                const elapsed_ns = start_time.durationTo(end_time).nanoseconds;
                 const elapsed_ms = @as(f64, @floatFromInt(elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
                 const c = struct {
                     const reset_c = "\x1b[0m";
@@ -707,7 +710,7 @@ pub fn Handler(comptime AppCtxType: type) type {
 
         /// Render a page with streaming SSR support
         /// Sends the initial shell immediately, then streams async components as they complete
-        fn renderStreaming(_: *Self, res: *httpz.Response, page_component: *Component, arena: std.mem.Allocator) !void {
+        fn renderStreaming(self: *Self, res: *httpz.Response, page_component: *Component, arena: std.mem.Allocator) !void {
             var shell_writer = std.Io.Writer.Allocating.init(arena);
             const async_components = rndr.stream(page_component.*, arena, &shell_writer.writer, .{ .base_path = zx_options.app_base_path }) catch |err| {
                 std.debug.print("Error streaming page: {}\n", .{err});
@@ -818,7 +821,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                         }
                     }
                     if (completed < async_components.len and !connection_closed) {
-                        std.Thread.sleep(5 * std.time.ns_per_ms);
+                        _ = try std.Io.sleep(self.io, std.Io.Duration.fromMilliseconds(5), .awake);
                     }
                 }
 
@@ -838,13 +841,10 @@ pub fn Handler(comptime AppCtxType: type) type {
         }
 
         pub inline fn static(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
-            const allocator_s = self.allocator;
+            const assets_path = try std.fs.path.join(self.allocator, &.{ zx_options.staticdir, req.url.path });
+            defer self.allocator.free(assets_path);
 
-            const rootdir = self.meta.rootdir orelse zx_options.staticdir;
-            const assets_path = try std.fs.path.join(allocator_s, &.{ rootdir, req.url.path });
-            defer allocator_s.free(assets_path);
-
-            const body = std.fs.cwd().readFileAlloc(allocator_s, assets_path, std.math.maxInt(usize)) catch |err| {
+            const body = std.Io.Dir.cwd().readFileAlloc(self.io, assets_path, self.allocator, .unlimited) catch |err| {
                 switch (err) {
                     error.FileNotFound => return self.notFound(req, res),
                     else => return self.uncaughtError(req, res, err),

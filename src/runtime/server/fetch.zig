@@ -14,7 +14,7 @@ const FetchError = Fetch.FetchError;
 /// Perform an HTTP fetch request using std.http.Client.
 pub fn fetch(allocator: std.mem.Allocator, url: []const u8, init: RequestInit) FetchError!Response {
     // Create HTTP client
-    var client: std.http.Client = .{ .allocator = allocator };
+    var client: std.http.Client = .{ .allocator = allocator, .io = std.Options.debug_io };
     defer client.deinit();
 
     // Build extra headers as a slice

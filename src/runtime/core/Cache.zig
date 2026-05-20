@@ -68,7 +68,8 @@ const cachez = switch (builtin.os.tag) {
 
                 const Self = @This();
 
-                pub fn init(allocator: Allocator, _: Config) !Self {
+                pub fn init(io: std.Io, allocator: Allocator, _: Config) !Self {
+                    _ = io;
                     return .{
                         .allocator = allocator,
                     };
@@ -157,7 +158,15 @@ const StoredEntry = struct {
 };
 
 var state: ?State = null;
-var state_mutex: std.Thread.Mutex = .{};
+var state_mutex: struct {
+    inner: std.Io.Mutex = .init,
+    pub fn lock(self: *@This()) void {
+        self.inner.lockUncancelable(std.Options.debug_io);
+    }
+    pub fn unlock(self: *@This()) void {
+        self.inner.unlock(std.Options.debug_io);
+    }
+} = .{};
 
 /// Initialize the cache (called once at app startup)
 pub fn init(allocator: std.mem.Allocator, config: cachez.Config) !void {
@@ -167,7 +176,7 @@ pub fn init(allocator: std.mem.Allocator, config: cachez.Config) !void {
     if (state != null) return;
     state = .{
         .allocator = allocator,
-        .memory = try cachez.Cache(CacheEntry).init(allocator, config),
+        .memory = try cachez.Cache(CacheEntry).init(std.Options.debug_io, allocator, config),
     };
 }
 
@@ -436,7 +445,8 @@ fn decodeStoredEntry(encoded: []const u8) !StoredEntry {
 
 fn now() u64 {
     if (comptime builtin.os.tag == .freestanding or builtin.os.tag == .wasi) return 0;
-    return @as(u64, @intCast(std.time.timestamp()));
+    const ts = std.Io.Timestamp.now(std.Options.debug_io, .real);
+    return @as(u64, @intCast(@divTrunc(ts.nanoseconds, 1_000_000_000)));
 }
 
 fn expirationFromOptions(opts: PutOptions) !?u64 {

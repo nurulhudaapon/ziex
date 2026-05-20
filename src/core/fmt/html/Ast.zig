@@ -1270,7 +1270,7 @@ fn renderMultilineContent(content: []const u8, base_indent: u32, arena: Allocato
         };
 
         // Render to a buffer at indentation 0 (HTML renderer will add its own indentation)
-        var buffer_writer: std.io.Writer.Allocating = .init(arena);
+        var buffer_writer: std.Io.Writer.Allocating = .init(arena);
         defer buffer_writer.deinit();
         const buffer_writer_ptr: *Writer = @ptrCast(&buffer_writer.writer);
         const render_result: anyerror!void = wrapped_ast.render(arena, wrapped_content, buffer_writer_ptr);
@@ -1435,7 +1435,7 @@ const LineIndentWriter = struct {
 };
 
 pub fn render(ast: Ast, arena: Allocator, src: []const u8, w: *Writer) !void {
-    var aw = std.io.Writer.Allocating.init(arena);
+    var aw = std.Io.Writer.Allocating.init(arena);
     defer aw.deinit();
     try ast.printErrors(src, null, &aw.writer);
     const errors = aw.written();
