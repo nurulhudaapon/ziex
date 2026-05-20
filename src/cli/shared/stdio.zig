@@ -20,7 +20,7 @@ pub const OutputTarget = union(enum) {
     /// Forward to stdout
     stdout,
     /// Forward to a custom file
-    file: std.fs.File,
+    file: std.Io.File,
     /// Forward to a custom writer
     writer: *std.Io.Writer,
     /// Discard output
@@ -84,14 +84,15 @@ pub const ChildOutputOptions = struct {
 
 /// Context for reading from a child process stream
 const StreamContext = struct {
-    file: std.fs.File,
+    io: std.Io,
+    file: std.Io.File,
     stream_name: []const u8,
     allocator: std.mem.Allocator,
     options: StreamOptions,
     last_line: ?[]const u8 = null,
-    done: std.Thread.Mutex = .{},
+    done: std.Io.Mutex = .init,
     done_flag: bool = false,
-    first_line_captured: std.Thread.Mutex = .{},
+    first_line_captured: std.Io.Mutex = .init,
     first_line_captured_flag: bool = false,
 };
 
@@ -103,17 +104,17 @@ pub const ChildOutput = struct {
 
     /// Check if both streams have finished reading
     pub fn isDone(self: *const ChildOutput) bool {
-        self.stderr.done.lock();
-        defer self.stderr.done.unlock();
-        self.stdout.done.lock();
-        defer self.stdout.done.unlock();
+        self.stderr.done.lockUncancelable(self.stderr.io);
+        defer self.stderr.done.unlock(self.stderr.io);
+        self.stdout.done.lockUncancelable(self.stdout.io);
+        defer self.stdout.done.unlock(self.stdout.io);
         return self.stderr.done_flag and self.stdout.done_flag;
     }
 
     /// Wait for both streams to finish reading
     pub fn wait(self: *const ChildOutput) void {
         while (!self.isDone()) {
-            std.Thread.sleep(10 * std.time.ns_per_ms);
+            _ = std.c.nanosleep(&.{ .sec = 0, .nsec = 10 * std.time.ns_per_ms }, null);
         }
     }
 
@@ -127,23 +128,27 @@ pub const ChildOutput = struct {
         return self.stdout.last_line;
     }
 
-    /// Wait for the first line to be captured (for first_line_then_transparent mode)
-    pub fn waitForFirstLine(self: *const ChildOutput) void {
+    /// Wait for the first line to be captured (for first_line_then_transparent mode).
+    /// Returns false if no line arrived before timeout_ms.
+    pub fn waitForFirstLine(self: *const ChildOutput, timeout_ms: u64) bool {
+        var elapsed_ms: u64 = 0;
         while (true) {
             const stderr_captured = blk: {
-                self.stderr.first_line_captured.lock();
-                defer self.stderr.first_line_captured.unlock();
+                self.stderr.first_line_captured.lockUncancelable(self.stderr.io);
+                defer self.stderr.first_line_captured.unlock(self.stderr.io);
                 break :blk self.stderr.first_line_captured_flag;
             };
 
             const stdout_captured = blk: {
-                self.stdout.first_line_captured.lock();
-                defer self.stdout.first_line_captured.unlock();
+                self.stdout.first_line_captured.lockUncancelable(self.stdout.io);
+                defer self.stdout.first_line_captured.unlock(self.stdout.io);
                 break :blk self.stdout.first_line_captured_flag;
             };
 
-            if (stderr_captured or stdout_captured) break;
-            std.Thread.sleep(1 * std.time.ns_per_ms);
+            if (stderr_captured or stdout_captured) return true;
+            if (elapsed_ms >= timeout_ms) return false;
+            _ = std.c.nanosleep(&.{ .sec = 0, .nsec = 1 * std.time.ns_per_ms }, null);
+            elapsed_ms += 1;
         }
     }
 
@@ -158,6 +163,7 @@ pub const ChildOutput = struct {
 /// Returns handles to the stream contexts which can be used to check completion or access last_line
 /// The returned ChildOutput must be deinitialized with deinit() when done
 pub fn captureChildOutput(
+    io: std.Io,
     allocator: std.mem.Allocator,
     child: *std.process.Child,
     options: ChildOutputOptions,
@@ -168,6 +174,7 @@ pub fn captureChildOutput(
 
     if (child.stderr) |stderr_file| {
         stderr_ctx.* = StreamContext{
+            .io = io,
             .file = stderr_file,
             .stream_name = "stderr",
             .allocator = allocator,
@@ -181,7 +188,8 @@ pub fn captureChildOutput(
     } else {
         // No stderr pipe - mark as done immediately
         stderr_ctx.* = StreamContext{
-            .file = std.fs.File{ .handle = undefined },
+            .io = io,
+            .file = std.Io.File{ .handle = -1, .flags = .{ .nonblocking = false } },
             .stream_name = "stderr",
             .allocator = allocator,
             .options = options.stderr,
@@ -195,6 +203,7 @@ pub fn captureChildOutput(
 
     if (child.stdout) |stdout_file| {
         stdout_ctx.* = StreamContext{
+            .io = io,
             .file = stdout_file,
             .stream_name = "stdout",
             .allocator = allocator,
@@ -208,7 +217,8 @@ pub fn captureChildOutput(
     } else {
         // No stdout pipe - mark as done immediately
         stdout_ctx.* = StreamContext{
-            .file = std.fs.File{ .handle = undefined },
+            .io = io,
+            .file = std.Io.File{ .handle = -1, .flags = .{ .nonblocking = false } },
             .stream_name = "stdout",
             .allocator = allocator,
             .options = options.stdout,
@@ -224,32 +234,29 @@ pub fn captureChildOutput(
 }
 
 fn readChildStream(ctx: *StreamContext) void {
+    const io = ctx.io;
     switch (ctx.options.mode) {
         .discard => {
             // Discard mode - just read and throw away
             var buffer: [4096]u8 = undefined;
             while (true) {
-                _ = ctx.file.read(&buffer) catch |err| {
-                    if (err == error.BrokenPipe) break;
+                const bytes_read = ctx.file.readStreaming(io, &.{&buffer}) catch |err| {
+                    if (err == error.BrokenPipe or err == error.EndOfStream) break;
                     log.debug("Error reading {s}: {any}", .{ ctx.stream_name, err });
                     break;
                 };
+                if (bytes_read == 0) break;
             }
         },
         .transparent => {
             // Transparent mode: read raw bytes and forward immediately without processing
             var buffer: [4096]u8 = undefined;
-
             while (true) {
-                const bytes_read = ctx.file.read(&buffer) catch |err| {
-                    if (err == error.BrokenPipe) {
-                        break;
-                    } else {
-                        log.debug("Error reading {s}: {any}", .{ ctx.stream_name, err });
-                        break;
-                    }
+                const bytes_read = ctx.file.readStreaming(io, &.{&buffer}) catch |err| {
+                    if (err == error.BrokenPipe or err == error.EndOfStream) break;
+                    log.debug("Error reading {s}: {any}", .{ ctx.stream_name, err });
+                    break;
                 };
-
                 if (bytes_read == 0) break;
 
                 const bytes = buffer[0..bytes_read];
@@ -258,7 +265,7 @@ fn readChildStream(ctx: *StreamContext) void {
                 if (ctx.options.on_bytes) |callback| {
                     callback(bytes, ctx.stream_name);
                 } else {
-                    writeToTarget(ctx.options.target, bytes) catch |err| {
+                    writeToTarget(io, ctx.options.target, bytes) catch |err| {
                         log.debug("Error writing {s}: {any}", .{ ctx.stream_name, err });
                         break;
                     };
@@ -268,14 +275,14 @@ fn readChildStream(ctx: *StreamContext) void {
         .line_buffered => {
             // Line buffered mode: read line by line
             var buffer: [4096]u8 = undefined;
-            var streaming_reader = ctx.file.readerStreaming(&buffer);
+            var streaming_reader = ctx.file.readerStreaming(io, &buffer);
             const io_reader = &streaming_reader.interface;
             var line_writer = std.Io.Writer.Allocating.init(ctx.allocator);
             defer line_writer.deinit();
 
             // Continuously read lines and process them
             while (io_reader.streamDelimiter(&line_writer.writer, '\n')) |_| {
-                std.Thread.sleep(10 * std.time.ns_per_ms);
+                _ = std.c.nanosleep(&.{ .sec = 0, .nsec = 10 * std.time.ns_per_ms }, null);
                 const line = line_writer.written();
 
                 if (line.len > 0) {
@@ -319,7 +326,7 @@ fn readChildStream(ctx: *StreamContext) void {
         .first_line_then_transparent => {
             // First, capture the first line
             var buffer: [4096]u8 = undefined;
-            var streaming_reader = ctx.file.readerStreaming(&buffer);
+            var streaming_reader = ctx.file.readerStreaming(io, &buffer);
             const io_reader = &streaming_reader.interface;
             var line_writer = std.Io.Writer.Allocating.init(ctx.allocator);
             defer line_writer.deinit();
@@ -342,20 +349,16 @@ fn readChildStream(ctx: *StreamContext) void {
             }
 
             // Mark first line as captured
-            ctx.first_line_captured.lock();
+            ctx.first_line_captured.lockUncancelable(io);
             ctx.first_line_captured_flag = true;
-            ctx.first_line_captured.unlock();
+            ctx.first_line_captured.unlock(io);
 
             // Continue in transparent mode - first line already consumed by streamDelimiter
             var transparent_buffer: [4096]u8 = undefined;
-            while (true) {
-                const bytes_read = ctx.file.read(&transparent_buffer) catch |err| {
-                    if (err == error.BrokenPipe) break;
-                    log.debug("Error reading {s}: {any}", .{ ctx.stream_name, err });
-                    break;
-                };
-
-                std.Thread.sleep(ctx.options.transparent_delay_ms * std.time.ns_per_ms);
+            var transparent_reader = ctx.file.readerStreaming(io, &transparent_buffer);
+            const trans_reader = &transparent_reader.interface;
+            while (trans_reader.readSliceShort(&transparent_buffer)) |bytes_read| {
+                _ = std.c.nanosleep(&.{ .sec = 0, .nsec = @as(c_long, @intCast(ctx.options.transparent_delay_ms * std.time.ns_per_ms)) }, null);
 
                 if (bytes_read == 0) break;
 
@@ -365,26 +368,41 @@ fn readChildStream(ctx: *StreamContext) void {
                 if (ctx.options.on_bytes) |callback| {
                     callback(bytes, ctx.stream_name);
                 } else {
-                    writeToTarget(ctx.options.target, bytes) catch |err| {
+                    writeToTarget(io, ctx.options.target, bytes) catch |err| {
                         log.debug("Error writing {s}: {any}", .{ ctx.stream_name, err });
                         break;
                     };
+                }
+            } else |err| {
+                if (err != error.BrokenPipe and err != error.EndOfStream) {
+                    log.debug("Error reading {s}: {any}", .{ ctx.stream_name, err });
                 }
             }
         },
     }
 
     // Mark as done
-    ctx.done.lock();
+    ctx.done.lockUncancelable(io);
+    defer ctx.done.unlock(io);
     ctx.done_flag = true;
-    ctx.done.unlock();
 }
 
-fn writeToTarget(target: OutputTarget, bytes: []const u8) !void {
+fn writeToTarget(io: std.Io, target: OutputTarget, bytes: []const u8) !void {
     switch (target) {
-        .stderr => try std.fs.File.stderr().writeAll(bytes),
-        .stdout => try std.fs.File.stdout().writeAll(bytes),
-        .file => |file| try file.writeAll(bytes),
+        .stderr => {
+            const stderr_file = std.Io.File.stderr();
+            var writer = stderr_file.writerStreaming(io, undefined);
+            try writer.interface.writeAll(bytes);
+        },
+        .stdout => {
+            const stdout_file = std.Io.File.stdout();
+            var writer = stdout_file.writerStreaming(io, undefined);
+            try writer.interface.writeAll(bytes);
+        },
+        .file => |file| {
+            var writer = file.writerStreaming(io, undefined);
+            try writer.interface.writeAll(bytes);
+        },
         .writer => |writer| try writer.writeAll(bytes),
         .discard => {},
     }

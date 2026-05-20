@@ -68,9 +68,10 @@ pub const Event = union(enum) {
 
 pub const BuildState = struct {
     allocator: std.mem.Allocator,
+    io: std.Io,
     os_tag: std.Target.Os.Tag,
     binary_path: ?[]const u8,
-    last_binary_mtime: i128,
+    last_binary_mtime: std.Io.Timestamp,
     last_restart_time_ns: i128,
     first_build_done: bool,
     previous_had_errors: bool,
@@ -85,11 +86,13 @@ pub const BuildState = struct {
 
     pub fn init(
         allocator: std.mem.Allocator,
+        io: std.Io,
         binary_path: ?[]const u8,
-        initial_mtime: i128,
+        initial_mtime: std.Io.Timestamp,
     ) BuildState {
         return .{
             .allocator = allocator,
+            .io = io,
             .os_tag = builtin.os.tag,
             .binary_path = binary_path,
             .last_binary_mtime = initial_mtime,
@@ -117,8 +120,9 @@ pub const BuildState = struct {
         self.installed_asset_paths.deinit(self.allocator);
     }
 
-    pub fn markRestartComplete(self: *BuildState, new_mtime: i128) void {
-        self.last_restart_time_ns = std.time.nanoTimestamp();
+    pub fn markRestartComplete(self: *BuildState, new_mtime: std.Io.Timestamp) void {
+        const io = std.Io.Threaded.global_single_threaded.io();
+        self.last_restart_time_ns = std.Io.Clock.now(.real, io).nanoseconds;
         self.last_binary_mtime = new_mtime;
     }
 
@@ -218,22 +222,22 @@ pub const BuildState = struct {
     }
 
     fn handleBuildSummary(self: *BuildState, succeeded: bool) ?Event {
-        const now = std.time.nanoTimestamp();
+        const now = std.Io.Timestamp.now(self.io, .awake).toNanoseconds();
         log.debug("Build Summary, succeeded={}", .{succeeded});
 
         const binary_changed = if (self.binary_path) |path| blk: {
-            const stat = std.fs.cwd().statFile(path) catch |err| {
+            const stat = std.Io.Dir.cwd().statFile(self.io, path, .{}) catch |err| {
                 log.debug("stat failed: {s}", .{@errorName(err)});
                 self.build_in_progress = false;
                 return null;
             };
-            break :blk stat.mtime != self.last_binary_mtime;
+            break :blk stat.mtime.nanoseconds != self.last_binary_mtime.nanoseconds;
         } else false;
 
         if (!self.first_build_done) {
             self.first_build_done = true;
             if (self.binary_path) |path| {
-                const stat = std.fs.cwd().statFile(path) catch null;
+                const stat = std.Io.Dir.cwd().statFile(self.io, path, .{}) catch null;
                 if (stat) |s| self.last_binary_mtime = s.mtime;
             }
             self.last_restart_time_ns = now;
@@ -252,7 +256,7 @@ pub const BuildState = struct {
                 const elapsed = now - self.last_restart_time_ns;
                 if (elapsed >= RESTART_COOLDOWN_NS) {
                     if (self.binary_path) |path| {
-                        const stat = std.fs.cwd().statFile(path) catch null;
+                        const stat = std.Io.Dir.cwd().statFile(self.io, path, .{}) catch null;
                         if (stat) |s| self.last_binary_mtime = s.mtime;
                     }
                     log.debug("Binary changed, restart triggered", .{});
@@ -579,7 +583,7 @@ test "parseDurationMs handles common units" {
 test "error build cycle emits errors" {
     const allocator = std.testing.allocator;
 
-    var state = BuildState.init(allocator, "nonexistent", 0);
+    var state = BuildState.init(allocator, std.testing.io, "nonexistent", std.Io.Timestamp.fromNanoseconds(0));
     state.first_build_done = true;
     defer state.deinit();
 
@@ -615,7 +619,7 @@ test "error build cycle emits errors" {
 test "error then fix then error again: errors detected each time" {
     const allocator = std.testing.allocator;
 
-    var state = BuildState.init(allocator, "nonexistent", 0);
+    var state = BuildState.init(allocator, std.testing.io, "nonexistent", std.Io.Timestamp.fromNanoseconds(0));
     state.first_build_done = true;
     defer state.deinit();
 
@@ -678,17 +682,18 @@ test "error then fix then error again: errors detected each time" {
 
 test "rebuild error detection with real watch output" {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const tmp_path = "zig-out/.builder-test-bin";
     {
-        var f = try std.fs.cwd().createFile(tmp_path, .{});
-        f.close();
+        var f = try std.Io.Dir.cwd().createFile(io, tmp_path, .{});
+        f.close(io);
     }
-    defer std.fs.cwd().deleteFile(tmp_path) catch {};
+    defer std.Io.Dir.cwd().deleteFile(io, tmp_path) catch {};
 
-    const initial_stat = try std.fs.cwd().statFile(tmp_path);
+    const initial_stat = try std.Io.Dir.cwd().statFile(io, tmp_path, .{});
 
-    var state = BuildState.init(allocator, tmp_path, initial_stat.mtime);
+    var state = BuildState.init(allocator, io, tmp_path, initial_stat.mtime);
     defer state.deinit();
 
     var events = std.ArrayList(Event).empty;
@@ -734,17 +739,18 @@ test "rebuild error detection with real watch output" {
 
 test "full lifecycle: initial error build, fix, then error again" {
     const allocator = std.testing.allocator;
+    const io = std.testing.io;
 
     const tmp_path = "zig-out/.builder-test-bin2";
     {
-        var f = try std.fs.cwd().createFile(tmp_path, .{});
-        f.close();
+        var f = try std.Io.Dir.cwd().createFile(io, tmp_path, .{});
+        f.close(io);
     }
-    defer std.fs.cwd().deleteFile(tmp_path) catch {};
+    defer std.Io.Dir.cwd().deleteFile(io, tmp_path) catch {};
 
-    const initial_stat = try std.fs.cwd().statFile(tmp_path);
+    const initial_stat = try std.Io.Dir.cwd().statFile(io, tmp_path, .{});
 
-    var state = BuildState.init(allocator, tmp_path, initial_stat.mtime);
+    var state = BuildState.init(allocator, io, tmp_path, initial_stat.mtime);
     defer state.deinit();
 
     var events = std.ArrayList(Event).empty;
@@ -799,7 +805,7 @@ test "full lifecycle: initial error build, fix, then error again" {
 test "windows watch output detects build start and restart" {
     const allocator = std.testing.allocator;
 
-    var state = BuildState.init(allocator, null, 0);
+    var state = BuildState.init(allocator, std.testing.io, null, std.Io.Timestamp.fromNanoseconds(0));
     state.os_tag = .windows;
     state.first_build_done = true;
     defer state.deinit();
@@ -839,7 +845,7 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     // Open log file for raw stderr capture
-    var log_file = try std.fs.cwd().createFile("zig-out/build-stderr.log", .{});
+    var log_file = try std.Io.Dir.cwd().createFile("zig-out/build-stderr.log", .{});
     defer log_file.close();
 
     var child = std.process.Child.init(

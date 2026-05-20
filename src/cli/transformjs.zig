@@ -59,7 +59,7 @@ fn transformjs(ctx: zli.CommandContext) !void {
     };
 
     // Check if path is a directory first
-    if (std.fs.cwd().openDir(path_value, .{ .iterate = true })) |dir| {
+    if (std.Io.Dir.cwd().openDir(path_value, .{ .iterate = true })) |dir| {
         var dir_mut = dir;
         dir_mut.close();
         // It's a directory, transform it
@@ -74,7 +74,7 @@ fn transformjs(ctx: zli.CommandContext) !void {
         try transformFile(
             ctx.allocator,
             ctx.writer,
-            std.fs.cwd(),
+            std.Io.Dir.cwd(),
             path_value,
             path_value,
             use_stdout,
@@ -166,7 +166,7 @@ fn transformDir(
     path: []const u8,
     use_stdout: bool,
 ) !void {
-    var dir = try std.fs.cwd().openDir(path, .{ .iterate = true });
+    var dir = try std.Io.Dir.cwd().openDir(path, .{ .iterate = true });
     defer dir.close();
 
     var walker = try dir.walk(allocator);

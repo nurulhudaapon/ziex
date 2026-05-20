@@ -1,4 +1,4 @@
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
     var dbg = std.heap.DebugAllocator(.{}).init;
 
     const allocator = switch (builtin.os.tag) {
@@ -11,52 +11,42 @@ pub fn main() !void {
 
     defer if (builtin.mode == .Debug) std.debug.assert(dbg.deinit() == .ok);
 
-    if (comptime (!build_options.exclude_lsp)) {
-        var args = try std.process.argsWithAllocator(allocator);
-        defer args.deinit();
+    // if (comptime (!build_options.exclude_lsp)) {
+    //     var args = try init.minimal.args.iterateAllocator(allocator);
+    //     defer args.deinit();
 
-        _ = args.next();
-        const subcmd = args.next();
-        if (std.mem.eql(u8, subcmd orelse "", "lsp")) return try lsp.main();
-    }
+    //     _ = args.next();
+    //     const subcmd = args.next();
+    //     if (std.mem.eql(u8, subcmd orelse "", "lsp")) return try lsp.main();
+    // }
 
-    if (builtin.os.tag == .wasi) return try main_wasm();
+    if (builtin.os.tag == .wasi) return try main_wasm(init);
     if (builtin.os.tag == .windows) _ = std.os.windows.kernel32.SetConsoleOutputCP(65001);
 
-    var stdout_writer = std.fs.File.stdout().writerStreaming(&.{});
+    var stdout_writer = std.Io.File.stdout().writerStreaming(init.io, &.{});
     var stdout = &stdout_writer.interface;
 
     var buf: [4096]u8 = undefined;
-    var stdin_reader = std.fs.File.stdin().readerStreaming(&buf);
+    var stdin_reader = std.Io.File.stdin().readerStreaming(init.io, &buf);
     const stdin = &stdin_reader.interface;
 
     const root = try cli.build(stdout, stdin, allocator);
     defer root.deinit();
 
-    root.execute(.{}) catch |err| {
-        const c = tui.Colors;
-        const err_name = @errorName(err);
-        const base_url = std.fmt.comptimePrint("{s}/issues/new", .{zx.info.repository});
-        var url_buf: [512]u8 = undefined;
-        const full_url = std.fmt.bufPrint(&url_buf, "{s}?title=CLI%20Error:%20{s}&body=**Error:**%20{s}%0A**Version:**%20{s}", .{
-            base_url,
-            err_name,
-            err_name,
-            zx.info.version,
-        }) catch base_url;
-        // OSC 8 hyperlink: \x1b]8;;URL\x07DISPLAY_TEXT\x1b]8;;\x07
-        std.debug.print("\n{s}An unexpected problem occurred while running ZX CLI.{s}\n", .{ c.red, c.reset });
-        std.debug.print("Please report it at {s}\x1b]8;;{s}\x07{s}\x1b]8;;\x07{s}\n", .{ c.cyan, full_url, base_url, c.reset });
-        std.debug.print("{s}Details: {s}{s}\n\n", .{ c.gray, err_name, c.reset });
+    var app_ctx: AppContext = .{
+        .io = init.io,
+        .environ_map = init.environ_map,
     };
+
+    try root.execute(.{ .process_args = init.minimal.args, .data = &app_ctx });
 
     try stdout.flush();
 }
 
-fn main_wasm() !void {
+fn main_wasm(init: std.process.Init) !void {
     var dbg = std.heap.DebugAllocator(.{}).init;
     const allocator = dbg.allocator();
-    var args = try std.process.argsWithAllocator(allocator);
+    var args = try init.minimal.args.iterateAllocator(allocator);
     defer args.deinit();
 
     // --- Sub Command --- //
@@ -70,7 +60,7 @@ fn main_wasm() !void {
     if (std.mem.eql(u8, sub_cmd, "transpile")) is_transpile = true;
     if (std.mem.eql(u8, sub_cmd, "fmt")) is_fmt = true;
     if (std.mem.eql(u8, sub_cmd, "lsp")) is_lsp = true;
-    if (is_lsp) return try lsp.main();
+    // if (is_lsp) return try lsp.main();
 
     var files = std.ArrayList([]const u8).empty;
 
@@ -78,17 +68,17 @@ fn main_wasm() !void {
         try files.append(allocator, arg);
     }
 
-    var cwd = try std.fs.openDirAbsolute("/codes", .{});
-    defer cwd.close();
+    var cwd = try std.Io.Dir.openDirAbsolute(init.io, "/codes", .{});
+    defer cwd.close(init.io);
 
     // Transpile/Fmt file_path.zx and write with file_path.zig
     for (files.items) |file_path| {
-        const zx_source = try cwd.readFileAlloc(allocator, file_path, std.math.maxInt(usize));
+        const zx_source = try cwd.readFileAlloc(init.io, file_path, allocator, .unlimited);
         const zx_sourcez = try allocator.dupeZ(u8, zx_source);
 
         const ast = try zx.Ast.parse(allocator, zx_sourcez, .{});
         const output = if (is_transpile) ast.zig_source else ast.zx_source;
-        try std.fs.File.stdout().writeAll(output);
+        try std.Io.File.stdout().writeStreamingAll(init.io, output);
     }
 }
 
@@ -98,7 +88,8 @@ const build_options = @import("build_options");
 const zx = @import("zx");
 const cli = @import("cli/root.zig");
 const tui = @import("tui/main.zig");
-const lsp = if (build_options.exclude_lsp) void else @import("lsp/main.zig");
+const AppContext = @import("cli/shared/context.zig").AppContext;
+// const lsp = if (build_options.exclude_lsp) void else @import("lsp/main.zig");
 
 pub const std_options = std.Options{
     .log_scope_levels = &[_]std.log.ScopeLevel{

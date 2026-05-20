@@ -24,12 +24,14 @@ const port_flag = zli.Flag{
 };
 
 fn serve(ctx: zli.CommandContext) !void {
+    const app = AppContext.from(&ctx);
     const port = ctx.flag("port", u32);
     const port_str = try std.fmt.allocPrint(ctx.allocator, "{d}", .{port});
     defer ctx.allocator.free(port_str);
     const binpath = ctx.flag("binpath", []const u8);
 
     var build_args = std.ArrayList([]const u8).empty;
+    defer build_args.deinit(ctx.allocator);
     try build_args.appendSlice(ctx.allocator, &.{ cli_options.zig_exe, "build", "serve" });
 
     var i_build_args = std.mem.splitSequence(u8, ctx.flag("build-args", []const u8), " ");
@@ -43,21 +45,15 @@ fn serve(ctx: zli.CommandContext) !void {
     if (port != 0) try build_args.appendSlice(ctx.allocator, &.{ "--port", port_str });
     try build_args.appendSlice(ctx.allocator, &.{ "--cli-command", "serve" });
 
-    var system = std.process.Child.init(build_args.items, ctx.allocator);
-    try system.spawn();
+    var system = try std.process.spawn(app.io, .{ .argv = build_args.items });
 
-    var program_meta = util.findprogram(ctx.allocator, binpath) catch |err| {
+    var program_meta = util.findprogram(app.io, ctx.allocator, binpath) catch |err| {
         log.debug("Error finding ZX executable! {any}\n", .{err});
         return;
     };
     defer program_meta.deinit(ctx.allocator);
 
-    // TODO: Move logic of building js to the post transpilation process in the build system steps
-    jsutil.buildjs(ctx, binpath, false, false) catch |err| {
-        log.debug("Error building JS! {any}", .{err});
-    };
-
-    const term = try system.wait();
+    const term = try system.wait(app.io);
     _ = term;
 }
 
@@ -65,6 +61,6 @@ const std = @import("std");
 const zli = @import("zli");
 const util = @import("shared/util.zig");
 const flags = @import("shared/flag.zig");
-const jsutil = @import("shared/js.zig");
+const AppContext = @import("shared/context.zig").AppContext;
 const cli_options = @import("cli_options");
 const log = std.log.scoped(.cli);

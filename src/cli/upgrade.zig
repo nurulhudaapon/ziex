@@ -10,6 +10,7 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
 }
 
 fn upgrade(ctx: zli.CommandContext) !void {
+    const app = AppContext.from(&ctx);
     const version = ctx.flag("version", []const u8);
 
     var maybe_cmd_str: ?[:0]u8 = null;
@@ -37,10 +38,8 @@ fn upgrade(ctx: zli.CommandContext) !void {
         else => return error.UnsupportedOS,
     };
 
-    var system = std.process.Child.init(&install_cmd, ctx.allocator);
-    try system.spawn();
-
-    const term = try system.wait();
+    var system = try std.process.spawn(app.io, .{ .argv = &install_cmd });
+    const term = try system.wait(app.io);
     _ = term;
 
     // try ctx.writer.print("Upgraded to: ", .{});
@@ -59,5 +58,6 @@ const version_flag = zli.Flag{
 
 const std = @import("std");
 const zli = @import("zli");
+const AppContext = @import("shared/context.zig").AppContext;
 const zx = @import("zx");
 const builtin = @import("builtin");

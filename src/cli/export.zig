@@ -19,10 +19,12 @@ const outdir_flag = zli.Flag{
 };
 
 fn @"export"(ctx: zli.CommandContext) !void {
+    const app = AppContext.from(&ctx);
+    const io = app.io;
     const outdir = ctx.flag("outdir", []const u8);
     const binpath = ctx.flag("binpath", []const u8);
 
-    var app_meta = util.findprogram(ctx.allocator, binpath) catch |err| {
+    var app_meta = util.findprogram(io, ctx.allocator, binpath) catch |err| {
         if (err == error.FileNotFound) {
             try ctx.writer.print("Run \x1b[34mzig build\x1b[0m to build the ZX executable first!\n", .{});
             return;
@@ -38,20 +40,21 @@ fn @"export"(ctx: zli.CommandContext) !void {
     const appoutdir = app_meta.rootdir orelse "site/.zx";
     const host = app_meta.config.server.address orelse "0.0.0.0";
 
-    var app_child = std.process.Child.init(&.{ app_meta.binpath.?, "--cli-command", "export" }, ctx.allocator);
-    app_child.stdout_behavior = .Ignore;
-    app_child.stderr_behavior = .Ignore;
-    const env_map = try ctx.allocator.create(std.process.EnvMap);
+    const environ_map = app.environ_map;
+    try environ_map.put("ZIEX_INNER_PORT", port_str);
+
+    var app_child = try std.process.spawn(io, .{
+        .argv = &.{ app_meta.binpath.?, "--cli-command", "export" },
+        .environ_map = environ_map,
+        .stdout = .ignore,
+        .stderr = .ignore,
+    });
     defer {
-        env_map.deinit();
-        ctx.allocator.destroy(env_map);
+        app_child.kill(io);
     }
-    env_map.* = try std.process.getEnvMap(ctx.allocator);
-    try env_map.put("ZIEX_INNER_PORT", port_str);
-    app_child.env_map = env_map;
-    try app_child.spawn();
-    defer _ = app_child.kill() catch {};
-    errdefer _ = app_child.kill() catch {};
+    errdefer {
+        app_child.kill(io);
+    }
 
     var printer = tui.Printer.init(ctx.allocator, .{ .file_path_mode = .flat, .file_tree_max_depth = 1 });
     defer printer.deinit();
@@ -59,7 +62,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
     printer.header("{s} Building static ZX site!", .{tui.Printer.emoji("○")});
     printer.info("{s}", .{outdir});
     // delete the outdir if it exists
-    // std.fs.cwd().deleteTree(outdir) catch |err| switch (err) {
+    // std.Io.Dir.cwd().deleteTree(outdir) catch |err| switch (err) {
     //     else => {},
     // };
 
@@ -77,7 +80,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
             log.debug("Processing route! {s}", .{route.path});
 
             if (route.is_dynamic) {
-                const static_params = fetchStaticParams(ctx.allocator, host, port, route.path) catch |err| {
+                const static_params = fetchStaticParams(io, ctx.allocator, host, port, route.path) catch |err| {
                     if (err == error.ConnectionRefused) {
                         continue :process_block;
                     }
@@ -95,7 +98,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
                             .has_notfound = route.has_notfound,
                             .is_dynamic = false,
                         };
-                        processRoute(ctx.allocator, host, port, expanded_route, outdir, &printer, .page) catch |err| {
+                        processRoute(io, ctx.allocator, host, port, expanded_route, outdir, &printer, .page) catch |err| {
                             if (err == error.ConnectionRefused) {
                                 continue :process_block;
                             }
@@ -105,7 +108,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
                     log.debug("No static params for dynamic route: {s}", .{route.path});
                 }
             } else {
-                processRoute(ctx.allocator, host, port, route, outdir, &printer, .page) catch |err| {
+                processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .page) catch |err| {
                     if (err == error.ConnectionRefused) {
                         continue :process_block;
                     }
@@ -114,7 +117,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
 
             // Also export 404.html for routes that have notfound handler
             if (route.has_notfound) {
-                processRoute(ctx.allocator, host, port, route, outdir, &printer, .notfound) catch |err| {
+                processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .notfound) catch |err| {
                     if (err == error.ConnectionRefused) {
                         continue :process_block;
                     }
@@ -126,7 +129,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
 
     log.debug("Copying public directory! {s}", .{appoutdir});
 
-    util.copydirs(ctx.allocator, appoutdir, &.{"."}, outdir, false, &printer) catch |err| {
+    util.copydirs(io, ctx.allocator, appoutdir, &.{"."}, outdir, false, &printer) catch |err| {
         std.log.err("Failed to copy public directory: {any}", .{err});
         // return err;
     };
@@ -134,7 +137,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
     // Delete {outdir}/.well-known/_zx if it exists
     const assets_zx_path = try std.fs.path.join(ctx.allocator, &.{ outdir, ".well-known", "_zx" });
     defer ctx.allocator.free(assets_zx_path);
-    std.fs.cwd().deleteTree(assets_zx_path) catch |err| switch (err) {
+    std.Io.Dir.cwd().deleteTree(io, assets_zx_path) catch |err| switch (err) {
         else => {},
     };
 
@@ -158,6 +161,7 @@ const StaticParamsResult = struct {
 };
 
 fn processRoute(
+    io: std.Io,
     allocator: std.mem.Allocator,
     host: []const u8,
     port: u16,
@@ -167,7 +171,7 @@ fn processRoute(
     export_type: ExportType,
 ) !void {
     // Fetch the route's HTML content
-    var client = std.http.Client{ .allocator = allocator };
+    var client = std.http.Client{ .allocator = allocator, .io = io };
     defer client.deinit();
 
     var aw = std.Io.Writer.Allocating.init(allocator);
@@ -260,10 +264,10 @@ fn processRoute(
     // Create parent directories if they don't exist
     const output_dir = std.fs.path.dirname(output_path);
     if (output_dir) |dir| {
-        try std.fs.cwd().makePath(dir);
+        try std.Io.Dir.cwd().createDirPath(io, dir);
     }
 
-    try std.fs.cwd().writeFile(.{
+    try std.Io.Dir.cwd().writeFile(io, .{
         .sub_path = output_path,
         .data = response_text,
     });
@@ -273,8 +277,11 @@ fn processRoute(
 
 /// Fetch static params from server via x-zx-static-data header
 /// Returns expanded paths (e.g., "/blog/hello", "/blog/world")
-fn fetchStaticParams(allocator: std.mem.Allocator, host: []const u8, port: u16, route_path: []const u8) !StaticParamsResult {
-    var client = std.http.Client{ .allocator = allocator };
+fn fetchStaticParams(io: std.Io, allocator: std.mem.Allocator, host: []const u8, port: u16, route_path: []const u8) !StaticParamsResult {
+    var client = std.http.Client{
+        .allocator = allocator,
+        .io = io,
+    };
     defer client.deinit();
 
     var aw = std.Io.Writer.Allocating.init(allocator);
@@ -301,7 +308,7 @@ fn fetchStaticParams(allocator: std.mem.Allocator, host: []const u8, port: u16, 
     const response_z = try allocator.dupeZ(u8, response);
     defer allocator.free(response_z);
 
-    const parsed = std.zon.parse.fromSlice([]const []const zx.PageOptions.StaticParam, allocator, response_z, null, .{}) catch |err| {
+    const parsed = std.zon.parse.fromSliceAlloc([]const []const zx.PageOptions.StaticParam, allocator, response_z, null, .{}) catch |err| {
         log.warn("Failed to parse static params ZON: {any}", .{err});
         return .{ .items = &.{}, .allocator = null };
     };
@@ -357,6 +364,7 @@ const std = @import("std");
 const zli = @import("zli");
 const util = @import("shared/util.zig");
 const flag = @import("shared/flag.zig");
+const AppContext = @import("shared/context.zig").AppContext;
 const zx = @import("zx");
 const DevServer = @import("dev/DevServer.zig");
 const tui = @import("../tui/main.zig");

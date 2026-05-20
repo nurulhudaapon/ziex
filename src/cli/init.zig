@@ -42,6 +42,8 @@ const init_path_arg = zli.PositionalArg{
 };
 
 fn init(ctx: zli.CommandContext) !void {
+    const app = AppContext.from(&ctx);
+    const io = app.io;
     const t_val = ctx.flag("template", []const u8);
     const force_init = ctx.flag("force", bool);
     const existing_init = ctx.flag("existing", bool);
@@ -51,7 +53,7 @@ fn init(ctx: zli.CommandContext) !void {
     defer printer.deinit();
 
     // Validations
-    const is_clean_dir = try isDirEmpty(init_path);
+    const is_clean_dir = try isDirEmpty(io, init_path);
     const has_init_path_arg = init_path.len > 0 and !std.mem.eql(u8, init_path, ".");
     if (!is_clean_dir and !force_init and !existing_init) {
         printer.warning("Directory is not empty.", .{});
@@ -98,7 +100,7 @@ fn init(ctx: zli.CommandContext) !void {
     printer.header("{s} Initializing ZX project!", .{tui.Printer.emoji("○")});
     printer.info("[{s}]", .{@tagName(template_name)});
 
-    try std.fs.cwd().makePath(init_path);
+    try std.Io.Dir.cwd().createDirPath(io, init_path);
     for (templates) |template| {
         if (template.name != null and template.name.? != template_name) continue;
 
@@ -108,7 +110,7 @@ fn init(ctx: zli.CommandContext) !void {
         // Skip if file exists and existing flag is set
         if (existing_init) {
             const file_exists = blk: {
-                std.fs.cwd().access(output_path, .{}) catch |err| switch (err) {
+                std.Io.Dir.cwd().access(io, output_path, .{}) catch |err| switch (err) {
                     error.FileNotFound => break :blk false,
                     else => continue,
                 };
@@ -118,13 +120,13 @@ fn init(ctx: zli.CommandContext) !void {
         }
 
         if (std.fs.path.dirname(output_path)) |parent_dir| {
-            try std.fs.cwd().makePath(parent_dir);
+            try std.Io.Dir.cwd().createDirPath(io, parent_dir);
         }
 
-        var file = try std.fs.cwd().createFile(output_path, .{ .truncate = true });
+        var file = try std.Io.Dir.cwd().createFile(io, output_path, .{ .truncate = true });
 
         printer.filepath(template.path);
-        defer file.close();
+        defer file.close(io);
 
         if (template.lines) |lines| {
             var line_iter = std.mem.splitScalar(u8, template.content, '\n');
@@ -134,14 +136,14 @@ fn init(ctx: zli.CommandContext) !void {
                 for (lines) |line_range| {
                     const start, const end = line_range;
                     if (line_n < start or line_n > end) continue;
-                    try file.writeAll(line);
-                    try file.writeAll("\n");
+                    try file.writeStreamingAll(io, line);
+                    try file.writeStreamingAll(io, "\n");
                 }
 
                 line_n += 1;
             }
         } else {
-            try file.writeAll(template.content);
+            try file.writeStreamingAll(io, template.content);
         }
     }
 
@@ -154,15 +156,15 @@ fn init(ctx: zli.CommandContext) !void {
     }
 }
 
-pub fn isDirEmpty(path: []const u8) !bool {
-    var dir = std.fs.cwd().openDir(path, .{ .iterate = true }) catch |err| switch (err) {
+pub fn isDirEmpty(io: std.Io, path: []const u8) !bool {
+    var dir = std.Io.Dir.cwd().openDir(io, path, .{ .iterate = true }) catch |err| switch (err) {
         error.FileNotFound => return true,
         else => return err,
     };
-    defer dir.close();
+    defer dir.close(io);
 
     var iter = dir.iterate();
-    return try iter.next() == null;
+    return try iter.next(io) == null;
 }
 
 const TemplateFile = struct {
@@ -214,4 +216,5 @@ const templates = [_]TemplateFile{
 const std = @import("std");
 const zli = @import("zli");
 const tui = @import("../tui/main.zig");
+const AppContext = @import("shared/context.zig").AppContext;
 const colors = tui.Colors;

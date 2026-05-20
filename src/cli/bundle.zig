@@ -40,13 +40,15 @@ const docker_compose_flag = zli.Flag{
 };
 
 fn bundle(ctx: zli.CommandContext) !void {
+    const app = AppContext.from(&ctx);
+    const io = app.io;
     const outdir = ctx.flag("outdir", []const u8);
     const binpath = ctx.flag("binpath", []const u8);
     const docker = ctx.flag("docker", bool);
     const docker_compose = ctx.flag("docker-compose", bool);
     const build_args = ctx.flag("build-args", []const u8);
 
-    var app_meta = util.findprogram(ctx.allocator, binpath) catch |err| {
+    var app_meta = util.findprogram(io, ctx.allocator, binpath) catch |err| {
         if (err == error.FileNotFound or err == error.ProgramNotFound) {
             try ctx.writer.print("Run \x1b[34mzig build\x1b[0m to build the ZX executable first!\n", .{});
             return;
@@ -81,17 +83,17 @@ fn bundle(ctx: zli.CommandContext) !void {
     log.debug("Copying bin from {s} to outdir {s}", .{ final_binpath, dest_binpath });
 
     if (!(docker or docker_compose)) {
-        std.fs.cwd().makePath(outdir) catch |err| switch (err) {
+        std.Io.Dir.cwd().createDirPath(io, outdir) catch |err| switch (err) {
             error.PathAlreadyExists => {},
             else => return err,
         };
-        try std.fs.cwd().copyFile(final_binpath, std.fs.cwd(), dest_binpath, .{});
+        try std.Io.Dir.copyFile(std.Io.Dir.cwd(), final_binpath, std.Io.Dir.cwd(), dest_binpath, io, .{});
         printer.filepath(bin_name);
 
         const static_outdir = try std.fs.path.join(ctx.allocator, &.{ outdir, "static" });
         defer ctx.allocator.free(static_outdir);
         log.debug("Copying static directory! {s}", .{appoutdir});
-        util.copydirs(ctx.allocator, appoutdir, &.{"."}, static_outdir, false, &printer) catch |err| {
+        util.copydirs(io, ctx.allocator, appoutdir, &.{"."}, static_outdir, false, &printer) catch |err| {
             std.log.err("Failed to copy static directories: {any}", .{err});
         };
 
@@ -100,14 +102,14 @@ fn bundle(ctx: zli.CommandContext) !void {
         const old_assets = try std.fs.path.join(ctx.allocator, &.{ outdir, "assets" });
         defer ctx.allocator.free(old_public);
         defer ctx.allocator.free(old_assets);
-        std.fs.cwd().deleteTree(old_public) catch {};
-        std.fs.cwd().deleteTree(old_assets) catch {};
+        std.Io.Dir.cwd().deleteTree(io, old_public) catch {};
+        std.Io.Dir.cwd().deleteTree(io, old_assets) catch {};
     }
 
     // Delete {outdir}/.well-known/_zx if it exists
     const assets_zx_path = try std.fs.path.join(ctx.allocator, &.{ outdir, ".well-known", "_zx" });
     defer ctx.allocator.free(assets_zx_path);
-    std.fs.cwd().deleteTree(assets_zx_path) catch |err| switch (err) {
+    std.Io.Dir.cwd().deleteTree(io, assets_zx_path) catch |err| switch (err) {
         else => {},
     };
 
@@ -138,13 +140,13 @@ fn bundle(ctx: zli.CommandContext) !void {
         defer ctx.allocator.free(compose_path);
         defer ctx.allocator.free(dockerignore_path);
 
-        try std.fs.cwd().writeFile(.{ .sub_path = dockerfile_path, .data = dockerfile_content_with_build_args });
+        try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = dockerfile_path, .data = dockerfile_content_with_build_args });
         printer.filepath(std.fs.path.basename(dockerfile_path));
         if (docker_compose) {
-            try std.fs.cwd().writeFile(.{ .sub_path = compose_path, .data = compose_content_with_port });
+            try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = compose_path, .data = compose_content_with_port });
             printer.filepath(std.fs.path.basename(compose_path));
         }
-        try std.fs.cwd().writeFile(.{ .sub_path = dockerignore_path, .data = @embedFile("init/template/.dockerignore") });
+        try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = dockerignore_path, .data = @embedFile("init/template/.dockerignore") });
         printer.filepath(std.fs.path.basename(dockerignore_path));
     }
 
@@ -163,6 +165,7 @@ const std = @import("std");
 const zli = @import("zli");
 const util = @import("shared/util.zig");
 const flag = @import("shared/flag.zig");
+const AppContext = @import("shared/context.zig").AppContext;
 const zx = @import("zx");
 const tui = @import("../tui/main.zig");
 const log = std.log.scoped(.cli);

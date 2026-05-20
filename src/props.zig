@@ -150,14 +150,22 @@ pub fn MergedPropsType(comptime BaseType: type, comptime OverrideType: type) typ
         }
     }
 
-    return @Type(.{
-        .@"struct" = .{
-            .layout = .auto,
-            .fields = &fields,
-            .decls = &.{},
-            .is_tuple = false,
-        },
-    });
+    // Extract field names, types, and attributes for @Struct
+    comptime var field_names: [field_count][]const u8 = undefined;
+    comptime var field_types: [field_count]type = undefined;
+    comptime var field_attrs: [field_count]std.builtin.Type.StructField.Attributes = undefined;
+
+    inline for (fields, 0..) |f, i| {
+        field_names[i] = f.name;
+        field_types[i] = f.type;
+        field_attrs[i] = .{
+            .@"align" = f.alignment,
+            .@"comptime" = f.is_comptime,
+            .default_value_ptr = f.default_value_ptr,
+        };
+    }
+
+    return @Struct(.auto, null, &field_names, &field_types, &field_attrs);
 }
 
 fn isSerializable(comptime T: type) bool {

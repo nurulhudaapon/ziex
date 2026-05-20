@@ -14,8 +14,8 @@
         },
         // httpz - HTTP server for Ziex
         .httpz = .{
-            .url = "git+https://github.com/nurulhudaapon/httpz.git#7268154f43f5827bf78668e8e79a00f2ebe4db13",
-            .hash = "httpz-0.0.0-PNVzrBgtBwCVkSJyophIX6WHwDR0r8XhBGQr96Kk-1El",
+            .url = "git+https://github.com/karlseguin/http.zig.git#569bba10f22afd4ea1815416b546a8065905f820",
+            .hash = "httpz-0.0.0-PNVzrJUWCADf96eygXxMPMSWJ-SMNkGDB1B6BUEP7dZZ",
         },
         .adapters = .{ .path = "pkg/adapters" },
         .zli = .{ .path = "vendor/cliz" }, // Get rid of this in favor of copying from Zig's new builtin args parser once 0.16.0 is released
@@ -25,10 +25,10 @@
         .tree_sitter_mdzx = .{ .path = "pkg/tree-sitter-mdzx" },
         .cachez = .{ .path = "vendor/cachez" },
         // Ziex Language Server utilities
-        .zls = .{
-            .url = "git+https://github.com/ziex-dev/zls.git?ref=zx-0.15.1#6afd4d52580899022d24f41689781ec4a9350602",
-            .hash = "zls-0.15.1-rmm5fgg2JABtvFCDJk6Up7CuP4Khm62Li4NkCfwniFnU",
-        },
+        // .zls = .{
+        //     .url = "git+https://github.com/ziex-dev/zls.git?ref=zx-0.15.1#6afd4d52580899022d24f41689781ec4a9350602",
+        //     .hash = "zls-0.15.1-rmm5fgg2JABtvFCDJk6Up7CuP4Khm62Li4NkCfwniFnU",
+        // },
     },
     .paths = .{
         "build.zig",

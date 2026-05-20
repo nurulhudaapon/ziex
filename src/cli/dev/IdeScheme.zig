@@ -7,7 +7,7 @@ args: []const []const u8,
 /// environment keys that must exist OR matches "KEY=VALUE" (value can have *)
 envs: []const []const u8,
 
-pub fn match(self: CodeEditorScheme, env_map: std.process.EnvMap) bool {
+pub fn match(self: CodeEditorScheme, env_map: *const std.process.Environ.Map) bool {
     if (self.envs.len == 0) return false;
 
     for (self.envs) |env_spec| {
@@ -50,10 +50,7 @@ pub fn format(self: CodeEditorScheme, allocator: std.mem.Allocator, file: []cons
 }
 
 // Detect editor and return command args to open file
-pub fn detect(allocator: std.mem.Allocator, file: []const u8, line: []const u8, col: []const u8) ![]const []const u8 {
-    var env_map = try std.process.getEnvMap(allocator);
-    defer env_map.deinit();
-
+pub fn detect(allocator: std.mem.Allocator, env_map: *const std.process.Environ.Map, file: []const u8, line: []const u8, col: []const u8) ![]const []const u8 {
     // 1. ZIEX_EDITOR override (e.g., "zed --open {file}:{line}:{col}")
     if (env_map.get("ZIEX_EDITOR")) |editor_cmd| {
         var args_list = std.ArrayList([]const u8).empty;

@@ -3,7 +3,6 @@ const zli = @import("zli");
 const zx = @import("zx");
 const log = std.log.scoped(.cli);
 const util = @import("shared/util.zig");
-const jsutil = @import("shared/js.zig");
 const flags = @import("shared/flag.zig");
 const base64 = std.base64.standard;
 
@@ -135,8 +134,10 @@ fn transpile(ctx: zli.CommandContext) !void {
     const default_outdir = ".zx";
     const is_default_outdir = std.mem.eql(u8, outdir, default_outdir);
 
+    const io = std.Io.Threaded.global_single_threaded.io();
+
     // Check if path is a file (not a directory)
-    const stat = std.fs.cwd().statFile(path) catch |err| switch (err) {
+    const stat = std.Io.Dir.cwd().statFile(io, path, .{}) catch |err| switch (err) {
         error.IsDir => {
             // It's a directory, proceed with normal transpileCommand
             try transpileCommand(ctx.allocator, .{
@@ -167,11 +168,7 @@ fn transpile(ctx: zli.CommandContext) !void {
             // If outdir is default and path is a file, output to stdout
             if (is_default_outdir) {
                 // Read the source file
-                const source = try std.fs.cwd().readFileAlloc(
-                    ctx.allocator,
-                    path,
-                    std.math.maxInt(usize),
-                );
+                const source = try std.Io.Dir.cwd().readFileAlloc(io, path, ctx.allocator, std.Io.Limit.limited(std.math.maxInt(usize)));
                 defer ctx.allocator.free(source);
 
                 const source_z = try ctx.allocator.dupeZ(u8, source);
@@ -199,7 +196,7 @@ fn transpile(ctx: zli.CommandContext) !void {
                             );
                             defer ctx.allocator.free(sourcemap_json);
 
-                            try std.fs.cwd().writeFile(.{
+                            try std.Io.Dir.cwd().writeFile(io, .{
                                 .sub_path = map_path,
                                 .data = sourcemap_json,
                             });
@@ -266,9 +263,10 @@ fn writeDepFile(allocator: std.mem.Allocator, path: []const u8, target: []const 
         }
     }
     try buf.appendSlice(allocator, "\n");
-    const f = try std.fs.cwd().createFile(path, .{});
-    defer f.close();
-    try f.writeAll(buf.items);
+    const io = std.Io.Threaded.global_single_threaded.io();
+    const f = try std.Io.Dir.cwd().createFile(io, path, .{});
+    defer f.close(io);
+    try f.writePositionalAll(io, buf.items, 0);
 }
 
 /// Scan source for `@embedFile("...")` references and add resolved paths as dependencies.
@@ -293,8 +291,21 @@ fn collectEmbedFileDeps(
         const resolved = std.fs.path.join(allocator, &.{ source_dir, embed_path }) catch continue;
         defer allocator.free(resolved);
 
-        const abs_path = std.fs.cwd().realpathAlloc(allocator, resolved) catch continue;
-        input_files.append(abs_path) catch continue;
+        const abs_path = std.fs.path.resolve(allocator, &.{resolved}) catch continue;
+
+        // Only record embeds that actually exist on disk. .zx files often
+        // @embedFile() the transpiled .zig output of a sibling .zx — that
+        // file doesn't exist as a source and listing it in the dep file
+        // makes the build harness fail with FileNotFound.
+        const io_local = std.Io.Threaded.global_single_threaded.io();
+        if (std.Io.Dir.cwd().statFile(io_local, abs_path, .{})) |_| {
+            input_files.append(abs_path) catch {
+                allocator.free(abs_path);
+                continue;
+            };
+        } else |_| {
+            allocator.free(abs_path);
+        }
     }
 }
 
@@ -307,7 +318,8 @@ fn writeComponentCache(
 ) !void {
     const json = try std.json.Stringify.valueAlloc(allocator, components, .{});
     defer allocator.free(json);
-    try std.fs.cwd().writeFile(.{ .sub_path = cache_path, .data = json });
+    const io = std.Io.Threaded.global_single_threaded.io();
+    try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = cache_path, .data = json });
 }
 
 fn readComponentCache(
@@ -315,7 +327,8 @@ fn readComponentCache(
     cache_path: []const u8,
     global_components: *std.array_list.Managed(ClientComponentSerializable),
 ) !void {
-    const json = try std.fs.cwd().readFileAlloc(allocator, cache_path, 4 * 1024 * 1024);
+    const io = std.Io.Threaded.global_single_threaded.io();
+    const json = try std.Io.Dir.cwd().readFileAlloc(io, cache_path, allocator, std.Io.Limit.limited(4 * 1024 * 1024));
     defer allocator.free(json);
     const parsed = try std.json.parseFromSlice(
         []const ClientComponentSerializable,
@@ -337,7 +350,8 @@ fn readComponentCache(
 }
 
 fn copyOnly(ctx: zli.CommandContext, source_path: []const u8, dest_dir: []const u8) !void {
-    const stat = std.fs.cwd().statFile(source_path) catch |err| switch (err) {
+    const io = std.Io.Threaded.global_single_threaded.io();
+    const stat = std.Io.Dir.cwd().statFile(io, source_path, .{}) catch |err| switch (err) {
         error.IsDir => return try copyDirectory(ctx.allocator, source_path, dest_dir),
         else => return err,
     };
@@ -391,31 +405,38 @@ fn extractRouteFromPath(allocator: std.mem.Allocator, source_path: []const u8) !
 
 /// Get the package root directory (where node_modules is located)
 /// This function finds package.json and returns its directory
-fn getPackageRootDir(allocator: std.mem.Allocator) ![]const u8 {
-    const package_json_parsed = try jsutil.PackageJson.parse(allocator);
-    errdefer package_json_parsed.deinit();
+/// Walk up from `start_dir` looking for a directory that contains a
+/// package.json. Returns the absolute path to that directory (the package
+/// root). The caller owns the returned slice.
+fn findPackageRoot(allocator: std.mem.Allocator, io: std.Io, start_dir: []const u8) ![]const u8 {
+    // Resolve start_dir to an absolute path so the walk-up terminates.
+    var abs_buf: ?[]u8 = null;
+    defer if (abs_buf) |b| allocator.free(b);
 
-    // Extract pkg_path before deinit since it's manually allocated
-    const pkg_path = package_json_parsed.value.pkg_path orelse {
-        package_json_parsed.deinit();
-        return error.PkgPathNotFound;
+    var dir_path: []const u8 = if (std.fs.path.isAbsolute(start_dir)) start_dir else blk: {
+        const cwd_abs = try std.process.currentPathAlloc(io, allocator);
+        defer allocator.free(cwd_abs);
+        const joined = try std.fs.path.join(allocator, &.{ cwd_abs, start_dir });
+        abs_buf = joined;
+        break :blk joined;
     };
 
-    const pkg_rootdir = std.fs.path.dirname(pkg_path) orelse {
-        allocator.free(pkg_path);
-        package_json_parsed.deinit();
-        // When package.json is in root, return empty string (current directory)
-        return try allocator.dupe(u8, "");
-    };
+    const cwd = std.Io.Dir.cwd();
+    while (true) {
+        const candidate = try std.fs.path.join(allocator, &.{ dir_path, "package.json" });
+        defer allocator.free(candidate);
 
-    const result = try allocator.dupe(u8, pkg_rootdir);
+        if (cwd.statFile(io, candidate, .{})) |_| {
+            return try allocator.dupe(u8, dir_path);
+        } else |err| switch (err) {
+            error.FileNotFound => {},
+            else => return err,
+        }
 
-    // Free pkg_path manually since it's not part of the JSON structure
-    // and won't be freed by package_json_parsed.deinit()
-    allocator.free(pkg_path);
-    package_json_parsed.deinit();
-
-    return result;
+        const parent = std.fs.path.dirname(dir_path) orelse return error.PackageJsonNotFound;
+        if (parent.len == dir_path.len) return error.PackageJsonNotFound;
+        dir_path = parent;
+    }
 }
 
 fn getBasename(path: []const u8) []const u8 {
@@ -431,9 +452,9 @@ fn getBasename(path: []const u8) []const u8 {
 /// Escapes backslashes in a path string for use in Zig string literals.
 /// On Windows, backslashes need to be escaped as \\ in string literals.
 fn escapePathForZigString(allocator: std.mem.Allocator, path: []const u8) ![]const u8 {
-    var result = std.array_list.Managed(u8).init(allocator);
+    var result = std.Io.Writer.Allocating.init(allocator);
     errdefer result.deinit();
-    const writer = result.writer();
+    const writer = &result.writer;
 
     for (path) |byte| {
         if (byte == '\\') {
@@ -478,9 +499,9 @@ fn relativePath(allocator: std.mem.Allocator, base: []const u8, target: []const 
         target_normalized = target[0 .. target.len - sep.len];
     }
 
-    var base_parts = std.ArrayList([]const u8){};
+    var base_parts = std.ArrayList([]const u8).empty;
     defer base_parts.deinit(allocator);
-    var target_parts = std.ArrayList([]const u8){};
+    var target_parts = std.ArrayList([]const u8).empty;
     defer target_parts.deinit(allocator);
 
     var base_iter = std.mem.splitScalar(u8, base_normalized, std.fs.path.sep);
@@ -503,7 +524,7 @@ fn relativePath(allocator: std.mem.Allocator, base: []const u8, target: []const 
         common_len += 1;
     }
 
-    var result = std.ArrayList(u8){};
+    var result = std.ArrayList(u8).empty;
     defer result.deinit(allocator);
 
     var i = common_len;
@@ -574,13 +595,15 @@ fn copyFileToDir(
     source_file: []const u8,
     dest_dir: []const u8,
 ) !void {
+    const io = std.Io.Threaded.global_single_threaded.io();
     const dest_file = try std.fs.path.join(allocator, &.{ dest_dir, std.fs.path.basename(source_file) });
     defer allocator.free(dest_file);
-    std.fs.cwd().makePath(dest_dir) catch |err| switch (err) {
+    std.Io.Dir.cwd().createDirPath(io, dest_dir) catch |err| switch (err) {
         error.PathAlreadyExists => {},
         else => return err,
     };
-    try std.fs.cwd().copyFile(source_file, std.fs.cwd(), dest_file, .{});
+    const dest_file_basename = std.fs.path.basename(dest_file);
+    try std.Io.Dir.cwd().copyFile(source_file, std.Io.Dir.cwd(), dest_file_basename, io, .{});
 }
 
 /// Copy a directory recursively from source to destination
@@ -589,21 +612,22 @@ fn copyDirectory(
     source_dir: []const u8,
     dest_dir: []const u8,
 ) !void {
-    var source = try std.fs.cwd().openDir(source_dir, .{ .iterate = true });
-    defer source.close();
+    const io = std.Io.Threaded.global_single_threaded.io();
+    var source = try std.Io.Dir.cwd().openDir(io, source_dir, .{ .iterate = true });
+    defer source.close(io);
 
-    std.fs.cwd().makePath(dest_dir) catch |err| switch (err) {
+    std.Io.Dir.cwd().createDirPath(io, dest_dir) catch |err| switch (err) {
         error.PathAlreadyExists => {},
         else => return err,
     };
 
-    var dest = try std.fs.cwd().openDir(dest_dir, .{});
-    defer dest.close();
+    var dest = try std.Io.Dir.cwd().openDir(io, dest_dir, .{});
+    defer dest.close(io);
 
     var walker = try source.walk(allocator);
     defer walker.deinit();
 
-    while (try walker.next()) |entry| {
+    while (try walker.next(io)) |entry| {
         const src_path = try std.fs.path.join(allocator, &.{ source_dir, entry.path });
         defer allocator.free(src_path);
 
@@ -613,15 +637,15 @@ fn copyDirectory(
         switch (entry.kind) {
             .file => {
                 if (std.fs.path.dirname(dst_path)) |parent| {
-                    std.fs.cwd().makePath(parent) catch |err| switch (err) {
+                    std.Io.Dir.cwd().createDirPath(io, parent) catch |err| switch (err) {
                         error.PathAlreadyExists => {},
                         else => return err,
                     };
                 }
-                try std.fs.cwd().copyFile(src_path, std.fs.cwd(), dst_path, .{});
+                try std.Io.Dir.cwd().copyFile(src_path, std.Io.Dir.cwd(), dst_path, io, .{});
             },
             .directory => {
-                std.fs.cwd().makePath(dst_path) catch |err| switch (err) {
+                std.Io.Dir.cwd().createDirPath(io, dst_path) catch |err| switch (err) {
                     error.PathAlreadyExists => {},
                     else => return err,
                 };
@@ -636,7 +660,7 @@ const ClientComponentSerializable = struct { type: zx.Ast.ClientComponentMetadat
 fn genClientComponents(allocator: std.mem.Allocator, components: []const ClientComponentSerializable, output_dir: []const u8, verbose: bool) !void {
     _ = verbose;
     // Generate Zig array literal contents (without outer array declaration)
-    var aw = std.io.Writer.Allocating.init(allocator);
+    var aw = std.Io.Writer.Allocating.init(allocator);
     defer aw.deinit();
 
     std.zon.stringify.serialize(components, .{ .whitespace = true }, &aw.writer) catch @panic("OOM");
@@ -703,39 +727,39 @@ fn genClientComponents(allocator: std.mem.Allocator, components: []const ClientC
     const cmps_client_path = try std.fs.path.join(allocator, &.{ output_dir, "components.zig" });
     defer allocator.free(cmps_client_path);
 
-    try std.fs.cwd().writeFile(.{
+    const io = std.Io.Threaded.global_single_threaded.io();
+    try std.Io.Dir.cwd().writeFile(io, .{
         .sub_path = cmps_client_path,
         .data = cmps_client_z,
     });
 }
 
-fn genReactComponents(allocator: std.mem.Allocator, components: []const ClientComponentSerializable, output_dir: []const u8, verbose: bool) !void {
+fn genReactComponents(allocator: std.mem.Allocator, components: []const ClientComponentSerializable, output_dir: []const u8, input_dir: []const u8, verbose: bool) !void {
     if (components.len == 0) return;
 
     var json_str = std.json.Stringify.valueAlloc(allocator, components, .{
         .whitespace = .indent_2,
     }) catch @panic("OOM");
-    errdefer allocator.free(json_str);
+    defer allocator.free(json_str);
 
     // Replace all instances of "@ and @" with empty string
     const placeHolder_start = "\"@";
     const placeHolder_end = "@\"";
 
     while (std.mem.indexOf(u8, json_str, placeHolder_start)) |index| {
-        const old_json_str = json_str;
         const before = json_str[0..index];
         const after = json_str[index + placeHolder_start.len ..];
-        json_str = try std.mem.concat(allocator, u8, &.{ before, "", after });
-        allocator.free(old_json_str);
+        const new_json_str = try std.mem.concat(allocator, u8, &.{ before, "", after });
+        allocator.free(json_str);
+        json_str = new_json_str;
     }
     while (std.mem.indexOf(u8, json_str, placeHolder_end)) |index| {
-        const old_json_str = json_str;
         const before = json_str[0..index];
         const after = json_str[index + placeHolder_end.len ..];
-        json_str = try std.mem.concat(allocator, u8, &.{ before, "", after });
-        allocator.free(old_json_str);
+        const new_json_str = try std.mem.concat(allocator, u8, &.{ before, "", after });
+        allocator.free(json_str);
+        json_str = new_json_str;
     }
-    defer allocator.free(json_str);
 
     const main_csr_react = @embedFile("./transpile/template/components.ts");
     const placeholder = "`{[ZX_COMPONENTS]s}`";
@@ -752,17 +776,20 @@ fn genReactComponents(allocator: std.mem.Allocator, components: []const ClientCo
 
     _ = output_dir;
     if (verbose) {
-        log.debug("node_modules path: {s}", .{"node_modules"});
-        log.debug("ziex path: {s}", .{"ziex"});
-        log.debug("components.ts path: {s}", .{"components.ts"});
+        log.debug("components input dir: {s}", .{input_dir});
     }
 
-    const pkg_rootdir = try getPackageRootDir(allocator);
+    // Locate the package root by walking up from the input directory looking
+    // for a package.json. The generated registry must live under the
+    // package's node_modules so bare-specifier imports like
+    // `@ziex/components` resolve correctly.
+    const io = std.Io.Threaded.global_single_threaded.io();
+    const pkg_rootdir = try findPackageRoot(allocator, io, input_dir);
     defer allocator.free(pkg_rootdir);
 
-    const ziex_dir = try std.fs.path.join(allocator, &.{ pkg_rootdir, "node_modules", "@ziex/components" });
+    const ziex_dir = try std.fs.path.join(allocator, &.{ pkg_rootdir, "node_modules", "@ziex", "components" });
     defer allocator.free(ziex_dir);
-    std.fs.cwd().makePath(ziex_dir) catch |err| switch (err) {
+    std.Io.Dir.cwd().createDirPath(io, ziex_dir) catch |err| switch (err) {
         error.PathAlreadyExists => {},
         else => return err,
     };
@@ -770,7 +797,7 @@ fn genReactComponents(allocator: std.mem.Allocator, components: []const ClientCo
     const main_csr_react_path = try std.fs.path.join(allocator, &.{ ziex_dir, "index.ts" });
     defer allocator.free(main_csr_react_path);
 
-    try std.fs.cwd().writeFile(.{
+    try std.Io.Dir.cwd().writeFile(io, .{
         .sub_path = main_csr_react_path,
         .data = main_csr_react_z,
     });
@@ -823,7 +850,8 @@ fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, rootdir: ?[]c
     defer allocator.free(pages_dir);
 
     const has_pages = blk: {
-        std.fs.cwd().access(pages_dir, .{}) catch break :blk false;
+        const io = std.Io.Threaded.global_single_threaded.io();
+        std.Io.Dir.cwd().access(io, pages_dir, .{}) catch break :blk false;
         break :blk true;
     };
 
@@ -848,7 +876,8 @@ fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, rootdir: ?[]c
     defer allocator.free(routes_dir);
 
     const has_routes = blk: {
-        std.fs.cwd().access(routes_dir, .{}) catch break :blk false;
+        const io = std.Io.Threaded.global_single_threaded.io();
+        std.Io.Dir.cwd().access(io, routes_dir, .{}) catch break :blk false;
         break :blk true;
     };
 
@@ -865,9 +894,9 @@ fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, rootdir: ?[]c
         return error.NoPagesOrRoutes;
     }
 
-    var content = std.array_list.Managed(u8).init(allocator);
+    var content = std.Io.Writer.Allocating.init(allocator);
     defer content.deinit();
-    const writer = content.writer();
+    const writer = &content.writer;
 
     try writer.writeAll("pub const routes = [_]zx.server.ServerMeta.Route{\n");
     for (routes.items) |route| {
@@ -881,9 +910,9 @@ fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, rootdir: ?[]c
     // Convert to relative path using std.fs.path.relative and escape for Zig string literal
     var path_to_use: []const u8 = meta_rootdir;
     var path_allocated = false;
-    if (std.fs.cwd().realpathAlloc(allocator, ".")) |cwd| {
+    if (std.fs.path.resolve(allocator, &.{"."})) |cwd| {
         defer allocator.free(cwd);
-        if (std.fs.path.relative(allocator, cwd, meta_rootdir)) |relative| {
+        if (std.fs.path.relative(allocator, cwd, null, cwd, meta_rootdir)) |relative| {
             path_to_use = relative;
             path_allocated = true;
         } else |_| {}
@@ -911,7 +940,7 @@ fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, rootdir: ?[]c
     const meta_path = try std.fs.path.join(allocator, &.{ output_dir, "meta.zig" });
     defer allocator.free(meta_path);
 
-    const content_z = try allocator.dupeZ(u8, content.items);
+    const content_z = try allocator.dupeZ(u8, content.written());
     defer allocator.free(content_z);
     var ast = try std.zig.Ast.parse(allocator, content_z, .zig);
     defer ast.deinit(allocator);
@@ -923,7 +952,8 @@ fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, rootdir: ?[]c
     const rendered_zig_source = try ast.renderAlloc(allocator);
     defer allocator.free(rendered_zig_source);
 
-    try std.fs.cwd().writeFile(.{
+    const io = std.Io.Threaded.global_single_threaded.io();
+    try std.Io.Dir.cwd().writeFile(io, .{
         .sub_path = meta_path,
         .data = rendered_zig_source,
     });
@@ -1022,32 +1052,38 @@ fn scanPagesRecursive(
     defer allocator.free(proxy_file_path);
 
     const has_page = blk: {
-        std.fs.cwd().access(page_path, .{}) catch break :blk false;
+        const io = std.Io.Threaded.global_single_threaded.io();
+        std.Io.Dir.cwd().access(io, page_path, .{}) catch break :blk false;
         break :blk true;
     };
 
     const has_layout = blk: {
-        std.fs.cwd().access(layout_path, .{}) catch break :blk false;
+        const io = std.Io.Threaded.global_single_threaded.io();
+        std.Io.Dir.cwd().access(io, layout_path, .{}) catch break :blk false;
         break :blk true;
     };
 
     const has_notfound = blk: {
-        std.fs.cwd().access(notfound_path, .{}) catch break :blk false;
+        const io = std.Io.Threaded.global_single_threaded.io();
+        std.Io.Dir.cwd().access(io, notfound_path, .{}) catch break :blk false;
         break :blk true;
     };
 
     const has_error = blk: {
-        std.fs.cwd().access(error_path, .{}) catch break :blk false;
+        const io = std.Io.Threaded.global_single_threaded.io();
+        std.Io.Dir.cwd().access(io, error_path, .{}) catch break :blk false;
         break :blk true;
     };
 
     const has_route = blk: {
-        std.fs.cwd().access(route_file_path, .{}) catch break :blk false;
+        const io = std.Io.Threaded.global_single_threaded.io();
+        std.Io.Dir.cwd().access(io, route_file_path, .{}) catch break :blk false;
         break :blk true;
     };
 
     const has_proxy = blk: {
-        std.fs.cwd().access(proxy_file_path, .{}) catch break :blk false;
+        const io = std.Io.Threaded.global_single_threaded.io();
+        std.Io.Dir.cwd().access(io, proxy_file_path, .{}) catch break :blk false;
         break :blk true;
     };
 
@@ -1133,11 +1169,12 @@ fn scanPagesRecursive(
         }
     }
 
-    var dir = try std.fs.cwd().openDir(current_dir, .{ .iterate = true });
-    defer dir.close();
+    const io = std.Io.Threaded.global_single_threaded.io();
+    var dir = try std.Io.Dir.cwd().openDir(io, current_dir, .{ .iterate = true });
+    defer dir.close(io);
 
     var iter = dir.iterate();
-    while (try iter.next()) |entry| {
+    while (try iter.next(io)) |entry| {
         if (entry.kind != .directory) continue;
         if (std.mem.eql(u8, entry.name, ".zx")) continue;
 
@@ -1177,12 +1214,14 @@ fn scanRoutesRecursive(
     defer allocator.free(proxy_file_path);
 
     const has_route = blk: {
-        std.fs.cwd().access(route_file_path, .{}) catch break :blk false;
+        const io = std.Io.Threaded.global_single_threaded.io();
+        std.Io.Dir.cwd().access(io, route_file_path, .{}) catch break :blk false;
         break :blk true;
     };
 
     const has_proxy = blk: {
-        std.fs.cwd().access(proxy_file_path, .{}) catch break :blk false;
+        const io = std.Io.Threaded.global_single_threaded.io();
+        std.Io.Dir.cwd().access(io, proxy_file_path, .{}) catch break :blk false;
         break :blk true;
     };
 
@@ -1220,11 +1259,12 @@ fn scanRoutesRecursive(
     }
 
     // Recurse into subdirectories
-    var dir = std.fs.cwd().openDir(current_dir, .{ .iterate = true }) catch return;
-    defer dir.close();
+    const io = std.Io.Threaded.global_single_threaded.io();
+    var dir = std.Io.Dir.cwd().openDir(io, current_dir, .{ .iterate = true }) catch return;
+    defer dir.close(io);
 
     var iter = dir.iterate();
-    while (try iter.next()) |entry| {
+    while (try iter.next(io)) |entry| {
         if (entry.kind != .directory) continue;
         if (std.mem.eql(u8, entry.name, ".zx")) continue;
 
@@ -1252,10 +1292,12 @@ fn transpileFile(
     source_path: []const u8,
     output_path: []const u8,
 ) !void {
-    const source = try std.fs.cwd().readFileAlloc(
-        allocator,
+    const io = std.Io.Threaded.global_single_threaded.io();
+    const source = try std.Io.Dir.cwd().readFileAlloc(
+        io,
         source_path,
-        std.math.maxInt(usize),
+        allocator,
+        std.Io.Limit.limited(std.math.maxInt(usize)),
     );
     defer allocator.free(source);
 
@@ -1266,7 +1308,7 @@ fn transpileFile(
     var relative_source_path: []const u8 = source_path;
     var rel_path_allocated = false;
     if (std.fs.path.isAbsolute(source_path)) {
-        if (std.fs.cwd().realpathAlloc(allocator, ".")) |cwd| {
+        if (std.fs.path.resolve(allocator, &.{"."})) |cwd| {
             defer allocator.free(cwd);
             if (relativePath(allocator, cwd, source_path)) |rel| {
                 relative_source_path = rel;
@@ -1321,10 +1363,10 @@ fn transpileFile(
             },
             .react => {
                 // For .react components, the path is relative to project root (e.g., site/pages/...).
-                const abs_component_path = std.fs.cwd().realpathAlloc(allocator, component.path) catch |err| blk: {
+                const abs_component_path = std.fs.path.resolve(allocator, &.{component.path}) catch |err| blk: {
                     // Fallback to resolving relative to CWD if realpath fails
                     std.log.warn("Warning: could not get realpath for {s}: {}\n", .{ component.path, err });
-                    const cwd = std.fs.cwd().realpathAlloc(allocator, ".") catch |err2| {
+                    const cwd = std.fs.path.resolve(allocator, &.{"."}) catch |err2| {
                         std.log.err("Error: realpath(.) failed: {}\n", .{err2});
                         break :blk try allocator.dupe(u8, component.path);
                     };
@@ -1354,13 +1396,14 @@ fn transpileFile(
     }
 
     if (std.fs.path.dirname(output_path)) |dir| {
-        std.fs.cwd().makePath(dir) catch |err| switch (err) {
+        std.Io.Dir.cwd().createDirPath(io, dir) catch |err| switch (err) {
             error.PathAlreadyExists => {},
             else => return err,
         };
     }
 
-    try std.fs.cwd().writeFile(.{
+
+    try std.Io.Dir.cwd().writeFile(io, .{
         .sub_path = output_path,
         .data = result.zig_source,
     });
@@ -1380,7 +1423,7 @@ fn transpileFile(
                 );
                 defer allocator.free(sourcemap_json);
 
-                try std.fs.cwd().writeFile(.{
+                try std.Io.Dir.cwd().writeFile(io, .{
                     .sub_path = map_path,
                     .data = sourcemap_json,
                 });
@@ -1409,10 +1452,11 @@ fn transpileFile(
                 defer allocator.free(inline_comment);
 
                 // Append to the output file
-                var file = try std.fs.cwd().openFile(output_path, .{ .mode = .read_write });
-                defer file.close();
-                try file.seekFromEnd(0);
-                try file.writeAll(inline_comment);
+
+                var file = try std.Io.Dir.cwd().openFile(io, output_path, .{ .mode = .read_write });
+                defer file.close(io);
+                const len = try file.length(io);
+                try file.writePositionalAll(io, inline_comment, len);
 
                 if (opts.verbose) std.debug.print("Inlined sourcemap in: {s}\n", .{output_path});
             },
@@ -1432,8 +1476,9 @@ fn transpileDirectory(
     var task = progress.start("Transpiling .zx files", 0);
     defer task.end();
 
-    var dir = try std.fs.cwd().openDir(opts.path, .{ .iterate = true });
-    defer dir.close();
+    const io = std.Io.Threaded.global_single_threaded.io();
+    var dir = try std.Io.Dir.cwd().openDir(io, opts.path, .{ .iterate = true });
+    defer dir.close(io);
 
     const output_dir_relative = try getOutputDirRelativePath(allocator, opts.path, opts.outdir);
     defer if (output_dir_relative) |rel| allocator.free(rel);
@@ -1443,11 +1488,11 @@ fn transpileDirectory(
     var walker = try dir.walk(allocator);
     defer walker.deinit();
 
-    while (try walker.next()) |entry| {
+    while (try walker.next(io)) |entry| {
         task.completeOne();
         var actual_kind = entry.kind;
         if (entry.kind == .sym_link) {
-            const entry_stat = dir.statFile(entry.path) catch continue;
+            const entry_stat = dir.statFile(io, entry.path, .{}) catch continue;
             actual_kind = entry_stat.kind;
         }
 
@@ -1472,7 +1517,7 @@ fn transpileDirectory(
 
         if (is_zx or is_mdzx) {
             const output_rel_path = try std.mem.concat(allocator, u8, &.{
-                entry.path[0 .. entry.path.len - (if (is_zx) ".zx" else ".mdzx").len],
+                entry.path[0 .. entry.path.len - (if (is_zx) @as([]const u8, ".zx") else @as([]const u8, ".mdzx")).len],
                 ".zig",
             });
             defer allocator.free(output_rel_path);
@@ -1481,13 +1526,13 @@ fn transpileDirectory(
             defer allocator.free(output_path);
 
             // Track this input for the dep file (absolute path for Make format)
-            const abs_input = std.fs.cwd().realpathAlloc(allocator, input_path) catch
+            const abs_input = std.fs.path.resolve(allocator, &.{input_path}) catch
                 try allocator.dupe(u8, input_path);
             try input_files.append(abs_input);
 
             // Scan for @embedFile references and track them as dependencies
             const source_dir = std.fs.path.dirname(input_path) orelse ".";
-            if (std.fs.cwd().readFileAlloc(allocator, input_path, 4 * 1024 * 1024)) |source| {
+            if (std.Io.Dir.cwd().readFileAlloc(io, input_path, allocator, std.Io.Limit.limited(4 * 1024 * 1024))) |source| {
                 defer allocator.free(source);
                 try collectEmbedFileDeps(allocator, input_files, source, source_dir);
             } else |_| {}
@@ -1502,10 +1547,10 @@ fn transpileDirectory(
 
             // Check if output is up-to-date (mtime comparison + cache file existence)
             const should_skip = blk: {
-                const input_stat = std.fs.cwd().statFile(input_path) catch break :blk false;
-                const cache_stat = std.fs.cwd().statFile(cache_out_path) catch break :blk false;
-                std.fs.cwd().access(cache_path, .{}) catch break :blk false;
-                break :blk cache_stat.mtime >= input_stat.mtime;
+                const input_stat = std.Io.Dir.cwd().statFile(io, input_path, .{}) catch break :blk false;
+                const cache_stat = std.Io.Dir.cwd().statFile(io, cache_out_path, .{}) catch break :blk false;
+                std.Io.Dir.cwd().access(io, cache_path, .{}) catch break :blk false;
+                break :blk cache_stat.mtime.nanoseconds >= input_stat.mtime.nanoseconds;
             };
 
             if (should_skip) {
@@ -1514,9 +1559,9 @@ fn transpileDirectory(
                 };
                 if (opts.cache_dir) |_| {
                     if (std.fs.path.dirname(output_path)) |parent_dir| {
-                        std.fs.cwd().makePath(parent_dir) catch {};
+                        std.Io.Dir.cwd().createDirPath(io, parent_dir) catch {};
                     }
-                    std.fs.cwd().copyFile(cache_out_path, std.fs.cwd(), output_path, .{}) catch |err| {
+                    std.Io.Dir.cwd().copyFile(cache_out_path, std.Io.Dir.cwd(), output_path, io, .{}) catch |err| {
                         std.debug.print("Warning: Failed to copy cached file {s} to {s}: {}\n", .{ cache_out_path, output_path, err });
                     };
                 }
@@ -1531,9 +1576,9 @@ fn transpileDirectory(
 
                 if (opts.cache_dir) |_| {
                     if (std.fs.path.dirname(cache_out_path)) |parent_dir| {
-                        std.fs.cwd().makePath(parent_dir) catch {};
+                        std.Io.Dir.cwd().createDirPath(io, parent_dir) catch {};
                     }
-                    std.fs.cwd().copyFile(output_path, std.fs.cwd(), cache_out_path, .{}) catch |err| {
+                    std.Io.Dir.cwd().copyFile(output_path, std.Io.Dir.cwd(), cache_out_path, io, .{}) catch |err| {
                         std.debug.print("Warning: Failed to update cache file {s}: {}\n", .{ cache_out_path, err });
                     };
                 }
@@ -1549,7 +1594,7 @@ fn transpileDirectory(
                 defer allocator.free(zx_output_path);
 
                 if (std.fs.path.dirname(zx_output_path)) |parent| {
-                    std.fs.cwd().makePath(parent) catch |err| switch (err) {
+                    std.Io.Dir.cwd().createDirPath(io, parent) catch |err| switch (err) {
                         error.PathAlreadyExists => {},
                         else => {
                             std.debug.print("Error creating directory {s}: {}\n", .{ parent, err });
@@ -1558,7 +1603,7 @@ fn transpileDirectory(
                     };
                 }
 
-                std.fs.cwd().copyFile(input_path, std.fs.cwd(), zx_output_path, .{}) catch |err| {
+                std.Io.Dir.cwd().copyFile(input_path, std.Io.Dir.cwd(), zx_output_path, io, .{}) catch |err| {
                     std.debug.print("Warning: Could not copy .zx source {s}: {}\n", .{ input_path, err });
                     continue;
                 };
@@ -1597,7 +1642,7 @@ fn transpileDirectory(
             defer allocator.free(output_path);
 
             if (std.fs.path.dirname(output_path)) |parent| {
-                std.fs.cwd().makePath(parent) catch |err| switch (err) {
+                std.Io.Dir.cwd().createDirPath(io, parent) catch |err| switch (err) {
                     error.PathAlreadyExists => {},
                     else => {
                         std.debug.print("Error creating directory {s}: {}\n", .{ parent, err });
@@ -1606,10 +1651,10 @@ fn transpileDirectory(
                 };
             }
 
-            try std.fs.cwd().copyFile(input_path, std.fs.cwd(), output_path, .{});
+            try std.Io.Dir.cwd().copyFile(input_path, std.Io.Dir.cwd(), output_path, io, .{});
             if (opts.verbose) std.debug.print("Copied: {s} -> {s}\n", .{ input_path, output_path });
 
-            const abs_input = std.fs.cwd().realpathAlloc(allocator, input_path) catch
+            const abs_input = std.fs.path.resolve(allocator, &.{input_path}) catch
                 try allocator.dupe(u8, input_path);
             try input_files.append(abs_input);
         }
@@ -1629,8 +1674,9 @@ const TranspileOptions = struct {
 };
 
 fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void {
+    const io = std.Io.Threaded.global_single_threaded.io();
     // Start root progress for the entire transpile operation
-    var progress = std.Progress.start(.{ .root_name = "Transpile" });
+    var progress = std.Progress.start(io, .{ .root_name = "Transpile" });
     defer progress.end();
 
     var all_client_cmps = std.array_list.Managed(ClientComponentSerializable).init(allocator);
@@ -1651,8 +1697,18 @@ fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void 
         input_files.deinit();
     }
 
-    const stat = std.fs.cwd().statFile(opts.path) catch |err| switch (err) {
-        error.IsDir => std.fs.File.Stat{ .kind = .directory, .size = 0, .mode = 0, .atime = 0, .mtime = 0, .ctime = 0, .inode = 0 },
+    const stat = std.Io.Dir.cwd().statFile(io, opts.path, .{}) catch |err| switch (err) {
+        error.IsDir => std.Io.File.Stat{
+            .inode = 0,
+            .size = 0,
+            .nlink = 0,
+            .permissions = .default_dir,
+            .kind = .directory,
+            .atime = null,
+            .mtime = .{ .nanoseconds = 0 },
+            .ctime = .{ .nanoseconds = 0 },
+            .block_size = 4096,
+        },
         else => {
             std.debug.print("Error: Could not access path '{s}': {}\n", .{ opts.path, err });
             return err;
@@ -1718,7 +1774,7 @@ fn transpileCommand(allocator: std.mem.Allocator, opts: TranspileOptions) !void 
     }
 
     // @rendering={.react}
-    genReactComponents(allocator, react_cmps.items, opts.outdir, opts.verbose) catch |err| {
+    genReactComponents(allocator, react_cmps.items, opts.outdir, opts.path, opts.verbose) catch |err| {
         std.debug.print("Warning: Failed to generate main.tsx: {}\n", .{err});
     };
 

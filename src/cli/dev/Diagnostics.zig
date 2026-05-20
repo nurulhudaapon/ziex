@@ -68,7 +68,8 @@ fn normalizePath(allocator: std.mem.Allocator, d: *Builder.Diagnostic) !void {
 
 fn remapSingle(allocator: std.mem.Allocator, d: *Builder.Diagnostic) !void {
     // Read the generated file and look for inlined sourcemap
-    const file_content = std.fs.cwd().readFileAlloc(allocator, d.file, 10 * 1024 * 1024) catch return;
+    const io = std.Io.Threaded.global_single_threaded.io();
+    const file_content = std.Io.Dir.cwd().readFileAlloc(io, d.file, allocator, .unlimited) catch return;
     defer allocator.free(file_content);
 
     // Find the sourcemap comment (last occurrence)
@@ -152,7 +153,8 @@ fn extractJsonStringField(json: []const u8, key: []const u8) ?[]const u8 {
 
 /// Read a few lines of source context around a given line number.
 pub fn readSourceContext(allocator: std.mem.Allocator, file_path: []const u8, target_line: u32, context_lines: u32) ?[]const u8 {
-    const source = std.fs.cwd().readFileAlloc(allocator, file_path, 10 * 1024 * 1024) catch return null;
+    const io = std.Io.Threaded.global_single_threaded.io();
+    const source = std.Io.Dir.cwd().readFileAlloc(io, file_path, allocator, .limited(10 * 1024 * 1024)) catch return null;
     defer allocator.free(source);
 
     const start_line = if (target_line > context_lines) target_line - context_lines else 1;
@@ -189,7 +191,8 @@ pub fn readHighlightedSourceContext(
     context_lines: u32,
     highlightFn: fn (std.mem.Allocator, []const u8) anyerror![]u8,
 ) !?[]u8 {
-    const source = std.fs.cwd().readFileAlloc(allocator, file_path, 10 * 1024 * 1024) catch return null;
+    const io = std.Io.Threaded.global_single_threaded.io();
+    const source = std.Io.Dir.cwd().readFileAlloc(io, file_path, allocator, .limited(10 * 1024 * 1024)) catch return null;
     defer allocator.free(source);
 
     const start_line = if (target_line > context_lines) target_line - context_lines else 1;
@@ -436,7 +439,9 @@ fn colorizeErrorLine(allocator: std.mem.Allocator, result: *std.ArrayList(u8), l
 
 /// Helper to get a single line from a file without loading the whole file every time
 pub fn getLineFromFile(allocator: std.mem.Allocator, file_path: []const u8, line_num: u32) !?[]const u8 {
-    const source = std.fs.cwd().readFileAlloc(allocator, file_path, 10 * 1024 * 1024) catch return null;
+    const io = std.Io.Threaded.global_single_threaded.io();
+
+    const source = std.Io.Dir.cwd().readFileAlloc(io, file_path, allocator, .unlimited) catch return null;
     defer allocator.free(source);
 
     var it = std.mem.splitScalar(u8, source, '\n');
@@ -449,10 +454,10 @@ pub fn getLineFromFile(allocator: std.mem.Allocator, file_path: []const u8, line
 }
 
 pub fn formatOxlint(allocator: std.mem.Allocator, diagnostics: []const Builder.Diagnostic) ![]u8 {
-    var buf = std.ArrayList(u8).empty;
-    defer buf.deinit(allocator);
+    var buf = std.Io.Writer.Allocating.init(allocator);
+    defer buf.deinit();
 
-    const w = buf.writer(allocator);
+    var w = buf.writer;
 
     for (diagnostics) |d| {
         const kind_symbol = switch (d.kind) {
@@ -528,5 +533,5 @@ pub fn formatOxlint(allocator: std.mem.Allocator, diagnostics: []const Builder.D
         try w.print("     {s}╰────{s}\n\n", .{ Colors.gray, Colors.reset });
     }
 
-    return try allocator.dupe(u8, buf.items);
+    return try allocator.dupe(u8, buf.written());
 }

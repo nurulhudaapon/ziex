@@ -63,26 +63,30 @@ const QueuedEvent = struct {
 
 const EVENT_QUEUE_CAP = 16;
 
+io: std.Io,
 gpa: Allocator,
-address: std.net.Address,
+env_map: *const std.process.Environ.Map,
+address: std.Io.net.IpAddress,
 inner_port: u16,
-tcp_server: ?std.net.Server,
+tcp_server: ?std.Io.net.Server,
 serve_thread: ?std.Thread,
 
 /// Incremented on each event. WebSocket threads block on this with Futex.
 update_id: std.atomic.Value(u32),
 
 /// Bounded event queue so rapid transitions (building → reload) don't drop events.
-event_mutex: std.Thread.Mutex,
+event_mutex: std.Io.Mutex,
 event_queue: [EVENT_QUEUE_CAP]QueuedEvent = undefined,
 event_head: u32 = 0, // next write position
 event_tail: u32 = 0, // next read position
 sticky_state_json: ?[]u8 = null,
 
 pub const Options = struct {
+    io: std.Io,
     gpa: Allocator,
+    env_map: *const std.process.Environ.Map,
     /// Address to bind the user-facing proxy to.
-    address: std.net.Address,
+    address: std.Io.net.IpAddress,
     /// Port the app binary will listen on.
     inner_port: u16,
 };
@@ -91,21 +95,23 @@ pub fn init(opts: Options) DevServer {
     log.debug("devserver init port: {d}", .{opts.address.getPort()});
     return .{
         .gpa = opts.gpa,
+        .env_map = opts.env_map,
         .address = opts.address,
         .inner_port = opts.inner_port,
         .tcp_server = null,
         .serve_thread = null,
         .update_id = .init(0),
-        .event_mutex = .{},
+        .event_mutex = .init,
+        .io = opts.io,
     };
 }
 
 pub fn deinit(ds: *DevServer) void {
     if (ds.serve_thread) |t| {
-        if (ds.tcp_server) |*s| s.stream.close();
+        if (ds.tcp_server) |*s| s.socket.close(ds.io);
         t.join();
     }
-    if (ds.tcp_server) |*s| s.deinit();
+    if (ds.tcp_server) |*s| s.deinit(ds.io);
     // Drain any remaining queued events
     while (ds.event_tail != ds.event_head) {
         const idx = ds.event_tail % EVENT_QUEUE_CAP;
@@ -123,13 +129,13 @@ pub fn start(ds: *DevServer) error{AlreadyReported}!void {
 
     log.debug("devserver start", .{});
 
-    ds.tcp_server = ds.address.listen(.{ .reuse_address = true }) catch |err| {
+    ds.tcp_server = ds.address.listen(ds.io, .{ .reuse_address = true }) catch |err| {
         log.err("failed to listen on {f}: {s}", .{ ds.address, @errorName(err) });
         return error.AlreadyReported;
     };
     ds.serve_thread = std.Thread.spawn(.{}, serve, .{ds}) catch |err| {
         log.err("unable to spawn dev server thread: {s}", .{@errorName(err)});
-        ds.tcp_server.?.deinit();
+        ds.tcp_server.?.deinit(ds.io);
         ds.tcp_server = null;
         return error.AlreadyReported;
     };
@@ -138,7 +144,8 @@ pub fn start(ds: *DevServer) error{AlreadyReported}!void {
 /// Push a serialized notification onto the queue and wake WS threads.
 /// Thread-safe.
 fn pushEvent(ds: *DevServer, json: []u8) void {
-    ds.event_mutex.lock();
+    const io = std.Io.Threaded.global_single_threaded.io();
+    ds.event_mutex.lockUncancelable(io);
     const idx = ds.event_head % EVENT_QUEUE_CAP;
     // If queue is full, drop oldest event
     if (ds.event_head -% ds.event_tail >= EVENT_QUEUE_CAP) {
@@ -148,9 +155,9 @@ fn pushEvent(ds: *DevServer, json: []u8) void {
     }
     ds.event_queue[idx] = .{ .json = json };
     ds.event_head +%= 1;
-    ds.event_mutex.unlock();
+    ds.event_mutex.unlock(io);
     _ = ds.update_id.rmw(.Add, 1, .release);
-    std.Thread.Futex.wake(&ds.update_id, std.math.maxInt(u32));
+    io.futexWake(u32, &ds.update_id.raw, std.math.maxInt(u32));
 }
 
 pub fn notify(ds: *DevServer, notification: Notification) void {
@@ -160,8 +167,9 @@ pub fn notify(ds: *DevServer, notification: Notification) void {
 }
 
 fn updateStickyState(ds: *DevServer, notification: Notification, json: []const u8) void {
-    ds.event_mutex.lock();
-    defer ds.event_mutex.unlock();
+    const io = std.Io.Threaded.global_single_threaded.io();
+    ds.event_mutex.lockUncancelable(io);
+    defer ds.event_mutex.unlock(io);
 
     switch (notification.type) {
         .building, .@"error" => {
@@ -180,16 +188,17 @@ fn updateStickyState(ds: *DevServer, notification: Notification, json: []const u
 
 /// Find a free OS-assigned port by briefly binding to port 0.
 pub fn findFreePort() !u16 {
-    var server = try (try std.net.Address.parseIp("127.0.0.1", 0)).listen(.{});
-    defer server.deinit();
-    return server.listen_address.getPort();
+    const io = std.Io.Threaded.global_single_threaded.io();
+    var server = try (try std.Io.net.IpAddress.parse("127.0.0.1", 0)).listen(io, .{});
+    defer server.deinit(io);
+    return server.socket.address.getPort();
 }
 
 fn serve(ds: *DevServer) void {
     var retry_count: u8 = 0;
 
     while (true) {
-        const connection = ds.tcp_server.?.accept() catch |err| {
+        const connection = ds.tcp_server.?.accept(ds.io) catch |err| {
             switch (err) {
                 error.Unexpected => {
                     retry_count += 1;
@@ -198,7 +207,7 @@ fn serve(ds: *DevServer) void {
                         return;
                     }
                     log.warn("accept() failed (transient): {s}", .{@errorName(err)});
-                    std.Thread.sleep(50 * std.time.ns_per_ms);
+                    std.Io.sleep(ds.io, .fromMilliseconds(50), .awake) catch {};
                     continue;
                 },
                 else => {
@@ -210,26 +219,24 @@ fn serve(ds: *DevServer) void {
         retry_count = 0;
         const thread = std.Thread.spawn(.{}, handleConnection, .{ ds, connection }) catch |err| {
             log.err("unable to spawn connection thread: {s}", .{@errorName(err)});
-            connection.stream.close();
+            connection.close(ds.io);
             continue;
         };
         thread.detach();
     }
 }
 
-fn handleConnection(ds: *DevServer, conn: std.net.Server.Connection) void {
-    defer conn.stream.close();
+fn handleConnection(ds: *DevServer, stream: std.Io.net.Stream) void {
+    defer stream.close(ds.io);
 
-    // Get a formatted IP string to avoid ambiguity in std.log
-    var addr_buf: [64]u8 = undefined;
-    const addr_str = std.fmt.bufPrint(&addr_buf, "{any}", .{conn.address}) catch "unknown";
-    log.debug("connection accepted from {s}", .{addr_str});
+    // Connection accepted
+    log.debug("connection accepted", .{});
 
     var send_buffer: [4096]u8 = undefined;
     var recv_buffer: [4096]u8 = undefined;
-    var connection_reader = conn.stream.reader(&recv_buffer);
-    var connection_writer = conn.stream.writer(&send_buffer);
-    var server: http.Server = .init(connection_reader.interface(), &connection_writer.interface);
+    var connection_reader = stream.reader(ds.io, &recv_buffer);
+    var connection_writer = stream.writer(ds.io, &send_buffer);
+    var server: http.Server = .init(&connection_reader.interface, &connection_writer.interface);
 
     while (true) {
         var request = server.receiveHead() catch |err| switch (err) {
@@ -251,7 +258,7 @@ fn handleConnection(ds: *DevServer, conn: std.net.Server.Connection) void {
             },
             .other => |name| return log.err("unknown upgrade request: {s}", .{name}),
             .none => {
-                ds.serveRequest(&request, conn.stream) catch |err| switch (err) {
+                ds.serveRequest(&request, stream) catch |err| switch (err) {
                     error.AlreadyReported => return,
                     else => {
                         log.err("failed to serve '{s}': {s}", .{ request.head.target, @errorName(err) });
@@ -263,7 +270,7 @@ fn handleConnection(ds: *DevServer, conn: std.net.Server.Connection) void {
     }
 }
 
-fn serveRequest(ds: *DevServer, req: *http.Server.Request, client_stream: std.net.Stream) !void {
+fn serveRequest(ds: *DevServer, req: *http.Server.Request, client_stream: std.Io.net.Stream) !void {
     const target = req.head.target;
     var target_split = std.mem.splitScalar(u8, target, '?');
     const target_path = target_split.first();
@@ -342,14 +349,15 @@ fn serveWebSocket(ds: *DevServer, sock: *http.Server.WebSocket) !noreturn {
     defer recv_thread.join();
     log.debug("ws: recv thread spawned, entering event loop", .{});
 
+    const io = std.Io.Threaded.global_single_threaded.io();
     var sticky_snapshot: ?[]u8 = null;
     var last_id: u32 = 0;
-    ds.event_mutex.lock();
+    ds.event_mutex.lockUncancelable(io);
     last_id = ds.event_head;
     if (ds.sticky_state_json) |json| {
         sticky_snapshot = ds.gpa.dupe(u8, json) catch null;
     }
-    ds.event_mutex.unlock();
+    ds.event_mutex.unlock(io);
 
     if (sticky_snapshot) |json| {
         defer ds.gpa.free(json);
@@ -360,7 +368,7 @@ fn serveWebSocket(ds: *DevServer, sock: *http.Server.WebSocket) !noreturn {
         const cur = ds.update_id.load(.acquire);
         if (cur == last_id) {
             // No pending event - wait up to 30 s then ping to keep the connection alive.
-            std.Thread.Futex.timedWait(&ds.update_id, last_id, 30 * std.time.ns_per_s) catch {
+            io.futexWaitTimeout(u32, &ds.update_id.raw, last_id, .{ .duration = .{ .raw = .{ .nanoseconds = 30 * std.time.ns_per_s }, .clock = .awake } }) catch {
                 try sock.writeMessage("", .ping);
                 continue;
             };
@@ -368,10 +376,10 @@ fn serveWebSocket(ds: *DevServer, sock: *http.Server.WebSocket) !noreturn {
         }
 
         // Read the current event under the lock, then release before I/O.
-        ds.event_mutex.lock();
+        ds.event_mutex.lockUncancelable(io);
         const head = ds.event_head;
         if (head == last_id) {
-            ds.event_mutex.unlock();
+            ds.event_mutex.unlock(io);
             continue;
         }
         if (head -% last_id > EVENT_QUEUE_CAP) {
@@ -379,11 +387,11 @@ fn serveWebSocket(ds: *DevServer, sock: *http.Server.WebSocket) !noreturn {
         }
         const event_index = last_id % EVENT_QUEUE_CAP;
         const json_copy = ds.gpa.dupe(u8, ds.event_queue[event_index].json) catch {
-            ds.event_mutex.unlock();
+            ds.event_mutex.unlock(io);
             last_id +%= 1;
             continue;
         };
-        ds.event_mutex.unlock();
+        ds.event_mutex.unlock(io);
 
         last_id +%= 1;
 
@@ -418,17 +426,17 @@ fn serializeNotification(gpa: Allocator, notification: Notification) ![]u8 {
 /// `buffered_extra`  - body bytes already consumed by the http.Server reader.
 fn proxyToInner(
     ds: *DevServer,
-    client: std.net.Stream,
+    client: std.Io.net.Stream,
     head_buffer: []const u8,
     buffered_extra: []const u8,
 ) !void {
-    const inner_addr = try std.net.Address.parseIp("127.0.0.1", ds.inner_port);
+    const inner_addr = try std.Io.net.IpAddress.parse("127.0.0.1", ds.inner_port);
 
     // Retry while the inner server is (re)starting - up to 2 s.
-    const inner: std.net.Stream = for (0..200) |_| {
-        if (std.net.tcpConnectToAddress(inner_addr)) |s| break s else |_| std.Thread.sleep(10 * std.time.ns_per_ms);
+    const inner: std.Io.net.Stream = for (0..200) |_| {
+        if (inner_addr.connect(ds.io, .{ .mode = .stream })) |s| break s else |_| std.Io.sleep(ds.io, .fromMicroseconds(10), .real) catch {};
     } else return error.ConnectionRefused;
-    defer inner.close();
+    defer inner.close(ds.io);
     // We MUST force the inner server to close the connection, otherwise the browser
     // will try to reuse this connection (which we are currently piping raw)
     // for subsequent requests that might need to be intercepted by the DevServer.
@@ -456,46 +464,49 @@ fn proxyToInner(
     }
     try transformed.appendSlice(ds.gpa, "\r\n\r\n");
 
-    try inner.writeAll(transformed.items);
+    var inner_writer_buf: [4096]u8 = undefined;
+    var inner_writer = inner.writer(ds.io, &inner_writer_buf);
+    try inner_writer.interface.writeAll(transformed.items);
 
     // Forward any body bytes already buffered by the http.Server reader.
-    if (buffered_extra.len > 0) try inner.writeAll(buffered_extra);
+    if (buffered_extra.len > 0) try inner_writer.interface.writeAll(buffered_extra);
+    try inner_writer.interface.flush();
 
     // Windows can report ERROR_INVALID_PARAMETER from ReadFile when combining
     // this shutdown-based bidirectional copy pattern with sockets. Use a
     // simpler one-way response copy there.
     if (builtin.os.tag == .windows) {
-        copyStream(inner, client);
+        copyStream(ds.io, inner, client);
         return;
     }
 
     // Bidirectional pipe: remaining request body client→inner, response inner→client.
     // The inner→client thread shuts down the client write side when inner closes,
     // which unblocks the client→inner copy loop below.
-    const fwd = std.Thread.spawn(.{}, copyStreamThenShutdown, .{ inner, client }) catch return;
+    const fwd = std.Thread.spawn(.{}, copyStreamThenShutdown, .{ ds.io, inner, client }) catch return;
     defer fwd.join();
 
-    copyStream(client, inner);
+    copyStream(ds.io, client, inner);
 
     // Unblock the inner→client thread if client closed first.
-    std.posix.shutdown(inner.handle, .recv) catch {};
+    inner.shutdown(ds.io, .recv) catch {};
 }
 
 /// Copy src→dst, then shut down the dst send side so the peer's read unblocks.
-fn copyStreamThenShutdown(src: std.net.Stream, dst: std.net.Stream) void {
-    copyStream(src, dst);
-    std.posix.shutdown(dst.handle, .send) catch {};
+fn copyStreamThenShutdown(io: std.Io, src: std.Io.net.Stream, dst: std.Io.net.Stream) void {
+    copyStream(io, src, dst);
+    dst.shutdown(io, .send) catch {};
 }
 
-fn copyStream(src: std.net.Stream, dst: std.net.Stream) void {
+fn copyStream(io: std.Io, src: std.Io.net.Stream, dst: std.Io.net.Stream) void {
     var read_buf: [65536]u8 = undefined;
     var reader_state: [1024]u8 = undefined;
     var writer_state: [1024]u8 = undefined;
-    var reader = src.reader(&reader_state);
-    var writer = dst.writer(&writer_state);
+    var reader = src.reader(io, &reader_state);
+    var writer = dst.writer(io, &writer_state);
 
     while (true) {
-        const n = reader.interface().readSliceShort(&read_buf) catch return;
+        const n = reader.interface.readSliceShort(&read_buf) catch return;
         if (n == 0) return;
         writer.interface.writeAll(read_buf[0..n]) catch return;
         writer.interface.flush() catch return;
@@ -532,7 +543,7 @@ fn handleOpenInEditor(ds: *DevServer, target: []const u8) !void {
         const file_arg = try std.fmt.allocPrint(ds.gpa, "{s}:{s}:{s}", .{ decoded_file, l, c });
         defer ds.gpa.free(file_arg);
 
-        const args = try IdeScheme.detect(ds.gpa, decoded_file, l, c);
+        const args = try IdeScheme.detect(ds.gpa, ds.env_map, decoded_file, l, c);
         defer {
             for (args) |arg| ds.gpa.free(arg);
             ds.gpa.free(args);
@@ -541,16 +552,16 @@ fn handleOpenInEditor(ds: *DevServer, target: []const u8) !void {
         if (args.len == 0) return;
         log.debug("opening in editor: {s}", .{args[0]});
 
-        var child_proc = std.process.Child.init(args, ds.gpa);
-        child_proc.stdin_behavior = .Ignore;
-        child_proc.stdout_behavior = .Ignore;
-        child_proc.stderr_behavior = .Ignore;
-
-        child_proc.spawn() catch |err| {
+        var child_proc = std.process.spawn(ds.io, .{
+            .argv = args,
+            .stdin = .ignore,
+            .stdout = .ignore,
+            .stderr = .ignore,
+        }) catch |err| {
             log.debug("editor failed to spawn: {s}", .{@errorName(err)});
             return;
         };
-        _ = child_proc.wait() catch {};
+        _ = child_proc.wait(ds.io) catch {};
     }
 }
 

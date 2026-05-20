@@ -16,12 +16,12 @@ pub const PackageJson = struct {
         bun,
     };
 
-    pub fn parse(allocator: std.mem.Allocator) !std.json.Parsed(PackageJson) {
-        const cwd = std.fs.cwd();
+    pub fn parse(allocator: std.mem.Allocator, io: std.Io) !std.json.Parsed(PackageJson) {
+        const cwd = std.Io.Dir.cwd();
         var pkg_final_path: ?[]const u8 = null;
         const package_json_str = blk: {
             for (pkg_find_paths) |pkg_find_path| {
-                const package_json_str = cwd.readFileAlloc(allocator, pkg_find_path, std.math.maxInt(usize)) catch |err| switch (err) {
+                const package_json_str = cwd.readFileAlloc(io, pkg_find_path, allocator, .limited(std.math.maxInt(usize))) catch |err| switch (err) {
                     error.FileNotFound => continue,
                     else => return err,
                 };
@@ -52,7 +52,7 @@ pub const PackageJson = struct {
         return package_json_parsed;
     }
 
-    fn getPackageManager(self: *PackageJson) PM {
+    fn getPackageManager(self: *PackageJson, io: std.Io) PM {
         if (self.packageManager) |pm| return pm;
         if (self.dependencies) |deps| {
             switch (deps) {
@@ -67,35 +67,37 @@ pub const PackageJson = struct {
         }
         if (self.pkg_path) |pkg_path| {
             const dir_from_pkg_path = std.fs.path.dirname(pkg_path) orelse return .npm;
-            const cwd = std.fs.cwd().openDir(dir_from_pkg_path, .{}) catch return .npm;
+            const cwd = std.Io.Dir.cwd().openDir(io, dir_from_pkg_path, .{}) catch return .npm;
 
             // Check for lockfiles
-            if (cwd.statFile("package-lock.json") catch null) |_| return .npm;
-            if (cwd.statFile("pnpm-lock.yaml") catch null) |_| return .pnpm;
-            if (cwd.statFile("yarn.lock") catch null) |_| return .yarn;
-            if (cwd.statFile("bun.lock") catch null) |_| return .bun;
-            if (cwd.statFile("bun.lockb") catch null) |_| return .bun;
+            if (cwd.statFile(io, "package-lock.json", .{}) catch null) |_| return .npm;
+            if (cwd.statFile(io, "pnpm-lock.yaml", .{}) catch null) |_| return .pnpm;
+            if (cwd.statFile(io, "yarn.lock", .{}) catch null) |_| return .yarn;
+            if (cwd.statFile(io, "bun.lock", .{}) catch null) |_| return .bun;
+            if (cwd.statFile(io, "bun.lockb", .{}) catch null) |_| return .bun;
         }
         // Check for binary in path
         return .npm;
     }
 };
 
-pub fn checkEsbuildBin(allocator: std.mem.Allocator, pkg_rootdir: []const u8) bool {
+pub fn checkEsbuildBin(io: std.Io, allocator: std.mem.Allocator, pkg_rootdir: []const u8) bool {
     const esbuild_bin_path = std.fs.path.join(allocator, &.{ pkg_rootdir, "node_modules", ".bin", "esbuild" }) catch return false;
     defer allocator.free(esbuild_bin_path);
 
-    return if (std.fs.cwd().statFile(esbuild_bin_path) catch null) |_| true else false;
+    return if (std.Io.Dir.cwd().statFile(io, esbuild_bin_path, .{}) catch null) |_| true else false;
 }
 
 pub fn buildjs(ctx: zli.CommandContext, binpath: []const u8, is_dev: bool, verbose: bool) !void {
-    var program_meta = try util.findprogram(ctx.allocator, binpath);
+    const app = AppContext.from(&ctx);
+    const io = app.io;
+    var program_meta = try util.findprogram(io, ctx.allocator, binpath);
     defer program_meta.deinit(ctx.allocator);
 
     const rootdir = program_meta.rootdir orelse return error.RootdirNotFound;
 
     log.debug("Parsing package.json", .{});
-    var package_json_parsed = try PackageJson.parse(ctx.allocator);
+    var package_json_parsed = try PackageJson.parse(ctx.allocator, io);
     defer package_json_parsed.deinit();
     var package_json = package_json_parsed.value;
     log.debug("Found and parsed package.json in ./{s}", .{package_json.pkg_path orelse "na"});
@@ -103,27 +105,31 @@ pub fn buildjs(ctx: zli.CommandContext, binpath: []const u8, is_dev: bool, verbo
     const pkg_path = package_json.pkg_path orelse return error.PkgPathNotFound;
     const pkg_rootdir = std.fs.path.dirname(pkg_path) orelse ".";
 
-    const pm = package_json.getPackageManager();
+    const pm = package_json.getPackageManager(io);
     log.debug("Package manager: {s}", .{@tagName(pm)});
 
-    if (!checkEsbuildBin(ctx.allocator, pkg_rootdir)) {
+    if (!checkEsbuildBin(io, ctx.allocator, pkg_rootdir)) {
         log.debug("Installing dependencies for JavaScript", .{});
         log.debug("We try bun first", .{});
-        var bun_installer = std.process.Child.init(&.{ "bun", "install" }, ctx.allocator);
-        bun_installer.cwd = pkg_rootdir;
+        var bun_installer = try std.process.spawn(io, .{
+            .argv = &.{ "bun", "install" },
+            .cwd = .{ .path = pkg_rootdir },
+        });
+        defer bun_installer.kill(io);
 
-        try bun_installer.spawn();
-        const status = try bun_installer.wait();
+        const status = try bun_installer.wait(io);
 
         log.debug("Bun installer status: {s}", .{@tagName(status)});
 
-        if (!checkEsbuildBin(ctx.allocator, pkg_rootdir)) {
-            var installer = std.process.Child.init(&.{ @tagName(pm), "install" }, ctx.allocator);
-            installer.cwd = pkg_rootdir;
-            try installer.spawn();
-            _ = try installer.wait();
+        if (!checkEsbuildBin(io, ctx.allocator, pkg_rootdir)) {
+            var installer = try std.process.spawn(io, .{
+                .argv = &.{ @tagName(pm), "install" },
+                .cwd = .{ .path = pkg_rootdir },
+            });
+            defer installer.kill(io);
+            _ = try installer.wait(io);
         }
-        if (!checkEsbuildBin(ctx.allocator, pkg_rootdir)) {
+        if (!checkEsbuildBin(io, ctx.allocator, pkg_rootdir)) {
             std.debug.print(
                 \\
                 \\Could not find a Node.js package manager on your system. 
@@ -164,21 +170,39 @@ pub fn buildjs(ctx: zli.CommandContext, binpath: []const u8, is_dev: bool, verbo
     const esbuild_args_str = try std.mem.join(ctx.allocator, " ", esbuild_args.items);
     defer ctx.allocator.free(esbuild_args_str);
     log.debug("Esbuild args: {s}", .{esbuild_args_str});
-    var esbuild_cmd = std.process.Child.init(esbuild_args.items, ctx.allocator);
 
-    esbuild_cmd.stderr_behavior = .Pipe;
-    esbuild_cmd.stdout_behavior = .Pipe;
-    try esbuild_cmd.spawn();
+    var esbuild_cmd = try std.process.spawn(io, .{
+        .argv = esbuild_args.items,
+        .stdout = .pipe,
+        .stderr = .pipe,
+    });
 
-    var stdout = std.ArrayList(u8).empty;
-    var stderr = std.ArrayList(u8).empty;
-    esbuild_cmd.collectOutput(ctx.allocator, &stdout, &stderr, 8192) catch |err| {
-        std.debug.print("Error collecting output: {any}", .{err});
-    };
+    var stdout_writer = std.Io.Writer.Allocating.init(ctx.allocator);
+    defer stdout_writer.deinit();
+    var stderr_writer = std.Io.Writer.Allocating.init(ctx.allocator);
+    defer stderr_writer.deinit();
 
-    log.debug("Esbuild stdout: {s} \n stderr: {s}", .{ stdout.items, stderr.items });
+    // Read output from pipes
+    if (esbuild_cmd.stdout) |stdout_file| {
+        var buf: [4096]u8 = undefined;
+        var streaming_reader = stdout_file.readerStreaming(io, &buf);
+        const reader = &streaming_reader.interface;
+        _ = reader.streamRemaining(&stdout_writer.writer) catch {};
+    }
+    if (esbuild_cmd.stderr) |stderr_file| {
+        var buf: [4096]u8 = undefined;
+        var streaming_reader = stderr_file.readerStreaming(io, &buf);
+        const reader = &streaming_reader.interface;
+        _ = reader.streamRemaining(&stderr_writer.writer) catch {};
+    }
 
-    const esbuild_output = try parseEsbuildOutput(stderr.items);
+    const stdout = stdout_writer.written();
+    const stderr = stderr_writer.written();
+    _ = try esbuild_cmd.wait(io);
+
+    log.debug("Esbuild stdout: {s} \n stderr: {s}", .{ stdout, stderr });
+
+    const esbuild_output = try parseEsbuildOutput(stderr);
 
     // Pretty print esbuild output with colors
     if (verbose and esbuild_output.path.len > 0 and esbuild_output.size.len > 0 and esbuild_output.time.len > 0) {
@@ -465,4 +489,5 @@ const std = @import("std");
 const zli = @import("zli");
 const util = @import("util.zig");
 const tui = @import("../../tui/main.zig");
+const AppContext = @import("context.zig").AppContext;
 const log = std.log.scoped(.cli);

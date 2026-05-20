@@ -76,7 +76,7 @@ const Context = struct {
         const allocator = self.getAlloc();
         // Use a buffer writer to leverage the shared escaping logic
         // For text content, we only escape & < > (not quotes)
-        var aw = std.io.Writer.Allocating.init(allocator);
+        var aw = std.Io.Writer.Allocating.init(allocator);
         defer aw.deinit();
         escapHtmlTextNode(&aw.writer, text) catch @panic("OOM");
         return allocator.dupe(u8, aw.written()) catch @panic("OOM");
@@ -174,7 +174,7 @@ const Context = struct {
                 else => @compileError("Unable to render type '" ++ @typeName(T) ++ "', supported types are: int, float, bool, string, enum, optional"),
             },
             .@"struct" => |struct_info| {
-                var aw = std.io.Writer.Allocating.init(self.getAlloc());
+                var aw = std.Io.Writer.Allocating.init(self.getAlloc());
                 defer aw.deinit();
 
                 // aw.writer.print("{s} ", .{@tagName(struct_info)}) catch @panic("OOM");

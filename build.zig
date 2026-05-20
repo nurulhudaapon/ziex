@@ -36,6 +36,11 @@ pub fn build(b: *std.Build) !void {
     zx_runtime_options.addOption([]const u8, "staticdir", "zig-out/static");
     zx_runtime_options.addOption([]const u8, "datadir", "zig-out/data");
     zx_runtime_options.addOption(?[]const u8, "app_base_path", null);
+    zx_runtime_options.addOption(?u16, "server_port", null);
+    zx_runtime_options.addOption(?[]const u8, "server_address", null);
+    zx_runtime_options.addOption(?[]const u8, "server_rootdir", null);
+    zx_runtime_options.addOption(?[]const u8, "cli_command", null);
+    zx_runtime_options.addOption(bool, "introspect", false);
 
     const cli_options_dev = b.addOptions();
     cli_options_dev.addOption([]const u8, "zig_exe", b.graph.zig_exe);
@@ -93,7 +98,6 @@ pub fn build(b: *std.Build) !void {
 
     // --- ZX CLI (Transpiler, Exporter, Dev Server) --- //
     const zli_dep = b.dependency("zli", .{ .target = target, .optimize = optimize });
-    const zls_dep = b.dependency("zls", .{ .target = target, .optimize = optimize });
     const exe_rootmod_opts: std.Build.Module.CreateOptions = .{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
@@ -112,7 +116,10 @@ pub fn build(b: *std.Build) !void {
 
     const exe = b.addExecutable(.{ .name = "zx", .root_module = b.createModule(exe_rootmod_opts) });
     exe.root_module.addOptions("build_options", exe_build_options);
-    if (!exclude_lsp) exe.root_module.addImport("zls", zls_dep.module("zls"));
+    if (!exclude_lsp) {
+        // const zls_dep = b.dependency("zls", .{ .target = target, .optimize = optimize });
+        // exe.root_module.addImport("zls", zls_dep.module("zls"));
+    }
     b.installArtifact(exe);
 
     // --- Steps: Run --- //
@@ -210,7 +217,7 @@ pub fn build(b: *std.Build) !void {
         });
         const css_gen_run = b.addRunArtifact(css_gen_exe);
 
-        if (std.fs.cwd().access("vendor/webref", .{})) |_| {} else |_| {
+        if (b.build_root.handle.access(b.graph.io, "vendor/webref", .{})) |_| {} else |_| {
             const sync_cmd = b.addSystemCommand(&.{ "./tools/syncvendor", "webref" });
             css_gen_run.step.dependOn(&sync_cmd.step);
         }
@@ -232,7 +239,7 @@ pub fn build(b: *std.Build) !void {
         });
         const events_gen_run = b.addRunArtifact(events_gen_exe);
 
-        if (std.fs.cwd().access("vendor/webref", .{})) |_| {} else |_| {
+        if (b.build_root.handle.access(b.graph.io, "vendor/webref", .{})) |_| {} else |_| {
             const sync_cmd = b.addSystemCommand(&.{ "./tools/syncvendor", "webref" });
             events_gen_run.step.dependOn(&sync_cmd.step);
         }
@@ -266,7 +273,6 @@ pub fn build(b: *std.Build) !void {
             const release_tree_sitter_dep = b.dependency("tree_sitter", .{ .target = resolved_target, .optimize = .ReleaseSafe });
             const release_tree_sitter_zx_dep = b.dependency("tree_sitter_zx", .{ .target = resolved_target, .optimize = .ReleaseSafe, .@"build-shared" = false });
             const release_tree_sitter_mdzx_dep = b.dependency("tree_sitter_mdzx", .{ .target = resolved_target, .optimize = .ReleaseSafe, .@"build-shared" = false });
-            const release_zls_dep = b.dependency("zls", .{ .target = resolved_target, .optimize = .ReleaseSafe });
 
             // Sub-modules for release
             const release_style_mod = b.createModule(.{ .root_source_file = b.path("src/style/root.zig"), .target = resolved_target, .optimize = .ReleaseSafe });
@@ -299,7 +305,6 @@ pub fn build(b: *std.Build) !void {
                         .{ .name = "cli_options", .module = cli_options_rel.createModule() },
                         .{ .name = "zx", .module = release_mod },
                         .{ .name = "zli", .module = zli_dep.module("zli") },
-                        .{ .name = "zls", .module = release_zls_dep.module("zls") },
                         .{ .name = "tree_sitter", .module = release_tree_sitter_dep.module("tree_sitter") },
                         .{ .name = "tree_sitter_zx", .module = release_tree_sitter_zx_dep.module("tree_sitter_zx") },
                     },

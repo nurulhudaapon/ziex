@@ -10,7 +10,7 @@ const HighlightCache = struct {
     parser: *ts.Parser,
     language: *const ts.Language,
     query: *ts.Query,
-    mutex: std.Thread.Mutex = .{},
+    mutex: std.Io.Mutex = .init,
 
     var instance: ?*HighlightCache = null;
 
@@ -43,9 +43,10 @@ const HighlightCache = struct {
 pub fn highlightZx(allocator: std.mem.Allocator, source: []const u8) ![]u8 {
     if (zx.platform.role == .client) return try allocator.dupe(u8, source);
 
+    const io = std.Io.Threaded.global_single_threaded.io();
     const cache = try HighlightCache.getOrInit(std.heap.page_allocator);
-    cache.mutex.lock();
-    defer cache.mutex.unlock();
+    try cache.mutex.lock(io);
+    defer cache.mutex.unlock(io);
 
     const tree = cache.parser.parseString(source, null) orelse return error.ParseError;
     defer tree.destroy();

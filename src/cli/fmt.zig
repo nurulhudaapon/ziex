@@ -1,5 +1,6 @@
 const std = @import("std");
 const zli = @import("zli");
+const AppContext = @import("shared/context.zig").AppContext;
 const log = std.log.scoped(.cli);
 const zx = @import("zx");
 const tui = @import("../tui/main.zig");
@@ -47,17 +48,20 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
 }
 
 fn fmt(ctx: zli.CommandContext) !void {
+    const app = AppContext.from(&ctx);
+    const io = app.io;
+
     const use_stdio = ctx.flag("stdio", bool);
     const use_stdout = ctx.flag("stdout", bool);
     const use_error = ctx.flag("error", bool);
 
     if (use_error) {
-        try formatErrorFromStdin(ctx.allocator, ctx.writer);
+        try formatErrorFromStdin(io, ctx.allocator, ctx.writer);
         return;
     }
 
     if (use_stdio) {
-        try formatFromStdin(ctx.allocator, ctx.writer);
+        try formatFromStdin(io, ctx.allocator, ctx.writer);
         return;
     }
 
@@ -87,23 +91,23 @@ fn fmt(ctx: zli.CommandContext) !void {
     }
 
     for (paths) |path| {
-        var dir = std.fs.cwd().openDir(path, .{ .iterate = true }) catch |err| switch (err) {
+        var dir = std.Io.Dir.cwd().openDir(io, path, .{ .iterate = true }) catch |err| switch (err) {
             error.NotDir => {
-                try formatFile(ctx.allocator, ctx.writer, std.fs.cwd(), path, path, use_stdout);
+                try formatFile(ctx.allocator, io, ctx.writer, std.Io.Dir.cwd(), path, path, use_stdout);
                 continue;
             },
             else => continue,
         };
 
-        defer dir.close();
-        try formatDir(ctx.allocator, ctx.writer, path, use_stdout);
+        defer dir.close(io);
+        try formatDir(ctx.allocator, io, ctx.writer, path, use_stdout);
     }
 }
 
-fn formatErrorFromStdin(allocator: std.mem.Allocator, writer: *std.Io.Writer) !void {
-    var stdin_file = std.fs.File.stdin();
+fn formatErrorFromStdin(io: std.Io, allocator: std.mem.Allocator, writer: *std.Io.Writer) !void {
+    var stdin_file = std.Io.File.stdin();
     var raw_buf: [8192]u8 = undefined;
-    var streaming_reader = stdin_file.readerStreaming(&raw_buf);
+    var streaming_reader = stdin_file.readerStreaming(io, &raw_buf);
     const io_reader = &streaming_reader.interface;
     var diagnostics = std.ArrayList(Builder.Diagnostic).empty;
     defer {
@@ -159,8 +163,8 @@ fn formatErrorFromStdin(allocator: std.mem.Allocator, writer: *std.Io.Writer) !v
     try writer.writeAll(formatted);
 }
 
-fn formatFromStdin(allocator: std.mem.Allocator, writer: *std.Io.Writer) !void {
-    var reader = std.fs.File.stdin().reader(&.{});
+fn formatFromStdin(io: std.Io, allocator: std.mem.Allocator, writer: *std.Io.Writer) !void {
+    var reader = std.Io.File.stdin().reader(io, &.{});
     var buffer: std.Io.Writer.Allocating = .init(allocator);
     _ = try reader.interface.streamRemaining(&buffer.writer);
     const input = try buffer.toOwnedSliceSentinel(0);
@@ -181,8 +185,9 @@ fn formatFromStdin(allocator: std.mem.Allocator, writer: *std.Io.Writer) !void {
 
 fn formatFile(
     allocator: std.mem.Allocator,
+    io: std.Io,
     writer: *std.Io.Writer,
-    base_dir: std.fs.Dir,
+    base_dir: std.Io.Dir,
     sub_path: []const u8,
     full_path: []const u8,
     use_stdout: bool,
@@ -190,11 +195,11 @@ fn formatFile(
     if (!std.mem.endsWith(u8, sub_path, ".zx")) {
         return; // Skip non-.zx files
     }
-
     const source = try base_dir.readFileAlloc(
-        allocator,
+        io,
         sub_path,
-        std.math.maxInt(usize),
+        allocator,
+        .unlimited,
     );
     defer allocator.free(source);
 
@@ -224,27 +229,28 @@ fn formatFile(
     }
 
     // Write formatted content back to file
-    var atomic_file = try base_dir.atomicFile(sub_path, .{ .write_buffer = &.{} });
-    defer atomic_file.deinit();
+    var atomic_file = try base_dir.createFileAtomic(io, sub_path, .{ .replace = true });
+    defer atomic_file.deinit(io);
 
-    try atomic_file.file_writer.interface.writeAll(formatted);
-    try atomic_file.finish();
+    try atomic_file.file.writeStreamingAll(io, formatted);
+    try atomic_file.replace(io);
     try writer.print("{s}\n", .{full_path});
 }
 
 fn formatDir(
     allocator: std.mem.Allocator,
+    io: std.Io,
     writer: *std.Io.Writer,
     path: []const u8,
     use_stdout: bool,
 ) !void {
-    var dir = try std.fs.cwd().openDir(path, .{ .iterate = true });
-    defer dir.close();
+    var dir = try std.Io.Dir.cwd().openDir(io, path, .{ .iterate = true });
+    defer dir.close(io);
 
     var walker = try dir.walk(allocator);
     defer walker.deinit();
 
-    while (try walker.next()) |entry| {
+    while (try walker.next(io)) |entry| {
         if (entry.kind != .file) continue;
 
         // Check if file ends with .zx before processing
@@ -258,9 +264,10 @@ fn formatDir(
 
         // Read file using entry.dir (which is the directory containing the file)
         const source = try entry.dir.readFileAlloc(
-            allocator,
+            io,
             entry.basename,
-            std.math.maxInt(usize),
+            allocator,
+            .limited(std.math.maxInt(usize)),
         );
         defer allocator.free(source);
 
@@ -290,11 +297,11 @@ fn formatDir(
         }
 
         // Write formatted content back to file using entry.dir
-        var atomic_file = try entry.dir.atomicFile(entry.basename, .{ .write_buffer = &.{} });
-        defer atomic_file.deinit();
+        var atomic_file = try entry.dir.createFileAtomic(io, entry.basename, .{});
+        defer atomic_file.deinit(io);
 
-        try atomic_file.file_writer.interface.writeAll(formatted);
-        try atomic_file.finish();
+        try atomic_file.file.writeStreamingAll(io, formatted);
+        try atomic_file.replace(io);
         try writer.print("{s}\n", .{full_path});
     }
 }

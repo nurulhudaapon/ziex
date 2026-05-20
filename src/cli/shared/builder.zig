@@ -125,7 +125,7 @@ pub const BuildWatcher = struct {
         self.mutex.lock();
         defer self.mutex.unlock();
         self.restart_pending = false;
-        self.last_restart_time_ns = std.time.nanoTimestamp();
+        self.last_restart_time_ns = std.Io.Clock.awake.now(std.testing.io).nanoseconds;
         self.last_binary_mtime = new_mtime;
     }
 
@@ -229,10 +229,10 @@ pub fn watchBuildOutput(watcher: *BuildWatcher) !void {
 
         // Detect build completion via "Build Summary:"
         if (std.mem.indexOf(u8, pattern_buf.items, "Build Summary:") != null) {
-            const now = std.time.nanoTimestamp();
+            const now = std.Io.Clock.awake.now(std.testing.io).nanoseconds;
             log.debug("Build Summary detected", .{});
 
-            const stat = std.fs.cwd().statFile(watcher.binary_path) catch |err| {
+            const stat = std.Io.Dir.cwd().statFile(watcher.binary_path) catch |err| {
                 log.debug("Failed to stat binary: {any}", .{err});
                 pattern_buf.clearRetainingCapacity();
                 build_in_progress = false;
@@ -280,7 +280,7 @@ pub fn watchBuildOutput(watcher: *BuildWatcher) !void {
                 // First build
                 watcher.first_build_done = true;
                 watcher.last_binary_mtime = stat.mtime;
-                watcher.last_restart_time_ns = std.time.nanoTimestamp();
+                watcher.last_restart_time_ns = std.Io.Clock.awake.now(std.testing.io).nanoseconds;
                 watcher.previous_build_had_errors = watcher.current_build_has_errors;
                 log.debug("First build completed", .{});
             }

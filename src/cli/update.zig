@@ -10,6 +10,7 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
 }
 
 fn update(ctx: zli.CommandContext) !void {
+    const app = AppContext.from(&ctx);
     const version = ctx.flag("version", []const u8);
     const version_str = if (std.mem.eql(u8, version, "latest")) "" else try std.fmt.allocPrint(ctx.allocator, "#v{s}", .{version});
     defer ctx.allocator.free(version_str);
@@ -17,10 +18,8 @@ fn update(ctx: zli.CommandContext) !void {
     const fetch_uri = try std.fmt.allocPrint(ctx.allocator, "git+{s}{s}", .{ zx.info.repository, version_str });
     defer ctx.allocator.free(fetch_uri);
 
-    var system = std.process.Child.init(&.{ cli_options.zig_exe, "fetch", "--save", fetch_uri }, ctx.allocator);
-    try system.spawn();
-
-    const term = try system.wait();
+    var system = try std.process.spawn(app.io, .{ .argv = &.{ cli_options.zig_exe, "fetch", "--save", fetch_uri } });
+    const term = try system.wait(app.io);
     _ = term;
 }
 
@@ -34,5 +33,6 @@ const version_flag = zli.Flag{
 
 const std = @import("std");
 const zli = @import("zli");
+const AppContext = @import("shared/context.zig").AppContext;
 const zx = @import("zx");
 const cli_options = @import("cli_options");
