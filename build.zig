@@ -117,8 +117,8 @@ pub fn build(b: *std.Build) !void {
     const exe = b.addExecutable(.{ .name = "zx", .root_module = b.createModule(exe_rootmod_opts) });
     exe.root_module.addOptions("build_options", exe_build_options);
     if (!exclude_lsp) {
-        // const zls_dep = b.dependency("zls", .{ .target = target, .optimize = optimize });
-        // exe.root_module.addImport("zls", zls_dep.module("zls"));
+        const zls_dep = b.dependency("zls", .{ .target = target, .optimize = optimize });
+        exe.root_module.addImport("zls", zls_dep.module("zls"));
     }
     b.installArtifact(exe);
 

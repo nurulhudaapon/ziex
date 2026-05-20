@@ -11,14 +11,14 @@ pub fn main(init: std.process.Init) !void {
 
     defer if (builtin.mode == .Debug) std.debug.assert(dbg.deinit() == .ok);
 
-    // if (comptime (!build_options.exclude_lsp)) {
-    //     var args = try init.minimal.args.iterateAllocator(allocator);
-    //     defer args.deinit();
+    if (comptime (!build_options.exclude_lsp)) {
+        var args = try init.minimal.args.iterateAllocator(allocator);
+        defer args.deinit();
 
-    //     _ = args.next();
-    //     const subcmd = args.next();
-    //     if (std.mem.eql(u8, subcmd orelse "", "lsp")) return try lsp.main();
-    // }
+        _ = args.next();
+        const subcmd = args.next();
+        if (std.mem.eql(u8, subcmd orelse "", "lsp")) return try lsp.main(init);
+    }
 
     if (builtin.os.tag == .wasi) return try main_wasm(init);
     if (builtin.os.tag == .windows) _ = SetConsoleOutputCP(65001);
@@ -91,7 +91,7 @@ const zx = @import("zx");
 const cli = @import("cli/root.zig");
 const tui = @import("tui/main.zig");
 const AppContext = @import("cli/shared/context.zig").AppContext;
-// const lsp = if (build_options.exclude_lsp) void else @import("lsp/main.zig");
+const lsp = if (build_options.exclude_lsp) void else @import("lsp/main.zig");
 
 pub const std_options = std.Options{
     .log_scope_levels = &[_]std.log.ScopeLevel{

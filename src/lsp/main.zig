@@ -15,7 +15,7 @@ const ByteRange = struct {
 
 var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
     const gpa, const is_debug = switch (builtin.os.tag) {
         .wasi, .freestanding => .{ std.heap.wasm_allocator, false },
         else => switch (builtin.mode) {
@@ -34,29 +34,33 @@ pub fn main() !void {
     const transport: *lsp.Transport = &stdio_transport.transport;
 
     const global_cache_path: ?[]const u8 = blk: {
-        const home = std.process.getEnvVarOwned(gpa, "HOME") catch break :blk null;
+        const home = init.minimal.environ.getAlloc(gpa, "HOME") catch break :blk null;
         defer gpa.free(home);
         const cache_suffix = if (builtin.os.tag == .macos) "Library/Caches/zls" else ".cache/zls";
         break :blk std.fs.path.join(gpa, &.{ home, cache_suffix }) catch null;
     };
     defer if (global_cache_path) |p| gpa.free(p);
 
-    var config = zls.Config{
-        .global_cache_path = global_cache_path,
-        // .enable_build_on_save = false,
-        // .prefer_ast_check_as_child_process = false,
-    };
+    // var config = zls.Config{
+    //     .global_cache_path = global_cache_path,
+    //     // .enable_build_on_save = false,
+    //     // .prefer_ast_check_as_child_process = false,
+    // };
+
+    var cm = zls.configuration.Manager.init(init.io, gpa, init.environ_map) catch unreachable;
 
     const zls_server = zls.Server.create(.{
+        .io = init.io,
         .allocator = gpa,
         .transport = transport,
-        .config = &config,
+        .config_manager = &cm,
     }) catch unreachable;
 
-    var handler: Handler = .init(gpa, zls_server, transport);
+    var handler: Handler = .init(gpa, zls_server, transport, init.io);
     defer handler.deinit();
 
     lsp.basic_server.run(
+        init.io,
         gpa,
         transport,
         &handler,
@@ -84,14 +88,16 @@ pub const Handler = struct {
     allocator: std.mem.Allocator,
     zls: *zls.Server,
     transport: *lsp.Transport,
+    io: std.Io,
     offset_encoding: lsp.offsets.Encoding,
     zx_files: std.StringHashMap(ZxFileState),
 
-    fn init(allocator: std.mem.Allocator, zls_server: *zls.Server, transport: *lsp.Transport) Handler {
+    fn init(allocator: std.mem.Allocator, zls_server: *zls.Server, transport: *lsp.Transport, io: std.Io) Handler {
         return .{
             .allocator = allocator,
             .zls = zls_server,
             .transport = transport,
+            .io = io,
             .offset_encoding = .@"utf-16",
             .zx_files = std.StringHashMap(ZxFileState).init(allocator),
         };
@@ -248,7 +254,7 @@ pub const Handler = struct {
 
         const resolved_path = switch (builtin.os.tag) {
             .wasi, .freestanding => handler.allocator.dupe(u8, joined) catch return,
-            else => std.Io.Dir.cwd().realpathAlloc(handler.allocator, joined) catch return,
+            else => std.Io.Dir.cwd().realPathFileAlloc(handler.io, joined, handler.allocator) catch return,
         };
         defer handler.allocator.free(resolved_path);
 
@@ -257,7 +263,7 @@ pub const Handler = struct {
 
         if (handler.zx_files.contains(zx_uri)) return;
 
-        const content = std.Io.Dir.cwd().readFileAlloc(handler.allocator, resolved_path, 4 * 1024 * 1024) catch return;
+        const content = std.Io.Dir.cwd().readFileAlloc(handler.io, resolved_path, handler.allocator, .limited(4 * 1024 * 1024)) catch return;
         defer handler.allocator.free(content);
 
         handler.storeAndDiagnose(zx_uri, content);
@@ -280,7 +286,7 @@ pub const Handler = struct {
         handler.zls.sendNotificationSync(arena, "textDocument/didOpen", .{
             .textDocument = .{
                 .uri = zig_uri,
-                .languageId = "zig",
+                .languageId = .{ .custom_value = "zig" },
                 .version = @as(i32, 0),
                 .text = rewritten,
             },
@@ -367,12 +373,12 @@ pub const Handler = struct {
 
     fn filterInlayHintsForZxBlocks(
         arena: std.mem.Allocator,
-        hints: []const lsp.types.InlayHint,
+        hints: []const lsp.types.flat.InlayHint,
         state: *const ZxFileState,
-    ) ![]const lsp.types.InlayHint {
+    ) ![]const lsp.types.flat.InlayHint {
         if (hints.len == 0 or state.zx_block_ranges.len == 0) return hints;
 
-        var filtered = std.ArrayList(lsp.types.InlayHint).empty;
+        var filtered = std.ArrayList(lsp.types.flat.InlayHint).empty;
         defer filtered.deinit(arena);
         try filtered.ensureTotalCapacity(arena, hints.len);
 
@@ -394,7 +400,7 @@ pub const Handler = struct {
         defer aa.deinit();
         const arena = aa.allocator();
 
-        const lsp_diags = try arena.alloc(lsp.types.Diagnostic, diag_list.items.len);
+        const lsp_diags = try arena.alloc(lsp.types.flat.Diagnostic, diag_list.items.len);
         for (diag_list.items, 0..) |d, i| {
             lsp_diags[i] = .{
                 .range = .{
@@ -411,9 +417,10 @@ pub const Handler = struct {
         }
 
         handler.transport.writeNotification(
+            handler.io,
             arena,
             "textDocument/publishDiagnostics",
-            lsp.types.PublishDiagnosticsParams,
+            lsp.types.flat.PublishDiagnosticsParams,
             .{ .uri = uri, .diagnostics = lsp_diags },
             .{ .emit_null_optional_fields = false },
         ) catch |err| {
@@ -435,8 +442,8 @@ pub const Handler = struct {
     pub fn initialize(
         handler: *Handler,
         arena: std.mem.Allocator,
-        request: lsp.types.InitializeParams,
-    ) lsp.types.InitializeResult {
+        request: lsp.types.flat.InitializeParams,
+    ) lsp.types.flat.InitializeResult {
         const client_encoding = choosePositionEncodingKind(request);
         var zls_request = request;
         if (zls_request.capabilities.textDocument) |*text_document| {
@@ -459,7 +466,7 @@ pub const Handler = struct {
         return result;
     }
 
-    fn choosePositionEncodingKind(request: lsp.types.InitializeParams) lsp.types.PositionEncodingKind {
+    fn choosePositionEncodingKind(request: lsp.types.flat.InitializeParams) lsp.types.flat.PositionEncodingKind {
         if (request.capabilities.general) |general| {
             if (general.positionEncodings) |encodings| {
                 for (encodings) |encoding| {
@@ -481,7 +488,7 @@ pub const Handler = struct {
         return .@"utf-16";
     }
 
-    fn toOffsetEncoding(encoding: lsp.types.PositionEncodingKind) lsp.offsets.Encoding {
+    fn toOffsetEncoding(encoding: lsp.types.flat.PositionEncodingKind) lsp.offsets.Encoding {
         return switch (encoding) {
             .@"utf-8" => .@"utf-8",
             .@"utf-16" => .@"utf-16",
@@ -494,7 +501,7 @@ pub const Handler = struct {
     pub fn initialized(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.InitializedParams,
+        params: lsp.types.flat.InitializedParams,
     ) void {
         handler.zls.sendNotificationSync(arena, "initialized", params) catch {};
     }
@@ -523,7 +530,7 @@ pub const Handler = struct {
     pub fn @"textDocument/didOpen"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.DidOpenTextDocumentParams,
+        params: lsp.types.flat.DidOpenTextDocumentParams,
     ) !void {
         if (isZxUri(params.textDocument.uri)) {
             handler.storeAndDiagnose(params.textDocument.uri, params.textDocument.text);
@@ -538,7 +545,7 @@ pub const Handler = struct {
             handler.zls.sendNotificationSync(arena, "textDocument/didOpen", .{
                 .textDocument = .{
                     .uri = zig_uri,
-                    .languageId = "zig",
+                    .languageId = .{ .custom_value = "zig" },
                     .version = params.textDocument.version,
                     .text = zls_text,
                 },
@@ -552,7 +559,7 @@ pub const Handler = struct {
     pub fn @"textDocument/didChange"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.DidChangeTextDocumentParams,
+        params: lsp.types.flat.DidChangeTextDocumentParams,
     ) !void {
         if (isZxUri(params.textDocument.uri)) {
             // Build full text by applying incremental changes to stored source.
@@ -567,12 +574,12 @@ pub const Handler = struct {
 
             for (params.contentChanges) |change| {
                 switch (change) {
-                    .literal_1 => |full| {
+                    .text_document_content_change_whole_document => |full| {
                         if (needs_free) handler.allocator.free(full_text);
                         full_text = full.text;
                         needs_free = false;
                     },
-                    .literal_0 => |inc| {
+                    .text_document_content_change_partial => |inc| {
                         const new_text = applyIncrementalChange(handler.allocator, full_text, inc.range, inc.text) catch {
                             continue;
                         };
@@ -597,7 +604,7 @@ pub const Handler = struct {
                     .uri = zig_uri,
                     .version = params.textDocument.version,
                 },
-                .contentChanges = &.{.{ .literal_1 = .{ .text = zls_text } }},
+                .contentChanges = &.{.{ .text_document_content_change_whole_document = .{ .text = zls_text } }},
             }) catch {};
             return;
         }
@@ -608,7 +615,7 @@ pub const Handler = struct {
     fn applyIncrementalChange(
         allocator: std.mem.Allocator,
         source: []const u8,
-        range: lsp.types.Range,
+        range: lsp.types.flat.Range,
         new_text: []const u8,
     ) ![]const u8 {
         const start_offset = positionToOffset(source, range.start) orelse return error.InvalidRange;
@@ -623,7 +630,7 @@ pub const Handler = struct {
     }
 
     /// Convert an LSP Position (line/character) to a byte offset in the source.
-    fn positionToOffset(source: []const u8, pos: lsp.types.Position) ?usize {
+    fn positionToOffset(source: []const u8, pos: lsp.types.flat.Position) ?usize {
         var line: u32 = 0;
         var i: usize = 0;
         while (line < pos.line and i < source.len) {
@@ -641,7 +648,7 @@ pub const Handler = struct {
     pub fn @"textDocument/didSave"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.DidSaveTextDocumentParams,
+        params: lsp.types.flat.DidSaveTextDocumentParams,
     ) !void {
         if (isZxUri(params.textDocument.uri)) {
             handler.zls.sendNotificationSync(arena, "textDocument/didSave", .{
@@ -657,14 +664,15 @@ pub const Handler = struct {
     pub fn @"textDocument/didClose"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.DidCloseTextDocumentParams,
+        params: lsp.types.flat.DidCloseTextDocumentParams,
     ) !void {
         if (isZxUri(params.textDocument.uri)) {
             // Clear diagnostics for the closed file
             handler.transport.writeNotification(
+                handler.io,
                 arena,
                 "textDocument/publishDiagnostics",
-                lsp.types.PublishDiagnosticsParams,
+                lsp.types.flat.PublishDiagnosticsParams,
                 .{ .uri = params.textDocument.uri, .diagnostics = &.{} },
                 .{ .emit_null_optional_fields = false },
             ) catch {};
@@ -689,9 +697,9 @@ pub const Handler = struct {
     pub fn @"textDocument/hover"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.HoverParams,
-    ) ?lsp.types.Hover {
-        const mapped = handler.remapUri(lsp.types.HoverParams, params);
+        params: lsp.types.flat.HoverParams,
+    ) ?lsp.types.flat.Hover {
+        const mapped = handler.remapUri(lsp.types.flat.HoverParams, params);
         return handler.zls.sendRequestSync(arena, "textDocument/hover", mapped) catch null;
     }
 
@@ -699,9 +707,9 @@ pub const Handler = struct {
     pub fn @"textDocument/completion"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.CompletionParams,
+        params: lsp.types.flat.CompletionParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/completion") {
-        const mapped = handler.remapUri(lsp.types.CompletionParams, params);
+        const mapped = handler.remapUri(lsp.types.flat.CompletionParams, params);
         return handler.zls.sendRequestSync(arena, "textDocument/completion", mapped) catch null;
     }
 
@@ -709,9 +717,9 @@ pub const Handler = struct {
     pub fn @"textDocument/signatureHelp"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.SignatureHelpParams,
-    ) error{OutOfMemory}!?lsp.types.SignatureHelp {
-        const mapped = handler.remapUri(lsp.types.SignatureHelpParams, params);
+        params: lsp.types.flat.SignatureHelpParams,
+    ) error{OutOfMemory}!?lsp.types.flat.SignatureHelp {
+        const mapped = handler.remapUri(lsp.types.flat.SignatureHelpParams, params);
         return handler.zls.sendRequestSync(arena, "textDocument/signatureHelp", mapped) catch null;
     }
 
@@ -719,9 +727,9 @@ pub const Handler = struct {
     pub fn @"textDocument/definition"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.DefinitionParams,
+        params: lsp.types.flat.DefinitionParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/definition") {
-        const mapped = handler.remapUri(lsp.types.DefinitionParams, params);
+        const mapped = handler.remapUri(lsp.types.flat.DefinitionParams, params);
         const result = handler.zls.sendRequestSync(arena, "textDocument/definition", mapped) catch null;
         return handler.remapResponseUris(result);
     }
@@ -730,9 +738,9 @@ pub const Handler = struct {
     pub fn @"textDocument/typeDefinition"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.TypeDefinitionParams,
+        params: lsp.types.flat.TypeDefinitionParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/typeDefinition") {
-        const mapped = handler.remapUri(lsp.types.TypeDefinitionParams, params);
+        const mapped = handler.remapUri(lsp.types.flat.TypeDefinitionParams, params);
         const result = handler.zls.sendRequestSync(arena, "textDocument/typeDefinition", mapped) catch null;
         return handler.remapResponseUris(result);
     }
@@ -741,9 +749,9 @@ pub const Handler = struct {
     pub fn @"textDocument/implementation"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.ImplementationParams,
+        params: lsp.types.flat.ImplementationParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/implementation") {
-        const mapped = handler.remapUri(lsp.types.ImplementationParams, params);
+        const mapped = handler.remapUri(lsp.types.flat.ImplementationParams, params);
         const result = handler.zls.sendRequestSync(arena, "textDocument/implementation", mapped) catch null;
         return handler.remapResponseUris(result);
     }
@@ -752,9 +760,9 @@ pub const Handler = struct {
     pub fn @"textDocument/declaration"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.DeclarationParams,
+        params: lsp.types.flat.DeclarationParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/declaration") {
-        const mapped = handler.remapUri(lsp.types.DeclarationParams, params);
+        const mapped = handler.remapUri(lsp.types.flat.DeclarationParams, params);
         const result = handler.zls.sendRequestSync(arena, "textDocument/declaration", mapped) catch null;
         return handler.remapResponseUris(result);
     }
@@ -763,9 +771,9 @@ pub const Handler = struct {
     pub fn @"textDocument/prepareRename"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.PrepareRenameParams,
-    ) ?lsp.types.PrepareRenameResult {
-        const mapped = handler.remapUri(lsp.types.PrepareRenameParams, params);
+        params: lsp.types.flat.PrepareRenameParams,
+    ) ?lsp.types.flat.PrepareRenameResult {
+        const mapped = handler.remapUri(lsp.types.flat.PrepareRenameParams, params);
         return handler.zls.sendRequestSync(arena, "textDocument/prepareRename", mapped) catch null;
     }
 
@@ -773,9 +781,9 @@ pub const Handler = struct {
     pub fn @"textDocument/rename"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.RenameParams,
-    ) error{OutOfMemory}!?lsp.types.WorkspaceEdit {
-        const mapped = handler.remapUri(lsp.types.RenameParams, params);
+        params: lsp.types.flat.RenameParams,
+    ) error{OutOfMemory}!?lsp.types.flat.WorkspaceEdit {
+        const mapped = handler.remapUri(lsp.types.flat.RenameParams, params);
         const result = handler.zls.sendRequestSync(arena, "textDocument/rename", mapped) catch null;
         return handler.remapResponseUris(result);
     }
@@ -784,9 +792,9 @@ pub const Handler = struct {
     pub fn @"textDocument/references"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.ReferenceParams,
-    ) error{OutOfMemory}!?[]const lsp.types.Location {
-        const mapped = handler.remapUri(lsp.types.ReferenceParams, params);
+        params: lsp.types.flat.ReferenceParams,
+    ) error{OutOfMemory}!?[]const lsp.types.flat.Location {
+        const mapped = handler.remapUri(lsp.types.flat.ReferenceParams, params);
         const result = handler.zls.sendRequestSync(arena, "textDocument/references", mapped) catch null;
         return handler.remapResponseUris(result);
     }
@@ -795,9 +803,9 @@ pub const Handler = struct {
     pub fn @"textDocument/documentHighlight"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.DocumentHighlightParams,
-    ) error{OutOfMemory}!?[]const lsp.types.DocumentHighlight {
-        const mapped = handler.remapUri(lsp.types.DocumentHighlightParams, params);
+        params: lsp.types.flat.DocumentHighlightParams,
+    ) error{OutOfMemory}!?[]const lsp.types.flat.DocumentHighlight {
+        const mapped = handler.remapUri(lsp.types.flat.DocumentHighlightParams, params);
         return handler.zls.sendRequestSync(arena, "textDocument/documentHighlight", mapped) catch null;
     }
 
@@ -807,8 +815,8 @@ pub const Handler = struct {
     pub fn @"textDocument/willSaveWaitUntil"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.WillSaveTextDocumentParams,
-    ) error{OutOfMemory}!?[]const lsp.types.TextEdit {
+        params: lsp.types.flat.WillSaveTextDocumentParams,
+    ) error{OutOfMemory}!?[]const lsp.types.flat.TextEdit {
         return handler.zls.sendRequestSync(arena, "textDocument/willSaveWaitUntil", params) catch null;
     }
 
@@ -816,8 +824,8 @@ pub const Handler = struct {
     pub fn @"textDocument/semanticTokens/full"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.SemanticTokensParams,
-    ) error{OutOfMemory}!?lsp.types.SemanticTokens {
+        params: lsp.types.flat.SemanticTokensParams,
+    ) error{OutOfMemory}!?lsp.types.flat.SemanticTokens {
         if (isZxUri(params.textDocument.uri)) {
             var new_params = params;
             new_params.textDocument = .{ .uri = handler.getZlsUri(params.textDocument.uri) };
@@ -830,8 +838,8 @@ pub const Handler = struct {
     pub fn @"textDocument/semanticTokens/range"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.SemanticTokensRangeParams,
-    ) error{OutOfMemory}!?lsp.types.SemanticTokens {
+        params: lsp.types.flat.SemanticTokensRangeParams,
+    ) error{OutOfMemory}!?lsp.types.flat.SemanticTokens {
         return handler.zls.sendRequestSync(arena, "textDocument/semanticTokens/range", params) catch null;
     }
 
@@ -839,8 +847,8 @@ pub const Handler = struct {
     pub fn @"textDocument/inlayHint"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.InlayHintParams,
-    ) error{OutOfMemory}!?[]const lsp.types.InlayHint {
+        params: lsp.types.flat.InlayHintParams,
+    ) error{OutOfMemory}!?[]const lsp.types.flat.InlayHint {
         if (isZxUri(params.textDocument.uri)) {
             var new_params = params;
             new_params.textDocument = .{ .uri = handler.getZlsUri(params.textDocument.uri) };
@@ -859,7 +867,7 @@ pub const Handler = struct {
     pub fn @"textDocument/documentSymbol"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.DocumentSymbolParams,
+        params: lsp.types.flat.DocumentSymbolParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/documentSymbol") {
         if (isZxUri(params.textDocument.uri)) {
             var new_params = params;
@@ -873,8 +881,8 @@ pub const Handler = struct {
     pub fn @"textDocument/formatting"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.DocumentFormattingParams,
-    ) error{OutOfMemory}!?[]const lsp.types.TextEdit {
+        params: lsp.types.flat.DocumentFormattingParams,
+    ) error{OutOfMemory}!?[]const lsp.types.flat.TextEdit {
         if (isZxUri(params.textDocument.uri)) {
             if (handler.zx_files.get(params.textDocument.uri)) |state| {
                 const source_z = try handler.allocator.dupeZ(u8, state.source);
@@ -891,7 +899,7 @@ pub const Handler = struct {
                     return null;
                 }
 
-                const edits = try arena.alloc(lsp.types.TextEdit, 1);
+                const edits = try arena.alloc(lsp.types.flat.TextEdit, 1);
                 edits[0] = .{
                     .range = .{
                         .start = .{ .line = 0, .character = 0 },
@@ -909,7 +917,7 @@ pub const Handler = struct {
     pub fn @"textDocument/codeAction"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.CodeActionParams,
+        params: lsp.types.flat.CodeActionParams,
     ) error{OutOfMemory}!lsp.ResultType("textDocument/codeAction") {
         if (isZxUri(params.textDocument.uri)) {
             var new_params = params;
@@ -923,8 +931,8 @@ pub const Handler = struct {
     pub fn @"textDocument/foldingRange"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.FoldingRangeParams,
-    ) error{OutOfMemory}!?[]const lsp.types.FoldingRange {
+        params: lsp.types.flat.FoldingRangeParams,
+    ) error{OutOfMemory}!?[]const lsp.types.flat.FoldingRange {
         if (isZxUri(params.textDocument.uri)) {
             var new_params = params;
             new_params.textDocument = .{ .uri = handler.getZlsUri(params.textDocument.uri) };
@@ -937,8 +945,8 @@ pub const Handler = struct {
     pub fn @"textDocument/selectionRange"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.SelectionRangeParams,
-    ) error{OutOfMemory}!?[]const lsp.types.SelectionRange {
+        params: lsp.types.flat.SelectionRangeParams,
+    ) error{OutOfMemory}!?[]const lsp.types.flat.SelectionRange {
         return handler.zls.sendRequestSync(arena, "textDocument/selectionRange", params) catch null;
     }
 
@@ -948,7 +956,7 @@ pub const Handler = struct {
     pub fn @"workspace/didChangeWatchedFiles"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.DidChangeWatchedFilesParams,
+        params: lsp.types.flat.DidChangeWatchedFilesParams,
     ) !void {
         handler.zls.sendNotificationSync(arena, "workspace/didChangeWatchedFiles", params) catch {};
     }
@@ -957,7 +965,7 @@ pub const Handler = struct {
     pub fn @"workspace/didChangeWorkspaceFolders"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.DidChangeWorkspaceFoldersParams,
+        params: lsp.types.flat.DidChangeWorkspaceFoldersParams,
     ) !void {
         handler.zls.sendNotificationSync(arena, "workspace/didChangeWorkspaceFolders", params) catch {};
     }
@@ -966,7 +974,7 @@ pub const Handler = struct {
     pub fn @"workspace/didChangeConfiguration"(
         handler: *Handler,
         arena: std.mem.Allocator,
-        params: lsp.types.DidChangeConfigurationParams,
+        params: lsp.types.flat.DidChangeConfigurationParams,
     ) !void {
         handler.zls.sendNotificationSync(arena, "workspace/didChangeConfiguration", params) catch {};
     }
@@ -976,11 +984,21 @@ pub const Handler = struct {
     /// responses and other client-to-server responses.
     pub fn onResponse(
         handler: *Handler,
-        _: std.mem.Allocator,
+        arena: std.mem.Allocator,
         response: lsp.JsonRPCMessage.Response,
     ) void {
-        handler.zls.handleResponse(response) catch |err| {
-            std.log.err("zls handleResponse failed: {}", .{err});
+        const json_message = std.json.Stringify.valueAlloc(
+            arena,
+            lsp.JsonRPCMessage{ .response = response },
+            .{ .emit_null_optional_fields = false },
+        ) catch |err| {
+            std.log.err("zls onResponse stringify failed: {}", .{err});
+            return;
         };
+        const reply = handler.zls.sendJsonMessageSync(json_message) catch |err| {
+            std.log.err("zls sendJsonMessageSync failed: {}", .{err});
+            return;
+        };
+        if (reply) |r| handler.zls.allocator.free(r);
     }
 };
