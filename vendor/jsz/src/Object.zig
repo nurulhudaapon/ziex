@@ -213,9 +213,7 @@ fn Get(comptime Raw: type) GetInfo {
     info.result_unwrapped = info.result;
 
     // If we're optional, we need to wrap
-    if (tInfo == .optional) info.result = @Type(.{
-        .Optional = .{ .child = info.result_unwrapped },
-    });
+    if (tInfo == .optional) info.result = ?info.result_unwrapped;
 
     return info;
 }

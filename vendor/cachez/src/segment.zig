@@ -1,6 +1,7 @@
 const std = @import("std");
 const cache = @import("cache.zig");
 
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
 pub fn Segment(comptime T: type) type {
@@ -9,6 +10,8 @@ pub fn Segment(comptime T: type) type {
     const IS_SIZED = comptime std.meta.hasFn(T, "size");
 
     return struct {
+        io: Io,
+
         // the current size.
         size: u32,
 
@@ -26,17 +29,18 @@ pub fn Segment(comptime T: type) type {
         list: List,
 
         // mutex for lookup and size
-        mutex: std.Thread.RwLock,
+        mutex: Io.RwLock,
 
         // key => entry
         lookup: std.StringHashMap(*Entry),
 
         const Self = @This();
 
-        pub fn init(allocator: Allocator, config: anytype) Self {
+        pub fn init(io: Io, allocator: Allocator, config: anytype) Self {
             return .{
+                .io = io,
                 .size = 0,
-                .mutex = .{},
+                .mutex = .init,
                 .max_size = config.max_size,
                 .target_size = config.target_size,
                 .gets_per_promote = config.gets_per_promote,
@@ -46,36 +50,37 @@ pub fn Segment(comptime T: type) type {
         }
 
         pub fn deinit(self: *Self) void {
+            const io = self.io;
             var list = &self.list;
             var it = self.lookup.iterator();
             while (it.next()) |kv| {
                 const entry = kv.value_ptr.*;
-                list.remove(entry._node);
+                list.remove(io, entry._node);
                 entry.release();
             }
             self.lookup.deinit();
         }
 
         pub fn contains(self: *Self, key: []const u8) bool {
-            self.mutex.lockShared();
-            defer self.mutex.unlockShared();
+            const io = self.io;
+            self.mutex.lockSharedUncancelable(io);
+            defer self.mutex.unlockShared(io);
             return self.lookup.contains(key);
         }
 
         pub fn get(self: *Self, key: []const u8) ?*Entry {
+            const io = self.io;
             const entry = self.getInternal(key) orelse return null;
 
-            if (entry.expired()) {
+            if (entry.expired(io)) {
                 // release getInternal's borrow
                 entry.release();
 
-                self.mutex.lock();
-                // Only subtract size if entry was actually in lookup (handles race conditions)
-                if (self.lookup.remove(key)) {
-                    self.size = self.size -| entry._size;
-                }
-                self.mutex.unlock();
-                self.list.remove(entry._node);
+                self.mutex.lockUncancelable(io);
+                _ = self.lookup.remove(key);
+                self.size -= entry._size;
+                self.mutex.unlock(io);
+                self.list.remove(io, entry._node);
 
                 // and now release the cache's implicit borrow
                 entry.release();
@@ -83,7 +88,7 @@ pub fn Segment(comptime T: type) type {
             }
 
             if (@rem(entry.hit(), self.gets_per_promote) == 0) {
-                self.list.moveToFront(entry._node);
+                self.list.moveToFront(io, entry._node);
             }
 
             return entry;
@@ -92,8 +97,9 @@ pub fn Segment(comptime T: type) type {
         pub fn getEntry(self: *Self, key: []const u8) ?*Entry {
             const entry = self.getInternal(key) orelse return null;
 
-            if (!entry.expired() and @rem(entry.hit(), self.gets_per_promote) == 0) {
-                self.list.moveToFront(entry._node);
+            const io = self.io;
+            if (!entry.expired(io) and @rem(entry.hit(), self.gets_per_promote) == 0) {
+                self.list.moveToFront(io, entry._node);
             }
 
             return entry;
@@ -102,10 +108,11 @@ pub fn Segment(comptime T: type) type {
         // Used by both get and getEntry. Those two methods differ in their handling
         // of expiration, but they share the following to fetch the entry.
         fn getInternal(self: *Self, key: []const u8) ?*Entry {
-            self.mutex.lockShared();
+            const io = self.io;
+            self.mutex.lockSharedUncancelable(io);
             const optional_entry = self.lookup.get(key);
             const entry = optional_entry orelse {
-                self.mutex.unlockShared();
+                self.mutex.unlockShared(io);
                 return null;
             };
 
@@ -116,14 +123,15 @@ pub fn Segment(comptime T: type) type {
             // (And, we want _gc incremented atomically, because this is a shared
             // read lock and multiple threads could be accessing the entry concurrently)
             entry.borrow();
-            self.mutex.unlockShared();
+            self.mutex.unlockShared(io);
 
             return entry;
         }
 
         pub fn put(self: *Self, allocator: Allocator, key: []const u8, value: T, config: cache.PutConfig) !*Entry {
+            const io = self.io;
             const entry_size = if (IS_SIZED) T.size(value) else config.size;
-            const expires = @as(u32, @intCast(std.time.timestamp())) + config.ttl;
+            const expires = @as(u32, @intCast(std.Io.Timestamp.now(io, .real).toSeconds())) + config.ttl;
 
             var lookup = &self.lookup;
             var existing_entry: ?*Entry = null;
@@ -157,8 +165,8 @@ pub fn Segment(comptime T: type) type {
                 entry._node = node;
 
                 {
-                    self.mutex.lock();
-                    defer self.mutex.unlock();
+                    self.mutex.lockUncancelable(io);
+                    defer self.mutex.unlock(io);
 
                     var size = self.size;
                     const gop = try lookup.getOrPut(owned_key);
@@ -179,10 +187,10 @@ pub fn Segment(comptime T: type) type {
 
             var list = &self.list;
             if (existing_entry) |existing| {
-                list.remove(existing._node);
+                list.remove(io, existing._node);
                 existing.release();
             }
-            list.insert(entry._node);
+            list.insert(io, entry._node);
 
             if (segment_size <= self.max_size) {
                 // we're still under our max_size
@@ -193,8 +201,8 @@ pub fn Segment(comptime T: type) type {
             // is under our target_size
             const target_size = self.target_size;
 
-            self.mutex.lock();
-            defer self.mutex.unlock();
+            self.mutex.lockUncancelable(io);
+            defer self.mutex.unlock(io);
             // recheck
             segment_size = self.size;
             while (segment_size > target_size) {
@@ -204,7 +212,7 @@ pub fn Segment(comptime T: type) type {
                 const existed_in_lookup = lookup.remove(removed_entry.key);
                 std.debug.assert(existed_in_lookup == true);
 
-                segment_size = segment_size -| removed_entry._size;
+                segment_size -= removed_entry._size;
                 removed_entry.release();
             }
             // we're still under lock
@@ -227,17 +235,18 @@ pub fn Segment(comptime T: type) type {
         }
 
         pub fn del(self: *Self, key: []const u8) bool {
-            self.mutex.lock();
+            const io = self.io;
+            self.mutex.lockUncancelable(io);
             const existing = self.lookup.fetchRemove(key);
             const map_entry = existing orelse {
-                self.mutex.unlock();
+                self.mutex.unlock(io);
                 return false;
             };
             const entry = map_entry.value;
-            self.size = self.size -| entry._size;
-            self.mutex.unlock();
+            self.size -= entry._size;
+            self.mutex.unlock(io);
 
-            self.list.remove(entry._node);
+            self.list.remove(io, entry._node);
             entry.release();
             return true;
         }
@@ -247,17 +256,18 @@ pub fn Segment(comptime T: type) type {
         // entries under a shared lock. This is nice since the expensive prefix match
         // won't block concurrent gets.
         pub fn delPrefix(self: *Self, allocator: Allocator, prefix: []const u8) !usize {
+            const io = self.io;
             var matching: std.ArrayList(*Entry) = .empty;
             defer matching.deinit(allocator);
 
-            self.mutex.lockShared();
+            self.mutex.lockSharedUncancelable(io);
             var it = self.lookup.iterator();
             while (it.next()) |map_entry| {
                 if (std.mem.startsWith(u8, map_entry.key_ptr.*, prefix)) {
                     try matching.append(allocator, map_entry.value_ptr.*);
                 }
             }
-            self.mutex.unlockShared();
+            self.mutex.unlockShared(io);
 
             const entries = matching.items;
             if (entries.len == 0) {
@@ -265,7 +275,7 @@ pub fn Segment(comptime T: type) type {
             }
 
             var lookup = &self.lookup;
-            self.mutex.lock();
+            self.mutex.lockUncancelable(io);
             for (entries) |entry| {
                 // Use saturating subtraction to handle race condition where
                 // entry was already deleted between shared and exclusive lock
@@ -273,12 +283,12 @@ pub fn Segment(comptime T: type) type {
                     self.size = self.size -| entry._size;
                 }
             }
-            self.mutex.unlock();
+            self.mutex.unlock(io);
 
             // list and entry have their own thread safety
             var list = &self.list;
             for (entries) |entry| {
-                list.remove(entry._node);
+                list.remove(io, entry._node);
                 entry.release();
             }
 

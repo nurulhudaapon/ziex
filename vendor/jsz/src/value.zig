@@ -138,7 +138,7 @@ pub const Value = enum(u64) {
     /// Get the value of a property of an object.
     pub fn get(self: Value, n: []const u8) !Value {
         if (self.typeOf() != .object) return js.Error.InvalidType;
-        var result: u64 = @bitCast(js.Ref.undefined);
+        var result: u64 = undefined;
         ext.valueGet(&result, self.ref().id, n.ptr, n.len);
         return @enumFromInt(result);
     }
@@ -198,11 +198,9 @@ pub const Value = enum(u64) {
         const buf = try alloc.alloc(u8, @intCast(len));
         errdefer alloc.free(buf);
 
-        // Copy the string into the buffer
-        if (buf.len == 0) return buf;
-
-        // Copy the string into the buffer
-        ext.valueStringCopy(self.ref().id, buf.ptr, buf.len);
+        // Skip the copy for empty strings — buf.ptr is an undefined sentinel
+        // for zero-length slices and passing it to JS triggers a RangeError.
+        if (buf.len != 0) ext.valueStringCopy(self.ref().id, buf.ptr, buf.len);
 
         return buf;
     }

@@ -40,7 +40,7 @@ pub fn deinit() void {
     // that we deinit properly in our tests.
 
     values.deinit(alloc);
-    values = .{};
+    values = .empty;
 }
 
 pub fn valueGet(out: *u64, id: u32, addr: [*]const u8, len: usize) void {

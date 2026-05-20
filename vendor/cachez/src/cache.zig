@@ -3,6 +3,7 @@ const std = @import("std");
 pub const Entry = @import("entry.zig").Entry;
 const Segment = @import("segment.zig").Segment;
 
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
 pub const Config = struct {
@@ -25,7 +26,7 @@ pub fn Cache(comptime T: type) type {
 
         const Self = @This();
 
-        pub fn init(allocator: Allocator, config: Config) !Self {
+        pub fn init(io: Io, allocator: Allocator, config: Config) !Self {
             const segment_count = config.segment_count;
             if (segment_count == 0) return error.SegmentBucketNotPower2;
             // has to be a power of 2
@@ -43,7 +44,7 @@ pub fn Cache(comptime T: type) type {
 
             const segments = try allocator.alloc(Segment(T), segment_count);
             for (0..segment_count) |i| {
-                segments[i] = Segment(T).init(allocator, segment_config);
+                segments[i] = Segment(T).init(io, allocator, segment_config);
             }
 
             return .{
@@ -100,7 +101,7 @@ pub fn Cache(comptime T: type) type {
 
         fn getSegment(self: *const Self, key: []const u8) *Segment(T) {
             const hash_code = std.hash.Wyhash.hash(0, key);
-            return &self.segments[@intCast(hash_code & self.segment_mask)];
+            return &self.segments[hash_code & self.segment_mask];
         }
     };
 }
@@ -111,10 +112,10 @@ test {
 
 const t = @import("t.zig");
 test "cache: invalid config" {
-    try t.expectError(error.SegmentBucketNotPower2, Cache(u8).init(t.allocator, .{ .segment_count = 0 }));
-    try t.expectError(error.SegmentBucketNotPower2, Cache(u8).init(t.allocator, .{ .segment_count = 3 }));
-    try t.expectError(error.SegmentBucketNotPower2, Cache(u8).init(t.allocator, .{ .segment_count = 10 }));
-    try t.expectError(error.SegmentBucketNotPower2, Cache(u8).init(t.allocator, .{ .segment_count = 30 }));
+    try t.expectError(error.SegmentBucketNotPower2, Cache(u8).init(t.io, t.allocator, .{ .segment_count = 0 }));
+    try t.expectError(error.SegmentBucketNotPower2, Cache(u8).init(t.io, t.allocator, .{ .segment_count = 3 }));
+    try t.expectError(error.SegmentBucketNotPower2, Cache(u8).init(t.io, t.allocator, .{ .segment_count = 10 }));
+    try t.expectError(error.SegmentBucketNotPower2, Cache(u8).init(t.io, t.allocator, .{ .segment_count = 30 }));
 }
 
 test "cache: get null" {
@@ -130,21 +131,21 @@ test "cache: get / set / del" {
 
     try cache.put("k1", 1, .{});
     const e1 = cache.get("k1").?;
-    try t.expectEqual(false, e1.expired());
+    try t.expectEqual(false, e1.expired(t.io));
     try t.expectEqual(@as(i32, 1), e1.value);
     try t.expectEqual(true, cache.contains("k1"));
     e1.release();
 
     try cache.put("k2", 2, .{});
     const e2 = cache.get("k2").?;
-    try t.expectEqual(false, e2.expired());
+    try t.expectEqual(false, e2.expired(t.io));
     try t.expectEqual(@as(i32, 2), e2.value);
     try t.expectEqual(true, cache.contains("k2"));
     e2.release();
 
     try cache.put("k1", 1, .{});
     var e1a = cache.get("k1").?;
-    try t.expectEqual(false, e1a.expired());
+    try t.expectEqual(false, e1a.expired(t.io));
     try t.expectEqual(@as(i32, 1), e1a.value);
     try t.expectEqual(true, cache.contains("k2"));
     e1a.release();
@@ -170,13 +171,13 @@ test "cache: get expired" {
     try cache.put("k1", 1, .{ .ttl = 0 });
     const e1a = cache.getEntry("k1").?;
     defer e1a.release();
-    try t.expectEqual(true, e1a.expired());
+    try t.expectEqual(true, e1a.expired(t.io));
     try t.expectEqual(@as(i32, 1), e1a.value);
 
     // getEntry on expired won't remove it, it's like a peek
     const e1b = cache.getEntry("k1").?;
     defer e1b.release();
-    try t.expectEqual(true, e1b.expired());
+    try t.expectEqual(true, e1b.expired(t.io));
     try t.expectEqual(@as(i32, 1), e1b.value);
 
     // contains on expired won't remove it either
@@ -196,19 +197,19 @@ test "cache: ttl" {
     try cache.put("k1", 1, .{});
     const e1 = cache.get("k1").?;
     defer e1.release();
-    const ttl1 = e1.ttl();
+    const ttl1 = e1.ttl(t.io);
     try t.expectEqual(true, ttl1 >= 299 and ttl1 <= 300);
 
     // explicit ttl
     try cache.put("k2", 1, .{ .ttl = 60 });
     const e2 = cache.get("k2").?;
     defer e2.release();
-    const ttl2 = e2.ttl();
+    const ttl2 = e2.ttl(t.io);
     try t.expectEqual(true, ttl2 >= 59 and ttl2 <= 60);
 }
 
 test "cache: get promotion" {
-    var cache = try Cache(i32).init(t.allocator, .{ .segment_count = 1, .gets_per_promote = 3 });
+    var cache = try Cache(i32).init(t.io, t.allocator, .{ .segment_count = 1, .gets_per_promote = 3 });
     defer cache.deinit();
 
     try cache.put("k1", 1, .{});
@@ -234,7 +235,7 @@ test "cache: get promotion" {
 }
 
 test "cache: get promotion expired" {
-    var cache = try Cache(i32).init(t.allocator, .{ .segment_count = 1, .gets_per_promote = 3 });
+    var cache = try Cache(i32).init(t.io, t.allocator, .{ .segment_count = 1, .gets_per_promote = 3 });
     defer cache.deinit();
 
     try cache.put("k1", 1, .{ .ttl = 0 });
@@ -285,7 +286,7 @@ test "cache: fetch" {
 }
 
 test "cache: enforce max_size" {
-    var cache = try Cache(i32).init(t.allocator, .{ .max_size = 5, .segment_count = 1 });
+    var cache = try Cache(i32).init(t.io, t.allocator, .{ .max_size = 5, .segment_count = 1 });
     defer cache.deinit();
 
     try cache.put("k1", 1, .{});
@@ -309,7 +310,7 @@ test "cache: enforce max_size" {
 }
 
 test "cache: enforce sized() " {
-    var cache = try Cache(TestSized).init(t.allocator, .{ .max_size = 12, .segment_count = 1 });
+    var cache = try Cache(TestSized).init(t.io, t.allocator, .{ .max_size = 12, .segment_count = 1 });
     defer cache.deinit();
 
     try cache.put("k1", .{ .id = 1, .s = 1 }, .{});
@@ -327,14 +328,14 @@ test "cache: enforce sized() " {
 }
 
 test "cache: get max_size" {
-    var cache = try Cache(i32).init(t.allocator, .{ .max_size = 1100, .segment_count = 8 });
+    var cache = try Cache(i32).init(t.io, t.allocator, .{ .max_size = 1100, .segment_count = 8 });
     defer cache.deinit();
 
     try t.expectEqual(@as(usize, 1096), cache.maxSize());
 }
 
 test "cache: delPrefix" {
-    var cache = try Cache(i32).init(t.allocator, .{ .max_size = 100 });
+    var cache = try Cache(i32).init(t.io, t.allocator, .{ .max_size = 100 });
     defer cache.deinit();
 
     try cache.put("a1", 1, .{});
@@ -367,7 +368,7 @@ test "cache: delPrefix" {
 
 // if NotifiedValue.deinit isn't called, we expect a memory leak to be detected
 test "cache: entry has deinit" {
-    var cache = try Cache(NotifiedValue).init(t.allocator, .{ .segment_count = 1, .max_size = 2 });
+    var cache = try Cache(NotifiedValue).init(t.io, t.allocator, .{ .segment_count = 1, .max_size = 2 });
     defer cache.deinit();
 
     try cache.put("k1", NotifiedValue.init("abc"), .{});

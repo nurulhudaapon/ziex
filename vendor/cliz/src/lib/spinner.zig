@@ -72,7 +72,7 @@ allocator: Allocator,
 writer: *Io.Writer,
 reader: *Io.Reader,
 thread: ?Thread = null,
-mutex: Thread.Mutex = .{},
+mutex: Io.Mutex = .init,
 
 /// Initiate a new Spinner instance.
 ///
@@ -108,8 +108,9 @@ pub fn print(self: *Spinner, comptime format: []const u8, args: anytype) !void {
 pub fn start(self: *Spinner, comptime format: []const u8, args: anytype) !void {
     // if (self.is_spinning.load(.monotonic)) return; // already running
 
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    const io = std.Io.Threaded.global_single_threaded.io();
+    self.mutex.lockUncancelable(io);
+    defer self.mutex.unlock(io);
 
     self.is_spinning.store(true, .release);
 
@@ -133,8 +134,9 @@ pub fn stop(self: *Spinner) void {
 }
 
 pub fn updateStyle(self: *Spinner, options: SpinnerOptions) void {
-    self.mutex.lock();
-    defer self.mutex.unlock();
+    const io = std.Io.Threaded.global_single_threaded.io();
+    self.mutex.lockUncancelable(io);
+    defer self.mutex.unlock(io);
 
     self.frame_index.store(0, .release);
 
@@ -199,7 +201,7 @@ fn spinLoop(self: *Spinner) void {
 
         self.frame_index.store((index + 1) % self.frames.len, .release);
 
-        Thread.sleep(self.refresh_rate_ms);
+        _ = std.c.nanosleep(&.{ .sec = 0, .nsec = @intCast(self.refresh_rate_ms * std.time.ns_per_ms) }, null);
     }
     self.writer.print("\r\x1b[2K", .{}) catch {}; // Clear the line one final time on exit
 }

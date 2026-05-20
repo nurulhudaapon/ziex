@@ -809,10 +809,10 @@ pub const Command = struct {
     ///  try root.execute(.{});
     ///  try writer.flush();
     /// ```
-    pub fn execute(self: *Command, context: struct { data: ?*anyopaque = null }) !void {
+    pub fn execute(self: *Command, context: struct { data: ?*anyopaque = null, process_args: std.process.Args }) !void {
         errdefer self.writer.flush() catch {};
 
-        var input = try std.process.argsWithAllocator(self.allocator);
+        var input = try context.process_args.iterateAllocator(self.allocator);
         defer input.deinit();
         _ = input.skip(); // skip program name
 

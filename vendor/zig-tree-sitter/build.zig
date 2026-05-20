@@ -98,14 +98,12 @@ pub fn build(b: *std.Build) !void {
 
     // HACK: fetch tree-sitter-c only for tests (ziglang/zig#19914)
     if (b.pkg_hash.len > 0) return;
-    var args = try std.process.argsWithAllocator(b.allocator);
-    defer args.deinit();
-    while (args.next()) |a| {
-        if (std.mem.eql(u8, a, "test")) {
-            const dep = b.lazyDependency("tree-sitter-c", .{
-                .target = target,
-                .optimize = optimize,
-            }) orelse continue;
+    if (b.option(bool, "test", "Fetch test dependencies") orelse false) {
+        const ts_c_dep = b.lazyDependency("tree-sitter-c", .{
+            .target = target,
+            .optimize = optimize,
+        });
+        if (ts_c_dep) |dep| {
             const depmod = dep.module("tree-sitter-c");
             depmod.addImport("tree-sitter", module);
             test_mod.addImport("tree-sitter-c", depmod);
@@ -120,8 +118,6 @@ pub fn build(b: *std.Build) !void {
                     .root_source_file = wasm_file,
                 });
             }
-
-            break;
         }
     }
 }

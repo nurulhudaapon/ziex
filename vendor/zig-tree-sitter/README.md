@@ -3,7 +3,7 @@
 [![CI][ci]](https://github.com/tree-sitter/zig-tree-sitter/actions/workflows/ci.yml)
 [![docs][docs]](https://tree-sitter.github.io/zig-tree-sitter/)
 
-Zig bindings to the [tree-sitter] parsing library.
+Zig bindings to the [tree-sitter] parsing library. Needs zig 0.16.
 
 ## Usage
 
@@ -35,7 +35,7 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
-    exe.linkLibrary(tree_sitter_zig.artifact("tree-sitter-zig"));
+    exe.root_module.linkLibrary(tree_sitter_zig.artifact("tree-sitter-zig"));
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());

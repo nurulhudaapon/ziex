@@ -1,12 +1,13 @@
 const std = @import("std");
 
+const Io = std.Io;
 const Allocator = std.mem.Allocator;
 
 pub fn List(comptime T: type) type {
     return struct {
         head: ?*Node,
         tail: ?*Node,
-        mutex: std.Thread.Mutex,
+        mutex: Io.Mutex,
 
         pub const Node = struct {
             value: T,
@@ -20,34 +21,34 @@ pub fn List(comptime T: type) type {
             return .{
                 .head = null,
                 .tail = null,
-                .mutex = .{},
+                .mutex = .init,
             };
         }
 
-        pub fn insert(self: *Self, node: *Node) void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+        pub fn insert(self: *Self, io: Io, node: *Node) void {
+            self.mutex.lockUncancelable(io);
+            defer self.mutex.unlock(io);
             self.moveToFrontLocked(node);
         }
 
-        pub fn moveToFront(self: *Self, node: *Node) void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+        pub fn moveToFront(self: *Self, io: Io, node: *Node) void {
+            self.mutex.lockUncancelable(io);
+            defer self.mutex.unlock(io);
             self.removeLocked(node);
             self.moveToFrontLocked(node);
         }
 
-        pub fn moveToTail(self: *Self, node: *Node) void {
-            self.mutex.lock();
-            defer self.mutex.unlock();
+        pub fn moveToTail(self: *Self, io: Io, node: *Node) void {
+            self.mutex.lockUncancelable(io);
+            defer self.mutex.unlock(io);
             self.removeLocked(node);
             self.moveToTailLocked(node);
         }
 
-        pub fn remove(self: *Self, node: *Node) void {
-            self.mutex.lock();
+        pub fn remove(self: *Self, io: Io, node: *Node) void {
+            self.mutex.lockUncancelable(io);
             self.removeLocked(node);
-            self.mutex.unlock();
+            self.mutex.unlock(io);
             node.next = null;
             node.prev = null;
         }
@@ -116,27 +117,27 @@ test "list: insert/remove" {
     try testList(list, &.{});
 
     var e1 = List(i32).Node{ .value = 1 };
-    list.insert(&e1);
+    list.insert(t.io, &e1);
     try testList(list, &.{1});
-    list.remove(&e1);
+    list.remove(t.io, &e1);
     try testList(list, &.{});
-    list.insert(&e1);
+    list.insert(t.io, &e1);
 
     var e2 = List(i32).Node{ .value = 2 };
-    list.insert(&e2);
+    list.insert(t.io, &e2);
     try testList(list, &.{ 2, 1 });
-    list.remove(&e2);
+    list.remove(t.io, &e2);
     try testList(list, &.{1});
-    list.insert(&e2);
+    list.insert(t.io, &e2);
 
     var e3 = List(i32).Node{ .value = 3 };
-    list.insert(&e3);
+    list.insert(t.io, &e3);
     try testList(list, &.{ 3, 2, 1 });
-    list.remove(&e1);
+    list.remove(t.io, &e1);
     try testList(list, &.{ 3, 2 });
-    list.remove(&e2);
+    list.remove(t.io, &e2);
     try testList(list, &.{3});
-    list.remove(&e3);
+    list.remove(t.io, &e3);
     try testList(list, &.{});
 }
 
@@ -144,26 +145,26 @@ test "list: moveToFront" {
     var list = List(i32).init();
 
     var e1 = List(i32).Node{ .value = 1 };
-    list.insert(&e1);
-    list.moveToFront(&e1);
+    list.insert(t.io, &e1);
+    list.moveToFront(t.io, &e1);
     try testList(list, &.{1});
 
     var e2 = List(i32).Node{ .value = 2 };
-    list.insert(&e2);
-    list.moveToFront(&e2);
+    list.insert(t.io, &e2);
+    list.moveToFront(t.io, &e2);
     try testList(list, &.{ 2, 1 });
-    list.moveToFront(&e1);
+    list.moveToFront(t.io, &e1);
     try testList(list, &.{ 1, 2 });
-    list.moveToFront(&e2);
+    list.moveToFront(t.io, &e2);
     try testList(list, &.{ 2, 1 });
 
     var e3 = List(i32).Node{ .value = 3 };
-    list.insert(&e3);
-    list.moveToFront(&e3);
+    list.insert(t.io, &e3);
+    list.moveToFront(t.io, &e3);
     try testList(list, &.{ 3, 2, 1 });
-    list.moveToFront(&e1);
+    list.moveToFront(t.io, &e1);
     try testList(list, &.{ 1, 3, 2 });
-    list.moveToFront(&e2);
+    list.moveToFront(t.io, &e2);
     try testList(list, &.{ 2, 1, 3 });
 }
 
@@ -171,26 +172,26 @@ test "list: moveToTail" {
     var list = List(i32).init();
 
     var e1 = List(i32).Node{ .value = 1 };
-    list.insert(&e1);
-    list.moveToTail(&e1);
+    list.insert(t.io, &e1);
+    list.moveToTail(t.io, &e1);
     try testList(list, &.{1});
 
     var e2 = List(i32).Node{ .value = 2 };
-    list.insert(&e2);
-    list.moveToTail(&e2);
+    list.insert(t.io, &e2);
+    list.moveToTail(t.io, &e2);
     try testList(list, &.{ 1, 2 });
-    list.moveToTail(&e1);
+    list.moveToTail(t.io, &e1);
     try testList(list, &.{ 2, 1 });
-    list.moveToTail(&e2);
+    list.moveToTail(t.io, &e2);
     try testList(list, &.{ 1, 2 });
 
     var e3 = List(i32).Node{ .value = 3 };
-    list.insert(&e3);
-    list.moveToTail(&e3);
+    list.insert(t.io, &e3);
+    list.moveToTail(t.io, &e3);
     try testList(list, &.{ 1, 2, 3 });
-    list.moveToTail(&e1);
+    list.moveToTail(t.io, &e1);
     try testList(list, &.{ 2, 3, 1 });
-    list.moveToTail(&e2);
+    list.moveToTail(t.io, &e2);
     try testList(list, &.{ 3, 1, 2 });
 }
 
@@ -200,13 +201,13 @@ test "list: removeTail" {
     var e1 = List(i32).Node{ .value = 1 };
     var e2 = List(i32).Node{ .value = 2 };
     var e3 = List(i32).Node{ .value = 3 };
-    list.insert(&e1);
+    list.insert(t.io, &e1);
     try t.expectEqual(@as(i32, 1), list.removeTail().?.value);
     try testList(list, &.{});
 
-    list.insert(&e1);
-    list.insert(&e2);
-    list.insert(&e3);
+    list.insert(t.io, &e1);
+    list.insert(t.io, &e2);
+    list.insert(t.io, &e3);
     try t.expectEqual(@as(i32, 1), list.removeTail().?.value);
     try testList(list, &.{ 3, 2 });
 

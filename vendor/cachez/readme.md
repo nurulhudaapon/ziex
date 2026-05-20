@@ -1,11 +1,15 @@
 A thread-safe, expiration-aware, LRU(ish) cache for Zig
 
+## Zig Version
+This is for Zig 0.16.0. Use the [zig-0.15](https://github.com/karlseguin/cached.zig/tree/zig-0.15) branch for Zig 0.15 or the [dev](https://github.com/karlseguin/cached.zig/tree/dev) which may or may not be up to date with zig dev.
+
+## Example
 
 ```zig
 // package available using Zig's built-in package manager
 const user_cache = @import("cache");
 
-var user_cache = try cache.Cache(User).init(allocator, .{.max_size = 10000});
+var user_cache = try cache.Cache(User).init(io, allocator, .{.max_size = 10000});
 defer user_cache.deinit();
 
 try user_cache.put("user1", user1, .{.ttl = 300});
@@ -26,7 +30,7 @@ _ = user_cache.del("user1");
 
 `getEntry` can be used to return the entry even if it has expired. While `getEntry` will return en expired item, it will not promote a expired item in the recency list. The main purpose is to allow the caller to serve a stale value while fetching a new one.
 
-In either case, the entry's `ttl() i64` method can be used to return the number of seconds until the entry expires. This will be negative if the entry has already expired. The `expired() bool` method will return `true` if the entry is expired.
+In either case, the entry's `ttl(std.Io) i64` method can be used to return the number of seconds until the entry expires. This will be negative if the entry has already expired. The `expired(std.Io) bool` method will return `true` if the entry is expired. (Both of these methods take an `std.Io` parameter as to avoid having to store a reference in every `Entry` instance)
 
 `release` must be called on the returned entry.
 

@@ -132,6 +132,7 @@ export class ZigJS {
     const val = this.loadValue(id);
     const bytes = encoder.encode(val);
     if (bytes.byteLength > max) return;
+    if (bytes.length === 0) return;
     new Uint8Array(this.memory.buffer, ptr, bytes.length).set(bytes);
   }
 
@@ -226,12 +227,6 @@ export class ZigJS {
 
     if (val === undefined) {
       view.setUint32(out, predefined.undefined, true);
-      view.setUint32(out + 4, NAN_PREFIX, true);
-      return;
-    }
-
-    if (typeof val === "boolean") {
-      view.setUint32(out, val ? predefined.true : predefined.false, true);
       view.setUint32(out + 4, NAN_PREFIX, true);
       return;
     }

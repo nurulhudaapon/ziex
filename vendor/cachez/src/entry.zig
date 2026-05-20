@@ -55,12 +55,12 @@ pub fn Entry(comptime T: type) type {
             };
         }
 
-        pub fn expired(self: *Self) bool {
-            return self.ttl() <= 0;
+        pub fn expired(self: *Self, io: std.Io) bool {
+            return self.ttl(io) <= 0;
         }
 
-        pub fn ttl(self: *Self) i64 {
-            return self.expires - std.time.timestamp();
+        pub fn ttl(self: *Self, io: std.Io) i64 {
+            return self.expires - std.Io.Timestamp.now(io, .real).toSeconds();
         }
 
         pub fn hit(self: *Self) u8 {
