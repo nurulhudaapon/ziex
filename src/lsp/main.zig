@@ -41,20 +41,18 @@ pub fn main(init: std.process.Init) !void {
     };
     defer if (global_cache_path) |p| gpa.free(p);
 
-    // var config = zls.Config{
-    //     .global_cache_path = global_cache_path,
-    //     // .enable_build_on_save = false,
-    //     // .prefer_ast_check_as_child_process = false,
-    // };
-
     var cm = zls.configuration.Manager.init(init.io, gpa, init.environ_map) catch unreachable;
 
-    const zls_server = zls.Server.create(.{
+    try cm.setConfiguration(.frontend, &.{
+        .global_cache_path = global_cache_path,
+    });
+
+    const zls_server = try zls.Server.create(.{
         .io = init.io,
         .allocator = gpa,
         .transport = transport,
         .config_manager = &cm,
-    }) catch unreachable;
+    });
 
     var handler: Handler = .init(gpa, zls_server, transport, init.io);
     defer handler.deinit();
@@ -119,23 +117,16 @@ pub const Handler = struct {
     }
 
     fn toZigUri(allocator: std.mem.Allocator, zx_uri: []const u8) ![]const u8 {
-        const base = zx_uri[0 .. zx_uri.len - 3];
-        return std.fmt.allocPrint(allocator, "{s}.zig", .{base});
+        return allocator.dupe(u8, zx_uri);
     }
 
-    /// Get the ZLS-facing URI for a document (maps .zx → .zig, passes others through).
     fn getZlsUri(handler: *Handler, uri: []const u8) []const u8 {
-        if (handler.zx_files.get(uri)) |state| return state.zig_uri;
+        _ = handler;
         return uri;
     }
 
     fn getEditorUri(handler: *Handler, uri: []const u8) []const u8 {
-        var it = handler.zx_files.iterator();
-        while (it.next()) |entry| {
-            if (std.mem.eql(u8, entry.value_ptr.zig_uri, uri)) {
-                return entry.key_ptr.*;
-            }
-        }
+        _ = handler;
         return uri;
     }
 
@@ -189,35 +180,6 @@ pub const Handler = struct {
         var remapped = result;
         handler.remapUrisInValue(&remapped);
         return remapped;
-    }
-
-    /// Rewrite `@import("*.zx")` → `@import("*.zig")` so ZLS can resolve cross-file imports.
-    fn rewriteZxImports(allocator: std.mem.Allocator, source: []const u8) ?[]const u8 {
-        const needle = "@import(\"";
-        var buf = std.ArrayList(u8).empty;
-        var copied_to: usize = 0;
-        var search_from: usize = 0;
-        var found_any = false;
-
-        while (std.mem.indexOfPos(u8, source, search_from, needle)) |start| {
-            const path_start = start + needle.len;
-            if (std.mem.indexOfPos(u8, source, path_start, "\")")) |path_end| {
-                const import_path = source[path_start..path_end];
-                if (std.mem.endsWith(u8, import_path, ".zx")) {
-                    found_any = true;
-                    const ext_start = path_end - 3; // points to ".zx"
-                    buf.appendSlice(allocator, source[copied_to..ext_start]) catch return null;
-                    buf.appendSlice(allocator, ".zig") catch return null;
-                    copied_to = path_end; // resume copying after ".zx"
-                }
-                search_from = path_end + 2;
-            } else break;
-        }
-
-        if (!found_any) return null;
-
-        buf.appendSlice(allocator, source[copied_to..]) catch return null;
-        return buf.toOwnedSlice(allocator) catch null;
     }
 
     /// Resolve file:// URI to a filesystem path (strips the file:// prefix).
@@ -278,9 +240,6 @@ pub const Handler = struct {
 
         const zls_text: []const u8 = if (parse_result) |r| r.zig_source else content;
 
-        const rewritten = rewriteZxImports(handler.allocator, zls_text) orelse zls_text;
-        defer if (rewritten.ptr != zls_text.ptr) handler.allocator.free(rewritten);
-
         handler.openZxImportsInZls(arena, zx_uri, content);
 
         handler.zls.sendNotificationSync(arena, "textDocument/didOpen", .{
@@ -288,7 +247,7 @@ pub const Handler = struct {
                 .uri = zig_uri,
                 .languageId = .{ .custom_value = "zig" },
                 .version = @as(i32, 0),
-                .text = rewritten,
+                .text = zls_text,
             },
         }) catch {};
     }
@@ -524,7 +483,7 @@ pub const Handler = struct {
         handler.zls.sendNotificationSync(arena, "exit", {}) catch {};
     }
 
-    // -- Document sync: send raw .zx source to ZLS (as .zig URI) --
+    // -- Document sync: forward .zx documents to ZLS under their real .zx URI --
 
     /// https://microsoft.github.io/language-server-protocol/specifications/specification-current/#textDocument_didOpen
     pub fn @"textDocument/didOpen"(
@@ -536,10 +495,6 @@ pub const Handler = struct {
             handler.storeAndDiagnose(params.textDocument.uri, params.textDocument.text);
             const zig_uri = handler.getZlsUri(params.textDocument.uri);
 
-            // Rewrite .zx imports to .zig so ZLS can resolve them
-            const zls_text = rewriteZxImports(handler.allocator, params.textDocument.text) orelse params.textDocument.text;
-            defer if (zls_text.ptr != params.textDocument.text.ptr) handler.allocator.free(zls_text);
-
             handler.openZxImportsInZls(arena, params.textDocument.uri, params.textDocument.text);
 
             handler.zls.sendNotificationSync(arena, "textDocument/didOpen", .{
@@ -547,7 +502,7 @@ pub const Handler = struct {
                     .uri = zig_uri,
                     .languageId = .{ .custom_value = "zig" },
                     .version = params.textDocument.version,
-                    .text = zls_text,
+                    .text = params.textDocument.text,
                 },
             }) catch {};
             return;
@@ -592,10 +547,6 @@ pub const Handler = struct {
 
             handler.storeAndDiagnose(params.textDocument.uri, full_text);
 
-            // Rewrite .zx imports to .zig so ZLS can resolve them
-            const zls_text = rewriteZxImports(handler.allocator, full_text) orelse full_text;
-            defer if (zls_text.ptr != full_text.ptr) handler.allocator.free(zls_text);
-
             handler.openZxImportsInZls(arena, params.textDocument.uri, full_text);
 
             const zig_uri = handler.getZlsUri(params.textDocument.uri);
@@ -604,7 +555,7 @@ pub const Handler = struct {
                     .uri = zig_uri,
                     .version = params.textDocument.version,
                 },
-                .contentChanges = &.{.{ .text_document_content_change_whole_document = .{ .text = zls_text } }},
+                .contentChanges = &.{.{ .text_document_content_change_whole_document = .{ .text = full_text } }},
             }) catch {};
             return;
         }
