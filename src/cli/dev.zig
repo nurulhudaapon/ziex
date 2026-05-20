@@ -425,14 +425,14 @@ fn isLikelyRunnableFile(name: []const u8) bool {
 
 /// Print the first captured line (prefer stderr, fallback to stdout)
 fn printFirstLine(output: *util.ChildOutput, is_first_run: bool) void {
-    if (output.getLastStderrLine()) |first_line| {
+    if (output.consumeFirstStderrLine()) |first_line| {
         if (first_line.len > 0) {
             if (!is_first_run) {
                 std.debug.print("{s}╭─{s}[{s}Application Logs{s}]\n", .{ Colors.gray, Colors.reset, Colors.purple, Colors.reset });
             }
             std.debug.print("{s}\n", .{first_line});
         }
-    } else if (output.getLastStdoutLine()) |first_line| {
+    } else if (output.consumeFirstStdoutLine()) |first_line| {
         if (first_line.len > 0) {
             std.debug.print("{s}\n", .{first_line});
         }

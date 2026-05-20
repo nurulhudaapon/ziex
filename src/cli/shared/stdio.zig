@@ -94,6 +94,8 @@ const StreamContext = struct {
     done_flag: bool = false,
     first_line_captured: std.Io.Mutex = .init,
     first_line_captured_flag: bool = false,
+    first_line_copied_to_target: bool = false,
+    main_thread_done_waiting: bool = false,
 };
 
 /// Output handles for child process streams
@@ -128,10 +130,41 @@ pub const ChildOutput = struct {
         return self.stdout.last_line;
     }
 
+    pub fn consumeFirstStderrLine(self: *const ChildOutput) ?[]const u8 {
+        const io = self.stderr.io;
+        self.stderr.first_line_captured.lockUncancelable(io);
+        defer self.stderr.first_line_captured.unlock(io);
+        if (self.stderr.last_line) |line| {
+            self.stderr.first_line_copied_to_target = true;
+            return line;
+        }
+        return null;
+    }
+
+    pub fn consumeFirstStdoutLine(self: *const ChildOutput) ?[]const u8 {
+        const io = self.stdout.io;
+        self.stdout.first_line_captured.lockUncancelable(io);
+        defer self.stdout.first_line_captured.unlock(io);
+        if (self.stdout.last_line) |line| {
+            self.stdout.first_line_copied_to_target = true;
+            return line;
+        }
+        return null;
+    }
+
     /// Wait for the first line to be captured (for first_line_then_transparent mode).
     /// Returns false if no line arrived before timeout_ms.
     pub fn waitForFirstLine(self: *const ChildOutput, timeout_ms: u64) bool {
         var elapsed_ms: u64 = 0;
+        defer {
+            self.stderr.first_line_captured.lockUncancelable(self.stderr.io);
+            self.stderr.main_thread_done_waiting = true;
+            self.stderr.first_line_captured.unlock(self.stderr.io);
+
+            self.stdout.first_line_captured.lockUncancelable(self.stdout.io);
+            self.stdout.main_thread_done_waiting = true;
+            self.stdout.first_line_captured.unlock(self.stdout.io);
+        }
         while (true) {
             const stderr_captured = blk: {
                 self.stderr.first_line_captured.lockUncancelable(self.stderr.io);
@@ -352,18 +385,23 @@ fn readChildStream(ctx: *StreamContext) void {
             // Mark first line as captured
             ctx.first_line_captured.lockUncancelable(io);
             ctx.first_line_captured_flag = true;
+
+            if (ctx.main_thread_done_waiting and !ctx.first_line_copied_to_target) {
+                if (ctx.last_line) |line| {
+                    writeToTarget(io, ctx.options.target, line) catch {};
+                    writeToTarget(io, ctx.options.target, "\n") catch {};
+                    ctx.first_line_copied_to_target = true;
+                }
+            }
             ctx.first_line_captured.unlock(io);
 
             // Continue in transparent mode - first line already consumed by streamDelimiter
-            var transparent_buffer: [4096]u8 = undefined;
-            var transparent_reader = ctx.file.readerStreaming(io, &transparent_buffer);
-            const trans_reader = &transparent_reader.interface;
-            while (trans_reader.readSliceShort(&transparent_buffer)) |bytes_read| {
+            while (io_reader.readSliceShort(&buffer)) |bytes_read| {
                 io.sleep(.fromMilliseconds(@intCast(ctx.options.transparent_delay_ms)), .awake) catch {};
 
                 if (bytes_read == 0) break;
 
-                const bytes = transparent_buffer[0..bytes_read];
+                const bytes = buffer[0..bytes_read];
 
                 // Use callback if provided, otherwise write to target
                 if (ctx.options.on_bytes) |callback| {
@@ -391,18 +429,13 @@ fn readChildStream(ctx: *StreamContext) void {
 fn writeToTarget(io: std.Io, target: OutputTarget, bytes: []const u8) !void {
     switch (target) {
         .stderr => {
-            const stderr_file = std.Io.File.stderr();
-            var writer = stderr_file.writerStreaming(io, undefined);
-            try writer.interface.writeAll(bytes);
+            try std.Io.File.stderr().writeStreamingAll(io, bytes);
         },
         .stdout => {
-            const stdout_file = std.Io.File.stdout();
-            var writer = stdout_file.writerStreaming(io, undefined);
-            try writer.interface.writeAll(bytes);
+            try std.Io.File.stdout().writeStreamingAll(io, bytes);
         },
         .file => |file| {
-            var writer = file.writerStreaming(io, undefined);
-            try writer.interface.writeAll(bytes);
+            try file.writeStreamingAll(io, bytes);
         },
         .writer => |writer| try writer.writeAll(bytes),
         .discard => {},
