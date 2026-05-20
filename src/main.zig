@@ -21,7 +21,7 @@ pub fn main(init: std.process.Init) !void {
     // }
 
     if (builtin.os.tag == .wasi) return try main_wasm(init);
-    // if (builtin.os.tag == .windows) _ = std.os.windows.kernel32.SetConsoleOutputCP(65001);
+    if (builtin.os.tag == .windows) _ = SetConsoleOutputCP(65001);
 
     var stdout_writer = std.Io.File.stdout().writerStreaming(init.io, &.{});
     var stdout = &stdout_writer.interface;
@@ -42,6 +42,8 @@ pub fn main(init: std.process.Init) !void {
 
     try stdout.flush();
 }
+
+extern "kernel32" fn SetConsoleOutputCP(wCodePageID: std.os.windows.UINT) callconv(.winapi) std.os.windows.BOOL;
 
 fn main_wasm(init: std.process.Init) !void {
     var dbg = std.heap.DebugAllocator(.{}).init;
