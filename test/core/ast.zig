@@ -1,5 +1,5 @@
 test "tests:beforeAll" {
-    gpa_state = std.heap.GeneralPurposeAllocator(.{}){};
+    gpa_state = std.heap.DebugAllocator(.{}){};
     const gpa = gpa_state.?.allocator();
     test_file_cache = try TestFileCache.init(gpa);
 }
@@ -390,9 +390,9 @@ test "flaky: performance > transpile" {
 
     var total_time_ns: f64 = 0.0;
     inline for (TestFileCache.test_files) |comptime_path| {
-        const start_time = std.time.nanoTimestamp();
+        const start_time = std.Io.Clock.awake.now(std.testing.io).nanoseconds;
         try test_transpile_inner(comptime_path, true);
-        const end_time = std.time.nanoTimestamp();
+        const end_time = std.Io.Clock.awake.now(std.testing.io).nanoseconds;
         const duration = @as(f64, @floatFromInt(end_time - start_time));
         total_time_ns += duration;
         const duration_ms = duration / std.time.ns_per_ms;
@@ -413,9 +413,9 @@ test "flaky: performance > render" {
 
     var total_time_ns: f64 = 0.0;
     inline for (TestFileCache.test_files) |comptime_path| {
-        const start_time = std.time.nanoTimestamp();
+        const start_time = std.Io.Clock.awake.now(std.testing.io).nanoseconds;
         try test_render_inner(comptime_path, true);
-        const end_time = std.time.nanoTimestamp();
+        const end_time = std.Io.Clock.awake.now(std.testing.io).nanoseconds;
         const duration = @as(f64, @floatFromInt(end_time - start_time));
         total_time_ns += duration;
         const duration_ms = duration / std.time.ns_per_ms;
@@ -456,13 +456,8 @@ fn test_transpile_inner(comptime file_path: []const u8, comptime no_expect: bool
     // Check for SS=1 environment variable
     if (isSnapshotMode()) {
         // Save the transpiled output to .zig file
-        const file = std.fs.cwd().createFile(output_zig_path, .{}) catch |err| {
+        std.Io.Dir.cwd().writeFile(std.testing.io, .{ .sub_path = output_zig_path, .data = result.zig_source }) catch |err| {
             std.debug.print("Failed to create snapshot file {s}: {}\n", .{ output_zig_path, err });
-            return err;
-        };
-        defer file.close();
-        file.writeAll(result.zig_source) catch |err| {
-            std.debug.print("Failed to write snapshot file {s}: {}\n", .{ output_zig_path, err });
             return err;
         };
         std.debug.print("Updated snapshot: {s}\n", .{output_zig_path});
@@ -597,13 +592,13 @@ fn test_render_inner_with_cmp(comptime file_path: []const u8, comptime cmp: fn (
 
     if (no_expect) {
         var trash: [4096]u8 = undefined;
-        var dw = std.io.Writer.Discarding.init(&trash);
+        var dw = std.Io.Writer.Discarding.init(&trash);
         try component.render(&dw.writer, .{});
         try testing.expect(dw.fullCount() > 0);
         return;
     }
 
-    var aw = std.io.Writer.Allocating.init(allocator);
+    var aw = std.Io.Writer.Allocating.init(allocator);
     defer aw.deinit();
     try component.render(&aw.writer, .{});
     const rendered = aw.written();
@@ -614,20 +609,15 @@ fn test_render_inner_with_cmp(comptime file_path: []const u8, comptime cmp: fn (
     // Check for SS=1 environment variable
     if (isSnapshotMode()) {
         // Save the rendered output to .html file
-        const file = std.fs.cwd().createFile(html_path, .{}) catch |err| {
+        std.Io.Dir.cwd().writeFile(std.testing.io, .{ .sub_path = html_path, .data = rendered }) catch |err| {
             std.log.err("Failed to create snapshot file {s}: {}\n", .{ html_path, err });
-            return err;
-        };
-        defer file.close();
-        file.writeAll(rendered) catch |err| {
-            std.log.err("Failed to write snapshot file {s}: {}\n", .{ html_path, err });
             return err;
         };
         return; // Skip comparison in snapshot mode
     }
 
     // Read expected HTML file directly
-    const expected_html = std.fs.cwd().readFileAlloc(allocator, html_path, std.math.maxInt(usize)) catch |err| {
+    const expected_html = std.Io.Dir.cwd().readFileAlloc(std.testing.io, html_path, allocator, .limited(std.math.maxInt(usize))) catch |err| {
         std.log.err("Expected HTML file not found: {s}\n", .{html_path});
         return err;
     };
@@ -643,17 +633,11 @@ fn expectLessThan(expected: f64, actual: f64) !void {
 }
 
 fn isSnapshotMode() bool {
-    // Cross-platform environment variable check
-    if (native_os == .windows) {
-        const val = std.process.getenvW(std.unicode.utf8ToUtf16LeStringLiteral("SS"));
-        return val != null;
-    } else {
-        return std.posix.getenv("SS") != null;
-    }
+    return std.c.getenv("SS") != null;
 }
 
 var test_file_cache: ?TestFileCache = null;
-var gpa_state: ?std.heap.GeneralPurposeAllocator(.{}) = null;
+var gpa_state: ?std.heap.DebugAllocator(.{}) = null;
 
 const native_os = @import("builtin").os.tag;
 const test_util = @import("./../util.zig");

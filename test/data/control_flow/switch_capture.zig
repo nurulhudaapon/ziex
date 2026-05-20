@@ -9,8 +9,8 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .allocator = allocator,
             .children = &.{
                 switch (member_user) {
-                    .admin => |_| _zx.txt("Admin"),
-                    .member => |_| _zx.txt("Member"),
+                    .admin => _zx.txt("Admin"),
+                    .member => _zx.txt("Member"),
                 },
                 switch (admin_user) {
                     .admin => |admin| _zx.ele(

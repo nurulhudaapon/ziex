@@ -5,8 +5,8 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
             {switch (member_user) {
-                .admin => |_| ("Admin"),
-                .member => |_| ("Member"),
+                .admin => ("Admin"),
+                .member => ("Member"),
             }}
             {switch (admin_user) {
                 .admin => |admin| (<p>Powerful - Level {admin.level}</p>),

@@ -1,5 +1,5 @@
 test "tests:beforeAll" {
-    gpa_state = std.heap.GeneralPurposeAllocator(.{}){};
+    gpa_state = std.heap.DebugAllocator(.{}){};
     const gpa = gpa_state.?.allocator();
     test_file_cache = try TestFileCache.init(gpa);
 }
@@ -337,9 +337,9 @@ test "performance > fmt" {
 
     var total_time_ns: f64 = 0.0;
     inline for (TestFileCache.test_files) |comptime_path| {
-        const start_time = std.time.nanoTimestamp();
+        const start_time = std.Io.Clock.awake.now(std.testing.io).nanoseconds;
         try test_fmt_inner(comptime_path, false, true);
-        const end_time = std.time.nanoTimestamp();
+        const end_time = std.Io.Clock.awake.now(std.testing.io).nanoseconds;
         const duration = @as(f64, @floatFromInt(end_time - start_time));
         total_time_ns += duration;
         const duration_ms = duration / std.time.ns_per_ms;
@@ -400,7 +400,7 @@ fn expectLessThan(expected: f64, actual: f64) !void {
 }
 
 var test_file_cache: ?TestFileCache = null;
-var gpa_state: ?std.heap.GeneralPurposeAllocator(.{}) = null;
+var gpa_state: ?std.heap.DebugAllocator(.{}) = null;
 const test_util = @import("./../util.zig");
 const TestFileCache = test_util.TestFileCache;
 const shouldRunSlowTest = test_util.shouldRunSlowTest;

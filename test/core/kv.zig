@@ -17,7 +17,8 @@ const UserAlias = struct {
 };
 
 fn uniqueLabel(comptime prefix: []const u8, buf: []u8) ![]const u8 {
-    const value = std.crypto.random.int(u64);
+    var source: std.Random.IoSource = .{ .io = std.testing.io };
+    const value = source.interface().int(u64);
     return std.fmt.bufPrint(buf, "{s}-{x}", .{ prefix, value });
 }
 

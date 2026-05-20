@@ -245,7 +245,7 @@ test "sm > all test files produce valid sourcemaps" {
     const allocator = testing.allocator;
 
     for (sm_test_files) |tf| {
-        const source = std.fs.cwd().readFileAlloc(allocator, tf.zx_path, std.math.maxInt(usize)) catch continue;
+        const source = std.Io.Dir.cwd().readFileAlloc(std.testing.io, tf.zx_path, allocator, .limited(std.math.maxInt(usize))) catch continue;
         defer allocator.free(source);
 
         const source_z = try allocator.dupeZ(u8, source);
@@ -288,7 +288,7 @@ test "sm > golden file mappings" {
     const allocator = testing.allocator;
 
     for (sm_test_files) |tf| {
-        const source = std.fs.cwd().readFileAlloc(allocator, tf.zx_path, std.math.maxInt(usize)) catch |err| {
+        const source = std.Io.Dir.cwd().readFileAlloc(std.testing.io, tf.zx_path, allocator, .limited(std.math.maxInt(usize))) catch |err| {
             std.debug.print("SKIP: {s}: {}\n", .{ tf.zx_path, err });
             continue;
         };
@@ -315,18 +315,16 @@ test "sm > golden file mappings" {
 
         if (isSnapshotMode()) {
             // Update golden file
-            const file = std.fs.cwd().createFile(map_path, .{}) catch |err| {
+            std.Io.Dir.cwd().writeFile(std.testing.io, .{ .sub_path = map_path, .data = actual }) catch |err| {
                 std.debug.print("Failed to create {s}: {}\n", .{ map_path, err });
                 return err;
             };
-            defer file.close();
-            try file.writeAll(actual);
             std.debug.print("Updated snapshot: {s}\n", .{map_path});
             continue;
         }
 
         // Compare against golden file
-        const expected = std.fs.cwd().readFileAlloc(allocator, map_path, std.math.maxInt(usize)) catch |err| {
+        const expected = std.Io.Dir.cwd().readFileAlloc(std.testing.io, map_path, allocator, .limited(std.math.maxInt(usize))) catch |err| {
             std.debug.print(
                 \\
                 \\FAIL: Golden file not found: {s}
@@ -357,10 +355,10 @@ test "sm > generate sourcemap debug files" {
     const allocator = testing.allocator;
 
     // Ensure output directory exists
-    std.fs.cwd().makePath(".zig-cache/tmp/.zx/sourcemap-debug") catch {};
+    std.Io.Dir.cwd().createDirPath(std.testing.io, ".zig-cache/tmp/.zx/sourcemap-debug") catch {};
 
     for (sm_test_files) |tf| {
-        const source = std.fs.cwd().readFileAlloc(allocator, tf.zx_path, std.math.maxInt(usize)) catch continue;
+        const source = std.Io.Dir.cwd().readFileAlloc(std.testing.io, tf.zx_path, allocator, .limited(std.math.maxInt(usize))) catch continue;
         defer allocator.free(source);
 
         const source_z = try allocator.dupeZ(u8, source);
@@ -432,16 +430,15 @@ const sm_test_files = [_]SmTestFile{
 /// Format per line: `src_line:src_col -> gen_line:gen_col | "src_token" => "gen_token"`
 /// The token snippets (up to 20 chars) help you visually verify correctness.
 fn formatMappings(allocator: std.mem.Allocator, entries: []const sourcemap.Mapping, zx_source: []const u8, zig_source: []const u8) ![]const u8 {
-    var buf = std.ArrayList(u8).empty;
-    errdefer buf.deinit(allocator);
-    const writer = buf.writer(allocator);
+    var aw: std.Io.Writer.Allocating = .init(allocator);
+    errdefer aw.deinit();
 
     for (entries) |m| {
         // Extract short token snippets from source and generated for context
         const src_snippet = getSnippet(zx_source, m.source_line, m.source_column);
         const gen_snippet = getSnippet(zig_source, m.generated_line, m.generated_column);
 
-        try writer.print("{d}:{d} -> {d}:{d} | \"{s}\" => \"{s}\"\n", .{
+        try aw.writer.print("{d}:{d} -> {d}:{d} | \"{s}\" => \"{s}\"\n", .{
             m.source_line,
             m.source_column,
             m.generated_line,
@@ -451,7 +448,7 @@ fn formatMappings(allocator: std.mem.Allocator, entries: []const sourcemap.Mappi
         });
     }
 
-    return buf.toOwnedSlice(allocator);
+    return aw.toOwnedSlice();
 }
 
 /// Extract a short snippet (up to 20 chars, stopping at newline) from source at line:col.
@@ -467,21 +464,19 @@ fn getSnippet(source: []const u8, line: i32, col: i32) []const u8 {
 }
 
 fn isSnapshotMode() bool {
-    const val = std.process.getEnvVarOwned(testing.allocator, "SS") catch return false;
+    const val = std.testing.environ.getAlloc(testing.allocator, "SS") catch return false;
     testing.allocator.free(val);
     return true;
 }
 
 fn shouldGenerateDebugFiles() bool {
-    const val = std.process.getEnvVarOwned(testing.allocator, "SM_DEBUG") catch return false;
+    const val = std.testing.environ.getAlloc(testing.allocator, "SM_DEBUG") catch return false;
     testing.allocator.free(val);
     return true;
 }
 
 fn writeFile(path: []const u8, content: []const u8) !void {
-    const file = try std.fs.cwd().createFile(path, .{});
-    defer file.close();
-    try file.writeAll(content);
+    try std.Io.Dir.cwd().writeFile(std.testing.io, .{ .sub_path = path, .data = content });
 }
 
 fn lineColToOffset(source: []const u8, line: i32, col: i32) ?usize {

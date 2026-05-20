@@ -849,13 +849,13 @@ test "flaky: performance > serialize" {
     const content_parsed = std.json.parseFromSlice([]SearchContent, testing.allocator, search_txt, .{}) catch unreachable;
     defer content_parsed.deinit();
 
-    const start = std.time.nanoTimestamp();
+    const start = std.Io.Clock.awake.now(std.testing.io).nanoseconds;
     for (0..ITERATIONS) |_| {
         var aw = std.Io.Writer.Allocating.init(testing.allocator);
         zxon.serialize(content_parsed.value, &aw.writer, .{}) catch {};
         aw.deinit();
     }
-    const total_ms = @as(f64, @floatFromInt(std.time.nanoTimestamp() - start)) / std.time.ns_per_ms;
+    const total_ms = @as(f64, @floatFromInt(std.Io.Clock.awake.now(std.testing.io).nanoseconds - start)) / std.time.ns_per_ms;
     const avg_ms = total_ms / ITERATIONS;
 
     std.debug.print("\x1b[33m⏲\x1b[0m zxon serialize \x1b[90m>\x1b[0m {d:.2}ms | Avg: {d:.4}ms\n", .{ total_ms, avg_ms });
@@ -879,12 +879,12 @@ test "flaky: performance > parse" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
 
-    const start = std.time.nanoTimestamp();
+    const start = std.Io.Clock.awake.now(std.testing.io).nanoseconds;
     for (0..ITERATIONS) |_| {
         _ = arena.reset(.retain_capacity);
         _ = zxon.parse([]SearchContent, arena.allocator(), zxon_data, .{}) catch {};
     }
-    const total_ms = @as(f64, @floatFromInt(std.time.nanoTimestamp() - start)) / std.time.ns_per_ms;
+    const total_ms = @as(f64, @floatFromInt(std.Io.Clock.awake.now(std.testing.io).nanoseconds - start)) / std.time.ns_per_ms;
     const avg_ms = total_ms / ITERATIONS;
 
     std.debug.print("\x1b[33m⏲\x1b[0m zxon parse \x1b[90m>\x1b[0m {d:.2}ms | Avg: {d:.4}ms\n", .{ total_ms, avg_ms });

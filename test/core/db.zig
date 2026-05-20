@@ -489,7 +489,7 @@ fn cleanupDatabaseFiles(path: []const u8) !void {
 }
 
 fn deleteIfExists(path: []const u8) !void {
-    std.fs.deleteFileAbsolute(path) catch |err| switch (err) {
+    std.Io.Dir.deleteFileAbsolute(std.testing.io, path) catch |err| switch (err) {
         error.FileNotFound => {},
         else => return err,
     };

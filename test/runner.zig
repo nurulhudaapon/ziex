@@ -25,17 +25,15 @@ const BORDER = "=" ** 80;
 // use in custom panic handler
 var current_test: ?[]const u8 = null;
 
-pub fn main() !void {
-    var mem: [8192]u8 = undefined;
-    var fba = std.heap.FixedBufferAllocator.init(&mem);
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.arena.allocator();
+    const io = std.testing.io;
 
-    const allocator = fba.allocator();
-
-    const env = Env.init(allocator);
+    const env = Env.init(allocator, init.minimal.environ);
     defer env.deinit(allocator);
 
-    var slowest = SlowTracker.init(allocator, 15);
-    defer slowest.deinit();
+    var slowest = SlowTracker.init(allocator, io, 15);
+    defer slowest.deinit(allocator);
 
     var pass: usize = 0;
     var fail: usize = 0;
@@ -102,10 +100,15 @@ pub fn main() !void {
         while (attempt < max_attempts) : (attempt += 1) {
             current_test = friendly_name;
             std.testing.allocator_instance = .{};
+            std.testing.io_instance = .init(std.testing.allocator, .{
+                .argv0 = .init(init.minimal.args),
+                .environ = init.minimal.environ,
+            });
             final_result = t.func();
+            std.testing.io_instance.deinit();
             current_test = null;
 
-            final_ns_taken = slowest.endTiming(scope_name, friendly_name);
+            final_ns_taken = slowest.endTiming(allocator, scope_name, friendly_name);
 
             if (std.testing.allocator_instance.deinit() == .leak) {
                 leak += 1;
@@ -151,7 +154,7 @@ pub fn main() !void {
                     Printer.status(.fail, "\n{s}\n\"{s}\" - {s}\n{s}\n", .{ BORDER, friendly_name, @errorName(err), BORDER });
                 }
                 if (@errorReturnTrace()) |trace| {
-                    std.debug.dumpStackTrace(trace.*);
+                    std.debug.dumpErrorReturnTrace(trace);
                 }
                 if (env.fail_first) {
                     break;
@@ -222,7 +225,7 @@ pub fn main() !void {
     Printer.fmt("\n", .{});
     try slowest.display();
     Printer.fmt("\n", .{});
-    std.posix.exit(if (fail == 0) 0 else 1);
+    std.process.exit(if (fail == 0) 0 else 1);
 }
 
 const Printer = struct {
@@ -254,15 +257,16 @@ const SlowTracker = struct {
     const SlowestQueue = std.PriorityDequeue(TestInfo, void, compareTiming);
     max: usize,
     slowest: SlowestQueue,
-    timer: std.time.Timer,
+    io: std.Io,
+    start_ts: std.Io.Timestamp,
 
-    fn init(allocator: Allocator, count: u32) SlowTracker {
-        const timer = std.time.Timer.start() catch @panic("failed to start timer");
-        var slowest = SlowestQueue.init(allocator, {});
-        slowest.ensureTotalCapacity(count) catch @panic("OOM");
+    fn init(allocator: Allocator, io: std.Io, count: u32) SlowTracker {
+        var slowest = SlowestQueue.empty;
+        slowest.ensureTotalCapacity(allocator, count) catch @panic("OOM");
         return .{
             .max = count,
-            .timer = timer,
+            .io = io,
+            .start_ts = .zero,
             .slowest = slowest,
         };
     }
@@ -273,24 +277,25 @@ const SlowTracker = struct {
         name: []const u8,
     };
 
-    fn deinit(self: SlowTracker) void {
-        self.slowest.deinit();
+    fn deinit(self: *SlowTracker, allocator: Allocator) void {
+        var slowest = &self.slowest;
+        slowest.deinit(allocator);
     }
 
     fn startTiming(self: *SlowTracker) void {
-        self.timer.reset();
+        self.start_ts = std.Io.Timestamp.now(self.io, .awake);
     }
 
-    fn endTiming(self: *SlowTracker, scope_name: []const u8, test_name: []const u8) u64 {
-        var timer = self.timer;
-        const ns = timer.lap();
+    fn endTiming(self: *SlowTracker, allocator: Allocator, scope_name: []const u8, test_name: []const u8) u64 {
+        const now = std.Io.Timestamp.now(self.io, .awake);
+        const ns: u64 = @intCast(now.nanoseconds -| self.start_ts.nanoseconds);
 
         var slowest = &self.slowest;
 
         if (slowest.count() < self.max) {
             // Capacity is fixed to the # of slow tests we want to track
             // If we've tracked fewer tests than this capacity, than always add
-            slowest.add(TestInfo{ .ns = ns, .scope = scope_name, .name = test_name }) catch @panic("failed to track test timing");
+            slowest.push(allocator, TestInfo{ .ns = ns, .scope = scope_name, .name = test_name }) catch @panic("failed to track test timing");
             return ns;
         }
 
@@ -305,8 +310,8 @@ const SlowTracker = struct {
         }
 
         // the previous fastest of our slow tests, has been pushed off.
-        _ = slowest.removeMin();
-        slowest.add(TestInfo{ .ns = ns, .scope = scope_name, .name = test_name }) catch @panic("failed to track test timing");
+        _ = slowest.popMin();
+        slowest.push(allocator, TestInfo{ .ns = ns, .scope = scope_name, .name = test_name }) catch @panic("failed to track test timing");
         return ns;
     }
 
@@ -314,7 +319,7 @@ const SlowTracker = struct {
         var slowest = self.slowest;
         const count = slowest.count();
         Printer.fmt("\x1b[1mSlowest\x1b[0m \x1b[90m({d})\x1b[0m:\n", .{count});
-        while (slowest.removeMaxOrNull()) |info| {
+        while (slowest.popMax()) |info| {
             const ms = @as(f64, @floatFromInt(info.ns)) / 1_000_000.0;
             if (info.scope.len > 0) {
                 Printer.fmt("  {d:.2}ms\t\x1b[90m{s} > {s}\x1b[0m\n", .{ ms, info.scope, info.name });
@@ -335,13 +340,17 @@ const Env = struct {
     fail_first: bool,
     filter: ?[]const u8,
     flaky_retries: u32,
+    environ: std.process.Environ,
 
-    fn init(allocator: Allocator) Env {
+    fn init(allocator: Allocator, environ: std.process.Environ) Env {
+        std.testing.environ = environ;
+
         return .{
-            .verbose = readEnvBool(allocator, "TEST_VERBOSE", true),
-            .fail_first = readEnvBool(allocator, "TEST_FAIL_FIRST", false),
-            .filter = readEnv(allocator, "TEST_FILTER"),
-            .flaky_retries = readEnvInt(allocator, "TEST_FLAKY_RETRIES", 5),
+            .verbose = readEnvBool(environ, allocator, "TEST_VERBOSE", true),
+            .fail_first = readEnvBool(environ, allocator, "TEST_FAIL_FIRST", false),
+            .filter = readEnv(environ, allocator, "TEST_FILTER"),
+            .flaky_retries = readEnvInt(environ, allocator, "TEST_FLAKY_RETRIES", 3),
+            .environ = environ,
         };
     }
 
@@ -351,25 +360,23 @@ const Env = struct {
         }
     }
 
-    fn readEnv(allocator: Allocator, key: []const u8) ?[]const u8 {
-        const v = std.process.getEnvVarOwned(allocator, key) catch |err| {
-            if (err == error.EnvironmentVariableNotFound) {
-                return null;
-            }
+    fn readEnv(environ: std.process.Environ, allocator: Allocator, key: []const u8) ?[]const u8 {
+        const v = environ.getAlloc(allocator, key) catch |err| {
+            if (err == error.EnvironmentVariableMissing) return null;
             std.log.warn("failed to get env var {s} due to err {}", .{ key, err });
             return null;
         };
         return v;
     }
 
-    fn readEnvBool(allocator: Allocator, key: []const u8, deflt: bool) bool {
-        const value = readEnv(allocator, key) orelse return deflt;
+    fn readEnvBool(environ: std.process.Environ, allocator: Allocator, key: []const u8, deflt: bool) bool {
+        const value = readEnv(environ, allocator, key) orelse return deflt;
         defer allocator.free(value);
         return std.ascii.eqlIgnoreCase(value, "true");
     }
 
-    fn readEnvInt(allocator: Allocator, key: []const u8, deflt: u32) u32 {
-        const value = readEnv(allocator, key) orelse return deflt;
+    fn readEnvInt(environ: std.process.Environ, allocator: Allocator, key: []const u8, deflt: u32) u32 {
+        const value = readEnv(environ, allocator, key) orelse return deflt;
         defer allocator.free(value);
         return std.fmt.parseInt(u32, value, 10) catch deflt;
     }

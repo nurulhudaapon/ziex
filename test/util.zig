@@ -114,10 +114,11 @@ pub const TestFileCache = struct {
                 const full_path = try std.fmt.allocPrint(allocator, "{s}{s}{s}", .{ base_path, file_path, ext_info.ext });
                 defer allocator.free(full_path);
 
-                const content = std.fs.cwd().readFileAlloc(
-                    allocator,
+                const content = std.Io.Dir.cwd().readFileAlloc(
+                    std.testing.io,
                     full_path,
-                    std.math.maxInt(usize),
+                    allocator,
+                    .limited(std.math.maxInt(usize)),
                 ) catch |err| switch (err) {
                     error.FileNotFound => continue,
                     else => return err,
@@ -150,10 +151,11 @@ pub const TestFileCache = struct {
         const full_path = try std.fmt.allocPrint(self.allocator, "{s}{s}", .{ base_path, path });
         defer self.allocator.free(full_path);
 
-        const content = std.fs.cwd().readFileAlloc(
-            self.allocator,
+        const content = std.Io.Dir.cwd().readFileAlloc(
+            std.testing.io,
             full_path,
-            std.math.maxInt(usize),
+            self.allocator,
+            .limited(std.math.maxInt(usize)),
         ) catch |err| switch (err) {
             error.FileNotFound => return null,
             else => return err,
@@ -169,14 +171,12 @@ pub const TestFileCache = struct {
 
 pub fn shouldRunSlowTest() bool {
     const allocator = std.testing.allocator;
-
-    // E2E environment variable is set
-    const slow_tests = std.process.getEnvVarOwned(allocator, "E2E") catch {
+    const slow_tests = std.testing.environ.getAlloc(allocator, "E2E") catch {
         return false;
     };
 
     defer allocator.free(slow_tests);
-    return true;
+    return std.mem.eql(u8, slow_tests, "1");
 }
 
 const std = @import("std");
