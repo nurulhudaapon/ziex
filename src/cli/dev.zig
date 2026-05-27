@@ -138,11 +138,11 @@ fn dev(ctx: zli.CommandContext) !void {
     var builder = try std.process.spawn(io, .{
         .argv = build_args_array.items,
         .stderr = .pipe,
-        .stdout = .pipe,
+        .stdout = .ignore,
     });
     defer builder.kill(io);
 
-    var build_state = Builder.BuildState.init(allocator, io, null, std.Io.Timestamp.fromNanoseconds(0));
+    var build_state = Builder.BuildState.init(allocator);
     defer build_state.deinit();
 
     var runner: ?std.process.Child = null;
@@ -172,11 +172,57 @@ fn dev(ctx: zli.CommandContext) !void {
     var line_writer = std.Io.Writer.Allocating.init(allocator);
     defer line_writer.deinit();
 
-    while (io_reader.streamDelimiter(&line_writer.writer, '\n')) |_| {
-        const line = line_writer.written();
-        _ = io_reader.takeByte() catch break;
+    const NO_CHANGE_DEBOUNCE_MS = 200;
+    var pending_no_change = false;
+
+    while (true) {
+        const line: []const u8 = if (pending_no_change) blk: {
+            const LineResult = error{ Eof, ReadFailed }![]const u8;
+            const Branch = union(enum) { line: LineResult, tick: void };
+            var sel_buf: [2]Branch = undefined;
+            var sel = std.Io.Select(Branch).init(io, &sel_buf);
+            const raced = blk_race: {
+                sel.concurrent(.line, readOneLine, .{ io_reader, &line_writer }) catch
+                    break :blk_race false;
+                sel.concurrent(.tick, sleepMs, .{ io, NO_CHANGE_DEBOUNCE_MS }) catch {
+                    // Line read is already running; await it without a timer.
+                };
+                break :blk_race true;
+            };
+            if (!raced) {
+                _ = io_reader.streamDelimiter(&line_writer.writer, '\n') catch break;
+                const l = line_writer.written();
+                _ = io_reader.takeByte() catch break;
+                break :blk l;
+            }
+            var line_result: ?LineResult = null;
+            while (line_result == null) {
+                switch (sel.await() catch break) {
+                    .line => |r| line_result = r,
+                    .tick => {
+                        pending_no_change = false;
+                        try emitNoChange(&ctx, &dev_server, use_spinner, rebuilding_shown, last_was_no_change);
+                        rebuild_timer = null;
+                        rebuilding_shown = false;
+                        last_was_no_change = true;
+                    },
+                }
+            }
+            sel.cancelDiscard();
+            const r = line_result orelse break;
+            break :blk r catch break;
+        } else blk: {
+            _ = io_reader.streamDelimiter(&line_writer.writer, '\n') catch break;
+            const l = line_writer.written();
+            _ = io_reader.takeByte() catch break;
+            break :blk l;
+        };
 
         if (try build_state.processLine(line)) |event| {
+            if (pending_no_change) {
+                pending_no_change = false;
+                rebuild_timer = null;
+            }
             switch (event) {
                 .change_detected => {
                     last_was_no_change = false;
@@ -249,21 +295,7 @@ fn dev(ctx: zli.CommandContext) !void {
                     dev_server.notify(.{ .type = .clear });
                 },
                 .build_complete_no_change => {
-                    if (rebuilding_shown) {
-                        const dim = "\x1b[2m";
-                        if (use_spinner) {
-                            ctx.spinner.stop();
-                        }
-                        if (last_was_no_change) {
-                            try ctx.writer.print("\x1b[1A\r{s}✓ No changes{s}\x1b[K\n", .{ dim, Colors.reset });
-                        } else {
-                            try ctx.writer.print("\r{s}✓ No changes{s}\x1b[K\n", .{ dim, Colors.reset });
-                        }
-                    }
-                    dev_server.notify(.{ .type = .clear });
-                    rebuild_timer = null;
-                    rebuilding_shown = false;
-                    last_was_no_change = true;
+                    pending_no_change = true;
                 },
                 .assets_installed => |result_val| {
                     var result = result_val;
@@ -312,10 +344,6 @@ fn dev(ctx: zli.CommandContext) !void {
                             log.debug("Error finding ZX executable: {any}", .{err});
                             continue;
                         };
-
-                        const current_stat = try std.Io.Dir.cwd().statFile(io, program_path.?, .{});
-                        build_state.binary_path = try allocator.dupe(u8, program_path.?);
-                        build_state.last_binary_mtime = current_stat.mtime;
                     }
 
                     const runnable_path = try util.getRunnablePath(io, allocator, program_path.?);
@@ -374,19 +402,51 @@ fn dev(ctx: zli.CommandContext) !void {
                     is_first_run = false;
                     dev_server.notify(.{ .type = .reload });
 
-                    const current_stat = std.Io.Dir.cwd().statFile(io, program_path.?, .{}) catch |err| {
-                        log.debug("Failed to stat binary after restart: {any}", .{err});
-                        continue;
-                    };
-                    build_state.markRestartComplete(current_stat.mtime);
                     rebuilding_shown = false;
                 },
             }
         }
         line_writer.clearRetainingCapacity();
-    } else |err| {
-        if (err != error.EndOfStream) return err;
     }
+
+    if (pending_no_change) {
+        try emitNoChange(&ctx, &dev_server, use_spinner, rebuilding_shown, last_was_no_change);
+    }
+}
+
+fn readOneLine(
+    reader: *std.Io.Reader,
+    line_writer: *std.Io.Writer.Allocating,
+) error{ Eof, ReadFailed }![]const u8 {
+    _ = reader.streamDelimiter(&line_writer.writer, '\n') catch return error.Eof;
+    const line = line_writer.written();
+    _ = reader.takeByte() catch return error.ReadFailed;
+    return line;
+}
+
+fn sleepMs(io: std.Io, ms: i64) void {
+    io.sleep(std.Io.Duration.fromMilliseconds(ms), .awake) catch {};
+}
+
+fn emitNoChange(
+    ctx: *const zli.CommandContext,
+    dev_server: *DevServer,
+    use_spinner: bool,
+    rebuilding_shown: bool,
+    last_was_no_change: bool,
+) !void {
+    if (rebuilding_shown) {
+        const dim = "\x1b[2m";
+        if (use_spinner) {
+            ctx.spinner.stop();
+        }
+        if (last_was_no_change) {
+            try ctx.writer.print("\x1b[1A\r{s}✓ No changes{s}\x1b[K\n", .{ dim, Colors.reset });
+        } else {
+            try ctx.writer.print("\r{s}✓ No changes{s}\x1b[K\n", .{ dim, Colors.reset });
+        }
+    }
+    dev_server.notify(.{ .type = .clear });
 }
 
 fn resolveProgramPath(io: std.Io, allocator: std.mem.Allocator, binpath: []const u8) ![]const u8 {

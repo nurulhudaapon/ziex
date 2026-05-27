@@ -30,8 +30,28 @@ pub fn dedupe(allocator: std.mem.Allocator, diagnostics: []Builder.Diagnostic) [
             allocator.free(diagnostics[read].message);
             if (diagnostics[read].source_line) |sl| allocator.free(sl);
             if (diagnostics[read].caret_line) |cl| allocator.free(cl);
+            diagnostics[read] = .{
+                .file = &.{},
+                .line = 0,
+                .col = 0,
+                .kind = .note,
+                .message = &.{},
+                .source_line = null,
+                .caret_line = null,
+            };
         } else {
-            diagnostics[write] = diagnostics[read];
+            if (write != read) {
+                diagnostics[write] = diagnostics[read];
+                diagnostics[read] = .{
+                    .file = &.{},
+                    .line = 0,
+                    .col = 0,
+                    .kind = .note,
+                    .message = &.{},
+                    .source_line = null,
+                    .caret_line = null,
+                };
+            }
             write += 1;
         }
     }
@@ -457,7 +477,7 @@ pub fn formatOxlint(allocator: std.mem.Allocator, diagnostics: []const Builder.D
     var buf = std.Io.Writer.Allocating.init(allocator);
     defer buf.deinit();
 
-    var w = buf.writer;
+    const w = &buf.writer;
 
     for (diagnostics) |d| {
         const kind_symbol = switch (d.kind) {

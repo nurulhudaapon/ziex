@@ -1,0 +1,50 @@
+./.zig-cache/o/0dd1e53085f7ac550c714172e2b3d2ee/zx transpile /Users/nurulhudaapon/Projects/ziex-dev/ziex/templates/_base/app --outdir ./.zig-cache/tmp/f902814f93223aff/app --rootdir /Users/nurulhudaapon/Projects/ziex-dev/ziex/templates/_base/zig-out/static --dep-file ./.zig-cache/tmp/f902814f93223aff/transpile.d --map inline --cache-dir .zig-cache/zx_transpile
+/Users/nurulhudaapon/Projects/ziex-dev/ziex/templates/_base/node_modules/.bin/esbuild /Users/nurulhudaapon/Projects/ziex-dev/ziex/templates/_base/app/scripts/client.ts --bundle --outfile=/Users/nurulhudaapon/Projects/ziex-dev/ziex/templates/_base/zig-out/static/assets/_/main.js --log-level=error --sourcemap=inline --define:__DEV__=true "--define:process.env.NODE_ENV=\"development\""
+/Users/nurulhudaapon/.asdf/installs/zig/0.16.0/zig build-exe -fno-entry -ODebug -target wasm32-freestanding-none -mcpu baseline --dep zx -Mroot=/Users/nurulhudaapon/Projects/ziex-dev/ziex/templates/_base/app/main.zig -ODebug -target wasm32-freestanding-none -mcpu baseline --dep js --dep zx_style --dep zx_info --dep zx_options --dep zx_module_options --dep zx_injections --dep zx_meta -Mzx=/Users/nurulhudaapon/Projects/ziex-dev/ziex/src/root.zig -ODebug -target wasm32-freestanding-none -mcpu baseline -Mjs=/Users/nurulhudaapon/Projects/ziex-dev/ziex/vendor/jsz/src/main.zig -ODebug -target wasm32-freestanding-none -mcpu baseline -Mzx_style=/Users/nurulhudaapon/Projects/ziex-dev/ziex/src/style/root.zig -Mzx_info=.zig-cache/c/03446054f2e6729e59f2aaf4bb182b05/options.zig -Mzx_options=.zig-cache/c/8f276f8c5d2435506ddd2860320162ff/options.zig -Mzx_module_options=.zig-cache/c/9cc260c2c43c5d8c9bcf68e69db2036a/options.zig -Mzx_injections=.zig-cache/zx_injections.zig --dep js --dep zx_style --dep zx_info --dep zx_options=zx_options0 --dep zx_module_options --dep zx_injections --dep zx -Mzx_meta=.zig-cache/o/46d04359730ac4021c9189d199119a0c/app/meta.zig -Mzx_options0=.zig-cache/c/2106c2b1c67bd4c1c2d4e42593260221/options.zig --cache-dir .zig-cache --global-cache-dir /Users/nurulhudaapon/.cache/zig --name main -rdynamic --export-memory --zig-lib-dir /Users/nurulhudaapon/.asdf/installs/zig/0.16.0/lib/ --listen=-
+/Users/nurulhudaapon/.asdf/installs/zig/0.16.0/zig build-exe -ODebug --dep zx -Mroot=/Users/nurulhudaapon/Projects/ziex-dev/ziex/templates/_base/app/main.zig -ODebug --dep db --dep db_sqlite --dep cachez --dep httpz --dep zx_style --dep zx_info --dep zx_options --dep zx_module_options --dep zx_injections --dep zx_meta -Mzx=/Users/nurulhudaapon/Projects/ziex-dev/ziex/src/root.zig -ODebug -Mdb=/Users/nurulhudaapon/Projects/ziex-dev/ziex/pkg/adapters/src/db.zig -cflags -std=c99 -DSQLITE_DQS=0 -DSQLITE_DEFAULT_WAL_SYNCHRONOUS=1 -DSQLITE_USE_ALLOCA=1 -DSQLITE_THREADSAFE=1 -DSQLITE_TEMP_STORE=3 -DSQLITE_ENABLE_API_ARMOR=1 -DSQLITE_ENABLE_UNLOCK_NOTIFY -DSQLITE_DEFAULT_FILE_PERMISSIONS=0600 -DSQLITE_OMIT_DEPRECATED=1 -DSQLITE_OMIT_LOAD_EXTENSION=1 -DSQLITE_OMIT_PROGRESS_CALLBACK=1 -DSQLITE_OMIT_SHARED_CACHE -DSQLITE_OMIT_TRACE=1 -DSQLITE_OMIT_UTF16=1 -DHAVE_USLEEP=0 -- /Users/nurulhudaapon/Projects/ziex-dev/ziex/pkg/adapters/vendor/sqlite/sqlite3.c -ODebug -I /Users/nurulhudaapon/Projects/ziex-dev/ziex/templates/_base/../../pkg/adapters/vendor/sqlite --dep db --dep zqlite -Mdb_sqlite=/Users/nurulhudaapon/Projects/ziex-dev/ziex/pkg/adapters/src/db/sqlite.zig -ODebug -Mcachez=/Users/nurulhudaapon/Projects/ziex-dev/ziex/vendor/cachez/src/cache.zig -ODebug --dep metrics --dep websocket --dep build -Mhttpz=/Users/nurulhudaapon/Projects/ziex-dev/ziex/templates/_base/zig-pkg/httpz-0.0.0-PNVzrJUWCADf96eygXxMPMSWJ-SMNkGDB1B6BUEP7dZZ/src/httpz.zig -ODebug -Mzx_style=/Users/nurulhudaapon/Projects/ziex-dev/ziex/src/style/root.zig -Mzx_info=.zig-cache/c/03446054f2e6729e59f2aaf4bb182b05/options.zig -Mzx_options=.zig-cache/c/8f276f8c5d2435506ddd2860320162ff/options.zig -Mzx_module_options=.zig-cache/c/adbafb1f5a2085d4e2e4d717bd668812/options.zig -Mzx_injections=.zig-cache/zx_injections.zig --dep db --dep db_sqlite --dep cachez --dep httpz --dep zx_style --dep zx_info --dep zx_options --dep zx_module_options --dep zx_injections --dep zx -Mzx_meta=.zig-cache/o/46d04359730ac4021c9189d199119a0c/app/meta.zig -ODebug -I /Users/nurulhudaapon/Projects/ziex-dev/ziex/templates/_base/../../pkg/adapters/vendor/sqlite -Mzqlite=/Users/nurulhudaapon/Projects/ziex-dev/ziex/pkg/adapters/vendor/zqlite/src/zqlite.zig -ODebug -Mmetrics=/Users/nurulhudaapon/Projects/ziex-dev/ziex/templates/_base/zig-pkg/metrics-0.0.0-W7G4eIegAQD4XxA9Co7Atbw59u_2zvxYf406AZuoAHPM/src/metrics.zig -ODebug --dep build=build0 -Mwebsocket=/Users/nurulhudaapon/Projects/ziex-dev/ziex/templates/_base/zig-pkg/websocket-0.1.0-ZPISdUU6BAAPe0iZ_JHMVAXaBlz327xZRBrRY06-Vw5h/src/websocket.zig -Mbuild=.zig-cache/c/588d8e90b2ff6dc0bd7ddf1ba6f5872d/options.zig -Mbuild0=.zig-cache/c/cc544fc8f162c327786efad17dbbf432/options.zig -lc --cache-dir .zig-cache --global-cache-dir /Users/nurulhudaapon/.cache/zig --name ziex_app --zig-lib-dir /Users/nurulhudaapon/.asdf/installs/zig/0.16.0/lib/ --listen=-
+install -C .zig-cache/o/b3c6439c1ec80b8b11d2cd80c7a37d3d/main.wasm /Users/nurulhudaapon/Projects/ziex-dev/ziex/templates/_base/zig-out/static/assets/_/main.wasm
+install -C .zig-cache/o/6352b563e71ad4ef29bd19bf931cb999/ziex_app /Users/nurulhudaapon/Projects/ziex-dev/ziex/templates/_base/zig-out/bin/ziex_app
+Build Summary: 32/32 steps succeeded
+install success
+├─ install ziex_app success
+│  └─ install server ziex_app success 5s MaxRSS:673M
+│     ├─ install app/public/ cached
+│     ├─ install app/assets/ cached
+│     ├─ install dependency to static/assets/_/main.js cached
+│     ├─ zx transpile success 74ms
+│     │  └─ compile exe zx Debug native cached 7s MaxRSS:802M
+│     │     ├─ options cached
+│     │     ├─ WriteFile . cached
+│     │     ├─ compile lib tree-sitter Debug native cached 67ms MaxRSS:30M
+│     │     ├─ compile lib tree-sitter Debug native (reused)
+│     │     ├─ WriteFile cached
+│     │     ├─ compile lib tree_sitter_zx Debug native cached 65ms MaxRSS:30M
+│     │     ├─ compile lib tree_sitter_zx Debug native (reused)
+│     │     ├─ options cached
+│     │     ├─ options cached
+│     │     ├─ options cached
+│     │     ├─ options cached
+│     │     ├─ options cached
+│     │     ├─ options cached
+│     │     ├─ WriteFile cached
+│     │     ├─ compile lib tree_sitter_mdzx Debug native cached 63ms MaxRSS:30M
+│     │     ├─ compile lib tree_sitter_mdzx Debug native (reused)
+│     │     └─ options cached
+│     ├─ esbuild success 34ms
+│     │  └─ zx transpile (+1 more reused dependencies)
+│     ├─ options cached
+│     ├─ options cached
+│     ├─ options cached
+│     ├─ generate zx injections cached
+│     ├─ zx transpile (+1 more reused dependencies)
+│     ├─ options (reused)
+│     └─ options (reused)
+└─ install client ziex_app success
+   └─ compile exe main Debug wasm32-freestanding-none success 960ms MaxRSS:283M
+      ├─ zx transpile (+1 more reused dependencies)
+      ├─ options cached
+      ├─ options (reused)
+      ├─ options cached
+      ├─ generate zx injections (reused)
+      ├─ zx transpile (+1 more reused dependencies)
+      └─ options cached

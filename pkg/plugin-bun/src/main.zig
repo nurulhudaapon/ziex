@@ -65,13 +65,10 @@ pub fn main(init: std.process.Init) !void {
         .stderr = .inherit,
     });
 
-    // Best-effort cleanup if we exit before the explicit wait below.
     defer if (child.id != null) {
         _ = child.wait(init.io) catch {};
     };
 
-    // Write config to bun's stdin, then close so bun sees EOF.
-    // Clear child.stdin so wait()'s cleanup doesn't double-close the handle.
     if (child.stdin) |stdin_file| {
         try stdin_file.writeStreamingAll(init.io, modified_json);
         stdin_file.close(init.io);
