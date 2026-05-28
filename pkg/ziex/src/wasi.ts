@@ -169,6 +169,33 @@ export function createWasiImports({
             dv.setBigUint64(filestat_ptr + 56, 0n, true);  // ctim
             return 0;
         },
+        fd_filestat_set_size(_fd: number, _size: bigint): number { return 76; },
+        fd_filestat_set_times(_fd: number, _atim: bigint, _mtim: bigint, _fst_flags: number): number { return 76; },
+        fd_fdstat_set_flags(_fd: number, _flags: number): number { return 0; },
+        fd_fdstat_set_rights(_fd: number, _rights_base: bigint, _rights_inheriting: bigint): number { return 0; },
+        fd_sync(_fd: number): number { return 0; },
+        fd_datasync(_fd: number): number { return 0; },
+        fd_advise(_fd: number, _offset: bigint, _len: bigint, _advice: number): number { return 0; },
+        fd_allocate(_fd: number, _offset: bigint, _len: bigint): number { return 76; },
+        fd_tell(_fd: number, offset_ptr: number): number {
+            v().setBigUint64(offset_ptr, 0n, true);
+            return 0;
+        },
+        fd_renumber(_from: number, _to: number): number { return 0; },
+        path_filestat_set_times(_fd: number, _flags: number, _path: number, _path_len: number, _atim: bigint, _mtim: bigint, _fst_flags: number): number { return 76; },
+        path_link(_old_fd: number, _old_flags: number, _old_path: number, _old_path_len: number, _new_fd: number, _new_path: number, _new_path_len: number): number { return 76; },
+        path_symlink(_old_path: number, _old_path_len: number, _fd: number, _new_path: number, _new_path_len: number): number { return 76; },
+        proc_raise(_sig: number): number { return 0; },
+        sock_recv(_fd: number, _ri_data: number, _ri_data_len: number, _ri_flags: number, ro_datalen_ptr: number, ro_flags_ptr: number): number {
+            v().setUint32(ro_datalen_ptr, 0, true);
+            v().setUint32(ro_flags_ptr, 0, true);
+            return 76;
+        },
+        sock_send(_fd: number, _si_data: number, _si_data_len: number, _si_flags: number, so_datalen_ptr: number): number {
+            v().setUint32(so_datalen_ptr, 0, true);
+            return 76;
+        },
+        sock_shutdown(_fd: number, _how: number): number { return 76; },
         fd_seek(_fd: number, _offset: bigint, _whence: number, newoffset_ptr: number): number {
             v().setBigInt64(newoffset_ptr, 0n, true);
             return 0;
@@ -179,6 +206,10 @@ export function createWasiImports({
         sched_yield(): number { return 0; },
         clock_time_get(_id: number, _precision: bigint, time_ptr: number): number {
             v().setBigUint64(time_ptr, BigInt(Date.now()) * 1_000_000n, true);
+            return 0;
+        },
+        clock_res_get(_id: number, res_ptr: number): number {
+            v().setBigUint64(res_ptr, 1_000_000n, true);
             return 0;
         },
         random_get(buf_ptr: number, buf_len: number): number {
