@@ -14,8 +14,8 @@
         },
         // httpz - HTTP server for Ziex
         .httpz = .{
-            .url = "git+https://github.com/karlseguin/http.zig.git#569bba10f22afd4ea1815416b546a8065905f820",
-            .hash = "httpz-0.0.0-PNVzrJUWCADf96eygXxMPMSWJ-SMNkGDB1B6BUEP7dZZ",
+            .url = "git+https://github.com/karlseguin/http.zig.git#744c588608d2b13e6dba2013577b2e0928877f19",
+            .hash = "httpz-0.0.0-PNVzrCzKCAAKOXAKsuPzDZYzstlou0FLBp3HlDoRgmUa",
         },
         .adapters = .{ .path = "pkg/adapters" },
         .zli = .{ .path = "vendor/cliz" }, // Get rid of this in favor of copying from Zig's new builtin args parser once 0.16.0 is released
