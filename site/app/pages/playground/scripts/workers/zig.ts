@@ -13,7 +13,7 @@ async function run(files: { [filename: string]: string }) {
 
     const zxDirectory = await getZxArchive();
     const libDirectory = await getLatestZigArchive();
-
+    const libCompilerRt = await fetchWithCache(`/assets/playground/libcompiler_rt.a`);
 
     // -fno-llvm -fno-lld is set explicitly to ensure the native WASM backend is
     // used in preference to LLVM. This may be removable once the non-LLVM
@@ -21,24 +21,15 @@ async function run(files: { [filename: string]: string }) {
     let args = [
         "zig.wasm",
         "build-exe",
-
-        // Old
-        // "main.zig",
-
-        // New ----
         "--dep",
         "zx",
         "-Mroot=main.zig",
         "-Mzx=zx/src/root.zig",
-
         "--name",
         "main",
-        // ----
-
-        "-fno-llvm",
-        "-fno-lld",
-        "-fno-ubsan-rt",
-        "-fno-entry", // prevent the native webassembly backend from adding a start function to the module 
+        "libcompiler_rt.a",
+        "-fno-compiler-rt", // manually linked because the self hosted webassembly backend cannot compile it by itself
+        "-fno-entry", // prevent the native webassembly backend from adding a start function to the module
     ];
     let env: string[] = [];
 
@@ -46,6 +37,7 @@ async function run(files: { [filename: string]: string }) {
     for (const [filename, content] of Object.entries(files)) {
         fileContents.set(filename, new File(new TextEncoder().encode(content)));
     }
+    fileContents.set("libcompiler_rt.a", new File(await libCompilerRt.arrayBuffer()));
     fileContents.set("zx", zxDirectory);
 
     let fds = [
