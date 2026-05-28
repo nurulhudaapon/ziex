@@ -402,6 +402,9 @@ pub fn initInner(
     exe.step.name = b.fmt("install {s}server{s} {s}", .{ colors.dim, colors.reset, exe.name });
     b.installArtifact(exe);
 
+    const resolved_target = exe.root_module.resolved_target.?.result;
+    const exe_name = b.fmt("{s}{s}", .{ exe.name, resolved_target.exeFileExt() });
+
     // --- Build-time App Metadata ---
     {
         var aw = std.Io.Writer.Allocating.init(b.allocator);
@@ -409,7 +412,7 @@ pub fn initInner(
 
         const w = &aw.writer;
         const meta = .{
-            .binpath = b.pathJoin(&.{ "bin", exe.name }),
+            .binpath = b.pathJoin(&.{ "bin", exe_name }),
             .rootdir = rootdir_opt orelse staticdir,
             .port = port_opt orelse null,
             .address = address_opt orelse null,
