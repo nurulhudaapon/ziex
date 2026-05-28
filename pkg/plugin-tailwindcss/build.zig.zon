@@ -2,7 +2,7 @@
     .name = .tailwindcss,
     .version = "0.0.0",
     .fingerprint = 0x7f201b5d58a9d32a,
-    .minimum_zig_version = "0.15.2",
+    .minimum_zig_version = "0.16.0",
     .dependencies = .{},
     .paths = .{
         "build.zig",

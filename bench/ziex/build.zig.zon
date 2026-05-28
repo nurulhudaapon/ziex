@@ -2,7 +2,7 @@
     .name = .zx_site,
     .version = "0.0.0",
     .fingerprint = 0xc04151551dc3c31d,
-    .minimum_zig_version = "0.15.2",
+    .minimum_zig_version = "0.16.0",
     .dependencies = .{
         .zx = .{ .path = "../../" },
     },
