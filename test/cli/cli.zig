@@ -230,8 +230,6 @@ test "export" {
 }
 
 test "bundle" {
-    if (true) return error.Todo; // export is not working on zig 16 yet
-
     if (!test_util.shouldRunSlowTest()) return error.SkipZigTest;
     try test_cmd(.{
         .args = &.{"bundle"},

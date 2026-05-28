@@ -133,7 +133,7 @@ pub fn copydirs(
                     }
 
                     // Copy file
-                    try std.Io.Dir.copyFile(std.Io.Dir.cwd(), src_path, dest, std.fs.path.basename(src_path), io, .{});
+                    try std.Io.Dir.copyFile(std.Io.Dir.cwd(), src_path, dest, dst_rel_path, io, .{});
                     printer.filepath(dst_rel_path);
                 },
                 .directory => {
