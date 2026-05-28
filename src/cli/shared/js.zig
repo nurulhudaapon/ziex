@@ -94,7 +94,7 @@ pub fn buildjs(ctx: zli.CommandContext, binpath: []const u8, is_dev: bool, verbo
     var program_meta = try util.findprogram(io, ctx.allocator, binpath);
     defer util.freeBuildMeta(ctx.allocator, &program_meta);
 
-    const rootdir = program_meta.rootdir;
+    const rootdir = program_meta.rootdir orelse "";
 
     log.debug("Parsing package.json", .{});
     var package_json_parsed = try PackageJson.parse(ctx.allocator, io);

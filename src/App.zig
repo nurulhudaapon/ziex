@@ -4,6 +4,7 @@ const platform = @import("platform.zig").platform;
 const server = @import("runtime/server/Server.zig");
 const server_wasi = @import("runtime/server/wasm/entrypoint.zig");
 const client = @import("runtime/client/Client.zig").Client;
+const zx = @import("root.zig");
 
 pub const Config = @import("AppConfig.zig");
 
@@ -42,8 +43,9 @@ fn AppInstance(comptime H: type) type {
 
         instance: Instance,
         io: ?std.Io,
+        inita: zx.Init,
 
-        pub fn init(process_io: anytype, alloc: std.mem.Allocator, config: Config, app_ctx: H) !Self {
+        pub fn init(inita: zx.Init, process_io: anytype, alloc: std.mem.Allocator, config: Config, app_ctx: H) !Self {
             const instance: Instance = switch (platform.role) {
                 .client => {},
                 .server => switch (platform.os) {
@@ -62,6 +64,7 @@ fn AppInstance(comptime H: type) type {
             return .{
                 .instance = instance,
                 .io = if (@TypeOf(process_io) == std.Io) process_io else null,
+                .inita = inita,
             };
         }
 
@@ -75,14 +78,7 @@ fn AppInstance(comptime H: type) type {
             switch (platform.role) {
                 .client => try client.run(),
                 .server => switch (platform.os) {
-                    .wasi => try server_wasi.run(.{
-                        .minimal = .{ .args = .{}, .environ = .{} },
-                        .arena = undefined,
-                        .gpa = allocator,
-                        .io = self.io orelse undefined,
-                        .environ_map = undefined,
-                        .preopens = .empty,
-                    }),
+                    .wasi => try server_wasi.run(self.inita),
                     else => try self.instance.start(),
                 },
             }

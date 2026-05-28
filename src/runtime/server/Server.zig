@@ -253,7 +253,8 @@ pub fn Server(comptime H: type) type {
             self.server.config.request.max_form_count = self.server.config.request.max_form_count orelse Constant.default_max_form_count;
             self.server.config.request.max_multiform_count = self.server.config.request.max_multiform_count orelse Constant.default_max_multiform_count;
 
-            if (zx_options.introspect) {
+            const introspect_requested = zx_options.introspect or runtimeIntrospectRequested();
+            if (introspect_requested) {
                 var aw = std.Io.Writer.Allocating.init(self.allocator);
                 defer aw.deinit();
 
@@ -276,6 +277,10 @@ pub fn Server(comptime H: type) type {
             }
         }
     };
+}
+
+fn runtimeIntrospectRequested() bool {
+    return envVar("ZIEX_INTROSPECT") != null;
 }
 
 pub const SerilizableAppMeta = struct {

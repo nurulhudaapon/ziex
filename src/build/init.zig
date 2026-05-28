@@ -402,28 +402,19 @@ pub fn initInner(
     exe.step.name = b.fmt("install {s}server{s} {s}", .{ colors.dim, colors.reset, exe.name });
     b.installArtifact(exe);
 
-    const resolved_target = exe.root_module.resolved_target.?.result;
-    const exe_name = b.fmt("{s}{s}", .{ exe.name, resolved_target.exeFileExt() });
-
     // --- Build-time App Metadata ---
+    //
+    // We capture the app's introspect output (full SerilizableAppMeta with
+    // routes) and use that directly as the installed `<exe>.meta.zon`. This
+    // lets CLI tools like `zx export` discover routes without an HTTP fetch.
     {
-        var aw = std.Io.Writer.Allocating.init(b.allocator);
-        defer aw.deinit();
+        const introspect_run = b.addRunArtifact(exe);
+        introspect_run.setName(b.fmt("introspect {s}", .{exe.name}));
+        introspect_run.setEnvironmentVariable("ZIEX_INTROSPECT", "1");
+        introspect_run.expectExitCode(0);
+        const introspect_stdout = introspect_run.captureStdOut(.{});
 
-        const w = &aw.writer;
-        const meta = .{
-            .binpath = b.pathJoin(&.{ "bin", exe_name }),
-            .rootdir = rootdir_opt orelse staticdir,
-            .port = port_opt orelse null,
-            .address = address_opt orelse null,
-            .version = build_zon.version,
-        };
-
-        try std.zon.stringify.serialize(meta, .{}, w);
-
-        const meta_wf = b.addWriteFiles();
-        const meta_path = meta_wf.add(b.fmt("{s}.meta.zon", .{exe.name}), aw.written());
-        const install_meta = b.addInstallFileWithDir(meta_path, .bin, b.fmt("{s}.meta.zon", .{exe.name}));
+        const install_meta = b.addInstallFileWithDir(introspect_stdout, .bin, b.fmt("{s}.meta.zon", .{exe.name}));
         b.getInstallStep().dependOn(&install_meta.step);
     }
 

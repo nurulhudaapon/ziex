@@ -34,17 +34,17 @@ fn @"export"(ctx: zli.CommandContext) !void {
     };
     defer util.freeBuildMeta(ctx.allocator, &app_meta);
 
-    const port = DevServer.findFreePort() catch app_meta.port orelse 3000;
+    const port = DevServer.findFreePort() catch app_meta.port() orelse 3000;
     const port_str = try std.fmt.allocPrint(ctx.allocator, "{d}", .{port});
     defer ctx.allocator.free(port_str);
-    const appoutdir = app_meta.rootdir;
-    const host = app_meta.address orelse "0.0.0.0";
+    const appoutdir = app_meta.rootdir orelse "";
+    const host = app_meta.address() orelse "0.0.0.0";
 
     const environ_map = app.environ_map;
     try environ_map.put("ZIEX_INNER_PORT", port_str);
 
     var app_child = try std.process.spawn(io, .{
-        .argv = &.{ app_meta.binpath, "--cli-command", "export" },
+        .argv = &.{ app_meta.binpath.?, "--cli-command", "export" },
         .environ_map = environ_map,
         .stdout = .ignore,
         .stderr = .ignore,
@@ -66,28 +66,29 @@ fn @"export"(ctx: zli.CommandContext) !void {
     //     else => {},
     // };
 
-    log.debug("Building static ZX site! binpath={s} rootdir={s}", .{ app_meta.binpath, appoutdir });
+    log.debug("Building static ZX site! binpath={s} rootdir={s}", .{ app_meta.binpath.?, appoutdir });
     log.debug("Port: {d}, Outdir: {s}", .{ port, appoutdir });
 
-    // Routes are discovered at runtime; fetch them from the running server.
-    const routes_owned = blk: while (true) {
-        const fetched = fetchRoutes(io, ctx.allocator, host, port) catch |err| {
-            if (err == error.ConnectionRefused) continue;
-            return err;
+    const routes_owned = try ctx.allocator.alloc(zx.server.SerilizableAppMeta.Route, app_meta.routes.len);
+    defer ctx.allocator.free(routes_owned);
+    for (app_meta.routes, 0..) |r, i| {
+        routes_owned[i] = .{
+            .path = r.path,
+            .kind = r.kind,
+            .methods = r.methods,
+            .has_notfound = r.has_notfound,
+            .is_dynamic = r.is_dynamic,
         };
-        break :blk fetched;
-    };
-    defer freeRoutes(ctx.allocator, routes_owned);
+    }
 
     log.debug("Processing routes! {d}", .{routes_owned.len});
 
     process_block: while (true) {
         for (routes_owned) |route| {
-            log.debug("Processing route! {s}", .{route.path});
-
             if (route.is_dynamic) {
                 const static_params = fetchStaticParams(io, ctx.allocator, host, port, route.path) catch |err| {
                     if (err == error.ConnectionRefused) {
+                        waitForServerRetry(io);
                         continue :process_block;
                     }
                     log.warn("Failed to fetch static params for {s}: {any}", .{ route.path, err });
@@ -106,8 +107,10 @@ fn @"export"(ctx: zli.CommandContext) !void {
                         };
                         processRoute(io, ctx.allocator, host, port, expanded_route, outdir, &printer, .page) catch |err| {
                             if (err == error.ConnectionRefused) {
+                                waitForServerRetry(io);
                                 continue :process_block;
                             }
+                            return err;
                         };
                     }
                 } else {
@@ -116,8 +119,10 @@ fn @"export"(ctx: zli.CommandContext) !void {
             } else {
                 processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .page) catch |err| {
                     if (err == error.ConnectionRefused) {
+                        waitForServerRetry(io);
                         continue :process_block;
                     }
+                    return err;
                 };
             }
 
@@ -125,8 +130,10 @@ fn @"export"(ctx: zli.CommandContext) !void {
             if (route.has_notfound) {
                 processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .notfound) catch |err| {
                     if (err == error.ConnectionRefused) {
+                        waitForServerRetry(io);
                         continue :process_block;
                     }
+                    return err;
                 };
             }
         }
@@ -137,7 +144,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
 
     util.copydirs(io, ctx.allocator, appoutdir, &.{"."}, outdir, false, &printer) catch |err| {
         std.log.err("Failed to copy public directory: {any}", .{err});
-        // return err;
+        return err;
     };
 
     // Delete {outdir}/.well-known/_zx if it exists
@@ -148,6 +155,10 @@ fn @"export"(ctx: zli.CommandContext) !void {
     };
 
     // printer.footer("", .{});
+}
+
+fn waitForServerRetry(io: std.Io) void {
+    std.Io.sleep(io, .fromMilliseconds(10), .awake) catch {};
 }
 
 const ExportType = enum { page, notfound };
@@ -283,39 +294,6 @@ fn processRoute(
 
 /// Fetch static params from server via x-zx-static-data header
 /// Returns expanded paths (e.g., "/blog/hello", "/blog/world")
-const Route = zx.server.SerilizableAppMeta.Route;
-
-fn fetchRoutes(io: std.Io, allocator: std.mem.Allocator, host: []const u8, port: u16) ![]Route {
-    var client = std.http.Client{ .allocator = allocator, .io = io };
-    defer client.deinit();
-
-    var aw = std.Io.Writer.Allocating.init(allocator);
-    defer aw.deinit();
-
-    const effective_host = if (std.mem.eql(u8, host, "0.0.0.0")) "127.0.0.1" else host;
-    const url = try std.fmt.allocPrint(allocator, "http://{s}:{d}/.well-known/_zx/devtool?meta=1", .{ effective_host, port });
-    defer allocator.free(url);
-
-    const result = try client.fetch(.{
-        .method = .GET,
-        .location = .{ .url = url },
-        .response_writer = &aw.writer,
-    });
-    if (result.status != .ok) return error.RoutesEndpointMissing;
-
-    return try zx.util.zxon.parse([]Route, allocator, aw.written(), .{});
-}
-
-fn freeRoutes(allocator: std.mem.Allocator, routes: []Route) void {
-    for (routes) |r| {
-        allocator.free(r.path);
-        allocator.free(r.kind);
-        for (r.methods) |m| allocator.free(m);
-        allocator.free(r.methods);
-    }
-    allocator.free(routes);
-}
-
 fn fetchStaticParams(io: std.Io, allocator: std.mem.Allocator, host: []const u8, port: u16, route_path: []const u8) !StaticParamsResult {
     var client = std.http.Client{
         .allocator = allocator,

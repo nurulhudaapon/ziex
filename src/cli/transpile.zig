@@ -907,19 +907,7 @@ fn genRoutes(allocator: std.mem.Allocator, output_dir: []const u8, rootdir: ?[]c
     // Use rootdir if provided, otherwise fall back to output_dir
     const meta_rootdir = rootdir orelse output_dir;
 
-    // Convert to relative path using std.fs.path.relative and escape for Zig string literal
-    var path_to_use: []const u8 = meta_rootdir;
-    var path_allocated = false;
-    if (std.fs.path.resolve(allocator, &.{"."})) |cwd| {
-        defer allocator.free(cwd);
-        if (std.fs.path.relative(allocator, cwd, null, cwd, meta_rootdir)) |relative| {
-            path_to_use = relative;
-            path_allocated = true;
-        } else |_| {}
-    } else |_| {}
-    defer if (path_allocated) allocator.free(path_to_use);
-
-    const escaped_path = try escapePathForZigString(allocator, path_to_use);
+    const escaped_path = try escapePathForZigString(allocator, meta_rootdir);
     defer allocator.free(escaped_path);
 
     try writer.writeAll("pub const meta = zx.server.ServerMeta{\n");
@@ -1401,7 +1389,6 @@ fn transpileFile(
             else => return err,
         };
     }
-
 
     try std.Io.Dir.cwd().writeFile(io, .{
         .sub_path = output_path,

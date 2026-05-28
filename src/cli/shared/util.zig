@@ -1,14 +1,36 @@
 const BIN_DIR = "zig-out" ++ std.fs.path.sep_str ++ "bin";
 
 /// Build-time emitted metadata, written alongside the installed binary as
-/// `<exe>.meta.zon`. This avoids having to spawn the binary just to read
-/// its configuration.
+/// `<exe>.meta.zon`.
 pub const BuildMeta = struct {
-    binpath: []const u8,
-    rootdir: []const u8,
-    port: ?u16 = null,
-    address: ?[]const u8 = null,
-    version: []const u8,
+    pub const Route = struct {
+        path: []const u8,
+        kind: []const u8 = "Page",
+        methods: []const []const u8 = &.{},
+        has_notfound: bool = false,
+        is_dynamic: bool = false,
+    };
+    pub const ServerCfg = struct {
+        port: ?u16 = null,
+        address: ?[]const u8 = null,
+    };
+    pub const Config = struct {
+        server: ServerCfg = .{},
+    };
+
+    binpath: ?[]const u8 = null,
+    rootdir: ?[]const u8 = null,
+    routes: []const Route = &.{},
+    config: Config = .{},
+    version: []const u8 = "",
+    cli_command: ?[]const u8 = null,
+
+    pub fn port(self: BuildMeta) ?u16 {
+        return self.config.server.port;
+    }
+    pub fn address(self: BuildMeta) ?[]const u8 {
+        return self.config.server.address;
+    }
 };
 
 /// Find the ZX app metadata from the install dir.
@@ -20,6 +42,7 @@ pub fn findprogram(io: std.Io, allocator: std.mem.Allocator, binpath: []const u8
         const meta_path = try std.fmt.allocPrint(allocator, "{s}.meta.zon", .{binpath});
         defer allocator.free(meta_path);
         var meta = try readBuildMeta(io, allocator, meta_path);
+        if (meta.binpath) |bp| allocator.free(bp);
         meta.binpath = try allocator.dupe(u8, binpath);
         return meta;
     }
@@ -44,12 +67,13 @@ pub fn findprogram(io: std.Io, allocator: std.mem.Allocator, binpath: []const u8
             else => return err,
         };
 
-        // Resolve binpath relative to the install root (`zig-out`).
-        const resolved_binpath = try std.fs.path.join(allocator, &.{ "zig-out", meta.binpath });
-        allocator.free(meta.binpath);
+        // Derive the binary path from the meta file path: strip ".meta.zon".
+        const exe_basename = entry.name[0 .. entry.name.len - ".meta.zon".len];
+        const resolved_binpath = try std.fs.path.join(allocator, &.{ BIN_DIR, exe_basename });
+        if (meta.binpath) |bp| allocator.free(bp);
         meta.binpath = resolved_binpath;
 
-        log.debug("Found app: {s} at {s}", .{ meta.version, meta.binpath });
+        log.debug("Found app: {s} at {s}", .{ meta.version, meta.binpath.? });
         return meta;
     }
 
@@ -62,7 +86,7 @@ fn readBuildMeta(io: std.Io, allocator: std.mem.Allocator, path: []const u8) !Bu
     defer allocator.free(source);
     const source_z = try allocator.dupeZ(u8, source);
     defer allocator.free(source_z);
-    return try std.zon.parse.fromSliceAlloc(BuildMeta, allocator, source_z, null, .{});
+    return try std.zon.parse.fromSliceAlloc(BuildMeta, allocator, source_z, null, .{ .ignore_unknown_fields = true });
 }
 
 pub fn freeBuildMeta(allocator: std.mem.Allocator, meta: *BuildMeta) void {

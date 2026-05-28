@@ -58,8 +58,8 @@ fn bundle(ctx: zli.CommandContext) !void {
     };
     defer util.freeBuildMeta(ctx.allocator, &app_meta);
 
-    const appoutdir = app_meta.rootdir;
-    const final_binpath = app_meta.binpath;
+    const appoutdir = app_meta.rootdir orelse "";
+    const final_binpath = app_meta.binpath.?;
 
     var printer = tui.Printer.init(ctx.allocator, .{ .file_path_mode = .flat, .file_tree_max_depth = 1 });
     defer printer.deinit();
@@ -71,7 +71,7 @@ fn bundle(ctx: zli.CommandContext) !void {
     log.debug("Outdir: {s}", .{outdir});
 
     const bin_name = std.fs.path.basename(final_binpath);
-    const port = app_meta.port orelse 3000;
+    const port = app_meta.port() orelse 3000;
     const port_str = try std.fmt.allocPrint(ctx.allocator, "{d}", .{port});
     defer ctx.allocator.free(port_str);
     const dest_binpath = try std.fs.path.join(ctx.allocator, &.{ outdir, bin_name });
@@ -91,6 +91,7 @@ fn bundle(ctx: zli.CommandContext) !void {
         log.debug("Copying static directory! {s}", .{appoutdir});
         util.copydirs(io, ctx.allocator, appoutdir, &.{"."}, static_outdir, false, &printer) catch |err| {
             std.log.err("Failed to copy static directories: {any}", .{err});
+            return err;
         };
 
         // Clean up old directories if they exist

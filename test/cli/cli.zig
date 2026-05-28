@@ -205,9 +205,7 @@ test "init → build -t react" {
 }
 
 test "export" {
-    if (true) return error.Todo; // export is not working on zig 16 yet
-
-    if (!test_util.shouldRunSlowTest()) return error.SkipZigTest; // Export doesn't work on Windows yet
+    if (!test_util.shouldRunSlowTest()) return error.SkipZigTest;
     killPort("3000") catch {};
     try test_cmd(.{
         .args = &.{"export"},
@@ -250,8 +248,6 @@ test "bundle" {
 }
 
 test "bundle --docker" {
-    if (true) return error.Todo; // export is not working on zig 16 yet
-
     if (!test_util.shouldRunSlowTest()) return error.SkipZigTest;
     try test_cmd(.{
         .args = &.{ "bundle", "--docker" },
@@ -270,8 +266,6 @@ test "bundle --docker" {
 }
 
 test "bundle --docker-compose" {
-    if (true) return error.Todo; // export is not working on zig 16 yet
-
     if (!test_util.shouldRunSlowTest()) return error.SkipZigTest;
     try test_cmd(.{
         .args = &.{ "bundle", "--docker-compose" },
@@ -292,8 +286,6 @@ test "bundle --docker-compose" {
 }
 
 test "fmt" {
-    // Skipping fmt test due to intermittent subprocess spawn crash on some environments
-    if (true) return error.SkipZigTest;
     try test_cmd(.{
         .args = &.{ "fmt", "app" ++ std.fs.path.sep_str ++ "pages" },
         .expected_exit_code = 0,

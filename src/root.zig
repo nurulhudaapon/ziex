@@ -38,6 +38,10 @@ pub const info = @import("zx_info");
 // --- Aliases --- //
 pub const Allocator = std.mem.Allocator;
 pub const log = std.log;
+pub const Init = switch (builtin.os.tag) {
+    .freestanding => std.process.Init.Minimal,
+    else => std.process.Init,
+};
 
 // TODO: Legacy, should be removed
 pub const Server = app_module.Server;
