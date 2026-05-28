@@ -2,7 +2,7 @@ const std = @import("std");
 const zx = @import("zx");
 const pg = @import("Playground.zig");
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
     const allocator = std.heap.page_allocator;
     var aw = std.Io.Writer.Allocating.init(allocator);
 
@@ -10,7 +10,7 @@ pub fn main() !void {
     const decls = type_info.@"struct".decls;
 
     if (decls.len == 0) {
-        try std.fs.File.stdout().writeAll(
+        try std.Io.File.stdout().writeStreamingAll(init.io,
             \\<pre>
             \\No pub component found in Playground.zig
             \\
@@ -29,7 +29,7 @@ pub fn main() !void {
         try component.render(&aw.writer, .{});
     }
 
-    try std.fs.File.stdout().writeAll(aw.written());
+    try std.Io.File.stdout().writeStreamingAll(init.io, aw.written());
 }
 
 fn resolveComponent(allocator: zx.Allocator, comptime field_name: []const u8) zx.Component {
