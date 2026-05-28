@@ -216,7 +216,7 @@ pub fn initInner(
     zx_wasm_module: *std.Build.Module,
     opts: InitInnerOptions,
 ) !Build {
-    // const target = exe.root_module.resolved_target;
+    const target = exe.root_module.resolved_target;
     const optimize = exe.root_module.optimize;
     const build_zon = @import("../../build.zig.zon");
 
@@ -407,7 +407,8 @@ pub fn initInner(
     // We capture the app's introspect output (full SerilizableAppMeta with
     // routes) and use that directly as the installed `<exe>.meta.zon`. This
     // lets CLI tools like `zx export` discover routes without an HTTP fetch.
-    {
+    const can_introspect_exe = if (target) |resolved| resolved.query.isNative() else true;
+    if (can_introspect_exe) {
         const introspect_run = b.addRunArtifact(exe);
         introspect_run.setName(b.fmt("introspect {s}", .{exe.name}));
         introspect_run.setEnvironmentVariable("ZIEX_INTROSPECT", "1");

@@ -53,15 +53,15 @@ pub fn run(process_init: std.process.Init) !void {
     // --- Stdout/stderr writers --- //
     var stdout_writer = std.Io.File.stdout().writerStreaming(process_init.io, &.{});
     var stdout = &stdout_writer.interface;
- 
+
     var stderr_writer = std.Io.File.stderr().writerStreaming(process_init.io, &.{});
     const stderr = &stderr_writer.interface;
- 
+
     var stdin_body_buf: std.Io.Writer.Allocating = .init(allocator);
     defer stdin_body_buf.deinit();
     var stdin_read_buf: [4096]u8 = undefined;
     var stdin_reader = std.Io.File.stdin().readerStreaming(process_init.io, &stdin_read_buf);
-    _ = stdin_reader.interface.streamRemaining(process_init.io, &stdin_body_buf.writer, .unlimited) catch {};
+    _ = stdin_reader.interface.streamRemaining(&stdin_body_buf.writer) catch {};
 
     var wasi_req = WasiRequest{ .body = stdin_body_buf.written() };
 

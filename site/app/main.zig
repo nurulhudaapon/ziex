@@ -1,10 +1,10 @@
 const builtin = @import("builtin");
 const zx = @import("zx");
 
-pub fn main() !void {
+pub fn main(init: zx.Init) !void {
     var app_ctx = AppCtx{ .port = 5588 };
 
-    var app = try zx.App(*AppCtx).init(zx.io(), zx.allocator, .{ .server = .{ .port = 5588 } }, &app_ctx);
+    var app = try zx.App(*AppCtx).init(init, zx.io(), zx.allocator, .{ .server = .{ .port = 5588 } }, &app_ctx);
     defer app.deinit();
 
     try app.start();
