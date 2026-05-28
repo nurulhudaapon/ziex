@@ -41,7 +41,7 @@ const DatabaseCtx = struct {
     }
 
     fn acquire(self: *DatabaseCtx) !BorrowedConn {
-        const io = std.Options.debug_io;
+        const io = std.Io.Threaded.global_single_threaded.io();
         return switch (self.mode) {
             .single => .{ .conn = self.conn orelse return db.DbError.InvalidState },
             .pooled => .{ .conn = try (self.pool orelse return db.DbError.InvalidState).acquire(io), .pool = self.pool },
@@ -54,7 +54,7 @@ const BorrowedConn = struct {
     pool: ?*zqlite.Pool = null,
 
     fn deinit(self: *BorrowedConn) void {
-        if (self.pool != null) self.conn.release(std.Options.debug_io);
+        if (self.pool != null) self.conn.release(std.Io.Threaded.global_single_threaded.io());
     }
 };
 
@@ -696,7 +696,7 @@ fn ensureParentDir(path: []const u8) !void {
     if (isMemoryPath(path) or isUriPath(path)) return;
     const parent = std.fs.path.dirname(path) orelse return;
     if (parent.len == 0) return;
-    const io = std.Options.debug_io;
+    const io = std.Io.Threaded.global_single_threaded.io();
     if (std.Io.Dir.cwd().statFile(io, parent, .{ .follow_symlinks = true })) |st| {
         if (st.kind == .directory) return;
     } else |_| {}

@@ -193,14 +193,14 @@ fn nsDir(ns: []const u8, buf: *[256]u8) ?[]u8 {
 }
 
 fn fsGet(_: *anyopaque, ns: []const u8, allocator: std.mem.Allocator, key: []const u8) !?[]u8 {
-    const io = std.Options.debug_io;
+    const io = std.Io.Threaded.global_single_threaded.io();
     var buf: [1024]u8 = undefined;
     const path = keyPath(ns, key, &buf) orelse return null;
     return std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .limited(10 * 1024 * 1024)) catch null;
 }
 
 fn fsPut(_: *anyopaque, ns: []const u8, key: []const u8, value: []const u8, _: PutOptions) !void {
-    const io = std.Options.debug_io;
+    const io = std.Io.Threaded.global_single_threaded.io();
     var buf: [1024]u8 = undefined;
     const path = keyPath(ns, key, &buf) orelse return error.KeyTooLong;
     var file = try std.Io.Dir.cwd().createFileAtomic(io, path, .{
@@ -213,14 +213,14 @@ fn fsPut(_: *anyopaque, ns: []const u8, key: []const u8, value: []const u8, _: P
 }
 
 fn fsDelete(_: *anyopaque, ns: []const u8, key: []const u8) !void {
-    const io = std.Options.debug_io;
+    const io = std.Io.Threaded.global_single_threaded.io();
     var buf: [1024]u8 = undefined;
     const path = keyPath(ns, key, &buf) orelse return;
     std.Io.Dir.cwd().deleteFile(io, path) catch {};
 }
 
 fn fsList(_: *anyopaque, ns: []const u8, allocator: std.mem.Allocator, prefix: []const u8) ![][]u8 {
-    const io = std.Options.debug_io;
+    const io = std.Io.Threaded.global_single_threaded.io();
     var dir_buf: [256]u8 = undefined;
     const dir_path = nsDir(ns, &dir_buf) orelse return &[_][]u8{};
     var dir = std.Io.Dir.cwd().openDir(io, dir_path, .{ .iterate = true }) catch return &[_][]u8{};

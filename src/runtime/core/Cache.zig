@@ -161,10 +161,10 @@ var state: ?State = null;
 var state_mutex: struct {
     inner: std.Io.Mutex = .init,
     pub fn lock(self: *@This()) void {
-        self.inner.lockUncancelable(std.Options.debug_io);
+        self.inner.lockUncancelable(std.Io.Threaded.global_single_threaded.io());
     }
     pub fn unlock(self: *@This()) void {
-        self.inner.unlock(std.Options.debug_io);
+        self.inner.unlock(std.Io.Threaded.global_single_threaded.io());
     }
 } = .{};
 
@@ -176,7 +176,7 @@ pub fn init(allocator: std.mem.Allocator, config: cachez.Config) !void {
     if (state != null) return;
     state = .{
         .allocator = allocator,
-        .memory = try cachez.Cache(CacheEntry).init(std.Options.debug_io, allocator, config),
+        .memory = try cachez.Cache(CacheEntry).init(std.Io.Threaded.global_single_threaded.io(), allocator, config),
     };
 }
 
@@ -445,7 +445,7 @@ fn decodeStoredEntry(encoded: []const u8) !StoredEntry {
 
 fn now() u64 {
     if (comptime builtin.os.tag == .freestanding or builtin.os.tag == .wasi) return 0;
-    const ts = std.Io.Timestamp.now(std.Options.debug_io, .real);
+    const ts = std.Io.Timestamp.now(std.Io.Threaded.global_single_threaded.io(), .real);
     return @as(u64, @intCast(@divTrunc(ts.nanoseconds, 1_000_000_000)));
 }
 
