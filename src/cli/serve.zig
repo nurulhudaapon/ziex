@@ -45,7 +45,10 @@ fn serve(ctx: zli.CommandContext) !void {
     if (port != 0) try build_args.appendSlice(ctx.allocator, &.{ "--port", port_str });
     try build_args.appendSlice(ctx.allocator, &.{ "--cli-command", "serve" });
 
-    var system = try std.process.spawn(app.io, .{ .argv = build_args.items });
+    var system = try std.process.spawn(app.io, .{
+        .argv = build_args.items,
+        .environ_map = app.environ_map,
+    });
 
     var program_meta = util.findprogram(app.io, ctx.allocator, binpath) catch |err| {
         log.debug("Error finding ZX executable! {any}\n", .{err});
