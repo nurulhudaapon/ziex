@@ -49,17 +49,17 @@ fn bundle(ctx: zli.CommandContext) !void {
     const build_args = ctx.flag("build-args", []const u8);
 
     var app_meta = util.findprogram(io, ctx.allocator, binpath) catch |err| {
-        if (err == error.FileNotFound or err == error.ProgramNotFound) {
+        if (err == error.FileNotFound or err == error.ProgramNotFound or err == error.EmptyBinDir) {
             try ctx.writer.print("Run \x1b[34mzig build\x1b[0m to build the ZX executable first!\n", .{});
             return;
         }
         try ctx.writer.print("Error finding ZX executable! {any}\n", .{err});
         return;
     };
-    defer std.zon.parse.free(ctx.allocator, app_meta);
+    defer util.freeBuildMeta(ctx.allocator, &app_meta);
 
-    const appoutdir = app_meta.rootdir orelse "site/.zx";
-    const final_binpath = app_meta.binpath orelse binpath;
+    const appoutdir = app_meta.rootdir;
+    const final_binpath = app_meta.binpath;
 
     var printer = tui.Printer.init(ctx.allocator, .{ .file_path_mode = .flat, .file_tree_max_depth = 1 });
     defer printer.deinit();
@@ -67,15 +67,11 @@ fn bundle(ctx: zli.CommandContext) !void {
     printer.header("{s} Bundling ZX site!", .{tui.Printer.emoji("○")});
     printer.info("{s}", .{outdir});
 
-    var aw = std.Io.Writer.Allocating.init(ctx.allocator);
-    defer aw.deinit();
-    try app_meta.serialize(&aw.writer);
-    log.debug("Bundling ZX site! {s}", .{aw.written()});
-
+    log.debug("Bundling ZX site! binpath={s} rootdir={s}", .{ final_binpath, appoutdir });
     log.debug("Outdir: {s}", .{outdir});
 
     const bin_name = std.fs.path.basename(final_binpath);
-    const port = app_meta.config.server.port orelse 3000;
+    const port = app_meta.port orelse 3000;
     const port_str = try std.fmt.allocPrint(ctx.allocator, "{d}", .{port});
     defer ctx.allocator.free(port_str);
     const dest_binpath = try std.fs.path.join(ctx.allocator, &.{ outdir, bin_name });

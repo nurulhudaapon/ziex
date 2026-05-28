@@ -221,13 +221,17 @@ pub fn initInner(
     const build_zon = @import("../../build.zig.zon");
 
     // --- ZX Options --- //
+    const port_opt = b.option(u16, "port", "Port to run the Ziex server on");
+    const address_opt = b.option([]const u8, "address", "Address to bind the Ziex server to");
+    const rootdir_opt = b.option([]const u8, "rootdir", "Static root directory for the Ziex server");
+
     const zx_options = b.addOptions();
     zx_options.addOption(?[]const u8, "jsglue_href", opts.client.jsglue_href);
     zx_options.addOption(?[]const u8, "wasm_href", opts.client.wasm_href);
     zx_options.addOption(?[]const u8, "app_base_path", opts.base_path);
-    zx_options.addOption(?u16, "server_port", b.option(u16, "port", "Port to run the Ziex server on"));
-    zx_options.addOption(?[]const u8, "server_address", b.option([]const u8, "address", "Address to bind the Ziex server to"));
-    zx_options.addOption(?[]const u8, "server_rootdir", b.option([]const u8, "rootdir", "Static root directory for the Ziex server"));
+    zx_options.addOption(?u16, "server_port", port_opt);
+    zx_options.addOption(?[]const u8, "server_address", address_opt);
+    zx_options.addOption(?[]const u8, "server_rootdir", rootdir_opt);
     zx_options.addOption(?[]const u8, "cli_command", b.option([]const u8, "cli-command", "Ziex CLI command mode for the app"));
     zx_options.addOption(bool, "introspect", b.option(bool, "introspect", "Print Ziex app metadata and exit") orelse false);
 
@@ -397,6 +401,28 @@ pub fn initInner(
     exe.step.dependOn(&transpile_cmd.step);
     exe.step.name = b.fmt("install {s}server{s} {s}", .{ colors.dim, colors.reset, exe.name });
     b.installArtifact(exe);
+
+    // --- Build-time App Metadata ---
+    {
+        var aw = std.Io.Writer.Allocating.init(b.allocator);
+        defer aw.deinit();
+
+        const w = &aw.writer;
+        const meta = .{
+            .binpath = b.pathJoin(&.{ "bin", exe.name }),
+            .rootdir = rootdir_opt orelse staticdir,
+            .port = port_opt orelse null,
+            .address = address_opt orelse null,
+            .version = build_zon.version,
+        };
+
+        try std.zon.stringify.serialize(meta, .{}, w);
+
+        const meta_wf = b.addWriteFiles();
+        const meta_path = meta_wf.add(b.fmt("{s}.meta.zon", .{exe.name}), aw.written());
+        const install_meta = b.addInstallFileWithDir(meta_path, .bin, b.fmt("{s}.meta.zon", .{exe.name}));
+        b.getInstallStep().dependOn(&install_meta.step);
+    }
 
     // --- ZX WASM Main Executable --- //
     const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding, .abi = .none });

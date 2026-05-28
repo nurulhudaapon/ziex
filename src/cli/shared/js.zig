@@ -92,9 +92,9 @@ pub fn buildjs(ctx: zli.CommandContext, binpath: []const u8, is_dev: bool, verbo
     const app = AppContext.from(&ctx);
     const io = app.io;
     var program_meta = try util.findprogram(io, ctx.allocator, binpath);
-    defer program_meta.deinit(ctx.allocator);
+    defer util.freeBuildMeta(ctx.allocator, &program_meta);
 
-    const rootdir = program_meta.rootdir orelse return error.RootdirNotFound;
+    const rootdir = program_meta.rootdir;
 
     log.debug("Parsing package.json", .{});
     var package_json_parsed = try PackageJson.parse(ctx.allocator, io);

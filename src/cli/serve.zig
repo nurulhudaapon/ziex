@@ -51,7 +51,7 @@ fn serve(ctx: zli.CommandContext) !void {
         log.debug("Error finding ZX executable! {any}\n", .{err});
         return;
     };
-    defer program_meta.deinit(ctx.allocator);
+    defer util.freeBuildMeta(ctx.allocator, &program_meta);
 
     const term = try system.wait(app.io);
     _ = term;

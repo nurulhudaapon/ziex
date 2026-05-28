@@ -1,83 +1,72 @@
 const BIN_DIR = "zig-out" ++ std.fs.path.sep_str ++ "bin";
 
-/// Find the ZX executable from the bin directory
-pub fn findprogram(io: std.Io, allocator: std.mem.Allocator, binpath: []const u8) !SerilizableAppMeta {
+/// Build-time emitted metadata, written alongside the installed binary as
+/// `<exe>.meta.zon`. This avoids having to spawn the binary just to read
+/// its configuration.
+pub const BuildMeta = struct {
+    binpath: []const u8,
+    rootdir: []const u8,
+    port: ?u16 = null,
+    address: ?[]const u8 = null,
+    version: []const u8,
+};
+
+/// Find the ZX app metadata from the install dir.
+///
+/// If `binpath` is given, looks for `<binpath>.meta.zon` next to it.
+/// Otherwise scans `zig-out/bin` for any `*.meta.zon` file.
+pub fn findprogram(io: std.Io, allocator: std.mem.Allocator, binpath: []const u8) !BuildMeta {
     if (!std.mem.eql(u8, binpath, "")) {
-        var app_meta = try inspectProgram(io, allocator, binpath);
-        // defer std.zon.parse.free(allocator, app_meta);
-        // errdefer std.zon.parse.free(allocator, app_meta);
-        app_meta.binpath = binpath;
-        return app_meta;
+        const meta_path = try std.fmt.allocPrint(allocator, "{s}.meta.zon", .{binpath});
+        defer allocator.free(meta_path);
+        var meta = try readBuildMeta(io, allocator, meta_path);
+        meta.binpath = try allocator.dupe(u8, binpath);
+        return meta;
     }
 
     var files = try std.Io.Dir.cwd().openDir(io, BIN_DIR, .{ .iterate = true });
     defer files.close(io);
 
-    var exe_count: usize = 0;
+    var entry_count: usize = 0;
     var it = files.iterate();
     while (try it.next(io)) |entry| {
-        if (entry.kind == .file) {
-            exe_count += 1;
+        if (entry.kind != .file) continue;
+        entry_count += 1;
+        if (!std.mem.endsWith(u8, entry.name, ".meta.zon")) continue;
 
-            const full_path = try std.fs.path.join(allocator, &.{ BIN_DIR, entry.name });
-            defer allocator.free(full_path);
+        const meta_path = try std.fs.path.join(allocator, &.{ BIN_DIR, entry.name });
+        defer allocator.free(meta_path);
 
-            log.debug("Inspecting exe: {s}", .{full_path});
+        log.debug("Reading meta: {s}", .{meta_path});
 
-            var app_meta = inspectProgram(io, allocator, full_path) catch |err| switch (err) {
-                error.ProgramNotFound, error.ParseZon, error.InvalidExe => continue,
-                else => return err,
-            };
-            // defer std.zon.parse.free(allocator, app_meta);
+        var meta = readBuildMeta(io, allocator, meta_path) catch |err| switch (err) {
+            error.ParseZon, error.FileNotFound => continue,
+            else => return err,
+        };
 
-            log.debug("Found app: {s} in {s}", .{ app_meta.version, full_path });
+        // Resolve binpath relative to the install root (`zig-out`).
+        const resolved_binpath = try std.fs.path.join(allocator, &.{ "zig-out", meta.binpath });
+        allocator.free(meta.binpath);
+        meta.binpath = resolved_binpath;
 
-            app_meta.binpath = try allocator.dupe(u8, full_path);
-            return app_meta;
-        }
+        log.debug("Found app: {s} at {s}", .{ meta.version, meta.binpath });
+        return meta;
     }
 
-    if (exe_count == 0) return error.EmptyBinDir;
+    if (entry_count == 0) return error.EmptyBinDir;
     return error.ProgramNotFound;
 }
 
-pub fn inspectProgram(io: std.Io, allocator: std.mem.Allocator, binpath: []const u8) !SerilizableAppMeta {
-    // The binary only prints metadata + exits when built with `-Dintrospect=true`
-    // (see runtime/server/Server.zig:introspect). The dev command is responsible
-    // for producing such a binary before calling this; here we just run it.
-    var exe = try std.process.spawn(io, .{
-        .argv = &.{binpath},
-        .stdout = .pipe,
-        .stderr = .ignore,
-    });
-
-    const source = if (exe.stdout) |estdout| blk: {
-        var buf: [4096]u8 = undefined;
-        var reader_streaming = estdout.readerStreaming(io, &buf);
-        const reader = &reader_streaming.interface;
-        var aw: std.Io.Writer.Allocating = .init(allocator);
-        defer aw.deinit();
-        _ = reader.streamRemaining(&aw.writer) catch |err| {
-            exe.kill(io);
-            return err;
-        };
-        break :blk try aw.toOwnedSlice();
-    } else {
-        exe.kill(io);
-        return error.ProgramNotFound;
-    };
+fn readBuildMeta(io: std.Io, allocator: std.mem.Allocator, path: []const u8) !BuildMeta {
+    const source = try std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .unlimited);
     defer allocator.free(source);
-
-    _ = exe.wait(io) catch {};
-
-    if (source.len == 0) return error.ProgramNotFound;
-
     const source_z = try allocator.dupeZ(u8, source);
     defer allocator.free(source_z);
+    return try std.zon.parse.fromSliceAlloc(BuildMeta, allocator, source_z, null, .{});
+}
 
-    const app_meta = try std.zon.parse.fromSliceAlloc(SerilizableAppMeta, allocator, source_z, null, .{});
-
-    return app_meta;
+pub fn freeBuildMeta(allocator: std.mem.Allocator, meta: *BuildMeta) void {
+    std.zon.parse.free(allocator, meta.*);
 }
 
 const ignore_dirs = [_][]const u8{".well-known" ++ std.fs.path.sep_str ++ "_zx"};
@@ -195,4 +184,3 @@ const zx = @import("zx");
 const builtin = @import("builtin");
 const tui = @import("../../tui/main.zig");
 const log = std.log.scoped(.cli);
-const SerilizableAppMeta = zx.server.SerilizableAppMeta;
