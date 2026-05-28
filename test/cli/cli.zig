@@ -148,8 +148,6 @@ test "init -t react" {
 // }
 
 test "init → build" {
-    if (true) return error.Todo; // export is not working on zig 16 yet
-
     if (!test_util.shouldRunSlowTest()) return error.SkipZigTest;
 
     const test_dir_abs = try getTestDirPath();
@@ -386,6 +384,8 @@ fn test_cmd(options: TestCmdOptions) !void {
         },
     }
 
+    var missing_file: u32 = 0;
+
     for (options.expected_files) |expected_file| {
         var expected_file_path = std.ArrayList([]const u8).empty;
         defer expected_file_path.deinit(allocator);
@@ -400,8 +400,17 @@ fn test_cmd(options: TestCmdOptions) !void {
         const expected_file_path_str = try std.fs.path.join(allocator, expected_file_path.items);
         defer allocator.free(expected_file_path_str);
 
-        const file_stat = try std.Io.Dir.cwd().statFile(std.testing.io, expected_file_path_str, .{});
+        const file_stat = std.Io.Dir.cwd().statFile(std.testing.io, expected_file_path_str, .{}) catch |err| {
+            std.log.err("\nExpected file '{s}' does not exist {s}\n", .{ expected_file_path_str, @errorName(err) });
+            missing_file += 1;
+            continue;
+        };
         try std.testing.expectEqual(file_stat.kind, .file);
+    }
+
+    if (missing_file > 0) {
+        std.log.err("\nTotal missing files: {d}\n", .{missing_file});
+        return error.TestExpectedEqual;
     }
 }
 
