@@ -243,10 +243,7 @@ pub fn Server(comptime H: type) type {
                 self.meta.rootdir = rootdir;
             }
 
-            if (zx_options.cli_command) |cli_command_str| {
-                const cli_command = std.meta.stringToEnum(ServerMeta.CliCommand, cli_command_str) orelse return error.InvalidCliCommand;
-                self.meta.cli_command = cli_command;
-            }
+            self.meta.cli_command = std.meta.stringToEnum(ServerMeta.CliCommand, zx_options.cli_command) orelse return error.InvalidCliCommand;
 
             // Overriding or setting default configs
             setServerAddress(&self.server.config, address, port);
@@ -830,7 +827,7 @@ pub const ServerMeta = struct {
         page_proxy: ?ProxyHandler = null,
         route_proxy: ?ProxyHandler = null,
     };
-    pub const CliCommand = enum { dev, serve, @"export" };
+    pub const CliCommand = enum { dev, serve, @"export", @"--" };
 
     routes: []const Route,
     rootdir: ?[]const u8,

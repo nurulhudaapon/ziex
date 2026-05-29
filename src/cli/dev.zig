@@ -75,8 +75,8 @@ fn dev(ctx: zli.CommandContext) !void {
     defer build_args_array.deinit(allocator);
     defer initial_build_args_array.deinit(allocator);
 
-    try build_args_array.appendSlice(allocator, &.{ cli_options.zig_exe, "build", "--watch", "--verbose", "--summary", "all", "--color", "off" });
-    try initial_build_args_array.appendSlice(allocator, &.{ cli_options.zig_exe, "build" });
+    try build_args_array.appendSlice(allocator, &.{ cli_options.zig_exe, "build", "-Dcli-command=dev", "--watch", "--verbose", "--summary", "all", "--color", "off" });
+    try initial_build_args_array.appendSlice(allocator, &.{ cli_options.zig_exe, "build", "-Dcli-command=dev" });
 
     while (build_args.next()) |arg| {
         const trimmed_arg = std.mem.trim(u8, arg, " ");
@@ -376,7 +376,7 @@ fn dev(ctx: zli.CommandContext) !void {
                     });
 
                     runner_output = try util.captureChildOutput(io, ctx.allocator, &runner.?, .{
-                        .stderr = .{ .mode = .first_line_then_transparent, .target = .stderr },
+                        .stderr = .{ .mode = .transparent, .target = .stderr },
                         .stdout = .{ .mode = .transparent, .target = .stdout },
                     });
 

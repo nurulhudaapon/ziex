@@ -224,6 +224,7 @@ pub fn initInner(
     const port_opt = b.option(u16, "port", "Port to run the Ziex server on");
     const address_opt = b.option([]const u8, "address", "Address to bind the Ziex server to");
     const rootdir_opt = b.option([]const u8, "rootdir", "Static root directory for the Ziex server");
+    const cli_command_opt = b.option([]const u8, "cli-command", "Ziex CLI command mode for the app");
 
     const zx_options = b.addOptions();
     zx_options.addOption(?[]const u8, "jsglue_href", opts.client.jsglue_href);
@@ -232,7 +233,7 @@ pub fn initInner(
     zx_options.addOption(?u16, "server_port", port_opt);
     zx_options.addOption(?[]const u8, "server_address", address_opt);
     zx_options.addOption(?[]const u8, "server_rootdir", rootdir_opt);
-    zx_options.addOption(?[]const u8, "cli_command", b.option([]const u8, "cli-command", "Ziex CLI command mode for the app"));
+    zx_options.addOption([]const u8, "cli_command", cli_command_opt orelse "--");
     zx_options.addOption(bool, "introspect", b.option(bool, "introspect", "Print Ziex app metadata and exit") orelse false);
 
     zx_module.addOptions("zx_options", zx_options);
@@ -519,7 +520,8 @@ pub fn initInner(
             "dev",
             "--binpath",
         });
-        dev_cmd.addFileArg(exe.getEmittedBin());
+        dev_cmd.addArg(b.pathJoin(&.{ b.exe_dir, exe.out_filename }));
+        dev_cmd.step.dependOn(b.getInstallStep());
         const dev_step = b.step(dev_step_name, "Run the Ziex app in development mode");
         dev_step.dependOn(&dev_cmd.step);
         if (b.args) |args| dev_cmd.addArgs(args);

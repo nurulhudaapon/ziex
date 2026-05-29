@@ -295,7 +295,8 @@ pub fn Handler(comptime AppCtxType: type) type {
         }
 
         pub fn dispatch(self: *Self, action: httpz.Action(*Self), req: *httpz.Request, res: *httpz.Response) !void {
-            const is_dev = self.meta.cli_command == .dev;
+            const is_dev = comptime std.mem.eql(u8, zx_options.cli_command, "dev");
+
             var start_time = if (is_dev) std.Io.Timestamp.now(self.io, .awake) else std.Io.Timestamp.zero;
 
             // Reset proxy status for this request (dev mode tracking)
