@@ -43,7 +43,7 @@ pub fn findprogram(io: std.Io, allocator: std.mem.Allocator, binpath: []const u8
         defer allocator.free(meta_path);
         var meta = try readBuildMeta(io, allocator, meta_path);
         if (meta.binpath) |bp| allocator.free(bp);
-        meta.binpath = try allocator.dupe(u8, binpath);
+        meta.binpath = try resolveBinPath(io, allocator, binpath);
         return meta;
     }
 
@@ -69,7 +69,9 @@ pub fn findprogram(io: std.Io, allocator: std.mem.Allocator, binpath: []const u8
 
         // Derive the binary path from the meta file path: strip ".meta.zon".
         const exe_basename = entry.name[0 .. entry.name.len - ".meta.zon".len];
-        const resolved_binpath = try std.fs.path.join(allocator, &.{ BIN_DIR, exe_basename });
+        const inferred_binpath = try std.fs.path.join(allocator, &.{ BIN_DIR, exe_basename });
+        defer allocator.free(inferred_binpath);
+        const resolved_binpath = try resolveBinPath(io, allocator, inferred_binpath);
         if (meta.binpath) |bp| allocator.free(bp);
         meta.binpath = resolved_binpath;
 
@@ -79,6 +81,27 @@ pub fn findprogram(io: std.Io, allocator: std.mem.Allocator, binpath: []const u8
 
     if (entry_count == 0) return error.EmptyBinDir;
     return error.ProgramNotFound;
+}
+
+fn resolveBinPath(io: std.Io, allocator: std.mem.Allocator, binpath: []const u8) ![]const u8 {
+    if (fileExists(io, binpath)) {
+        return allocator.dupe(u8, binpath);
+    }
+
+    if (builtin.os.tag == .windows and !std.mem.endsWith(u8, binpath, ".exe")) {
+        const exe_binpath = try std.fmt.allocPrint(allocator, "{s}.exe", .{binpath});
+        if (fileExists(io, exe_binpath)) {
+            return exe_binpath;
+        }
+        allocator.free(exe_binpath);
+    }
+
+    return allocator.dupe(u8, binpath);
+}
+
+fn fileExists(io: std.Io, path: []const u8) bool {
+    _ = std.Io.Dir.cwd().statFile(io, path, .{}) catch return false;
+    return true;
 }
 
 fn readBuildMeta(io: std.Io, allocator: std.mem.Allocator, path: []const u8) !BuildMeta {
