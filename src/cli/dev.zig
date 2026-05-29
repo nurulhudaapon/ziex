@@ -89,10 +89,7 @@ fn dev(ctx: zli.CommandContext) !void {
     const io = app.io;
     const env_map = app.environ_map;
 
-    var initial_build = try std.process.spawn(io, .{
-        .argv = initial_build_args_array.items,
-        .environ_map = env_map,
-    });
+    var initial_build = try std.process.spawn(io, .{ .argv = initial_build_args_array.items });
     const initial_term = initial_build.wait(io) catch |err| {
         log.err("Failed to run initial build: {any}", .{err});
         std.process.exit(1);
@@ -140,7 +137,6 @@ fn dev(ctx: zli.CommandContext) !void {
 
     var builder = try std.process.spawn(io, .{
         .argv = build_args_array.items,
-        .environ_map = env_map,
         .stderr = .pipe,
         .stdout = .ignore,
     });
