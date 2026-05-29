@@ -17,14 +17,6 @@ pub fn build(b: *std.Build) !void {
     });
 
     // --- Ziex setup: wires dependencies and adds `zx`/`dev` build steps ---
-    var ziex_b = try ziex.init(b, app_exe, .{
-        .client = .{ .jsglue_href = "/assets/_/main.js" },
-    });
+    var ziex_b = try ziex.init(b, app_exe, .{});
     ziex_b = ziex_b; // ignore unused
-
-    ziex_b.plugin(ziex.plugins.esbuild(b, .{
-        .input = b.path("app/scripts/client.ts"),
-        .output = ziex_b.assetsdir.path(b, "_/main.js"),
-        .optimize = optimize,
-    }));
 }
