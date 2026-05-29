@@ -162,35 +162,35 @@ pub fn build(b: *std.Build) !void {
     //     .entrypoints = &.{b.path("app/scripts/docs.ts")},
     //     .outfile = assetsdir.path(b, "docs.js"),
     // } });
-    const bi = bunjs.addBuild(b, .{
-        .name = "playground_scripts",
-        .config = .{
-            .entrypoints = &.{
-                b.path("app/pages/playground/scripts/editor.ts"),
-                b.path("app/pages/playground/scripts/workers/runner.ts"),
-                b.path("app/pages/playground/scripts/workers/zig.ts"),
-                b.path("app/pages/playground/scripts/workers/zx.ts"),
-                b.path("app/pages/playground/scripts/workers/zls.ts"),
-            },
-            .define = &.{
-                .{
-                    .key = "VERSION",
-                    .value = b.fmt("\"{s}\"", .{ziex.info.version}),
-                },
-                .{
-                    .key = "ZIG_VERSION",
-                    .value = b.fmt("\"{s}\"", .{ziex.info.minimum_zig_version}),
-                },
-            },
-            // .outdir = assetsdir.path(b, "playground/"),
-        },
-    });
+    // const bi = bunjs.addBuild(b, .{
+    //     .name = "playground_scripts",
+    //     .config = .{
+    //         .entrypoints = &.{
+    //             b.path("app/pages/playground/scripts/editor.ts"),
+    //             b.path("app/pages/playground/scripts/workers/runner.ts"),
+    //             b.path("app/pages/playground/scripts/workers/zig.ts"),
+    //             b.path("app/pages/playground/scripts/workers/zx.ts"),
+    //             b.path("app/pages/playground/scripts/workers/zls.ts"),
+    //         },
+    //         .define = &.{
+    //             .{
+    //                 .key = "VERSION",
+    //                 .value = b.fmt("\"{s}\"", .{ziex.info.version}),
+    //             },
+    //             .{
+    //                 .key = "ZIG_VERSION",
+    //                 .value = b.fmt("\"{s}\"", .{ziex.info.minimum_zig_version}),
+    //             },
+    //         },
+    //         // .outdir = assetsdir.path(b, "playground/"),
+    //     },
+    // });
 
-    b.installDirectory(.{
-        .source_dir = bi.dir,
-        .install_dir = .prefix,
-        .install_subdir = "static/assets/playground",
-    });
+    // b.installDirectory(.{
+    //     .source_dir = bi.dir,
+    //     .install_dir = .prefix,
+    //     .install_subdir = "static/assets/playground",
+    // });
 
     b.installDirectory(.{
         .source_dir = ziex_b.ziex_js.dep.path("."),
