@@ -43,6 +43,26 @@ async function collectDependencies(entrypoints: string[]): Promise<string[]> {
     return [...seen];
 }
 
+/**
+ * Turn metafile input keys into real, absolute file paths for the dep file.
+ * Plugin/virtual inputs can be keyed as `namespace:path`; strip the namespace
+ * and keep only entries that point at a file that exists on disk, so the
+ * Make-style dep file zig reads never references a phantom path.
+ */
+function normalizeDependencies(keys: string[]): string[] {
+    const deps = new Set<string>();
+    for (const key of keys) {
+        let path = key;
+        const colon = path.indexOf(":");
+        // A leading `namespace:` prefix (not a Windows drive letter) marks a
+        // plugin-resolved input; the part after it is the real path.
+        if (colon > 1) path = path.slice(colon + 1);
+        const abs = require("path").resolve(path);
+        if (require("fs").existsSync(abs)) deps.add(abs);
+    }
+    return [...deps];
+}
+
 async function runBuild({ id, name, config }: BunBuilds, index: number): Promise<void> {
      id = id ?? index;
 
@@ -54,7 +74,7 @@ async function runBuild({ id, name, config }: BunBuilds, index: number): Promise
         const result = await build(config);
         let dependencies: string[];
         if (result.metafile) {
-            dependencies = Object.keys(result.metafile.inputs);
+            dependencies = normalizeDependencies(Object.keys(result.metafile.inputs));
         } else {
             dependencies = await collectDependencies(
                 (config.entrypoints as string[]).map(e => typeof e === "string" ? e : String(e))
