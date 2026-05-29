@@ -168,6 +168,13 @@ You can view our current progress and planned features here:
 
 **[Check out the Ziex Issue Tracker →](https://github.com/ziex-dev/ziex/issues)**
 
+## Versions
+| Zig         | Ziex              | Branch            | Status         |
+|-------------|-------------------|-------------------|----------------|
+| `0.16.0`    | `0.1.0-dev.1050+` | `zig-0.16` `main` | Unstable (dev) |
+| `0.15.2`    | `0.1.0-dev-1050`  | `zig-0.15`        | Stable (dev)   |
+
+
 ## Editor Support
 
 * [VSCode](https://marketplace.visualstudio.com/items?itemName=ziex.ziex)/[VSCode Forks](https://open-vsx.org/extension/ziex/ziex) Extension
