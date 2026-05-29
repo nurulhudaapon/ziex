@@ -18,12 +18,14 @@ pub const BuildMeta = struct {
         server: ServerCfg = .{},
     };
 
+    pub const CliCommand = enum { dev, serve, @"export", @"--" };
+
     binpath: ?[]const u8 = null,
     rootdir: ?[]const u8 = null,
     routes: []const Route = &.{},
     config: Config = .{},
     version: []const u8 = "",
-    cli_command: ?[]const u8 = null,
+    cli_command: ?CliCommand = null,
 
     pub fn port(self: BuildMeta) ?u16 {
         return self.config.server.port;
