@@ -10,6 +10,7 @@
             .hash = "playground-0.0.0-iNkPNs5RAQAi9QGPVgK1FfiPQ7iAA3xSmyfev36uVu4X",
         },
         .bunjs = .{ .path = "../pkg/plugin-bun" },
+        .esbuild = .{ .path = "../pkg/plugin-esbuild" },
         .tailwindcss = .{ .path = "../pkg/plugin-tailwindcss" },
         .ziex_js = .{
             .url = "https://registry.npmjs.org/ziex/-/ziex-0.1.0-dev.1000.tgz",
