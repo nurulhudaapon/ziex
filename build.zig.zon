@@ -14,7 +14,7 @@
         },
         // httpz - HTTP server for Ziex
         .httpz = .{
-            .url = "git+https://github.com/nurulhudaapon/httpz.git#7268154f43f5827bf78668e8e79a00f2ebe4db13",
+            .url = "git+https://github.com/ziex-dev/httpz.git#7268154f43f5827bf78668e8e79a00f2ebe4db13",
             .hash = "httpz-0.0.0-PNVzrBgtBwCVkSJyophIX6WHwDR0r8XhBGQr96Kk-1El",
         },
         .adapters = .{ .path = "pkg/adapters" },
