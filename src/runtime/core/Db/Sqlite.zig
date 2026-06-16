@@ -6,9 +6,7 @@ const Db = @import("../Db.zig");
 
 const c = zqlite.c;
 
-// TODO: get rid of default allocator
-const default_allocator = std.heap.c_allocator;
-const main_schema = "main";
+const main_schema: [:0]const u8 = "main";
 
 fn rawDbPtr(conn: anytype) ?*c.sqlite3 {
     return @ptrCast(conn.conn);
@@ -29,6 +27,7 @@ mode: DatabaseMode,
 path: []u8,
 flags: c_int,
 busy_timeout_ms: c_int,
+schema: [:0]const u8 = main_schema,
 conn: ?zqlite.Conn = null,
 pool: ?*zqlite.Pool = null,
 owns_resources: bool = true,
@@ -120,6 +119,7 @@ pub const OpenOptions = struct {
     strict: bool = false,
     max_pool_size: usize = 5,
     busy_timeout_ms: u32 = 5_000,
+    schema: [:0]const u8 = main_schema,
 
     pub fn fromNeutral(neutral: Db.OpenOptions) OpenOptions {
         return .{
@@ -189,6 +189,7 @@ fn openState(allocator: std.mem.Allocator, io: std.Io, filename: ?[]const u8, op
         .path = path_copy,
         .flags = flags,
         .busy_timeout_ms = @intCast(options.busy_timeout_ms),
+        .schema = options.schema,
     };
     errdefer self.deinitState();
 
@@ -348,6 +349,7 @@ fn transaction(ud: ?*anyopaque, mode: Db.TransactionMode, callback_ctx: *anyopaq
         .path = "",
         .flags = db_ctx.flags,
         .busy_timeout_ms = db_ctx.busy_timeout_ms,
+        .schema = db_ctx.schema,
         .conn = borrowed.conn,
         .pool = null,
         .owns_resources = false,
@@ -384,7 +386,7 @@ pub fn serialize(self: *Sqlite, allocator: std.mem.Allocator) ![]u8 {
     defer borrowed.deinit();
 
     var size: c.sqlite3_int64 = 0;
-    const bytes = c.sqlite3_serialize(rawDbPtr(borrowed.conn), main_schema, &size, 0) orelse {
+    const bytes = c.sqlite3_serialize(rawDbPtr(borrowed.conn), self.schema, &size, 0) orelse {
         return error.NoMem;
     };
     defer c.sqlite3_free(bytes);
@@ -408,20 +410,20 @@ pub fn fileControl(self: *Sqlite, cmd: i32, value: FileControlValue) !void {
 
     switch (value) {
         .none => {
-            const rc = c.sqlite3_file_control(rawDbPtr(borrowed.conn), main_schema, cmd, null);
+            const rc = c.sqlite3_file_control(rawDbPtr(borrowed.conn), self.schema, cmd, null);
             if (rc != c.SQLITE_OK) return mapSqliteError(rc);
         },
         .integer => |integer| {
             var tmp = integer;
-            const rc = c.sqlite3_file_control(rawDbPtr(borrowed.conn), main_schema, cmd, &tmp);
+            const rc = c.sqlite3_file_control(rawDbPtr(borrowed.conn), self.schema, cmd, &tmp);
             if (rc != c.SQLITE_OK) return mapSqliteError(rc);
         },
         .bytes => |bytes| {
-            const rc = c.sqlite3_file_control(rawDbPtr(borrowed.conn), main_schema, cmd, bytes.ptr);
+            const rc = c.sqlite3_file_control(rawDbPtr(borrowed.conn), self.schema, cmd, bytes.ptr);
             if (rc != c.SQLITE_OK) return mapSqliteError(rc);
         },
         .const_bytes => |bytes| {
-            const rc = c.sqlite3_file_control(rawDbPtr(borrowed.conn), main_schema, cmd, @constCast(bytes.ptr));
+            const rc = c.sqlite3_file_control(rawDbPtr(borrowed.conn), self.schema, cmd, @constCast(bytes.ptr));
             if (rc != c.SQLITE_OK) return mapSqliteError(rc);
         },
     }
@@ -653,13 +655,14 @@ fn bindStatement(stmt: zqlite.Stmt, bindings: Db.Bindings) !void {
 }
 
 fn resolveNamedParam(stmt: zqlite.Stmt, name: []const u8) !c_int {
+    var buf: [256]u8 = undefined;
+
     if (name.len > 0 and (name[0] == ':' or name[0] == '@' or name[0] == '$')) {
-        const name_z = try default_allocator.dupeSentinel(u8, name, 0);
-        defer default_allocator.free(name_z);
+        const name_z = std.fmt.bufPrintSentinel(&buf, "{s}", .{name}, 0) catch
+            return Db.DbError.InvalidBindings;
         return c.sqlite3_bind_parameter_index(rawStmtPtr(stmt), name_z.ptr);
     }
 
-    var buf: [256]u8 = undefined;
     for ([_]u8{ ':', '@', '$' }) |sigil| {
         const candidate = std.fmt.bufPrintSentinel(&buf, "{c}{s}", .{ sigil, name }, 0) catch
             return Db.DbError.InvalidBindings;

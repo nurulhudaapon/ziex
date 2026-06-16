@@ -682,6 +682,85 @@ test "api > pooled file database serves concurrent-style queries" {
     try expectIntField(row, "s", 10);
 }
 
+test "api > named bindings resolve across all sigils" {
+    var database = try openSeededDatabase();
+    defer database.deinit();
+
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const alloc = arena.allocator();
+
+    const cases = [_]struct { sql: []const u8, name: []const u8 }{
+        .{ .sql = "SELECT id FROM users WHERE name = $who", .name = "$who" },
+        .{ .sql = "SELECT id FROM users WHERE name = :who", .name = ":who" },
+        .{ .sql = "SELECT id FROM users WHERE name = @who", .name = "@who" },
+    };
+
+    for (cases) |case| {
+        var statement = try database.prepare(case.sql);
+        defer statement.deinit();
+
+        const named = Db.Bindings.fromNamed(&.{.{ .name = case.name, .value = .{ .text = "Ada" } }});
+        const row = (try statement.get(alloc, named)).?;
+        try expectIntField(row, "id", 1);
+    }
+
+    // A bare name (no sigil) resolves against the statement's `$` parameter.
+    var bare_stmt = try database.prepare("SELECT id FROM users WHERE name = $who");
+    defer bare_stmt.deinit();
+    const bare = Db.Bindings.fromNamed(&.{.{ .name = "who", .value = .{ .text = "Grace" } }});
+    const bare_row = (try bare_stmt.get(alloc, bare)).?;
+    try expectIntField(bare_row, "id", 2);
+
+    // An unknown named parameter is rejected rather than silently ignored.
+    var miss_stmt = try database.prepare("SELECT id FROM users WHERE name = $who");
+    defer miss_stmt.deinit();
+    const missing = Db.Bindings.fromNamed(&.{.{ .name = "$nope", .value = .{ .text = "Ada" } }});
+    try std.testing.expectError(Db.DbError.InvalidBindings, miss_stmt.get(alloc, missing));
+}
+
+test "api > schema option targets an attached database for serialize" {
+    var database = try Sqlite.open(
+        std.testing.allocator,
+        std.testing.io,
+        "mem://",
+        .{ .schema = "aux" },
+    );
+    defer database.deinit();
+
+    _ = try database.run("ATTACH DATABASE ':memory:' AS aux", .empty);
+    _ = try database.run("CREATE TABLE aux.items (id INTEGER PRIMARY KEY, label TEXT NOT NULL)", .empty);
+    _ = try database.run("INSERT INTO aux.items (label) VALUES (?1), (?2)", .{ "x", "y" });
+
+    const backend = try Db.Sqlite.from(database);
+    const image = try backend.serialize(std.testing.allocator);
+    defer std.testing.allocator.free(image);
+    try std.testing.expect(image.len > 0);
+
+    var restored = try Sqlite.deserialize(std.testing.allocator, std.testing.io, image, .{});
+    defer restored.deinit();
+
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const row = (try restored.get(arena.allocator(), "SELECT COUNT(*) AS total FROM items", .{})).?;
+    try expectIntField(row, "total", 2);
+}
+
+test "api > default schema still serializes main" {
+    var source = try openSeededDatabase();
+    defer source.deinit();
+
+    const backend = try Db.Sqlite.from(source);
+    try std.testing.expectEqualStrings("main", backend.schema);
+
+    const image = try backend.serialize(std.testing.allocator);
+    defer std.testing.allocator.free(image);
+
+    var restored = try Sqlite.deserialize(std.testing.allocator, std.testing.io, image, .{});
+    defer restored.deinit();
+    try std.testing.expectEqual(@as(i64, 2), try countUsers(&restored));
+}
+
 test "api > memory url variants open an in-memory database" {
     for ([_][]const u8{ "mem://", ":memory:", "memory:" }) |location| {
         var database = try Sqlite.open(std.testing.allocator, std.testing.io, location, .{});
