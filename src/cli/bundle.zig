@@ -26,19 +26,18 @@ fn bundle(ctx: zli.CommandContext) !void {
     const binpath = ctx.flag("binpath", []const u8);
     const install_prefix = ctx.flag("install-prefix", []const u8);
 
-    // TODO: upon upgrading to Zig 0.17 use the zig build --listen to get build configuration to find binary path
-    var app_meta = util.findprogram(io, ctx.allocator, binpath, install_prefix) catch |err| {
-        if (err == error.FileNotFound or err == error.ProgramNotFound or err == error.EmptyBinDir) {
+    const program_path = util.resolveExePath(io, ctx.allocator, install_prefix, binpath) catch |err| {
+        if (err == error.ExecutableNotFound) {
             try ctx.writer.print("Run \x1b[34mzig build\x1b[0m to build the ZX executable first!\n", .{});
             return;
         }
         try ctx.writer.print("Error finding ZX executable! {any}\n", .{err});
         return;
     };
-    defer util.freeBuildMeta(ctx.allocator, &app_meta);
+    defer ctx.allocator.free(program_path);
 
-    const appoutdir = app_meta.rootdir orelse "";
-    const final_binpath = app_meta.binpath.?;
+    const staticdir = try std.fs.path.join(ctx.allocator, &.{ install_prefix, "static" });
+    defer ctx.allocator.free(staticdir);
 
     var printer = tui.Printer.init(ctx.allocator, .{ .file_path_mode = .flat, .file_tree_max_depth = 1 });
     defer printer.deinit();
@@ -46,25 +45,25 @@ fn bundle(ctx: zli.CommandContext) !void {
     printer.header("{s} Bundling ZX site!", .{tui.Printer.emoji("○")});
     printer.info("{s}", .{outdir});
 
-    log.debug("Bundling ZX site! binpath={s} rootdir={s}", .{ final_binpath, appoutdir });
+    log.debug("Bundling ZX site! binpath={s} staticdir={s}", .{ program_path, staticdir });
     log.debug("Outdir: {s}", .{outdir});
 
-    const bin_name = std.fs.path.basename(final_binpath);
+    const bin_name = std.fs.path.basename(program_path);
     const dest_binpath = try std.fs.path.join(ctx.allocator, &.{ outdir, bin_name });
     defer ctx.allocator.free(dest_binpath);
-    log.debug("Copying bin from {s} to outdir {s}", .{ final_binpath, dest_binpath });
+    log.debug("Copying bin from {s} to outdir {s}", .{ program_path, dest_binpath });
 
     std.Io.Dir.cwd().createDirPath(io, outdir) catch |err| switch (err) {
         error.PathAlreadyExists => {},
         else => return err,
     };
-    try std.Io.Dir.copyFile(std.Io.Dir.cwd(), final_binpath, std.Io.Dir.cwd(), dest_binpath, io, .{});
+    try std.Io.Dir.copyFile(std.Io.Dir.cwd(), program_path, std.Io.Dir.cwd(), dest_binpath, io, .{});
     printer.filepath(bin_name);
 
     const static_outdir = try std.fs.path.join(ctx.allocator, &.{ outdir, "static" });
     defer ctx.allocator.free(static_outdir);
-    log.debug("Copying static directory! {s}", .{appoutdir});
-    util.copydirs(io, ctx.allocator, appoutdir, &.{"."}, static_outdir, false, &printer) catch |err| {
+    log.debug("Copying static directory! {s}", .{staticdir});
+    util.copydirs(io, ctx.allocator, staticdir, &.{"."}, static_outdir, false, &printer) catch |err| {
         std.log.err("Failed to copy static directories: {any}", .{err});
         return err;
     };
