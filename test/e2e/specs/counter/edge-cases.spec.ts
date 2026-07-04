@@ -7,6 +7,8 @@ test.describe('Counter Example', () => {
   test('Multiple Rapid Clicks', async ({ page }) => {
     // 1. Navigate to /examples/wasm/simple
     await page.goto('/examples/wasm/simple');
+    await page.getByRole('button').first().waitFor({ state: 'visible' });
+
     // 2. Click 'State + 4' button rapidly 10 times
     const stateButtons = await page.getByRole('button', { name: /State \+ \d+/ }).all();
     for (let i = 0; i < 10; i++) {
