@@ -121,4 +121,7 @@ pub const std_options: std.Options = .{
         .wasi => Edge.logFn,
         else => std.log.defaultLog,
     },
+    .log_scope_levels = &.{
+        .{ .scope = .websocket, .level = .warn },
+    },
 };
