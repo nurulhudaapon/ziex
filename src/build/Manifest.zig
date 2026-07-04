@@ -13,27 +13,119 @@ pub const RouteEntry = struct {
     proxy_import: ?[]const u8 = null,
 };
 
+/// Zon-serializable manifest shape (imported at runtime via `@import("manifest")`).
 pub const App = struct {
+    exe_path: ?[]const u8 = null,
     injections: []const AddElementOptions = &.{},
     routes: []const RouteEntry = &.{},
 };
 
-pub fn readAlloc(io: std.Io, allocator: std.mem.Allocator, path: []const u8) !App {
-    const source = std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .unlimited) catch |err| switch (err) {
-        error.FileNotFound => return .{},
-        else => return err,
-    };
-    defer allocator.free(source);
+pub const Manifest = struct {
+    path: []const u8,
+    allocator: std.mem.Allocator,
+    exe_path: ?[]const u8 = null,
+    injections: []const AddElementOptions = &.{},
+    routes: []const RouteEntry = &.{},
 
-    if (source.len == 0) return .{};
-    const source_z = try std.mem.concatWithSentinel(allocator, u8, &.{source}, 0);
-    defer allocator.free(source_z);
-    return try std.zon.parse.fromSliceAlloc(App, allocator, source_z, null, .{ .ignore_unknown_fields = true });
-}
+    pub fn init(io: std.Io, allocator: std.mem.Allocator, path: []const u8) !Manifest {
+        const owned_path = try allocator.dupe(u8, path);
 
-pub fn free(allocator: std.mem.Allocator, app: App) void {
-    std.zon.parse.free(allocator, app);
-}
+        const source = std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .unlimited) catch |err| switch (err) {
+            error.FileNotFound => return .{ .path = owned_path, .allocator = allocator },
+            else => return err,
+        };
+        defer allocator.free(source);
+
+        if (source.len == 0) return .{ .path = owned_path, .allocator = allocator };
+
+        const source_z = try std.mem.concatWithSentinel(allocator, u8, &.{source}, 0);
+        defer allocator.free(source_z);
+        const parsed = try std.zon.parse.fromSliceAlloc(App, allocator, source_z, null, .{ .ignore_unknown_fields = true });
+
+        return .{
+            .path = owned_path,
+            .allocator = allocator,
+            .exe_path = parsed.exe_path,
+            .injections = parsed.injections,
+            .routes = parsed.routes,
+        };
+    }
+
+    pub fn deinit(self: *Manifest) void {
+        self.allocator.free(self.path);
+    }
+
+    pub fn commit(self: *const Manifest, io: std.Io) !void {
+        try self.commitTo(io, self.path);
+    }
+
+    pub fn commitTo(self: *const Manifest, io: std.Io, path: []const u8) !void {
+        var aw = std.Io.Writer.Allocating.init(std.heap.page_allocator);
+        defer aw.deinit();
+        try std.zon.stringify.serializeArbitraryDepth(self.app(), .{ .whitespace = true }, &aw.writer);
+        if (std.fs.path.dirname(path)) |dir| {
+            try std.Io.Dir.cwd().createDirPath(io, dir);
+        }
+        try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = path, .data = aw.written() });
+    }
+
+    pub fn mergeBuildInjections(self: *Manifest, build_injections: []const AddElementOptions) !void {
+        var injections = std.array_list.Managed(AddElementOptions).init(self.allocator);
+        errdefer injections.deinit();
+
+        for (self.injections) |injection| {
+            if (!isManagedBuildInjection(injection)) try injections.append(injection);
+        }
+        for (build_injections) |injection| {
+            try injections.append(try dupeInjection(self.allocator, injection));
+        }
+
+        self.injections = try injections.toOwnedSlice();
+    }
+
+    pub fn upsertWasmlinkInjection(self: *Manifest, injection: AddElementOptions) !void {
+        var injections = std.array_list.Managed(AddElementOptions).init(self.allocator);
+        errdefer injections.deinit();
+
+        for (self.injections) |existing| {
+            if (!isWasmlinkInjection(existing)) try injections.append(existing);
+        }
+        try injections.append(try dupeInjection(self.allocator, injection));
+
+        self.injections = try injections.toOwnedSlice();
+    }
+
+    pub fn upsertJsglueInjection(self: *Manifest, injection: AddElementOptions) !void {
+        var injections = std.array_list.Managed(AddElementOptions).init(self.allocator);
+        errdefer injections.deinit();
+
+        for (self.injections) |existing| {
+            if (!isJsglueInjection(existing)) try injections.append(existing);
+        }
+        try injections.append(try dupeInjection(self.allocator, injection));
+
+        self.injections = try injections.toOwnedSlice();
+    }
+
+    pub fn setRoutes(self: *Manifest, routes: []const RouteEntry) !void {
+        const owned = try self.allocator.alloc(RouteEntry, routes.len);
+        errdefer self.allocator.free(owned);
+
+        for (routes, owned) |route, *out| {
+            out.* = try dupeRoute(self.allocator, route);
+        }
+
+        self.routes = owned;
+    }
+
+    fn app(self: *const Manifest) App {
+        return .{
+            .exe_path = self.exe_path,
+            .injections = self.injections,
+            .routes = self.routes,
+        };
+    }
+};
 
 fn dupeOptional(allocator: std.mem.Allocator, value: ?[]const u8) !?[]const u8 {
     return if (value) |v| try allocator.dupe(u8, v) else null;
@@ -51,33 +143,40 @@ fn dupeRoute(allocator: std.mem.Allocator, route: RouteEntry) !RouteEntry {
     };
 }
 
-pub fn write(io: std.Io, path: []const u8, app: App) !void {
-    var aw = std.Io.Writer.Allocating.init(std.heap.page_allocator);
-    defer aw.deinit();
-    try std.zon.stringify.serializeArbitraryDepth(app, .{ .whitespace = true }, &aw.writer);
-    if (std.fs.path.dirname(path)) |dir| {
-        try std.Io.Dir.cwd().createDirPath(io, dir);
-    }
-    try std.Io.Dir.cwd().writeFile(io, .{ .sub_path = path, .data = aw.written() });
+fn dupeInjection(allocator: std.mem.Allocator, injection: AddElementOptions) !AddElementOptions {
+    return .{
+        .parent = injection.parent,
+        .position = injection.position,
+        .priority = injection.priority,
+        .element = try dupeElementDef(allocator, injection.element),
+    };
 }
 
-pub fn setRoutes(io: std.Io, allocator: std.mem.Allocator, path: []const u8, routes: []const RouteEntry) !void {
-    const app = try readAlloc(io, allocator, path);
-    defer free(allocator, app);
+fn dupeElementDef(allocator: std.mem.Allocator, element_def: AddElementOptions.ElementDef) !AddElementOptions.ElementDef {
+    const children = if (element_def.children) |kids| blk: {
+        const owned = try allocator.alloc(AddElementOptions.ElementDef, kids.len);
+        for (kids, owned) |child, *out| {
+            out.* = try dupeElementDef(allocator, child);
+        }
+        break :blk owned;
+    } else null;
 
-    var owned = try allocator.alloc(RouteEntry, routes.len);
-    errdefer allocator.free(owned);
-    for (routes, 0..) |route, i| {
-        owned[i] = try dupeRoute(allocator, route);
+    const attributes = try allocator.alloc(AddElementOptions.ElementDef.Attribute, element_def.attributes.len);
+    for (element_def.attributes, attributes) |attr, *out| {
+        out.* = .{
+            .name = try allocator.dupe(u8, attr.name),
+            .value = try dupeOptional(allocator, attr.value),
+        };
     }
 
-    try write(io, path, .{
-        .injections = app.injections,
-        .routes = owned,
-    });
+    return .{
+        .tag = element_def.tag,
+        .children = children,
+        .attributes = attributes,
+    };
 }
 
-pub fn isWasmlinkInjection(injection: AddElementOptions) bool {
+fn isWasmlinkInjection(injection: AddElementOptions) bool {
     if (injection.element.tag != .link) return false;
     for (injection.element.attributes) |attr| {
         if (std.mem.eql(u8, attr.name, "id") and std.mem.eql(u8, attr.value orelse "", "__$wasmlink")) {
@@ -87,7 +186,7 @@ pub fn isWasmlinkInjection(injection: AddElementOptions) bool {
     return false;
 }
 
-pub fn isJsglueInjection(injection: AddElementOptions) bool {
+fn isJsglueInjection(injection: AddElementOptions) bool {
     if (injection.element.tag != .script) return false;
     for (injection.element.attributes) |attr| {
         if (std.mem.eql(u8, attr.name, "defer")) return true;
@@ -95,95 +194,6 @@ pub fn isJsglueInjection(injection: AddElementOptions) bool {
     return false;
 }
 
-pub fn isManagedBuildInjection(injection: AddElementOptions) bool {
+fn isManagedBuildInjection(injection: AddElementOptions) bool {
     return isWasmlinkInjection(injection) or isJsglueInjection(injection);
-}
-
-pub fn mergeBuildInjections(
-    io: std.Io,
-    allocator: std.mem.Allocator,
-    path: []const u8,
-    build_injections: []const AddElementOptions,
-) !void {
-    const app = try readAlloc(io, allocator, path);
-    defer free(allocator, app);
-
-    var injections = std.array_list.Managed(AddElementOptions).init(allocator);
-    defer injections.deinit();
-
-    for (app.injections) |injection| {
-        if (!isManagedBuildInjection(injection)) try injections.append(injection);
-    }
-    try injections.appendSlice(build_injections);
-
-    try write(io, path, .{
-        .injections = injections.items,
-        .routes = app.routes,
-    });
-}
-
-pub fn upsertWasmlinkInjection(
-    io: std.Io,
-    allocator: std.mem.Allocator,
-    path: []const u8,
-    injection: AddElementOptions,
-) !void {
-    const app = try readAlloc(io, allocator, path);
-    defer free(allocator, app);
-
-    var injections = std.array_list.Managed(AddElementOptions).init(allocator);
-    defer injections.deinit();
-
-    for (app.injections) |existing| {
-        if (!isWasmlinkInjection(existing)) try injections.append(existing);
-    }
-    try injections.append(injection);
-
-    try write(io, path, .{
-        .injections = injections.items,
-        .routes = app.routes,
-    });
-}
-
-pub fn upsertJsglueInjection(
-    io: std.Io,
-    allocator: std.mem.Allocator,
-    path: []const u8,
-    injection: AddElementOptions,
-) !void {
-    const app = try readAlloc(io, allocator, path);
-    defer free(allocator, app);
-
-    var injections = std.array_list.Managed(AddElementOptions).init(allocator);
-    defer injections.deinit();
-
-    for (app.injections) |existing| {
-        if (!isJsglueInjection(existing)) try injections.append(existing);
-    }
-    try injections.append(injection);
-
-    try write(io, path, .{
-        .injections = injections.items,
-        .routes = app.routes,
-    });
-}
-
-pub fn appendInjection(
-    io: std.Io,
-    allocator: std.mem.Allocator,
-    path: []const u8,
-    injection: AddElementOptions,
-) !void {
-    const app = try readAlloc(io, allocator, path);
-    defer free(allocator, app);
-
-    var injection_list = std.array_list.Managed(AddElementOptions).init(allocator);
-    defer injection_list.deinit();
-    try injection_list.appendSlice(app.injections);
-    try injection_list.append(injection);
-
-    try write(io, path, .{
-        .injections = injection_list.items,
-        .routes = app.routes,
-    });
 }

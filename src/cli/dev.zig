@@ -59,8 +59,6 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
     return cmd;
 }
 
-const BIN_DIR = "zig-out/bin";
-
 var runner: ?std.process.Child = null;
 var builder: ?std.process.Child = null;
 var g_dev_shutting_down: bool = false;
@@ -362,7 +360,7 @@ fn dev(ctx: zli.CommandContext) !void {
                     }
 
                     if (program_path == null) {
-                        program_path = resolveProgramPath(io, allocator, binpath) catch |err| {
+                        program_path = util.resolveExePath(io, allocator, install_prefix, binpath) catch |err| {
                             log.debug("Error finding ZX executable: {any}", .{err});
                             continue;
                         };
@@ -472,40 +470,6 @@ fn emitNoChange(
         }
     }
     dev_server.notify(.{ .type = .clear });
-}
-
-fn resolveProgramPath(io: std.Io, allocator: std.mem.Allocator, binpath: []const u8) ![]const u8 {
-    if (binpath.len != 0) {
-        return allocator.dupe(u8, binpath);
-    }
-
-    var files = try std.Io.Dir.cwd().openDir(io, BIN_DIR, .{ .iterate = true });
-    defer files.close(io);
-
-    var found_path: ?[]const u8 = null;
-    errdefer if (found_path) |path| allocator.free(path);
-
-    var it = files.iterate();
-    while (try it.next(io)) |entry| {
-        if (entry.kind != .file or !isLikelyRunnableFile(entry.name)) continue;
-
-        if (found_path != null) return error.MultipleProgramsFound;
-        found_path = try std.fs.path.join(allocator, &.{ BIN_DIR, entry.name });
-    }
-
-    return found_path orelse error.ProgramNotFound;
-}
-
-fn isLikelyRunnableFile(name: []const u8) bool {
-    const ignored_extensions = [_][]const u8{
-        ".a", ".dll", ".dylib", ".lib", ".o", ".obj", ".pdb", ".so", ".wasm", ".zon",
-    };
-
-    inline for (ignored_extensions) |ext| {
-        if (std.mem.endsWith(u8, name, ext)) return false;
-    }
-
-    return true;
 }
 
 /// Print the first captured line (prefer stderr, fallback to stdout)

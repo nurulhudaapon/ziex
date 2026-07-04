@@ -227,11 +227,6 @@ pub fn Server(comptime H: type) type {
         fn introspect(self: *Self) !void {
             const port = (if (zx_options.server_port != null) zx_options.server_port else serverPort(&self.server.config)) orelse Constant.default_port;
             const address = zx_options.server_address orelse self.config.server.address orelse Constant.default_address;
-
-            if (zx_options.server_rootdir) |rootdir| {
-                self.meta.rootdir = rootdir;
-            }
-
             self.meta.cli_command = std.meta.stringToEnum(ServerMeta.CliCommand, zx_options.cli_command) orelse return error.InvalidCliCommand;
 
             // Overriding or setting default configs
@@ -281,8 +276,6 @@ pub const SerilizableAppMeta = struct {
         server: AppConfig.ServerConfig,
     };
 
-    binpath: ?[]const u8 = null,
-    rootdir: ?[]const u8 = null,
     routes: []const Route,
     config: SerilizableAppMeta.Config,
     version: []const u8,
@@ -304,7 +297,6 @@ pub const SerilizableAppMeta = struct {
         }
 
         const version = try allocator.dupe(u8, module_config.version);
-        const rootdir = if (meta.rootdir) |rd| try allocator.dupe(u8, rd) else null;
 
         return SerilizableAppMeta{
             .routes = routes,
@@ -312,7 +304,6 @@ pub const SerilizableAppMeta = struct {
                 .server = config,
             },
             .version = version,
-            .rootdir = rootdir,
             .cli_command = meta.cli_command,
         };
     }
@@ -323,10 +314,7 @@ pub const SerilizableAppMeta = struct {
             allocator.free(route.methods);
         }
         allocator.free(self.routes);
-
         allocator.free(self.version);
-        if (self.rootdir) |rootdir| allocator.free(rootdir);
-        // if (self.binpath) |binpath| allocator.free(binpath);
     }
 
     pub fn serialize(self: *const SerilizableAppMeta, writer: anytype) !void {
@@ -822,7 +810,6 @@ pub const ServerMeta = struct {
     pub const CliCommand = enum { dev, serve, @"export", @"--" };
 
     routes: []const Route,
-    rootdir: ?[]const u8,
     base_path: ?[]const u8 = null,
     cli_command: ?CliCommand = null,
 };

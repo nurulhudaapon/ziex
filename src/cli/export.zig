@@ -34,7 +34,6 @@ fn @"export"(ctx: zli.CommandContext) !void {
     const io = app.io;
 
     const outdir = ctx.flag("outdir", []const u8);
-    const binpath = ctx.flag("binpath", []const u8);
 
     const tmpdir = try std.fmt.allocPrint(ctx.allocator, "{x}", .{util.randInt(io, u64)});
     defer ctx.allocator.free(tmpdir);
@@ -68,33 +67,44 @@ fn @"export"(ctx: zli.CommandContext) !void {
         },
     }
 
-    // TODO: upon upgrading to Zig 0.17 use the zig build --listen to get build configuration to find binary path
-    var app_meta = util.findprogram(io, ctx.allocator, binpath, install_prefix) catch |err| {
-        if (err == error.FileNotFound or err == error.ProgramNotFound or err == error.EmptyBinDir) {
-            try ctx.writer.print("Run \x1b[34mzig build\x1b[0m to build the ZX executable first!\n", .{});
-            return;
-        }
-        try ctx.writer.print("Error finding ZX executable! {any}\n", .{err});
+    // Read install manifest for executable path and page routes.
+    const manifest_path = try std.fs.path.join(ctx.allocator, &.{ install_prefix, "manifest", "app.zon" });
+    defer ctx.allocator.free(manifest_path);
+
+    const manifest_source = std.Io.Dir.cwd().readFileAlloc(io, manifest_path, ctx.allocator, .unlimited) catch |err| {
+        try ctx.writer.print("Failed to read manifest at {s}: {}\n", .{ manifest_path, err });
         return;
     };
-    defer util.freeBuildMeta(ctx.allocator, &app_meta);
+    defer ctx.allocator.free(manifest_source);
 
-    const port = DevServer.findFreePort(io) catch app_meta.port() orelse 3000;
+    const manifest_source_z = try ctx.allocator.dupeSentinel(u8, manifest_source, 0);
+    defer ctx.allocator.free(manifest_source_z);
+
+    const manifest = std.zon.parse.fromSliceAlloc(ManifestApp, ctx.allocator, manifest_source_z, null, .{ .ignore_unknown_fields = true }) catch |err| {
+        try ctx.writer.print("Failed to parse manifest at {s}: {}\n", .{ manifest_path, err });
+        return;
+    };
+    defer std.zon.parse.free(ctx.allocator, manifest);
+
+    const binpath_flag = ctx.flag("binpath", []const u8);
+    const exe_path = util.resolveExePath(io, ctx.allocator, install_prefix, binpath_flag) catch {
+        try ctx.writer.print("Run \x1b[34mzig build\x1b[0m to build the ZX executable first!\n", .{});
+        return;
+    };
+    defer ctx.allocator.free(exe_path);
+
+    const port = DevServer.findFreePort(io) catch 3000;
     const port_str = try std.fmt.allocPrint(ctx.allocator, "{d}", .{port});
     defer ctx.allocator.free(port_str);
-    // const appoutdir = app_meta.rootdir orelse "";
-    const host = app_meta.address() orelse "0.0.0.0";
+    const host = "0.0.0.0";
 
     const environ_map = app.environ_map;
     try environ_map.put("ZIEX_INNER_PORT", port_str);
-    // if (environ_map.get("ZIEX_ROOT_DIR") == null and appoutdir.len > 0) {
-    //     try environ_map.put("ZIEX_ROOT_DIR", appoutdir);
-    // }
 
     try environ_map.put("ZIEX_ROOT_DIR", install_prefix);
 
     var app_child = try std.process.spawn(io, .{
-        .argv = &.{ app_meta.binpath.?, "--cli-command", "export" },
+        .argv = &.{ exe_path, "--cli-command", "export" },
         .environ_map = environ_map,
         .stdout = .ignore,
         .stderr = .ignore,
@@ -119,25 +129,21 @@ fn @"export"(ctx: zli.CommandContext) !void {
     const staticdir = try std.fs.path.join(ctx.allocator, &.{ install_prefix, "static" });
     defer ctx.allocator.free(staticdir);
 
-    log.debug("Building static ZX site! binpath={s} rootdir={s}", .{ app_meta.binpath.?, install_prefix });
+    log.debug("Building static ZX site! binpath={s} rootdir={s}", .{ exe_path, install_prefix });
     log.debug("Port: {d}, Outdir: {s}, Staticdir: {s}", .{ port, outdir, staticdir });
 
-    const routes_owned = try ctx.allocator.alloc(Server.SerilizableAppMeta.Route, app_meta.routes.len);
-    defer ctx.allocator.free(routes_owned);
-    for (app_meta.routes, 0..) |r, i| {
-        routes_owned[i] = .{
-            .path = r.path,
-            .kind = r.kind,
-            .methods = r.methods,
-            .has_notfound = r.has_notfound,
-            .is_dynamic = r.is_dynamic,
-        };
-    }
-
-    log.debug("Processing routes! {d}", .{routes_owned.len});
+    log.debug("Processing routes! {d}", .{manifest.routes.len});
 
     process_block: while (true) {
-        for (routes_owned) |route| {
+        for (manifest.routes) |entry| {
+            if (entry.page_import == null) continue;
+
+            const route = Server.SerilizableAppMeta.Route{
+                .path = entry.path,
+                .has_notfound = entry.notfound_import != null,
+                .is_dynamic = std.mem.indexOf(u8, entry.path, ":") != null,
+            };
+
             if (route.is_dynamic) {
                 const static_params = fetchStaticParams(io, ctx.allocator, host, port, route.path) catch |err| {
                     if (err == error.ConnectionRefused) {
@@ -153,8 +159,6 @@ fn @"export"(ctx: zli.CommandContext) !void {
                     for (static_params.items) |expanded_path| {
                         const expanded_route = Server.SerilizableAppMeta.Route{
                             .path = expanded_path,
-                            .kind = route.kind,
-                            .methods = route.methods,
                             .has_notfound = route.has_notfound,
                             .is_dynamic = false,
                         };
@@ -435,4 +439,5 @@ const Server = @import("../runtime/server/Server.zig");
 const options_mod = @import("../options.zig");
 const DevServer = @import("dev/DevServer.zig");
 const tui = @import("../tui/main.zig");
+const ManifestApp = @import("../build/Manifest.zig").App;
 const log = std.log.scoped(.cli);

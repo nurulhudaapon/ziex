@@ -2,7 +2,8 @@ const std = @import("std");
 const zli = @import("zli");
 const core_lang = @import("core_lang");
 
-const Manifest = @import("../build/Manifest.zig");
+const manifest_build = @import("../build/Manifest.zig");
+const Manifest = manifest_build.Manifest;
 
 const util = @import("shared/util.zig");
 const AppContext = @import("shared/context.zig").AppContext;
@@ -31,13 +32,6 @@ const map_flag = zli.Flag{
     .description = "Generate source map",
     .type = .String,
     .default_value = .{ .String = "none" },
-};
-
-const rootdir_flag = zli.Flag{
-    .name = "rootdir",
-    .description = "Root directory for the generated meta file (e.g., static dir)",
-    .type = .String,
-    .default_value = .{ .String = "" },
 };
 
 const depfile_flag = zli.Flag{
@@ -75,6 +69,13 @@ const build_injections_flag = zli.Flag{
     .default_value = .{ .String = "" },
 };
 
+const exe_path_flag = zli.Flag{
+    .name = "exe-path",
+    .description = "Path to the executable",
+    .type = .String,
+    .default_value = .{ .String = "" },
+};
+
 pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
     const cmd = try zli.Command.init(writer, reader, allocator, .{
         .name = "transpile",
@@ -85,12 +86,12 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
     try cmd.addFlag(copy_only_flag);
     try cmd.addFlag(flags.verbose_flag);
     try cmd.addFlag(map_flag);
-    try cmd.addFlag(rootdir_flag);
     try cmd.addFlag(depfile_flag);
     try cmd.addFlag(cachedir_flag);
     try cmd.addFlag(base_path_flag);
     try cmd.addFlag(manifest_flag);
     try cmd.addFlag(build_injections_flag);
+    try cmd.addFlag(exe_path_flag);
     try cmd.addPositionalArg(.{
         .name = "path",
         .description = "Path to .zx file or directory",
@@ -120,12 +121,12 @@ fn transpile(ctx: zli.CommandContext) !void {
         .outdir = outdir,
         .verbose = verbose,
         .map = map,
-        .rootdir = nonEmpty(ctx.flag("rootdir", []const u8)),
         .dep_file = nonEmpty(ctx.flag("dep-file", []const u8)),
         .cache_dir = nonEmpty(ctx.flag("cache-dir", []const u8)),
         .base_path = nonEmpty(ctx.flag("base-path", []const u8)),
         .manifest = nonEmpty(ctx.flag("manifest", []const u8)),
         .build_injections = nonEmpty(ctx.flag("build-injections", []const u8)),
+        .exe_path = nonEmpty(ctx.flag("exe-path", []const u8)),
     };
 
     if (verbose) {
@@ -935,7 +936,7 @@ const Route = struct {
 fn mergeBuildInjectionsFromFile(
     io: std.Io,
     allocator: std.mem.Allocator,
-    manifest_path: []const u8,
+    manifest: *Manifest,
     build_injections_path: []const u8,
 ) !void {
     const source = try std.Io.Dir.cwd().readFileAlloc(io, build_injections_path, allocator, .unlimited);
@@ -945,13 +946,13 @@ fn mergeBuildInjectionsFromFile(
     const source_z = try std.mem.concatWithSentinel(allocator, u8, &.{source}, 0);
     defer allocator.free(source_z);
 
-    const build_injections = try std.zon.parse.fromSliceAlloc([]const Manifest.AddElementOptions, allocator, source_z, null, .{});
+    const build_injections = try std.zon.parse.fromSliceAlloc([]const manifest_build.AddElementOptions, allocator, source_z, null, .{});
     defer std.zon.parse.free(allocator, build_injections);
 
-    try Manifest.mergeBuildInjections(io, allocator, manifest_path, build_injections);
+    try manifest.mergeBuildInjections(build_injections);
 }
 
-fn genRoutes(io: std.Io, allocator: std.mem.Allocator, output_dir: []const u8, rootdir: ?[]const u8, base_path: ?[]const u8, manifest_path: ?[]const u8, verbose: bool) !void {
+fn genRoutes(io: std.Io, allocator: std.mem.Allocator, output_dir: []const u8, base_path: ?[]const u8, manifest: ?*Manifest, verbose: bool) !void {
     var routes = std.array_list.Managed(Route).init(allocator);
     defer {
         for (routes.items) |*route| route.deinit(allocator);
@@ -988,8 +989,8 @@ fn genRoutes(io: std.Io, allocator: std.mem.Allocator, output_dir: []const u8, r
         return error.NoPagesOrRoutes;
     }
 
-    if (manifest_path) |path| {
-        const entries = try allocator.alloc(Manifest.RouteEntry, routes.items.len);
+    if (manifest) |m| {
+        const entries = try allocator.alloc(manifest_build.RouteEntry, routes.items.len);
         defer allocator.free(entries);
         for (routes.items, entries) |route, *entry| {
             entry.* = .{
@@ -1002,7 +1003,7 @@ fn genRoutes(io: std.Io, allocator: std.mem.Allocator, output_dir: []const u8, r
                 .proxy_import = route.proxy_import,
             };
         }
-        try Manifest.setRoutes(io, allocator, path, entries);
+        try m.setRoutes(entries);
     }
 
     var content = std.Io.Writer.Allocating.init(allocator);
@@ -1026,15 +1027,8 @@ fn genRoutes(io: std.Io, allocator: std.mem.Allocator, output_dir: []const u8, r
         try writer.writeAll("};\n\n");
     }
 
-    // Use rootdir if provided, otherwise fall back to output_dir
-    const meta_rootdir = rootdir orelse output_dir;
-
-    const escaped_path = try escapePathForZigString(allocator, meta_rootdir);
-    defer allocator.free(escaped_path);
-
     try writer.writeAll("pub const meta = zx.server.ServerMeta{\n");
     try writer.writeAll("    .routes = &routes,\n");
-    try writer.print("    .rootdir = \"{s}\",\n", .{escaped_path});
     if (base_path) |bp| {
         try writer.print("    .base_path = \"{s}\",\n", .{bp});
     }
@@ -1601,22 +1595,35 @@ const TranspileOptions = struct {
     outdir: []const u8,
     verbose: bool,
     map: core_lang.Ast.ParseOptions.MapMode = .none,
-    rootdir: ?[]const u8 = null,
     dep_file: ?[]const u8 = null,
     cache_dir: ?[]const u8 = null,
     base_path: ?[]const u8 = null,
     manifest: ?[]const u8 = null,
     build_injections: ?[]const u8 = null,
+    exe_path: ?[]const u8 = null,
 };
 
 fn transpileCommand(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOptions) !void {
+    var manifest: ?Manifest = null;
     if (opts.manifest) |manifest_path| {
+        manifest = Manifest.init(io, allocator, manifest_path) catch |err| {
+            std.debug.print("Warning: Failed to open manifest: {}\n", .{err});
+            return;
+        };
+
         if (opts.build_injections) |build_injections_path| {
-            mergeBuildInjectionsFromFile(io, allocator, manifest_path, build_injections_path) catch |err| {
+            mergeBuildInjectionsFromFile(io, allocator, &manifest.?, build_injections_path) catch |err| {
                 std.debug.print("Warning: Failed to merge build injections into manifest: {}\n", .{err});
             };
         }
+        if (opts.exe_path) |exe_path| {
+            manifest.?.exe_path = allocator.dupe(u8, exe_path) catch |err| {
+                std.debug.print("Warning: Failed to set executable path in manifest: {}\n", .{err});
+                return;
+            };
+        }
     }
+    defer if (manifest) |*m| m.deinit();
 
     // Start root progress for the entire transpile operation
     var progress = std.Progress.start(io, .{ .root_name = "Transpile" });
@@ -1704,10 +1711,16 @@ fn transpileCommand(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOpt
     }
 
     // Generate routes
-    genRoutes(io, allocator, opts.outdir, opts.rootdir, opts.base_path, opts.manifest, opts.verbose) catch |err| switch (err) {
+    genRoutes(io, allocator, opts.outdir, opts.base_path, if (manifest) |*m| m else null, opts.verbose) catch |err| switch (err) {
         error.NoPagesOrRoutes => {}, // No routes to generate is not an error
         else => std.debug.print("Warning: Failed to generate app.zig: {}\n", .{err}),
     };
+
+    if (manifest) |*m| {
+        m.commit(io) catch |err| {
+            std.debug.print("Warning: Failed to write manifest: {}\n", .{err});
+        };
+    }
 
     // --- @rendering -> Client Side Rendering Related Files Generation --- //
     var react_cmps = std.array_list.Managed(ClientComponentSerializable).init(allocator);

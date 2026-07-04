@@ -119,6 +119,38 @@ pub fn freeBuildMeta(allocator: std.mem.Allocator, meta: *BuildMeta) void {
     std.zon.parse.free(allocator, meta.*);
 }
 
+const ManifestApp = @import("../../build/Manifest.zig").App;
+
+/// Resolve the installed app executable from `manifest/app.zon`, or `--binpath`.
+pub fn resolveExePath(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    install_prefix: []const u8,
+    binpath_override: []const u8,
+) ![]const u8 {
+    if (binpath_override.len > 0) {
+        _ = std.Io.Dir.cwd().statFile(io, binpath_override, .{}) catch return error.ExecutableNotFound;
+        return try allocator.dupe(u8, binpath_override);
+    }
+
+    const manifest_path = try std.fs.path.join(allocator, &.{ install_prefix, "manifest", "app.zon" });
+    defer allocator.free(manifest_path);
+
+    const source = try std.Io.Dir.cwd().readFileAlloc(io, manifest_path, allocator, .unlimited);
+    defer allocator.free(source);
+
+    const source_z = try allocator.dupeSentinel(u8, source, 0);
+    defer allocator.free(source_z);
+
+    const manifest = try std.zon.parse.fromSliceAlloc(ManifestApp, allocator, source_z, null, .{ .ignore_unknown_fields = true });
+    defer std.zon.parse.free(allocator, manifest);
+
+    const rel = manifest.exe_path orelse return error.ExecutableNotFound;
+    const path = try std.fs.path.join(allocator, &.{ install_prefix, rel });
+    _ = std.Io.Dir.cwd().statFile(io, path, .{}) catch return error.ExecutableNotFound;
+    return path;
+}
+
 const ignore_dirs = [_][]const u8{".well-known" ++ std.fs.path.sep_str ++ "_zx"};
 fn shouldIgnorePath(path: []const u8) bool {
     for (ignore_dirs) |ignore_dir| {

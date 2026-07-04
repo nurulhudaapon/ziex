@@ -1,7 +1,6 @@
 const std = @import("std");
 const html_util = @import("../util/html.zig");
 const build_zig = @import("../../build.zig");
-const Manifest = @import("Manifest.zig");
 pub const InitOptions = @import("init/InitOptions.zig");
 
 const LazyPath = std.Build.LazyPath;
@@ -265,13 +264,12 @@ pub fn initInner(
     zx_wasm_module: *std.Build.Module,
     opts: InitInnerOptions,
 ) !Build {
-    const target = exe.root_module.resolved_target;
+    // const target = exe.root_module.resolved_target;
     const optimize = exe.root_module.optimize;
 
     // --- ZX Options --- //
     const port_opt = b.option(u16, "port", "Port to run the Ziex server on");
     const address_opt = b.option([]const u8, "address", "Address to bind the Ziex server to");
-    const rootdir_opt = b.option([]const u8, "rootdir", "Static root directory for the Ziex server");
     const cli_command_opt = b.option([]const u8, "cli-command", "Ziex CLI command mode for the app");
     const is_dev_build = std.mem.eql(u8, cli_command_opt orelse "--", "dev");
 
@@ -281,7 +279,6 @@ pub fn initInner(
     zx_options.addOption(?[]const u8, "app_base_path", opts.base_path);
     zx_options.addOption(?u16, "server_port", port_opt);
     zx_options.addOption(?[]const u8, "server_address", address_opt);
-    zx_options.addOption(?[]const u8, "server_rootdir", rootdir_opt);
     zx_options.addOption([]const u8, "cli_command", cli_command_opt orelse "--");
     zx_options.addOption(bool, "introspect", b.option(bool, "introspect", "Print Ziex app metadata and exit") orelse false);
     zx_options.addOption(bool, "feat_sqlite_server", if (opts.features.sqlite) |s| s.server != null else false);
@@ -304,8 +301,6 @@ pub fn initInner(
     // transpile_cmd.addArg("--verbose");
     transpile_cmd.addArg("--outdir");
     const transpile_outdir = getTranspileOutdir(transpile_cmd, opts);
-    transpile_cmd.addArg("--rootdir");
-    transpile_cmd.addDirectoryArg(static_lazypath);
     transpile_cmd.addArg("--dep-file");
     _ = transpile_cmd.addDepFileOutputArg("transpile.d");
     if (opts.base_path) |bp| {
@@ -409,20 +404,10 @@ pub fn initInner(
     transpile_cmd.addFileArg(manifest_seed);
 
     transpile_cmd.addArg("--manifest");
-    const manifest_path = transpile_cmd.addOutputFileArg("app.zon");
-
-    const manifest_mod = b.createModule(.{ .root_source_file = manifest_path });
-    zx_module.addImport("manifest", manifest_mod);
+    const base_manifest_path = transpile_cmd.addOutputFileArg("app.zon");
+    transpile_cmd.addArgs(&.{"--exe-path"});
+    transpile_cmd.addArg(b.fmt("bin/{s}", .{exe.out_filename}));
     exe.step.dependOn(&transpile_cmd.step);
-
-    const install_manifest = b.addInstallFileWithDir(manifest_path, .prefix, "manifest/app.zon");
-    install_manifest.step.dependOn(&transpile_cmd.step);
-
-    // --- ZX Watch Invalidator ---
-    // Use directory-level watch input so `zig build --watch` picks up changes.
-    // Cache invalidation for non-watch builds is handled by the dep file (--dep-file).
-    // TODO: ste.addDirectoryWatchInput alternative for zig 0.17, for now check if watcher works without it
-    // _ = try transpile_cmd.step.addDirectoryWatchInput(opts.site_path);
 
     // --- ZX Site Main Executable --- //
     var user_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
@@ -464,43 +449,6 @@ pub fn initInner(
     exe.step.dependOn(&transpile_cmd.step);
     exe.step.name = b.fmt("install {s}server{s} {s}", .{ colors.dim, colors.reset, exe.name });
     b.installArtifact(exe);
-
-    // --- Build-time App Metadata ---
-    // TODO: get rid of introspection, we should be able to generate the meta
-    // needed from transpile and from build-config alone. We don't need to resolve pageoptions in
-    // any cases
-    const can_introspect_exe = if (target) |resolved| blk: {
-        const host = b.graph.host.result;
-        break :blk resolved.result.cpu.arch == host.cpu.arch and
-            resolved.result.os.tag == host.os.tag;
-    } else true;
-
-    if (can_introspect_exe and !is_dev_build) {
-        const introspect_src = try genIntrospectRoot(b, zx_module.owner, exe.root_module, target);
-
-        const introspect_root = b.createModule(.{
-            .root_source_file = introspect_src,
-            .target = target,
-            .optimize = optimize,
-        });
-        introspect_root.addImport("zx", zx_module);
-        introspect_root.addImport("app", app_module);
-        introspect_root.addImport("zx_app_root", exe.root_module);
-
-        const introspect_exe = b.addExecutable(.{
-            .name = b.fmt("{s}.meta", .{exe.name}),
-            .root_module = introspect_root,
-        });
-        introspect_exe.step.dependOn(&transpile_cmd.step);
-
-        const introspect_run = b.addRunArtifact(introspect_exe);
-        introspect_run.setName(b.fmt("introspect {s}", .{exe.name}));
-        introspect_run.expectExitCode(0);
-        const introspect_stdout = introspect_run.captureStdOut(.{});
-
-        const install_meta = b.addInstallFileWithDir(introspect_stdout, .bin, b.fmt("{s}.meta.zon", .{exe.name}));
-        b.getInstallStep().dependOn(&install_meta.step);
-    }
 
     // --- ZX WASM Main Executable --- //
     const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding, .abi = .none });
@@ -568,20 +516,22 @@ pub fn initInner(
     const zxjs_file_stem = if (is_dev_build) "app.dev" else "app";
     const uses_local_jsglue = opts.client.jsglue_href == null;
 
-    var js_asset_run: ?*std.Build.Step.Run = null;
+    var wasm_manifest_in = base_manifest_path;
+    var js_run: ?*std.Build.Step.Run = null;
     if (uses_local_jsglue) {
-        js_asset_run = addStaticAssetRun(b, asset_installer_exe, &transpile_cmd.step, manifest_path, zxjs_path, zxjs_href_stem, zxjs_file_stem, ".js", "script", true);
-        js_asset_run.?.setName(b.fmt("install {s}client js glue{s} {s}", .{ colors.dim, colors.reset, exe.name }));
-        b.getInstallStep().dependOn(&js_asset_run.?.step);
-        exe.step.dependOn(&js_asset_run.?.step);
-        install_manifest.step.dependOn(&js_asset_run.?.step);
+        const js_asset = addStaticAssetRun(b, asset_installer_exe, &transpile_cmd.step, base_manifest_path, zxjs_path, zxjs_href_stem, zxjs_file_stem, ".js", "script", true);
+        js_asset.run.setName(b.fmt("install {s}client js glue{s} {s}", .{ colors.dim, colors.reset, exe.name }));
+        js_asset.run.step.dependOn(&transpile_cmd.step);
+        b.getInstallStep().dependOn(&js_asset.run.step);
+        js_run = js_asset.run;
+        wasm_manifest_in = js_asset.manifest_out;
     }
 
     const wasm_asset_run = addStaticAssetRun(
         b,
         asset_installer_exe,
         &transpile_cmd.step,
-        manifest_path,
+        wasm_manifest_in,
         wasm_binpath,
         app_wasm_href_stem,
         "app",
@@ -589,12 +539,20 @@ pub fn initInner(
         "wasmlink",
         !uses_local_jsglue,
     );
-    wasm_asset_run.setName(b.fmt("install {s}client wasm{s} {s}", .{ colors.dim, colors.reset, exe.name }));
-    wasm_asset_run.step.dependOn(&wasm_exe.step);
-    if (js_asset_run) |js| wasm_asset_run.step.dependOn(&js.step);
-    b.getInstallStep().dependOn(&wasm_asset_run.step);
-    exe.step.dependOn(&wasm_asset_run.step);
-    install_manifest.step.dependOn(&wasm_asset_run.step);
+    const manifest_path = wasm_asset_run.manifest_out;
+    const manifest_mod = b.createModule(.{ .root_source_file = manifest_path });
+    zx_module.addImport("manifest", manifest_mod);
+
+    const install_manifest = b.addInstallFileWithDir(manifest_path, .prefix, "manifest/app.zon");
+    b.default_step.dependOn(&install_manifest.step);
+    install_manifest.step.dependOn(&wasm_asset_run.run.step);
+
+    wasm_asset_run.run.setName(b.fmt("install {s}client wasm{s} {s}", .{ colors.dim, colors.reset, exe.name }));
+    wasm_asset_run.run.step.dependOn(&transpile_cmd.step);
+    wasm_asset_run.run.step.dependOn(&wasm_exe.step);
+    if (js_run) |js| wasm_asset_run.run.step.dependOn(&js.step);
+    b.getInstallStep().dependOn(&wasm_asset_run.run.step);
+    exe.step.dependOn(&wasm_asset_run.run.step);
 
     // --- Steps: ZX (Root of ZX CLI) --- //
     {
@@ -620,12 +578,7 @@ pub fn initInner(
     // --- Steps: Dev --- //
     if (opts.steps.dev) |dev_step_name| {
         const dev_cmd = getZxRun(b, zx_exe, opts);
-        dev_cmd.addArgs(&.{
-            "dev",
-            "--binpath",
-        });
-
-        dev_cmd.addFileArg(b.graph.path(.install_bin, exe.out_filename));
+        dev_cmd.addArg("dev");
         const dev_step = b.step(dev_step_name, "Run the Ziex app in development mode");
         dev_step.dependOn(&dev_cmd.step);
         dev_cmd.addPassthruArgs();
@@ -676,26 +629,42 @@ fn addStaticAssetRun(
     b: *std.Build,
     asset_exe: *std.Build.Step.Compile,
     transpile_step: *std.Build.Step,
-    manifest_path: LazyPath,
+    manifest_in: LazyPath,
     src: LazyPath,
     href_stem: []const u8,
     file_stem: []const u8,
     file_ext: []const u8,
     injection_kind: []const u8,
     clean_dest: bool,
-) *std.Build.Step.Run {
+) struct {
+    run: *std.Build.Step.Run,
+    manifest_out: LazyPath,
+} {
     const run = b.addRunArtifact(asset_exe);
     run.addFileArg(src);
-    run.addDirectoryArg(b.graph.path(.install_prefix, "static/assets/_"));
+    const asset_output_dir = run.addOutputFileArg("asset");
+
     run.addArg(href_stem);
-    run.addFileArg(manifest_path);
+    run.addFileArg(manifest_in);
+    run.addArg("--manifest-out");
+    const manifest_out = run.addOutputFileArg("app.zon");
     run.addArg(file_stem);
     run.addArg(file_ext);
     run.addArg(injection_kind);
     run.addArg(if (clean_dest) "clean" else "");
     run.expectExitCode(0);
-    run.step.dependOn(transpile_step);
-    return run;
+    _ = transpile_step;
+
+    // Install the static assets directory
+    const install_static_assets = b.addInstallDirectory(.{
+        .source_dir = asset_output_dir,
+        .install_dir = .{ .custom = "static/assets/" },
+        .install_subdir = "_",
+    });
+    install_static_assets.step.dependOn(&run.step);
+    b.getInstallStep().dependOn(&install_static_assets.step);
+
+    return .{ .run = run, .manifest_out = manifest_out };
 }
 
 const Injections = struct {

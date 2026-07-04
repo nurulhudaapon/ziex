@@ -1,5 +1,5 @@
 const std = @import("std");
-const Manifest = @import("Build").Manifest;
+const Manifest = @import("Build").Manifest.Manifest;
 const hashing = @import("hashing.zig");
 
 /// Build helper: content-hash a static asset, install it, and upsert the
@@ -12,14 +12,30 @@ pub fn main(init: std.process.Init) !void {
     defer args.deinit();
     _ = args.next(); // skip program name
 
-    const src_path = args.next() orelse return error.MissingSrcPath;
-    const dest_dir = args.next() orelse return error.MissingDestDir;
-    const href_stem = args.next() orelse return error.MissingHrefStem;
-    const manifest_path = args.next() orelse return error.MissingManifestPath;
-    const file_stem = args.next() orelse "main";
-    const file_ext = args.next() orelse ".wasm";
-    const injection_kind = args.next() orelse "wasmlink";
-    const clean_dest = std.mem.eql(u8, args.next() orelse "", "clean");
+    var manifest_in: ?[]const u8 = null;
+    var manifest_out: ?[]const u8 = null;
+    var positionals = std.array_list.Managed([]const u8).init(allocator);
+    defer positionals.deinit();
+
+    while (args.next()) |arg| {
+        if (std.mem.eql(u8, arg, "--manifest-out")) {
+            manifest_out = args.next() orelse return error.MissingManifestOutPath;
+            continue;
+        }
+        try positionals.append(arg);
+    }
+
+    if (positionals.items.len < 4) return error.MissingSrcPath;
+    const src_path = positionals.items[0];
+    const dest_dir = positionals.items[1];
+    const href_stem = positionals.items[2];
+    manifest_in = positionals.items[3];
+    const file_stem = if (positionals.items.len > 4) positionals.items[4] else "main";
+    const file_ext = if (positionals.items.len > 5) positionals.items[5] else ".wasm";
+    const injection_kind = if (positionals.items.len > 6) positionals.items[6] else "wasmlink";
+    const clean_dest = positionals.items.len > 7 and std.mem.eql(u8, positionals.items[7], "clean");
+
+    const manifest_out_path = manifest_out orelse return error.MissingManifestOutPath;
 
     const content = try std.Io.Dir.cwd().readFileAlloc(io, src_path, allocator, .unlimited);
 
@@ -47,8 +63,11 @@ pub fn main(init: std.process.Init) !void {
 
     const href = try std.fmt.allocPrint(allocator, "{s}.{s}{s}", .{ href_stem, &hash_tag, file_ext });
 
+    var manifest = try Manifest.init(io, allocator, manifest_in.?);
+    defer manifest.deinit();
+
     if (std.mem.eql(u8, injection_kind, "script")) {
-        try Manifest.upsertJsglueInjection(io, allocator, manifest_path, .{
+        try manifest.upsertJsglueInjection(.{
             .parent = .head,
             .position = .ending,
             .element = .{
@@ -60,7 +79,7 @@ pub fn main(init: std.process.Init) !void {
             },
         });
     } else {
-        try Manifest.upsertWasmlinkInjection(io, allocator, manifest_path, .{
+        try manifest.upsertWasmlinkInjection(.{
             .parent = .head,
             .position = .ending,
             .element = .{
@@ -75,6 +94,8 @@ pub fn main(init: std.process.Init) !void {
             },
         });
     }
+
+    try manifest.commitTo(io, manifest_out_path);
 }
 
 fn cleanGeneratedAssetsDir(io: std.Io, dest_dir: []const u8) !void {
