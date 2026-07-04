@@ -280,11 +280,11 @@ pub fn build(b: *std.Build) !void {
     b.default_step.dependOn(&install_branding.step);
 }
 
-fn assetId(b: *std.Build, optimize: std.builtin.OptimizeMode) []const u8 {
+fn assetId(_: *std.Build, optimize: std.builtin.OptimizeMode) []const u8 {
     if (optimize == .Debug) return "dev";
-    const out = b.run(&.{ "git", "rev-parse", "--short=HEAD" });
-    const trimmed = std.mem.trim(u8, out, "\n");
-    return if (trimmed.len > 0) trimmed else "release";
+    return "dev";
+
+    // TODO: use ziex_builder.addStaticInstallFile(.{src: lazypath, dest_name: "assets/app.{hash}.js"}) once this is implemented
 }
 
 const bunjs = @import("bunjs");
