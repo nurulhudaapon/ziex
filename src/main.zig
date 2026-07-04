@@ -96,8 +96,8 @@ const lsp = if (build_options.exclude_lsp) void else @import("lsp/main.zig");
 
 pub const std_options = std.Options{
     .log_scope_levels = &[_]std.log.ScopeLevel{
-        .{ .scope = .cli, .level = if (builtin.mode == .Debug) .info else .info },
-        .{ .scope = .devserver, .level = if (builtin.mode == .Debug) .info else .info },
-        .{ .scope = .builder, .level = if (builtin.mode == .Debug) .info else .info },
+        .{ .scope = .cli, .level = @enumFromInt(build_options.log_level) },
+        .{ .scope = .devserver, .level = @enumFromInt(build_options.log_level) },
+        .{ .scope = .builder, .level = @enumFromInt(build_options.log_level) },
     },
 };

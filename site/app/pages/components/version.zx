@@ -31,12 +31,14 @@ fn fetchLatestRelease(allocator: zx.Allocator) ?Release {
         .{slug},
     ) catch return null;
 
-    var response = (zx.fetch(.blocking, allocator, url, .{
+    const init = zx.Fetch.RequestInit{
         .headers = &.{
             .{ .name = "Accept", .value = "application/vnd.github+json" },
             .{ .name = "User-Agent", .value = "ziex-site" },
         },
-    }) catch return null) orelse return null;
+    };
+
+    var response = fetchWithTimeout(allocator, url, init, 3_000) orelse return null;
     defer response.deinit();
 
     if (!response.ok()) return null;
@@ -56,6 +58,41 @@ fn fetchLatestRelease(allocator: zx.Allocator) ?Release {
     return .{
         .version = allocator.dupe(u8, version) catch return null,
         .url = allocator.dupe(u8, html_url) catch return null,
+    };
+}
+
+fn fetchWithTimeout(allocator: zx.Allocator, url: []const u8, init: zx.Fetch.RequestInit, timeout_ms: u32) ?zx.Fetch.Response {
+    const io = std.Io.Threaded.global_single_threaded.io();
+
+    const Branch = union(enum) {
+        response: ?zx.Fetch.Response,
+        timer: void,
+    };
+
+    const FetchTask = struct {
+        fn run(a: zx.Allocator, fetch_url: []const u8, fetch_init: zx.Fetch.RequestInit) ?zx.Fetch.Response {
+            return (zx.fetch(.blocking, a, fetch_url, fetch_init) catch return null) orelse null;
+        }
+    };
+
+    const Timer = struct {
+        fn run(t_io: std.Io, ms: u32) void {
+            t_io.sleep(.fromMilliseconds(ms), .awake) catch {};
+        }
+    };
+
+    var buffer: [2]Branch = undefined;
+    var selector = std.Io.Select(Branch).init(io, &buffer);
+
+    selector.async(.response, FetchTask.run, .{ allocator, url, init });
+    selector.async(.timer, Timer.run, .{ io, timeout_ms });
+
+    const winner = selector.await() catch return null;
+    while (selector.cancel()) |_| {}
+
+    return switch (winner) {
+        .response => |r| r,
+        .timer => null,
     };
 }
 

@@ -17,6 +17,7 @@ pub fn build(b: *std.Build) !void {
     const enable_postgres = b.option(bool, "feature-postgres", "Enabled postgres support") orelse false;
     const exclude_core_lang = b.option(bool, "exclude-core-lang", "Exclude core language tools (Ast/Parse/sourcemap) - only needed by CLI") orelse false;
     const version = b.option([]const u8, "version", "Version to embed in the binary") orelse build_zon.version;
+    const log_level = b.option(std.log.Level, "cli-log-level", "Log level for the CLI") orelse .info;
 
     const is_client = b.option(bool, "is-client", "Building for the browser (client)") orelse false;
 
@@ -94,6 +95,7 @@ pub fn build(b: *std.Build) !void {
 
     const exe_build_options = b.addOptions();
     exe_build_options.addOption(bool, "enable_lsp", enable_lsp);
+    exe_build_options.addOption(u2, "log_level", @intFromEnum(log_level));
 
     const exe = b.addExecutable(.{ .name = "zx", .root_module = b.createModule(exe_rootmod_opts) });
     exe.root_module.addOptions("build_options", exe_build_options);
@@ -294,6 +296,7 @@ pub fn build(b: *std.Build) !void {
         // --- ZX CLI Options (Release) --- //
         const cli_options_rel = b.addOptions();
         cli_options_rel.addOption([]const u8, "zig_exe", "zig");
+        cli_options_rel.addOption(u2, "log_level", @intFromEnum(log_level));
 
         for (release_targets) |release_target| {
             const resolved_target = b.resolveTargetQuery(release_target.target);

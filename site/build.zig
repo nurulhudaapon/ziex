@@ -142,7 +142,7 @@ pub fn build(b: *std.Build) !void {
             .jsglue_href = b.fmt("/assets/main.{s}.js", .{id}),
             .jsglue_install_subdir = "pkg/ziex",
         },
-        .cli = .{ .optimize = optimize },
+        .cli = .{ .optimize = optimize, .log_level = .debug },
     });
 
     // --- ZX Components --- //

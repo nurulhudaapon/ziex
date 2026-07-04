@@ -53,6 +53,9 @@ pub const CliOptions = struct {
 
     /// Optimize mode for the ZX CLI executable.
     optimize: ?std.builtin.OptimizeMode = .ReleaseFast,
+
+    /// Log level for the ZX CLI executable.
+    log_level: ?std.log.Level = null,
 };
 
 /// Configuration for the ZX app directory.

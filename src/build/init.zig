@@ -24,12 +24,14 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     const zx_host_dep = b.dependencyFromBuildZig(build_zig, .{
         .optimize = options.cli.optimize, // Always in release mode for faster transpilation
         // No target = host target, so zx CLI can execute during build
+        .@"cli-log-level" = options.cli.log_level,
     });
 
-    // Full CLI dep (includes LSP) for the `zig build zx` step
+    // Full CLI dep
     const zx_full_dep = b.dependencyFromBuildZig(build_zig, .{
         .optimize = options.cli.optimize,
         .lsp = ziex_lsp,
+        .@"cli-log-level" = options.cli.log_level,
     });
 
     const zx_wasm_dep = b.dependencyFromBuildZig(build_zig, .{
@@ -447,7 +449,7 @@ pub fn initInner(
     exe.root_module.addImport("zx", zx_module);
 
     exe.step.dependOn(&transpile_cmd.step);
-    exe.step.name = b.fmt("install {s}server{s} {s}", .{ colors.dim, colors.reset, exe.name });
+    exe.step.name = b.fmt("install server exe", .{});
     b.installArtifact(exe);
 
     // --- ZX WASM Main Executable --- //
@@ -520,7 +522,7 @@ pub fn initInner(
     var js_run: ?*std.Build.Step.Run = null;
     if (uses_local_jsglue) {
         const js_asset = addStaticAssetRun(b, asset_installer_exe, &transpile_cmd.step, base_manifest_path, zxjs_path, zxjs_href_stem, zxjs_file_stem, ".js", "script", true);
-        js_asset.run.setName(b.fmt("install {s}client js glue{s} {s}", .{ colors.dim, colors.reset, exe.name }));
+        js_asset.run.setName(b.fmt("install client bindings", .{}));
         js_asset.run.step.dependOn(&transpile_cmd.step);
         b.getInstallStep().dependOn(&js_asset.run.step);
         js_run = js_asset.run;
@@ -547,7 +549,7 @@ pub fn initInner(
     b.default_step.dependOn(&install_manifest.step);
     install_manifest.step.dependOn(&wasm_asset_run.run.step);
 
-    wasm_asset_run.run.setName(b.fmt("install {s}client wasm{s} {s}", .{ colors.dim, colors.reset, exe.name }));
+    wasm_asset_run.run.setName(b.fmt("install client wasm", .{}));
     wasm_asset_run.run.step.dependOn(&transpile_cmd.step);
     wasm_asset_run.run.step.dependOn(&wasm_exe.step);
     if (js_run) |js| wasm_asset_run.run.step.dependOn(&js.step);
