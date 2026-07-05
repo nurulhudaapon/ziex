@@ -32,6 +32,7 @@ pub fn Server(comptime H: type) type {
             self.meta = zx_app.meta;
             self.app_ctx = app_ctx;
             self.io = io;
+            self._is_listening = false;
 
             // Get pointer to app context for handler initialization
             // When H is void, pass undefined; when H is pointer, use directly; when H is value, get pointer from self
