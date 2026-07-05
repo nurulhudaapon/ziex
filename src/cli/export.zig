@@ -97,6 +97,8 @@ fn @"export"(ctx: zli.CommandContext) !void {
 
     try environ_map.put("ZIEX_ROOT_DIR", DEFAULT_INSTALL_PREFIX);
 
+    log.debug("Spawning export server exe={s} port={d} rootdir={s}", .{ exe_path, port, DEFAULT_INSTALL_PREFIX });
+
     var app_child = try std.process.spawn(io, .{
         .argv = &.{ exe_path, "--cli-command", "export" },
         .environ_map = environ_map,
@@ -128,6 +130,8 @@ fn @"export"(ctx: zli.CommandContext) !void {
 
     log.debug("Processing routes! {d}", .{manifest.routes.len});
 
+    var connection_retries: u32 = 0;
+
     process_block: while (true) {
         for (manifest.routes) |entry| {
             if (entry.page_import == null) continue;
@@ -138,9 +142,13 @@ fn @"export"(ctx: zli.CommandContext) !void {
                 .is_dynamic = std.mem.indexOf(u8, entry.path, ":") != null,
             };
 
+            log.debug("Export route {s} dynamic={} notfound={}", .{ route.path, route.is_dynamic, route.has_notfound });
+
             if (route.is_dynamic) {
+                log.debug("Fetching static params for {s}", .{route.path});
                 const static_params = fetchStaticParams(io, ctx.allocator, host, port, route.path) catch |err| {
                     if (err == error.ConnectionRefused) {
+                        logConnectionRetry(&connection_retries, route.path, "static-params");
                         waitForServerRetry(io);
                         continue :process_block;
                     }
@@ -148,6 +156,9 @@ fn @"export"(ctx: zli.CommandContext) !void {
                     continue;
                 };
                 defer static_params.deinit();
+                connection_retries = 0;
+
+                log.debug("Static params for {s}: {d} paths", .{ route.path, static_params.items.len });
 
                 if (static_params.items.len > 0) {
                     for (static_params.items) |expanded_path| {
@@ -158,6 +169,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
                         };
                         processRoute(io, ctx.allocator, host, port, expanded_route, outdir, &printer, .page) catch |err| {
                             if (err == error.ConnectionRefused) {
+                                logConnectionRetry(&connection_retries, expanded_route.path, "page");
                                 waitForServerRetry(io);
                                 continue :process_block;
                             }
@@ -170,17 +182,20 @@ fn @"export"(ctx: zli.CommandContext) !void {
             } else {
                 processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .page) catch |err| {
                     if (err == error.ConnectionRefused) {
+                        logConnectionRetry(&connection_retries, route.path, "page");
                         waitForServerRetry(io);
                         continue :process_block;
                     }
                     return err;
                 };
             }
+            connection_retries = 0;
 
             // Also export 404.html for routes that have notfound handler
             if (route.has_notfound) {
                 processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .notfound) catch |err| {
                     if (err == error.ConnectionRefused) {
+                        logConnectionRetry(&connection_retries, route.path, "notfound");
                         waitForServerRetry(io);
                         continue :process_block;
                     }
@@ -205,6 +220,14 @@ fn @"export"(ctx: zli.CommandContext) !void {
 
 fn waitForServerRetry(io: std.Io) void {
     std.Io.sleep(io, .fromMilliseconds(10), .awake) catch {};
+}
+
+fn logConnectionRetry(retries: *u32, route_path: []const u8, kind: []const u8) void {
+    retries.* += 1;
+    const n = retries.*;
+    if (n <= 5 or n % 100 == 0) {
+        log.debug("Connection refused for {s} ({s}), retry {d}", .{ route_path, kind, n });
+    }
 }
 
 const ExportType = enum { page, notfound };
@@ -246,7 +269,9 @@ fn processRoute(
 
     var extra_headers: [1]std.http.Header = .{.{ .name = "x-zx-export-notfound", .value = "true" }};
 
-    _ = try client.fetch(.{
+    log.debug("Fetching {s} kind={s} url={s}", .{ route.path, @tagName(export_type), url });
+
+    const result = try client.fetch(.{
         .method = .GET,
         .location = .{ .url = url },
         .extra_headers = if (export_type == .notfound) &extra_headers else &.{},
@@ -254,6 +279,7 @@ fn processRoute(
     });
 
     const response_text = aw.written();
+    log.debug("Fetched {s} kind={s} status={} body_len={d}", .{ route.path, @tagName(export_type), result.status, response_text.len });
 
     // Determine the output file path
     var file_path: []const u8 = undefined;
@@ -356,6 +382,8 @@ fn fetchStaticParams(io: std.Io, allocator: std.mem.Allocator, host: []const u8,
 
     var extra_headers: [1]std.http.Header = .{.{ .name = "x-zx-static-data", .value = "true" }};
 
+    log.debug("Fetching static params url={s}", .{url});
+
     const result = try client.fetch(.{
         .method = .GET,
         .location = .{ .url = url },
@@ -363,9 +391,11 @@ fn fetchStaticParams(io: std.Io, allocator: std.mem.Allocator, host: []const u8,
         .response_writer = &aw.writer,
     });
 
+    const response = aw.written();
+    log.debug("Static params response for {s}: status={} body_len={d}", .{ route_path, result.status, response.len });
+
     if (result.status != .ok) return .{ .items = &.{}, .allocator = null };
 
-    const response = aw.written();
     if (response.len == 0 or std.mem.eql(u8, response, ".{}")) return .{ .items = &.{}, .allocator = null };
 
     const response_z = try allocator.dupeSentinel(u8, response, 0);
