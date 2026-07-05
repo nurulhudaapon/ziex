@@ -113,6 +113,7 @@ const categories = [_]SidebarProps.Category{
                 .title = "Caching",
                 .href = "/reference#caching",
                 .items = &[_]SidebarProps.Link{
+                    .{ .href = "/reference#caching-enabling", .text = "Enabling" },
                     .{ .href = "/reference#caching-overview", .text = "Overview" },
                     .{ .href = "/reference#caching-components", .text = "Component Caching" },
                     .{ .href = "/reference#caching-pages", .text = "Page Caching" },

@@ -24,13 +24,9 @@ const categories = [_]SidebarProps.Category{
                 .items = &[_]SidebarProps.Link{
                     .{ .href = "/examples#components", .text = "Props" },
                     .{ .href = "/examples#dynamic-attributes", .text = "Dynamic Attributes" },
-                    .{ .href = "/examples#form-handling", .text = "Form Handling" },
                 },
             },
-            .{
-                .title = "Caching",
-                .href = "/examples#caching",
-            },
+           
         },
     },
     .{
@@ -57,8 +53,6 @@ const toc_links = [_]SidebarProps.Link{
     .{ .href = "/examples#for-loop", .text = "For Loop" },
     .{ .href = "/examples#components", .text = "Props" },
     .{ .href = "/examples#dynamic-attributes", .text = "Dynamic Attributes" },
-    .{ .href = "/examples#form-handling", .text = "Form Handling" },
-    .{ .href = "/examples#caching", .text = "Caching" },
 };
 
 const Sidebar = @import("../components/sidebar.zx").Sidebar;

@@ -2,6 +2,8 @@ pub const options = zx.PageOptions{
     .methods = &.{ .GET, .POST },
 };
 
+const ziex_org_url = zx.info.repository[0..(zx.info.repository.len - "/ziex".len)];
+
 pub fn Page(ctx: zx.PageContext) !zx.Component {
     if (ctx.request.method != .GET) {
         return error.MethodNotAllowed;
@@ -69,6 +71,9 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const db_typed = util.extractSection(allocator, examples_content, "Learn: db typed");
     const db_transaction = util.extractSection(allocator, examples_content, "Learn: db transaction");
 
+    const enable_kv_build = util.extractUnwrapSection(allocator, examples_content, "Learn: enable kv");
+    const enable_db_build = util.extractUnwrapSection(allocator, examples_content, "Learn: enable db");
+
     const html_greeting = util.renderComponentToHtml(allocator, examples.Learn__HelloWorld(allocator));
     const html_markup = util.renderComponentToHtml(allocator, examples.Learn__AboutSection(allocator));
     const html_text = util.renderComponentToHtml(allocator, examples.Learn__UserGreeting(allocator));
@@ -109,8 +114,8 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
             <ChildrenProps zx_code={zx_children} zig_code={zig_children} html_code={html_children} />
             <PagesAndLayouts zx_page={zx_page} zig_page={zig_page} html_page={html_page} zx_layout={zx_layout} zx_dynamic={zx_dynamic} zig_dynamic={zig_dynamic} html_dynamic={html_dynamic} />
             <APIRoutes zig_code={zig_api} />
-            <KVStorage kv_basic={kv_basic} kv_typed={kv_typed} kv_scoped={kv_scoped} />
-            <Database db_basic={db_basic} db_typed={db_typed} db_transaction={db_transaction} />
+            <KVStorage kv_basic={kv_basic} kv_typed={kv_typed} kv_scoped={kv_scoped} enable_build={enable_kv_build} />
+            <Database db_basic={db_basic} db_typed={db_typed} db_transaction={db_transaction} enable_build={enable_db_build} />
             <Deployment />
             <NextSteps />
         </fragment>
@@ -154,7 +159,7 @@ fn Installation(allocator: zx.Allocator) !zx.Component {
 
             <InstallCLI />
 
-            <p style="margin-top: 1rem;">If you prefer not to install the CLI, you can create a project manually. See the <a href="#create-project">Create a Project</a> section for the manual setup option, or check the <a href="/reference#cli">CLI documentation</a> for all available commands.</p>
+            <p style="margin-top: 1rem;">You can also scaffold a project with <a href="#create-project">Node.js</a>, clone a <a href="#create-project">starter template</a>, or set things up <a href="#create-project">manually</a>. See <a href="#create-project">Create a Project</a> for all options, or the <a href="/reference#cli">CLI documentation</a> for every command.</p>
 
             <h3>Install Zig</h3>
             <p>ZX <code>{zx.info.version}</code> requires Zig <code>{zx.info.minimum_zig_version}</code>:</p>
@@ -172,14 +177,23 @@ fn CreateProject(allocator: zx.Allocator, props: CreateProjectProps) zx.Componen
     return (
         <section id="create-project" class="section" @allocator={allocator}>
             <h2>Create a Project</h2>
-            <p><strong>CLI:</strong> Use the CLI to quickly scaffold a new ZX project. It automatically sets up the project structure, build configuration, and template files for you.</p>
-            <p><strong>Manual:</strong> If you prefer not to install the CLI, you can simply add the ZX dependency to your <code>build.zig</code> file and initialize the project manually, or use the <code>zx</code> build step available after configuring <code>zx.init</code>.</p>
+            <p>Pick the setup that fits your workflow:</p>
+            <ul>
+                <li><strong>CLI</strong> - scaffold a project with <code>zx init</code></li>
+                <li><strong>Template</strong> - clone the starter repo and run <code>zig build dev</code></li>
+                <li><strong>Manual</strong> - add ZX to an existing Zig project with <code>build.zig</code></li>
+                <li><strong>Node.js</strong> - use <code>npm init ziex</code> or <code>bun create ziex</code> to download a template</li>
+            </ul>
             <div>
                 <div class="simple-tab-header">
                     <input type="radio" id="tab-cli" name="create-project" class="simple-tab-radio" checked="true" aria-label="CLI setup method" />
+                    <input type="radio" id="tab-template" name="create-project" class="simple-tab-radio" aria-label="Template setup method" />
                     <input type="radio" id="tab-manual" name="create-project" class="simple-tab-radio" aria-label="Manual setup method" />
+                    <input type="radio" id="tab-nodejs" name="create-project" class="simple-tab-radio" aria-label="Node.js setup method" />
                     <label for="tab-cli" class="simple-tab-label">CLI</label>
+                    <label for="tab-template" class="simple-tab-label">Template</label>
                     <label for="tab-manual" class="simple-tab-label">Manual</label>
+                    <label for="tab-nodejs" class="simple-tab-label">Node.js</label>
                 </div>
                 <div class="simple-tab-content" id="content-cli">
                     <p>Create a new ZX project using the CLI:</p>
@@ -200,6 +214,31 @@ fn CreateProject(allocator: zx.Allocator, props: CreateProjectProps) zx.Componen
                             <div class="install-code install-code-multiline">
                                 <div><span class="install-prompt">$ </span><span class="function">cd </span><span class="variable">my-app</span></div>
                                 <div><span class="install-prompt">$ </span><span class="function">zig </span><span class="operator">build </span><span class="variable">dev</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p style="margin-top: 1.5rem;">Open <code>http://localhost:3000</code> in your browser!</p>
+                </div>
+                <div class="simple-tab-content" id="content-template">
+                    <p>Clone the starter template from GitHub:</p>
+                    <div class="install-box install-box-simple">
+                        <div class="install-box-content">
+                            <div class="install-code install-code-multiline">
+                                <div><span class="install-prompt">$ </span><span class="function">git </span><span class="operator">clone </span><span class="variable">{ziex_org_url}/template-starter </span><span class="variable">my-app</span></div>
+                                <div><span class="install-prompt">$ </span><span class="function">cd </span><span class="variable">my-app</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p style="margin-top: 1.5rem;">Start the app in development mode with hot reloading:</p>
+                    <div class="install-box install-box-simple">
+                        <div class="install-box-content">
+                            <div class="install-code">
+                                <span class="install-prompt">$ </span>
+                                <span class="function">zig </span>
+                                <span class="operator">build </span>
+                                <span class="variable">dev</span>
                             </div>
                         </div>
                     </div>
@@ -254,6 +293,41 @@ fn CreateProject(allocator: zx.Allocator, props: CreateProjectProps) zx.Componen
                         <div class="install-box-content">
                             <div class="install-code install-code-multiline">
                                 <div><span class="install-prompt">$ </span><span class="function">zig </span><span class="operator">build </span><span class="variable">dev</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p style="margin-top: 1.5rem;">Open <code>http://localhost:3000</code> in your browser!</p>
+                </div>
+                <div class="simple-tab-content" id="content-nodejs">
+                    <p>Create a new project with npm or Bun. You'll be prompted to pick a template (starter, Cloudflare, Vercel, Railway, Render, and more):</p>
+                    <div class="install-box install-box-simple">
+                        <div class="install-box-content">
+                            <div class="install-code">
+                                <span class="install-prompt">$ </span>
+                                <span class="function">npm</span>
+                                <span class="operator"> init </span>
+                                <span class="variable">ziex</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p style="margin-top: 1.5rem;">Then cd into your project and start the dev server:</p>
+                    <div class="install-box install-box-simple">
+                        <div class="install-box-content">
+                            <div class="install-code install-code-multiline">
+                                <div><span class="install-prompt">$ </span><span class="function">cd </span><span class="variable">my-app</span></div>
+                                <div><span class="install-prompt">$ </span><span class="function">zig </span><span class="operator">build </span><span class="variable">dev</span></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <p style="margin-top: 1.5rem;">If you chose the <code>node</code> template, install dependencies and use the npm scripts instead:</p>
+                    <div class="install-box install-box-simple">
+                        <div class="install-box-content">
+                            <div class="install-code install-code-multiline">
+                                <div><span class="install-prompt">$ </span><span class="function">npm </span><span class="operator">install</span></div>
+                                <div><span class="install-prompt">$ </span><span class="function">npm </span><span class="operator">run </span><span class="variable">dev</span></div>
                             </div>
                         </div>
                     </div>
@@ -655,6 +729,7 @@ const KVStorageProps = struct {
     kv_basic: []const u8,
     kv_typed: []const u8,
     kv_scoped: []const u8,
+    enable_build: []const u8,
 };
 
 fn KVStorage(allocator: zx.Allocator, props: KVStorageProps) zx.Component {
@@ -662,6 +737,12 @@ fn KVStorage(allocator: zx.Allocator, props: KVStorageProps) zx.Component {
         <section id="kv" class="section" @allocator={allocator}>
             <h2>Key-Value Storage</h2>
             <p>ZX includes a key-value store for persisting small pieces of data across requests and restarts. Access it through <code>zx.kv</code>.</p>
+
+            <h3>Enabling</h3>
+            <p>KV is disabled by default. Enable it in <code>build.zig</code> by passing <code>features</code> to your <code>ziex.init</code> call:</p>
+            <CodeBlock code={props.enable_build} filename="build.zig" translate="no" />
+            <p>Use <code>.kv = .{"{ .server = .enabled }"}</code> for server-side storage only, or <code>.kv = .enabled</code> to enable both server and client KV.</p>
+
             <p>Store and retrieve raw bytes:</p>
             <CodeBlock code={props.kv_basic} />
             <p><code>zx.kv.get</code> returns owned bytes (or <code>null</code>), so free them when you're done — or use the request arena as shown. List keys with a prefix using <code>zx.kv.list</code>.</p>
@@ -688,6 +769,7 @@ const DatabaseProps = struct {
     db_basic: []const u8,
     db_typed: []const u8,
     db_transaction: []const u8,
+    enable_build: []const u8,
 };
 
 fn Database(allocator: zx.Allocator, props: DatabaseProps) zx.Component {
@@ -695,6 +777,13 @@ fn Database(allocator: zx.Allocator, props: DatabaseProps) zx.Component {
         <section id="database" class="section" @allocator={allocator}>
             <h2>Database</h2>
             <p>ZX ships with a SQL database layer accessed through <code>zx.db</code>.</p>
+
+            <h3>Enabling</h3>
+            <p>The embedded SQLite database is disabled by default. Enable it in <code>build.zig</code> by passing <code>features</code> to your <code>ziex.init</code> call:</p>
+            <CodeBlock code={props.enable_build} filename="build.zig" translate="no" />
+            // TODO: uncoment when postgres is supported
+            // <p>For Postgres, use <code>.postgres = .enabled</code> instead and access it through <code>zx.Db.Postgres</code>.</p>
+
             <p>Create tables and insert rows with <code>zx.db.run</code>:</p>
             <CodeBlock code={props.db_basic} />
             <p>Pass bindings as an inline literal: <code>.empty</code> for none, a tuple for positional <code>?1</code> placeholders, or a struct for named <code>$name</code> placeholders. Read a single row with <code>zx.db.get</code>, then pull columns with <code>row.text</code>, <code>row.int</code>, <code>row.float</code>, or <code>row.boolean</code>.</p>
@@ -733,6 +822,28 @@ fn Deployment(allocator: zx.Allocator) zx.Component {
             <CodeBlock code="zx init --template docker" />
             <p>It uses a two-stage Alpine build that compiles your app and ships only the final binary and assets. Build and run the image:</p>
             <CodeBlock code="docker build -t myapp ." />
+
+            <h4 id="deployment-railway">Railway</h4>
+            <p>Scaffold a Railway project with the <code>railway</code> template, or deploy the starter template in one click:</p>
+            <CodeBlock code="zx init --template railway" />
+            <p>The template includes a Dockerfile and Railway configuration. Build for production, bundle assets, and deploy:</p>
+            <CodeBlock code="zig build -Doptimize=ReleaseSafe && zig build zx -- bundle" />
+            <p>
+                <a href=`https://railway.com/new/template?template={ziex_org_url}/template-railway` target="_blank" rel="noopener noreferrer">Deploy on Railway</a>
+                 - one-click deploy from the 
+                <a href=`{ziex_org_url}/template-railway` target="_blank" rel="noopener noreferrer">template-railway</a>
+                 repo.
+            </p>
+
+            <h4 id="deployment-render">Render</h4>
+            <p>Scaffold a Render project with the <code>render</code> template, or deploy the starter template in one click:</p>
+            <CodeBlock code="zx init --template render" />
+            <p>The template ships a <code>render.yaml</code> blueprint that configures build and start commands automatically. Deploy from the Render dashboard or use the one-click button:</p>
+            <p>
+                <a href=`https://render.com/deploy?repo={ziex_org_url}/template-render` target="_blank" rel="noopener noreferrer">Deploy to Render</a>
+                - one-click deploy from the 
+                <a href=`{ziex_org_url}/template-render` target="_blank" rel="noopener noreferrer">template-render</a> repo.
+            </p>
 
             <div class="callout note">
                 <strong>Others:</strong>

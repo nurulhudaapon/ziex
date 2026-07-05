@@ -78,6 +78,8 @@ const categories = [_]SidebarProps.Category{
                 .items = &[_]SidebarProps.Link{
                     .{ .href = "/learn#deployment-standalone", .text = "Overview" },
                     .{ .href = "/learn#deployment-docker", .text = "Docker" },
+                    .{ .href = "/learn#deployment-railway", .text = "Railway" },
+                    .{ .href = "/learn#deployment-render", .text = "Render" },
                 },
             },
             .{

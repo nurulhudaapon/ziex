@@ -1599,7 +1599,9 @@ code[class*="language-"] {
 }
 
 #tab-cli:checked~.simple-tab-label[for="tab-cli"],
+#tab-template:checked~.simple-tab-label[for="tab-template"],
 #tab-manual:checked~.simple-tab-label[for="tab-manual"],
+#tab-nodejs:checked~.simple-tab-label[for="tab-nodejs"],
 #tab-control-if:checked~.simple-tab-label[for="tab-control-if"],
 #tab-control-switch:checked~.simple-tab-label[for="tab-control-switch"],
 #tab-control-for:checked~.simple-tab-label[for="tab-control-for"],
@@ -1618,7 +1620,9 @@ code[class*="language-"] {
 }
 
 div:has(#tab-cli:checked) #content-cli,
+div:has(#tab-template:checked) #content-template,
 div:has(#tab-manual:checked) #content-manual,
+div:has(#tab-nodejs:checked) #content-nodejs,
 div:has(#tab-control-if:checked) #control-content-if,
 div:has(#tab-control-switch:checked) #control-content-switch,
 div:has(#tab-control-for:checked) #control-content-for,

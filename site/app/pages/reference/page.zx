@@ -508,11 +508,16 @@ fn CachingSection(allocator: zx.Allocator) zx.Component {
     const page_caching_example = util.extractSection(allocator, examples_source, "Reference Inline: page caching");
     const layout_caching_example = util.extractSection(allocator, examples_source, "Reference Inline: layout caching");
     const cache_invalidation_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: cache invalidation");
+    const enable_cache_build = util.extractUnwrapSection(allocator, examples_source, "Learn: enable cache");
 
     return (
         <section id="caching" class="section" @allocator={allocator}>
             <h2>Caching <span class="badge">Alpha</span></h2>
-            <p>ZX provides built-in caching for components, pages, and layouts to improve performance. Cached content is stored in memory and served directly without re-rendering.</p>
+            <p>ZX provides built-in caching for components, pages, and layouts to improve performance. Cached content is persisted on disk and served directly without re-rendering.</p>
+
+            <h3 id="caching-enabling">Enabling</h3>
+            <p>Caching is disabled by default. Enable it in <code>build.zig</code> by passing <code>features</code> to your <code>ziex.init</code> call:</p>
+            <CodeBlock code={enable_cache_build} filename="build.zig" translate="no" />
 
             <h3 id="caching-overview">Overview</h3>
             <p>Caching can be applied at three levels:</p>

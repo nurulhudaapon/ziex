@@ -527,7 +527,7 @@ pub fn Learn__Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component
 }
 
 // --- Learn: build manual ---
-pub fn Learn__buildManual(b: *std.Build) !void {
+pub fn Learn__build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const app_exe = b.addExecutable(.{
@@ -927,6 +927,39 @@ pub fn Learn__GET(ctx: zx.RouteContext) !void {
     try ctx.response.json(.{ .message = "Hello World!" }, .{});
 }
 
+// --- Learn: enable kv ---
+pub fn Learn__enableKvInit(b: *std.Build, app_exe: *std.Build.Step.Compile) !void {
+    _ = try ziex.init(b, app_exe, .{
+        .app = .{
+            .features = .{
+                .kv = .enabled,
+            },
+        },
+    });
+}
+
+// --- Learn: enable db ---
+pub fn Learn__enableDbInit(b: *std.Build, app_exe: *std.Build.Step.Compile) !void {
+    _ = try ziex.init(b, app_exe, .{
+        .app = .{
+            .features = .{
+                .sqlite = .enabled,
+            },
+        },
+    });
+}
+
+// --- Learn: enable cache ---
+pub fn Learn__enableCacheInit(b: *std.Build, app_exe: *std.Build.Step.Compile) !void {
+    _ = try ziex.init(b, app_exe, .{
+        .app = .{
+            .features = .{
+                .cache = .enabled,
+            },
+        },
+    });
+}
+
 // --- Learn: kv basic ---
 pub fn Learn__KvBasic(ctx: zx.PageContext) !zx.Component {
     try zx.kv.put("greeting", "hello from kv", .{});
@@ -1059,7 +1092,7 @@ fn transfer(_: void, db: zx.Db) !void {
 
 // --- Imports ---
 pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
-    if (builtin.mode != .Debug) return null;
+    if (builtin.mode != .Debug) return .none;
 
     const allocator = ctx.arena;
 
@@ -1088,7 +1121,6 @@ pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
         .arena = allocator,
     };
 
-    
     const route_ctx = zx.RouteContext{
         .request = request,
         .response = response,
@@ -1105,7 +1137,6 @@ pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
         .arena = allocator,
     };
 
-
     _ = try RefInline__GET(route_ctx);
     _ = try RefInline__Socket(socket_ctx);
     _ = try POST(route_ctx);
@@ -1118,6 +1149,12 @@ pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
     _ = try Learn__DbBasic(page_ctx);
     _ = try Learn__DbTyped(page_ctx);
     _ = try Learn__DbTransaction(page_ctx);
+
+    // TODO: inject proper "ziex" build module to test these
+    _ = Learn__enableKvInit;
+    _ = Learn__enableDbInit;
+    _ = Learn__enableCacheInit;
+    _ = Learn__build;
 
     _ = RefPageCaching__Page(page_ctx);
     _ = Ref__Layout(layout_ctx, .none);
