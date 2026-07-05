@@ -62,6 +62,15 @@ pub fn build(b: *std.Build) !void {
     const install_main_js = b.addInstallFile(client_scripts.dir.path(b, "client.js"), "static/assets/app.js");
     b.default_step.dependOn(&install_main_js.step);
 
+    const branding_dep = b.dependency("branding", .{});
+    const install_branding = b.addInstallDirectory(.{
+        .source_dir = branding_dep.path("compressed"),
+        .install_dir = .prefix,
+        .install_subdir = "static/assets/branding",
+        .include_extensions = &.{"png"},
+    });
+    b.default_step.dependOn(&install_branding.step);
+
     // Step: zig build chromium
     const chromium_step = b.step("chromium", "Build chromium extension");
     const chromium_export = b.addRunArtifact(ziex_b.cli.exe);

@@ -6,6 +6,10 @@
     .dependencies = .{
         .ziex = .{ .path = "../.." },
         .esbuild = .{ .path = "../../pkg/plugin-esbuild" },
+        .branding = .{
+            .url = "git+https://github.com/ziex-dev/branding.git#d1eea8cd70e9433741d61bc05eaa99d540ff0c60",
+            .hash = "N-V-__8AADnLNgC84IXVbPpDCnj1vEM2QL_WL-km7toIF199",
+        },
     },
     .paths = .{
         "build.zig",

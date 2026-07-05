@@ -130,7 +130,6 @@ pub fn build(b: *std.Build) !void {
         .app = .{
             // .path = b.path("app"),
             // .base_path = "/test",
-            // .copy_embedded_sources = true,
             .features = .{
                 .sqlite = .enabled,
                 // .postgres = .enabled,
