@@ -1,4 +1,5 @@
-pub fn Page(ctx: zx.PageContext) zx.Component {
+pub fn Page(ctx: zx.PageContext) !zx.Component {
+    if(builtin.mode == .Debug) _ = try main.main();
     return (
         <div @allocator={ctx.arena} class="pg-ide" id="playground-ide">
             <style @escaping={.none}>
@@ -180,6 +181,7 @@ fn handleRunClick(ctx: zx.client.Event) void {
     // c.log(.{zx.client.js.String(ast.zig_source)});
 }
 
+const builtin = @import("builtin");
 const std = @import("std");
 const zx = @import("zx");
 const AllFileIcons = @import("../components/icons.zx").AllFileIcons;

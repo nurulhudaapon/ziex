@@ -71,8 +71,8 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const shorthand_attrs_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: shorthand attrs");
     const template_attrs_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: template attrs");
 
-    const component_ctx_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: component context");
-    const component_ctx_props_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: component ctx props");
+    const component_ctx_example = util.extractSection(allocator, examples_source, "Reference Inline: component context");
+    const component_ctx_props_example = util.extractSection(allocator, examples_source, "Reference Inline: component ctx props");
 
     const multiline_string_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: multiline strings");
     const comments_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: comments");
@@ -237,6 +237,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                     <li><strong>With props:</strong><code>fn Component(allocator: zx.Allocator, props: Props) zx.Component</code></li>
                     <li><strong>Context (children only):</strong><code>fn Component(ctx: *zx.ComponentContext) zx.Component</code></li>
                     <li><strong>Context with props:</strong><code>fn Component(ctx: *zx.ComponentCtx(Props)) zx.Component</code></li>
+                    <li><strong>Fallible:</strong><code>fn Component(ctx: *zx.ComponentCtx(Props)) !zx.Component</code></li>
                 </ul>
                 <h3 id="component-context">ComponentContext</h3>
                 <p>Use <code>zx.ComponentContext</code> when your component needs access to children but has no custom props:</p>
@@ -258,7 +259,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 <p>Pages are the main content components for each route. A page function must:</p>
                 <ul>
                     <li>Accept a <code>zx.PageContext</code> as its only parameter</li>
-                    <li>Return a <code>zx.Component</code></li>
+                    <li>Return a <code>zx.Component</code> or <code>!zx.Component</code></li>
                     <li>Be exported as <code>pub fn Page</code></li>
                 </ul>
                 <ExampleBlock id="routing" zx_code={zx_example_routing} zig_code={zig_example_routing} html_code={html_example_routing} filename="home_page.zx" />
@@ -450,8 +451,8 @@ const APIAndWebSocketsProps = struct {
 
 fn APIAndWebSockets(allocator: zx.Allocator, props: APIAndWebSocketsProps) zx.Component {
     const examples_source = @embedFile("../examples/feature_examples.zx");
-    const route_ctx_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: route ctx");
-    const socket_ctx_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: socket ctx");
+    const route_ctx_example = util.extractSection(allocator, examples_source, "Reference Inline: route ctx");
+    const socket_ctx_example = util.extractSection(allocator, examples_source, "Reference Inline: socket ctx");
 
     return (
         <section id="api-and-websockets" class="section" @allocator={allocator}>
@@ -504,8 +505,8 @@ fn CachingSection(allocator: zx.Allocator) zx.Component {
 
     const component_caching_basic = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: component caching basic");
     const component_caching_key = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: component caching key");
-    const page_caching_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: page caching");
-    const layout_caching_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: layout caching");
+    const page_caching_example = util.extractSection(allocator, examples_source, "Reference Inline: page caching");
+    const layout_caching_example = util.extractSection(allocator, examples_source, "Reference Inline: layout caching");
     const cache_invalidation_example = util.extractUnwrapSection(allocator, examples_source, "Reference Inline: cache invalidation");
 
     return (

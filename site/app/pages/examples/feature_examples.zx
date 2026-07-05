@@ -96,7 +96,7 @@ pub fn ControlWhileError(allocator: zx.Allocator) zx.Component {
     return (
         <div @{allocator}>
             {while (parseOnce(&n)) |value| (
-                <span>{value}<br/></span>
+                <span>{value}<br /></span>
             ) else |err| (
                 <span>{@errorName(err)}</span>
             )}
@@ -138,8 +138,8 @@ pub fn Caching__Page(
     );
 }
 
-pub const options = zx.PageOptions{
-    .caching = .{ .seconds = 300 },
+pub const CachingPage__options = zx.PageOptions{
+    .caching = .{ .ttl = .fromSeconds(300) },
 };
 
 // --- File System Routing: page ---
@@ -317,7 +317,7 @@ pub fn POST(ctx: zx.RouteContext) !void {
         try ctx.request.json(Data, .{});
 
     try ctx.response.json(.{
-        .id = data.?.id,
+        .id = if (data) |d| d.id else 0,
         .created = true,
     }, .{});
 }
@@ -775,35 +775,23 @@ pub fn unwrap__ref_template_attrs() void {
 }
 
 // --- Reference Inline: component context ---
-pub fn unwrap__ref_component_ctx() void {
-    // ComponentContext: children only, no custom props
-    const Wrapper = struct {
-        fn render(ctx: *zx.ComponentContext) zx.Component {
-            return (
-                <div @allocator={ctx.allocator} class="wrapper">
-                    {ctx.children}
-                </div>
-            );
-        }
-    };
-    _ = Wrapper.render;
+pub fn RefInlineNoProps__Container(ctx: *zx.ComponentContext) zx.Component {
+    return (
+        <div @allocator={ctx.allocator}>
+            {ctx.children}
+        </div>
+    );
 }
 
 // --- Reference Inline: component ctx props ---
-pub fn unwrap__ref_component_ctx_props() void {
-    // ComponentCtx(Props): props and children access
-    const CardProps = struct { title: []const u8 };
-    const CardCtx = struct {
-        fn render(ctx: *zx.ComponentCtx(CardProps)) zx.Component {
-            return (
-                <article @allocator={ctx.allocator} class="card">
-                    <h2>{ctx.props.title}</h2>
-                    {ctx.children}
-                </article>
-            );
-        }
-    };
-    _ = CardCtx.render;
+pub const RefInline__CardProps = struct { title: []const u8 };
+pub fn RefInline__Card(ctx: *zx.ComponentCtx(RefInline__CardProps)) zx.Component {
+    return (
+        <article @allocator={ctx.allocator}>
+            <h2>{ctx.props.title}</h2>
+            {ctx.children}
+        </article>
+    );
 }
 
 // --- Reference Inline: multiline strings ---
@@ -833,23 +821,19 @@ pub fn unwrap__ref_comments() void {
 }
 
 // --- Reference Inline: route ctx ---
-pub fn unwrap__ref_route_ctx() void {
-    // pub fn GET(ctx: zx.RouteContext) !void {
-    //     // ctx.request  - Request details
-    //     // ctx.response - Set headers, body, json, etc.
-    //     // ctx.socket   - WebSocket upgrade and pub/sub
-    //     // ctx.arena    - Request-scoped allocator
-    // }
+pub fn RefInline__GET(ctx: zx.RouteContext) !void {
+    _ = ctx.request; // Request details
+    _ = ctx.response; // Set headers, body, json, etc.
+    _ = ctx.socket; // WebSocket upgrade and pub/sub
+    _ = ctx.arena; // Request-scoped allocator
 }
 
 // --- Reference Inline: socket ctx ---
-pub fn unwrap__ref_socket_ctx() void {
-    // pub fn Socket(ctx: zx.SocketContext) !void {
-    //     // ctx.socket   - WebSocket interface
-    //     // ctx.message  - Received message data
-    //     // ctx.data     - Custom data from upgrade
-    //     // ctx.arena    - Message-scoped allocator
-    // }
+pub fn RefInline__Socket(ctx: zx.SocketContext) !void {
+    _ = ctx.socket; // WebSocket interface
+    _ = ctx.message; // Received message data
+    _ = ctx.data; // Custom data from upgrade
+    _ = ctx.arena; // Message-scoped allocator
 }
 
 // --- Reference Inline: component caching basic ---
@@ -877,41 +861,35 @@ pub fn unwrap__ref_component_caching_key() void {
 }
 
 // --- Reference Inline: page caching ---
-pub fn unwrap__ref_page_caching() void {
-    // pub fn Page(ctx: zx.PageContext) zx.Component {
-    //     return (
-    //         <div @allocator={ctx.arena}>
-    //             <h1>Cached Page</h1>
-    //             <p>This page is cached for 5 minutes.</p>
-    //         </div>
-    //     );
-    // }
-
-    // // Enable page-level caching
-    // pub const options = zx.PageOptions{
-    //     .caching = .{ .seconds = 300 }, // 5 minutes
-    // };
+pub fn RefPageCaching__Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <div @allocator={ctx.arena}>
+            <h1>Cached Page</h1>
+            <p>This page is cached for 5 minutes.</p>
+        </div>
+    );
 }
+
+// Enable page-level caching
+pub const RefPageCaching__options = zx.PageOptions{
+    .caching = .{ .ttl = .fromSeconds(300) }, // 5 minutes
+};
 
 // --- Reference Inline: layout caching ---
-pub fn unwrap__ref_layout_caching() void {
-    // pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
-    //     return (
-    //         <html @allocator={ctx.arena}>
-    //             <body>
-    //                 <Header />
-    //                 {children}
-    //                 <Footer />
-    //             </body>
-    //         </html>
-    //     );
-    // }
-
-    // // Cache the entire layout for 1 hour
-    // pub const options = zx.LayoutOptions{
-    //     .caching = .{ .seconds = 3600 },
-    // };
+pub fn Ref__Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+    return (
+        <html @allocator={ctx.arena}>
+            <body>
+                {children}
+            </body>
+        </html>
+    );
 }
+
+// Cache the entire layout for 1 hour
+pub const RefLayout__options = zx.LayoutOptions{
+    .caching = .{ .ttl = .fromSeconds(3600) },
+};
 
 // --- Reference Inline: cache invalidation ---
 pub fn unwrap__ref_cache_invalidation() void {
@@ -1080,9 +1058,74 @@ fn transfer(_: void, db: zx.Db) !void {
 }
 
 // --- Imports ---
-pub fn RenderTest(allocator: zx.Allocator) zx.Component {
+pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
+    if (builtin.mode != .Debug) return null;
+
+    const allocator = ctx.arena;
+
+    const request = zx.server.Request{
+        .url = ctx.request.url,
+        .method = ctx.request.method,
+        .pathname = ctx.request.pathname,
+        .headers = ctx.request.headers,
+        .arena = allocator,
+    };
+
+    const response = zx.server.Response{
+        .arena = allocator,
+    };
+
+    const layout_ctx = zx.LayoutContext{
+        .request = request,
+        .response = response,
+        .allocator = allocator,
+        .arena = allocator,
+    };
+    const page_ctx = zx.PageContext{
+        .request = request,
+        .response = response,
+        .allocator = allocator,
+        .arena = allocator,
+    };
+
+    
+    const route_ctx = zx.RouteContext{
+        .request = request,
+        .response = response,
+        .socket = .{},
+        .allocator = allocator,
+        .arena = allocator,
+    };
+    const socket_ctx = zx.SocketContext{
+        .socket = .{},
+        .message = "Hello",
+        .data = {},
+        .allocator = allocator,
+        .message_type = .text,
+        .arena = allocator,
+    };
+
+
+    _ = try RefInline__GET(route_ctx);
+    _ = try RefInline__Socket(socket_ctx);
+    _ = try POST(route_ctx);
+    _ = try PUT(route_ctx);
+    _ = try GET(route_ctx);
+    _ = try Learn__GET(route_ctx);
+    _ = try Learn__KvBasic(page_ctx);
+    _ = try Learn__KvTyped(page_ctx);
+    _ = try Learn__KvScoped(page_ctx);
+    _ = try Learn__DbBasic(page_ctx);
+    _ = try Learn__DbTyped(page_ctx);
+    _ = try Learn__DbTransaction(page_ctx);
+
+    _ = RefPageCaching__Page(page_ctx);
+    _ = Ref__Layout(layout_ctx, .none);
+    _ = RefLayout__options;
+    _ = CachingPage__options;
+
     return (
-        <div @{allocator}>
+        <div @{allocator} style="display: none">
             <ControlIf is_admin={true} />
             <ControlIfOptional />
             <ControlIfError />
@@ -1096,10 +1139,12 @@ pub fn RenderTest(allocator: zx.Allocator) zx.Component {
             <SpreadProps />
             <DynamicAttr />
             <Client />
+            <RefInlineNoProps__Container />
+            <RefInline__Card title="Hello" />
         </div>
     );
 }
-
+const builtin = @import("builtin");
 const zx = @import("zx");
 const ziex = @import("zx");
 const std = @import("std");

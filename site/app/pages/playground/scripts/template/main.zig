@@ -2,7 +2,8 @@ const std = @import("std");
 const zx = @import("zx");
 const pg = @import("Playground.zig");
 
-pub fn main(init: std.process.Init) !void {
+pub fn main() !void {
+    const io = zx.io();
     const allocator = std.heap.page_allocator;
     var aw = std.Io.Writer.Allocating.init(allocator);
 
@@ -10,7 +11,7 @@ pub fn main(init: std.process.Init) !void {
     const decls = type_info.@"struct".decl_names;
 
     if (decls.len == 0) {
-        try std.Io.File.stdout().writeStreamingAll(init.io,
+        try std.Io.File.stdout().writeStreamingAll(io,
             \\<pre>
             \\No pub component found in Playground.zig
             \\
@@ -25,14 +26,14 @@ pub fn main(init: std.process.Init) !void {
     }
 
     inline for (decls) |decl_name| {
-        const component = resolveComponent(allocator, decl_name);
+        const component = try resolveComponent(allocator, decl_name);
         try component.render(&aw.writer, .{});
     }
 
-    try std.Io.File.stdout().writeStreamingAll(init.io, aw.written());
+    try std.Io.File.stdout().writeStreamingAll(io, aw.written());
 }
 
-fn resolveComponent(allocator: zx.Allocator, comptime field_name: []const u8) zx.Component {
+fn resolveComponent(allocator: zx.Allocator, comptime field_name: []const u8) !zx.Component {
     const Cmp = @field(pg, field_name);
 
     switch (@typeInfo(@TypeOf(Cmp))) {
@@ -51,7 +52,7 @@ fn resolveComponent(allocator: zx.Allocator, comptime field_name: []const u8) zx
                 return cmp_fn(allocator, "Playground", null);
             }
 
-            // fn(ctx: zx.PageContext) zx.Component
+            // fn(ctx: zx.PageContext) zx.Component or fn(ctx: zx.PageContext) !zx.Component
             if (param_count == 1 and FirstParam == zx.PageContext) {
                 const ctx = zx.PageContext{
                     .request = .{
@@ -65,7 +66,11 @@ fn resolveComponent(allocator: zx.Allocator, comptime field_name: []const u8) zx
                     .allocator = allocator,
                     .arena = allocator,
                 };
-                return Cmp(ctx);
+                const result = Cmp(ctx);
+                if (@typeInfo(@TypeOf(result)) == .error_union) {
+                    return try result;
+                }
+                return result;
             }
 
             // fn(ctx: zx.LayoutContext, children: zx.Component) zx.Component
