@@ -102,8 +102,8 @@ fn @"export"(ctx: zli.CommandContext) !void {
     var app_child = try std.process.spawn(io, .{
         .argv = &.{ exe_path, "--cli-command", "export" },
         .environ_map = environ_map,
-        .stdout = .ignore,
-        .stderr = .ignore,
+        .stdout = .inherit,
+        .stderr = .inherit,
     });
     defer {
         app_child.kill(io);
@@ -148,8 +148,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
                 log.debug("Fetching static params for {s}", .{route.path});
                 const static_params = fetchStaticParams(io, ctx.allocator, host, port, route.path) catch |err| {
                     if (err == error.ConnectionRefused) {
-                        logConnectionRetry(&connection_retries, route.path, "static-params");
-                        waitForServerRetry(io);
+                        try waitForServerRetry(io, &connection_retries, route.path, "static-params");
                         continue :process_block;
                     }
                     log.warn("Failed to fetch static params for {s}: {any}", .{ route.path, err });
@@ -169,8 +168,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
                         };
                         processRoute(io, ctx.allocator, host, port, expanded_route, outdir, &printer, .page) catch |err| {
                             if (err == error.ConnectionRefused) {
-                                logConnectionRetry(&connection_retries, expanded_route.path, "page");
-                                waitForServerRetry(io);
+                                try waitForServerRetry(io, &connection_retries, expanded_route.path, "page");
                                 continue :process_block;
                             }
                             return err;
@@ -182,8 +180,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
             } else {
                 processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .page) catch |err| {
                     if (err == error.ConnectionRefused) {
-                        logConnectionRetry(&connection_retries, route.path, "page");
-                        waitForServerRetry(io);
+                        try waitForServerRetry(io, &connection_retries, route.path, "page");
                         continue :process_block;
                     }
                     return err;
@@ -195,8 +192,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
             if (route.has_notfound) {
                 processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .notfound) catch |err| {
                     if (err == error.ConnectionRefused) {
-                        logConnectionRetry(&connection_retries, route.path, "notfound");
-                        waitForServerRetry(io);
+                        try waitForServerRetry(io, &connection_retries, route.path, "notfound");
                         continue :process_block;
                     }
                     return err;
@@ -218,16 +214,22 @@ fn @"export"(ctx: zli.CommandContext) !void {
     // };
 }
 
-fn waitForServerRetry(io: std.Io) void {
-    std.Io.sleep(io, .fromMilliseconds(10), .awake) catch {};
-}
+const MAX_CONNECTION_RETRIES: u32 = 3_000;
 
-fn logConnectionRetry(retries: *u32, route_path: []const u8, kind: []const u8) void {
+fn waitForServerRetry(io: std.Io, retries: *u32, route_path: []const u8, kind: []const u8) !void {
     retries.* += 1;
     const n = retries.*;
     if (n <= 5 or n % 100 == 0) {
         log.debug("Connection refused for {s} ({s}), retry {d}", .{ route_path, kind, n });
     }
+    if (n >= MAX_CONNECTION_RETRIES) {
+        log.err(
+            "Export server never became reachable for {s} ({s}) after {d} retries",
+            .{ route_path, kind, n },
+        );
+        return error.ExportServerUnavailable;
+    }
+    std.Io.sleep(io, .fromMilliseconds(10), .awake) catch {};
 }
 
 const ExportType = enum { page, notfound };
