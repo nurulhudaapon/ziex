@@ -18,6 +18,7 @@ pub fn build(b: *std.Build) !void {
     const exclude_core_lang = b.option(bool, "exclude-core-lang", "Exclude core language tools (Ast/Parse/sourcemap) - only needed by CLI") orelse false;
     const version = b.option([]const u8, "version", "Version to embed in the binary") orelse build_zon.version;
     const log_level = b.option(std.log.Level, "cli-log-level", "Log level for the CLI") orelse .info;
+    const zig_exe_path = b.option([]const u8, "zig-exe-path", "Path to the zig executable") orelse "zig";
 
     const is_client = b.option(bool, "is-client", "Building for the browser (client)") orelse false;
 
@@ -30,7 +31,7 @@ pub fn build(b: *std.Build) !void {
     options.addOption([]const u8, "minimum_zig_version", build_zon.minimum_zig_version);
 
     const cli_options_dev = b.addOptions();
-    cli_options_dev.addOption([]const u8, "zig_exe", b.graph.zig_exe);
+    cli_options_dev.addOption([]const u8, "zig_exe", zig_exe_path);
 
     // Dependencies
     const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });

@@ -25,6 +25,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         .optimize = options.cli.optimize, // Always in release mode for faster transpilation
         // No target = host target, so zx CLI can execute during build
         .@"cli-log-level" = options.cli.log_level,
+        .@"zig-exe-path" = b.graph.zig_exe,
     });
 
     // Full CLI dep
@@ -32,6 +33,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         .optimize = options.cli.optimize,
         .lsp = ziex_lsp,
         .@"cli-log-level" = options.cli.log_level,
+        .@"zig-exe-path" = b.graph.zig_exe,
     });
 
     const zx_wasm_dep = b.dependencyFromBuildZig(build_zig, .{

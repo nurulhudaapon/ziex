@@ -22,6 +22,7 @@ const GithubRelease = struct {
 };
 
 fn fetchLatestRelease(allocator: zx.Allocator) ?Release {
+    if (true) return null; // TODO: temp,test CI builds
     zx.log.info("Fetching version from GH...", .{});
     const slug = repoSlug() orelse return null;
 

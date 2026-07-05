@@ -148,7 +148,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
                 log.debug("Fetching static params for {s}", .{route.path});
                 const static_params = fetchStaticParams(io, ctx.allocator, host, port, route.path) catch |err| {
                     if (err == error.ConnectionRefused) {
-                        try waitForServerRetry(io, &connection_retries, route.path, "static-params");
+                        try waitForServerRetry(io, &connection_retries, route.path, "static-params", &app_child);
                         continue :process_block;
                     }
                     log.warn("Failed to fetch static params for {s}: {any}", .{ route.path, err });
@@ -168,7 +168,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
                         };
                         processRoute(io, ctx.allocator, host, port, expanded_route, outdir, &printer, .page) catch |err| {
                             if (err == error.ConnectionRefused) {
-                                try waitForServerRetry(io, &connection_retries, expanded_route.path, "page");
+                                try waitForServerRetry(io, &connection_retries, expanded_route.path, "page", &app_child);
                                 continue :process_block;
                             }
                             return err;
@@ -180,7 +180,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
             } else {
                 processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .page) catch |err| {
                     if (err == error.ConnectionRefused) {
-                        try waitForServerRetry(io, &connection_retries, route.path, "page");
+                        try waitForServerRetry(io, &connection_retries, route.path, "page", &app_child);
                         continue :process_block;
                     }
                     return err;
@@ -192,7 +192,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
             if (route.has_notfound) {
                 processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .notfound) catch |err| {
                     if (err == error.ConnectionRefused) {
-                        try waitForServerRetry(io, &connection_retries, route.path, "notfound");
+                        try waitForServerRetry(io, &connection_retries, route.path, "notfound", &app_child);
                         continue :process_block;
                     }
                     return err;
@@ -216,12 +216,28 @@ fn @"export"(ctx: zli.CommandContext) !void {
 
 const MAX_CONNECTION_RETRIES: u32 = 3_000;
 
-fn waitForServerRetry(io: std.Io, retries: *u32, route_path: []const u8, kind: []const u8) !void {
+fn waitForServerRetry(
+    io: std.Io,
+    retries: *u32,
+    route_path: []const u8,
+    kind: []const u8,
+    app_child: *std.process.Child,
+) !void {
     retries.* += 1;
     const n = retries.*;
     if (n <= 5 or n % 100 == 0) {
         log.debug("Connection refused for {s} ({s}), retry {d}", .{ route_path, kind, n });
     }
+
+    if (!isChildAlive(app_child)) {
+        if (app_child.wait(io)) |term| {
+            logChildTermination(term);
+        } else |err| {
+            log.err("Export server process exited before becoming reachable ({any})", .{err});
+        }
+        return error.ExportServerExited;
+    }
+
     if (n >= MAX_CONNECTION_RETRIES) {
         log.err(
             "Export server never became reachable for {s} ({s}) after {d} retries",
@@ -230,6 +246,25 @@ fn waitForServerRetry(io: std.Io, retries: *u32, route_path: []const u8, kind: [
         return error.ExportServerUnavailable;
     }
     std.Io.sleep(io, .fromMilliseconds(10), .awake) catch {};
+}
+
+fn isChildAlive(child: *std.process.Child) bool {
+    // On non-POSIX targets we keep retry behavior unchanged.
+    if (builtin.os.tag == .windows) return true;
+    const pid = child.id orelse return true;
+    std.posix.kill(pid, @enumFromInt(0)) catch |err| switch (err) {
+        error.ProcessNotFound => return false,
+        else => return true,
+    };
+    return true;
+}
+
+fn logChildTermination(term: std.process.Child.Term) void {
+    switch (term) {
+        .exited => |code| log.err("Export server exited before startup (exit {d})", .{code}),
+        .signal => |sig| log.err("Export server terminated by signal {d} before startup", .{@intFromEnum(sig)}),
+        else => |v| log.err("Export server terminated before startup: {any}", .{v}),
+    }
 }
 
 const ExportType = enum { page, notfound };
@@ -467,3 +502,4 @@ const DevServer = @import("dev/DevServer.zig");
 const tui = @import("../tui/main.zig");
 const ManifestApp = @import("../build/Manifest.zig").App;
 const log = std.log.scoped(.cli);
+const builtin = @import("builtin");
