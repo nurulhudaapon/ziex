@@ -27,23 +27,17 @@ const build_args_flag = zli.Flag{
     .default_value = .{ .String = "--release=small" },
 };
 
-const DEFAULT_CACHE_PREFIX = ".zig-cache";
+const DEFAULT_INSTALL_PREFIX = "zig-out";
 
 fn @"export"(ctx: zli.CommandContext) !void {
     const app = AppContext.from(&ctx);
     const io = app.io;
-
     const outdir = ctx.flag("outdir", []const u8);
-
-    const tmpdir = try std.fmt.allocPrint(ctx.allocator, "{x}", .{util.randInt(io, u64)});
-    defer ctx.allocator.free(tmpdir);
-
-    const install_prefix = try std.fs.path.join(ctx.allocator, &.{ DEFAULT_CACHE_PREFIX, "tmp", tmpdir });
-    defer ctx.allocator.free(install_prefix);
 
     var build_argv = std.ArrayList([]const u8).empty;
     defer build_argv.deinit(ctx.allocator);
-    try build_argv.appendSlice(ctx.allocator, &.{ cli_options.zig_exe, "build", "-p", install_prefix, "-Dcli-command=export" });
+    try build_argv.appendSlice(ctx.allocator, &.{ cli_options.zig_exe, "build" });
+    try build_argv.appendSlice(ctx.allocator, &.{"-Dcli-command=export"});
 
     var i_build_args = std.mem.splitSequence(u8, ctx.flag("build-args", []const u8), " ");
     while (i_build_args.next()) |arg| {
@@ -68,7 +62,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
     }
 
     // Read install manifest for executable path and page routes.
-    const manifest_path = try std.fs.path.join(ctx.allocator, &.{ install_prefix, "manifest", "app.zon" });
+    const manifest_path = try std.fs.path.join(ctx.allocator, &.{ DEFAULT_INSTALL_PREFIX, "manifest", "app.zon" });
     defer ctx.allocator.free(manifest_path);
 
     const manifest_source = std.Io.Dir.cwd().readFileAlloc(io, manifest_path, ctx.allocator, .unlimited) catch |err| {
@@ -87,7 +81,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
     defer std.zon.parse.free(ctx.allocator, manifest);
 
     const binpath_flag = ctx.flag("binpath", []const u8);
-    const exe_path = util.resolveExePath(io, ctx.allocator, install_prefix, binpath_flag) catch {
+    const exe_path = util.resolveExePath(io, ctx.allocator, DEFAULT_INSTALL_PREFIX, binpath_flag) catch {
         try ctx.writer.print("Run \x1b[34mzig build\x1b[0m to build the ZX executable first!\n", .{});
         return;
     };
@@ -101,7 +95,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
     const environ_map = app.environ_map;
     try environ_map.put("ZIEX_INNER_PORT", port_str);
 
-    try environ_map.put("ZIEX_ROOT_DIR", install_prefix);
+    try environ_map.put("ZIEX_ROOT_DIR", DEFAULT_INSTALL_PREFIX);
 
     var app_child = try std.process.spawn(io, .{
         .argv = &.{ exe_path, "--cli-command", "export" },
@@ -126,10 +120,10 @@ fn @"export"(ctx: zli.CommandContext) !void {
     //     else => {},
     // };
 
-    const staticdir = try std.fs.path.join(ctx.allocator, &.{ install_prefix, "static" });
+    const staticdir = try std.fs.path.join(ctx.allocator, &.{ DEFAULT_INSTALL_PREFIX, "static" });
     defer ctx.allocator.free(staticdir);
 
-    log.debug("Building static ZX site! binpath={s} rootdir={s}", .{ exe_path, install_prefix });
+    log.debug("Building static ZX site! binpath={s} rootdir={s}", .{ exe_path, DEFAULT_INSTALL_PREFIX });
     log.debug("Port: {d}, Outdir: {s}, Staticdir: {s}", .{ port, outdir, staticdir });
 
     log.debug("Processing routes! {d}", .{manifest.routes.len});
@@ -204,9 +198,9 @@ fn @"export"(ctx: zli.CommandContext) !void {
         return err;
     };
 
-    std.Io.Dir.cwd().deleteTree(io, install_prefix) catch |err| {
-        log.warn("Failed to delete temp files: {any}", .{err});
-    };
+    // std.Io.Dir.cwd().deleteTree(io, DEFAULT_INSTALL_PREFIX) catch |err| {
+    //     log.warn("Failed to delete temp files: {any}", .{err});
+    // };
 }
 
 fn waitForServerRetry(io: std.Io) void {
