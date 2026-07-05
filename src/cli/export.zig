@@ -134,8 +134,6 @@ fn @"export"(ctx: zli.CommandContext) !void {
 
     process_block: while (true) {
         for (manifest.routes) |entry| {
-            if (entry.page_import == null) continue;
-
             const route = Server.SerilizableAppMeta.Route{
                 .path = entry.path,
                 .has_notfound = entry.notfound_import != null,
