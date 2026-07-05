@@ -12,7 +12,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding, .abi = .none });
 
     const ziex_lsp = b.option(bool, "ziex-lsp", "Enable `zig build zx -- lsp`, used by code editors whenz `zx` cli is not in PATH") orelse false;
-
+    const zig_path = options.cli.zig_path orelse b.graph.zig_exe;
     const zx_dep = b.dependencyFromBuildZig(build_zig, .{
         .optimize = optimize,
         .target = target,
@@ -25,7 +25,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         .optimize = options.cli.optimize, // Always in release mode for faster transpilation
         // No target = host target, so zx CLI can execute during build
         .@"cli-log-level" = options.cli.log_level,
-        .@"zig-exe-path" = b.graph.zig_exe,
+        .@"zig-path" = zig_path,
     });
 
     // Full CLI dep
@@ -33,7 +33,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         .optimize = options.cli.optimize,
         .lsp = ziex_lsp,
         .@"cli-log-level" = options.cli.log_level,
-        .@"zig-exe-path" = b.graph.zig_exe,
+        .@"zig-path" = zig_path,
     });
 
     const zx_wasm_dep = b.dependencyFromBuildZig(build_zig, .{
