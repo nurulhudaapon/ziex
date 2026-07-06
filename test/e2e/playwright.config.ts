@@ -71,7 +71,7 @@ export default defineConfig({
 
   ...(!process.env.BASE_URL && {
     webServer: {
-      command: 'zig build dev',
+      command: 'cd site && zig build dev',
       cwd: '../../',
       url: 'http://localhost:3000',
       reuseExistingServer: process.env.TEMPLATE_TESTS || !process.env.CI,

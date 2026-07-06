@@ -101,6 +101,8 @@ fn dev(ctx: zli.CommandContext) !void {
     try build_args_array.appendSlice(allocator, &.{ cli_options.zig_exe, "build", "-Dcli-command=dev", "--watch", "--verbose", "--summary", "all", "--color", "off" });
     try initial_build_args_array.appendSlice(allocator, &.{ cli_options.zig_exe, "build", "-Dcli-command=dev" });
 
+    log.debug("zig path: {s}", .{build_args_array.items[0]});
+
     while (build_args.next()) |arg| {
         const trimmed_arg = std.mem.trim(u8, arg, " ");
         if (std.mem.eql(u8, trimmed_arg, "")) continue;
