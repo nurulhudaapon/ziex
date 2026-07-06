@@ -598,7 +598,7 @@ fn cleanLine(allocator: std.mem.Allocator, line: []const u8) []const u8 {
     const ansi_clean = stripAnsi(allocator, line) catch line;
     const has_prefix = std.mem.startsWith(u8, ansi_clean, prefix);
 
-    log.debug("\ncleanLine: {s} -> {}\n", .{ ansi_clean, has_prefix });
+    // log.debug("\ncleanLine: {s} -> {}\n", .{ ansi_clean, has_prefix });
     if (!has_prefix) return ansi_clean;
     return ansi_clean[prefix.len..];
 }

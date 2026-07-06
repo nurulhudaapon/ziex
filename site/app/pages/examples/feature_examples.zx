@@ -1151,10 +1151,10 @@ pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
     _ = try Learn__DbTransaction(page_ctx);
 
     // TODO: inject proper "ziex" build module to test these
-    _ = Learn__enableKvInit;
-    _ = Learn__enableDbInit;
-    _ = Learn__enableCacheInit;
-    _ = Learn__build;
+    _ = try Learn__enableKvInit(undefined, undefined);
+    _ = try Learn__enableDbInit(undefined, undefined);
+    _ = try Learn__enableCacheInit(undefined, undefined);
+    _ = try Learn__build(undefined);
 
     _ = RefPageCaching__Page(page_ctx);
     _ = Ref__Layout(layout_ctx, .none);
@@ -1181,7 +1181,16 @@ pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
         </div>
     );
 }
+
+const ziex = struct {
+    pub fn init(b: *std.Build, app_exe: *std.Build.Step.Compile, options: InitOptions) !void {
+        _ = b;
+        _ = app_exe;
+        _ = options;
+    }
+};
+
 const builtin = @import("builtin");
 const zx = @import("zx");
-const ziex = @import("zx");
+const InitOptions = @import("initoptions");
 const std = @import("std");

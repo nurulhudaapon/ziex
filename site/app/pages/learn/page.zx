@@ -151,6 +151,26 @@ fn YouWillLearn(allocator: zx.Allocator) zx.Component {
     );
 }
 
+const Versions = struct {
+    pub const Release = struct {
+        version: []const u8,
+        minimum_zig_version: []const u8,
+        branch: []const u8,
+        status: ReleaseStatus,
+    };
+
+    pub const ReleaseStatus = enum {
+        current,
+        latest,
+        development,
+        stale,
+    };
+
+    releases: []const Release,
+};
+
+const versions: Versions = @import("../versions.zon");
+
 fn Installation(allocator: zx.Allocator) !zx.Component {
     return (
         <section id="installation" class="section" @allocator={allocator}>
@@ -159,10 +179,17 @@ fn Installation(allocator: zx.Allocator) !zx.Component {
 
             <InstallCLI />
 
-            <p style="margin-top: 1rem;">You can also scaffold a project with <a href="#create-project">Node.js</a>, clone a <a href="#create-project">starter template</a>, or set things up <a href="#create-project">manually</a>. See <a href="#create-project">Create a Project</a> for all options, or the <a href="/reference#cli">CLI documentation</a> for every command.</p>
+            <p style="margin-top: 1rem;">You can also scaffold a project with <a href="#create-project">Node.js</a>, clone a <a href="#create-project">starter template</a>, or set things up <a href="#create-project">manually</a>. See <a href="#create-project">Create a Project</a> for all options.</p>
 
             <h3>Install Zig</h3>
-            <p>ZX <code>{zx.info.version}</code> requires Zig <code>{zx.info.minimum_zig_version}</code>:</p>
+            <p>Ziex <code>{zx.info.version}</code> requires Zig <code>{zx.info.minimum_zig_version}</code>:</p>
+
+            <p>Other available versions:</p>
+            <ul>
+                {for (versions.releases) |release| (
+                    <li><a href=`{zx.info.repository}/releases/tag/v{release.version}` target="_blank" rel="noopener noreferrer">{release.version}</a> (requires Zig {release.minimum_zig_version})</li>
+                )}
+            </ul>
 
             <InstallZig />
         </section>
@@ -300,7 +327,7 @@ fn CreateProject(allocator: zx.Allocator, props: CreateProjectProps) zx.Componen
                     <p style="margin-top: 1.5rem;">Open <code>http://localhost:3000</code> in your browser!</p>
                 </div>
                 <div class="simple-tab-content" id="content-nodejs">
-                    <p>Create a new project with npm or Bun. You'll be prompted to pick a template (starter, Cloudflare, Vercel, Railway, Render, and more):</p>
+                    <p>Create a new project with npm or Bun. You'll be prompted to pick a template:</p>
                     <div class="install-box install-box-simple">
                         <div class="install-box-content">
                             <div class="install-code">
@@ -844,11 +871,6 @@ fn Deployment(allocator: zx.Allocator) zx.Component {
                 - one-click deploy from the 
                 <a href=`{ziex_org_url}/template-render` target="_blank" rel="noopener noreferrer">template-render</a> repo.
             </p>
-
-            <div class="callout note">
-                <strong>Others:</strong>
-                 More standalone deployment guides (systemd, bare VPS) are coming soon.
-            </div>
 
             <h3 id="deployment-static">Static</h3>
             <p>For sites without per-request server logic, export every route to static HTML:</p>

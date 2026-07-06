@@ -8,6 +8,7 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
     const id = assetId(b, optimize);
+    const log_level = b.option(std.log.Level, "log-level", "Log level: debug, info, warn, error") orelse .info;
 
     // --- Deps --- //
     const ziex_dep = b.dependency("ziex", .{ .optimize = optimize, .target = target });
@@ -116,7 +117,11 @@ pub fn build(b: *std.Build) !void {
             .optimize = optimize,
         }),
     });
-
+    app_exe.root_module.addImport("initoptions", b.createModule(.{
+        .root_source_file = b.path("../src/build/init/InitOptions.zig"),
+        .target = target,
+        .optimize = optimize,
+    }));
     app_exe.root_module.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
     app_exe.root_module.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
     if (!target.result.cpu.arch.isWasm())
@@ -141,7 +146,7 @@ pub fn build(b: *std.Build) !void {
             .jsglue_href = b.fmt("/assets/main.{s}.js", .{id}),
             .jsglue_install_subdir = "pkg/ziex",
         },
-        .cli = .{ .optimize = optimize, .log_level = .debug, .zig_path = "zig" },
+        .cli = .{ .optimize = optimize, .log_level = log_level, .zig_path = "zig" },
     });
 
     // --- ZX Components --- //
