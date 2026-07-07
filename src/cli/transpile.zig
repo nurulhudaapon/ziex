@@ -836,31 +836,19 @@ const ClientComponentSerializable = struct {
     route: []const u8,
 };
 
-fn genClientComponents(io: std.Io, allocator: std.mem.Allocator, components: []const ClientComponentSerializable, output_dir: []const u8, verbose: bool) !void {
-    _ = verbose;
-    var aw = std.Io.Writer.Allocating.init(allocator);
-    defer aw.deinit();
+fn writeClientComponents(writer: anytype, allocator: std.mem.Allocator, components: []const ClientComponentSerializable) !void {
+    try writer.writeAll("pub const components = [_]zx.client.ComponentMeta{\n");
+    if (components.len > 0) {
+        var aw = std.Io.Writer.Allocating.init(allocator);
+        defer aw.deinit();
 
-    std.zon.stringify.serialize(components, .{ .whitespace = true }, &aw.writer) catch @panic("OOM");
-    const zon_str = try stripPlaceholders(allocator, aw.written());
-    defer allocator.free(zon_str);
+        std.zon.stringify.serialize(components, .{ .whitespace = true }, &aw.writer) catch @panic("OOM");
+        const zon_str = try stripPlaceholders(allocator, aw.written());
+        defer allocator.free(zon_str);
 
-    const cmps_client = @embedFile("./transpile/template/components.zig");
-    const placeholder = "    // PLACEHOLDER_ZX_COMPONENTS\n";
-    const placeholder_index = std.mem.indexOf(u8, cmps_client, placeholder) orelse {
-        @panic("Placeholder PLACEHOLDER_ZX_COMPONENTS not found in components.zig");
-    };
-
-    const before = cmps_client[0..placeholder_index];
-    const after = cmps_client[placeholder_index + placeholder.len ..];
-
-    const cmps_client_z = try std.mem.concat(allocator, u8, &.{ before, zon_str[2 .. zon_str.len - 1], after });
-    defer allocator.free(cmps_client_z);
-
-    const cmps_client_path = try std.fs.path.join(allocator, &.{ output_dir, "components.zig" });
-    defer allocator.free(cmps_client_path);
-
-    try writeFile(io, cmps_client_path, cmps_client_z);
+        try writer.writeAll(zon_str[2 .. zon_str.len - 1]);
+    }
+    try writer.writeAll("\n};\n\n");
 }
 
 fn genReactComponents(io: std.Io, allocator: std.mem.Allocator, components: []const ClientComponentSerializable, output_dir: []const u8, input_dir: []const u8, verbose: bool) !void {
@@ -952,7 +940,7 @@ fn mergeBuildInjectionsFromFile(
     try manifest.mergeBuildInjections(build_injections);
 }
 
-fn genRoutes(io: std.Io, allocator: std.mem.Allocator, output_dir: []const u8, base_path: ?[]const u8, manifest: ?*Manifest, verbose: bool) !void {
+fn genRoutes(io: std.Io, allocator: std.mem.Allocator, output_dir: []const u8, base_path: ?[]const u8, client_components: []const ClientComponentSerializable, manifest: ?*Manifest, verbose: bool) !void {
     var routes = std.array_list.Managed(Route).init(allocator);
     defer {
         for (routes.items) |*route| route.deinit(allocator);
@@ -1034,8 +1022,7 @@ fn genRoutes(io: std.Io, allocator: std.mem.Allocator, output_dir: []const u8, b
     }
     try writer.writeAll("};\n\n");
     try writer.writeAll("const zx = @import(\"zx\");\n");
-    // Re-export components from components.zig (same directory, same module tree)
-    try writer.writeAll("pub const components = @import(\"components.zig\");\n\n");
+    try writeClientComponents(writer, allocator, client_components);
     // Helper function for getting options from a module with inferred return type
     try writer.writeAll("fn getOptions(comptime T: type, comptime R: type) ?R {\n");
     try writer.writeAll("    return if (@hasDecl(T, \"options\")) T.options else null;\n");
@@ -1551,7 +1538,7 @@ fn transpileDirectory(
 
             const is_root_file = std.mem.indexOf(u8, entry.path, sep) == null;
             if (is_root_file) {
-                const reserved_files = [_][]const u8{ "components.zig", "app.zig", "client.zig" };
+                const reserved_files = [_][]const u8{"app.zig"};
                 var is_reserved = false;
                 for (reserved_files) |reserved| {
                     if (std.mem.eql(u8, basename, reserved)) {
@@ -1710,18 +1697,6 @@ fn transpileCommand(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOpt
         };
     }
 
-    // Generate routes
-    genRoutes(io, allocator, opts.outdir, opts.base_path, if (manifest) |*m| m else null, opts.verbose) catch |err| switch (err) {
-        error.NoPagesOrRoutes => {}, // No routes to generate is not an error
-        else => std.debug.print("Warning: Failed to generate app.zig: {}\n", .{err}),
-    };
-
-    if (manifest) |*m| {
-        m.commit(io) catch |err| {
-            std.debug.print("Warning: Failed to write manifest: {}\n", .{err});
-        };
-    }
-
     // --- @rendering -> Client Side Rendering Related Files Generation --- //
     var react_cmps = std.array_list.Managed(ClientComponentSerializable).init(allocator);
     defer react_cmps.deinit();
@@ -1736,13 +1711,21 @@ fn transpileCommand(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOpt
         }
     }
 
+    // Generate app.zig with routes and client components
+    genRoutes(io, allocator, opts.outdir, opts.base_path, client_cmps.items, if (manifest) |*m| m else null, opts.verbose) catch |err| switch (err) {
+        error.NoPagesOrRoutes => {}, // No routes to generate is not an error
+        else => std.debug.print("Warning: Failed to generate app.zig: {}\n", .{err}),
+    };
+
     // @rendering={.react}
     genReactComponents(io, allocator, react_cmps.items, opts.outdir, opts.path, opts.verbose) catch |err| {
         std.debug.print("Warning: Failed to generate main.tsx: {}\n", .{err});
     };
 
-    // @rendering={.client}
-    genClientComponents(io, allocator, client_cmps.items, opts.outdir, opts.verbose) catch |err| {
-        std.debug.print("Warning: Failed to generate main_wasm.zig: {}\n", .{err});
-    };
+    // => manifest/app.zon
+    if (manifest) |*m| {
+        m.commit(io) catch |err| {
+            std.debug.print("Warning: Failed to write manifest: {}\n", .{err});
+        };
+    }
 }

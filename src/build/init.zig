@@ -277,21 +277,21 @@ pub fn initInner(
     const cli_command_opt = b.option([]const u8, "cli-command", "Ziex CLI command mode for the app");
     const is_dev_build = std.mem.eql(u8, cli_command_opt orelse "--", "dev");
 
-    const zx_options = b.addOptions();
-    zx_options.addOption(?[]const u8, "jsglue_href", opts.client.jsglue_href);
-    zx_options.addOption(?[]const u8, "wasm_href", opts.client.wasm_href);
-    zx_options.addOption(?[]const u8, "app_base_path", opts.base_path);
-    zx_options.addOption(?u16, "server_port", port_opt);
-    zx_options.addOption(?[]const u8, "server_address", address_opt);
-    zx_options.addOption([]const u8, "cli_command", cli_command_opt orelse "--");
-    zx_options.addOption(bool, "introspect", b.option(bool, "introspect", "Print Ziex app metadata and exit") orelse false);
-    zx_options.addOption(bool, "feat_sqlite_server", if (opts.features.sqlite) |s| s.server != null else false);
-    zx_options.addOption(bool, "feat_pg_server", if (opts.features.postgres) |s| s.server != null else false);
-    zx_options.addOption(bool, "feat_kv_server", if (opts.features.kv) |k| k.server != null else false);
-    zx_options.addOption(bool, "feat_kv_client", if (opts.features.kv) |k| k.client != null else false);
-    zx_options.addOption(bool, "feat_cache_server", if (opts.features.cache) |c| c.server != null else false);
+    const app_opts = b.addOptions();
+    app_opts.addOption(?[]const u8, "jsglue_href", opts.client.jsglue_href);
+    app_opts.addOption(?[]const u8, "wasm_href", opts.client.wasm_href);
+    app_opts.addOption(?[]const u8, "app_base_path", opts.base_path);
+    app_opts.addOption(?u16, "server_port", port_opt);
+    app_opts.addOption(?[]const u8, "server_address", address_opt);
+    app_opts.addOption([]const u8, "cli_command", cli_command_opt orelse "--");
+    app_opts.addOption(bool, "introspect", b.option(bool, "introspect", "Print Ziex app metadata and exit") orelse false);
+    app_opts.addOption(bool, "feat_sqlite_server", if (opts.features.sqlite) |s| s.server != null else false);
+    app_opts.addOption(bool, "feat_pg_server", if (opts.features.postgres) |s| s.server != null else false);
+    app_opts.addOption(bool, "feat_kv_server", if (opts.features.kv) |k| k.server != null else false);
+    app_opts.addOption(bool, "feat_kv_client", if (opts.features.kv) |k| k.client != null else false);
+    app_opts.addOption(bool, "feat_cache_server", if (opts.features.cache) |c| c.server != null else false);
 
-    zx_module.addOptions("zx_options", zx_options);
+    zx_module.addOptions("app_opts", app_opts);
 
     // --- Dirs Setup --- //
     const static_lazypath = b.graph.path(.install_prefix, "static");
@@ -492,26 +492,26 @@ pub fn initInner(
         }
     }
 
-    const site_wasm_module = b.createModule(.{
+    const wasm_app_module = b.createModule(.{
         .root_source_file = zx_wasm_module.root_source_file,
         .target = wasm_target,
         .optimize = zx_wasm_module.optimize,
         .imports = wasm_imports.items,
     });
 
-    // Build imports for wasm zx_meta
-    var wasm_meta_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
+    // Build imports for wasm app
+    var wasm_app_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
     for (wasm_imports.items) |import| {
-        try wasm_meta_imports.append(import);
+        try wasm_app_imports.append(import);
     }
-    try wasm_meta_imports.append(.{ .name = "zx", .module = site_wasm_module });
+    try wasm_app_imports.append(.{ .name = "zx", .module = wasm_app_module });
 
-    site_wasm_module.addAnonymousImport("zx_meta", .{
+    wasm_app_module.addAnonymousImport("app", .{
         .root_source_file = transpile_outdir.path(b, "app.zig"),
-        .imports = wasm_meta_imports.items,
+        .imports = wasm_app_imports.items,
     });
-    site_wasm_module.addOptions("zx_options", zx_options);
-    wasm_exe.root_module.addImport("zx", site_wasm_module);
+    wasm_app_module.addOptions("app_opts", app_opts);
+    wasm_exe.root_module.addImport("zx", wasm_app_module);
     wasm_exe.step.dependOn(&transpile_cmd.step);
 
     const wasm_binpath = wasm_exe.getEmittedBin();

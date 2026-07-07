@@ -414,10 +414,10 @@ const ext = @import("window/extern.zig");
 const zx = @import("../../root.zig");
 const std = @import("std");
 const Document = zx.client.Document;
-const zx_options = @import("zx_options");
+const app_opts = @import("app_opts");
 
 /// Base path for the application, read from build options at comptime.
-pub const base_path: ?[]const u8 = zx_options.app_base_path;
+pub const base_path: ?[]const u8 = app_opts.app_base_path;
 
 fn isDomProperty(name: []const u8) bool {
     return std.mem.eql(u8, name, "checked") or

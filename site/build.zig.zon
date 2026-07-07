@@ -2,7 +2,7 @@
     .name = .ziex_dev,
     .version = "0.0.0",
     .fingerprint = 0xaa5b5903916bf206,
-    .minimum_zig_version = "0.17.0-dev.864+3deb86baf",
+    .minimum_zig_version = "0.17.0-dev",
     .dependencies = .{
         .ziex = .{ .path = "../" },
         // .playground = .{
@@ -14,8 +14,8 @@
         .tailwindcss = .{ .path = "../pkg/plugin-tailwindcss" },
         .ui = .{ .path = "../pkg/ui" },
         .zig = .{
-            .url = "git+https://github.com/ziex-dev/zig.git?ref=0.17.0-dev.956#e6e760971f3e3d65e638c743632d3db49a1e8bed",
-            .hash = "zig-0.0.0-Fp4XJF8XDw4HjA_SFmHjgG5HNEEH_r8aHcuzDRhqBibq",
+            .url = "git+https://github.com/ziex-dev/zig.git?ref=0.17.0.dev-1158#168beded93fae57203d15ac381177612c67a875b",
+            .hash = "zig-0.0.0-Fp4XJB26Fg4GqNb7sPQVsZBIX4d1HUWIDe2Jhew11q7L",
         },
         .branding = .{
             .url = "git+https://github.com/ziex-dev/branding.git#04a22af76e2198d06c429e4025f960f76d93bf9f",

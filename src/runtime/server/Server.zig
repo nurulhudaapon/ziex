@@ -226,16 +226,17 @@ pub fn Server(comptime H: type) type {
         }
 
         fn introspect(self: *Self) !void {
-            const port = (if (zx_options.server_port != null) zx_options.server_port else serverPort(&self.server.config)) orelse Constant.default_port;
-            const address = zx_options.server_address orelse self.config.server.address orelse Constant.default_address;
-            self.meta.cli_command = std.meta.stringToEnum(ServerMeta.CliCommand, zx_options.cli_command) orelse return error.InvalidCliCommand;
+            const port = (if (app_opts.server_port != null) app_opts.server_port else serverPort(&self.server.config)) orelse Constant.default_port;
+            const address = app_opts.server_address orelse self.config.server.address orelse Constant.default_address;
+            self.meta.cli_command = std.meta.stringToEnum(ServerMeta.CliCommand, app_opts.cli_command) orelse return error.InvalidCliCommand;
 
             // Overriding or setting default configs
             setServerAddress(&self.server.config, address, port);
             self.server.config.request.max_form_count = self.server.config.request.max_form_count orelse Constant.default_max_form_count;
             self.server.config.request.max_multiform_count = self.server.config.request.max_multiform_count orelse Constant.default_max_multiform_count;
 
-            const introspect_requested = zx_options.introspect or runtimeIntrospectRequested();
+            // TODO: remove introspection from app
+            const introspect_requested = app_opts.introspect;
             if (introspect_requested) {
                 var aw = std.Io.Writer.Allocating.init(self.allocator);
                 defer aw.deinit();
@@ -259,10 +260,6 @@ pub fn Server(comptime H: type) type {
             }
         }
     };
-}
-
-fn runtimeIntrospectRequested() bool {
-    return envVar("ZIEX_INTROSPECT") != null;
 }
 
 pub const SerilizableAppMeta = struct {
@@ -878,7 +875,7 @@ const cachez = zx.Cache.cachez;
 const zx = @import("../../root.zig");
 const zx_app = @import("app");
 const module_config = @import("zx_info");
-const zx_options = @import("zx_options");
+const app_opts = @import("app_opts");
 const Constant = @import("../../constant.zig");
 const Handler = @import("handler.zig").Handler;
 const AppConfig = @import("../../AppConfig.zig");

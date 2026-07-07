@@ -3,7 +3,6 @@ pub const Client = @This();
 const window = @import("window.zig");
 const is_wasm = window.is_wasm;
 
-
 /// The component ID that is currently being rendered.
 /// Set by Client.render() so that ComponentCtx and ifpl can register subscriptions.
 var current_render_id: []const u8 = "";
@@ -90,7 +89,6 @@ pub const ComponentMeta = struct {
                         };
                     }
 
-
                     // Parse props if the context has a props field
                     if (@hasField(CtxType, "props")) {
                         const PropsFieldType = @FieldType(CtxType, "props");
@@ -163,7 +161,7 @@ const InitOptions = struct {
 pub fn init(allocator: std.mem.Allocator, _: InitOptions) Client {
     return .{
         .allocator = allocator,
-        .components = &zx_meta.components.components,
+        .components = &app.components,
         .vtrees = std.StringHashMap(VDOMTree).init(allocator),
         .id_to_velement = std.AutoHashMap(u64, *vtree_mod.VElement).init(allocator),
         .handler_registry = std.AutoHashMap(HandlerKey, zx.EventHandler).init(allocator),
@@ -457,13 +455,13 @@ pub const js = if (builtin.cpu.arch == .wasm32) @import("js") else struct {
 };
 
 const zx = @import("../../root.zig");
-const zx_meta = @import("zx_meta");
 const vtree_mod = @import("render.zig");
 const core_vdom = @import("../core/vdom.zig");
 
 const std = @import("std");
 const builtin = @import("builtin");
 const zx_info = @import("zx_info");
+const app = @import("app");
 
 /// Global client pointer for WASM exports (set automatically in renderAll)
 pub var global_client: ?*Client = null;

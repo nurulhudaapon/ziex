@@ -6,7 +6,7 @@ const builtin = @import("builtin");
 const zx = @import("../../root.zig");
 const Constant = @import("../../constant.zig");
 const sig = @import("../../util/sig.zig");
-const app_opts = @import("zx_options");
+const app_opts = @import("app_opts");
 const platform = zx.platform;
 const is_dev = std.mem.eql(u8, app_opts.cli_command, "dev");
 
