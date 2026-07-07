@@ -1,7 +1,7 @@
 FROM alpine:3.22.2 AS build
 
 # Install Zig
-ARG ZIG_VER=0.17.0-dev.956+2dca73595
+ARG ZIG_VER=0.17.0-dev.1158+1d1193aa7
 RUN wget https://ziglang.org/builds/zig-$(uname -m)-linux-${ZIG_VER}.tar.xz && \
     tar -xf zig-*.tar.xz && \
     rm zig-*.tar.xz && \
