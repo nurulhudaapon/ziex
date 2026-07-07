@@ -34,44 +34,40 @@ pub fn build(b: *std.Build) !void {
             .dev = "wasm",
         });
 
-        if (false) {
-            _ = zig_dep;
-        }
-
-        // const compiler_rt_step = b.step("zig_compiler_rt", "compile and install compiler_rt");
-        // const lib_compiler_rt = b.addLibrary(.{
-        //     .linkage = .static,
-        //     .name = "compiler_rt",
-        //     .root_module = b.createModule(.{
-        //         .root_source_file = zig_dep.path("lib/compiler_rt.zig"),
-        //         .target = wasm_target,
-        //         .optimize = wasm_optimize,
-        //     }),
-        // });
-        // compiler_rt_step.dependOn(&b.addInstallArtifact(lib_compiler_rt, .{ .dest_dir = .{ .override = .prefix } }).step);
+        const compiler_rt_step = b.step("zig_compiler_rt", "compile and install compiler_rt");
+        const lib_compiler_rt = b.addLibrary(.{
+            .linkage = .static,
+            .name = "compiler_rt",
+            .root_module = b.createModule(.{
+                .root_source_file = zig_dep.path("lib/compiler_rt.zig"),
+                .target = wasm_target,
+                .optimize = wasm_optimize,
+            }),
+        });
+        compiler_rt_step.dependOn(&b.addInstallArtifact(lib_compiler_rt, .{ .dest_dir = .{ .override = .prefix } }).step);
 
         const zx_exe = zx_wasm_dep.artifact("zx");
-        // // const zls_exe = b.addExecutable(.{
-        // //     .name = "zls",
-        // //     .root_module = b.createModule(.{
-        // //         .root_source_file = playground_dep.path("src/zls.zig"),
-        // //         .target = wasm_target,
-        // //         .optimize = wasm_optimize,
-        // //         .imports = &.{
-        // //             .{ .name = "zls", .module = zls_dep.module("zls") },
-        // //         },
-        // //     }),
-        // // });
-        // // zls_exe.entry = .disabled;
-        // // zls_exe.rdynamic = true;
-        // const zig_exe = zig_dep.artifact("zig");
+        // const zls_exe = b.addExecutable(.{
+        //     .name = "zls",
+        //     .root_module = b.createModule(.{
+        //         .root_source_file = playground_dep.path("src/zls.zig"),
+        //         .target = wasm_target,
+        //         .optimize = wasm_optimize,
+        //         .imports = &.{
+        //             .{ .name = "zls", .module = zls_dep.module("zls") },
+        //         },
+        //     }),
+        // });
+        // zls_exe.entry = .disabled;
+        // zls_exe.rdynamic = true;
+        const zig_exe = zig_dep.artifact("zig");
 
-        // // -- zig.tar.gz
-        // const run_tar = b.addSystemCommand(&.{ "tar", "-czf" });
-        // const zig_tar_gz = run_tar.addOutputFileArg("zig.tar.gz");
-        // run_tar.addArg("-C");
-        // run_tar.addDirectoryArg(zig_dep.path("."));
-        // run_tar.addArg("lib/std");
+        // -- zig.tar.gz
+        const run_tar = b.addSystemCommand(&.{ "tar", "-czf" });
+        const zig_tar_gz = run_tar.addOutputFileArg("zig.tar.gz");
+        run_tar.addArg("-C");
+        run_tar.addDirectoryArg(zig_dep.path("."));
+        run_tar.addArg("lib/std");
 
         // // -- zx.tar.gz (only include files needed for playground compilation)
         const run_zx_tar = b.addSystemCommand(&.{ "tar", "-czf" });
@@ -96,10 +92,10 @@ pub fn build(b: *std.Build) !void {
         const pg_get_zls = b.addSystemCommand(&.{ "curl", "-LSsf", zls_wasm_url, "-o" });
         pg_get_zls.expectExitCode(0);
         _ = playground_assets.addCopyFile(pg_get_zls.addOutputFileArg("zls.wasm"), b.fmt("zls-{s}.wasm", .{zls_version}));
-        // _ = playground_assets.addCopyFile(zig_exe.getEmittedBin(), b.fmt("zig-{s}.wasm", .{ziex.info.minimum_zig_version}));
+        _ = playground_assets.addCopyFile(zig_exe.getEmittedBin(), b.fmt("zig-{s}.wasm", .{ziex.info.minimum_zig_version}));
         _ = playground_assets.addCopyFile(zx_exe.getEmittedBin(), b.fmt("zx-{s}-{s}.wasm", .{ ziex.info.version, id }));
-        // _ = playground_assets.addCopyFile(lib_compiler_rt.getEmittedBin(), b.fmt("libcompiler_rt-{s}.a", .{ziex.info.minimum_zig_version}));
-        // _ = playground_assets.addCopyFile(zig_tar_gz, b.fmt("zig-{s}.tar.gz", .{ziex.info.minimum_zig_version}));
+        _ = playground_assets.addCopyFile(lib_compiler_rt.getEmittedBin(), b.fmt("libcompiler_rt-{s}.a", .{ziex.info.minimum_zig_version}));
+        _ = playground_assets.addCopyFile(zig_tar_gz, b.fmt("zig-{s}.tar.gz", .{ziex.info.minimum_zig_version}));
         _ = playground_assets.addCopyFile(zx_tar_gz, b.fmt("zx-{s}-{s}.tar.gz", .{ ziex.info.version, id }));
 
         const install_pg = b.addInstallDirectory(.{
