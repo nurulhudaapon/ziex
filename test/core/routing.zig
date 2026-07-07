@@ -7,7 +7,7 @@ const PageContext = zx.PageContext;
 const LayoutContext = zx.LayoutContext;
 const NotFoundContext = zx.NotFoundContext;
 const ErrorContext = zx.ErrorContext;
-const ServerMeta = zx.server.ServerMeta;
+const ServerApp = zx.server.App;
 
 const AppCtx = struct { port: u16 };
 const StateCtx = struct { count: i32 };
@@ -174,7 +174,7 @@ test "ServerMeta.page injects app/state positional values" {
     const alloc = fba.allocator();
 
     const rr = makeReqRes(alloc);
-    const page_fn = ServerMeta.page(PageModule);
+    const page_fn = ServerApp.page(PageModule);
     const ctx = zx.PageContext.init(rr.req, rr.res, alloc);
 
     var app = AppCtx{ .port = 5588 };
@@ -192,7 +192,7 @@ test "ServerMeta.layout injects app/state positional values" {
     const alloc = fba.allocator();
 
     const rr = makeReqRes(alloc);
-    const layout_fn = ServerMeta.layout(LayoutModule);
+    const layout_fn = ServerApp.layout(LayoutModule);
     const ctx = zx.LayoutContext.init(rr.req, rr.res, alloc);
 
     var app = AppCtx{ .port = 9000 };
@@ -214,7 +214,7 @@ test "ServerMeta.page injects null for optional app parameter" {
     OptionalPageModule.saw_null = false;
 
     const rr = makeReqRes(alloc);
-    const page_fn = ServerMeta.page(OptionalPageModule);
+    const page_fn = ServerApp.page(OptionalPageModule);
     const ctx = zx.PageContext.init(rr.req, rr.res, alloc);
 
     _ = try page_fn(ctx, null, null);
