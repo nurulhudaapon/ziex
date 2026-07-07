@@ -289,7 +289,6 @@ pub const SerilizableAppMeta = struct {
     routes: []const Route,
     config: SerilizableAppMeta.Config,
     version: []const u8,
-    cli_command: ?ServerApp.CliCommand = null,
 
     pub fn init(allocator: std.mem.Allocator, meta: *ServerApp, config: AppConfig.ServerConfig) !SerilizableAppMeta {
         var routes = try allocator.alloc(Route, meta.routes.len);
@@ -314,7 +313,6 @@ pub const SerilizableAppMeta = struct {
                 .server = config,
             },
             .version = version,
-            .cli_command = meta.cli_command,
         };
     }
 
