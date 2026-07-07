@@ -219,35 +219,6 @@ fn makeServerOnlyStubModule(b: *std.Build, name: []const u8, mode: ServerOnlyStu
     });
 }
 
-fn genIntrospectRoot(
-    b: *std.Build,
-    source_builder: *std.Build,
-    user_module: *std.Build.Module,
-    host_target: ?std.Build.ResolvedTarget,
-) !std.Build.LazyPath {
-    const decls_wf = b.addWriteFiles();
-    const decls_src = source_builder.path("src/build/introspect_decls.zig");
-
-    const gen_mod = b.createModule(.{
-        .root_source_file = decls_src,
-        .target = host_target,
-        .optimize = .Debug,
-    });
-    gen_mod.addImport("zx_app_root", user_module);
-
-    const gen_exe = b.addExecutable(.{
-        .name = "ziex_introspect_gen",
-        .root_module = gen_mod,
-    });
-
-    const gen_run = b.addRunArtifact(gen_exe);
-    gen_run.setName("introspect (gen root)");
-    gen_run.expectExitCode(0);
-
-    const root_src = decls_wf.addCopyFile(gen_run.captureStdOut(.{}), "ziex_introspect.zig");
-    return root_src;
-}
-
 fn findZxInPath(b: *std.Build, expected_version: []const u8) ?[]const u8 {
     // TODO: disable for now, always use from source
     if (true) return null;
@@ -487,9 +458,7 @@ pub fn initInner(
 
     var wasm_import_it = zx_wasm_module.import_table.iterator();
     while (wasm_import_it.next()) |entry| {
-        if (!std.mem.eql(u8, entry.key_ptr.*, "zx_meta")) {
-            try wasm_imports.append(.{ .name = entry.key_ptr.*, .module = entry.value_ptr.* });
-        }
+        try wasm_imports.append(.{ .name = entry.key_ptr.*, .module = entry.value_ptr.* });
     }
 
     const wasm_app_module = b.createModule(.{

@@ -6,7 +6,6 @@ const impl = @import("../../server/Server.zig");
 
 pub const Server = impl.Server;
 pub const SerilizableAppMeta = impl.SerilizableAppMeta;
-pub const ServerMeta = impl.ServerMeta;
 
 pub fn app(comptime H: type, instance: *Server(H), alloc: std.mem.Allocator) !App {
     const Holder = struct {
@@ -64,7 +63,7 @@ pub fn app(comptime H: type, instance: *Server(H), alloc: std.mem.Allocator) !Ap
     const holder = try alloc.create(Holder);
     holder.* = .{ .instance = instance, .alloc = alloc };
 
-    if (instance.meta.cli_command) |cmd| if (cmd == .dev) instance.info();
+    if (comptime impl.cli_cmd == .dev) instance.info();
 
     return .{ .userdata = @ptrCast(holder), .vtable = &Holder.vtable };
 }

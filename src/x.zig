@@ -697,15 +697,7 @@ pub const Id = enum(u64) {
     pub fn extendId(start: ?Id, comptime src: std.builtin.SourceLocation, id_extra: usize) Id {
         const cp = std.fmt.comptimePrint;
         var hash = fnv.init();
-        if (start) |s| {
-            hash.value = s.asU64();
-        }
-        // NOTE: `src.module` is intentionally excluded from the hash. The same
-        // generated page is compiled into both the server (`app` module) and the
-        // wasm client (`zx_meta` module) — hashing the module name would yield a
-        // different id per build, breaking server-action dispatch (the client and
-        // server would disagree on a handler's id). `file`+`line`+`column` are
-        // stable across both builds and unique within a page.
+        if (start) |s| hash.value = s.asU64();
         hash.update(cp("{s}", .{src.file}));
         hash.update(cp("{d}", .{src.line}));
         hash.update(cp("{d}", .{src.column}));

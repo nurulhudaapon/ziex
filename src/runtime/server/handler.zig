@@ -26,6 +26,10 @@ const log = std.log.scoped(.app);
 /// Converts httpz types to abstract Request/Response, then delegates to core Handler.
 /// Handles httpz-specific concerns: caching, dev logging, streaming, static files, WebSockets.
 pub fn Handler(comptime AppCtxType: type) type {
+    const cli_command = Server.cli_cmd;
+    const is_dev = cli_command == .dev;
+    const is_export = cli_command == .@"export";
+
     return struct {
         const Self = @This();
 
@@ -54,12 +58,10 @@ pub fn Handler(comptime AppCtxType: type) type {
         }
 
         pub fn dispatch(self: *Self, action: httpz.Action(*Self), req: *httpz.Request, res: *httpz.Response) !void {
-            const is_dev = comptime std.mem.eql(u8, app_opts.cli_command, "dev");
-
-            var start_time = if (is_dev) std.Io.Timestamp.now(self.io, .awake) else std.Io.Timestamp.zero;
+            var start_time = if (comptime is_dev) std.Io.Timestamp.now(self.io, .awake) else std.Io.Timestamp.zero;
 
             // Reset proxy status for this request (dev mode tracking)
-            if (is_dev) ProxyStatus.reset();
+            if (comptime is_dev) ProxyStatus.reset();
 
             // Try cache first, execute action on miss
             // Note: Middlewares are handled by httpz before this dispatch is called
@@ -70,7 +72,7 @@ pub fn Handler(comptime AppCtxType: type) type {
             }
 
             // Dev mode logging (skip noisy paths)
-            if (is_dev and !isNoisyPath(req.url.path)) {
+            if ((comptime is_dev) and !isNoisyPath(req.url.path)) {
                 const end_time = std.Io.Timestamp.now(self.io, .awake);
                 const elapsed_ns = start_time.durationTo(end_time).nanoseconds;
                 const elapsed_ms = @as(f64, @floatFromInt(elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
@@ -114,7 +116,7 @@ pub fn Handler(comptime AppCtxType: type) type {
             return false;
         }
 
-        pub fn notFound(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
+        pub fn notFound(_: *Self, req: *httpz.Request, res: *httpz.Response) !void {
             const path = req.url.path;
 
             var hctx = httpz_backend.HttpzCtx{ .req = req, .res = res };
@@ -144,7 +146,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                 var component = cmp;
 
                 // Dev mode: inject dev script
-                if (self.meta.cli_command == .dev) {
+                if (cli_command == .dev) {
                     injectDevScript(req.arena, &component);
                 }
 
@@ -163,7 +165,7 @@ pub fn Handler(comptime AppCtxType: type) type {
             }
         }
 
-        pub fn uncaughtError(self: *Self, req: *httpz.Request, res: *httpz.Response, err: anyerror) void {
+        pub fn uncaughtError(_: *Self, req: *httpz.Request, res: *httpz.Response, err: anyerror) void {
             const path = req.url.path;
 
             res.status = 500;
@@ -178,7 +180,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                 var component = cmp;
 
                 // Dev mode: inject dev script
-                if (self.meta.cli_command == .dev) {
+                if (cli_command == .dev) {
                     injectDevScript(req.arena, &component);
                 }
 
@@ -203,8 +205,6 @@ pub fn Handler(comptime AppCtxType: type) type {
         }
 
         pub fn api(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
-            const is_export_mode = self.meta.cli_command == .@"export";
-
             const allocator = self.allocator;
             var hctx = httpz_backend.HttpzCtx{ .req = req, .res = res };
             const abstract_req = httpz_backend.createRequest(&hctx);
@@ -217,7 +217,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                 return self.notFound(req, res);
 
             // Static export
-            if (is_export_mode) {
+            if (comptime is_export) {
                 if (req.header("x-zx-static-data")) |_| {
                     if (route_data.route_opts) |page_opts| {
                         if (page_opts.static) |static_opts| {
@@ -303,10 +303,8 @@ pub fn Handler(comptime AppCtxType: type) type {
 
         pub fn page(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
             const allocator = self.allocator;
-            const is_dev_mode = self.meta.cli_command == .dev;
-            const is_export_mode = self.meta.cli_command == .@"export";
 
-            if (is_export_mode) {
+            if (comptime is_export) {
                 if (req.header("x-zx-export-notfound")) |_| {
                     return self.notFound(req, res);
                 }
@@ -361,13 +359,13 @@ pub fn Handler(comptime AppCtxType: type) type {
                     var page_component = cmp;
 
                     // Dev mode: inject dev script
-                    if (is_dev_mode) {
+                    if (comptime is_dev) {
                         injectDevScript(req.arena, &page_component);
                     }
 
                     // Handle devtool request
-                    const is_devtool = is_dev_mode and std.mem.eql(u8, req.url.path, "/.well-known/_zx/devtool");
-                    if (is_devtool) {
+                    const is_devtool = std.mem.eql(u8, req.url.path, "/.well-known/_zx/devtool");
+                    if ((comptime is_dev) and is_devtool) {
                         const query = try req.query();
                         const include_native = !std.mem.eql(u8, query.get("include_native") orelse "1", "0");
                         res.content_type = .JSON;
@@ -415,7 +413,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                     switch (re_result) {
                         .component => |cmp| {
                             var page_component = cmp;
-                            if (is_dev_mode) injectDevScript(req.arena, &page_component);
+                            if (comptime is_dev) injectDevScript(req.arena, &page_component);
                             const writer = &res.buffer.writer;
                             _ = writer.write("<!DOCTYPE html>\n") catch return;
                             page_component.render(writer, .{ .base_path = app_opts.app_base_path }) catch |err| return self.uncaughtError(req, res, err);

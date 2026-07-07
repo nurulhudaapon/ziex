@@ -5,11 +5,12 @@ const zx = @import("../../../root.zig");
 const App = @import("../App.zig");
 const ext = @import("../../server/wasm/extern.zig");
 const core_handler = @import("../Handler.zig");
-const app_meta = @import("app").meta;
+const app_opts = @import("app_opts");
 
 const Router = zx.Router;
 const Backend = zx.Http.Wasm.Backend;
 const HeaderEntry = zx.Http.Wasm.HeaderEntry;
+const base_path = app_opts.app_base_path;
 
 var g_inita: zx.Init = undefined;
 
@@ -112,7 +113,7 @@ pub fn run(process_init: std.process.Init) !void {
         .method = method,
         .allocator = allocator,
         .arena = allocator,
-        .base_path = app_meta.base_path,
+        .base_path = base_path,
         .app_ctx = null,
         .socket = socket,
     });
@@ -127,10 +128,10 @@ pub fn run(process_init: std.process.Init) !void {
                 try writeEdgeMeta(stderr, &backend, true);
 
                 var shell_writer = std.Io.Writer.Allocating.init(allocator);
-                const async_components = Router.streamComponent(component, allocator, &shell_writer.writer, app_meta.base_path) catch {
+                const async_components = Router.streamComponent(component, allocator, &shell_writer.writer, base_path) catch {
                     // Fallback: render the whole page at once.
                     var aw = std.Io.Writer.Allocating.init(allocator);
-                    component.render(&aw.writer, .{ .base_path = app_meta.base_path }) catch {};
+                    component.render(&aw.writer, .{ .base_path = base_path }) catch {};
                     try stdout.writeAll("<!DOCTYPE html>");
                     try stdout.writeAll(aw.written());
                     try stdout.flush();
@@ -154,7 +155,7 @@ pub fn run(process_init: std.process.Init) !void {
 
             var aw = std.Io.Writer.Allocating.init(allocator);
             defer aw.deinit();
-            component.render(&aw.writer, .{ .base_path = app_meta.base_path }) catch {};
+            component.render(&aw.writer, .{ .base_path = base_path }) catch {};
 
             try writeEdgeMeta(stderr, &backend, false);
             try stdout.print("<!DOCTYPE html>{s}", .{aw.written()});
@@ -191,7 +192,7 @@ pub fn run(process_init: std.process.Init) !void {
                 var aw = std.Io.Writer.Allocating.init(allocator);
                 defer aw.deinit();
                 var cmp = not_found_cmp;
-                cmp.render(&aw.writer, .{ .base_path = app_meta.base_path }) catch {};
+                cmp.render(&aw.writer, .{ .base_path = base_path }) catch {};
 
                 try writeEdgeMeta(stderr, &backend, false);
                 try stdout.print("<!DOCTYPE html>{s}", .{aw.written()});

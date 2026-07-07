@@ -1,33 +1,18 @@
-const server_routes = blk: {
-    var routes: [zx_app.routes.len]ServerApp.Route = undefined;
-    for (zx_app.routes, 0..) |route, i| {
-        routes[i] = ServerApp.Route{
-            .path = route.path,
+const std = @import("std");
+const builtin = @import("builtin");
+const httpz = @import("httpz");
+const app = @import("app");
+const app_opts = @import("app_opts");
 
-            .page = if (route.page) |page| ServerApp.page(page) else null,
-            .layout = if (route.layout) |layout| ServerApp.layout(layout) else null,
-            .notfound = if (route.notfound) |notfound| ServerApp.notfound(notfound) else null,
-            .@"error" = if (route.@"error") |err| ServerApp.@"error"(err) else null,
-            .route = if (route.route) |rt| ServerApp.route(rt, if (route.page) |page| page else null) else null,
+const zx = @import("../../root.zig");
+const Constant = @import("../../constant.zig");
+const AppConfig = @import("../core/AppConfig.zig");
+const Handler = @import("handler.zig").Handler;
 
-            .route_opts = if (route.route) |o| getOptions(o, zx.RouteOptions) else null,
-            .page_opts = if (route.page) |o| getOptions(o, zx.PageOptions) else null,
-            .layout_opts = if (route.layout) |o| getOptions(o, zx.LayoutOptions) else null,
-            .notfound_opts = if (route.notfound) |o| getOptions(o, zx.NotFoundOptions) else null,
-            .error_opts = if (route.@"error") |o| getOptions(o, zx.ErrorOptions) else null,
+const Allocator = std.mem.Allocator;
+const Component = zx.Component;
 
-            .proxy = if (route.proxy) |proxy| ServerApp.proxy(proxy) else null,
-            .page_proxy = if (route.proxy) |proxy| ServerApp.pageProxy(proxy) else null,
-            .route_proxy = if (route.proxy) |proxy| ServerApp.routeProxy(proxy) else null,
-        };
-    }
-
-    break :blk routes;
-};
-
-pub const server_app = ServerApp{
-    .routes = &server_routes,
-};
+pub const cli_cmd = std.meta.stringToEnum(ServerApp.CliCommand, app_opts.cli_command) orelse .@"--";
 
 pub fn Server(comptime H: type) type {
     const AppCtxType = switch (@typeInfo(H)) {
@@ -36,10 +21,10 @@ pub fn Server(comptime H: type) type {
         .void => void,
         else => @compileError("Server app context must be a struct, pointer to struct, or void, got: " ++ @tagName(@typeInfo(H))),
     };
+    const is_dev = cli_cmd == .dev;
 
     return struct {
         const Self = @This();
-        pub const version = module_config.version;
 
         allocator: std.mem.Allocator,
         meta: ServerApp,
@@ -189,7 +174,6 @@ pub fn Server(comptime H: type) type {
 
                 switch (err) {
                     error.AddressInUse => {
-                        const is_dev = self.meta.cli_command == .dev;
                         const port = serverPort(&self.server.config).?;
                         var max_retries: u8 = 10;
 
@@ -231,7 +215,7 @@ pub fn Server(comptime H: type) type {
                 std.fmt.parseInt(u16, s, 10) catch serverPort(&self.server.config).?
             else
                 serverPort(&self.server.config).?;
-            std.debug.print("{s}ZX{s} {s}- v{s}{s} | http://localhost:{d}\n", .{ colors.bold, colors.reset_all, colors.dim, Self.version, colors.reset_all, display_port });
+            std.debug.print("{s}ZX{s} {s}- v{s}{s} | http://localhost:{d}\n", .{ colors.bold, colors.reset_all, colors.dim, zx.info.version, colors.reset_all, display_port });
         }
 
         /// Print the info line with the address/port part crossed out
@@ -244,7 +228,7 @@ pub fn Server(comptime H: type) type {
                     colors.bold,
                     colors.reset_all,
                     colors.dim,
-                    Self.version,
+                    zx.info.version,
                     colors.reset_all,
                     colors.dim,
                     colors.strikethrough,
@@ -257,7 +241,6 @@ pub fn Server(comptime H: type) type {
         fn introspect(self: *Self) !void {
             const port = (if (app_opts.server_port != null) app_opts.server_port else serverPort(&self.server.config)) orelse Constant.default_port;
             const address = app_opts.server_address orelse self.config.server.address orelse Constant.default_address;
-            self.meta.cli_command = std.meta.stringToEnum(ServerApp.CliCommand, app_opts.cli_command) orelse return error.InvalidCliCommand;
 
             // Overriding or setting default configs
             setServerAddress(&self.server.config, address, port);
@@ -281,7 +264,7 @@ pub fn Server(comptime H: type) type {
 
             // TODO: move this to DevServer.zig
             // Dev-only routes under /.well-known/_zx/
-            if (self.meta.cli_command == .dev) {
+            if (comptime is_dev) {
                 var router = try self.server.router(.{});
                 var zx_routes = router.group("/.well-known/_zx", .{});
 
@@ -323,7 +306,7 @@ pub const SerilizableAppMeta = struct {
             };
         }
 
-        const version = try allocator.dupe(u8, module_config.version);
+        const version = try allocator.dupe(u8, zx.info.version);
 
         return SerilizableAppMeta{
             .routes = routes,
@@ -692,14 +675,14 @@ pub const ServerApp = struct {
                     return;
                 }
                 if (n_params == 2) {
-                    const app = injectApp(FnInfo.params[1].type.?, app_ptr);
-                    if (R == void) routeFn(ctx, app) else try routeFn(ctx, app);
+                    const app_with_ctx = injectApp(FnInfo.params[1].type.?, app_ptr);
+                    if (R == void) routeFn(ctx, app_with_ctx) else try routeFn(ctx, app_with_ctx);
                     return;
                 }
                 if (n_params == 3) {
-                    const app = injectApp(FnInfo.param_types[1].?, app_ptr);
+                    const app_with_ctx = injectApp(FnInfo.param_types[1].?, app_ptr);
                     const state = injectState(FnInfo.param_types[2].?, state_ptr);
-                    if (R == void) routeFn(ctx, app, state) else try routeFn(ctx, app, state);
+                    if (R == void) routeFn(ctx, app_with_ctx, state) else try routeFn(ctx, app_with_ctx, state);
                     return;
                 }
                 @compileError("Route function must have 1-3 parameters: (ctx, app?, state?)");
@@ -782,13 +765,13 @@ pub const ServerApp = struct {
                     if (R == Component) return pageFn(ctx) else return try pageFn(ctx);
                 }
                 if (n_params == 2) {
-                    const app = injectApp(fn_info.param_types[1].?, app_ptr);
-                    if (R == Component) return pageFn(ctx, app) else return try pageFn(ctx, app);
+                    const app_with_ctx = injectApp(fn_info.param_types[1].?, app_ptr);
+                    if (R == Component) return pageFn(ctx, app_with_ctx) else return try pageFn(ctx, app_with_ctx);
                 }
                 if (n_params == 3) {
-                    const app = injectApp(fn_info.param_types[1].?, app_ptr);
+                    const app_with_ctx = injectApp(fn_info.param_types[1].?, app_ptr);
                     const state = injectState(fn_info.param_types[2].?, state_ptr);
-                    if (R == Component) return pageFn(ctx, app, state) else return try pageFn(ctx, app, state);
+                    if (R == Component) return pageFn(ctx, app_with_ctx, state) else return try pageFn(ctx, app_with_ctx, state);
                 }
                 @compileError("Page function must have 1-3 parameters: (ctx, app?, state?)");
             }
@@ -809,13 +792,13 @@ pub const ServerApp = struct {
                     return layoutFn(ctx, component);
                 }
                 if (n_params == 3) {
-                    const app = injectApp(fn_info.param_types[2].?, app_ptr);
-                    return layoutFn(ctx, component, app);
+                    const app_with_ctx = injectApp(fn_info.param_types[2].?, app_ptr);
+                    return layoutFn(ctx, component, app_with_ctx);
                 }
                 if (n_params == 4) {
-                    const app = injectApp(fn_info.param_types[2].?, app_ptr);
+                    const app_with_ctx = injectApp(fn_info.param_types[2].?, app_ptr);
                     const state = injectState(fn_info.param_types[3].?, state_ptr);
-                    return layoutFn(ctx, component, app, state);
+                    return layoutFn(ctx, component, app_with_ctx, state);
                 }
                 @compileError("Layout function must have 2-4 parameters: (ctx, children, app?, state?)");
             }
@@ -854,8 +837,37 @@ pub const ServerApp = struct {
     pub const CliCommand = enum { dev, serve, @"export", @"--" };
 
     routes: []const Route,
-    base_path: ?[]const u8 = null,
-    cli_command: ?CliCommand = null,
+};
+
+const server_routes = blk: {
+    var routes: [app.routes.len]ServerApp.Route = undefined;
+    for (app.routes, 0..) |route, i| {
+        routes[i] = ServerApp.Route{
+            .path = route.path,
+
+            .page = if (route.page) |page| ServerApp.page(page) else null,
+            .layout = if (route.layout) |layout| ServerApp.layout(layout) else null,
+            .notfound = if (route.notfound) |notfound| ServerApp.notfound(notfound) else null,
+            .@"error" = if (route.@"error") |err| ServerApp.@"error"(err) else null,
+            .route = if (route.route) |rt| ServerApp.route(rt, if (route.page) |page| page else null) else null,
+
+            .route_opts = if (route.route) |o| getOptions(o, zx.RouteOptions) else null,
+            .page_opts = if (route.page) |o| getOptions(o, zx.PageOptions) else null,
+            .layout_opts = if (route.layout) |o| getOptions(o, zx.LayoutOptions) else null,
+            .notfound_opts = if (route.notfound) |o| getOptions(o, zx.NotFoundOptions) else null,
+            .error_opts = if (route.@"error") |o| getOptions(o, zx.ErrorOptions) else null,
+
+            .proxy = if (route.proxy) |proxy| ServerApp.proxy(proxy) else null,
+            .page_proxy = if (route.proxy) |proxy| ServerApp.pageProxy(proxy) else null,
+            .route_proxy = if (route.proxy) |proxy| ServerApp.routeProxy(proxy) else null,
+        };
+    }
+
+    break :blk routes;
+};
+
+pub const server_app = ServerApp{
+    .routes = &server_routes,
 };
 
 /// Comptime-map any struct into a target struct type by matching field names.
@@ -913,23 +925,6 @@ fn envVar(name_z: [*:0]const u8) ?[]const u8 {
     const value = std.c.getenv(name_z) orelse return null;
     return std.mem.span(value);
 }
-
-const std = @import("std");
-const builtin = @import("builtin");
-const httpz = @import("httpz");
-const cachez = zx.Cache.cachez;
-const zx = @import("../../root.zig");
-const zx_app = @import("app");
-const module_config = @import("zx_info");
-const app_opts = @import("app_opts");
-const Constant = @import("../../constant.zig");
-const Handler = @import("handler.zig").Handler;
-const AppConfig = @import("../core/AppConfig.zig");
-const CacheConfig = AppConfig.CacheConfig;
-
-const Allocator = std.mem.Allocator;
-const Component = zx.Component;
-const log = std.log.scoped(.app);
 
 const colors = struct {
     const move_up = "\x1b[1A";
