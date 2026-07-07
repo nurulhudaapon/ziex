@@ -1,262 +1,26 @@
 const httpz = @import("httpz");
-const log = std.log.scoped(.app);
+const app_opts = @import("app_opts");
+const std = @import("std");
+const builtin = @import("builtin");
+
+const zx = @import("../../root.zig");
 const tree = @import("../core/tree.zig");
 const core_handler = @import("../core/Handler.zig");
+const pubsub = @import("pubsub.zig");
+const rndr = @import("render.zig");
+const ctxs = @import("../../contexts.zig");
+const Server = @import("./Server.zig");
+const AppConfig = @import("../core/AppConfig.zig");
+const Request = @import("../core/Request.zig");
+const Response = @import("../core/Response.zig");
+const Constant = @import("../../constant.zig");
 
-/// ElementInjector handles injecting elements into component trees
-const ElementInjector = struct {
-    allocator: std.mem.Allocator,
-
-    /// Inject a script element into the body of a component
-    pub fn injectScriptIntoBody(self: ElementInjector, page: *Component, script_src: []const u8) bool {
-        if (tree.getElementByName(page, self.allocator, .body)) |body_element| {
-            const attributes = self.allocator.alloc(zx.Element.Attribute, 1) catch {
-                std.debug.print("Error allocating attributes: OOM\n", .{});
-                return false;
-            };
-            attributes[0] = .{ .name = "src", .value = script_src };
-            const script_element = Component{ .element = .{ .tag = .script, .attributes = attributes } };
-            tree.appendChild(body_element, self.allocator, script_element) catch |err| {
-                std.debug.print("Error appending script to body: {}\n", .{err});
-                self.allocator.free(attributes);
-                return false;
-            };
-            return true;
-        }
-        return false;
-    }
-
-    pub fn injectZxInjections(self: ElementInjector, page: *Component) void {
-        core_handler.injectZxInjections(self.allocator, page);
-    }
-};
-
-/// ProxyStatus tracks proxy execution for dev logging
-/// Uses thread-local storage to avoid race conditions in multi-threaded server
-const ProxyStatus = struct {
-    threadlocal var executed: bool = false;
-    threadlocal var aborted: bool = false;
-
-    pub fn reset() void {
-        executed = false;
-        aborted = false;
-    }
-
-    pub fn markExecuted() void {
-        executed = true;
-    }
-
-    pub fn markAborted() void {
-        executed = true;
-        aborted = true;
-    }
-};
-
-/// Unified status indicator combining proxy and cache status
-/// Format: [XY] where X=proxy status, Y=cache status
-/// Position 1 (proxy): ⇥=ran, !=aborted, -=none
-/// Position 2 (cache): >=hit, o=miss, -=skip
-/// Brackets are dim, content is colored (non-bold for crisp rendering)
-const StatusIndicator = struct {
-    // Color codes (non-bold for crisp symbols)
-    const dim = "\x1b[2m";
-    const red = "\x1b[91m"; // bright red
-    const green = "\x1b[92m"; // bright green
-    const yellow = "\x1b[93m"; // bright yellow
-    const magenta = "\x1b[95m"; // bright magenta
-    const reset = "\x1b[0m";
-
-    pub fn get(cache_status: PageCache.Status, http_status: u16) []const u8 {
-        const proxy_ran = ProxyStatus.executed;
-        const proxy_aborted = ProxyStatus.aborted;
-
-        if (cache_status == .disabled) {
-            return if (proxy_aborted)
-                dim ++ "[" ++ reset ++ red ++ "!" ++ reset ++ dim ++ "-]" ++ reset ++ " "
-            else if (proxy_ran)
-                dim ++ "[" ++ reset ++ magenta ++ "⇥" ++ reset ++ dim ++ "-]" ++ reset ++ " "
-            else
-                "";
-        }
-
-        const effective_cache = if (PageCache.isCacheableHttpStatus(http_status)) cache_status else PageCache.Status.skip;
-
-        // [XY] format: X=proxy, Y=cache (dim brackets, colored content)
-        if (proxy_aborted) {
-            return switch (effective_cache) {
-                .hit => dim ++ "[" ++ reset ++ red ++ "!" ++ green ++ ">" ++ reset ++ dim ++ "]" ++ reset ++ " ",
-                .miss => dim ++ "[" ++ reset ++ red ++ "!" ++ yellow ++ "o" ++ reset ++ dim ++ "]" ++ reset ++ " ",
-                .skip => dim ++ "[" ++ reset ++ red ++ "!" ++ reset ++ dim ++ "-]" ++ reset ++ " ",
-                .disabled => dim ++ "[" ++ reset ++ red ++ "!" ++ reset ++ dim ++ "-]" ++ reset ++ " ",
-            };
-        } else if (proxy_ran) {
-            return switch (effective_cache) {
-                .hit => dim ++ "[" ++ reset ++ magenta ++ "⇥" ++ green ++ ">" ++ reset ++ dim ++ "]" ++ reset ++ " ",
-                .miss => dim ++ "[" ++ reset ++ magenta ++ "⇥" ++ yellow ++ "o" ++ reset ++ dim ++ "]" ++ reset ++ " ",
-                .skip => dim ++ "[" ++ reset ++ magenta ++ "⇥" ++ reset ++ dim ++ "-]" ++ reset ++ " ",
-                .disabled => dim ++ "[" ++ reset ++ magenta ++ "⇥" ++ reset ++ dim ++ "-]" ++ reset ++ " ",
-            };
-        } else {
-            return switch (effective_cache) {
-                .hit => dim ++ "[-" ++ reset ++ green ++ ">" ++ reset ++ dim ++ "]" ++ reset ++ " ",
-                .miss => dim ++ "[-" ++ reset ++ yellow ++ "o" ++ reset ++ dim ++ "]" ++ reset ++ " ",
-                .skip => dim ++ "[--]" ++ reset ++ " ",
-                .disabled => "",
-            };
-        }
-    }
-};
-
-/// PageCache handles caching of rendered HTML pages with ETag support
-const PageCache = struct {
-    pub const Status = enum {
-        hit, // Served from cache
-        miss, // Not in cache, freshly rendered
-        skip, // Not cacheable (POST, internal paths, etc.)
-        disabled, // Cache is disabled
-    };
-
-    const CacheValue = struct {
-        body: []const u8,
-        etag: []const u8,
-        content_type: ?httpz.ContentType,
-
-        pub fn removedFromCache(self: CacheValue, allocator: Allocator) void {
-            allocator.free(self.body);
-            allocator.free(self.etag);
-        }
-    };
-
-    cache: cachez.Cache(CacheValue),
-    config: AppConfig.CacheConfig,
-    allocator: Allocator,
-
-    pub fn init(io: std.Io, allocator: Allocator, config: AppConfig.CacheConfig) !PageCache {
-        return .{
-            .allocator = allocator,
-            .config = config,
-            .cache = try cachez.Cache(CacheValue).init(io, allocator, .{
-                .max_size = config.max_size,
-            }),
-        };
-    }
-
-    pub fn deinit(self: *PageCache) void {
-        self.cache.deinit();
-    }
-
-    /// Try to serve from cache. Returns cache status.
-    pub fn tryServe(self: *PageCache, req: *httpz.Request, res: *httpz.Response) Status {
-        if (self.config.max_size == 0) return .disabled;
-        if (!isCacheable(req)) return .skip;
-
-        // Check conditional request (If-None-Match)
-        if (req.header("if-none-match")) |client_etag| {
-            if (self.cache.get(req.url.path)) |entry| {
-                defer entry.release();
-                if (std.mem.eql(u8, client_etag, entry.value.etag)) {
-                    res.setStatus(.not_modified);
-                    self.addCacheHeaders(res, entry.value.etag, req.arena);
-                    return .hit;
-                }
-            }
-        }
-
-        // Try to serve full cached response
-        if (self.cache.get(req.url.path)) |entry| {
-            defer entry.release();
-            res.content_type = entry.value.content_type;
-            res.body = entry.value.body;
-            self.addCacheHeaders(res, entry.value.etag, req.arena);
-            return .hit;
-        }
-
-        return .miss;
-    }
-
-    /// Cache a successful response
-    pub fn store(self: *PageCache, req: *httpz.Request, res: *httpz.Response) void {
-        if (self.config.max_size == 0) return;
-        if (!isCacheableHttpStatus(res.status)) return;
-        if (!isCacheableContentType(res.content_type)) return;
-
-        // Get response body from buffer.writer (rendered pages) or res.body (direct)
-        const buffered = res.buffer.writer.buffered();
-        const body = if (buffered.len > 0) buffered else res.body;
-        if (body.len == 0) return;
-
-        // Generate ETag from body hash
-        const hash = std.hash.Wyhash.hash(0, body);
-        const etag = std.fmt.allocPrint(self.allocator, "\"{x}\"", .{hash}) catch return;
-
-        // Dupe the body for cache storage
-        const cached_body = self.allocator.dupe(u8, body) catch {
-            self.allocator.free(etag);
-            return;
-        };
-
-        self.cache.put(req.url.path, .{
-            .body = cached_body,
-            .etag = etag,
-            .content_type = res.content_type,
-        }, .{
-            .ttl = getTtl(req) orelse self.config.default_ttl,
-        }) catch |err| {
-            log.warn("Failed to cache page {s}: {}", .{ req.url.path, err });
-            self.allocator.free(cached_body);
-            self.allocator.free(etag);
-            return;
-        };
-
-        // Add cache headers to response
-        self.addCacheHeaders(res, etag, req.arena);
-        res.headers.add("X-Cache", "MISS");
-    }
-
-    fn addCacheHeaders(self: *PageCache, res: *httpz.Response, etag: []const u8, arena: Allocator) void {
-        res.headers.add("ETag", etag);
-        res.headers.add("Cache-Control", std.fmt.allocPrint(arena, "public, max-age={d}", .{self.config.default_ttl}) catch "public, max-age=300");
-        res.headers.add("X-Cache", "HIT");
-    }
-
-    fn isCacheable(req: *httpz.Request) bool {
-        if (getTtl(req) == null) return false;
-        if (req.method != .GET) return false;
-        if (std.mem.startsWith(u8, req.url.path, "/.well-known/_zx/")) return false;
-        return true;
-    }
-
-    fn isCacheableContentType(content_type: ?httpz.ContentType) bool {
-        const ct = content_type orelse return false;
-        return ct == .HTML or ct == .ICO or ct == .CSS or ct == .JS or ct == .TEXT;
-    }
-    fn isCacheableHttpStatus(http_status: u16) bool {
-        return http_status == 200;
-    }
-    fn getTtl(req: *httpz.Request) ?u32 {
-        if (req.route_data) |rd| {
-            const route: *const App.Meta.Route = @ptrCast(@alignCast(rd));
-            if (route.page_opts) |options| {
-                // Return null if caching is disabled (seconds = 0)
-                if (options.caching.ttl.nanoseconds == 0) return null;
-                return @intCast(options.caching.ttl.toSeconds());
-            }
-        }
-        return null;
-    }
-
-    /// Delete a specific page from the cache by exact path
-    /// Example: del("/users/123")
-    pub fn del(self: *PageCache, path: []const u8) bool {
-        return self.cache.del(path);
-    }
-
-    /// Delete all pages matching a path prefix
-    /// Example: delPath("/users") deletes /users, /users/1, /users/2, etc.
-    pub fn delPath(self: *PageCache, path_prefix: []const u8) usize {
-        return self.cache.delPrefix(path_prefix) catch 0;
-    }
-};
+const Allocator = std.mem.Allocator;
+const Component = zx.Component;
+const ServerApp = Server.ServerApp;
+const cachez = zx.Cache.cachez;
+const httpz_backend = zx.Http.Httpz;
+const log = std.log.scoped(.app);
 
 /// httpz backend handler.
 /// Converts httpz types to abstract Request/Response, then delegates to core Handler.
@@ -265,14 +29,14 @@ pub fn Handler(comptime AppCtxType: type) type {
     return struct {
         const Self = @This();
 
-        meta: *App.Meta,
+        meta: *ServerApp,
         config: AppConfig,
         page_cache: PageCache,
         allocator: std.mem.Allocator,
         app_ctx: *AppCtxType,
         io: std.Io,
 
-        pub fn init(io: std.Io, allocator: std.mem.Allocator, meta: *App.Meta, config: AppConfig, app_ctx: *AppCtxType) !Self {
+        pub fn init(io: std.Io, allocator: std.mem.Allocator, meta: *ServerApp, config: AppConfig, app_ctx: *AppCtxType) !Self {
             const cache_config = config.cache;
 
             return Self{
@@ -371,7 +135,7 @@ pub fn Handler(comptime AppCtxType: type) type {
             res.content_type = .HTML;
 
             // Delegate to core handler for not-found rendering
-            const matched_route: ?*const App.Meta.Route = if (req.route_data) |rd|
+            const matched_route: ?*const ServerApp.Route = if (req.route_data) |rd|
                 @ptrCast(@alignCast(rd))
             else
                 null;
@@ -447,7 +211,7 @@ pub fn Handler(comptime AppCtxType: type) type {
             const abstract_res = httpz_backend.createResponse(&hctx, req.arena);
 
             // Get route data
-            const route_data: *const App.Meta.Route = if (req.route_data) |rd|
+            const route_data: *const ServerApp.Route = if (req.route_data) |rd|
                 @ptrCast(@alignCast(rd))
             else
                 return self.notFound(req, res);
@@ -550,7 +314,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                 // Handle static params request for dynamic routes
                 if (req.header("x-zx-static-data")) |_| {
                     if (req.route_data) |rd| {
-                        const route: *const App.Meta.Route = @ptrCast(@alignCast(rd));
+                        const route: *const ServerApp.Route = @ptrCast(@alignCast(rd));
                         if (route.page_opts) |page_opts| {
                             if (page_opts.static) |static_opts| {
                                 const params = try self.resolveStaticParams(req.arena, static_opts);
@@ -567,7 +331,7 @@ pub fn Handler(comptime AppCtxType: type) type {
             const abstract_res = httpz_backend.createResponse(&hctx, req.arena);
 
             // Get route data
-            const route: *const App.Meta.Route = if (req.route_data) |rd|
+            const route: *const ServerApp.Route = if (req.route_data) |rd|
                 @ptrCast(@alignCast(rd))
             else
                 return self.notFound(req, res);
@@ -865,9 +629,9 @@ pub fn Handler(comptime AppCtxType: type) type {
         /// Context passed when upgrading to WebSocket
         /// Contains the socket handler functions and allocator
         pub const WebsocketContext = struct {
-            socket_handler: ?App.Meta.SocketHandler = null,
-            socket_open_handler: ?App.Meta.SocketOpenHandler = null,
-            socket_close_handler: ?App.Meta.SocketCloseHandler = null,
+            socket_handler: ?ServerApp.SocketHandler = null,
+            socket_open_handler: ?ServerApp.SocketOpenHandler = null,
+            socket_close_handler: ?ServerApp.SocketCloseHandler = null,
             allocator: std.mem.Allocator = std.heap.page_allocator,
             /// Copied user data bytes passed during upgrade
             upgrade_data: ?[]const u8 = null,
@@ -875,9 +639,9 @@ pub fn Handler(comptime AppCtxType: type) type {
 
         pub const WebsocketHandler = struct {
             conn: *httpz.websocket.Conn,
-            socket_handler: ?App.Meta.SocketHandler,
-            socket_open_handler: ?App.Meta.SocketOpenHandler,
-            socket_close_handler: ?App.Meta.SocketCloseHandler,
+            socket_handler: ?ServerApp.SocketHandler,
+            socket_open_handler: ?ServerApp.SocketOpenHandler,
+            socket_close_handler: ?ServerApp.SocketCloseHandler,
             ws_allocator: std.mem.Allocator,
             upgrade_data: ?[]const u8,
             /// Subscriber data for pub/sub (stored directly on connection)
@@ -997,21 +761,257 @@ pub fn Handler(comptime AppCtxType: type) type {
     };
 }
 
-const std = @import("std");
-const builtin = @import("builtin");
-const cachez = zx.Cache.cachez;
+/// ElementInjector handles injecting elements into component trees
+const ElementInjector = struct {
+    allocator: std.mem.Allocator,
 
-const app_opts = @import("app_opts");
-const zx = @import("../../root.zig");
-const httpz_backend = zx.Http.Httpz;
-const pubsub = @import("pubsub.zig");
-const rndr = @import("render.zig");
-const ctxs = @import("../../contexts.zig");
-const Allocator = std.mem.Allocator;
-const Component = zx.Component;
-// TODO: directly import things that is needed instead of getting from inside Server struct
-const App = @import("./Server.zig").Server(void);
-const AppConfig = @import("../../AppConfig.zig");
-const Request = @import("../core/Request.zig");
-const Response = @import("../core/Response.zig");
-const Constant = @import("../../constant.zig");
+    /// Inject a script element into the body of a component
+    pub fn injectScriptIntoBody(self: ElementInjector, page: *Component, script_src: []const u8) bool {
+        if (tree.getElementByName(page, self.allocator, .body)) |body_element| {
+            const attributes = self.allocator.alloc(zx.Element.Attribute, 1) catch {
+                std.debug.print("Error allocating attributes: OOM\n", .{});
+                return false;
+            };
+            attributes[0] = .{ .name = "src", .value = script_src };
+            const script_element = Component{ .element = .{ .tag = .script, .attributes = attributes } };
+            tree.appendChild(body_element, self.allocator, script_element) catch |err| {
+                std.debug.print("Error appending script to body: {}\n", .{err});
+                self.allocator.free(attributes);
+                return false;
+            };
+            return true;
+        }
+        return false;
+    }
+
+    pub fn injectZxInjections(self: ElementInjector, page: *Component) void {
+        core_handler.injectZxInjections(self.allocator, page);
+    }
+};
+
+/// ProxyStatus tracks proxy execution for dev logging
+/// Uses thread-local storage to avoid race conditions in multi-threaded server
+const ProxyStatus = struct {
+    threadlocal var executed: bool = false;
+    threadlocal var aborted: bool = false;
+
+    pub fn reset() void {
+        executed = false;
+        aborted = false;
+    }
+
+    pub fn markExecuted() void {
+        executed = true;
+    }
+
+    pub fn markAborted() void {
+        executed = true;
+        aborted = true;
+    }
+};
+
+/// Unified status indicator combining proxy and cache status
+/// Format: [XY] where X=proxy status, Y=cache status
+/// Position 1 (proxy): ⇥=ran, !=aborted, -=none
+/// Position 2 (cache): >=hit, o=miss, -=skip
+/// Brackets are dim, content is colored (non-bold for crisp rendering)
+const StatusIndicator = struct {
+    // Color codes (non-bold for crisp symbols)
+    const dim = "\x1b[2m";
+    const red = "\x1b[91m"; // bright red
+    const green = "\x1b[92m"; // bright green
+    const yellow = "\x1b[93m"; // bright yellow
+    const magenta = "\x1b[95m"; // bright magenta
+    const reset = "\x1b[0m";
+
+    pub fn get(cache_status: PageCache.Status, http_status: u16) []const u8 {
+        const proxy_ran = ProxyStatus.executed;
+        const proxy_aborted = ProxyStatus.aborted;
+
+        if (cache_status == .disabled) {
+            return if (proxy_aborted)
+                dim ++ "[" ++ reset ++ red ++ "!" ++ reset ++ dim ++ "-]" ++ reset ++ " "
+            else if (proxy_ran)
+                dim ++ "[" ++ reset ++ magenta ++ "⇥" ++ reset ++ dim ++ "-]" ++ reset ++ " "
+            else
+                "";
+        }
+
+        const effective_cache = if (PageCache.isCacheableHttpStatus(http_status)) cache_status else PageCache.Status.skip;
+
+        // [XY] format: X=proxy, Y=cache (dim brackets, colored content)
+        if (proxy_aborted) {
+            return switch (effective_cache) {
+                .hit => dim ++ "[" ++ reset ++ red ++ "!" ++ green ++ ">" ++ reset ++ dim ++ "]" ++ reset ++ " ",
+                .miss => dim ++ "[" ++ reset ++ red ++ "!" ++ yellow ++ "o" ++ reset ++ dim ++ "]" ++ reset ++ " ",
+                .skip => dim ++ "[" ++ reset ++ red ++ "!" ++ reset ++ dim ++ "-]" ++ reset ++ " ",
+                .disabled => dim ++ "[" ++ reset ++ red ++ "!" ++ reset ++ dim ++ "-]" ++ reset ++ " ",
+            };
+        } else if (proxy_ran) {
+            return switch (effective_cache) {
+                .hit => dim ++ "[" ++ reset ++ magenta ++ "⇥" ++ green ++ ">" ++ reset ++ dim ++ "]" ++ reset ++ " ",
+                .miss => dim ++ "[" ++ reset ++ magenta ++ "⇥" ++ yellow ++ "o" ++ reset ++ dim ++ "]" ++ reset ++ " ",
+                .skip => dim ++ "[" ++ reset ++ magenta ++ "⇥" ++ reset ++ dim ++ "-]" ++ reset ++ " ",
+                .disabled => dim ++ "[" ++ reset ++ magenta ++ "⇥" ++ reset ++ dim ++ "-]" ++ reset ++ " ",
+            };
+        } else {
+            return switch (effective_cache) {
+                .hit => dim ++ "[-" ++ reset ++ green ++ ">" ++ reset ++ dim ++ "]" ++ reset ++ " ",
+                .miss => dim ++ "[-" ++ reset ++ yellow ++ "o" ++ reset ++ dim ++ "]" ++ reset ++ " ",
+                .skip => dim ++ "[--]" ++ reset ++ " ",
+                .disabled => "",
+            };
+        }
+    }
+};
+
+/// PageCache handles caching of rendered HTML pages with ETag support
+const PageCache = struct {
+    pub const Status = enum {
+        hit, // Served from cache
+        miss, // Not in cache, freshly rendered
+        skip, // Not cacheable (POST, internal paths, etc.)
+        disabled, // Cache is disabled
+    };
+
+    const CacheValue = struct {
+        body: []const u8,
+        etag: []const u8,
+        content_type: ?httpz.ContentType,
+
+        pub fn removedFromCache(self: CacheValue, allocator: Allocator) void {
+            allocator.free(self.body);
+            allocator.free(self.etag);
+        }
+    };
+
+    cache: cachez.Cache(CacheValue),
+    config: AppConfig.CacheConfig,
+    allocator: Allocator,
+
+    pub fn init(io: std.Io, allocator: Allocator, config: AppConfig.CacheConfig) !PageCache {
+        return .{
+            .allocator = allocator,
+            .config = config,
+            .cache = try cachez.Cache(CacheValue).init(io, allocator, .{
+                .max_size = config.max_size,
+            }),
+        };
+    }
+
+    pub fn deinit(self: *PageCache) void {
+        self.cache.deinit();
+    }
+
+    /// Try to serve from cache. Returns cache status.
+    pub fn tryServe(self: *PageCache, req: *httpz.Request, res: *httpz.Response) Status {
+        if (self.config.max_size == 0) return .disabled;
+        if (!isCacheable(req)) return .skip;
+
+        // Check conditional request (If-None-Match)
+        if (req.header("if-none-match")) |client_etag| {
+            if (self.cache.get(req.url.path)) |entry| {
+                defer entry.release();
+                if (std.mem.eql(u8, client_etag, entry.value.etag)) {
+                    res.setStatus(.not_modified);
+                    self.addCacheHeaders(res, entry.value.etag, req.arena);
+                    return .hit;
+                }
+            }
+        }
+
+        // Try to serve full cached response
+        if (self.cache.get(req.url.path)) |entry| {
+            defer entry.release();
+            res.content_type = entry.value.content_type;
+            res.body = entry.value.body;
+            self.addCacheHeaders(res, entry.value.etag, req.arena);
+            return .hit;
+        }
+
+        return .miss;
+    }
+
+    /// Cache a successful response
+    pub fn store(self: *PageCache, req: *httpz.Request, res: *httpz.Response) void {
+        if (self.config.max_size == 0) return;
+        if (!isCacheableHttpStatus(res.status)) return;
+        if (!isCacheableContentType(res.content_type)) return;
+
+        // Get response body from buffer.writer (rendered pages) or res.body (direct)
+        const buffered = res.buffer.writer.buffered();
+        const body = if (buffered.len > 0) buffered else res.body;
+        if (body.len == 0) return;
+
+        // Generate ETag from body hash
+        const hash = std.hash.Wyhash.hash(0, body);
+        const etag = std.fmt.allocPrint(self.allocator, "\"{x}\"", .{hash}) catch return;
+
+        // Dupe the body for cache storage
+        const cached_body = self.allocator.dupe(u8, body) catch {
+            self.allocator.free(etag);
+            return;
+        };
+
+        self.cache.put(req.url.path, .{
+            .body = cached_body,
+            .etag = etag,
+            .content_type = res.content_type,
+        }, .{
+            .ttl = getTtl(req) orelse self.config.default_ttl,
+        }) catch |err| {
+            log.warn("Failed to cache page {s}: {}", .{ req.url.path, err });
+            self.allocator.free(cached_body);
+            self.allocator.free(etag);
+            return;
+        };
+
+        // Add cache headers to response
+        self.addCacheHeaders(res, etag, req.arena);
+        res.headers.add("X-Cache", "MISS");
+    }
+
+    fn addCacheHeaders(self: *PageCache, res: *httpz.Response, etag: []const u8, arena: Allocator) void {
+        res.headers.add("ETag", etag);
+        res.headers.add("Cache-Control", std.fmt.allocPrint(arena, "public, max-age={d}", .{self.config.default_ttl}) catch "public, max-age=300");
+        res.headers.add("X-Cache", "HIT");
+    }
+
+    fn isCacheable(req: *httpz.Request) bool {
+        if (getTtl(req) == null) return false;
+        if (req.method != .GET) return false;
+        if (std.mem.startsWith(u8, req.url.path, "/.well-known/_zx/")) return false;
+        return true;
+    }
+
+    fn isCacheableContentType(content_type: ?httpz.ContentType) bool {
+        const ct = content_type orelse return false;
+        return ct == .HTML or ct == .ICO or ct == .CSS or ct == .JS or ct == .TEXT;
+    }
+    fn isCacheableHttpStatus(http_status: u16) bool {
+        return http_status == 200;
+    }
+    fn getTtl(req: *httpz.Request) ?u32 {
+        if (req.route_data) |rd| {
+            const route: *const ServerApp.Route = @ptrCast(@alignCast(rd));
+            if (route.page_opts) |options| {
+                // Return null if caching is disabled (seconds = 0)
+                if (options.caching.ttl.nanoseconds == 0) return null;
+                return @intCast(options.caching.ttl.toSeconds());
+            }
+        }
+        return null;
+    }
+
+    /// Delete a specific page from the cache by exact path
+    /// Example: del("/users/123")
+    pub fn del(self: *PageCache, path: []const u8) bool {
+        return self.cache.del(path);
+    }
+
+    /// Delete all pages matching a path prefix
+    /// Example: delPath("/users") deletes /users, /users/1, /users/2, etc.
+    pub fn delPath(self: *PageCache, path_prefix: []const u8) usize {
+        return self.cache.delPrefix(path_prefix) catch 0;
+    }
+};

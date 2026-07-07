@@ -39,8 +39,6 @@ pub fn Server(comptime H: type) type {
 
     return struct {
         const Self = @This();
-
-        pub const Meta = ServerApp;
         pub const version = module_config.version;
 
         allocator: std.mem.Allocator,
@@ -926,7 +924,7 @@ const module_config = @import("zx_info");
 const app_opts = @import("app_opts");
 const Constant = @import("../../constant.zig");
 const Handler = @import("handler.zig").Handler;
-const AppConfig = @import("../../AppConfig.zig");
+const AppConfig = @import("../core/AppConfig.zig");
 const CacheConfig = AppConfig.CacheConfig;
 
 const Allocator = std.mem.Allocator;

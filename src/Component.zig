@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const zx = @import("root.zig");
-const prp = @import("props.zig");
+const prp = @import("util/props.zig");
 
 const ElementTag = zx.ElementTag;
 const Allocator = std.mem.Allocator;

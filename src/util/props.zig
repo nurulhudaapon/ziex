@@ -1,8 +1,9 @@
 const std = @import("std");
 
-const pltfm = @import("platform.zig");
+const pltfm = @import("../platform.zig");
+const zxon = @import("zxon.zig");
+
 const platform = pltfm.platform;
-const zxon = @import("util/zxon.zig");
 
 /// Coerce props to the target struct type, handling defaults
 pub fn coerceProps(comptime TargetType: type, props: anytype) TargetType {

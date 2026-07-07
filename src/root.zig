@@ -7,7 +7,6 @@ const module_options = @import("zx_module_options");
 
 const element = @import("element.zig");
 const plfm = @import("platform.zig");
-const prp = @import("props.zig");
 
 const routing = @import("runtime/core/routing.zig");
 const event = @import("runtime/core/Event.zig");
