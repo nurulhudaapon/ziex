@@ -1,3 +1,34 @@
+const server_routes = blk: {
+    var routes: [zx_app.routes.len]ServerApp.Route = undefined;
+    for (zx_app.routes, 0..) |route, i| {
+        routes[i] = ServerApp.Route{
+            .path = route.path,
+
+            .page = if (route.page) |page| ServerApp.page(page) else null,
+            .layout = if (route.layout) |layout| ServerApp.layout(layout) else null,
+            .notfound = if (route.notfound) |notfound| ServerApp.notfound(notfound) else null,
+            .@"error" = if (route.@"error") |err| ServerApp.@"error"(err) else null,
+            .route = if (route.route) |rt| ServerApp.route(rt, if (route.page) |page| page else null) else null,
+
+            .route_opts = if (route.route) |o| getOptions(o, zx.RouteOptions) else null,
+            .page_opts = if (route.page) |o| getOptions(o, zx.PageOptions) else null,
+            .layout_opts = if (route.layout) |o| getOptions(o, zx.LayoutOptions) else null,
+            .notfound_opts = if (route.notfound) |o| getOptions(o, zx.NotFoundOptions) else null,
+            .error_opts = if (route.@"error") |o| getOptions(o, zx.ErrorOptions) else null,
+
+            .proxy = if (route.proxy) |proxy| ServerApp.proxy(proxy) else null,
+            .page_proxy = if (route.proxy) |proxy| ServerApp.pageProxy(proxy) else null,
+            .route_proxy = if (route.proxy) |proxy| ServerApp.routeProxy(proxy) else null,
+        };
+    }
+
+    break :blk routes;
+};
+
+pub const server_app = ServerApp{
+    .routes = &server_routes,
+};
+
 pub fn Server(comptime H: type) type {
     const AppCtxType = switch (@typeInfo(H)) {
         .@"struct" => H,
@@ -9,11 +40,11 @@ pub fn Server(comptime H: type) type {
     return struct {
         const Self = @This();
 
-        pub const Meta = ServerMeta;
+        pub const Meta = ServerApp;
         pub const version = module_config.version;
 
         allocator: std.mem.Allocator,
-        meta: ServerMeta,
+        meta: ServerApp,
         handler: HandlerType,
         server: httpz.Server(*HandlerType),
         config: AppConfig,
@@ -29,7 +60,7 @@ pub fn Server(comptime H: type) type {
             errdefer allocator.destroy(self);
 
             self.allocator = allocator;
-            self.meta = zx_app.meta;
+            self.meta = server_app;
             self.app_ctx = app_ctx;
             self.io = io;
             self._is_listening = false;
@@ -56,7 +87,7 @@ pub fn Server(comptime H: type) type {
             router.get("/*", HandlerType.public, .{});
 
             // Routes
-            inline for (&zx_app.routes) |*route| {
+            inline for (server_app.routes) |*route| {
                 // Check if this is an API-only route (no page)
                 const is_api_only = route.page == null;
 
@@ -228,7 +259,7 @@ pub fn Server(comptime H: type) type {
         fn introspect(self: *Self) !void {
             const port = (if (app_opts.server_port != null) app_opts.server_port else serverPort(&self.server.config)) orelse Constant.default_port;
             const address = app_opts.server_address orelse self.config.server.address orelse Constant.default_address;
-            self.meta.cli_command = std.meta.stringToEnum(ServerMeta.CliCommand, app_opts.cli_command) orelse return error.InvalidCliCommand;
+            self.meta.cli_command = std.meta.stringToEnum(ServerApp.CliCommand, app_opts.cli_command) orelse return error.InvalidCliCommand;
 
             // Overriding or setting default configs
             setServerAddress(&self.server.config, address, port);
@@ -277,9 +308,9 @@ pub const SerilizableAppMeta = struct {
     routes: []const Route,
     config: SerilizableAppMeta.Config,
     version: []const u8,
-    cli_command: ?ServerMeta.CliCommand = null,
+    cli_command: ?ServerApp.CliCommand = null,
 
-    pub fn init(allocator: std.mem.Allocator, meta: *ServerMeta, config: AppConfig.ServerConfig) !SerilizableAppMeta {
+    pub fn init(allocator: std.mem.Allocator, meta: *ServerApp, config: AppConfig.ServerConfig) !SerilizableAppMeta {
         var routes = try allocator.alloc(Route, meta.routes.len);
 
         for (meta.routes, 0..) |route, i| {
@@ -325,7 +356,7 @@ pub const SerilizableAppMeta = struct {
         try zx.util.zxon.serialize(self.routes, writer, .{});
     }
 
-    fn getRouteKindAndMethods(allocator: std.mem.Allocator, route: ServerMeta.Route) !struct { []const u8, []const []const u8 } {
+    fn getRouteKindAndMethods(allocator: std.mem.Allocator, route: ServerApp.Route) !struct { []const u8, []const []const u8 } {
         var methods = std.ArrayList([]const u8).empty;
         defer methods.deinit(allocator);
 
@@ -362,7 +393,11 @@ pub const SerilizableAppMeta = struct {
     }
 };
 
-pub const ServerMeta = struct {
+fn getOptions(comptime T: type, comptime R: type) ?R {
+    return if (@hasDecl(T, "options")) T.options else null;
+}
+
+pub const ServerApp = struct {
     pub const StdInput = struct {
         const Header = struct {
             name: []const u8,
@@ -787,6 +822,19 @@ pub const ServerMeta = struct {
                 @compileError("Layout function must have 2-4 parameters: (ctx, children, app?, state?)");
             }
         }.wrapper;
+    }
+
+    pub fn notfound(comptime T: type) ?*const fn (ctx: zx.NotFoundContext) Component {
+        if (@hasDecl(T, "NotFound")) {
+            return T.NotFound;
+        }
+        return null;
+    }
+    pub fn @"error"(comptime T: type) ?*const fn (ctx: zx.ErrorContext) Component {
+        if (@hasDecl(T, "Error")) {
+            return T.Error;
+        }
+        return null;
     }
 
     pub const Route = struct {

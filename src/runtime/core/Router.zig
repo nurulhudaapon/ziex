@@ -1,13 +1,18 @@
 const std = @import("std");
 const zx = @import("../../root.zig");
-const app = @import("app");
+// const app = @import("app");
 const core_handler = @import("Handler.zig");
 const render = @import("../server/render.zig");
 
 const Http = @import("Http.zig");
 const Component = zx.Component;
-const ServerMeta = zx.server.ServerMeta;
-const Route = ServerMeta.Route;
+const ServerApp = zx.server.App;
+const Route = ServerApp.Route;
+const server_app = @import("../server/Server.zig").server_app;
+
+const app = .{
+    .meta = server_app,
+};
 
 pub const FindRouteOptions = struct {
     match: enum { closest, exact } = .exact,
@@ -42,13 +47,13 @@ pub const ProxyResult = struct {
 /// Execute cascading Proxy() handlers from root "/" down to the target path, plus optional local proxy.
 pub fn executeProxyChain(
     path: []const u8,
-    local_proxy: ?ServerMeta.ProxyHandler,
+    local_proxy: ?ServerApp.ProxyHandler,
     req: zx.server.Request,
     res: zx.server.Response,
     arena: std.mem.Allocator,
 ) ProxyResult {
     var proxy_ctx = zx.ProxyContext.init(req, res, arena, arena);
-    var proxies: [16]ServerMeta.ProxyHandler = undefined;
+    var proxies: [16]ServerApp.ProxyHandler = undefined;
     var count: usize = 0;
 
     // Root "/" proxy
@@ -135,10 +140,10 @@ pub fn renderStreaming() void {
 
 /// Flexible handler resolution (custom HTTP methods, event handlers)
 pub fn resolveCustomHandler(
-    handlers: ServerMeta.RouteHandlers,
+    handlers: ServerApp.RouteHandlers,
     method: zx.server.Request.Method,
     method_string: ?[]const u8,
-) ?ServerMeta.RouteHandler {
+) ?ServerApp.RouteHandler {
     return switch (method) {
         .GET => handlers.get orelse handlers.handler,
         .POST => handlers.post orelse handlers.handler,
@@ -267,7 +272,7 @@ fn tryExtractParams(pattern: []const u8, path: []const u8, match: *RouteMatch) b
 }
 
 /// Resolve the API route handler for a given HTTP method.
-pub fn resolveRouteHandler(handlers: ServerMeta.RouteHandlers, method: zx.server.Request.Method) ?ServerMeta.RouteHandler {
+pub fn resolveRouteHandler(handlers: ServerApp.RouteHandlers, method: zx.server.Request.Method) ?ServerApp.RouteHandler {
     return switch (method) {
         .GET => handlers.get orelse handlers.handler,
         .POST => handlers.post orelse handlers.handler,
@@ -290,7 +295,7 @@ pub fn executeCascadingProxies(
 ) ProxyResult {
     var proxy_ctx = zx.ProxyContext.init(req, res, arena, arena);
 
-    var proxies: [16]ServerMeta.ProxyHandler = undefined;
+    var proxies: [16]ServerApp.ProxyHandler = undefined;
     var count: usize = 0;
 
     // Root "/" proxy
@@ -356,7 +361,7 @@ pub fn executeCascadingProxies(
 
 /// Execute a single local proxy (page_proxy or route_proxy). Returns updated ProxyResult.
 pub fn executeLocalProxy(
-    proxy_fn: ServerMeta.ProxyHandler,
+    proxy_fn: ServerApp.ProxyHandler,
     parent_result: ProxyResult,
     req: zx.server.Request,
     res: zx.server.Response,
@@ -389,7 +394,7 @@ pub fn applyLayouts(
     }
 
     // Collect parent layouts (root to deepest, excluding current route)
-    var layouts: [10]ServerMeta.LayoutHandler = undefined;
+    var layouts: [10]ServerApp.LayoutHandler = undefined;
     var layout_count: usize = 0;
 
     const is_root = std.mem.eql(u8, pathname, "/");
@@ -471,7 +476,7 @@ pub fn applyLayoutsForPath(
 ) Component {
     var component = page_component;
 
-    var layouts: [10]ServerMeta.LayoutHandler = undefined;
+    var layouts: [10]ServerApp.LayoutHandler = undefined;
     var layout_count: usize = 0;
 
     // Build paths from deepest to shallowest

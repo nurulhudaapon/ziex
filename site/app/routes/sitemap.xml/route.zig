@@ -7,9 +7,8 @@ pub fn GET(ctx: zx.RouteContext) !void {
     _ = try w.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
     _ = try w.write("<urlset xmlns=\"http://www.sitemaps.org/schemas/sitemap/0.9\">\n");
 
-    for (app.routes) |route| {
-        if (std.mem.indexOf(u8, route.path, ":") != null) continue;
-        try writeSitemapUrl(w, ctx.arena, host, route.path);
+    inline for (app.routes) |route| {
+        if (std.mem.indexOf(u8, route.path, ":") != null) {} else try writeSitemapUrl(w, ctx.arena, host, route.path);
     }
 
     for (custom_paths) |path| {
@@ -25,9 +24,12 @@ pub fn GET(ctx: zx.RouteContext) !void {
 }
 
 fn hasStaticRoute(path: []const u8) bool {
-    for (app.routes) |route| {
-        if (std.mem.indexOf(u8, route.path, ":") != null) continue;
-        if (std.mem.eql(u8, route.path, path)) return true;
+    inline for (app.routes) |route| {
+        if (std.mem.indexOf(u8, route.path, ":") != null) {} else {
+            if (std.mem.eql(u8, route.path, path)) {
+                return true;
+            }
+        }
     }
     return false;
 }

@@ -271,3 +271,13 @@ pub const failing_vtable = VTable{
     .deinit = &failDeinit,
     .info = &failInfo,
 };
+
+pub const Route = struct {
+    path: []const u8,
+    page: ?type = null,
+    layout: ?type = null,
+    notfound: ?type = null,
+    @"error": ?type = null,
+    route: ?type = null,
+    proxy: ?type = null,
+};

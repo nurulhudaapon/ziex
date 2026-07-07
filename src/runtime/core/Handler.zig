@@ -11,8 +11,8 @@ const server_dispatch = @import("../server/dispatch.zig");
 const render = @import("../server/render.zig");
 const injections = @import("injections.zig");
 
-pub const ServerMeta = zx.server.ServerMeta;
-pub const Route = ServerMeta.Route;
+pub const ServerApp = zx.server.App;
+pub const Route = ServerApp.Route;
 pub const ProxyResult = Router.ProxyResult;
 
 /// Result of page handling.

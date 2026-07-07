@@ -5,7 +5,7 @@ pub const Action = @import("server/Action.zig");
 
 // Legacy --- will be renamed
 pub const SerilizableAppMeta = server.SerilizableAppMeta;
-pub const ServerMeta = server.ServerMeta;
+pub const App = server.ServerApp;
 
 // Legacy -- may be kept
 pub const Request = @import("core/Request.zig");

@@ -940,7 +940,7 @@ fn mergeBuildInjectionsFromFile(
     try manifest.mergeBuildInjections(build_injections);
 }
 
-fn genRoutes(io: std.Io, allocator: std.mem.Allocator, output_dir: []const u8, base_path: ?[]const u8, client_components: []const ClientComponentSerializable, manifest: ?*Manifest, verbose: bool) !void {
+fn genRoutes(io: std.Io, allocator: std.mem.Allocator, output_dir: []const u8, _: ?[]const u8, client_components: []const ClientComponentSerializable, manifest: ?*Manifest, verbose: bool) !void {
     var routes = std.array_list.Managed(Route).init(allocator);
     defer {
         for (routes.items) |*route| route.deinit(allocator);
@@ -998,7 +998,7 @@ fn genRoutes(io: std.Io, allocator: std.mem.Allocator, output_dir: []const u8, b
     defer content.deinit();
     const writer = &content.writer;
 
-    try writer.writeAll("pub const routes = [_]zx.server.ServerMeta.Route{\n");
+    try writer.writeAll("pub const routes = [_]zx.App.Route{\n");
     for (routes.items) |route| try writeRoute(writer, route);
     try writer.writeAll("};\n\n");
 
@@ -1015,18 +1015,8 @@ fn genRoutes(io: std.Io, allocator: std.mem.Allocator, output_dir: []const u8, b
         try writer.writeAll("};\n\n");
     }
 
-    try writer.writeAll("pub const meta = zx.server.ServerMeta{\n");
-    try writer.writeAll("    .routes = &routes,\n");
-    if (base_path) |bp| {
-        try writer.print("    .base_path = \"{s}\",\n", .{bp});
-    }
-    try writer.writeAll("};\n\n");
-    try writer.writeAll("const zx = @import(\"zx\");\n");
     try writeClientComponents(writer, allocator, client_components);
-    // Helper function for getting options from a module with inferred return type
-    try writer.writeAll("fn getOptions(comptime T: type, comptime R: type) ?R {\n");
-    try writer.writeAll("    return if (@hasDecl(T, \"options\")) T.options else null;\n");
-    try writer.writeAll("}\n");
+    try writer.writeAll("const zx = @import(\"zx\");\n");
 
     const meta_path = try std.fs.path.join(allocator, &.{ output_dir, "app.zig" });
     defer allocator.free(meta_path);
@@ -1054,57 +1044,29 @@ fn writeRoute(writer: anytype, route: Route) !void {
 
     // Page (optional for API-only routes)
     if (route.page_import) |page| {
-        try writer.print("{s}    .page = zx.server.ServerMeta.page(@import(\"{s}\")),\n", .{ indent, page });
+        try writer.print("{s}    .page = @import(\"{s}\"),\n", .{ indent, page });
     }
 
     if (route.layout_import) |layout| {
-        try writer.print("{s}    .layout = zx.server.ServerMeta.layout(@import(\"{s}\")),\n", .{ indent, layout });
+        try writer.print("{s}    .layout = @import(\"{s}\"),\n", .{ indent, layout });
     }
 
     if (route.notfound_import) |notfound| {
-        try writer.print("{s}    .notfound = @import(\"{s}\").NotFound,\n", .{ indent, notfound });
+        try writer.print("{s}    .notfound = @import(\"{s}\"),\n", .{ indent, notfound });
     }
 
     if (route.error_import) |err_import| {
-        try writer.print("{s}    .@\"error\" = @import(\"{s}\").Error,\n", .{ indent, err_import });
-    }
-
-    // Page options (only if page exists)
-    if (route.page_import) |page| {
-        try writer.print("{s}    .page_opts = getOptions(@import(\"{s}\"), zx.PageOptions),\n", .{ indent, page });
-    }
-
-    // Layout options (only if layout exists)
-    if (route.layout_import) |layout| {
-        try writer.print("{s}    .layout_opts = getOptions(@import(\"{s}\"), zx.LayoutOptions),\n", .{ indent, layout });
-    }
-
-    // Notfound options (only if notfound exists)
-    if (route.notfound_import) |notfound| {
-        try writer.print("{s}    .notfound_opts = getOptions(@import(\"{s}\"), zx.NotFoundOptions),\n", .{ indent, notfound });
-    }
-
-    // Error options (only if error exists)
-    if (route.error_import) |err_import| {
-        try writer.print("{s}    .error_opts = getOptions(@import(\"{s}\"), zx.ErrorOptions),\n", .{ indent, err_import });
+        try writer.print("{s}    .@\"error\" = @import(\"{s}\"),\n", .{ indent, err_import });
     }
 
     // API route handlers (built via route)
     if (route.route_import) |route_import| {
-        // Pass page module for method conflict validation when co-located
-        if (route.page_import) |page_import| {
-            try writer.print("{s}    .route = zx.server.ServerMeta.route(@import(\"{s}\"), @import(\"{s}\")),\n", .{ indent, route_import, page_import });
-        } else {
-            try writer.print("{s}    .route = zx.server.ServerMeta.route(@import(\"{s}\"), null),\n", .{ indent, route_import });
-        }
-        try writer.print("{s}    .route_opts = getOptions(@import(\"{s}\"), zx.RouteOptions),\n", .{ indent, route_import });
+        try writer.print("{s}    .route = @import(\"{s}\"),\n", .{ indent, route_import });
     }
 
     // Proxy middleware (Proxy() cascades at runtime like layouts, PageProxy/RouteProxy don't cascade)
     if (route.proxy_import) |proxy_import| {
-        try writer.print("{s}    .proxy = zx.server.ServerMeta.proxy(@import(\"{s}\")),\n", .{ indent, proxy_import });
-        try writer.print("{s}    .page_proxy = zx.server.ServerMeta.pageProxy(@import(\"{s}\")),\n", .{ indent, proxy_import });
-        try writer.print("{s}    .route_proxy = zx.server.ServerMeta.routeProxy(@import(\"{s}\")),\n", .{ indent, proxy_import });
+        try writer.print("{s}    .proxy = @import(\"{s}\"),\n", .{ indent, proxy_import });
     }
 
     try writer.print("{s}}},\n", .{indent});
