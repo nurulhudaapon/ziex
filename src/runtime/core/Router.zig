@@ -1,17 +1,17 @@
 const std = @import("std");
+
 const zx = @import("../../root.zig");
-// const app = @import("app");
 const core_handler = @import("Handler.zig");
 const render = @import("../server/render.zig");
-
 const Http = @import("Http.zig");
+const server = @import("../server/Server.zig");
+
 const Component = zx.Component;
 const ServerApp = zx.server.App;
 const Route = ServerApp.Route;
-const server_app = @import("../server/Server.zig").server_app;
 
 const app = .{
-    .meta = server_app,
+    .meta = server.server_app,
 };
 
 pub const FindRouteOptions = struct {
@@ -171,26 +171,11 @@ pub fn resolveCustomHandler(
 /// Returns the matched route and any extracted URL parameters.
 pub fn matchRoute(path: []const u8, opts: FindRouteOptions) ?RouteMatch {
     switch (opts.match) {
-        .exact => {
-            for (app.meta.routes) |*route| {
-                var m = RouteMatch{ .route = route };
-                if (!tryExtractParams(route.path, path, &m)) continue;
-                if (opts.has_notfound and route.notfound == null) continue;
-                if (opts.has_error and route.@"error" == null) continue;
-                return m;
-            }
-            return null;
-        },
+        .exact => return findBestRouteMatch(path, opts),
         .closest => {
             var current = path;
             while (true) {
-                for (app.meta.routes) |*route| {
-                    var m = RouteMatch{ .route = route };
-                    if (!tryExtractParams(route.path, current, &m)) continue;
-                    if (opts.has_notfound and route.notfound == null) continue;
-                    if (opts.has_error and route.@"error" == null) continue;
-                    return m;
-                }
+                if (findBestRouteMatch(current, opts)) |m| return m;
                 if (std.mem.lastIndexOfScalar(u8, current[0 .. @max(current.len, 1) - 1], '/')) |last_slash| {
                     current = if (last_slash == 0) "/" else current[0..last_slash];
                 } else {
@@ -206,17 +191,69 @@ pub fn matchRoute(path: []const u8, opts: FindRouteOptions) ?RouteMatch {
     }
 }
 
+fn findBestRouteMatch(path: []const u8, opts: FindRouteOptions) ?RouteMatch {
+    var best: ?RouteMatch = null;
+    var best_score: usize = 0;
+
+    for (app.meta.routes) |*route| {
+        var m = RouteMatch{ .route = route };
+        if (!tryExtractParams(route.path, path, &m)) continue;
+        if (opts.has_notfound and route.notfound == null) continue;
+        if (opts.has_error and route.@"error" == null) continue;
+
+        const score = patternMatchScore(route.path);
+        if (best == null or score > best_score) {
+            best = m;
+            best_score = score;
+        }
+    }
+
+    return best;
+}
+
 /// Find a route by path. Supports exact match or closest ancestor match.
 /// Supports :param and * glob patterns in route paths.
 pub fn findRoute(path: []const u8, opts: FindRouteOptions) ?*const Route {
     return if (matchRoute(path, opts)) |m| m.route else null;
 }
 
+/// Score a route pattern for match priority. Static segments outrank params and globs,
+/// matching httpz router behavior where literal path parts win over :param/* branches.
+pub fn patternMatchScore(pattern: []const u8) usize {
+    var score: usize = 0;
+    var pat = pattern;
+
+    if (pat.len > 0 and pat[0] == '/') pat = pat[1..];
+    if (pat.len > 0 and pat[pat.len - 1] == '/') pat = pat[0 .. pat.len - 1];
+    if (pat.len == 0) return 1000;
+
+    var pat_pos: usize = 0;
+    while (pat_pos < pat.len) {
+        const pat_end = std.mem.indexOfScalarPos(u8, pat, pat_pos, '/') orelse pat.len;
+        const pseg = pat[pat_pos..pat_end];
+
+        if (pseg.len == 1 and pseg[0] == '*') {
+            score += 1;
+        } else if (pseg.len > 0 and pseg[0] == ':') {
+            score += 1;
+        } else {
+            score += 1000;
+        }
+
+        pat_pos = pat_end + 1;
+    }
+
+    return score;
+}
+
 /// Match a URL segment-by-segment against a route pattern.
 /// Supports :name (named param) and * (glob) segments.
 /// Populates match.params and match.param_count on success.
-fn tryExtractParams(pattern: []const u8, path: []const u8, match: *RouteMatch) bool {
+pub fn tryExtractParams(pattern: []const u8, path: []const u8, match: *RouteMatch) bool {
     match.param_count = 0;
+
+    // Paths ending in '*' are catch-alls (httpz glob_all), e.g. "/*" or "/:*".
+    const glob_all = pattern.len > 0 and pattern[pattern.len - 1] == '*';
 
     var pat = pattern;
     var url = path;
@@ -267,8 +304,9 @@ fn tryExtractParams(pattern: []const u8, path: []const u8, match: *RouteMatch) b
         pat_pos = pat_end + 1;
     }
 
-    // All pattern segments consumed; URL must also be fully consumed
-    return url_pos >= url.len + 1;
+    // All pattern segments consumed; URL must also be fully consumed unless catch-all.
+    if (url_pos >= url.len + 1) return true;
+    return glob_all;
 }
 
 /// Resolve the API route handler for a given HTTP method.
@@ -738,10 +776,7 @@ pub fn handle(opts: HandleOptions) !Outcome {
     return .{ .not_found = .{ .matched_route = matched_route } };
 }
 
-pub const streaming_bootstrap_script = render.streaming_bootstrap_script;
-pub const AsyncComponent = render.AsyncComponent;
-
-pub fn streamComponent(component: Component, allocator: std.mem.Allocator, writer: *std.Io.Writer, base_path: ?[]const u8) ![]AsyncComponent {
+pub fn streamComponent(component: Component, allocator: std.mem.Allocator, writer: *std.Io.Writer, base_path: ?[]const u8) ![]render.AsyncComponent {
     render.current_route_path = null;
     return render.stream(component, allocator, writer, .{ .base_path = base_path });
 }

@@ -137,7 +137,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
             const route = Server.SerilizableAppMeta.Route{
                 .path = entry.path,
                 .has_notfound = entry.notfound_import != null,
-                .is_dynamic = std.mem.indexOf(u8, entry.path, ":") != null,
+                .is_dynamic = std.mem.indexOf(u8, entry.path, ":") != null or std.mem.indexOf(u8, entry.path, "*") != null,
             };
 
             log.debug("Export route {s} dynamic={} notfound={}", .{ route.path, route.is_dynamic, route.has_notfound });
@@ -466,26 +466,48 @@ fn fetchStaticParams(io: std.Io, allocator: std.mem.Allocator, host: []const u8,
     return .{ .items = items, .allocator = allocator };
 }
 
-/// Replace :param placeholders in a route path with actual values
+/// Replace `:param` and `*` dynamic segments in a route path with actual values.
 fn expandDynamicPath(allocator: std.mem.Allocator, route_path: []const u8, params: []const options_mod.StaticParam) ![]const u8 {
-    var result = try allocator.dupe(u8, route_path);
+    var out = std.array_list.Managed(u8).init(allocator);
+    errdefer out.deinit();
 
-    for (params) |param| {
-        const placeholder = try std.fmt.allocPrint(allocator, ":{s}", .{param.key});
-        defer allocator.free(placeholder);
+    var i: usize = 0;
+    var first = true;
+    while (i <= route_path.len) {
+        const end = if (i < route_path.len)
+            std.mem.indexOfScalarPos(u8, route_path, i, '/') orelse route_path.len
+        else
+            route_path.len;
+        const seg = route_path[i..end];
 
-        if (std.mem.indexOf(u8, result, placeholder)) |start| {
-            const new_len = result.len - placeholder.len + param.value.len;
-            const new_result = try allocator.alloc(u8, new_len);
-            @memcpy(new_result[0..start], result[0..start]);
-            @memcpy(new_result[start .. start + param.value.len], param.value);
-            @memcpy(new_result[start + param.value.len ..], result[start + placeholder.len ..]);
-            allocator.free(result);
-            result = new_result;
+        if (!first) try out.append('/');
+        first = false;
+
+        const replacement: ?[]const u8 = if (seg.len > 0 and seg[0] == ':')
+            findStaticParamValue(params, seg[1..])
+        else if (seg.len == 1 and seg[0] == '*')
+            findStaticParamValue(params, "*")
+        else
+            null;
+
+        if (replacement) |value| {
+            try out.appendSlice(value);
+        } else {
+            try out.appendSlice(seg);
         }
+
+        if (end == route_path.len) break;
+        i = end + 1;
     }
 
-    return result;
+    return out.toOwnedSlice();
+}
+
+fn findStaticParamValue(params: []const options_mod.StaticParam, key: []const u8) ?[]const u8 {
+    for (params) |param| {
+        if (std.mem.eql(u8, param.key, key)) return param.value;
+    }
+    return null;
 }
 
 const std = @import("std");

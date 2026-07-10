@@ -1,0 +1,5 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (<div @allocator={ctx.arena}>Wildcard Page: {ctx.request.pathname}</div>);
+}
+
+const zx = @import("zx");

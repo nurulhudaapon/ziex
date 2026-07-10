@@ -8,6 +8,9 @@ const LayoutContext = zx.LayoutContext;
 const NotFoundContext = zx.NotFoundContext;
 const ErrorContext = zx.ErrorContext;
 const ServerApp = zx.server.App;
+const tryExtractParams = zx.Router.tryExtractParams;
+const patternMatchScore = zx.Router.patternMatchScore;
+const RouteMatch = zx.Router.RouteMatch;
 
 const AppCtx = struct { port: u16 };
 const StateCtx = struct { count: i32 };
@@ -220,4 +223,35 @@ test "ServerMeta.page injects null for optional app parameter" {
     _ = try page_fn(ctx, null, null);
 
     try std.testing.expect(OptionalPageModule.saw_null);
+}
+
+test "tryExtractParams: glob_all catch-all matches nested paths" {
+    var m = RouteMatch{ .route = undefined };
+    try std.testing.expect(tryExtractParams("/:*", "/anything/everything", &m));
+    try std.testing.expectEqual(@as(usize, 1), m.param_count);
+    try std.testing.expectEqualStrings("anything", m.getParam("*").?);
+}
+
+test "tryExtractParams: glob_all catch-all matches single segment" {
+    var m = RouteMatch{ .route = undefined };
+    try std.testing.expect(tryExtractParams("/:*", "/anything", &m));
+    try std.testing.expectEqualStrings("anything", m.getParam("*").?);
+}
+
+test "tryExtractParams: static route does not match extra segments" {
+    var m = RouteMatch{ .route = undefined };
+    try std.testing.expect(!tryExtractParams("/search.json", "/search.json/extra", &m));
+}
+
+test "tryExtractParams: static route matches exactly" {
+    var m = RouteMatch{ .route = undefined };
+    try std.testing.expect(tryExtractParams("/search.json", "/search.json", &m));
+}
+
+test "patternMatchScore: static routes outrank catch-all params" {
+    try std.testing.expect(patternMatchScore("/search.json") > patternMatchScore("/:*"));
+}
+
+test "patternMatchScore: root route is specific" {
+    try std.testing.expect(patternMatchScore("/") > patternMatchScore("/:*"));
 }

@@ -1,11 +1,13 @@
 const Wasm = @This();
 
 const std = @import("std");
+const app_opts = @import("app_opts");
+
 const zx = @import("../../../root.zig");
 const App = @import("../App.zig");
 const ext = @import("../../server/wasm/extern.zig");
 const core_handler = @import("../Handler.zig");
-const app_opts = @import("app_opts");
+const render = @import("../../server/render.zig");
 
 const Router = zx.Router;
 const Backend = zx.Http.Wasm.Backend;
@@ -146,7 +148,7 @@ pub fn run(process_init: std.process.Init) !void {
                 try stdout.flush();
 
                 if (async_components.len > 0) {
-                    try stdout.writeAll(Router.streaming_bootstrap_script);
+                    try stdout.writeAll(render.streaming_bootstrap_script);
                     for (async_components) |async_comp| {
                         const script = async_comp.renderScript(allocator) catch continue;
                         try stdout.writeAll(script);
