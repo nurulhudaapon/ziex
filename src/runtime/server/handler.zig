@@ -48,7 +48,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                 .meta = meta,
                 .config = config,
                 .allocator = allocator,
-                .page_cache = if (feat_cache) try PageCache.init(io, allocator, cache_config) else void{},
+                .page_cache = if (feat_cache) try PageCache.init(io, allocator, cache_config) else {},
                 .app_ctx = app_ctx,
                 .io = io,
             };
