@@ -235,12 +235,18 @@ fn zxExtLen(path: []const u8) ?usize {
     return null;
 }
 
-/// Convert `[param]` segments into `:param` (drops the brackets). The returned
-/// slice is owned by `allocator`.
+/// Convert filesystem route segments into URL patterns:
+/// - `[param]` → `:param`
+/// - `[..]` → `*`
+/// The returned slice is owned by `allocator`.
 fn normalizeRoutePath(allocator: std.mem.Allocator, path: []const u8) ![]u8 {
+    // Replace catch-all folder `[..]` with `*` before bracket normalization.
+    const with_wildcard = try replaceAll(allocator, path, "[..]", "*");
+    defer allocator.free(with_wildcard);
+
     var out = std.array_list.Managed(u8).init(allocator);
     errdefer out.deinit();
-    for (path) |c| {
+    for (with_wildcard) |c| {
         if (c == '[') {
             try out.append(':');
         } else if (c != ']') {
@@ -573,22 +579,20 @@ fn extractRouteFromPath(allocator: std.mem.Allocator, source_path: []const u8) !
             return try allocator.dupe(u8, "/");
         }
 
-        // Normalize the route: convert [id] to :id and path separators to /
-        var normalized_route = std.array_list.Managed(u8).init(allocator);
-        defer normalized_route.deinit();
-        try normalized_route.append('/');
+        // Normalize separators first, then [id]→:id and [..]→*
+        var with_slashes = std.array_list.Managed(u8).init(allocator);
+        defer with_slashes.deinit();
+        try with_slashes.append('/');
 
         for (dir_path) |c| {
             if (c == std.fs.path.sep) {
-                try normalized_route.append('/');
-            } else if (c == '[') {
-                try normalized_route.append(':');
-            } else if (c != ']') {
-                try normalized_route.append(c);
+                try with_slashes.append('/');
+            } else {
+                try with_slashes.append(c);
             }
         }
 
-        return try normalized_route.toOwnedSlice();
+        return try normalizeRoutePath(allocator, with_slashes.items);
     }
 
     // Not in pages directory, return empty string
