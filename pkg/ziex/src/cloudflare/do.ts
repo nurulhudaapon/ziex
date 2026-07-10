@@ -1,5 +1,6 @@
 import { ZxBridge } from "../wasm";
 import { createKVImports, createMemoryKV } from "../kv";
+import { createFetchImports } from "../fetch";
 import { createD1Imports } from "../db";
 import { createWasiImports } from "../wasi";
 import { buildWsImports, attachWebSocket } from "../runtime";
@@ -128,6 +129,7 @@ export function createWebSocketDO(
                 __zx_ws: wsImports,
                 __zx_kv: createKVImports(kvBindings ?? { default: createMemoryKV() }, mem),
                 __zx_db: createD1Imports(dbBindings ?? {}, mem),
+                __zx_net: createFetchImports(mem),
                 ...(options?.imports ? options.imports(mem) : {}),
                 ...bridgeImports,
             } as WebAssembly.Imports);

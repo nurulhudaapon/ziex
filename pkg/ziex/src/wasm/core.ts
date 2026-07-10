@@ -1,4 +1,5 @@
 import { ZigJS } from "../../../../vendor/jsz/js/src";
+import { createFetchImports } from "../fetch";
 
 /**
  * Core WASM bridge - environment-agnostic (browser + edge).
@@ -156,7 +157,7 @@ export class ZxBridgeCore {
         const url = readString(urlPtr, urlLen);
         const method = methodLen > 0 ? readString(methodPtr, methodLen) : 'GET';
         const headersJson = headersLen > 0 ? readString(headersPtr, headersLen) : '{}';
-        const body = bodyLen > 0 ? readString(bodyPtr, bodyLen) : undefined;
+        const body = bodyLen > 0 ? getMemoryView().subarray(bodyPtr, bodyPtr + bodyLen) : undefined;
 
         let headers: Record<string, string> = {};
         try {
@@ -183,8 +184,8 @@ export class ZxBridgeCore {
         fetch(url, fetchOptions)
             .then(async (response) => {
                 if (timeout) clearTimeout(timeout);
-                const text = await response.text();
-                this._notifyFetchComplete(fetchId, response.status, text, false);
+                const bytes = new Uint8Array(await response.arrayBuffer());
+                this._notifyFetchComplete(fetchId, response.status, bytes, false);
             })
             .catch((error) => {
                 if (timeout) clearTimeout(timeout);
@@ -194,10 +195,15 @@ export class ZxBridgeCore {
             });
     }
 
-    /** Notify WASM that a fetch completed */
-    protected _notifyFetchComplete(fetchId: bigint, statusCode: number, body: string, isError: boolean): void {
+    /** Notify WASM that a fetch completed. `body` is raw bytes on success, text on error. */
+    protected _notifyFetchComplete(
+        fetchId: bigint,
+        statusCode: number,
+        body: string | Uint8Array,
+        isError: boolean,
+    ): void {
         const handler = this.#fetchCompleteHandler;
-        const encoded = textEncoder.encode(body);
+        const encoded = typeof body === 'string' ? textEncoder.encode(body) : body;
         const ptr = this._alloc(encoded.length);
         writeBytes(ptr, encoded);
         invokeWasmExport(handler, fetchId, statusCode, ptr, encoded.length, isError ? 1 : 0);
@@ -265,6 +271,10 @@ export class ZxBridgeCore {
     static createImportObject(bridgeRef: { current: ZxBridgeCore | null }): WebAssembly.Imports {
         return {
             ...jsz.importObject(),
+            __zx_net: createFetchImports(() => {
+                if (!jsz.memory) throw new Error("WASM memory is not ready");
+                return jsz.memory;
+            }) as WebAssembly.ModuleImports,
             __zx: {
                 _log: (level: number, ptr: number, len: number) => ZxBridgeCore.log(level, ptr, len),
                 _fetchAsync: (

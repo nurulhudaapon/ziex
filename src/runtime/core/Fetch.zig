@@ -20,6 +20,7 @@ const common = @import("common.zig");
 
 const server_impl = if (!is_wasm) @import("../server/fetch.zig") else struct {};
 const client_impl = if (is_wasm) @import("../client/fetch.zig") else struct {};
+const wasm_impl = if (is_wasm) @import("Fetch/Wasm.zig") else struct {};
 
 pub const Method = common.Method;
 pub const ContentType = common.ContentType;
@@ -28,7 +29,7 @@ pub const is_wasm = builtin.cpu.arch == .wasm32 or builtin.cpu.arch == .wasm64;
 
 /// Io determines how fetch operations are executed.
 ///
-/// - `blocking`: Blocks until complete (server-side)
+/// - `blocking`: Blocks until complete (server-side native, WASM via JSPI)
 /// - `callback`: Calls a callback when complete (client-side WASM)
 pub const Io = struct {
     mode: Mode,
@@ -57,7 +58,7 @@ pub const Io = struct {
     /// Check if this Io mode is supported on the current platform.
     pub fn isSupported(self: Io) bool {
         return switch (self.mode) {
-            .blocking => !is_wasm, // Blocking only works on server
+            .blocking => true, // Native on server, JSPI-suspended on WASM
             .callback => true, // Callback works everywhere
         };
     }
@@ -119,6 +120,11 @@ pub const Response = struct {
         if (self._body_used) return error.BodyAlreadyUsed;
         self._body_used = true;
         return self._body;
+    }
+
+    /// Returns the raw response body bytes.
+    pub fn bytes(self: *Response) ![]const u8 {
+        return self.text();
     }
 
     /// Get an `std.Io.Reader` for streaming the response body.
@@ -199,7 +205,7 @@ pub const ResponseCallbackCtx = *const fn (ctx: *anyopaque, response: ?*Response
 /// Perform an HTTP fetch request.
 ///
 /// The `io` parameter determines the execution model:
-/// - `Io.blocking` - Blocks until complete, returns Response (server-only)
+/// - `Io.blocking` - Blocks until complete, returns Response (server native, WASM via JSPI)
 /// - `Io.wasm(&callback)` - Calls callback when complete (WASM)
 ///
 /// **Server-side (blocking):**
@@ -237,9 +243,8 @@ pub fn fetch(
 
     switch (io.mode) {
         .blocking => {
-            // Server-side: blocking fetch
             if (is_wasm) {
-                return error.UnsupportedIoMode;
+                return try wasm_impl.fetch(allocator, url, init);
             }
             const response = try server_impl.fetch(allocator, url, init);
             return response;

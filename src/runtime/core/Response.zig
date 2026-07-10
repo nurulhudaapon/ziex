@@ -1,4 +1,4 @@
-pub const Response = @This();
+const Response = @This();
 
 const std = @import("std");
 const common = @import("common.zig");

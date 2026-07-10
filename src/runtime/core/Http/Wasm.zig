@@ -50,9 +50,9 @@ pub const Backend = struct {
     }
 
     /// Build an abstract `Request` backed by this instance.
-    pub fn request(self: *Backend, method: Request.Method, pathname: []const u8) Request {
+    pub fn request(self: *Backend, method: Request.Method, pathname: []const u8, url: []const u8) Request {
         return (Request.Builder{
-            .url = "",
+            .url = url,
             .method = method,
             .method_str = @tagName(method),
             .pathname = pathname,

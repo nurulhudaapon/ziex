@@ -68,7 +68,7 @@ export class ZxWasiBridge {
         const url = this.#readString(urlPtr, urlLen);
         const method = methodLen > 0 ? this.#readString(methodPtr, methodLen) : 'GET';
         const headersJson = headersLen > 0 ? this.#readString(headersPtr, headersLen) : '{}';
-        const body = bodyLen > 0 ? this.#readString(bodyPtr, bodyLen) : undefined;
+        const body = bodyLen > 0 ? this.#view().subarray(bodyPtr, bodyPtr + bodyLen) : undefined;
 
         let headers: Record<string, string> = {};
         try {
@@ -91,7 +91,8 @@ export class ZxWasiBridge {
         })
             .then(async (res) => {
                 if (timeout) clearTimeout(timeout);
-                this.#notifyFetchComplete(fetchId, res.status, await res.text(), false);
+                const bytes = new Uint8Array(await res.arrayBuffer());
+                this.#notifyFetchComplete(fetchId, res.status, bytes, false);
             })
             .catch((err: Error) => {
                 if (timeout) clearTimeout(timeout);
@@ -100,8 +101,8 @@ export class ZxWasiBridge {
             });
     }
 
-    #notifyFetchComplete(fetchId: bigint, status: number, body: string, isError: boolean): void {
-        const encoded = encoder.encode(body);
+    #notifyFetchComplete(fetchId: bigint, status: number, body: string | Uint8Array, isError: boolean): void {
+        const encoded = typeof body === 'string' ? encoder.encode(body) : body;
         const ptr = this.#alloc(encoded.length);
         this.#writeBytes(ptr, encoded);
         this.#fetchCompleteHandler(fetchId, status, ptr, encoded.length, isError ? 1 : 0);

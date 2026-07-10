@@ -3,11 +3,24 @@ const Wasm = @This();
 const std = @import("std");
 const Kv = @import("../Kv.zig");
 
+const max_response_bytes = 16 * 1024 * 1024;
+
 fn get(_: ?*anyopaque, ns: []const u8, allocator: std.mem.Allocator, key: []const u8) !?[]u8 {
-    var buf: [8192]u8 = undefined;
-    const n = ext.kv_get(ns.ptr, ns.len, key.ptr, key.len, &buf, buf.len);
-    if (n < 0) return null;
-    return try allocator.dupe(u8, buf[0..@intCast(n)]);
+    var capacity: usize = 65536;
+    var buf = try allocator.alloc(u8, capacity);
+    defer allocator.free(buf);
+
+    while (true) {
+        const n = ext.kv_get(ns.ptr, ns.len, key.ptr, key.len, buf.ptr, capacity);
+        if (n == -2) {
+            capacity *= 2;
+            if (capacity > max_response_bytes) return error.InvalidResponse;
+            buf = try allocator.realloc(buf, capacity);
+            continue;
+        }
+        if (n < 0) return null;
+        return try allocator.dupe(u8, buf[0..@intCast(n)]);
+    }
 }
 
 fn put(_: ?*anyopaque, ns: []const u8, key: []const u8, value: []const u8, _: Kv.PutOptions) !void {

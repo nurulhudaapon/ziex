@@ -24,6 +24,7 @@ import {
     getMemoryView,
 } from "./core";
 import { createKVImports, type KVNamespace } from "../kv";
+import { createFetchImports } from "../fetch";
 import { createBrowserKVBindings } from "../browser/kv";
 import type {
     WsOnOpenHandler,
@@ -216,6 +217,10 @@ export class ZxBridge extends ZxBridgeCore {
     static override createImportObject(bridgeRef: { current: ZxBridge | null }): WebAssembly.Imports {
         return {
             ...jsz.importObject(),
+            __zx_net: createFetchImports(() => {
+                if (!jsz.memory) throw new Error("WASM memory is not ready");
+                return jsz.memory;
+            }) as WebAssembly.ModuleImports,
             __zx: {
                 _log: (level: number, ptr: number, len: number) => ZxBridgeCore.log(level, ptr, len),
                 _setEventHandlerMode: (vnodeId: bigint, eventTypeId: number, maySuspend: number) => {

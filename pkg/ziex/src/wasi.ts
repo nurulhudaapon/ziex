@@ -33,6 +33,7 @@ export function createWasiImports({
         "--pathname", url.pathname,
         "--method", request.method,
         "--search", url.search,
+        "--url", url.href
     ];
 
     request.headers.forEach((value, name) => {

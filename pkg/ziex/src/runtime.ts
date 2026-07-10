@@ -1,5 +1,6 @@
 import { ZxWasiBridge } from "./wasm/wasi";
 import { createKVImports, createMemoryKV } from "./kv";
+import { createFetchImports } from "./fetch";
 import { createD1Imports } from "./db";
 import { createWasiImports, ProcExit, mergeUint8Arrays } from "./wasi";
 import type { WASI } from "./wasi";
@@ -280,6 +281,7 @@ export async function run({
         __zx_ws: buildWsImports(jspi ? Suspending : null, mem, new TextDecoder(), wsState),
         __zx_kv: createKVImports(kvBindings ?? { default: createMemoryKV() }, mem),
         __zx_db: createD1Imports(dbBindings ?? {}, mem),
+        __zx_net: createFetchImports(mem),
         ...(imports ? imports(mem) : {}),
         ...ZxWasiBridge.createImportObject(bridgeRef),
     } as WebAssembly.Imports);

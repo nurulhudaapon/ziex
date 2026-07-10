@@ -38,6 +38,7 @@ pub fn run(process_init: std.process.Init) !void {
 
     var pathname: []const u8 = "/";
     var search: []const u8 = "";
+    var url: []const u8 = "";
     var method: zx.server.Request.Method = .GET;
     var header_entries = std.ArrayList(HeaderEntry).empty;
     defer header_entries.deinit(allocator);
@@ -59,6 +60,8 @@ pub fn run(process_init: std.process.Init) !void {
                     .value = std.mem.trimStart(u8, header_str[sep + 1 ..], " "),
                 });
             }
+        } else if (std.mem.eql(u8, arg, "--url")) {
+            url = args.next() orelse return error.MissingUrl;
         }
     }
 
@@ -93,7 +96,7 @@ pub fn run(process_init: std.process.Init) !void {
     backend.cookie_header = cookie_header;
     backend.route_match = Router.matchRoute(pathname, .{ .match = .exact });
 
-    const request = backend.request(method, pathname);
+    const request = backend.request(method, pathname, url);
     const response = backend.response();
     const http = backend.http();
 
