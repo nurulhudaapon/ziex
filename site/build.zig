@@ -144,7 +144,7 @@ pub fn build(b: *std.Build) !void {
             },
         },
         .client = .{
-            .jsglue_href = b.fmt("/assets/main.{s}.js", .{id}),
+            .jsglue_href = b.fmt("/assets/main{s}.js", .{id}),
             .jsglue_install_subdir = "pkg/ziex",
         },
         .cli = .{ .optimize = optimize, .log_level = log_level, .zig_path = "zig" },
@@ -233,7 +233,7 @@ pub fn build(b: *std.Build) !void {
             },
         });
 
-        const install_main_js = b.addInstallFile(site_scripts.dir.path(b, "client.js"), b.fmt("static/assets/main.{s}.js", .{id}));
+        const install_main_js = b.addInstallFile(site_scripts.dir.path(b, "client.js"), b.fmt("static/assets/main{s}.js", .{id}));
         const install_docs_js = b.addInstallFile(site_scripts.dir.path(b, "docs.js"), "static/assets/docs.js");
         const install_home_js = b.addInstallFile(site_scripts.dir.path(b, "home.js"), "static/assets/home.js");
         b.default_step.dependOn(&install_main_js.step);
@@ -294,8 +294,8 @@ pub fn build(b: *std.Build) !void {
 }
 
 fn assetId(_: *std.Build, optimize: std.builtin.OptimizeMode) []const u8 {
-    if (optimize == .Debug) return "dev";
-    return "dev";
+    if (optimize == .Debug) return ".dev";
+    return "";
 
     // TODO: use ziex_builder.addStaticInstallFile(.{src: lazypath, dest_name: "assets/app.{hash}.js"}) once this is implemented
 }
