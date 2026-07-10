@@ -83,7 +83,7 @@ pub const PageOptions = struct {
     pub const Method = PageMethod;
 
     rendering: ?BuiltinAttribute.Rendering = null,
-    caching: BuiltinAttribute.Caching = .none,
+    caching: ?BuiltinAttribute.Caching = null,
     methods: []const PageMethod = &.{.GET},
     static: ?StaticFn = null,
     /// Enable streaming SSR with async components
@@ -92,15 +92,15 @@ pub const PageOptions = struct {
 
 pub const LayoutOptions = struct {
     rendering: ?BuiltinAttribute.Rendering = null,
-    caching: BuiltinAttribute.Caching = .none,
+    caching: ?BuiltinAttribute.Caching = null,
 };
 pub const NotFoundOptions = struct {
     rendering: ?BuiltinAttribute.Rendering = null,
-    caching: BuiltinAttribute.Caching = .none,
+    caching: ?BuiltinAttribute.Caching = null,
 };
 pub const ErrorOptions = struct {};
 pub const RouteOptions = struct {
-    caching: BuiltinAttribute.Caching = .none,
+    caching: ?BuiltinAttribute.Caching = null,
     static: ?StaticFn = null,
 };
 

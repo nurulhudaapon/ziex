@@ -29,13 +29,14 @@ pub fn Handler(comptime AppCtxType: type) type {
     const cli_command = Server.cli_cmd;
     const is_dev = cli_command == .dev;
     const is_export = cli_command == .@"export";
+    const feat_cache = app_opts.feat_cache_server;
 
     return struct {
         const Self = @This();
 
         meta: *ServerApp,
         config: AppConfig,
-        page_cache: PageCache,
+        page_cache: if (feat_cache) PageCache else void,
         allocator: std.mem.Allocator,
         app_ctx: *AppCtxType,
         io: std.Io,
@@ -47,14 +48,14 @@ pub fn Handler(comptime AppCtxType: type) type {
                 .meta = meta,
                 .config = config,
                 .allocator = allocator,
-                .page_cache = try PageCache.init(io, allocator, cache_config),
+                .page_cache = if (feat_cache) try PageCache.init(io, allocator, cache_config) else void{},
                 .app_ctx = app_ctx,
                 .io = io,
             };
         }
 
         pub fn deinit(self: *Self) void {
-            self.page_cache.deinit();
+            if (feat_cache) self.page_cache.deinit();
         }
 
         pub fn dispatch(self: *Self, action: httpz.Action(*Self), req: *httpz.Request, res: *httpz.Response) !void {
@@ -65,7 +66,7 @@ pub fn Handler(comptime AppCtxType: type) type {
 
             // Try cache first, execute action on miss
             // Note: Middlewares are handled by httpz before this dispatch is called
-            const cache_status = self.page_cache.tryServe(req, res);
+            const cache_status = if (feat_cache) self.page_cache.tryServe(req, res) else PageCache.Status.disabled;
             if (cache_status != .hit) {
                 try action(self, req, res);
                 if (cache_status == .miss) self.page_cache.store(req, res);
@@ -835,7 +836,7 @@ const StatusIndicator = struct {
                 "";
         }
 
-        const effective_cache = if (PageCache.isCacheableHttpStatus(http_status)) cache_status else PageCache.Status.skip;
+        const effective_cache = PageCache.effectiveStatus(cache_status, http_status);
 
         // [XY] format: X=proxy, Y=cache (dim brackets, colored content)
         if (proxy_aborted) {
@@ -903,8 +904,7 @@ const PageCache = struct {
 
     /// Try to serve from cache. Returns cache status.
     pub fn tryServe(self: *PageCache, req: *httpz.Request, res: *httpz.Response) Status {
-        if (self.config.max_size == 0) return .disabled;
-        if (!isCacheable(req)) return .skip;
+        _ = checkCacheable(self.config, req, null) catch |err| return statusFromError(err);
 
         // Check conditional request (If-None-Match)
         if (req.header("if-none-match")) |client_etag| {
@@ -932,14 +932,13 @@ const PageCache = struct {
 
     /// Cache a successful response
     pub fn store(self: *PageCache, req: *httpz.Request, res: *httpz.Response) void {
-        if (self.config.max_size == 0) return;
-        if (!isCacheableHttpStatus(res.status)) return;
-        if (!isCacheableContentType(res.content_type)) return;
-
-        // Get response body from buffer.writer (rendered pages) or res.body (direct)
         const buffered = res.buffer.writer.buffered();
         const body = if (buffered.len > 0) buffered else res.body;
-        if (body.len == 0) return;
+
+        const ttl = checkCacheable(self.config, req, .{
+            .status = res.status,
+            .body_len = body.len,
+        }) catch return;
 
         // Generate ETag from body hash
         const hash = std.hash.Wyhash.hash(0, body);
@@ -956,7 +955,7 @@ const PageCache = struct {
             .etag = etag,
             .content_type = res.content_type,
         }, .{
-            .ttl = getTtl(req) orelse self.config.default_ttl,
+            .ttl = ttl,
         }) catch |err| {
             log.warn("Failed to cache page {s}: {}", .{ req.url.path, err });
             self.allocator.free(cached_body);
@@ -975,30 +974,86 @@ const PageCache = struct {
         res.headers.add("X-Cache", "HIT");
     }
 
-    fn isCacheable(req: *httpz.Request) bool {
-        if (getTtl(req) == null) return false;
-        if (req.method != .GET) return false;
-        if (std.mem.startsWith(u8, req.url.path, "/.well-known/_zx/")) return false;
-        return true;
+    pub const CacheError = error{
+        Disabled,
+        MissingRouteData,
+        NotConfigured,
+        UnsupportedMethod,
+        UnsupportedPath,
+        ZeroTtl,
+        UnsupportedHttpStatus,
+        EmptyBody,
+    };
+
+    const ResponseCheck = struct {
+        status: ?u16 = null,
+        body_len: ?usize = null,
+    };
+
+    /// Adjust cache status for display when the response is not cacheable.
+    pub fn effectiveStatus(cache_status: Status, http_status: u16) Status {
+        _ = checkCacheable(null, null, .{ .status = http_status }) catch return .skip;
+        return cache_status;
     }
 
-    fn isCacheableContentType(content_type: ?httpz.ContentType) bool {
-        const ct = content_type orelse return false;
-        return ct == .HTML or ct == .ICO or ct == .CSS or ct == .JS or ct == .TEXT;
+    fn statusFromError(err: CacheError) Status {
+        return switch (err) {
+            error.Disabled => .disabled,
+            error.MissingRouteData => .skip,
+            error.NotConfigured => .skip,
+            error.UnsupportedMethod => .skip,
+            error.UnsupportedPath => .skip,
+            error.ZeroTtl => .skip,
+            error.UnsupportedHttpStatus => .skip,
+            error.EmptyBody => .skip,
+        };
     }
-    fn isCacheableHttpStatus(http_status: u16) bool {
-        return http_status == 200;
-    }
-    fn getTtl(req: *httpz.Request) ?u32 {
-        if (req.route_data) |rd| {
-            const route: *const ServerApp.Route = @ptrCast(@alignCast(rd));
-            if (route.page_opts) |options| {
-                // Return null if caching is disabled (seconds = 0)
-                if (options.caching.ttl.nanoseconds == 0) return null;
-                return @intCast(options.caching.ttl.toSeconds());
+
+    /// Validate whether a request/response may be cached. Returns the route TTL when a request is provided.
+    fn checkCacheable(
+        config: ?AppConfig.CacheConfig,
+        req: ?*httpz.Request,
+        response: ?ResponseCheck,
+    ) CacheError!u32 {
+        if (config) |cfg| {
+            if (cfg.max_size == 0) return error.Disabled;
+        }
+
+        if (req) |r| {
+            if (r.method != .GET) return error.UnsupportedMethod;
+            if (std.mem.startsWith(u8, r.url.path, "/.well-known/_zx/")) return error.UnsupportedPath;
+        }
+
+        const ttl = ttl_blk: {
+            if (req) |r| {
+                const route_data = r.route_data orelse return error.MissingRouteData;
+                const route: *const ServerApp.Route = @ptrCast(@alignCast(route_data));
+
+                const caching: ?zx.BuiltinAttribute.Caching = cache_blk: {
+                    if (route.page_opts) |o| if (o.caching) |c| break :cache_blk c else break :cache_blk null;
+                    if (route.layout_opts) |o| if (o.caching) |c| break :cache_blk c else break :cache_blk null;
+                    if (route.notfound_opts) |o| if (o.caching) |c| break :cache_blk c else break :cache_blk null;
+                    if (route.route_opts) |o| if (o.caching) |c| break :cache_blk c else break :cache_blk null;
+                    break :cache_blk null;
+                };
+
+                const c = caching orelse return error.NotConfigured;
+                if (c.ttl.nanoseconds == 0) return error.ZeroTtl;
+                const ttl_s: u32 = @intCast(c.ttl.toSeconds());
+                break :ttl_blk ttl_s;
+            } else break :ttl_blk 0;
+        };
+
+        if (response) |r| {
+            if (r.status) |status| {
+                if (status != 200) return error.UnsupportedHttpStatus;
+            }
+            if (r.body_len) |len| {
+                if (len == 0) return error.EmptyBody;
             }
         }
-        return null;
+
+        return ttl;
     }
 
     /// Delete a specific page from the cache by exact path
