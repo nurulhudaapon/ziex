@@ -1,6 +1,8 @@
 const std = @import("std");
+const util = @import("src/util.zig");
 
 pub const BuildConfig = @import("src/EsbuildBuildConfig.zig");
+
 pub const Build = struct {
     name: ?[]const u8 = null,
     config: BuildConfig,
@@ -37,20 +39,16 @@ fn innerInitSingle(b: *std.Build, build_item: Build) !Output {
     var arena = std.heap.ArenaAllocator.init(b.allocator);
     const alloc = arena.allocator();
 
-    // Create config for single build (outdir is NOT in config - injected by exe from CLI arg)
-    var obj = std.json.ObjectMap.empty;
-    try obj.put(alloc, "name", .{ .string = build_item.name orelse "esbuild" });
-    const config_val = try build_item.config.toJsonValue(b, alloc);
-    try obj.put(alloc, "config", config_val);
-    var arr = std.json.Array.init(alloc);
-    try arr.append(.{ .object = obj });
-    const json_buf = try std.json.Stringify.valueAlloc(alloc, std.json.Value{ .array = arr }, .{});
+    const json_buf = try std.json.Stringify.valueAlloc(alloc, util.options(build_item.config), .{});
 
     const run = b.addRunArtifact(plugin_exe);
 
     const step_name = b.fmt("build {s} {s}{s}{s}", .{ deriveName(b, build_item, &run.step), colors.dim, "esbuild", colors.reset });
     run.setName(step_name);
     run.setStdIn(.{ .bytes = json_buf });
+
+    run.addArg("--name");
+    run.addArg(build_item.name orelse "esbuild");
 
     // Zig-managed output directory (enables build caching)
     run.addArg("--outdir");
@@ -65,7 +63,10 @@ fn innerInitSingle(b: *std.Build, build_item: Build) !Output {
     run.addArg("--esbuild-path");
     run.addFileArg(bin);
 
-    for (build_item.config.entrypoints) |ep| run.addFileInput(ep);
+    for (build_item.config.entrypoints) |ep| {
+        run.addArg("--entry");
+        run.addFileArg(ep);
+    }
 
     return .{ .dir = outdir, .run = run };
 }
@@ -102,7 +103,7 @@ pub fn build(b: *std.Build) void {
     // `zig build run`
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
-    // if (b.args) |args| run_cmd.addArgs(args);
+    run_cmd.addPassthruArgs();
 
     const run_step = b.step("run", "Run the plugin");
     run_step.dependOn(&run_cmd.step);

@@ -1,28 +1,40 @@
 const std = @import("std");
+const Options = @import("util.zig").Options;
 
 pub fn main(init: std.process.Init) !void {
     var gpa = std.heap.ArenaAllocator.init(std.heap.page_allocator);
     defer gpa.deinit();
     const allocator = gpa.allocator();
 
-    // --- Flags --- //
-    var esbuild_path: []const u8 = "node_modules/.bin/esbuild";
+    var esbuild_path: []const u8 = undefined;
     var outdir_path: ?[]const u8 = null;
     var dep_file_path: ?[]const u8 = null;
+    var name: []const u8 = "esbuild";
+    var entrypoints: std.ArrayList([]const u8) = .empty;
 
     var args = try init.minimal.args.iterateAllocator(allocator);
     defer args.deinit();
     _ = args.next(); // skip program name
 
     while (args.next()) |arg| {
-        if (std.mem.eql(u8, arg, "--esbuild-path")) esbuild_path = args.next() orelse return error.MissingEsbuildPath;
-        if (std.mem.eql(u8, arg, "--outdir")) outdir_path = args.next() orelse return error.MissingOutdirPath;
-        if (std.mem.eql(u8, arg, "--dep-file")) dep_file_path = args.next() orelse return error.MissingDepFilePath;
+        if (std.mem.eql(u8, arg, "--esbuild-path")) {
+            esbuild_path = args.next() orelse return error.MissingEsbuildPath;
+        } else if (std.mem.eql(u8, arg, "--outdir")) {
+            outdir_path = args.next() orelse return error.MissingOutdirPath;
+        } else if (std.mem.eql(u8, arg, "--dep-file")) {
+            dep_file_path = args.next() orelse return error.MissingDepFilePath;
+        } else if (std.mem.eql(u8, arg, "--name")) {
+            name = args.next() orelse return error.MissingName;
+        } else if (std.mem.eql(u8, arg, "--entry")) {
+            try entrypoints.append(allocator, args.next() orelse return error.MissingEntry);
+        }
     }
+
+    if (entrypoints.items.len == 0) return error.MissingEntrypoints;
 
     const outdir = outdir_path orelse "dist";
 
-    // Read stdin into memory
+    // Read stdin Options JSON
     var stdin_buffer: [4096]u8 = undefined;
     var stdin_reader = std.Io.File.stdin().readerStreaming(init.io, &stdin_buffer);
     var stdin_writer = std.Io.Writer.Allocating.init(allocator);
@@ -31,93 +43,78 @@ pub fn main(init: std.process.Init) !void {
     const input_json = try stdin_writer.toOwnedSlice();
     defer allocator.free(input_json);
 
-    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, input_json, .{});
+    const options_json = if (input_json.len == 0) "{}" else input_json;
+    const parsed = try std.json.parseFromSlice(Options, allocator, options_json, .{
+        .allocate = .alloc_always,
+        .ignore_unknown_fields = true,
+    });
     defer parsed.deinit();
-
-    const builds = parsed.value.array.items;
-    const build_count = builds.len;
+    const opts = parsed.value;
 
     var progress = std.Progress.start(init.io, .{
         .root_name = "esbuild",
-        .estimated_total_items = build_count,
+        .estimated_total_items = 1,
     });
     defer progress.end();
+
+    const node = progress.start(name, 0);
+    defer {
+        node.end();
+        progress.completeOne();
+    }
 
     var all_deps = std.ArrayList([]const u8).empty;
     defer all_deps.deinit(allocator);
 
-    var failed: usize = 0;
+    const meta_path = try std.fmt.allocPrint(allocator, "{s}/.esbuild-meta.json", .{outdir});
 
-    for (builds, 0..) |build_item, i| {
-        const name = if (build_item.object.get("name")) |n| n.string else "esbuild";
-        const id: u32 = if (build_item.object.get("id")) |id_val| switch (id_val) {
-            .integer => |n| @intCast(n),
-            else => @intCast(i),
-        } else @intCast(i);
-        const config = build_item.object.get("config") orelse return error.MissingConfig;
+    const argv = try buildEsbuildArgv(allocator, esbuild_path, entrypoints.items, opts, outdir, meta_path);
+    defer allocator.free(argv);
 
-        const display = try std.fmt.allocPrint(allocator, "{s} ({d})", .{ name, id });
-        const node = progress.start(display, 0);
-        defer {
-            node.end();
-            progress.completeOne();
+    var child = std.process.spawn(init.io, .{
+        .argv = argv,
+        .stdin = .ignore,
+        .stdout = .inherit,
+        .stderr = .inherit,
+    }) catch |err| {
+        if (err == error.FileNotFound) {
+            std.debug.print("Failed to execute esbuild: executable not found at '{s}'\n", .{esbuild_path});
+            return error.EsbuildNotFound;
         }
+        return err;
+    };
 
-        const meta_path = try std.fmt.allocPrint(allocator, "{s}/.esbuild-meta-{d}.json", .{ outdir, id });
+    const term = child.wait(init.io) catch |err| {
+        std.debug.print("Failed to wait for esbuild process: {any}\n", .{err});
+        return error.WaitFailed;
+    };
+    const exit_code: u8 = switch (term) {
+        .exited => |c| c,
+        else => 1,
+    };
 
-        const argv = try buildEsbuildArgv(allocator, esbuild_path, config, outdir, meta_path);
-        defer allocator.free(argv);
-
-        var child = std.process.spawn(init.io, .{
-            .argv = argv,
-            .stdin = .ignore,
-            .stdout = .inherit,
-            .stderr = .inherit,
-        }) catch |err| {
-            if (err == error.FileNotFound) {
-                std.debug.print("Failed to execute esbuild: executable not found at '{s}'\n", .{esbuild_path});
-                return error.EsbuildNotFound;
-            }
-            return err;
-        };
-
-        const term = child.wait(init.io) catch |err| {
-            std.debug.print("Failed to wait for esbuild process: {any}\n", .{err});
-            return error.WaitFailed;
-        };
-        const exit_code: u8 = switch (term) {
-            .exited => |c| c,
-            else => 1,
-        };
-
-        if (exit_code != 0) {
-            failed += 1;
-            std.debug.print("esbuild [{s}] failed with exit code {d}\n", .{ name, exit_code });
-            continue;
-        }
-
-        collectMetafileDeps(allocator, init.io, meta_path, &all_deps) catch |err| {
-            std.debug.print("esbuild [{s}] warning: failed to read metafile: {any}\n", .{ name, err });
-        };
-        std.Io.Dir.cwd().deleteFile(init.io, meta_path) catch {};
+    if (exit_code != 0) {
+        std.debug.print("esbuild [{s}] failed with exit code {d}\n", .{ name, exit_code });
+        std.process.exit(1);
     }
+
+    collectMetafileDeps(allocator, init.io, meta_path, &all_deps) catch |err| {
+        std.debug.print("esbuild [{s}] warning: failed to read metafile: {any}\n", .{ name, err });
+    };
+    std.Io.Dir.cwd().deleteFile(init.io, meta_path) catch {};
 
     if (dep_file_path) |dfp| {
         writeDepFile(allocator, init.io, dfp, outdir, all_deps.items) catch |err| {
             std.debug.print("Failed to write dep file: {any}\n", .{err});
         };
     }
-
-    if (failed > 0) {
-        std.debug.print("esbuild: {d} build(s) failed\n", .{failed});
-        std.process.exit(1);
-    }
 }
 
 fn buildEsbuildArgv(
     allocator: std.mem.Allocator,
     esbuild_bin: []const u8,
-    config: std.json.Value,
+    entrypoints: []const []const u8,
+    opts: Options,
     outdir: []const u8,
     meta_path: []const u8,
 ) ![]const []const u8 {
@@ -126,61 +123,51 @@ fn buildEsbuildArgv(
 
     try argv.append(allocator, esbuild_bin);
 
-    const entrypoints = config.object.get("entrypoints") orelse return error.MissingEntrypoints;
-    for (entrypoints.array.items) |ep| {
-        try argv.append(allocator, ep.string);
+    for (entrypoints) |ep| {
+        try argv.append(allocator, ep);
     }
 
-    // Bundle defaults to true (matches previous JS runner behavior).
-    const bundle = if (config.object.get("bundle")) |v| v.bool else true;
-    if (bundle) try argv.append(allocator, "--bundle");
+    // Bundle defaults to true (matches previous runner behavior).
+    if (opts.bundle orelse true) try argv.append(allocator, "--bundle");
 
     try argv.append(allocator, try std.fmt.allocPrint(allocator, "--outdir={s}", .{outdir}));
     try argv.append(allocator, try std.fmt.allocPrint(allocator, "--metafile={s}", .{meta_path}));
     try argv.append(allocator, "--log-level=error");
 
-    if (config.object.get("platform")) |v| {
-        try argv.append(allocator, try std.fmt.allocPrint(allocator, "--platform={s}", .{v.string}));
+    if (opts.platform) |v| {
+        try argv.append(allocator, try std.fmt.allocPrint(allocator, "--platform={s}", .{@tagName(v)}));
     }
-    if (config.object.get("format")) |v| {
-        try argv.append(allocator, try std.fmt.allocPrint(allocator, "--format={s}", .{v.string}));
+    if (opts.format) |v| {
+        try argv.append(allocator, try std.fmt.allocPrint(allocator, "--format={s}", .{@tagName(v)}));
     }
-    if (config.object.get("minify")) |v| {
-        if (v.bool) try argv.append(allocator, "--minify");
+    if (opts.minify) |v| {
+        if (v) try argv.append(allocator, "--minify");
     }
-    if (config.object.get("splitting")) |v| {
-        if (v.bool) try argv.append(allocator, "--splitting");
+    if (opts.splitting) |v| {
+        if (v) try argv.append(allocator, "--splitting");
     }
-    if (config.object.get("publicPath")) |v| {
-        try argv.append(allocator, try std.fmt.allocPrint(allocator, "--public-path={s}", .{v.string}));
+    if (opts.public_path) |v| {
+        try argv.append(allocator, try std.fmt.allocPrint(allocator, "--public-path={s}", .{v}));
     }
-    if (config.object.get("sourcemap")) |v| {
-        const sm = v.string;
-        if (!std.mem.eql(u8, sm, "none")) {
-            try argv.append(allocator, try std.fmt.allocPrint(allocator, "--sourcemap={s}", .{sm}));
+    if (opts.sourcemap) |v| {
+        if (v != .none) {
+            try argv.append(allocator, try std.fmt.allocPrint(allocator, "--sourcemap={s}", .{@tagName(v)}));
         }
     }
-    if (config.object.get("external")) |v| {
-        for (v.array.items) |ext| {
-            try argv.append(allocator, try std.fmt.allocPrint(allocator, "--external:{s}", .{ext.string}));
-        }
+    for (opts.external) |ext| {
+        try argv.append(allocator, try std.fmt.allocPrint(allocator, "--external:{s}", .{ext}));
     }
-    if (config.object.get("target")) |v| {
-        if (v.array.items.len > 0) {
-            var targets: std.ArrayList(u8) = .empty;
-            defer targets.deinit(allocator);
-            for (v.array.items, 0..) |t, i| {
-                if (i > 0) try targets.append(allocator, ',');
-                try targets.appendSlice(allocator, t.string);
-            }
-            try argv.append(allocator, try std.fmt.allocPrint(allocator, "--target={s}", .{targets.items}));
+    if (opts.target.len > 0) {
+        var targets: std.ArrayList(u8) = .empty;
+        defer targets.deinit(allocator);
+        for (opts.target, 0..) |t, i| {
+            if (i > 0) try targets.append(allocator, ',');
+            try targets.appendSlice(allocator, t);
         }
+        try argv.append(allocator, try std.fmt.allocPrint(allocator, "--target={s}", .{targets.items}));
     }
-    if (config.object.get("define")) |v| {
-        var it = v.object.iterator();
-        while (it.next()) |entry| {
-            try argv.append(allocator, try std.fmt.allocPrint(allocator, "--define:{s}={s}", .{ entry.key_ptr.*, entry.value_ptr.string }));
-        }
+    for (opts.define) |d| {
+        try argv.append(allocator, try std.fmt.allocPrint(allocator, "--define:{s}={s}", .{ d.key, d.value }));
     }
 
     return try argv.toOwnedSlice(allocator);

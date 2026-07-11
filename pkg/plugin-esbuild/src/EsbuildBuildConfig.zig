@@ -1,12 +1,16 @@
-/// Zig-side config for an esbuild build.
-/// Fields that accept LazyPath are resolved to strings before JSON serialization.
-/// This struct is what callers fill in; use `toJsonValue` to turn it into a JSON value
-/// that `esbuild` (the runner exe) can consume.
+/// Esbuild build config.
 const EsbuildBuildConfig = @This();
+
+const std = @import("std");
 
 pub const Sourcemap = enum { none, linked, @"inline", external, both };
 pub const Format = enum { esm, cjs, iife };
 pub const Platform = enum { browser, node, neutral };
+
+pub const Define = struct {
+    key: []const u8,
+    value: []const u8,
+};
 
 /// Entry point file paths. At least one is required.
 entrypoints: []const std.Build.LazyPath,
@@ -36,55 +40,7 @@ public_path: ?[]const u8 = null,
 target: []const []const u8 = &.{},
 
 /// Define global constants. Each entry is `KEY` -> `VALUE` (VALUE already JSON-quoted if a string).
-define: []const struct { key: []const u8, value: []const u8 } = &.{},
+define: []const Define = &.{},
 
 /// Enable code splitting (ESM only)
 splitting: ?bool = null,
-
-/// Resolve all lazy paths and serialize to a `std.json.Value` that the `esbuild`
-/// runner can pass directly to esbuild's JS API.
-pub fn toJsonValue(self: EsbuildBuildConfig, b: *std.Build, arena: std.mem.Allocator) !std.json.Value {
-    var obj = std.json.ObjectMap.empty;
-
-    // entrypoints - required array
-    var eps = std.json.Array.init(arena);
-    for (self.entrypoints) |lp| {
-        // TODO: LazyPath.getPath is not available anymore in zig 0.17, figure out alternative
-        const input_path = b.pathJoin(&.{
-            b.fmt("{f}", .{b.root.root_dir}),
-            b.fmt("{f}", .{lp}),
-        });
-        try eps.append(.{ .string = input_path });
-    }
-    try obj.put(arena, "entrypoints", .{ .array = eps });
-
-    if (self.platform) |v| try obj.put(arena, "platform", .{ .string = @tagName(v) });
-    if (self.format) |v| try obj.put(arena, "format", .{ .string = @tagName(v) });
-    if (self.sourcemap) |v| try obj.put(arena, "sourcemap", .{ .string = @tagName(v) });
-    if (self.bundle) |v| try obj.put(arena, "bundle", .{ .bool = v });
-    if (self.minify) |v| try obj.put(arena, "minify", .{ .bool = v });
-    if (self.splitting) |v| try obj.put(arena, "splitting", .{ .bool = v });
-    if (self.public_path) |v| try obj.put(arena, "publicPath", .{ .string = v });
-
-    if (self.external.len > 0) {
-        var arr = std.json.Array.init(arena);
-        for (self.external) |e| try arr.append(.{ .string = e });
-        try obj.put(arena, "external", .{ .array = arr });
-    }
-
-    if (self.target.len > 0) {
-        var arr = std.json.Array.init(arena);
-        for (self.target) |t| try arr.append(.{ .string = t });
-        try obj.put(arena, "target", .{ .array = arr });
-    }
-
-    if (self.define.len > 0) {
-        var def_obj = std.json.ObjectMap.empty;
-        for (self.define) |d| try def_obj.put(arena, d.key, .{ .string = d.value });
-        try obj.put(arena, "define", .{ .object = def_obj });
-    }
-
-    return .{ .object = obj };
-}
-
-const std = @import("std");
