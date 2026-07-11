@@ -10,11 +10,14 @@ pub fn build(b: *std.Build) !void {
     const id = assetId(b, optimize);
     const log_level = b.option(std.log.Level, "log-level", "Log level: debug, info, warn, error") orelse .info;
 
+    const jsbinding_name = b.fmt("app{s}.js", .{id});
+
     // --- Deps --- //
     const ziex_dep = b.dependency("ziex", .{ .optimize = optimize, .target = target });
     const tree_sitter_dep = ziex_dep.builder.dependency("tree_sitter", .{ .optimize = optimize, .target = target });
     const tree_sitter_zx_dep = ziex_dep.builder.dependency("tree_sitter_zx", .{ .optimize = optimize, .target = target, .@"build-shared" = false });
     // const tree_sitter_mdzx_dep = ziex_dep.builder.dependency("tree_sitter_mdzx", .{ .optimize = optimize, .target = target, .@"build-shared" = false });
+    const ziex_jsbindings_dep = b.dependency("ziex_jsbindings", .{ .optimize = optimize, .target = target, .@"type-decl" = false });
 
     const pg_step = b.step("pg", "Install playground assets");
     const zls_version = "0.16.0";
@@ -144,7 +147,7 @@ pub fn build(b: *std.Build) !void {
             },
         },
         .client = .{
-            .jsglue_href = b.fmt("/assets/main{s}.js", .{id}),
+            .jsglue_href = b.fmt("/assets/{s}", .{jsbinding_name}),
             .jsglue_install_subdir = "pkg/ziex",
         },
         .cli = .{ .optimize = optimize, .log_level = log_level, .zig_path = "zig" },
@@ -233,7 +236,11 @@ pub fn build(b: *std.Build) !void {
             },
         });
 
-        const install_main_js = b.addInstallFile(site_scripts.dir.path(b, "client.js"), b.fmt("static/assets/main{s}.js", .{id}));
+        // const install_main_js = b.addInstallFile(site_scripts.dir.path(b, "client.js"), b.fmt("static/assets/main{s}.js", .{id}));
+        const ziex_js_files = ziex_jsbindings_dep.namedWriteFiles("ziex_js");
+        const init_name = if (is_release) "init.js" else "init.dev.js";
+        const init_js = ziex_js_files.getDirectory().path(b, b.fmt("wasm/{s}", .{init_name}));
+        const install_main_js = b.addInstallFile(init_js, b.fmt("static/assets/{s}", .{jsbinding_name}));
         const install_docs_js = b.addInstallFile(site_scripts.dir.path(b, "docs.js"), "static/assets/docs.js");
         const install_home_js = b.addInstallFile(site_scripts.dir.path(b, "home.js"), "static/assets/home.js");
         b.default_step.dependOn(&install_main_js.step);

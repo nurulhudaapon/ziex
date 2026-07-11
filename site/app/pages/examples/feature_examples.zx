@@ -1154,7 +1154,7 @@ pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
     _ = try Learn__enableKvInit(undefined, undefined);
     _ = try Learn__enableDbInit(undefined, undefined);
     _ = try Learn__enableCacheInit(undefined, undefined);
-    _ = try Learn__build(undefined);
+    _ = Learn__build;
 
     _ = RefPageCaching__Page(page_ctx);
     _ = Ref__Layout(layout_ctx, .none);

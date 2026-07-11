@@ -3,6 +3,9 @@ const esbuild = @import("esbuild");
 
 pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
+    const target = b.standardTargetOptions(.{});
+    _ = target;
+    const type_decl = b.option(bool, "type-decl", "Generate type declarations") orelse true;
     const is_release = optimize != .Debug;
 
     // --- JS bundles (esbuild) --- //
@@ -52,44 +55,38 @@ pub fn build(b: *std.Build) !void {
         },
     });
 
-    b.getInstallStep().dependOn(&b.addInstallDirectory(.{
-        .source_dir = packages.dir,
-        .install_dir = .prefix,
-        .install_subdir = "",
-    }).step);
-    b.getInstallStep().dependOn(&b.addInstallFile(
-        wasm_init.dir.path(b, "init.js"),
-        "wasm/init.js",
-    ).step);
-    b.getInstallStep().dependOn(&b.addInstallFile(
-        wasm_init_dev.dir.path(b, "init.js"),
-        "wasm/init.dev.js",
-    ).step);
+    const dist_files = b.addNamedWriteFiles("ziex_js");
 
-    // --- TypeScript declarations --- //
-    const tsc = b.addSystemCommand(&.{
-        "node_modules/.bin/tsc",
-        "--outDir",
-    });
-    tsc.setCwd(b.path(""));
-    tsc.has_side_effects = true;
-    const dts_dir = tsc.addOutputDirectoryArg("dts");
-    tsc.addFileInput(b.path("tsconfig.emit.json"));
-
-    b.getInstallStep().dependOn(&b.addInstallDirectory(.{
-        .source_dir = dts_dir.path(b, "pkg/ziex/src"),
-        .install_dir = .prefix,
-        .install_subdir = "",
-    }).step);
-
-    // --- package.json for npm publish --- //
-    b.getInstallStep().dependOn(&b.addInstallFile(try makePublishPackageJson(b), "package.json").step);
+    // --- App init files --- //
+    {
+        _ = dist_files.addCopyFile(wasm_init.dir.path(b, "init.js"), "wasm/init.js");
+        _ = dist_files.addCopyFile(wasm_init_dev.dir.path(b, "init.js"), "wasm/init.dev.js");
+    }
 
     // --- Static package files --- //
-    b.getInstallStep().dependOn(&b.addInstallFile(b.path("../../README.md"), "README.md").step);
-    b.getInstallStep().dependOn(&b.addInstallFile(b.path("bin/ziex"), "bin/ziex").step);
-    b.getInstallStep().dependOn(&b.addInstallFile(b.path("build.zig"), "build.zig").step);
-    b.getInstallStep().dependOn(&b.addInstallFile(b.path("build.zig.zon"), "build.zig.zon").step);
+    {
+        _ = dist_files.addCopyFile(try makePublishPackageJson(b), "package.json");
+        _ = dist_files.addCopyFile(b.path("../../README.md"), "README.md");
+        _ = dist_files.addCopyFile(b.path("bin/ziex"), "bin/ziex");
+        _ = dist_files.addCopyFile(b.path("build.zig"), "build.zig");
+        _ = dist_files.addCopyFile(b.path("build.zig.zon"), "build.zig.zon");
+
+        // --- Other bindings --- //
+        _ = dist_files.addCopyDirectory(packages.dir, "", .{});
+    }
+
+    // --- TypeScript declarations --- //
+    if (type_decl) {
+        const tsc = b.addSystemCommand(&.{ "node_modules/.bin/tsc", "--outDir" });
+        _ = dist_files.addCopyDirectory(tsc.addOutputDirectoryArg("dts").path(b, "pkg/ziex/src"), "", .{});
+        tsc.addFileInput(b.path("tsconfig.json"));
+    }
+
+    b.getInstallStep().dependOn(&b.addInstallDirectory(.{
+        .source_dir = dist_files.getDirectory(),
+        .install_dir = .prefix,
+        .install_subdir = "",
+    }).step);
 }
 
 fn makePublishPackageJson(b: *std.Build) !std.Build.LazyPath {
