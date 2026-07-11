@@ -5,6 +5,9 @@ const build_zon = @import("build.zig.zon");
 /// Options for initializing
 pub const InitOptions = initlib.InitOptions;
 
+/// Transpiled ZX module
+pub const TranslatedZx = @import("src/build/TranslatedZx.zig");
+
 /// Initialize a Ziex project (sets up Ziex, dependencies, executables, wasm executable and `serve` step)
 pub const init = initlib.init;
 
@@ -297,7 +300,6 @@ pub fn build(b: *std.Build) !void {
         // --- ZX CLI Options (Release) --- //
         const cli_options_rel = b.addOptions();
         cli_options_rel.addOption([]const u8, "zig_exe", "zig");
-        cli_options_rel.addOption(u2, "log_level", @intFromEnum(log_level));
 
         for (release_targets) |release_target| {
             const resolved_target = b.resolveTargetQuery(release_target.target);
@@ -331,6 +333,8 @@ pub fn build(b: *std.Build) !void {
             const release_enable_lsp = false; // TODO: enable lsp when zls is updated to latest zig 0.17
             const release_exe_build_options = b.addOptions();
             release_exe_build_options.addOption(bool, "enable_lsp", release_enable_lsp);
+            release_exe_build_options.addOption(u2, "log_level", @intFromEnum(log_level));
+
             release_exe.root_module.addOptions("build_options", release_exe_build_options);
             release_exe.root_module.addAnonymousImport("app_template", .{ .root_source_file = b.path("templates/Template.zig") });
 
@@ -353,8 +357,6 @@ pub fn build(b: *std.Build) !void {
         }
     }
 }
-
-pub const TranslatedZx = @import("src/build/TranslatedZx.zig");
 
 /// Transpile a `.zx` component file into a `TranslatedZx`, mirroring
 /// `std.Build.addTranslateC`. Call `.createModule()` / `.addModule(name)` on the
