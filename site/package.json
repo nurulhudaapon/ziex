@@ -11,7 +11,6 @@
     "@types/react": "19.2.7",
     "@types/react-dom": "19.2.3",
     "@ziex/cli": "0.1.0-dev.1252",
-    "esbuild": "0.28.1",
     "typescript": "^5.5.2",
     "wrangler": "^4.95.0"
   },

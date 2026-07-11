@@ -1,5 +1,6 @@
 const std = @import("std");
 const util = @import("src/util.zig");
+const host_esbuild = @import("src/host_esbuild.zig");
 
 pub const BuildConfig = @import("src/EsbuildBuildConfig.zig");
 
@@ -15,7 +16,7 @@ pub const Output = struct {
 
 pub var esbuild_path: ?std.Build.LazyPath = null;
 
-/// Point at the project's esbuild binary (typically `node_modules/.bin/esbuild`).
+/// Override the Zig-managed host esbuild binary (e.g. `node_modules/.bin/esbuild`).
 pub fn setEsbuildPath(path: std.Build.LazyPath) void {
     esbuild_path = path;
 }
@@ -58,17 +59,23 @@ fn innerInitSingle(b: *std.Build, build_item: Build) !Output {
     run.addArg("--dep-file");
     _ = run.addDepFileOutputArg("dist.d");
 
-    // Prefer an explicit path; otherwise resolve the conventional project install.
-    const bin = esbuild_path orelse b.path("node_modules/.bin/esbuild");
-    run.addArg("--esbuild-path");
-    run.addFileArg(bin);
-
+    // Prefer an explicit path; otherwise the host @esbuild/* binary from this package's lazy deps.
+    if (esbuild_path orelse resolveHostEsbuild(dep)) |bin| {
+        run.addArg("--esbuild-path");
+        run.addFileArg(bin);
+    }
     for (build_item.config.entrypoints) |ep| {
         run.addArg("--entry");
         run.addFileArg(ep);
     }
 
     return .{ .dir = outdir, .run = run };
+}
+
+fn resolveHostEsbuild(plugin_dep: *std.Build.Dependency) ?std.Build.LazyPath {
+    const host_dep = plugin_dep.builder.lazyDependency(host_esbuild.depName(), .{}) orelse return null;
+    // zig fetch strips the npm tarball's top-level `package/` directory.
+    return host_dep.path(plugin_dep.builder.fmt("bin/{s}", .{host_esbuild.exeName()}));
 }
 
 fn deriveName(b: *std.Build, self: Build, step: *std.Build.Step) []const u8 {
@@ -107,6 +114,21 @@ pub fn build(b: *std.Build) void {
 
     const run_step = b.step("run", "Run the plugin");
     run_step.dependOn(&run_cmd.step);
+
+    // `zig build update` — re-fetch @esbuild/* platform tarballs for .version in build.zig.zon
+    const update_exe = b.addExecutable(.{
+        .name = "update-esbuild",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/update.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    const update_run = b.addRunArtifact(update_exe);
+    update_run.setCwd(b.path(""));
+    update_run.addArg(b.graph.zig_exe);
+    const update_step = b.step("update", "Fetch esbuild platform binaries for version in build.zig.zon");
+    update_step.dependOn(&update_run.step);
 }
 
 const colors = struct {

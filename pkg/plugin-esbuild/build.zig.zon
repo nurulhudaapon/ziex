@@ -1,9 +1,125 @@
 .{
     .name = .esbuild,
-    .version = "0.0.0",
+    .version = "0.28.1",
     .fingerprint = 0xb2d6c695e5c2d8ca,
     .minimum_zig_version = "0.17.0-dev.1158+1d1193aa7",
-    .dependencies = .{},
+    .dependencies = .{
+        .esbuild_aix_ppc64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/aix-ppc64/-/aix-ppc64-0.28.1.tgz",
+            .hash = "N-V-__8AAFMdwABrck2Bcewp38lxGokQ7t_avTsESbnDl6Yw",
+            .lazy = true,
+        },
+        .esbuild_android_arm64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/android-arm64/-/android-arm64-0.28.1.tgz",
+            .hash = "N-V-__8AAAsDsABWdGfnE_rFVnGkx7BcADAzvgwh0-TaYQ69",
+            .lazy = true,
+        },
+        .esbuild_darwin_arm64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/darwin-arm64/-/darwin-arm64-0.28.1.tgz",
+            .hash = "N-V-__8AAOFZoQAdfk0YbGArEV61fWILNfxKdGhapmsvre-q",
+            .lazy = true,
+        },
+        .esbuild_darwin_x64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/darwin-x64/-/darwin-x64-0.28.1.tgz",
+            .hash = "N-V-__8AABN7sQBwUPX2zdWu7xNxuZnZKANg5iNnoqkHCJEW",
+            .lazy = true,
+        },
+        .esbuild_freebsd_arm64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/freebsd-arm64/-/freebsd-arm64-0.28.1.tgz",
+            .hash = "N-V-__8AAI8CnQDhFnPOpZrUEvSHCqiUWwZ7pRlDqktAGcRv",
+            .lazy = true,
+        },
+        .esbuild_freebsd_x64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/freebsd-x64/-/freebsd-x64-0.28.1.tgz",
+            .hash = "N-V-__8AAIMyrQCpnPcq0nRUp9mQnZM_1KIdvl5SbFA0x8ov",
+            .lazy = true,
+        },
+        .esbuild_linux_arm = .{
+            .url = "https://registry.npmjs.org/@esbuild/linux-arm/-/linux-arm-0.28.1.tgz",
+            .hash = "N-V-__8AAGsCpAD6OmbKcS0QZlhpLYRuUpILhei6r86vNhdY",
+            .lazy = true,
+        },
+        .esbuild_linux_arm64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/linux-arm64/-/linux-arm64-0.28.1.tgz",
+            .hash = "N-V-__8AAH0CnQBAoLI_3ZaK99R7geRSVOWevHZzxmRX0oDl",
+            .lazy = true,
+        },
+        .esbuild_linux_ia32 = .{
+            .url = "https://registry.npmjs.org/@esbuild/linux-ia32/-/linux-ia32-0.28.1.tgz",
+            .hash = "N-V-__8AAHMSpADN43HPcob98iNHCas71ZEzzHGJQFSr8XjL",
+            .lazy = true,
+        },
+        .esbuild_linux_loong64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/linux-loong64/-/linux-loong64-0.28.1.tgz",
+            .hash = "N-V-__8AAI0CqgBE-Kha5qI0_zp05taBgnSr8Y5KV0DIHZnF",
+            .lazy = true,
+        },
+        .esbuild_linux_mips64el = .{
+            .url = "https://registry.npmjs.org/@esbuild/linux-mips64el/-/linux-mips64el-0.28.1.tgz",
+            .hash = "N-V-__8AAKECvADQjph_trl--bs_WHtm9ShQKVIUdRuI5bel",
+            .lazy = true,
+        },
+        .esbuild_linux_ppc64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/linux-ppc64/-/linux-ppc64-0.28.1.tgz",
+            .hash = "N-V-__8AAKECpwDLJ2bXwH_7BvPbe-5R2dNR7HRWRgxeqsLB",
+            .lazy = true,
+        },
+        .esbuild_linux_riscv64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/linux-riscv64/-/linux-riscv64-0.28.1.tgz",
+            .hash = "N-V-__8AAIcCmgASb4css8eeYSc9ijGHaVNaGnzzYcwbe_Rx",
+            .lazy = true,
+        },
+        .esbuild_linux_s390x = .{
+            .url = "https://registry.npmjs.org/@esbuild/linux-s390x/-/linux-s390x-0.28.1.tgz",
+            .hash = "N-V-__8AAJcCrwCEEvhTQNhMmvD2HEZErXInQ78d38x1aZ3N",
+            .lazy = true,
+        },
+        .esbuild_linux_x64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.28.1.tgz",
+            .hash = "N-V-__8AAHESrgAsa-GucI_3INKZN162T7aIYJRielGjcccw",
+            .lazy = true,
+        },
+        .esbuild_netbsd_arm64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/netbsd-arm64/-/netbsd-arm64-0.28.1.tgz",
+            .hash = "N-V-__8AAJoDnABM-o3QmGK0moFvJeZxoiBrU-AeTpQwj8ud",
+            .lazy = true,
+        },
+        .esbuild_netbsd_x64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/netbsd-x64/-/netbsd-x64-0.28.1.tgz",
+            .hash = "N-V-__8AAHGjrABczFPpS_1vJvvETppbqMITQV-w80YUN6Is",
+            .lazy = true,
+        },
+        .esbuild_openbsd_arm64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/openbsd-arm64/-/openbsd-arm64-0.28.1.tgz",
+            .hash = "N-V-__8AAAADnQDZ-B56ESHf7PoOe-qqFJaet1murerivs-r",
+            .lazy = true,
+        },
+        .esbuild_openbsd_x64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/openbsd-x64/-/openbsd-x64-0.28.1.tgz",
+            .hash = "N-V-__8AAPQyrQAgMW30oA4DTzmJRjwrLNNTs4GUja_gVJBm",
+            .lazy = true,
+        },
+        .esbuild_sunos_x64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/sunos-x64/-/sunos-x64-0.28.1.tgz",
+            .hash = "N-V-__8AANwyrQAe6UEt6uFG9runef5thtSXHd3WafI53agt",
+            .lazy = true,
+        },
+        .esbuild_win32_arm64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/win32-arm64/-/win32-arm64-0.28.1.tgz",
+            .hash = "N-V-__8AABHGngBMejpq--KN5bxMSg_dpPUjguP92Eeyp6Gl",
+            .lazy = true,
+        },
+        .esbuild_win32_ia32 = .{
+            .url = "https://registry.npmjs.org/@esbuild/win32-ia32/-/win32-ia32-0.28.1.tgz",
+            .hash = "N-V-__8AAAdSqADA8EuTWKw9daDP1ZYfWOj4UnAECL7lvPD-",
+            .lazy = true,
+        },
+        .esbuild_win32_x64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.28.1.tgz",
+            .hash = "N-V-__8AAAUWsgADIvOQ_zr9hPKyb3-uQejm-LDGKBfXE_JM",
+            .lazy = true,
+        },
+    },
     .paths = .{
         "build.zig",
         "build.zig.zon",
