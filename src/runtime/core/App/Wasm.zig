@@ -153,18 +153,30 @@ pub fn run(process_init: std.process.Init) !void {
                 try writeZiexMeta(stderr, &backend, true);
 
                 var shell_writer = std.Io.Writer.Allocating.init(allocator);
-                const async_components = Router.streamComponent(component, allocator, &shell_writer.writer, base_path) catch {
-                    // Fallback: render the whole page at once.
-                    var aw = std.Io.Writer.Allocating.init(allocator);
-                    component.render(&aw.writer, .{ .base_path = base_path }) catch {};
-                    const body = try std.fmt.allocPrint(allocator, "<!DOCTYPE html>{s}", .{aw.written()});
-                    defer allocator.free(body);
-                    if (comptime feat_cache) {
-                        if (cache_status == .miss) storePageCache(&page_cache, request, response, &backend, body);
-                    }
-                    try stdout.writeAll(body);
-                    try stdout.flush();
-                    return;
+                const async_components = Router.streamComponent(component, allocator, &shell_writer.writer, base_path) catch |stream_err| switch (stream_err) {
+                    error.NotFound => {
+                        try writeNotFound(stdout, stderr, &backend, pathname, request, response, allocator, matched);
+                        return;
+                    },
+                    else => {
+                        // Fallback: render the whole page at once.
+                        var aw = std.Io.Writer.Allocating.init(allocator);
+                        component.render(&aw.writer, .{ .base_path = base_path }) catch |err| switch (err) {
+                            error.NotFound => {
+                                try writeNotFound(stdout, stderr, &backend, pathname, request, response, allocator, matched);
+                                return;
+                            },
+                            else => {},
+                        };
+                        const body = try std.fmt.allocPrint(allocator, "<!DOCTYPE html>{s}", .{aw.written()});
+                        defer allocator.free(body);
+                        if (comptime feat_cache) {
+                            if (cache_status == .miss) storePageCache(&page_cache, request, response, &backend, body);
+                        }
+                        try stdout.writeAll(body);
+                        try stdout.flush();
+                        return;
+                    },
                 };
 
                 try stdout.writeAll("<!DOCTYPE html>");
@@ -184,7 +196,13 @@ pub fn run(process_init: std.process.Init) !void {
 
             var aw = std.Io.Writer.Allocating.init(allocator);
             defer aw.deinit();
-            component.render(&aw.writer, .{ .base_path = base_path }) catch {};
+            component.render(&aw.writer, .{ .base_path = base_path }) catch |err| switch (err) {
+                error.NotFound => {
+                    try writeNotFound(stdout, stderr, &backend, pathname, request, response, allocator, matched);
+                    return;
+                },
+                else => {},
+            };
 
             const body = try std.fmt.allocPrint(allocator, "<!DOCTYPE html>{s}", .{aw.written()});
             defer allocator.free(body);
@@ -226,24 +244,37 @@ pub fn run(process_init: std.process.Init) !void {
         },
 
         .not_found => |nf| {
-            backend.status = 404;
-            backend.setContentTypeStr("text/html");
-
-            if (core_handler.renderNotFound(pathname, request, response, allocator, nf.matched_route)) |not_found_cmp| {
-                var aw = std.Io.Writer.Allocating.init(allocator);
-                defer aw.deinit();
-                var cmp = not_found_cmp;
-                cmp.render(&aw.writer, .{ .base_path = base_path }) catch {};
-
-                try writeZiexMeta(stderr, &backend, false);
-                try stdout.print("<!DOCTYPE html>{s}", .{aw.written()});
-            } else {
-                try writeZiexMeta(stderr, &backend, false);
-                try stdout.print("404 Not Found", .{});
-            }
-            try stdout.flush();
+            try writeNotFound(stdout, stderr, &backend, pathname, request, response, allocator, nf.matched_route);
         },
     }
+}
+
+fn writeNotFound(
+    stdout: *std.Io.Writer,
+    stderr: *std.Io.Writer,
+    backend: *Backend,
+    pathname: []const u8,
+    request: zx.server.Request,
+    response: zx.server.Response,
+    allocator: std.mem.Allocator,
+    matched_route: ?*const core_handler.Route,
+) !void {
+    backend.status = 404;
+    backend.setContentTypeStr("text/html");
+
+    if (core_handler.renderNotFound(pathname, request, response, allocator, matched_route)) |not_found_cmp| {
+        var aw = std.Io.Writer.Allocating.init(allocator);
+        defer aw.deinit();
+        var cmp = not_found_cmp;
+        cmp.render(&aw.writer, .{ .base_path = base_path }) catch {};
+
+        try writeZiexMeta(stderr, backend, false);
+        try stdout.print("<!DOCTYPE html>{s}", .{aw.written()});
+    } else {
+        try writeZiexMeta(stderr, backend, false);
+        try stdout.print("404 Not Found", .{});
+    }
+    try stdout.flush();
 }
 
 fn storePageCache(

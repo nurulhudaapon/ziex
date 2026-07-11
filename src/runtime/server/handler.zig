@@ -393,12 +393,17 @@ pub fn Handler(comptime AppCtxType: type) type {
                         // Normal mode: render everything at once
                         const writer = &res.buffer.writer;
                         _ = writer.write("<!DOCTYPE html>\n") catch |err| {
-                            std.debug.print("Error writing HTML: {}\n", .{err});
+                            log.err("writing html: {}", .{err});
                             return;
                         };
-                        page_component.render(writer, .{ .base_path = app_opts.app_base_path }) catch |err| {
-                            std.debug.print("Error rendering page: {}\n", .{err});
-                            return self.uncaughtError(req, res, err);
+                        page_component.render(writer, .{ .base_path = app_opts.app_base_path }) catch |err| switch (err) {
+                            error.NotFound => {
+                                return self.notFound(req, res);
+                            },
+                            else => {
+                                log.err("rendering page: {}", .{err});
+                                return self.uncaughtError(req, res, err);
+                            },
                         };
                     }
 
@@ -495,22 +500,22 @@ pub fn Handler(comptime AppCtxType: type) type {
         fn renderStreaming(self: *Self, res: *httpz.Response, page_component: *Component, arena: std.mem.Allocator) !void {
             var shell_writer = std.Io.Writer.Allocating.init(arena);
             const async_components = rndr.stream(page_component.*, arena, &shell_writer.writer, .{ .base_path = app_opts.app_base_path }) catch |err| {
-                std.debug.print("Error streaming page: {}\n", .{err});
+                log.err("streaming page: {}", .{err});
                 return err;
             };
 
             res.chunk("<!DOCTYPE html>\n") catch |err| {
-                std.debug.print("Error sending DOCTYPE: {}\n", .{err});
+                log.err("sending DOCTYPE: {}", .{err});
                 return err;
             };
             res.chunk(shell_writer.written()) catch |err| {
-                std.debug.print("Error sending shell: {}\n", .{err});
+                log.err("sending shell: {}", .{err});
                 return err;
             };
 
             if (async_components.len > 0) {
                 res.chunk(rndr.streaming_bootstrap_script) catch |err| {
-                    std.debug.print("Error sending bootstrap script: {}\n", .{err});
+                    log.err("sending bootstrap script: {}", .{err});
                     return err;
                 };
                 const AsyncResult = struct {
@@ -519,7 +524,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                 };
 
                 const results = std.heap.page_allocator.alloc(AsyncResult, async_components.len) catch |err| {
-                    std.debug.print("Error allocating results: {}\n", .{err});
+                    log.err("allocating results: {}", .{err});
                     return err;
                 };
                 defer std.heap.page_allocator.free(results);
@@ -542,7 +547,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                         }
 
                         const script = ctx.async_comp.renderScript(std.heap.page_allocator) catch |work_err| {
-                            std.debug.print("Error rendering async component {d}: {}\n", .{ ctx.async_comp.id, work_err });
+                            log.err("rendering async component {d}: {}", .{ ctx.async_comp.id, work_err });
                             ctx.result.done.store(true, .seq_cst);
                             return;
                         };
@@ -553,7 +558,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                 };
 
                 var threads = std.heap.page_allocator.alloc(?std.Thread, async_components.len) catch |err| {
-                    std.debug.print("Error allocating threads: {}\n", .{err});
+                    log.err("allocating threads: {}", .{err});
                     return err;
                 };
                 defer std.heap.page_allocator.free(threads);
@@ -578,7 +583,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                 }
 
                 var streamed = std.heap.page_allocator.alloc(bool, async_components.len) catch |err| {
-                    std.debug.print("Error allocating streamed flags: {}\n", .{err});
+                    log.err("allocating streamed flags: {}", .{err});
                     return err;
                 };
                 defer std.heap.page_allocator.free(streamed);
@@ -593,7 +598,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                         if (result_entry.done.load(.seq_cst)) {
                             if (result_entry.script.len > 0) {
                                 res.chunk(result_entry.script) catch |chunk_err| {
-                                    std.debug.print("Error streaming async component: {}\n", .{chunk_err});
+                                    log.err("streaming async component: {}", .{chunk_err});
                                     connection_closed = true;
                                     break;
                                 };
@@ -780,13 +785,13 @@ const ElementInjector = struct {
     pub fn injectScriptIntoBody(self: ElementInjector, page: *Component, script_src: []const u8) bool {
         if (tree.getElementByName(page, self.allocator, .body)) |body_element| {
             const attributes = self.allocator.alloc(zx.Element.Attribute, 1) catch {
-                std.debug.print("Error allocating attributes: OOM\n", .{});
+                log.err("allocating attributes: OOM", .{});
                 return false;
             };
             attributes[0] = .{ .name = "src", .value = script_src };
             const script_element = Component{ .element = .{ .tag = .script, .attributes = attributes } };
             tree.appendChild(body_element, self.allocator, script_element) catch |err| {
-                std.debug.print("Error appending script to body: {}\n", .{err});
+                log.err("appending script to body: {}", .{err});
                 self.allocator.free(attributes);
                 return false;
             };
@@ -821,6 +826,7 @@ const ProxyStatus = struct {
     }
 };
 
+// TODO: put this in docs
 /// Unified status indicator combining proxy and cache status
 /// Format: [XY] where X=proxy status, Y=cache status
 /// Position 1 (proxy): ⇥=ran, !=aborted, -=none
