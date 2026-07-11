@@ -11,10 +11,11 @@ pub const Output = struct {
     run: *std.Build.Step.Run,
 };
 
-pub var node_path: ?std.Build.LazyPath = null;
+pub var esbuild_path: ?std.Build.LazyPath = null;
 
-pub fn setNodePath(path: std.Build.LazyPath) void {
-    node_path = path;
+/// Point at the project's esbuild binary (typically `node_modules/.bin/esbuild`).
+pub fn setEsbuildPath(path: std.Build.LazyPath) void {
+    esbuild_path = path;
 }
 
 pub fn addBuild(b: *std.Build, build_item: Build) Output {
@@ -59,10 +60,10 @@ fn innerInitSingle(b: *std.Build, build_item: Build) !Output {
     run.addArg("--dep-file");
     _ = run.addDepFileOutputArg("dist.d");
 
-    if (node_path) |np| {
-        run.addArg("--node-path");
-        run.addFileArg(np);
-    }
+    // Prefer an explicit path; otherwise resolve the conventional project install.
+    const bin = esbuild_path orelse b.path("node_modules/.bin/esbuild");
+    run.addArg("--esbuild-path");
+    run.addFileArg(bin);
 
     for (build_item.config.entrypoints) |ep| run.addFileInput(ep);
 

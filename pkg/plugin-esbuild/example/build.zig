@@ -2,6 +2,7 @@ const std = @import("std");
 const esbuild = @import("esbuild");
 
 pub fn build(b: *std.Build) !void {
+    const optimize = b.standardOptimizeOption(.{});
     const builds = try b.allocator.alloc(esbuild.Build, 3);
     for (0..3) |i| {
         builds[i] = .{
@@ -9,8 +10,8 @@ pub fn build(b: *std.Build) !void {
             .config = .{
                 .entrypoints = &.{b.path("index.ts")},
                 .platform = .browser,
-                .minify = b.release_mode != .off,
-                .sourcemap = if (b.release_mode == .off) .@"inline" else .none,
+                .minify = optimize != .Debug,
+                .sourcemap = if (optimize == .Debug) .@"inline" else .none,
             },
         };
     }
