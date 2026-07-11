@@ -1,11 +1,11 @@
 const std = @import("std");
 
-const pltfm = @import("platform.zig");
+const pltfm = @import("../../platform.zig");
 const platform = pltfm.platform;
-const Client = @import("runtime/client/Client.zig");
-const Edge = @import("runtime/core/App/Wasm.zig");
+const Client = @import("../client/Client.zig");
+const Edge = @import("App/Wasm.zig");
 
-pub const BuiltinAttribute = @import("attributes.zig").builtin;
+pub const BuiltinAttribute = @import("../../attributes.zig").builtin;
 
 pub const PageMethod = enum {
     GET,

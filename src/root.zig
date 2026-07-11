@@ -10,7 +10,7 @@ const plfm = @import("platform.zig");
 
 const routing = @import("runtime/core/routing.zig");
 const event = @import("runtime/core/Event.zig");
-const opts = @import("options.zig");
+const opts = @import("runtime/core/options.zig");
 const ctxs = @import("runtime/core/contexts.zig");
 const reactivity = @import("runtime/client/reactivity.zig");
 const app_mod = @import("runtime/core/App.zig");
