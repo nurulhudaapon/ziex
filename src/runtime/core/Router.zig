@@ -666,11 +666,17 @@ pub const Outcome = union(enum) {
     /// The route handler upgraded to a WebSocket. The caller must run the
     /// receive loop and the open/close lifecycle.
     ws_upgraded: void,
-    /// No route/handler matched. The caller should render not-found.
-    not_found: struct { matched_route: ?*const Route },
+    /// No route/handler matched. Component is pre-built when a notfound
+    /// page exists; otherwise the caller should emit plain "404 Not Found".
+    not_found: struct { component: ?Component },
 };
 
-pub fn handle(opts: HandleOptions) !Outcome {
+pub const HandleResult = struct {
+    outcome: Outcome,
+    proxy: ProxyResult = .{},
+};
+
+pub fn handle(opts: HandleOptions) !HandleResult {
     const http = opts.http;
     const request = opts.request;
     const response = opts.response;
@@ -681,12 +687,14 @@ pub fn handle(opts: HandleOptions) !Outcome {
     const route_match = matchRoute(pathname, .{ .match = .exact });
     const matched_route = if (route_match) |m| m.route else null;
 
-    // -- Proxy chain --
-    const local_proxy = if (matched_route) |r| r.page_proxy orelse r.route_proxy else null;
-    const proxy_result = executeProxyChain(pathname, local_proxy, request, response, arena);
-    if (proxy_result.aborted) return .response_ready;
+    var proxy_result: ProxyResult = .{};
 
     if (matched_route) |route| {
+        // -- Proxy chain --
+        const local_proxy = route.page_proxy orelse route.route_proxy;
+        proxy_result = executeProxyChain(pathname, local_proxy, request, response, arena);
+        if (proxy_result.aborted) return .{ .outcome = .response_ready, .proxy = proxy_result };
+
         // -- Page (action/event dispatch + render) --
         const page_result = try core_handler.handlePage(
             route,
@@ -705,38 +713,40 @@ pub fn handle(opts: HandleOptions) !Outcome {
                     http.resHeaderSet("Content-Type", "application/json");
                     http.resSetBody(body);
                 }
-                return .response_ready;
+                return .{ .outcome = .response_ready, .proxy = proxy_result };
             },
             .action_not_found => {
                 http.resSetStatus(400);
                 http.resSetBody("No action handler registered for this route");
-                return .response_ready;
+                return .{ .outcome = .response_ready, .proxy = proxy_result };
             },
             .event_handled => |r| {
                 http.resHeaderSet("Content-Type", "application/json");
                 http.resSetBody(r.body orelse "{}");
-                return .response_ready;
+                return .{ .outcome = .response_ready, .proxy = proxy_result };
             },
             .event_not_found => {
                 http.resSetStatus(404);
                 http.resSetBody("No server event handler registered for this route");
-                return .response_ready;
+                return .{ .outcome = .response_ready, .proxy = proxy_result };
             },
             .page_error => |err| {
-                http.resSetStatus(500);
-                if (core_handler.renderError(pathname, request, response, allocator, err)) |cmp| {
-                    return .{ .component = .{ .component = cmp, .streaming = false } };
+                if (core_handler.prepareError(http, pathname, request, response, allocator, err)) |cmp| {
+                    return .{ .outcome = .{ .component = .{ .component = cmp, .streaming = false } }, .proxy = proxy_result };
                 }
-                return .response_ready;
+                return .{ .outcome = .response_ready, .proxy = proxy_result };
             },
             .component => |cmp| {
                 http.resHeaderSet("Content-Type", "text/html");
-                return .{ .component = .{
-                    .component = cmp,
-                    .streaming = core_handler.isStreamingEnabled(route),
-                } };
+                return .{
+                    .outcome = .{ .component = .{
+                        .component = cmp,
+                        .streaming = core_handler.isStreamingEnabled(route),
+                    } },
+                    .proxy = proxy_result,
+                };
             },
-            .action_native, .not_found => {
+            .not_found => {
                 // Fall through to API route dispatch below.
             },
         }
@@ -757,23 +767,31 @@ pub fn handle(opts: HandleOptions) !Outcome {
                 switch (api_result) {
                     .handler_error => |err| {
                         if (!opts.socket.isUpgraded()) {
-                            http.resSetStatus(500);
-                            if (core_handler.renderError(pathname, request, response, allocator, err)) |cmp| {
-                                return .{ .component = .{ .component = cmp, .streaming = false } };
+                            if (core_handler.prepareError(http, pathname, request, response, allocator, err)) |cmp| {
+                                return .{ .outcome = .{ .component = .{ .component = cmp, .streaming = false } }, .proxy = proxy_result };
                             }
+                            return .{ .outcome = .response_ready, .proxy = proxy_result };
                         }
                     },
                     .not_found => {},
                     .handled => {},
                 }
 
-                if (opts.socket.isUpgraded()) return .ws_upgraded;
-                if (api_result != .not_found) return .response_ready;
+                if (opts.socket.isUpgraded()) return .{ .outcome = .ws_upgraded, .proxy = proxy_result };
+                if (api_result != .not_found) return .{ .outcome = .response_ready, .proxy = proxy_result };
             }
         }
     }
 
-    return .{ .not_found = .{ .matched_route = matched_route } };
+    // -- Not found --
+    const nf_proxy = core_handler.executeNotFoundProxy(pathname, request, response, arena);
+    if (nf_proxy.aborted) {
+        return .{ .outcome = .response_ready, .proxy = nf_proxy };
+    }
+    if (nf_proxy.state_ptr != null) proxy_result = nf_proxy;
+
+    const nf_component = core_handler.prepareNotFound(http, pathname, request, response, allocator, matched_route);
+    return .{ .outcome = .{ .not_found = .{ .component = nf_component } }, .proxy = proxy_result };
 }
 
 pub fn streamComponent(component: Component, allocator: std.mem.Allocator, writer: *std.Io.Writer, base_path: ?[]const u8) ![]render.AsyncComponent {

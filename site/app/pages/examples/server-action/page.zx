@@ -69,26 +69,26 @@ const Person = struct {
 // This will execute on the browser
 fn clientEvent(ctx: zx.client.Event) void {
     const val = ctx.value() orelse "";
-    std.log.info("onclick: {s}\n", .{val});
+    log.debug("onclick: {s}", .{val});
 }
 
 // This runs on the server
 fn serverEvent(ctx: zx.server.Event) void {
     const val = ctx.value() orelse "";
-    std.log.info("onclick: {s}\n", .{val});
+    log.debug("onclick: {s}", .{val});
 }
 
 // This will execute on the browser
 fn clientIncrement(ctx: *zx.client.Event.Stateful) void {
     const val = ctx.state(i32);
     val.set(val.get() + 1);
-    std.log.info("increment: {d}\n", .{val.get()});
+    log.debug("increment: {d}", .{val.get()});
 }
 
 fn serverIncrement(e: *zx.server.Event.Stateful) void {
     const val = e.state(i32);
     val.set(val.get() + 1);
-    std.log.info("increment: {d}\n", .{val.get()});
+    log.debug("increment: {d}", .{val.get()});
 }
 
 fn serverAgeIncrement(e: *zx.server.Event.Stateful) void {
@@ -100,7 +100,7 @@ fn serverAgeIncrement(e: *zx.server.Event.Stateful) void {
 fn serverSIncrementHandler(e: *zx.server.Event.Stateful) void {
     const val = e.state(i32);
     val.set(val.get() + 1);
-    std.log.info("increment: {d}\n", .{val.get()});
+    log.debug("increment: {d}", .{val.get()});
 }
 
 fn serverStateUpdateHandler(e: *zx.server.Event.Stateful) void {
@@ -120,23 +120,19 @@ fn serverStateUpdateHandler(e: *zx.server.Event.Stateful) void {
 fn handleSubmit(ctx: zx.server.Action) void {
     // const formdata = ctx.request.formData();
     // const username = formdata.get("username") orelse "";
-
-    // std.log.info("server form handler username: {s}", .{username});
+    // log.debug("server form handler username: {s}", .{username});
 
     const data = ctx.data(struct {
         username: []const u8,
     });
 
-    std.log.info("server form handler username: {s}", .{data.username});
+    log.debug("server form handler username: {s}", .{data.username});
 
-
-// _ = data;
-
-    //   const mformdata = ctx.request.multiFormData();
-    //   const v = mformdata.get("name: []const u8");
+    // _ = data;
+    // const mformdata = ctx.request.multiFormData();
+    // const v = mformdata.get("name: []const u8");
     // const musername = if (mformdata.get("username")) |val| val.data else "";
-
-    // std.log.info("server form handler musername: {s}", .{musername});
+    // log.debug("server form handler musername: {s}", .{musername});
 }
 
 const FormData = struct {
@@ -148,18 +144,17 @@ const FormData = struct {
 fn typedform(ctx: zx.server.Action) void {
     const data = ctx.data(FormData);
 
-    std.log.info("server form handler name: {s}, id: {d}", .{data.name, data.id});
+    log.debug("server form handler name: {s}, id: {d}", .{ data.name, data.id });
 }
-
 
 // This should be a server action
 fn directtypedform(data: FormData) void {
-    std.log.info("server form handler name: {s}, id: {d}", .{data.name, data.id});
+    log.debug("server form handler name: {s}, id: {d}", .{ data.name, data.id });
 }
 
 pub const options: zx.PageOptions = .{
     .methods = &.{ .GET, .POST },
 };
 
+const log = zx.log;
 const zx = @import("zx");
-const std = @import("std");

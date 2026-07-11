@@ -125,7 +125,7 @@ pub fn run(process_init: std.process.Init) !void {
         .{};
 
     // --- Shared dispatcher --- //
-    const outcome = try Router.handle(.{
+    const result = try Router.handle(.{
         .http = http,
         .request = request,
         .response = response,
@@ -138,7 +138,7 @@ pub fn run(process_init: std.process.Init) !void {
         .socket = socket,
     });
 
-    switch (outcome) {
+    switch (result.outcome) {
         .response_ready => {
             if (comptime feat_cache) {
                 if (cache_status == .miss) storePageCache(&page_cache, request, response, &backend, backend.written());
@@ -155,34 +155,17 @@ pub fn run(process_init: std.process.Init) !void {
                 var shell_writer = std.Io.Writer.Allocating.init(allocator);
                 const async_components = Router.streamComponent(component, allocator, &shell_writer.writer, base_path) catch |stream_err| switch (stream_err) {
                     error.NotFound => {
-                        try writeNotFound(stdout, stderr, &backend, pathname, request, response, allocator, matched);
+                        try emitNotFoundPage(stdout, stderr, &backend, http, pathname, request, response, allocator, matched);
                         return;
                     },
                     else => {
                         // Fallback: render the whole page at once.
-                        var aw = std.Io.Writer.Allocating.init(allocator);
-                        component.render(&aw.writer, .{ .base_path = base_path }) catch |err| switch (err) {
-                            error.NotFound => {
-                                try writeNotFound(stdout, stderr, &backend, pathname, request, response, allocator, matched);
-                                return;
-                            },
-                            else => {
-                                try writeUncaughtError(stdout, stderr, &backend, pathname, request, response, allocator, err);
-                                return;
-                            },
-                        };
-                        const body = try std.fmt.allocPrint(allocator, "<!DOCTYPE html>{s}", .{aw.written()});
-                        defer allocator.free(body);
-                        if (comptime feat_cache) {
-                            if (cache_status == .miss) storePageCache(&page_cache, request, response, &backend, body);
-                        }
-                        try stdout.writeAll(body);
-                        try stdout.flush();
+                        try emitComponentBuffered(stdout, stderr, &backend, &page_cache, cache_status, request, response, http, pathname, allocator, matched, &component);
                         return;
                     },
                 };
 
-                try stdout.writeAll("<!DOCTYPE html>");
+                try stdout.writeAll("<!DOCTYPE html>\n");
                 try stdout.writeAll(shell_writer.written());
                 try stdout.flush();
 
@@ -197,34 +180,7 @@ pub fn run(process_init: std.process.Init) !void {
                 return;
             }
 
-            var aw = std.Io.Writer.Allocating.init(allocator);
-            defer aw.deinit();
-            component.render(&aw.writer, .{ .base_path = base_path }) catch |err| switch (err) {
-                error.NotFound => {
-                    try writeNotFound(stdout, stderr, &backend, pathname, request, response, allocator, matched);
-                    return;
-                },
-                else => {
-                    try writeUncaughtError(stdout, stderr, &backend, pathname, request, response, allocator, err);
-                    return;
-                },
-            };
-
-            const body = try std.fmt.allocPrint(allocator, "<!DOCTYPE html>{s}", .{aw.written()});
-            defer allocator.free(body);
-
-            if (comptime feat_cache) {
-                if (cache_status == .miss) {
-                    if (backend.resp_headers.items.len == 0 or !headerHas(backend.resp_headers.items, "Content-Type")) {
-                        backend.setContentTypeStr("text/html");
-                    }
-                    storePageCache(&page_cache, request, response, &backend, body);
-                }
-            }
-
-            try writeZiexMeta(stderr, &backend, false);
-            try stdout.writeAll(body);
-            try stdout.flush();
+            try emitComponentBuffered(stdout, stderr, &backend, &page_cache, cache_status, request, response, http, pathname, allocator, matched, &component);
         },
 
         .ws_upgraded => {
@@ -250,63 +206,101 @@ pub fn run(process_init: std.process.Init) !void {
         },
 
         .not_found => |nf| {
-            try writeNotFound(stdout, stderr, &backend, pathname, request, response, allocator, nf.matched_route);
+            try emitHtmlOrPlain(stdout, stderr, &backend, nf.component);
         },
     }
 }
 
-fn writeNotFound(
+fn emitComponentBuffered(
     stdout: *std.Io.Writer,
     stderr: *std.Io.Writer,
     backend: *Backend,
+    page_cache: anytype,
+    cache_status: PageCache.Status,
+    request: zx.server.Request,
+    response: zx.server.Response,
+    http: zx.Http,
+    pathname: []const u8,
+    allocator: std.mem.Allocator,
+    matched_route: ?*const core_handler.Route,
+    component: *zx.Component,
+) !void {
+    var aw = std.Io.Writer.Allocating.init(allocator);
+    defer aw.deinit();
+    core_handler.renderHtmlDocument(&aw.writer, component, base_path) catch |err| switch (err) {
+        error.NotFound => {
+            try emitNotFoundPage(stdout, stderr, backend, http, pathname, request, response, allocator, matched_route);
+            return;
+        },
+        else => {
+            try emitErrorPage(stdout, stderr, backend, http, pathname, request, response, allocator, err);
+            return;
+        },
+    };
+
+    const body = aw.written();
+
+    if (comptime feat_cache) {
+        if (cache_status == .miss) {
+            if (backend.resp_headers.items.len == 0 or !headerHas(backend.resp_headers.items, "Content-Type")) {
+                backend.setContentTypeStr("text/html");
+            }
+            storePageCache(page_cache, request, response, backend, body);
+        }
+    }
+
+    try writeZiexMeta(stderr, backend, false);
+    try stdout.writeAll(body);
+    try stdout.flush();
+}
+
+fn emitNotFoundPage(
+    stdout: *std.Io.Writer,
+    stderr: *std.Io.Writer,
+    backend: *Backend,
+    http: zx.Http,
     pathname: []const u8,
     request: zx.server.Request,
     response: zx.server.Response,
     allocator: std.mem.Allocator,
     matched_route: ?*const core_handler.Route,
 ) !void {
-    backend.status = 404;
-    backend.setContentTypeStr("text/html");
-
-    if (core_handler.renderNotFound(pathname, request, response, allocator, matched_route)) |not_found_cmp| {
-        var aw = std.Io.Writer.Allocating.init(allocator);
-        defer aw.deinit();
-        var cmp = not_found_cmp;
-        cmp.render(&aw.writer, .{ .base_path = base_path }) catch {};
-
-        try writeZiexMeta(stderr, backend, false);
-        try stdout.print("<!DOCTYPE html>{s}", .{aw.written()});
-    } else {
-        try writeZiexMeta(stderr, backend, false);
-        try stdout.print("404 Not Found", .{});
-    }
-    try stdout.flush();
+    const component = core_handler.prepareNotFound(http, pathname, request, response, allocator, matched_route);
+    try emitHtmlOrPlain(stdout, stderr, backend, component);
 }
 
-fn writeUncaughtError(
+fn emitErrorPage(
     stdout: *std.Io.Writer,
     stderr: *std.Io.Writer,
     backend: *Backend,
+    http: zx.Http,
     pathname: []const u8,
     request: zx.server.Request,
     response: zx.server.Response,
     allocator: std.mem.Allocator,
     err: anyerror,
 ) !void {
-    backend.status = 500;
-    backend.setContentTypeStr("text/html");
+    const component = core_handler.prepareError(http, pathname, request, response, allocator, err);
+    try emitHtmlOrPlain(stdout, stderr, backend, component);
+}
 
-    if (core_handler.renderError(pathname, request, response, allocator, err)) |error_cmp| {
-        var aw = std.Io.Writer.Allocating.init(allocator);
+fn emitHtmlOrPlain(
+    stdout: *std.Io.Writer,
+    stderr: *std.Io.Writer,
+    backend: *Backend,
+    component: ?zx.Component,
+) !void {
+    if (component) |cmp| {
+        var aw = std.Io.Writer.Allocating.init(backend.allocator);
         defer aw.deinit();
-        var cmp = error_cmp;
-        cmp.render(&aw.writer, .{ .base_path = base_path }) catch {};
-
+        var page = cmp;
+        core_handler.renderHtmlDocument(&aw.writer, &page, base_path) catch {};
         try writeZiexMeta(stderr, backend, false);
-        try stdout.print("<!DOCTYPE html>{s}", .{aw.written()});
+        try stdout.writeAll(aw.written());
     } else {
         try writeZiexMeta(stderr, backend, false);
-        try stdout.print("500 Internal Server Error", .{});
+        const body = backend.written();
+        if (body.len > 0) try stdout.writeAll(body);
     }
     try stdout.flush();
 }

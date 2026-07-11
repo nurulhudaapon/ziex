@@ -129,87 +129,39 @@ pub fn Handler(comptime AppCtxType: type) type {
             return false;
         }
 
-        pub fn notFound(_: *Self, req: *httpz.Request, res: *httpz.Response) !void {
-            const path = req.url.path;
-
+        pub fn notFound(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
             var hctx = httpz_backend.HttpzCtx{ .req = req, .res = res };
             const abstract_req = httpz_backend.createRequest(&hctx);
             const abstract_res = httpz_backend.createResponse(&hctx, req.arena);
+            const http = hctx.http();
+            const path = req.url.path;
 
-            // Execute proxy handlers for the closest route before handling notfound
-            if (zx.Router.findRoute(path, .{ .match = .closest })) |_| {
-                const proxy_result = core_handler.executeNotFoundProxy(path, abstract_req, abstract_res, req.arena);
-                if (proxy_result.aborted) {
-                    ProxyStatus.markAborted();
-                    return;
-                }
-                if (proxy_result.state_ptr != null) ProxyStatus.markExecuted();
-            }
-
-            res.status = 404;
-            res.content_type = .HTML;
-
-            // Delegate to core handler for not-found rendering
             const matched_route: ?*const ServerApp.Route = if (req.route_data) |rd|
                 @ptrCast(@alignCast(rd))
             else
-                null;
+                zx.Router.findRoute(path, .{ .match = .exact });
 
-            if (core_handler.renderNotFound(path, abstract_req, abstract_res, req.arena, matched_route)) |cmp| {
-                var component = cmp;
-
-                // Dev mode: inject dev script
-                if (cli_command == .dev) {
-                    injectDevScript(req.arena, &component);
-                }
-
-                // Write to response
-                res.clearWriter();
-                const writer = res.writer();
-                writer.writeAll("<!DOCTYPE html>\n") catch {
-                    res.body = "404 Not Found";
-                    return;
-                };
-                component.render(writer, .{ .base_path = app_opts.app_base_path }) catch {
-                    res.body = "404 Not Found";
-                };
-            } else {
-                res.body = "404 Not Found";
+            const proxy_result = core_handler.executeNotFoundProxy(path, abstract_req, abstract_res, req.arena);
+            if (proxy_result.aborted) {
+                ProxyStatus.markAborted();
+                return;
             }
+            if (proxy_result.state_ptr != null) ProxyStatus.markExecuted();
+
+            const component = core_handler.prepareNotFound(http, path, abstract_req, abstract_res, req.arena, matched_route);
+            try self.emitHtmlOrPlain(req, res, component);
         }
 
-        pub fn uncaughtError(_: *Self, req: *httpz.Request, res: *httpz.Response, err: anyerror) void {
-            const path = req.url.path;
-
-            res.status = 500;
-            res.content_type = .HTML;
-
+        pub fn uncaughtError(self: *Self, req: *httpz.Request, res: *httpz.Response, err: anyerror) void {
             var hctx = httpz_backend.HttpzCtx{ .req = req, .res = res };
             const abstract_req = httpz_backend.createRequest(&hctx);
             const abstract_res = httpz_backend.createResponse(&hctx, req.arena);
+            const http = hctx.http();
 
-            // Delegate to core handler for error rendering
-            if (core_handler.renderError(path, abstract_req, abstract_res, req.arena, err)) |cmp| {
-                var component = cmp;
-
-                // Dev mode: inject dev script
-                if (cli_command == .dev) {
-                    injectDevScript(req.arena, &component);
-                }
-
-                // Write to response
-                res.clearWriter();
-                const writer = res.writer();
-                writer.writeAll("<!DOCTYPE html>\n") catch {
-                    res.body = "500 Internal Server Error";
-                    return;
-                };
-                component.render(writer, .{ .base_path = app_opts.app_base_path }) catch {
-                    res.body = "500 Internal Server Error";
-                };
-            } else {
+            const component = core_handler.prepareError(http, req.url.path, abstract_req, abstract_res, req.arena, err);
+            self.emitHtmlOrPlain(req, res, component) catch {
                 res.body = "500 Internal Server Error";
-            }
+            };
         }
 
         fn injectDevScript(arena: Allocator, component: *Component) void {
@@ -217,120 +169,66 @@ pub fn Handler(comptime AppCtxType: type) type {
             _ = inj.injectScriptIntoBody(component, "/.well-known/_zx/devscript.js");
         }
 
-        pub fn api(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
-            const allocator = self.allocator;
-            var hctx = httpz_backend.HttpzCtx{ .req = req, .res = res };
-            const abstract_req = httpz_backend.createRequest(&hctx);
-            const abstract_res = httpz_backend.createResponse(&hctx, req.arena);
-
-            // Get route data
-            const route_data: *const ServerApp.Route = if (req.route_data) |rd|
-                @ptrCast(@alignCast(rd))
-            else
-                return self.notFound(req, res);
-
-            // Static export
-            if (comptime is_export) {
-                if (req.header("x-zx-static-data")) |_| {
-                    if (route_data.route_opts) |page_opts| {
-                        if (page_opts.static) |static_opts| {
-                            const params = try self.resolveStaticParams(req.arena, static_opts);
-                            try std.zon.stringify.serialize(params, .{ .whitespace = true }, res.writer());
-                        }
-                    }
-
-                    return;
-                }
-            }
-
-            // Execute proxy via core handler
-            const proxy_result = core_handler.executeRouteProxy(route_data, abstract_req, abstract_res, req.arena);
-            if (proxy_result.aborted) {
+        fn markProxyStatus(proxy: zx.Router.ProxyResult) void {
+            if (proxy.aborted) {
                 ProxyStatus.markAborted();
-                return;
-            }
-            if (proxy_result.state_ptr != null) ProxyStatus.markExecuted();
-
-            const handlers = route_data.route orelse return self.notFound(req, res);
-
-            // Check if this route has a Socket handler and might want to upgrade
-            if (handlers.socket) |socket_handler| {
-                // Create upgrade context for socket operations
-                var upgrade_ctx = httpz_backend.UpgradeBackend{
-                    .allocator = allocator,
-                    .req = req,
-                    .res = res,
-                };
-                const socket = upgrade_ctx.socket();
-
-                // Delegate to core handler
-                const result = core_handler.handleApi(
-                    route_data,
-                    abstract_req,
-                    abstract_res,
-                    allocator,
-                    self.app_ctx,
-                    proxy_result.state_ptr,
-                    socket,
-                );
-
-                switch (result) {
-                    .not_found => return self.notFound(req, res),
-                    .handler_error => |err| return self.uncaughtError(req, res, err),
-                    .handled => {},
-                }
-
-                // If the handler called socket.upgrade(), perform the actual WebSocket upgrade
-                if (upgrade_ctx.upgraded) {
-                    const ws_ctx = WebsocketContext{
-                        .socket_handler = socket_handler,
-                        .socket_open_handler = handlers.socket_open,
-                        .socket_close_handler = handlers.socket_close,
-                        .allocator = allocator,
-                        .upgrade_data = upgrade_ctx.upgrade_data,
-                    };
-                    if (try httpz.upgradeWebsocket(WebsocketHandler, req, res, ws_ctx) == false) {
-                        res.status = 400;
-                        res.body = "Invalid WebSocket handshake";
-                    }
-                }
-            } else {
-                // No socket handler, use regular route context
-                const result = core_handler.handleApi(
-                    route_data,
-                    abstract_req,
-                    abstract_res,
-                    allocator,
-                    self.app_ctx,
-                    proxy_result.state_ptr,
-                    .{}, // empty socket
-                );
-
-                switch (result) {
-                    .not_found => return self.notFound(req, res),
-                    .handler_error => |err| return self.uncaughtError(req, res, err),
-                    .handled => {},
-                }
+            } else if (proxy.state_ptr != null) {
+                ProxyStatus.markExecuted();
             }
         }
 
+        fn emitHtmlOrPlain(self: *Self, req: *httpz.Request, res: *httpz.Response, component: ?Component) !void {
+            _ = self;
+            if (component) |cmp| {
+                var page_component = cmp;
+                if (comptime is_dev) injectDevScript(req.arena, &page_component);
+
+                res.clearWriter();
+                const writer = res.writer();
+                core_handler.renderHtmlDocument(writer, &page_component, app_opts.app_base_path) catch {
+                    if (res.body.len == 0) {
+                        res.body = if (res.status == 404) "404 Not Found" else "500 Internal Server Error";
+                    }
+                };
+                res.content_type = .HTML;
+            } else {
+                res.content_type = .HTML;
+                // prepare* already set res.body via Http.resSetBody
+            }
+        }
+
+        /// Shared page/API entry used by both httpz registrations.
+        pub fn api(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
+            return self.dispatchRequest(req, res);
+        }
+
         pub fn page(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
+            return self.dispatchRequest(req, res);
+        }
+
+        fn dispatchRequest(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
             const allocator = self.allocator;
 
+            // Export-only early outs
             if (comptime is_export) {
                 if (req.header("x-zx-export-notfound")) |_| {
                     return self.notFound(req, res);
                 }
-
-                // Handle static params request for dynamic routes
                 if (req.header("x-zx-static-data")) |_| {
                     if (req.route_data) |rd| {
                         const route: *const ServerApp.Route = @ptrCast(@alignCast(rd));
-                        if (route.page_opts) |page_opts| {
-                            if (page_opts.static) |static_opts| {
-                                const params = try self.resolveStaticParams(req.arena, static_opts);
-                                try std.zon.stringify.serialize(params, .{ .whitespace = true }, res.writer());
+                        const static_opts = blk: {
+                            if (route.page_opts) |page_opts| {
+                                if (page_opts.static) |s| break :blk s;
                             }
+                            if (route.route_opts) |route_opts| {
+                                if (route_opts.static) |s| break :blk s;
+                            }
+                            break :blk null;
+                        };
+                        if (static_opts) |static_fn| {
+                            const params = try self.resolveStaticParams(req.arena, static_fn);
+                            try std.zon.stringify.serialize(params, .{ .whitespace = true }, res.writer());
                         }
                     }
                     return;
@@ -340,43 +238,52 @@ pub fn Handler(comptime AppCtxType: type) type {
             var hctx = httpz_backend.HttpzCtx{ .req = req, .res = res };
             const abstract_req = httpz_backend.createRequest(&hctx);
             const abstract_res = httpz_backend.createResponse(&hctx, req.arena);
+            const http = hctx.http();
 
-            // Get route data
-            const route: *const ServerApp.Route = if (req.route_data) |rd|
+            const route: ?*const ServerApp.Route = if (req.route_data) |rd|
                 @ptrCast(@alignCast(rd))
             else
-                return self.notFound(req, res);
+                null;
 
-            // Execute proxy via core handler
-            const proxy_result = core_handler.executePageProxy(route, abstract_req, abstract_res, req.arena);
-            if (proxy_result.aborted) {
-                ProxyStatus.markAborted();
-                return;
-            }
-            if (proxy_result.state_ptr != null) ProxyStatus.markExecuted();
-
-            // Delegate to core handler for page handling
-            const result = try core_handler.handlePage(
-                route,
-                abstract_req,
-                abstract_res,
-                allocator,
-                req.arena,
-                self.app_ctx,
-                proxy_result.state_ptr,
-                app_opts.app_base_path,
-            );
-
-            switch (result) {
-                .component => |cmp| {
-                    var page_component = cmp;
-
-                    // Dev mode: inject dev script
-                    if (comptime is_dev) {
-                        injectDevScript(req.arena, &page_component);
+            var upgrade_ctx = httpz_backend.UpgradeBackend{
+                .allocator = allocator,
+                .req = req,
+                .res = res,
+            };
+            var use_socket = false;
+            const socket: zx.Socket = blk: {
+                if (route) |r| {
+                    if (r.route) |handlers| {
+                        if (handlers.socket != null) {
+                            use_socket = true;
+                            break :blk upgrade_ctx.socket();
+                        }
                     }
+                }
+                break :blk .{};
+            };
 
-                    // Handle devtool request
+            const result = try zx.Router.handle(.{
+                .http = http,
+                .request = abstract_req,
+                .response = abstract_res,
+                .pathname = req.url.path,
+                .method = abstract_req.method,
+                .allocator = allocator,
+                .arena = req.arena,
+                .base_path = app_opts.app_base_path,
+                .app_ctx = @ptrCast(self.app_ctx),
+                .socket = socket,
+            });
+            markProxyStatus(result.proxy);
+
+            switch (result.outcome) {
+                .response_ready => {},
+                .component => |c| {
+                    var page_component = c.component;
+
+                    if (comptime is_dev) injectDevScript(req.arena, &page_component);
+
                     const is_devtool = std.mem.eql(u8, req.url.path, "/.well-known/_zx/devtool");
                     if ((comptime is_dev) and is_devtool) {
                         const query = try req.query();
@@ -386,75 +293,41 @@ pub fn Handler(comptime AppCtxType: type) type {
                         return;
                     }
 
-                    // Check if streaming is enabled
-                    if (core_handler.isStreamingEnabled(route)) {
+                    if (c.streaming) {
                         try self.renderStreaming(res, &page_component, req.arena);
                     } else {
-                        // Normal mode: render everything at once
                         const writer = &res.buffer.writer;
-                        _ = writer.write("<!DOCTYPE html>\n") catch |err| {
-                            log.err("writing html: {}", .{err});
-                            return;
-                        };
-                        page_component.render(writer, .{ .base_path = app_opts.app_base_path }) catch |err| switch (err) {
-                            error.NotFound => {
-                                return self.notFound(req, res);
-                            },
+                        core_handler.renderHtmlDocument(writer, &page_component, app_opts.app_base_path) catch |err| switch (err) {
+                            error.NotFound => return self.notFound(req, res),
                             else => {
                                 log.err("rendering page: {}", .{err});
                                 return self.uncaughtError(req, res, err);
                             },
                         };
                     }
-
                     res.content_type = .HTML;
                 },
-                .action_handled => |r| {
-                    if (r.body) |body| {
-                        res.content_type = .JSON;
-                        res.body = body;
+                .ws_upgraded => {
+                    if (use_socket and upgrade_ctx.upgraded) {
+                        if (route) |r| {
+                            if (r.route) |handlers| {
+                                const ws_ctx = WebsocketContext{
+                                    .socket_handler = handlers.socket,
+                                    .socket_open_handler = handlers.socket_open,
+                                    .socket_close_handler = handlers.socket_close,
+                                    .allocator = allocator,
+                                    .upgrade_data = upgrade_ctx.upgrade_data,
+                                };
+                                if (try httpz.upgradeWebsocket(WebsocketHandler, req, res, ws_ctx) == false) {
+                                    res.status = 400;
+                                    res.body = "Invalid WebSocket handshake";
+                                }
+                            }
+                        }
                     }
                 },
-                .action_native => {
-                    // Action was invoked natively (form POST), re-render the page
-                    // Re-delegate to get the rendered component
-                    const re_result = try core_handler.handlePage(
-                        route,
-                        abstract_req,
-                        abstract_res,
-                        allocator,
-                        req.arena,
-                        self.app_ctx,
-                        proxy_result.state_ptr,
-                        app_opts.app_base_path,
-                    );
-                    switch (re_result) {
-                        .component => |cmp| {
-                            var page_component = cmp;
-                            if (comptime is_dev) injectDevScript(req.arena, &page_component);
-                            const writer = &res.buffer.writer;
-                            _ = writer.write("<!DOCTYPE html>\n") catch return;
-                            page_component.render(writer, .{ .base_path = app_opts.app_base_path }) catch |err| return self.uncaughtError(req, res, err);
-                            res.content_type = .HTML;
-                        },
-                        .page_error => |err| return self.uncaughtError(req, res, err),
-                        .not_found => return self.notFound(req, res),
-                        else => {},
-                    }
-                },
-                .event_handled => |r| {
-                    res.content_type = .JSON;
-                    res.body = r.body orelse "{}";
-                },
-                .not_found => return self.notFound(req, res),
-                .page_error => |err| return self.uncaughtError(req, res, err),
-                .action_not_found => {
-                    res.status = 400;
-                    res.body = "No action handler registered for this route";
-                },
-                .event_not_found => {
-                    res.status = 400;
-                    res.body = "No server event handler registered for this route";
+                .not_found => |nf| {
+                    try self.emitHtmlOrPlain(req, res, nf.component);
                 },
             }
         }

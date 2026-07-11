@@ -21,8 +21,6 @@ pub const PageResult = union(enum) {
     component: Component,
     /// Request was handled by JS action dispatch. Response body is set.
     action_handled: struct { body: ?[]u8 = null },
-    /// Action was invoked natively (form POST). Continue rendering the page.
-    action_native: void,
     /// Request was handled by server event dispatch.
     event_handled: struct { body: ?[]u8 = null },
     /// No page handler for this route.
@@ -180,6 +178,50 @@ pub fn renderError(
     err: anyerror,
 ) ?Component {
     return Router.renderErrorComponent(allocator, request, response, pathname, err);
+}
+
+/// Set 404 status/content-type and build the notfound component (if any).
+/// When no notfound page exists, sets the plain-text fallback body.
+pub fn prepareNotFound(
+    http: zx.Http,
+    pathname: []const u8,
+    request: Request,
+    response: Response,
+    allocator: Allocator,
+    matched_route: ?*const Route,
+) ?Component {
+    http.resSetStatus(404);
+    http.resHeaderSet("Content-Type", "text/html");
+    if (renderNotFound(pathname, request, response, allocator, matched_route)) |cmp| {
+        return cmp;
+    }
+    http.resSetBody("404 Not Found");
+    return null;
+}
+
+/// Set 500 status/content-type and build the error component (if any).
+/// When no error page exists, sets the plain-text fallback body.
+pub fn prepareError(
+    http: zx.Http,
+    pathname: []const u8,
+    request: Request,
+    response: Response,
+    allocator: Allocator,
+    err: anyerror,
+) ?Component {
+    http.resSetStatus(500);
+    http.resHeaderSet("Content-Type", "text/html");
+    if (renderError(pathname, request, response, allocator, err)) |cmp| {
+        return cmp;
+    }
+    http.resSetBody("500 Internal Server Error");
+    return null;
+}
+
+/// Write `<!DOCTYPE html>` followed by the rendered component.
+pub fn renderHtmlDocument(writer: *std.Io.Writer, component: *Component, base_path: ?[]const u8) !void {
+    try writer.writeAll("<!DOCTYPE html>\n");
+    try component.render(writer, .{ .base_path = base_path });
 }
 
 /// Inject build-time HTML (scripts, styles, etc.) into head/body elements.
