@@ -149,7 +149,7 @@ function executeWasm(
     }
 
     // NOTE: no await - start() runs synchronously until the first Suspending
-    // call, writing __EDGE_META__ to stderr and the HTML shell to stdout.
+    // call, writing __ZIEX_META__ to stderr and the HTML shell to stdout.
     // The runtime streams stdout to the client while WASM is suspended.
     const start = (WebAssembly as any).promising(instance.exports._start as Function);
     return (start() as Promise<void>)
@@ -168,9 +168,9 @@ function executeWasm(
 }
 
 /** Parse edge response metadata from stderr output. */
-function parseEdgeMeta(stderrText: string): { status: number; headers: Headers; streaming: boolean } {
+function parseZiexMeta(stderrText: string): { status: number; headers: Headers; streaming: boolean } {
     const meta = { status: 200, headers: new Headers(), streaming: false };
-    const metaPrefix = "__EDGE_META__:";
+    const metaPrefix = "__ZIEX_META__:";
     const metaLine = stderrText
         .split("\n")
         .find((line) => line.startsWith(metaPrefix));
@@ -303,7 +303,7 @@ export async function run({
     }
 
     const { stderrText: earlyStderrText } = collectOutput();
-    const earlyMeta = parseEdgeMeta(earlyStderrText);
+    const earlyMeta = parseZiexMeta(earlyStderrText);
 
     if (earlyMeta.streaming) {
         // Page opted into streaming (zx.PageOptions{ .streaming = true }) -
@@ -319,9 +319,17 @@ export async function run({
 
     await wasmPromise;
     const { stderrText } = collectOutput();
-    const meta = parseEdgeMeta(stderrText);
+    const meta = parseZiexMeta(stderrText);
     const body = mergeUint8Arrays(stdoutChunks);
     meta.headers.delete('transfer-encoding');
+
+    // 101/204/205/304 must use a null body (Workers warns on empty ArrayBuffer).
+    const nullBody = meta.status === 101 || meta.status === 204 || meta.status === 205 || meta.status === 304;
+    if (nullBody) {
+        meta.headers.delete('content-length');
+        return new Response(null, { status: meta.status, headers: meta.headers });
+    }
+
     if (!meta.headers.has('content-length')) meta.headers.set('content-length', String(body.byteLength));
     return new Response(body.buffer as ArrayBuffer, { status: meta.status, headers: meta.headers });
 }

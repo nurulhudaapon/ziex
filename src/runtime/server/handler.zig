@@ -14,11 +14,11 @@ const AppConfig = @import("../core/AppConfig.zig");
 const Request = @import("../core/Request.zig");
 const Response = @import("../core/Response.zig");
 const Constant = @import("../../constant.zig");
+const PageCache = @import("PageCache.zig");
 
 const Allocator = std.mem.Allocator;
 const Component = zx.Component;
 const ServerApp = Server.ServerApp;
-const cachez = zx.Cache.cachez;
 const httpz_backend = zx.Http.Httpz;
 const log = std.log.scoped(.app);
 
@@ -48,7 +48,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                 .meta = meta,
                 .config = config,
                 .allocator = allocator,
-                .page_cache = if (feat_cache) try PageCache.init(io, allocator, cache_config) else {},
+                .page_cache = if (feat_cache) try PageCache.initCachez(io, allocator, cache_config) else {},
                 .app_ctx = app_ctx,
                 .io = io,
             };
@@ -66,10 +66,22 @@ pub fn Handler(comptime AppCtxType: type) type {
 
             // Try cache first, execute action on miss
             // Note: Middlewares are handled by httpz before this dispatch is called
-            const cache_status = if (feat_cache) self.page_cache.tryServe(req, res) else PageCache.Status.disabled;
+            var hctx = httpz_backend.HttpzCtx{ .req = req, .res = res };
+            const abstract_req = httpz_backend.createRequest(&hctx);
+            const abstract_res = httpz_backend.createResponse(&hctx, req.arena);
+
+            const cache_status = if (feat_cache) self.page_cache.tryServe(abstract_req, abstract_res) else PageCache.Status.disabled;
             if (cache_status != .hit) {
                 try action(self, req, res);
-                if (cache_status == .miss) self.page_cache.store(req, res);
+                if (cache_status == .miss) {
+                    const buffered = res.buffer.writer.buffered();
+                    const body = if (buffered.len > 0) buffered else res.body;
+                    self.page_cache.store(abstract_req, abstract_res, .{
+                        .status = res.status,
+                        .body = body,
+                        .content_type = httpzContentTypeMime(res.content_type),
+                    });
+                }
             }
 
             // Dev mode logging (skip noisy paths)
@@ -864,207 +876,32 @@ const StatusIndicator = struct {
     }
 };
 
-/// PageCache handles caching of rendered HTML pages with ETag support
-const PageCache = struct {
-    pub const Status = enum {
-        hit, // Served from cache
-        miss, // Not in cache, freshly rendered
-        skip, // Not cacheable (POST, internal paths, etc.)
-        disabled, // Cache is disabled
-    };
-
-    const CacheValue = struct {
-        body: []const u8,
-        etag: []const u8,
-        content_type: ?httpz.ContentType,
-
-        pub fn removedFromCache(self: CacheValue, allocator: Allocator) void {
-            allocator.free(self.body);
-            allocator.free(self.etag);
-        }
-    };
-
-    cache: cachez.Cache(CacheValue),
-    config: AppConfig.CacheConfig,
-    allocator: Allocator,
-
-    pub fn init(io: std.Io, allocator: Allocator, config: AppConfig.CacheConfig) !PageCache {
-        return .{
-            .allocator = allocator,
-            .config = config,
-            .cache = try cachez.Cache(CacheValue).init(io, allocator, .{
-                .max_size = config.max_size,
-            }),
-        };
-    }
-
-    pub fn deinit(self: *PageCache) void {
-        self.cache.deinit();
-    }
-
-    /// Try to serve from cache. Returns cache status.
-    pub fn tryServe(self: *PageCache, req: *httpz.Request, res: *httpz.Response) Status {
-        _ = checkCacheable(self.config, req, null) catch |err| return statusFromError(err);
-
-        // Check conditional request (If-None-Match)
-        if (req.header("if-none-match")) |client_etag| {
-            if (self.cache.get(req.url.path)) |entry| {
-                defer entry.release();
-                if (std.mem.eql(u8, client_etag, entry.value.etag)) {
-                    res.setStatus(.not_modified);
-                    self.addCacheHeaders(res, entry.value.etag, req.arena);
-                    return .hit;
-                }
-            }
-        }
-
-        // Try to serve full cached response
-        if (self.cache.get(req.url.path)) |entry| {
-            defer entry.release();
-            res.content_type = entry.value.content_type;
-            res.body = entry.value.body;
-            self.addCacheHeaders(res, entry.value.etag, req.arena);
-            return .hit;
-        }
-
-        return .miss;
-    }
-
-    /// Cache a successful response
-    pub fn store(self: *PageCache, req: *httpz.Request, res: *httpz.Response) void {
-        const buffered = res.buffer.writer.buffered();
-        const body = if (buffered.len > 0) buffered else res.body;
-
-        const ttl = checkCacheable(self.config, req, .{
-            .status = res.status,
-            .body_len = body.len,
-        }) catch return;
-
-        // Generate ETag from body hash
-        const hash = std.hash.Wyhash.hash(0, body);
-        const etag = std.fmt.allocPrint(self.allocator, "\"{x}\"", .{hash}) catch return;
-
-        // Dupe the body for cache storage
-        const cached_body = self.allocator.dupe(u8, body) catch {
-            self.allocator.free(etag);
-            return;
-        };
-
-        self.cache.put(req.url.path, .{
-            .body = cached_body,
-            .etag = etag,
-            .content_type = res.content_type,
-        }, .{
-            .ttl = ttl,
-        }) catch |err| {
-            log.warn("Failed to cache page {s}: {}", .{ req.url.path, err });
-            self.allocator.free(cached_body);
-            self.allocator.free(etag);
-            return;
-        };
-
-        // Add cache headers to response
-        self.addCacheHeaders(res, etag, req.arena);
-        res.headers.add("X-Cache", "MISS");
-    }
-
-    fn addCacheHeaders(self: *PageCache, res: *httpz.Response, etag: []const u8, arena: Allocator) void {
-        res.headers.add("ETag", etag);
-        res.headers.add("Cache-Control", std.fmt.allocPrint(arena, "public, max-age={d}", .{self.config.default_ttl}) catch "public, max-age=300");
-        res.headers.add("X-Cache", "HIT");
-    }
-
-    pub const CacheError = error{
-        Disabled,
-        MissingRouteData,
-        NotConfigured,
-        UnsupportedMethod,
-        UnsupportedPath,
-        ZeroTtl,
-        UnsupportedHttpStatus,
-        EmptyBody,
-    };
-
-    const ResponseCheck = struct {
-        status: ?u16 = null,
-        body_len: ?usize = null,
-    };
-
-    /// Adjust cache status for display when the response is not cacheable.
-    pub fn effectiveStatus(cache_status: Status, http_status: u16) Status {
-        _ = checkCacheable(null, null, .{ .status = http_status }) catch return .skip;
-        return cache_status;
-    }
-
-    fn statusFromError(err: CacheError) Status {
-        return switch (err) {
-            error.Disabled => .disabled,
-            error.MissingRouteData => .skip,
-            error.NotConfigured => .skip,
-            error.UnsupportedMethod => .skip,
-            error.UnsupportedPath => .skip,
-            error.ZeroTtl => .skip,
-            error.UnsupportedHttpStatus => .skip,
-            error.EmptyBody => .skip,
-        };
-    }
-
-    /// Validate whether a request/response may be cached. Returns the route TTL when a request is provided.
-    fn checkCacheable(
-        config: ?AppConfig.CacheConfig,
-        req: ?*httpz.Request,
-        response: ?ResponseCheck,
-    ) CacheError!u32 {
-        if (config) |cfg| {
-            if (cfg.max_size == 0) return error.Disabled;
-        }
-
-        if (req) |r| {
-            if (r.method != .GET) return error.UnsupportedMethod;
-            if (std.mem.startsWith(u8, r.url.path, "/.well-known/_zx/")) return error.UnsupportedPath;
-        }
-
-        const ttl = ttl_blk: {
-            if (req) |r| {
-                const route_data = r.route_data orelse return error.MissingRouteData;
-                const route: *const ServerApp.Route = @ptrCast(@alignCast(route_data));
-
-                const caching: ?zx.BuiltinAttribute.Caching = cache_blk: {
-                    if (route.page_opts) |o| if (o.caching) |c| break :cache_blk c else break :cache_blk null;
-                    if (route.layout_opts) |o| if (o.caching) |c| break :cache_blk c else break :cache_blk null;
-                    if (route.notfound_opts) |o| if (o.caching) |c| break :cache_blk c else break :cache_blk null;
-                    if (route.route_opts) |o| if (o.caching) |c| break :cache_blk c else break :cache_blk null;
-                    break :cache_blk null;
-                };
-
-                const c = caching orelse return error.NotConfigured;
-                if (c.ttl.nanoseconds == 0) return error.ZeroTtl;
-                const ttl_s: u32 = @intCast(c.ttl.toSeconds());
-                break :ttl_blk ttl_s;
-            } else break :ttl_blk 0;
-        };
-
-        if (response) |r| {
-            if (r.status) |status| {
-                if (status != 200) return error.UnsupportedHttpStatus;
-            }
-            if (r.body_len) |len| {
-                if (len == 0) return error.EmptyBody;
-            }
-        }
-
-        return ttl;
-    }
-
-    /// Delete a specific page from the cache by exact path
-    /// Example: del("/users/123")
-    pub fn del(self: *PageCache, path: []const u8) bool {
-        return self.cache.del(path);
-    }
-
-    /// Delete all pages matching a path prefix
-    /// Example: delPath("/users") deletes /users, /users/1, /users/2, etc.
-    pub fn delPath(self: *PageCache, path_prefix: []const u8) usize {
-        return self.cache.delPrefix(path_prefix) catch 0;
-    }
-};
+fn httpzContentTypeMime(ct: ?httpz.ContentType) ?[]const u8 {
+    return if (ct) |c| switch (c) {
+        .BINARY => "application/octet-stream",
+        .CSS => "text/css",
+        .CSV => "text/csv",
+        .EOT => "application/vnd.ms-fontobject",
+        .EVENTS => "text/event-stream",
+        .GIF => "image/gif",
+        .GZ => "application/gzip",
+        .HTML => "text/html",
+        .ICO => "image/vnd.microsoft.icon",
+        .JPG => "image/jpeg",
+        .JS => "text/javascript",
+        .JSON => "application/json",
+        .OTF => "font/otf",
+        .PDF => "application/pdf",
+        .PNG => "image/png",
+        .SVG => "image/svg+xml",
+        .TAR => "application/x-tar",
+        .TEXT => "text/plain",
+        .TTF => "font/ttf",
+        .WASM => "application/wasm",
+        .WEBP => "image/webp",
+        .WOFF => "font/woff",
+        .WOFF2 => "font/woff2",
+        .XML => "text/xml",
+        .UNKNOWN => null,
+    } else null;
+}

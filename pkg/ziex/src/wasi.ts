@@ -50,7 +50,7 @@ export function createWasiImports({
 
     const stdoutChunks: Uint8Array[] = [];
     // Stderr is processed line-by-line:
-    //   __EDGE_META__: lines are stored for response metadata parsing.
+    //   __ZIEX_META__: lines are stored for response metadata parsing.
     //   All other lines are forwarded to console.error in real-time.
     let stderrMeta = '';
     let stderrPartial = '';
@@ -61,7 +61,7 @@ export function createWasiImports({
         const lines = (stderrPartial + text).split('\n');
         stderrPartial = lines.pop() ?? '';
         for (const line of lines) {
-            if (line.startsWith('__EDGE_META__:')) {
+            if (line.startsWith('__ZIEX_META__:')) {
                 stderrMeta += line + '\n';
             } else if (line.length > 0) {
                 console.error('[ziex]', line);
@@ -249,7 +249,7 @@ export function createWasiImports({
         const remaining = stderrDecoder.decode(undefined, { stream: false });
         const tail = stderrPartial + remaining;
         if (tail.length > 0) {
-            if (tail.startsWith('__EDGE_META__:')) stderrMeta += tail;
+            if (tail.startsWith('__ZIEX_META__:')) stderrMeta += tail;
             else console.error('[ziex]', tail);
             stderrPartial = '';
         }

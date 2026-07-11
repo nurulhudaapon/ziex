@@ -13,20 +13,51 @@ export interface SyncKVNamespace extends KVNamespace {
     listSync(options?: { prefix?: string }): { keys: { name: string }[] };
 }
 
+type MemoryEntry = { value: string; expiresAt?: number };
+
+function putOptions(ttlSeconds: number): { expirationTtl: number } | undefined {
+    if (ttlSeconds < 60) return undefined;
+    return { expirationTtl: ttlSeconds };
+}
+
 /**
  * In-memory KV namespace. Used as the default shim on platforms that don't
  * provide a real KV binding (e.g. Vercel). Data lives only for the lifetime
  * of the isolate instance.
  */
 export function createMemoryKV(): KVNamespace {
-    const store = new Map<string, string>();
+    const store = new Map<string, MemoryEntry>();
+
+    function read(key: string): string | null {
+        const entry = store.get(key);
+        if (!entry) return null;
+        if (entry.expiresAt !== undefined && Date.now() >= entry.expiresAt) {
+            store.delete(key);
+            return null;
+        }
+        return entry.value;
+    }
+
+    function write(key: string, value: string, options?: { expiration?: number; expirationTtl?: number }): void {
+        let expiresAt: number | undefined;
+        if (options?.expiration !== undefined) {
+            expiresAt = options.expiration * 1000;
+        } else if (options?.expirationTtl !== undefined) {
+            expiresAt = Date.now() + options.expirationTtl * 1000;
+        }
+        store.set(key, { value, expiresAt });
+    }
+
     return {
-        async get(key) { return store.get(key) ?? null; },
-        async put(key, value) { store.set(key, value); },
+        async get(key) { return read(key); },
+        async put(key, value, options) { write(key, value, options); },
         async delete(key) { store.delete(key); },
         async list(options) {
             const keys = [...store.keys()]
-                .filter(k => !options?.prefix || k.startsWith(options.prefix))
+                .filter(k => {
+                    if (options?.prefix && !k.startsWith(options.prefix)) return false;
+                    return read(k) !== null;
+                })
                 .map(name => ({ name }));
             return { keys };
         },
@@ -84,10 +115,10 @@ export function createKVImports(
                 if (value === null) return -1;
                 return writeBytes(buf_ptr, buf_max, encoder.encode(value));
             },
-            kv_put: (ns_ptr: number, ns_len: number, key_ptr: number, key_len: number, val_ptr: number, val_len: number): number => {
+            kv_put: (ns_ptr: number, ns_len: number, key_ptr: number, key_len: number, val_ptr: number, val_len: number, ttl_seconds: number): number => {
                 const b = syncBinding(readStr(ns_ptr, ns_len));
                 if (!b) return 0;
-                b.putSync(readStr(key_ptr, key_len), readStr(val_ptr, val_len));
+                b.putSync(readStr(key_ptr, key_len), readStr(val_ptr, val_len), putOptions(ttl_seconds));
                 return 0;
             },
             kv_delete: (ns_ptr: number, ns_len: number, key_ptr: number, key_len: number): number => {
@@ -123,10 +154,11 @@ export function createKVImports(
             ns_ptr: number, ns_len: number,
             key_ptr: number, key_len: number,
             val_ptr: number, val_len: number,
+            ttl_seconds: number,
         ): Promise<number> => {
             const b = binding(readStr(ns_ptr, ns_len));
             if (!b) return -1;
-            await b.put(readStr(key_ptr, key_len), readStr(val_ptr, val_len));
+            await b.put(readStr(key_ptr, key_len), readStr(val_ptr, val_len), putOptions(ttl_seconds));
             return 0;
         }),
 

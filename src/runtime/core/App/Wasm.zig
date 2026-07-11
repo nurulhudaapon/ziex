@@ -5,14 +5,17 @@ const app_opts = @import("app_opts");
 
 const zx = @import("../../../root.zig");
 const App = @import("../App.zig");
+const AppConfig = @import("../AppConfig.zig");
 const ext = @import("../../server/wasm/extern.zig");
 const core_handler = @import("../Handler.zig");
 const render = @import("../../server/render.zig");
+const PageCache = @import("../../server/PageCache.zig");
 
 const Router = zx.Router;
 const Backend = zx.Http.Wasm.Backend;
 const HeaderEntry = zx.Http.Wasm.HeaderEntry;
 const base_path = app_opts.app_base_path;
+const feat_cache = app_opts.feat_cache_server;
 
 var g_inita: zx.Init = undefined;
 
@@ -102,6 +105,18 @@ pub fn run(process_init: std.process.Init) !void {
     const response = backend.response();
     const http = backend.http();
 
+    var page_cache: if (feat_cache) PageCache else void = if (feat_cache)
+        try PageCache.initKv(process_init.io, allocator, zx.kv.scoped(.@"page-cache"), AppConfig.CacheConfig{})
+    else
+        {};
+    defer if (feat_cache) page_cache.deinit();
+
+    const cache_status = if (feat_cache) page_cache.tryServe(request, response) else PageCache.Status.disabled;
+    if (cache_status == .hit) {
+        try sendResponse(stdout, stderr, &backend);
+        return;
+    }
+
     const matched = if (backend.route_match) |m| m.route else null;
     const handlers = if (matched) |r| r.route else null;
     const socket: zx.Socket = if (handlers != null and handlers.?.socket != null)
@@ -124,21 +139,30 @@ pub fn run(process_init: std.process.Init) !void {
     });
 
     switch (outcome) {
-        .response_ready => try sendResponse(stdout, stderr, &backend),
+        .response_ready => {
+            if (comptime feat_cache) {
+                if (cache_status == .miss) storePageCache(&page_cache, request, response, &backend, backend.written());
+            }
+            try sendResponse(stdout, stderr, &backend);
+        },
 
         .component => |c| {
             var component = c.component;
             if (c.streaming) {
                 try backend.resp_headers.append(allocator, .{ .name = "content-encoding", .value = "identify" });
-                try writeEdgeMeta(stderr, &backend, true);
+                try writeZiexMeta(stderr, &backend, true);
 
                 var shell_writer = std.Io.Writer.Allocating.init(allocator);
                 const async_components = Router.streamComponent(component, allocator, &shell_writer.writer, base_path) catch {
                     // Fallback: render the whole page at once.
                     var aw = std.Io.Writer.Allocating.init(allocator);
                     component.render(&aw.writer, .{ .base_path = base_path }) catch {};
-                    try stdout.writeAll("<!DOCTYPE html>");
-                    try stdout.writeAll(aw.written());
+                    const body = try std.fmt.allocPrint(allocator, "<!DOCTYPE html>{s}", .{aw.written()});
+                    defer allocator.free(body);
+                    if (comptime feat_cache) {
+                        if (cache_status == .miss) storePageCache(&page_cache, request, response, &backend, body);
+                    }
+                    try stdout.writeAll(body);
                     try stdout.flush();
                     return;
                 };
@@ -162,8 +186,20 @@ pub fn run(process_init: std.process.Init) !void {
             defer aw.deinit();
             component.render(&aw.writer, .{ .base_path = base_path }) catch {};
 
-            try writeEdgeMeta(stderr, &backend, false);
-            try stdout.print("<!DOCTYPE html>{s}", .{aw.written()});
+            const body = try std.fmt.allocPrint(allocator, "<!DOCTYPE html>{s}", .{aw.written()});
+            defer allocator.free(body);
+
+            if (comptime feat_cache) {
+                if (cache_status == .miss) {
+                    if (backend.resp_headers.items.len == 0 or !headerHas(backend.resp_headers.items, "Content-Type")) {
+                        backend.setContentTypeStr("text/html");
+                    }
+                    storePageCache(&page_cache, request, response, &backend, body);
+                }
+            }
+
+            try writeZiexMeta(stderr, &backend, false);
+            try stdout.writeAll(body);
             try stdout.flush();
         },
 
@@ -199,10 +235,10 @@ pub fn run(process_init: std.process.Init) !void {
                 var cmp = not_found_cmp;
                 cmp.render(&aw.writer, .{ .base_path = base_path }) catch {};
 
-                try writeEdgeMeta(stderr, &backend, false);
+                try writeZiexMeta(stderr, &backend, false);
                 try stdout.print("<!DOCTYPE html>{s}", .{aw.written()});
             } else {
-                try writeEdgeMeta(stderr, &backend, false);
+                try writeZiexMeta(stderr, &backend, false);
                 try stdout.print("404 Not Found", .{});
             }
             try stdout.flush();
@@ -210,26 +246,76 @@ pub fn run(process_init: std.process.Init) !void {
     }
 }
 
+fn storePageCache(
+    page_cache: *PageCache,
+    request: zx.server.Request,
+    response: zx.server.Response,
+    backend: *const Backend,
+    body: []const u8,
+) void {
+    page_cache.store(request, response, .{
+        .status = backend.status,
+        .body = body,
+        .content_type = headerGet(backend.resp_headers.items, "Content-Type") orelse "text/html",
+    });
+}
+
+fn headerGet(headers: []const HeaderEntry, name: []const u8) ?[]const u8 {
+    for (headers) |entry| {
+        if (std.ascii.eqlIgnoreCase(entry.name, name)) return entry.value;
+    }
+    return null;
+}
+
+fn headerHas(headers: []const HeaderEntry, name: []const u8) bool {
+    return headerGet(headers, name) != null;
+}
+
 fn sendResponse(stdout: *std.Io.Writer, stderr: *std.Io.Writer, backend: *Backend) !void {
-    try writeEdgeMeta(stderr, backend, false);
+    try writeZiexMeta(stderr, backend, false);
     const body = backend.written();
     if (body.len > 0) try stdout.print("{s}", .{body});
     try stdout.flush();
 }
 
-fn writeEdgeMeta(stderr: *std.Io.Writer, backend: *const Backend, streaming: bool) !void {
-    try stderr.print("__EDGE_META__:{{\"status\":{d}", .{backend.status});
+fn writeZiexMeta(stderr: *std.Io.Writer, backend: *const Backend, streaming: bool) !void {
+    try stderr.print("__ZIEX_META__:{{\"status\":{d}", .{backend.status});
     if (streaming) try stderr.print(",\"streaming\":true", .{});
     if (backend.resp_headers.items.len > 0) {
         try stderr.print(",\"headers\":[", .{});
         for (backend.resp_headers.items, 0..) |entry, i| {
             if (i > 0) try stderr.print(",", .{});
-            try stderr.print("[\"{s}\",\"{s}\"]", .{ entry.name, entry.value });
+            try stderr.writeAll("[");
+            try writeJsonString(stderr, entry.name);
+            try stderr.writeAll(",");
+            try writeJsonString(stderr, entry.value);
+            try stderr.writeAll("]");
         }
         try stderr.print("]", .{});
     }
     try stderr.print("}}\n", .{});
     try stderr.flush();
+}
+
+fn writeJsonString(writer: *std.Io.Writer, value: []const u8) !void {
+    try writer.writeByte('"');
+    for (value) |c| {
+        switch (c) {
+            '"' => try writer.writeAll("\\\""),
+            '\\' => try writer.writeAll("\\\\"),
+            '\n' => try writer.writeAll("\\n"),
+            '\r' => try writer.writeAll("\\r"),
+            '\t' => try writer.writeAll("\\t"),
+            else => {
+                if (c < 0x20) {
+                    try writer.print("\\u{x:0>4}", .{c});
+                } else {
+                    try writer.writeByte(c);
+                }
+            },
+        }
+    }
+    try writer.writeByte('"');
 }
 
 pub fn logFn(
