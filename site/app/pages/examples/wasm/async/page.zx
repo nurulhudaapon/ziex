@@ -1,5 +1,5 @@
 pub fn Page(ctx: zx.PageContext) !zx.Component {
-    std.log.info("Starting fetch request (server-side)...", .{});
+    std.log.debug("Starting fetch request (server-side)...", .{});
 
     // Server-side: use blocking Io
     // const result = try zx.fetch(.blocking, ctx.arena, "https://jsonplaceholder.typicode.com/todos/1", .{});
@@ -100,7 +100,7 @@ fn onFetchComplete(response: ?*zx.Fetch.Response, err: ?zx.Fetch.FetchError) voi
 }
 
 fn doFetch(_: zx.client.Event) void {
-    std.log.info("Starting fetch request (client-side)...", .{});
+    std.log.debug("Starting fetch request (client-side)...", .{});
 
     _ = zx.fetch(
         .wasm(&onFetchComplete),
