@@ -1,12 +1,12 @@
-const zx = @import("root.zig");
-const reactivity = @import("runtime/client/reactivity.zig");
+const zx = @import("../../root.zig");
+const reactivity = @import("../client/reactivity.zig");
 
-const ActionContext = @import("runtime/server/Action.zig");
-const ClientEvent = @import("runtime/client/Event.zig");
-const CoreEvent = @import("runtime/core/Event.zig");
-const Request = @import("runtime/core/Request.zig");
-const Response = @import("runtime/core/Response.zig");
-const ServerEvent = @import("runtime/server/Event.zig");
+const ActionContext = @import("../server/Action.zig");
+const ClientEvent = @import("../client/Event.zig");
+const CoreEvent = @import("Event.zig");
+const Request = @import("Request.zig");
+const Response = @import("Response.zig");
+const ServerEvent = @import("../server/Event.zig");
 
 const StateContext = CoreEvent.StateContext;
 const Allocator = zx.Allocator;
