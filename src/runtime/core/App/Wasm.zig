@@ -166,7 +166,10 @@ pub fn run(process_init: std.process.Init) !void {
                                 try writeNotFound(stdout, stderr, &backend, pathname, request, response, allocator, matched);
                                 return;
                             },
-                            else => {},
+                            else => {
+                                try writeUncaughtError(stdout, stderr, &backend, pathname, request, response, allocator, err);
+                                return;
+                            },
                         };
                         const body = try std.fmt.allocPrint(allocator, "<!DOCTYPE html>{s}", .{aw.written()});
                         defer allocator.free(body);
@@ -201,7 +204,10 @@ pub fn run(process_init: std.process.Init) !void {
                     try writeNotFound(stdout, stderr, &backend, pathname, request, response, allocator, matched);
                     return;
                 },
-                else => {},
+                else => {
+                    try writeUncaughtError(stdout, stderr, &backend, pathname, request, response, allocator, err);
+                    return;
+                },
             };
 
             const body = try std.fmt.allocPrint(allocator, "<!DOCTYPE html>{s}", .{aw.written()});
@@ -273,6 +279,34 @@ fn writeNotFound(
     } else {
         try writeZiexMeta(stderr, backend, false);
         try stdout.print("404 Not Found", .{});
+    }
+    try stdout.flush();
+}
+
+fn writeUncaughtError(
+    stdout: *std.Io.Writer,
+    stderr: *std.Io.Writer,
+    backend: *Backend,
+    pathname: []const u8,
+    request: zx.server.Request,
+    response: zx.server.Response,
+    allocator: std.mem.Allocator,
+    err: anyerror,
+) !void {
+    backend.status = 500;
+    backend.setContentTypeStr("text/html");
+
+    if (core_handler.renderError(pathname, request, response, allocator, err)) |error_cmp| {
+        var aw = std.Io.Writer.Allocating.init(allocator);
+        defer aw.deinit();
+        var cmp = error_cmp;
+        cmp.render(&aw.writer, .{ .base_path = base_path }) catch {};
+
+        try writeZiexMeta(stderr, backend, false);
+        try stdout.print("<!DOCTYPE html>{s}", .{aw.written()});
+    } else {
+        try writeZiexMeta(stderr, backend, false);
+        try stdout.print("500 Internal Server Error", .{});
     }
     try stdout.flush();
 }
