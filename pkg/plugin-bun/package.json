@@ -1,9 +1,0 @@
-{
-  "name": "ziex-plugin-bun",
-  "module": "src/main.ts",
-  "type": "module",
-  "private": true,
-  "devDependencies": {
-    "@types/bun": "latest"
-  }
-}

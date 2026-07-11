@@ -9,7 +9,6 @@
         //     .url = "git+https://github.com/zigtools/playground.git#9f9403892077b7624b97b8c1cd0ca5504afebfe7",
         //     .hash = "playground-0.0.0-iNkPNs5RAQAi9QGPVgK1FfiPQ7iAA3xSmyfev36uVu4X",
         // },
-        .bunjs = .{ .path = "../pkg/plugin-bun" },
         .esbuild = .{ .path = "../pkg/plugin-esbuild" },
         .tailwindcss = .{ .path = "../pkg/plugin-tailwindcss" },
         .ui = .{ .path = "../pkg/ui" },

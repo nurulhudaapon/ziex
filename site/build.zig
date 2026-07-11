@@ -307,6 +307,5 @@ fn assetId(_: *std.Build, optimize: std.builtin.OptimizeMode) []const u8 {
     // TODO: use ziex_builder.addStaticInstallFile(.{src: lazypath, dest_name: "assets/app.{hash}.js"}) once this is implemented
 }
 
-const bunjs = @import("bunjs");
 const esbuild = @import("esbuild");
 const tailwindcss = @import("tailwindcss");
