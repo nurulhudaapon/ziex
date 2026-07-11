@@ -97,7 +97,7 @@ if [ "$IS_WINDOWS" = false ]; then
   cd dist
   publish_idempotent ziex
 else
-  echo "==> Skipping ziex build on Windows (bun build not supported)"
+  echo "==> Skipping ziex build on Windows (zig build not configured for Windows smoke)"
 fi
 
 # Create temp directory for testing

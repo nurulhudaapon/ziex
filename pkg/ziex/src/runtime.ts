@@ -92,7 +92,7 @@ export function attachWebSocket(ws: WsState): { client: WebSocket } {
     server.accept();
 
     // Flush writes that happened during socket_open (before server was set)
-    for (const data of ws.pendingWrites) server.send(data);
+    for (const data of ws.pendingWrites) server.send(data as BufferSource);
     ws.pendingWrites = [];
 
     server.addEventListener("message", (event: MessageEvent) => {

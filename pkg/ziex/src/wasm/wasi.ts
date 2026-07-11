@@ -86,7 +86,7 @@ export class ZxWasiBridge {
         fetch(url, {
             method,
             headers: Object.keys(headers).length > 0 ? headers : undefined,
-            body: method !== 'GET' && method !== 'HEAD' ? body : undefined,
+            body: method !== 'GET' && method !== 'HEAD' ? body as BodyInit : undefined,
             signal: controller.signal,
         })
             .then(async (res) => {

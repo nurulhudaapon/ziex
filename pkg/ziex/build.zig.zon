@@ -2,6 +2,17 @@
     .name = .ziex_js,
     .fingerprint = 0x3428b4e119b455bf,
     .version = "0.1.0-dev",
-    .minimum_zig_version = "0.16.0",
-    .paths = .{""},
+    .minimum_zig_version = "0.17.0-dev.1158+1d1193aa7",
+    .dependencies = .{
+        .esbuild = .{ .path = "../plugin-esbuild" },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+        "bin",
+        "package.json",
+        "tsconfig.json",
+        "tsconfig.emit.json",
+    },
 }

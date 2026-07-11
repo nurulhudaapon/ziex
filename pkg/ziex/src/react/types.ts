@@ -34,6 +34,8 @@
  * }
  * ```
  */
+import type { ReactElement } from "react";
+
 export type ComponentMetadata = {
   /**
    * The name of the component as declared in the ZX file.
@@ -191,5 +193,5 @@ export type ComponentMetadata = {
    * // Component is loaded and ready to render with props
    * ```
    */
-  import: () => Promise<(props: any) => React.ReactElement>;
+  import: () => Promise<(props: any) => ReactElement>;
 };

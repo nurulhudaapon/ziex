@@ -142,9 +142,23 @@ function getHeaders(event: LambdaEvent): Headers {
     return headers;
 }
 
+function decodeBase64(base64: string): Uint8Array {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return bytes;
+}
+
+function encodeBase64(buffer: ArrayBuffer): string {
+    const bytes = new Uint8Array(buffer);
+    let binary = "";
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]!);
+    return btoa(binary);
+}
+
 function getBody(event: LambdaEvent): BodyInit | null {
     if (!event.body) return null;
-    if (event.isBase64Encoded) return Buffer.from(event.body, "base64");
+    if (event.isBase64Encoded) return decodeBase64(event.body) as BodyInit;
     return event.body;
 }
 
@@ -201,7 +215,7 @@ async function toLambdaResult(
     let body: string;
     let isBase64Encoded = false;
     if (binary) {
-        body = Buffer.from(await res.arrayBuffer()).toString("base64");
+        body = encodeBase64(await res.arrayBuffer());
         isBase64Encoded = true;
     } else {
         body = await res.text();

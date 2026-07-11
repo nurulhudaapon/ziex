@@ -96,7 +96,7 @@ export function createWebSocketDO(
                     let count = 0;
                     for (const [ws, conn] of this.connections) {
                         if (conn.topics.has(topic)) {
-                            try { ws.send(data); count++; } catch { /* closed */ }
+                            try { ws.send(data as BufferSource); count++; } catch { /* closed */ }
                         }
                     }
                     // During socket_open the server WebSocket doesn't exist yet,

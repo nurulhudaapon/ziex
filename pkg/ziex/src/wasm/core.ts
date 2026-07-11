@@ -177,7 +177,7 @@ export class ZxBridgeCore {
         const fetchOptions: RequestInit = {
             method,
             headers: Object.keys(headers).length > 0 ? headers : undefined,
-            body: method !== 'GET' && method !== 'HEAD' ? body : undefined,
+            body: method !== 'GET' && method !== 'HEAD' ? body as BodyInit : undefined,
             signal: controller.signal,
         };
 

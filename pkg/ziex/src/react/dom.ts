@@ -1,3 +1,4 @@
+import type { ReactElement } from "react";
 import type { ComponentMetadata } from "./types";
 
 export type PreparedComponent = {
@@ -5,7 +6,7 @@ export type PreparedComponent = {
   props: Record<string, any> & {
     dangerouslySetInnerHTML?: { __html: string };
   };
-  Component: (props: any) => React.ReactElement;
+  Component: (props: any) => ReactElement;
 };
 
 function findCommentMarker(id: string): { 
@@ -178,11 +179,11 @@ export function discoverComponents(): DiscoveredComponent[] {
   return components;
 }
 
-export type ComponentRegistry = Record<string, () => Promise<(props: any) => React.ReactElement>>;
+export type ComponentRegistry = Record<string, () => Promise<(props: any) => ReactElement>>;
 
 export async function hydrateAll(
   registry: ComponentRegistry,
-  render: (container: HTMLElement, Component: (props: any) => React.ReactElement, props: Record<string, any>) => void
+  render: (container: HTMLElement, Component: (props: any) => ReactElement, props: Record<string, any>) => void
 ): Promise<void> {
   const components = discoverComponents();
   

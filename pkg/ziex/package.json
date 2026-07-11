@@ -37,9 +37,8 @@
   "author": "Nurul Huda (Apon) <me@nurulhudaapon.com>",
   "license": "MIT",
   "scripts": {
-    "test": "bun test",
-    "build": "bun run script/build.ts",
-    "publish": "bun run build && cd dist && bun publish",
+    "build": "zig build -p dist",
+    "publish": "zig build -p dist && cd dist && npm publish",
     "fmt": "prettier --write . '!test/files/**' '!README.md'",
     "check": "tsc"
   },
@@ -47,10 +46,11 @@
     "@ziex/cli": "0.1.0-dev.1252"
   },
   "devDependencies": {
-    "@types/bun": "latest",
-    "zzon": "^1.7.1",
+    "@types/node": "^26.1.1",
     "@types/react": "latest",
-    "@types/react-dom": "latest"
+    "@types/react-dom": "latest",
+    "typescript": "^7.0.2",
+    "zzon": "^1.7.1"
   },
   "peerDependencies": {
     "typescript": "^5.0.0",
