@@ -107,8 +107,7 @@ pub fn run(process_init: std.process.Init) !void {
 
     var page_cache: if (feat_cache) PageCache else void = if (feat_cache)
         try PageCache.initKv(process_init.io, allocator, zx.kv.scoped(.@"page-cache"), AppConfig.CacheConfig{})
-    else
-        {};
+    else {};
     defer if (feat_cache) page_cache.deinit();
 
     const cache_status = if (feat_cache) page_cache.tryServe(request, response) else PageCache.Status.disabled;
@@ -148,6 +147,9 @@ pub fn run(process_init: std.process.Init) !void {
 
         .component => |c| {
             var component = c.component;
+            if (!headerHas(backend.resp_headers.items, "Content-Type")) {
+                backend.setContentTypeStr("text/html");
+            }
             if (c.streaming) {
                 try backend.resp_headers.append(allocator, .{ .name = "content-encoding", .value = "identify" });
                 try writeZiexMeta(stderr, &backend, true);
@@ -242,9 +244,6 @@ fn emitComponentBuffered(
 
     if (comptime feat_cache) {
         if (cache_status == .miss) {
-            if (backend.resp_headers.items.len == 0 or !headerHas(backend.resp_headers.items, "Content-Type")) {
-                backend.setContentTypeStr("text/html");
-            }
             storePageCache(page_cache, request, response, backend, body);
         }
     }

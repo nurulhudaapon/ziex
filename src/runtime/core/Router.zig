@@ -737,7 +737,6 @@ pub fn handle(opts: HandleOptions) !HandleResult {
                 return .{ .outcome = .response_ready, .proxy = proxy_result };
             },
             .component => |cmp| {
-                http.resHeaderSet("Content-Type", "text/html");
                 return .{
                     .outcome = .{ .component = .{
                         .component = cmp,

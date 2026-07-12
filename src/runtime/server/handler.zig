@@ -70,7 +70,8 @@ pub fn Handler(comptime AppCtxType: type) type {
             const abstract_req = httpz_backend.createRequest(&hctx);
             const abstract_res = httpz_backend.createResponse(&hctx, req.arena);
 
-            const cache_status = if (feat_cache) self.page_cache.tryServe(abstract_req, abstract_res) else PageCache.Status.disabled;
+            const is_devtool_req = (comptime is_dev) and req.header("x-zx-devtool") != null;
+            const cache_status = if (feat_cache and !is_devtool_req) self.page_cache.tryServe(abstract_req, abstract_res) else PageCache.Status.disabled;
             if (cache_status != .hit) {
                 try action(self, req, res);
                 if (cache_status == .miss) {
@@ -209,6 +210,10 @@ pub fn Handler(comptime AppCtxType: type) type {
         fn dispatchRequest(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
             const allocator = self.allocator;
 
+            if (comptime is_dev) {
+                if (try self.devtool(req, res)) return;
+            }
+
             // Export-only early outs
             if (comptime is_export) {
                 if (req.header("x-zx-export-notfound")) |_| {
@@ -282,15 +287,16 @@ pub fn Handler(comptime AppCtxType: type) type {
                 .component => |c| {
                     var page_component = c.component;
 
-                    if (comptime is_dev) injectDevScript(req.arena, &page_component);
-
-                    const is_devtool = std.mem.eql(u8, req.url.path, "/.well-known/_zx/devtool");
-                    if ((comptime is_dev) and is_devtool) {
-                        const query = try req.query();
-                        const include_native = !std.mem.eql(u8, query.get("include_native") orelse "1", "0");
-                        res.content_type = .JSON;
-                        try page_component.formatWithOptions(res.writer(), .{ .only_components = !include_native });
-                        return;
+                    if (comptime is_dev) {
+                        if (req.header("x-zx-devtool")) |mode| {
+                            if (std.mem.eql(u8, mode, "components")) {
+                                const include_native = !std.mem.eql(u8, req.header("x-zx-devtool-include-native") orelse "1", "0");
+                                res.content_type = .JSON;
+                                try page_component.formatWithOptions(res.writer(), .{ .only_components = !include_native });
+                                return;
+                            }
+                        }
+                        injectDevScript(req.arena, &page_component);
                     }
 
                     if (c.streaming) {
@@ -332,33 +338,26 @@ pub fn Handler(comptime AppCtxType: type) type {
             }
         }
 
-        // TODO: Move to DevServer
-        pub fn devtool(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
-            // Add cors headers
+        /// Returns true when the request was fully handled.
+        fn devtool(self: *Self, req: *httpz.Request, res: *httpz.Response) !bool {
+            const mode = req.header("x-zx-devtool") orelse return false;
             res.header("Access-Control-Allow-Origin", "*");
             res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-            res.header("Access-Control-Allow-Headers", "Content-Type");
+            res.header("Access-Control-Allow-Headers", "Content-Type, x-zx-devtool, x-zx-devtool-include-native");
+
             if (req.method == .OPTIONS) {
                 res.status = 200;
-                return;
+                return true;
             }
 
-            const query = try req.query();
-            const is_meta = query.get("meta") != null;
-            if (is_meta) {
+            if (std.mem.eql(u8, mode, "meta")) {
                 const meta_data = try zx.server.SerilizableAppMeta.init(req.arena, self.meta, self.config.server);
                 res.content_type = .JSON;
                 try meta_data.serializeRoutes(res.writer());
-                return;
+                return true;
             }
-            const target_path = query.get("path") orelse "/";
-
-            if (zx.Router.findRoute(target_path, .{ .match = .exact })) |route| {
-                req.route_data = @constCast(route);
-                return self.page(req, res);
-            } else {
-                return self.notFound(req, res);
-            }
+            // "components" continues through normal page render.
+            return false;
         }
 
         fn resolveStaticParams(self: *Self, allocator_arg: Allocator, static_fn: zx.StaticFn) ![]const []const zx.StaticParam {

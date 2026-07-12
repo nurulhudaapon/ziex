@@ -4,7 +4,8 @@
 ///
 /// Architecture:
 ///   Browser ──HTTP──► DevServer (outer_port, stays alive)
-///                         ├─ /.well-known/_zx/  → WebSocket and related assets (served here)
+///                         ├─ /.well-known/_zx/devsocket|devscript|open-in-editor → served here
+///                         ├─ /.well-known/_zx/devtool → rewrite + proxy with x-zx-devtool header
 ///                         └─ everything else    → proxy → app binary (inner_port)
 ///
 /// WebSocket messages sent to browsers are JSON-serialized `Notification`
@@ -323,10 +324,17 @@ fn handleConnection(ds: *DevServer, stream: std.Io.net.Stream) void {
     }
 }
 
+const cors_headers = [_]http.Header{
+    .{ .name = "Access-Control-Allow-Origin", .value = "*" },
+    .{ .name = "Access-Control-Allow-Methods", .value = "GET, POST, OPTIONS" },
+    .{ .name = "Access-Control-Allow-Headers", .value = "Content-Type, x-zx-devtool, x-zx-devtool-include-native" },
+};
+
 fn serveRequest(ds: *DevServer, req: *http.Server.Request, client_stream: std.Io.net.Stream) !void {
     const target = req.head.target;
     var target_split = std.mem.splitScalar(u8, target, '?');
     const target_path = target_split.first();
+    const target_query = target_split.rest();
 
     // 1. Intercept system requests (dev server only)
     if (std.mem.startsWith(u8, target_path, "/.well-known/_zx/")) {
@@ -354,6 +362,41 @@ fn serveRequest(ds: *DevServer, req: *http.Server.Request, client_stream: std.Io
             });
             return;
         }
+
+        // Devtool: rewrite to the inspected app path and ask the app for JSON via header.
+        if (std.mem.eql(u8, target_path, "/.well-known/_zx/devtool")) {
+            if (req.head.method == .OPTIONS) {
+                try req.respond("", .{
+                    .status = .ok,
+                    .extra_headers = &(cors_headers ++ [_]http.Header{
+                        .{ .name = "Connection", .value = "close" },
+                    }),
+                });
+                return;
+            }
+
+            const buffered_extra = req.server.reader.in.buffer[req.server.reader.in.seek..req.server.reader.in.end];
+            const rewrite = try buildDevtoolProxyRewrite(ds.gpa, target_query);
+            defer ds.gpa.free(rewrite.rewrite_target);
+            defer ds.gpa.free(rewrite.extra_headers);
+
+            log.debug("devtool proxy → {s} ({s})", .{ rewrite.rewrite_target, rewrite.mode });
+            proxyToInner(ds, client_stream, req.head_buffer, buffered_extra, .{
+                .rewrite_target = rewrite.rewrite_target,
+                .extra_headers = rewrite.extra_headers,
+            }) catch |err| {
+                log.debug("devtool proxy failed ({s})", .{@errorName(err)});
+                try req.respond("{\"error\":\"app unavailable\"}", .{
+                    .status = .bad_gateway,
+                    .extra_headers = &(cors_headers ++ [_]http.Header{
+                        .{ .name = "Content-Type", .value = "application/json" },
+                        .{ .name = "Connection", .value = "close" },
+                    }),
+                });
+                return error.AlreadyReported;
+            };
+            return error.AlreadyReported;
+        }
     }
 
     // 2. Everything else goes to the inner app
@@ -362,7 +405,7 @@ fn serveRequest(ds: *DevServer, req: *http.Server.Request, client_stream: std.Io
 
     // For app proxying, we currently only proxy ONE request per connection.
     // This is because proxyToInner pipes raw streams.
-    proxyToInner(ds, client_stream, req.head_buffer, buffered_extra) catch |err| {
+    proxyToInner(ds, client_stream, req.head_buffer, buffered_extra, .{}) catch |err| {
         // If the inner app isn't running (build errors, first startup, etc.),
         // serve a minimal HTML shell with the devscript embedded so the
         // browser can connect to the WebSocket and display error overlays.
@@ -380,6 +423,55 @@ fn serveRequest(ds: *DevServer, req: *http.Server.Request, client_stream: std.Io
     // After proxyToInner returns, the connection is typically exhausted.
     return error.AlreadyReported;
 }
+
+const DevtoolProxyRewrite = struct {
+    mode: []const u8,
+    rewrite_target: []u8,
+    extra_headers: []http.Header,
+};
+
+fn buildDevtoolProxyRewrite(allocator: Allocator, query: []const u8) !DevtoolProxyRewrite {
+    const is_meta = queryParam(query, "meta") != null;
+    if (is_meta) {
+        const headers = try allocator.dupe(http.Header, &.{
+            .{ .name = "x-zx-devtool", .value = "meta" },
+        });
+        return .{
+            .mode = "meta",
+            .rewrite_target = try allocator.dupe(u8, "/"),
+            .extra_headers = headers,
+        };
+    }
+
+    const path = queryParam(query, "path") orelse "/";
+    const include_native = queryParam(query, "include_native") orelse "1";
+    const headers = try allocator.alloc(http.Header, 2);
+    headers[0] = .{ .name = "x-zx-devtool", .value = "components" };
+    headers[1] = .{ .name = "x-zx-devtool-include-native", .value = include_native };
+    return .{
+        .mode = "components",
+        .rewrite_target = try allocator.dupe(u8, path),
+        .extra_headers = headers,
+    };
+}
+
+fn queryParam(query: []const u8, key: []const u8) ?[]const u8 {
+    var iter = std.mem.splitScalar(u8, query, '&');
+    while (iter.next()) |pair| {
+        var kv = std.mem.splitScalar(u8, pair, '=');
+        const k = kv.first();
+        if (std.mem.eql(u8, k, key)) {
+            const v = kv.rest();
+            return if (v.len == 0) "" else v;
+        }
+    }
+    return null;
+}
+
+const ProxyOptions = struct {
+    rewrite_target: ?[]const u8 = null,
+    extra_headers: []const http.Header = &.{},
+};
 
 fn serveWebSocket(ds: *DevServer, sock: *http.Server.WebSocket, stream: std.Io.net.Stream) !noreturn {
     // Send initial connected message (also flushes the 101 handshake response).
@@ -477,6 +569,7 @@ fn proxyToInner(
     client: std.Io.net.Stream,
     head_buffer: []const u8,
     buffered_extra: []const u8,
+    opts: ProxyOptions,
 ) !void {
     const inner_addr = try std.Io.net.IpAddress.parse("127.0.0.1", ds.inner_port);
 
@@ -491,7 +584,14 @@ fn proxyToInner(
 
     // Find the end of headers
     const end_idx = std.mem.indexOf(u8, head_buffer, "\r\n\r\n") orelse head_buffer.len;
-    const header_part = head_buffer[0..end_idx];
+    var header_part = head_buffer[0..end_idx];
+
+    var rewritten_owned: ?[]u8 = null;
+    defer if (rewritten_owned) |buf| ds.gpa.free(buf);
+    if (opts.rewrite_target) |new_target| {
+        rewritten_owned = try rewriteRequestTarget(ds.gpa, header_part, new_target);
+        header_part = rewritten_owned.?;
+    }
 
     var transformed = std.ArrayList(u8).empty;
     defer transformed.deinit(ds.gpa);
@@ -509,6 +609,12 @@ fn proxyToInner(
         try transformed.appendSlice(ds.gpa, "\r\nConnection: close");
     } else {
         try transformed.appendSlice(ds.gpa, header_part);
+    }
+
+    for (opts.extra_headers) |h| {
+        const line = try std.fmt.allocPrint(ds.gpa, "\r\n{s}: {s}", .{ h.name, h.value });
+        defer ds.gpa.free(line);
+        try transformed.appendSlice(ds.gpa, line);
     }
     try transformed.appendSlice(ds.gpa, "\r\n\r\n");
 
@@ -538,6 +644,24 @@ fn proxyToInner(
 
     // Unblock the inner→client thread if client closed first.
     inner.shutdown(ds.io, .recv) catch {};
+}
+
+fn rewriteRequestTarget(allocator: Allocator, header_part: []const u8, new_target: []const u8) ![]u8 {
+    const line_end = std.mem.indexOf(u8, header_part, "\r\n") orelse return error.InvalidRequest;
+    const first_line = header_part[0..line_end];
+    const rest = header_part[line_end..];
+
+    const method_end = std.mem.indexOfScalar(u8, first_line, ' ') orelse return error.InvalidRequest;
+    const after_method = first_line[method_end + 1 ..];
+    const target_end = std.mem.indexOfScalar(u8, after_method, ' ') orelse return error.InvalidRequest;
+    const version = after_method[target_end + 1 ..];
+
+    return std.fmt.allocPrint(allocator, "{s} {s} {s}{s}", .{
+        first_line[0..method_end],
+        new_target,
+        version,
+        rest,
+    });
 }
 
 fn proxyWebSocket(

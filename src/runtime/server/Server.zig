@@ -261,15 +261,6 @@ pub fn Server(comptime H: type) type {
                 try std.Io.File.stdout().writeStreamingAll(self.io, "\n");
                 std.process.exit(0);
             }
-
-            // TODO: move this to DevServer.zig
-            // Dev-only routes under /.well-known/_zx/
-            if (comptime is_dev) {
-                var router = try self.server.router(.{});
-                var zx_routes = router.group("/.well-known/_zx", .{});
-
-                zx_routes.all("/devtool", HandlerType.devtool, .{});
-            }
         }
     };
 }
