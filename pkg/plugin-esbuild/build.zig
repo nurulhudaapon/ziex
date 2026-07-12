@@ -1,4 +1,5 @@
 const std = @import("std");
+const plugin_system = @import("plugin_system");
 const util = @import("src/util.zig");
 const host_esbuild = @import("src/host_esbuild.zig");
 
@@ -44,7 +45,7 @@ fn innerInitSingle(b: *std.Build, build_item: Build) !Output {
 
     const run = b.addRunArtifact(plugin_exe);
 
-    const step_name = b.fmt("build {s} {s}{s}{s}", .{ deriveName(b, build_item, &run.step), colors.dim, "esbuild", colors.reset });
+    const step_name = b.fmt("build {s} {s}{s}{s}", .{ deriveName(b, build_item, &run.step), plugin_system.colors.dim, "esbuild", plugin_system.colors.reset });
     run.setName(step_name);
     run.setStdIn(.{ .bytes = json_buf });
 
@@ -97,12 +98,18 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const plugin_system_dep = b.dependency("plugin_system", .{ .target = target, .optimize = optimize });
+    const plugin_system_mod = plugin_system_dep.module("plugin_system");
+
     const exe = b.addExecutable(.{
         .name = "esbuild",
         .root_module = b.createModule(.{
             .root_source_file = b.path("src/main.zig"),
             .target = target,
             .optimize = optimize,
+            .imports = &.{
+                .{ .name = "plugin_system", .module = plugin_system_mod },
+            },
         }),
     });
     b.installArtifact(exe);
@@ -130,8 +137,3 @@ pub fn build(b: *std.Build) void {
     const update_step = b.step("update", "Fetch esbuild platform binaries for version in build.zig.zon");
     update_step.dependOn(&update_run.step);
 }
-
-const colors = struct {
-    pub const dim: []const u8 = "\x1b[2m";
-    pub const reset: []const u8 = "\x1b[0m";
-};

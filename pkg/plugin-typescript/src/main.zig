@@ -1,4 +1,5 @@
 const std = @import("std");
+const plugin_system = @import("plugin_system");
 const Options = @import("util.zig").Options;
 
 pub fn main(init: std.process.Init) !void {
@@ -105,7 +106,7 @@ pub fn main(init: std.process.Init) !void {
             const abs = std.Io.Dir.cwd().realPathFileAlloc(init.io, ip, allocator) catch ip;
             try deps.append(allocator, abs);
         }
-        writeDepFile(allocator, init.io, dfp, outdir, deps.items) catch |err| {
+        plugin_system.writeDepFile(allocator, init.io, dfp, outdir, deps.items) catch |err| {
             std.debug.print("Failed to write dep file: {any}\n", .{err});
         };
     }
@@ -146,25 +147,4 @@ fn buildTscArgv(
     }
 
     return try argv.toOwnedSlice(allocator);
-}
-
-fn writeDepFile(allocator: std.mem.Allocator, io: std.Io, path: []const u8, target: []const u8, deps: []const []const u8) !void {
-    var buf = std.ArrayList(u8).empty;
-    defer buf.deinit(allocator);
-    try buf.appendSlice(allocator, target);
-    try buf.appendSlice(allocator, ":");
-    for (deps) |dep| {
-        try buf.appendSlice(allocator, " ");
-        for (dep) |c| {
-            if (c == ' ') {
-                try buf.appendSlice(allocator, "\\ ");
-            } else {
-                try buf.append(allocator, c);
-            }
-        }
-    }
-    try buf.appendSlice(allocator, "\n");
-    const f = try std.Io.Dir.cwd().createFile(io, path, .{});
-    defer f.close(io);
-    try f.writeStreamingAll(io, buf.items);
 }

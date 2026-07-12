@@ -1,11 +1,9 @@
 .{
-    .name = .tailwindcss,
+    .name = .plugin_system,
     .version = "0.0.0",
-    .fingerprint = 0x7f201b5d58a9d32a,
+    .fingerprint = 0xbc2556375a0d784b,
     .minimum_zig_version = "0.17.0-dev.1158+1d1193aa7",
-    .dependencies = .{
-        .plugin_system = .{ .path = "../plugin-system" },
-    },
+    .dependencies = .{},
     .paths = .{
         "build.zig",
         "build.zig.zon",

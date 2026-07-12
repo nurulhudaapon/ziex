@@ -1,4 +1,6 @@
 const std = @import("std");
+const plugin_system = @import("plugin_system");
+const Options = @import("util.zig").Options;
 
 const EventType = enum { start, result, end, @"error" };
 const BuildEvent = struct {
@@ -19,45 +21,58 @@ pub fn main(init: std.process.Init) !void {
     defer args.deinit();
     _ = args.next(); // skip program name
 
-    // --- Flags --- //
-    var node_path: []const u8 = "node"; // default to "node" in PATH
+    var node_path: []const u8 = "node";
     var output_path: ?[]const u8 = null;
     var dep_file_path: ?[]const u8 = null;
+    var input_path: ?[]const u8 = null;
+    var base_path: ?[]const u8 = null;
+    var name: []const u8 = "tailwindcss";
+    var sources: std.ArrayList([]const u8) = .empty;
     const runner_script = @embedFile("builder.js");
 
     while (args.next()) |arg| {
-        if (std.mem.eql(u8, arg, "--node-path")) node_path = args.next() orelse return error.MissingNodePath;
-        if (std.mem.eql(u8, arg, "--bun-path")) node_path = args.next() orelse return error.MissingNodePath;
-        if (std.mem.eql(u8, arg, "--output")) output_path = args.next() orelse return error.MissingOutputPath;
-        if (std.mem.eql(u8, arg, "--dep-file")) dep_file_path = args.next() orelse return error.MissingDepFilePath;
-    }
-
-    // Read stdin into memory
-    var buffer: [4096]u8 = undefined;
-    var reader = std.Io.File.stdin().readerStreaming(init.io, &buffer);
-    var writer = std.Io.Writer.Allocating.init(allocator);
-    defer writer.deinit();
-    _ = try reader.interface.streamRemaining(&writer.writer);
-    const input_json = try writer.toOwnedSlice();
-    defer allocator.free(input_json);
-
-    // Parse and inject output path into each build config
-    const parsed = try std.json.parseFromSlice(std.json.Value, allocator, input_json, .{});
-    defer parsed.deinit();
-
-    const builds = parsed.value.array.items;
-    const build_count = builds.len;
-
-    if (output_path) |op| {
-        for (builds) |*build_item| {
-            const config_ptr = build_item.object.getPtr("config").?;
-            try config_ptr.object.put(allocator, "output", .{ .string = op });
+        if (std.mem.eql(u8, arg, "--node-path")) {
+            node_path = args.next() orelse return error.MissingNodePath;
+        } else if (std.mem.eql(u8, arg, "--bun-path")) {
+            node_path = args.next() orelse return error.MissingNodePath;
+        } else if (std.mem.eql(u8, arg, "--output")) {
+            output_path = args.next() orelse return error.MissingOutputPath;
+        } else if (std.mem.eql(u8, arg, "--dep-file")) {
+            dep_file_path = args.next() orelse return error.MissingDepFilePath;
+        } else if (std.mem.eql(u8, arg, "--input")) {
+            input_path = args.next() orelse return error.MissingInputPath;
+        } else if (std.mem.eql(u8, arg, "--base")) {
+            base_path = args.next() orelse return error.MissingBasePath;
+        } else if (std.mem.eql(u8, arg, "--source")) {
+            try sources.append(allocator, args.next() orelse return error.MissingSourcePath);
+        } else if (std.mem.eql(u8, arg, "--name")) {
+            name = args.next() orelse return error.MissingName;
         }
     }
 
-    // Re-serialize with injected output path
-    const modified_json = try std.json.Stringify.valueAlloc(allocator, parsed.value, .{});
-    defer allocator.free(modified_json);
+    const input = input_path orelse return error.MissingInputPath;
+    const output = output_path orelse return error.MissingOutputPath;
+
+    // Read stdin Options JSON
+    var stdin_buffer: [4096]u8 = undefined;
+    var stdin_reader = std.Io.File.stdin().readerStreaming(init.io, &stdin_buffer);
+    var stdin_writer = std.Io.Writer.Allocating.init(allocator);
+    defer stdin_writer.deinit();
+    _ = try stdin_reader.interface.streamRemaining(&stdin_writer.writer);
+    const input_json = try stdin_writer.toOwnedSlice();
+    defer allocator.free(input_json);
+
+    const options_json = if (input_json.len == 0) "{}" else input_json;
+    const parsed = try std.json.parseFromSlice(Options, allocator, options_json, .{
+        .allocate = .alloc_always,
+        .ignore_unknown_fields = true,
+    });
+    defer parsed.deinit();
+    const opts = parsed.value;
+
+    // Assemble the Node runner payload from CLI paths + typed Options.
+    const js_payload = try buildJsPayload(allocator, name, input, output, base_path, sources.items, opts);
+    defer allocator.free(js_payload);
 
     const suppress_warnings = init.environ_map.get("NO_COLOR") != null and init.environ_map.get("FORCE_COLOR") != null;
     const argv = if (suppress_warnings)
@@ -77,14 +92,14 @@ pub fn main(init: std.process.Init) !void {
     };
 
     if (child.stdin) |stdin_file| {
-        try stdin_file.writeStreamingAll(init.io, modified_json);
+        try stdin_file.writeStreamingAll(init.io, js_payload);
         stdin_file.close(init.io);
         child.stdin = null;
     }
 
     var progress = std.Progress.start(init.io, .{
         .root_name = "tailwindcss",
-        .estimated_total_items = build_count,
+        .estimated_total_items = 1,
     });
     defer progress.end();
 
@@ -97,9 +112,7 @@ pub fn main(init: std.process.Init) !void {
     }
 
     var failed: usize = 0;
-    failed = failed; // silence unused
 
-    // Collect dependencies for dep file
     var all_deps = std.ArrayList([]const u8).empty;
     defer all_deps.deinit(allocator);
 
@@ -119,22 +132,21 @@ pub fn main(init: std.process.Init) !void {
 
             const ev_parsed = std.json.parseFromSlice(BuildEvent, allocator, line, .{
                 .ignore_unknown_fields = true,
-            }) catch continue; // skip malformed lines
+            }) catch continue;
             defer ev_parsed.deinit();
             const ev = ev_parsed.value;
 
             try std.Io.sleep(init.io, .fromMilliseconds(10), .awake);
 
-            const name = try std.fmt.allocPrint(arena, "{s} ({d})", .{ ev.name, ev.id });
+            const ev_name = try std.fmt.allocPrint(arena, "{s} ({d})", .{ ev.name, ev.id });
 
             switch (ev.type) {
                 .start => {
-                    const node = progress.start(name, 0);
-                    try nodes.put(name, node);
+                    const node = progress.start(ev_name, 0);
+                    try nodes.put(ev_name, node);
                 },
                 .result => {
                     if (ev.success == false) failed += 1;
-                    // Collect discovered dependencies for dep file
                     for (ev.dependencies) |dep| {
                         try all_deps.append(allocator, try arena.dupe(u8, dep));
                     }
@@ -146,7 +158,7 @@ pub fn main(init: std.process.Init) !void {
                     }
                 },
                 .end => {
-                    if (nodes.fetchRemove(name)) |kv| {
+                    if (nodes.fetchRemove(ev_name)) |kv| {
                         kv.value.end();
                     }
                     progress.completeOne();
@@ -159,9 +171,8 @@ pub fn main(init: std.process.Init) !void {
         }
     }
 
-    // Write dep file before potential exit(1)
     if (dep_file_path) |dfp| {
-        writeDepFile(allocator, init.io, dfp, output_path orelse "output.css", all_deps.items) catch |err| {
+        plugin_system.writeDepFile(allocator, init.io, dfp, output, all_deps.items) catch |err| {
             std.debug.print("Failed to write dep file: {any}\n", .{err});
         };
     }
@@ -180,29 +191,44 @@ pub fn main(init: std.process.Init) !void {
     };
 
     if (exit_code != 0 or failed > 0) {
-        std.debug.print("tailwindcss: {d} build(s) failed\n", .{failed});
+        std.debug.print("tailwindcss: build failed\n", .{});
         std.process.exit(1);
     }
 }
 
-fn writeDepFile(allocator: std.mem.Allocator, io: std.Io, path: []const u8, target: []const u8, deps: []const []const u8) !void {
-    // Build dep file content in memory, then write in one shot
-    var buf = std.ArrayList(u8).empty;
-    defer buf.deinit(allocator);
-    try buf.appendSlice(allocator, target);
-    try buf.appendSlice(allocator, ":");
-    for (deps) |dep| {
-        try buf.appendSlice(allocator, " ");
-        for (dep) |c| {
-            if (c == ' ') {
-                try buf.appendSlice(allocator, "\\ ");
-            } else {
-                try buf.append(allocator, c);
-            }
-        }
+fn buildJsPayload(
+    allocator: std.mem.Allocator,
+    name: []const u8,
+    input: []const u8,
+    output: []const u8,
+    base: ?[]const u8,
+    sources: []const []const u8,
+    opts: Options,
+) ![]const u8 {
+    var config = std.json.ObjectMap.empty;
+    try config.put(allocator, "input", .{ .string = input });
+    try config.put(allocator, "output", .{ .string = output });
+    try config.put(allocator, "minify", .{ .bool = opts.minify });
+    try config.put(allocator, "optimize", .{ .bool = opts.optimize });
+    try config.put(allocator, "map", .{ .bool = opts.map });
+
+    if (base) |b| {
+        try config.put(allocator, "base", .{ .string = b });
     }
-    try buf.appendSlice(allocator, "\n");
-    const f = try std.Io.Dir.cwd().createFile(io, path, .{});
-    defer f.close(io);
-    try f.writeStreamingAll(io, buf.items);
+    if (sources.len > 0) {
+        var arr = try std.json.Array.initCapacity(allocator, sources.len);
+        for (sources) |source| {
+            arr.appendAssumeCapacity(.{ .string = source });
+        }
+        try config.put(allocator, "sources", .{ .array = arr });
+    }
+
+    var build_obj = std.json.ObjectMap.empty;
+    try build_obj.put(allocator, "name", .{ .string = name });
+    try build_obj.put(allocator, "config", .{ .object = config });
+
+    var builds = try std.json.Array.initCapacity(allocator, 1);
+    builds.appendAssumeCapacity(.{ .object = build_obj });
+
+    return try std.json.Stringify.valueAlloc(allocator, std.json.Value{ .array = builds }, .{});
 }

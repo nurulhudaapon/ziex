@@ -4,6 +4,7 @@
     .fingerprint = 0x98b5ec518393e509,
     .minimum_zig_version = "0.17.0-dev.1158+1d1193aa7",
     .dependencies = .{
+        .plugin_system = .{ .path = "../plugin-system" },
         .typescript_aix_ppc64 = .{
             .url = "https://registry.npmjs.org/@typescript/typescript-aix-ppc64/-/typescript-aix-ppc64-7.0.2.tgz",
             .hash = "N-V-__8AAD2u9wEfCxi_jNkkkdyzCK3WNpGZdgIIsVnqLFmr",
