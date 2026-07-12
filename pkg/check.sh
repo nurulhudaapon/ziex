@@ -9,8 +9,6 @@ ROOT_DIR="$SCRIPT_DIR/.."
 VERDACCIO_DIR="$SCRIPT_DIR/@ziex"
 REGISTRY="http://localhost:4873"
 VERSION="${1:-}"
-IS_WINDOWS=false
-case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) IS_WINDOWS=true ;; esac
 
 RESULTS_DIR=$(mktemp -d)
 
@@ -87,18 +85,14 @@ if [ "$cli_rc" -ne 0 ]; then
   echo "==> @ziex/cli* already present at this version; continuing"
 fi
 
-# Build and publish ziex to local registry (skip on Windows - bun build crashes)
-if [ "$IS_WINDOWS" = false ]; then
-  echo "==> Building and publishing ziex to local registry..."
-  cd "$SCRIPT_DIR/ziex"
-  rm -f bun.lock
-  BUN_CONFIG_REGISTRY="$REGISTRY" bun install --registry "$REGISTRY" 2>&1
-  bun run build
-  cd dist
-  publish_idempotent ziex
-else
-  echo "==> Skipping ziex build on Windows (zig build not configured for Windows smoke)"
-fi
+# Build and publish ziex to local registry
+echo "==> Building and publishing ziex to local registry..."
+cd "$SCRIPT_DIR/ziex"
+BUN_CONFIG_REGISTRY="$REGISTRY" bun install --registry "$REGISTRY" 2>&1
+zig build -p dist
+cd dist
+publish_idempotent ziex
+
 
 # Create temp directory for testing
 # Use a fresh temp dir to avoid npx/bunx cache interference
@@ -136,18 +130,16 @@ check "npx @ziex/cli version" \
   "$VERSION" &
 pids+=($!)
 
-# ziex via npx (skip on Windows - not built)
-if [ "$IS_WINDOWS" = false ]; then
-  check "npx ziex version" \
-    "npx --yes --registry '$REGISTRY' ziex@dev version" \
-    "$VERSION" &
-  pids+=($!)
+# ziex via npx
+check "npx ziex version" \
+  "npx --yes --registry '$REGISTRY' ziex@dev version" \
+  "$VERSION" &
+pids+=($!)
 
-  check "npx ziex --help" \
-    "npx --yes --registry '$REGISTRY' ziex@dev --help" \
-    "." &
-  pids+=($!)
-fi
+check "npx ziex --help" \
+  "npx --yes --registry '$REGISTRY' ziex@dev --help" \
+  "." &
+pids+=($!)
 
 # bunx compatibility
 if command -v bunx &> /dev/null; then
@@ -156,12 +148,10 @@ if command -v bunx &> /dev/null; then
     "$VERSION" &
   pids+=($!)
 
-  if [ "$IS_WINDOWS" = false ]; then
-    check "bunx ziex version" \
-      "env BUN_CONFIG_REGISTRY='$REGISTRY' BUN_CONFIG_IGNORE_SCRIPTS=true bunx --verbose ziex@dev version" \
-      "$VERSION" &
-    pids+=($!)
-  fi
+  check "bunx ziex version" \
+    "env BUN_CONFIG_REGISTRY='$REGISTRY' BUN_CONFIG_IGNORE_SCRIPTS=true bunx --verbose ziex@dev version" \
+    "$VERSION" &
+  pids+=($!)
 fi
 
 for pid in "${pids[@]}"; do wait "$pid" || true; done
