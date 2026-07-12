@@ -1,5 +1,6 @@
 const std = @import("std");
 const esbuild = @import("esbuild");
+const build_zon = @import("build.zig.zon");
 
 pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
@@ -68,8 +69,8 @@ pub fn build(b: *std.Build) !void {
         _ = dist_files.addCopyFile(try makePublishPackageJson(b), "package.json");
         _ = dist_files.addCopyFile(b.path("../../README.md"), "README.md");
         _ = dist_files.addCopyFile(b.path("bin/ziex"), "bin/ziex");
-        _ = dist_files.addCopyFile(b.path("build.zig"), "build.zig");
-        _ = dist_files.addCopyFile(b.path("build.zig.zon"), "build.zig.zon");
+        _ = dist_files.addCopyFile(makePublishBuildZig(b), "build.zig");
+        _ = dist_files.addCopyFile(try makePublishBuildZigZon(b), "build.zig.zon");
 
         // --- Other bindings --- //
         _ = dist_files.addCopyDirectory(packages.dir, "", .{});
@@ -92,6 +93,39 @@ pub fn build(b: *std.Build) !void {
         .install_dir = .prefix,
         .install_subdir = "",
     }).step);
+}
+
+fn makePublishBuildZig(b: *std.Build) std.Build.LazyPath {
+    return b.addWriteFiles().add(
+        "build.zig",
+        \\const std = @import("std");
+        \\
+        \\pub fn build(b: *std.Build) void {
+        \\    _ = b; // stub
+        \\}
+        \\
+        ,
+    );
+}
+
+fn makePublishBuildZigZon(b: *std.Build) !std.Build.LazyPath {
+    // Re-serialize the package manifest without `.dependencies` (build-only plugins).
+    const publish = .{
+        .name = build_zon.name,
+        .fingerprint = build_zon.fingerprint,
+        .version = build_zon.version,
+        .minimum_zig_version = build_zon.minimum_zig_version,
+        .paths = build_zon.paths,
+    };
+
+    var aw: std.Io.Writer.Allocating = .init(b.allocator);
+    defer aw.deinit();
+    try std.zon.stringify.serialize(publish, .{ .whitespace = true }, &aw.writer);
+    try aw.writer.writeByte('\n');
+
+    const out = try b.allocator.dupe(u8, aw.written());
+    defer b.allocator.free(out);
+    return b.addWriteFiles().add("build.zig.zon", out);
 }
 
 fn makePublishPackageJson(b: *std.Build) !std.Build.LazyPath {
