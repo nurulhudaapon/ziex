@@ -1,44 +1,41 @@
-import type { ReactElement } from "react";
-import type { ComponentMetadata } from "./types";
+import type { ComponentFn, ComponentMetadata } from "./types";
 
 export type PreparedComponent = {
   domNode: HTMLElement;
-  props: Record<string, any> & {
-    dangerouslySetInnerHTML?: { __html: string };
-  };
-  Component: (props: any) => ReactElement;
+  props: Record<string, any>;
+  Component: ComponentFn;
 };
 
-function findCommentMarker(id: string): { 
-  startComment: Comment; 
+function findCommentMarker(id: string): {
+  startComment: Comment;
   endComment: Comment;
   name: string;
   props: Record<string, any>;
 } | null {
   const startPrefix = `$${id} `;
   const endMarker = `/$${id}`;
-  
+
   const walker = document.createTreeWalker(
     document.body,
     NodeFilter.SHOW_COMMENT,
     null
   );
-  
+
   let startComment: Comment | null = null;
   let endComment: Comment | null = null;
   let name = "";
   let props: Record<string, any> = {};
-  
+
   let node: Comment | null;
   while ((node = walker.nextNode() as Comment | null)) {
     const text = node.textContent?.trim() || "";
-    
+
     if (text.startsWith(startPrefix)) {
       startComment = node;
-      
+
       const content = text.slice(startPrefix.length);
       const jsonStart = content.indexOf("{");
-      
+
       if (jsonStart !== -1) {
         name = content.slice(0, jsonStart).trim();
         const jsonStr = content.slice(jsonStart);
@@ -50,33 +47,33 @@ function findCommentMarker(id: string): {
         name = content.trim();
       }
     }
-    
+
     if (text === endMarker) {
       endComment = node;
       break;
     }
   }
-  
+
   if (startComment && endComment) {
     return { startComment, endComment, name, props };
   }
-  
+
   return null;
 }
 
 function createContainerBetweenMarkers(startComment: Comment, endComment: Comment): HTMLElement {
   const container = document.createElement("div");
   container.style.display = "contents";
-  
+
   let current = startComment.nextSibling;
   while (current && current !== endComment) {
     const next = current.nextSibling;
     container.appendChild(current);
     current = next;
   }
-  
+
   endComment.parentNode?.insertBefore(container, endComment);
-  
+
   return container;
 }
 
@@ -87,7 +84,7 @@ export async function prepareComponent(component: ComponentMetadata): Promise<Pr
   }
 
   const props = marker.props;
-  
+
   const domNode = createContainerBetweenMarkers(marker.startComment, marker.endComment);
 
   const Component = await component.import();
@@ -108,13 +105,13 @@ export type DiscoveredComponent = {
 
 export function discoverComponents(): DiscoveredComponent[] {
   const components: DiscoveredComponent[] = [];
-  
+
   const walker = document.createTreeWalker(
     document.body,
     NodeFilter.SHOW_COMMENT,
     null
   );
-  
+
   const markers: Array<{
     id: string;
     name: string;
@@ -122,7 +119,7 @@ export function discoverComponents(): DiscoveredComponent[] {
     startComment: Comment;
     endComment: Comment | null;
   }> = [];
-  
+
   let node: Comment | null;
   while ((node = walker.nextNode() as Comment | null)) {
     const text = node.textContent?.trim() || "";
@@ -131,16 +128,16 @@ export function discoverComponents(): DiscoveredComponent[] {
       if (spaceIdx !== -1) {
         const id = text.slice(1, spaceIdx);
         const content = text.slice(spaceIdx + 1);
-        
+
         if (content.startsWith("[")) {
           continue;
         }
-        
+
         const jsonStart = content.indexOf("{");
-        
+
         let name = "";
         let props: Record<string, any> = {};
-        
+
         if (jsonStart !== -1) {
           name = content.slice(0, jsonStart).trim();
           try {
@@ -150,7 +147,7 @@ export function discoverComponents(): DiscoveredComponent[] {
         } else {
           name = content.trim();
         }
-        
+
         markers.push({ id, name, props, startComment: node, endComment: null });
       }
     }
@@ -162,38 +159,38 @@ export function discoverComponents(): DiscoveredComponent[] {
       }
     }
   }
-  
+
   for (const marker of markers) {
     if (!marker.endComment) continue;
-    
+
     const container = createContainerBetweenMarkers(marker.startComment, marker.endComment);
-    
-    components.push({ 
-      id: marker.id, 
-      name: marker.name, 
-      props: marker.props, 
-      container 
+
+    components.push({
+      id: marker.id,
+      name: marker.name,
+      props: marker.props,
+      container
     });
   }
-  
+
   return components;
 }
 
-export type ComponentRegistry = Record<string, () => Promise<(props: any) => ReactElement>>;
+export type ComponentRegistry = Record<string, () => Promise<ComponentFn>>;
 
 export async function hydrateAll(
   registry: ComponentRegistry,
-  render: (container: HTMLElement, Component: (props: any) => ReactElement, props: Record<string, any>) => void
+  render: (container: HTMLElement, Component: ComponentFn, props: Record<string, any>) => void
 ): Promise<void> {
   const components = discoverComponents();
-  
+
   await Promise.all(components.map(async ({ name, props, container }) => {
     const importer = registry[name];
     if (!importer) {
       console.warn(`Component "${name}" not found in registry`);
       return;
     }
-    
+
     try {
       const Component = await importer();
       render(container, Component, props);

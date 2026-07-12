@@ -14,7 +14,7 @@ pub fn build(b: *std.Build) !void {
         .config = .{
             .entrypoints = &.{
                 b.path("src/index.ts"),
-                b.path("src/react/index.ts"),
+                b.path("src/jsx/index.ts"),
                 b.path("src/wasm/index.ts"),
                 b.path("src/cloudflare/index.ts"),
                 b.path("src/aws-lambda/index.ts"),

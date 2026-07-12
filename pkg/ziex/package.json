@@ -10,7 +10,7 @@
   },
   "exports": {
     ".": "./index.js",
-    "./react": "./react/index.js",
+    "./jsx": "./jsx/index.js",
     "./wasm": "./wasm/index.js",
     "./wasm/init": "./wasm/init.js",
     "./cloudflare": "./cloudflare/index.js",
@@ -46,23 +46,7 @@
     "@ziex/cli": "0.1.0-dev.1252"
   },
   "devDependencies": {
-    "@types/node": "^26.1.1",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
     "typescript": "^7.0.2",
     "zzon": "^1.7.1"
-  },
-  "peerDependencies": {
-    "typescript": "^5.0.0",
-    "react": ">=18.0.0",
-    "react-dom": ">=18.0.0"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "react-dom": {
-      "optional": true
-    }
   }
 }

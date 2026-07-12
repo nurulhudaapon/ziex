@@ -1,4 +1,4 @@
-import { type ComponentMetadata } from "ziex/react";
+import { type ComponentMetadata } from "ziex/jsx";
 
 /**
  * The components array is generated once `zig build` or `zig build dev` or `zx serve` is run.
