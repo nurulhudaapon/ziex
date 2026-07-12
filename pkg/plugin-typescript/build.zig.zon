@@ -1,0 +1,113 @@
+.{
+    .name = .typescript,
+    .version = "7.0.2",
+    .fingerprint = 0x98b5ec518393e509,
+    .minimum_zig_version = "0.17.0-dev.1158+1d1193aa7",
+    .dependencies = .{
+        .typescript_aix_ppc64 = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-aix-ppc64/-/typescript-aix-ppc64-7.0.2.tgz",
+            .hash = "N-V-__8AAD2u9wEfCxi_jNkkkdyzCK3WNpGZdgIIsVnqLFmr",
+            .lazy = true,
+        },
+        .typescript_darwin_arm64 = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-darwin-arm64/-/typescript-darwin-arm64-7.0.2.tgz",
+            .hash = "N-V-__8AAH-WowHLNA1dR9x5zRi9VFXfwmrnzuRVP3u4IKeS",
+            .lazy = true,
+        },
+        .typescript_darwin_x64 = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-darwin-x64/-/typescript-darwin-x64-7.0.2.tgz",
+            .hash = "N-V-__8AADextwEcv3MNi-UUeaXIQQHRVpUay7lGBIMUcYq2",
+            .lazy = true,
+        },
+        .typescript_freebsd_arm64 = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-freebsd-arm64/-/typescript-freebsd-arm64-7.0.2.tgz",
+            .hash = "N-V-__8AACCslgFTdLzhDZzmwauUeVcMy8bRPTIjkR2ejBD0",
+            .lazy = true,
+        },
+        .typescript_freebsd_x64 = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-freebsd-x64/-/typescript-freebsd-x64-7.0.2.tgz",
+            .hash = "N-V-__8AABg8qQE6BQb0QYSZEgV31ViwixTKN2ysk_2pAs_v",
+            .lazy = true,
+        },
+        .typescript_linux_arm = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-linux-arm/-/typescript-linux-arm-7.0.2.tgz",
+            .hash = "N-V-__8AAAasmAEzcPwbGZjMsoMA_9wAZ6Xoc748dyw4nBhg",
+            .lazy = true,
+        },
+        .typescript_linux_arm64 = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-linux-arm64/-/typescript-linux-arm64-7.0.2.tgz",
+            .hash = "N-V-__8AAA6slwF4rP6hWS_0Gr5k4KIsK2-oLW_yGhvNpx2P",
+            .lazy = true,
+        },
+        .typescript_linux_loong64 = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-linux-loong64/-/typescript-linux-loong64-7.0.2.tgz",
+            .hash = "N-V-__8AABaspgGIFHbzqXCn32BboRe2kawBDviGAm1TBry2",
+            .lazy = true,
+        },
+        .typescript_linux_mips64el = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-linux-mips64el/-/typescript-linux-mips64el-7.0.2.tgz",
+            .hash = "N-V-__8AABqszAEy_IpcViebP4-s12jE0jXnPRQTTUnjKQM9",
+            .lazy = true,
+        },
+        .typescript_linux_ppc64 = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-linux-ppc64/-/typescript-linux-ppc64-7.0.2.tgz",
+            .hash = "N-V-__8AAA6spgFUcNvcHMPYaKdn-TTmpmukg1Y7aDcQAKyi",
+            .lazy = true,
+        },
+        .typescript_linux_riscv64 = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-linux-riscv64/-/typescript-linux-riscv64-7.0.2.tgz",
+            .hash = "N-V-__8AABasiwHCkJ_lM-GsUDrKP_xQc-eLFvt9AiiD0vFs",
+            .lazy = true,
+        },
+        .typescript_linux_s390x = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-linux-s390x/-/typescript-linux-s390x-7.0.2.tgz",
+            .hash = "N-V-__8AAA6suQHF5lbMJo519VYLw8sW4gA6XNUMmc7zN09a",
+            .lazy = true,
+        },
+        .typescript_linux_x64 = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-linux-x64/-/typescript-linux-x64-7.0.2.tgz",
+            .hash = "N-V-__8AAAZsqgEjk93jErtWGIZ7kMFk-dNcXICa2Q8-63dM",
+            .lazy = true,
+        },
+        .typescript_netbsd_arm64 = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-netbsd-arm64/-/typescript-netbsd-arm64-7.0.2.tgz",
+            .hash = "N-V-__8AACWslQF255ewp6VcnaaGDJF01PEiHy_l-Q6SC7KQ",
+            .lazy = true,
+        },
+        .typescript_netbsd_x64 = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-netbsd-x64/-/typescript-netbsd-x64-7.0.2.tgz",
+            .hash = "N-V-__8AAB18qAEaBKzg0CqpNkFDT2Aqy7QtnO7myUM46uZl",
+            .lazy = true,
+        },
+        .typescript_openbsd_arm64 = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-openbsd-arm64/-/typescript-openbsd-arm64-7.0.2.tgz",
+            .hash = "N-V-__8AAJGslQHtr0Hsj3SD-8Vs02oSHJOBuYi4KQAS2f9c",
+            .lazy = true,
+        },
+        .typescript_openbsd_x64 = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-openbsd-x64/-/typescript-openbsd-x64-7.0.2.tgz",
+            .hash = "N-V-__8AAIkMqQGX2qqNCCeAagOvZVWQh0Wndk39yXyKX_O_",
+            .lazy = true,
+        },
+        .typescript_sunos_x64 = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-sunos-x64/-/typescript-sunos-x64-7.0.2.tgz",
+            .hash = "N-V-__8AAG0MqAEyuLqR3lvskc-XsTSODdcWaCrYgbEhlkP8",
+            .lazy = true,
+        },
+        .typescript_win32_arm64 = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-win32-arm64/-/typescript-win32-arm64-7.0.2.tgz",
+            .hash = "N-V-__8AAOv0mAE6YRRkU6ifSPifSWlphWBXX4i8nUtIKaJg",
+            .lazy = true,
+        },
+        .typescript_win32_x64 = .{
+            .url = "https://registry.npmjs.org/@typescript/typescript-win32-x64/-/typescript-win32-x64-7.0.2.tgz",
+            .hash = "N-V-__8AAOPQsAGM5WLeUyXyHyPxplsk52n_pjxrZmljnRsO",
+            .lazy = true,
+        },
+    },
+    .paths = .{
+        "build.zig",
+        "build.zig.zon",
+        "src",
+    },
+}

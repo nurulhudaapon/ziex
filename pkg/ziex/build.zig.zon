@@ -5,6 +5,7 @@
     .minimum_zig_version = "0.17.0-dev.1158+1d1193aa7",
     .dependencies = .{
         .esbuild = .{ .path = "../plugin-esbuild" },
+        .typescript = .{ .path = "../plugin-typescript" },
     },
     .paths = .{
         "build.zig",
@@ -13,6 +14,5 @@
         "bin",
         "package.json",
         "tsconfig.json",
-        "tsconfig.emit.json",
     },
 }

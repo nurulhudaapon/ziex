@@ -1,5 +1,6 @@
 const std = @import("std");
 const esbuild = @import("esbuild");
+const typescript = @import("typescript");
 
 pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
@@ -77,9 +78,13 @@ pub fn build(b: *std.Build) !void {
 
     // --- TypeScript declarations --- //
     if (type_decl) {
-        const tsc = b.addSystemCommand(&.{ "node_modules/.bin/tsc", "--outDir" });
-        _ = dist_files.addCopyDirectory(tsc.addOutputDirectoryArg("dts").path(b, "pkg/ziex/src"), "", .{});
-        tsc.addFileInput(b.path("tsconfig.json"));
+        const dts = typescript.addBuild(b, .{
+            .name = "dts",
+            .config = .{
+                .project = b.path("tsconfig.json"),
+            },
+        });
+        _ = dist_files.addCopyDirectory(dts.dir.path(b, "pkg/ziex/src"), "", .{});
     }
 
     b.getInstallStep().dependOn(&b.addInstallDirectory(.{

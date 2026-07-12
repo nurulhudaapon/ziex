@@ -38,15 +38,9 @@
   "license": "MIT",
   "scripts": {
     "build": "zig build -p dist",
-    "publish": "zig build -p dist && cd dist && npm publish",
-    "fmt": "prettier --write . '!test/files/**' '!README.md'",
-    "check": "tsc"
+    "publish": "zig build -p dist && cd dist && npm publish"
   },
   "dependencies": {
     "@ziex/cli": "0.1.0-dev.1252"
-  },
-  "devDependencies": {
-    "typescript": "^7.0.2",
-    "zzon": "^1.7.1"
   }
 }
