@@ -352,9 +352,11 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ""
           DIST_TAG: ${{ needs.resolve-version.outputs.dist-tag }}
+          VERSION: ${{ needs.resolve-version.outputs.version }}
         run: |
           cd pkg/ziex
-          zig build -p dist
+          rm -rf dist
+          zig build -p dist -Dversion="$VERSION"
           cd dist
           rc=0
           out=$(npm publish --access public --provenance --tag "$DIST_TAG" 2>&1) || rc=$?

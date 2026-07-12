@@ -7,6 +7,7 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     _ = target;
     const type_decl = b.option(bool, "type-decl", "Generate type declarations") orelse true;
+    const version = b.option([]const u8, "version", "npm package version to embed") orelse build_zon.version;
     const is_release = optimize != .Debug;
 
     // --- JS bundles (esbuild) --- //
@@ -66,7 +67,7 @@ pub fn build(b: *std.Build) !void {
 
     // --- Static package files --- //
     {
-        _ = dist_files.addCopyFile(try makePublishPackageJson(b), "package.json");
+        _ = dist_files.addCopyFile(try makePublishPackageJson(b, version), "package.json");
         _ = dist_files.addCopyFile(b.path("../../README.md"), "README.md");
         _ = dist_files.addCopyFile(b.path("bin/ziex"), "bin/ziex");
         _ = dist_files.addCopyFile(makePublishBuildZig(b), "build.zig");
@@ -128,7 +129,7 @@ fn makePublishBuildZigZon(b: *std.Build) !std.Build.LazyPath {
     return b.addWriteFiles().add("build.zig.zon", out);
 }
 
-fn makePublishPackageJson(b: *std.Build) !std.Build.LazyPath {
+fn makePublishPackageJson(b: *std.Build, version: []const u8) !std.Build.LazyPath {
     const src = try b.root.root_dir.handle.readFileAlloc(b.graph.io, "package.json", b.allocator, .unlimited);
     defer b.allocator.free(src);
 
@@ -136,6 +137,7 @@ fn makePublishPackageJson(b: *std.Build) !std.Build.LazyPath {
     defer parsed.deinit();
 
     const obj = &parsed.value.object;
+    try obj.put(b.allocator, "version", .{ .string = version });
     try obj.put(b.allocator, "main", .{ .string = "index.js" });
     try obj.put(b.allocator, "module", .{ .string = "index.js" });
     try obj.put(b.allocator, "types", .{ .string = "index.d.ts" });
@@ -145,6 +147,15 @@ fn makePublishPackageJson(b: *std.Build) !std.Build.LazyPath {
     _ = obj.swapRemove("peerDependencies");
     _ = obj.swapRemove("release");
     _ = obj.swapRemove("prettier");
+
+    // Keep the CLI dependency pinned to the same version we are publishing.
+    if (obj.getPtr("dependencies")) |deps_val| {
+        if (deps_val.* == .object) {
+            if (deps_val.object.getPtr("@ziex/cli")) |cli_dep| {
+                cli_dep.* = .{ .string = version };
+            }
+        }
+    }
 
     const json = try std.json.Stringify.valueAlloc(b.allocator, parsed.value, .{ .whitespace = .indent_2 });
     defer b.allocator.free(json);

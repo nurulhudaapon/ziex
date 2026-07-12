@@ -85,11 +85,11 @@ if [ "$cli_rc" -ne 0 ]; then
   echo "==> @ziex/cli* already present at this version; continuing"
 fi
 
-# Build and publish ziex to local registry
+# Build and publish ziex to local registry.
 echo "==> Building and publishing ziex to local registry..."
 cd "$SCRIPT_DIR/ziex"
-BUN_CONFIG_REGISTRY="$REGISTRY" bun install --registry "$REGISTRY" 2>&1
-zig build -p dist
+rm -rf dist
+zig build -p dist -Dversion="$VERSION"
 cd dist
 publish_idempotent ziex
 

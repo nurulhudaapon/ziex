@@ -10,6 +10,9 @@ packages:
   '@ziex/*':
     access: $anonymous
     publish: $anonymous
+  'ziex':
+    access: $anonymous
+    publish: $anonymous
   '**':
     access: $anonymous
     publish: $anonymous
