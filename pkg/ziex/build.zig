@@ -1,6 +1,5 @@
 const std = @import("std");
 const esbuild = @import("esbuild");
-const typescript = @import("typescript");
 
 pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
@@ -78,8 +77,9 @@ pub fn build(b: *std.Build) !void {
 
     // --- TypeScript declarations --- //
     if (type_decl) {
+        const typescript = @import("typescript");
         const dts = typescript.addBuild(b, .{
-            .name = "dts",
+            .name = "ziex.d.ts",
             .config = .{
                 .project = b.path("tsconfig.json"),
             },

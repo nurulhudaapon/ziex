@@ -17,7 +17,7 @@ COPY site/package.json site/package-lock.json ./site/
 RUN cd site && npm ci
 
 # Ziex CLI
-COPY build.zig build.zig.zon ./
+COPY build.zig build.zig.zon README.md ./
 COPY src ./src
 COPY vendor ./vendor
 COPY pkg ./pkg

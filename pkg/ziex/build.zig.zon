@@ -5,7 +5,7 @@
     .minimum_zig_version = "0.17.0-dev.1158+1d1193aa7",
     .dependencies = .{
         .esbuild = .{ .path = "../plugin-esbuild" },
-        .typescript = .{ .path = "../plugin-typescript" },
+        .typescript = .{ .path = "../plugin-typescript", .lazy = true },
     },
     .paths = .{
         "build.zig",
