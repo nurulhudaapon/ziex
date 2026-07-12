@@ -9,7 +9,7 @@ out_basename: []const u8,
 mod_opts: std.Build.Module.CreateOptions,
 
 pub const Options = struct {
-    /// The `.zx` source file to transpile.
+    /// The `.zx` / `.mdzx` source file to transpile.
     root_source_file: std.Build.LazyPath,
     target: ?std.Build.ResolvedTarget = null,
     optimize: ?std.builtin.OptimizeMode = null,
@@ -24,22 +24,26 @@ pub fn create(
 ) *TranslatedZx {
     const self = b.allocator.create(TranslatedZx) catch @panic("OOM");
 
+    const basename = rootBasename(opts.root_source_file);
+    const ext = std.fs.path.extension(basename);
+    const stem = if (ext.len > 0 and basename.len > ext.len)
+        basename[0 .. basename.len - ext.len]
+    else
+        basename;
+    const out_basename = b.fmt("{s}.zig", .{stem});
+
     const run = b.addRunArtifact(transpiler_exe);
+    run.setName(b.fmt("translate-zx {s}", .{basename}));
+    run.expectExitCode(0);
+
     run.addArg("transpile");
-    run.addDirectoryArg(opts.root_source_file);
+    run.addFileArg(opts.root_source_file);
+
     run.addArg("--outdir");
-    const output_dir = run.addOutputDirectoryArg("components_gen");
+    const output_dir = run.addOutputDirectoryArg("translated");
     run.addArg("--dep-file");
     _ = run.addDepFileOutputArg("transpile.d");
     run.addArgs(&.{ "--map", "inline" });
-
-    // TODO: LazyPath.basename has been removed zig 0.17, figoure out alternative
-    // const basename = opts.root_source_file.basename(b, &run.step);
-    const basename = std.fs.path.basename(opts.root_source_file.src_path.sub_path);
-    const ext = std.fs.path.extension(basename);
-    const out_basename = b.fmt("{s}.zig", .{basename[0 .. basename.len - ext.len]});
-
-    run.setName(b.fmt("translate-zx {s}", .{basename}));
 
     self.* = .{
         .owner = b,
@@ -69,4 +73,15 @@ pub fn createModule(self: *TranslatedZx) *std.Build.Module {
 /// Like `createModule`, but exposes the module to dependent packages under `name`.
 pub fn addModule(self: *TranslatedZx, name: []const u8) *std.Build.Module {
     return self.owner.addModule(name, self.mod_opts);
+}
+
+fn rootBasename(lp: std.Build.LazyPath) []const u8 {
+    const sub_path = switch (lp) {
+        .src_path => |sp| sp.sub_path,
+        .cwd_relative => |p| p,
+        .dependency => |d| d.sub_path,
+        .relative => |r| r.sub_path,
+        .generated => |g| if (g.sub_path.len != 0) g.sub_path else "generated.zx",
+    };
+    return std.fs.path.basename(sub_path);
 }

@@ -13,7 +13,6 @@ pub const RouteEntry = struct {
     proxy_import: ?[]const u8 = null,
 };
 
-/// Zon-serializable manifest shape (imported at runtime via `@import("manifest")`).
 pub const App = struct {
     exe_path: ?[]const u8 = null,
     injections: []const AddElementOptions = &.{},

@@ -323,6 +323,7 @@ pub fn initInner(
                 .install_dir = .prefix,
                 .install_subdir = "static",
             });
+            install_static.step.name = "install public/";
             exe.step.dependOn(&install_static.step);
         } else |_| {}
 
@@ -335,6 +336,7 @@ pub fn initInner(
                 .install_dir = .prefix,
                 .install_subdir = "static/assets",
             });
+            install_assets.step.name = "install assets/";
             exe.step.dependOn(&install_assets.step);
         } else |_| {}
     }
@@ -347,6 +349,7 @@ pub fn initInner(
             .include_extensions = &.{ ".js", ".ts" },
             .install_subdir = subdir,
         });
+        install_pkg.step.name = "install jsglue package";
         b.getInstallStep().dependOn(&install_pkg.step);
     }
 
@@ -517,6 +520,7 @@ pub fn initInner(
     zx_module.addImport("manifest", manifest_mod);
 
     const install_manifest = b.addInstallFileWithDir(manifest_path, .prefix, "manifest/app.zon");
+    install_manifest.step.name = "install app manifest";
     b.default_step.dependOn(&install_manifest.step);
     install_manifest.step.dependOn(&wasm_asset_run.run.step);
 
@@ -634,6 +638,12 @@ fn addStaticAssetRun(
         .install_dir = .{ .custom = "static/assets/" },
         .install_subdir = "_",
     });
+    install_static_assets.step.name = if (std.mem.eql(u8, injection_kind, "wasmlink"))
+        "install client wasm assets"
+    else if (std.mem.eql(u8, injection_kind, "script"))
+        "install client js assets"
+    else
+        b.fmt("install client {s} assets", .{injection_kind});
     install_static_assets.step.dependOn(&run.step);
     b.getInstallStep().dependOn(&install_static_assets.step);
 

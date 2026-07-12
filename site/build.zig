@@ -67,6 +67,7 @@ pub fn build(b: *std.Build) !void {
 
         // -- zig.tar.gz
         const run_tar = b.addSystemCommand(&.{ "tar", "-czf" });
+        run_tar.setName("pack zig stdlib (playground)");
         const zig_tar_gz = run_tar.addOutputFileArg("zig.tar.gz");
         run_tar.addArg("-C");
         run_tar.addDirectoryArg(zig_dep.path("."));
@@ -74,6 +75,7 @@ pub fn build(b: *std.Build) !void {
 
         // // -- zx.tar.gz (only include files needed for playground compilation)
         const run_zx_tar = b.addSystemCommand(&.{ "tar", "-czf" });
+        run_zx_tar.setName("pack zx sources (playground)");
         run_zx_tar.has_side_effects = true;
         const zx_tar_gz = run_zx_tar.addOutputFileArg("zx.tar.gz");
         run_zx_tar.addArgs(&.{
@@ -93,6 +95,7 @@ pub fn build(b: *std.Build) !void {
         const playground_assets = b.addNamedWriteFiles("playground_assets");
         // // _ = playground_assets.addCopyFile(zls_exe.getEmittedBin(), "zls.wasm");
         const pg_get_zls = b.addSystemCommand(&.{ "curl", "-LSsf", zls_wasm_url, "-o" });
+        pg_get_zls.setName("fetch zls.wasm (playground)");
         pg_get_zls.expectExitCode(0);
         _ = playground_assets.addCopyFile(pg_get_zls.addOutputFileArg("zls.wasm"), b.fmt("zls-{s}.wasm", .{zls_version}));
         _ = playground_assets.addCopyFile(zig_exe.getEmittedBin(), b.fmt("zig-{s}.wasm", .{ziex.info.minimum_zig_version}));
@@ -106,6 +109,7 @@ pub fn build(b: *std.Build) !void {
             .install_dir = .prefix,
             .install_subdir = "static/assets/playground",
         });
+        install_pg.step.name = "install playground wasm assets";
 
         // -- Steps: pg - installs playground assets --- //
         pg_step.dependOn(&install_pg.step);
@@ -213,6 +217,7 @@ pub fn build(b: *std.Build) !void {
             },
         });
         const css_install = b.addInstallFile(tailwindcss_b.file, "static/assets/_/tailwind.css");
+        css_install.step.name = "install tailwind.css";
         b.default_step.dependOn(&css_install.step);
     }
 
@@ -241,8 +246,11 @@ pub fn build(b: *std.Build) !void {
         const init_name = if (is_release) "init.js" else "init.dev.js";
         const init_js = ziex_js_files.getDirectory().path(b, b.fmt("wasm/{s}", .{init_name}));
         const install_main_js = b.addInstallFile(init_js, b.fmt("static/assets/{s}", .{jsbinding_name}));
+        install_main_js.step.name = "install app.js bindings";
         const install_docs_js = b.addInstallFile(site_scripts.dir.path(b, "docs.js"), "static/assets/docs.js");
+        install_docs_js.step.name = "install docs.js";
         const install_home_js = b.addInstallFile(site_scripts.dir.path(b, "home.js"), "static/assets/home.js");
+        install_home_js.step.name = "install home.js";
         b.default_step.dependOn(&install_main_js.step);
         b.default_step.dependOn(&install_docs_js.step);
         b.default_step.dependOn(&install_home_js.step);
@@ -285,6 +293,7 @@ pub fn build(b: *std.Build) !void {
             .install_dir = .prefix,
             .install_subdir = "static/assets/playground",
         });
+        install_playground_scripts.step.name = "install playground scripts";
         b.default_step.dependOn(&install_playground_scripts.step);
     }
 
@@ -296,6 +305,7 @@ pub fn build(b: *std.Build) !void {
             .install_subdir = "static/assets/branding",
             .include_extensions = &.{ "webp", "svg", "png", "gif" },
         });
+        install_branding.step.name = "install branding";
         b.default_step.dependOn(&install_branding.step);
     }
 }

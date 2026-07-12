@@ -358,17 +358,18 @@ pub fn build(b: *std.Build) !void {
     }
 }
 
-/// Transpile a `.zx` component file into a `TranslatedZx`, mirroring
-/// `std.Build.addTranslateC`. Call `.createModule()` / `.addModule(name)` on the
-/// result to get a module, then bind `zx` afterwards — typically via the
-/// `ZiexBuild` returned by `init`, which owns the app's canonical zx module:
+/// Transpile a single `.zx` / `.mdzx` file into a `TranslatedZx`, mirroring
+/// `std.Build.addTranslateC` (one root source → one cached translate step →
+/// `createModule()` / `addModule()`).
 ///
 ///     const tzx = ziex.addTranslateZx(b, .{ .root_source_file = b.path("icons.zx") });
 ///     const icons = tzx.createModule();
 ///     icons.addImport("zx", zx.module);   // `zx` from `ziex.init`
 ///
-/// The host transpiler CLI is resolved with the host target so it can execute
-/// during the build; it never enters the runtime module graph.
+/// Prefer this over directory transpile when you want per-file rebuilds under
+/// `zig build --watch`. The host transpiler CLI is resolved for the host
+/// target so it can execute during the build; it never enters the runtime
+/// module graph.
 pub fn addTranslateZx(b: *std.Build, opts: TranslatedZx.Options) *TranslatedZx {
     const zx_host_dep = b.dependencyFromBuildZig(@This(), .{});
     return TranslatedZx.create(b, zx_host_dep.artifact("zx"), opts);
