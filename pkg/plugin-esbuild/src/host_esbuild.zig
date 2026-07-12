@@ -52,7 +52,7 @@ pub fn depName() []const u8 {
 
 /// Filename of the esbuild executable inside the npm package tarball.
 pub fn exeName() []const u8 {
-    return if (builtin.os.tag == .windows) "esbuild.exe" else "esbuild";
+    return if (builtin.os.tag == .windows) "esbuild.exe" else "bin/esbuild";
 }
 
 fn unsupported() noreturn {

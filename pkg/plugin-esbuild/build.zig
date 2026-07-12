@@ -76,7 +76,7 @@ fn innerInitSingle(b: *std.Build, build_item: Build) !Output {
 fn resolveHostEsbuild(plugin_dep: *std.Build.Dependency) ?std.Build.LazyPath {
     const host_dep = plugin_dep.builder.lazyDependency(host_esbuild.depName(), .{}) orelse return null;
     // zig fetch strips the npm tarball's top-level `package/` directory.
-    return host_dep.path(plugin_dep.builder.fmt("bin/{s}", .{host_esbuild.exeName()}));
+    return host_dep.path(plugin_dep.builder.fmt("{s}", .{host_esbuild.exeName()}));
 }
 
 fn deriveName(b: *std.Build, self: Build, step: *std.Build.Step) []const u8 {
