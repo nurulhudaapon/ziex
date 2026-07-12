@@ -544,10 +544,9 @@ pub fn initInner(
 
     // --- Steps: Serve --- //
     if (opts.steps.serve) |serve_step_name| {
+        const serve_cmd = getZxRun(b, zx_exe, opts);
+        serve_cmd.addArg("serve");
         const serve_step = b.step(serve_step_name, "Run the Ziex app with production behavior");
-        const serve_cmd = b.addRunArtifact(exe);
-        serve_cmd.step.dependOn(b.getInstallStep());
-        serve_cmd.step.dependOn(&transpile_cmd.step);
         serve_step.dependOn(&serve_cmd.step);
         serve_cmd.addPassthruArgs();
     }
@@ -740,9 +739,4 @@ pub const Build = struct {
 const ServerOnlyStubMode = enum {
     lazy,
     strict,
-};
-
-const colors = struct {
-    pub const dim: []const u8 = "\x1b[2m";
-    pub const reset: []const u8 = "\x1b[0m";
 };

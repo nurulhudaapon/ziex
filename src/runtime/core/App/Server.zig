@@ -63,7 +63,7 @@ pub fn app(comptime H: type, instance: *Server(H), alloc: std.mem.Allocator) !Ap
     const holder = try alloc.create(Holder);
     holder.* = .{ .instance = instance, .alloc = alloc };
 
-    if (comptime impl.cli_cmd == .dev) instance.info();
+    instance.info();
 
     return .{ .userdata = @ptrCast(holder), .vtable = &Holder.vtable };
 }
