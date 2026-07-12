@@ -232,12 +232,10 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
-
+      - uses: oven-sh/setup-bun@v2
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-
-      - uses: oven-sh/setup-bun@v2
 
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
@@ -298,13 +296,10 @@ jobs:
       id-token: write
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org
-
-      - uses: oven-sh/setup-bun@v2
 
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
@@ -359,8 +354,7 @@ jobs:
           DIST_TAG: ${{ needs.resolve-version.outputs.dist-tag }}
         run: |
           cd pkg/ziex
-          bun install
-          bun run build
+          zig build -p dist
           cd dist
           rc=0
           out=$(npm publish --access public --provenance --tag "$DIST_TAG" 2>&1) || rc=$?
