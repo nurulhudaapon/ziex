@@ -4,6 +4,8 @@ pub const ExcludeFields = @import("src/exclude_fields.zig").ExcludeFields;
 pub const options = @import("src/exclude_fields.zig").options;
 pub const writeDepFile = @import("src/dep_file.zig").writeDepFile;
 pub const colors = @import("src/colors.zig");
+pub const addOptionalDependencyFetches = @import("src/npm_optional_deps.zig").addOptionalDependencyFetches;
+pub const readNpmPackageJson = @import("src/npm_optional_deps.zig").readNpmPackageJson;
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});

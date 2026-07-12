@@ -5,6 +5,11 @@
     .minimum_zig_version = "0.17.0-dev.1158+1d1193aa7",
     .dependencies = .{
         .plugin_system = .{ .path = "../plugin-system" },
+        .typescript = .{
+            .url = "https://registry.npmjs.org/typescript/-/typescript-7.0.2.tgz",
+            .hash = "N-V-__8AANobJgAIcxnJ_YkILJqGSkF7-YzE6Jr6ib9B1U1i",
+            .lazy = true,
+        },
         .typescript_aix_ppc64 = .{
             .url = "https://registry.npmjs.org/@typescript/typescript-aix-ppc64/-/typescript-aix-ppc64-7.0.2.tgz",
             .hash = "N-V-__8AAD2u9wEfCxi_jNkkkdyzCK3WNpGZdgIIsVnqLFmr",

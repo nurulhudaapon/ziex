@@ -105,6 +105,8 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
+    const sync_deps = b.option(bool, "sync-deps", "Sync optionalDependencies via zig fetch") orelse false;
+
     const plugin_system_dep = b.dependency("plugin_system", .{ .target = target, .optimize = optimize });
     const plugin_system_mod = plugin_system_dep.module("plugin_system");
 
@@ -121,26 +123,18 @@ pub fn build(b: *std.Build) void {
     });
     b.installArtifact(exe);
 
-    // `zig build run`
-    const run_cmd = b.addRunArtifact(exe);
-    run_cmd.step.dependOn(b.getInstallStep());
-    run_cmd.addPassthruArgs();
+    {
+        const run_cmd = b.addRunArtifact(exe);
+        run_cmd.step.dependOn(b.getInstallStep());
+        run_cmd.addPassthruArgs();
+        const run_step = b.step("run", "Run the plugin");
+        run_step.dependOn(&run_cmd.step);
+    }
 
-    const run_step = b.step("run", "Run the plugin");
-    run_step.dependOn(&run_cmd.step);
-
-    // `zig build update` — re-fetch @typescript/typescript-* platform tarballs for .version in build.zig.zon
-    const update_exe = b.addExecutable(.{
-        .name = "update-typescript",
-        .root_module = b.createModule(.{
-            .root_source_file = b.path("src/update.zig"),
-            .target = target,
-            .optimize = optimize,
-        }),
-    });
-    const update_run = b.addRunArtifact(update_exe);
-    update_run.setCwd(b.path(""));
-    update_run.addArg(b.graph.zig_exe);
-    const update_step = b.step("update", "Fetch typescript platform binaries for version in build.zig.zon");
-    update_step.dependOn(&update_run.step);
+    if (sync_deps) {
+        const default_step = b.getInstallStep();
+        if (b.lazyDependency("typescript", .{})) |typescript_dep| {
+            plugin_system.addOptionalDependencyFetches(b, default_step, plugin_system.readNpmPackageJson(b, typescript_dep));
+        }
+    }
 }

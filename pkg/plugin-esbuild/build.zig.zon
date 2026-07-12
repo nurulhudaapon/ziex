@@ -5,6 +5,11 @@
     .minimum_zig_version = "0.17.0-dev.1158+1d1193aa7",
     .dependencies = .{
         .plugin_system = .{ .path = "../plugin-system" },
+        .esbuild = .{
+            .url = "https://registry.npmjs.org/esbuild/-/esbuild-0.28.1.tgz",
+            .hash = "N-V-__8AAAk-AgD4tWeIpwvgIf9dzp0BABlO8vme08qgTCK6",
+            .lazy = true,
+        },
         .esbuild_aix_ppc64 = .{
             .url = "https://registry.npmjs.org/@esbuild/aix-ppc64/-/aix-ppc64-0.28.1.tgz",
             .hash = "N-V-__8AAFMdwABrck2Bcewp38lxGokQ7t_avTsESbnDl6Yw",
@@ -118,6 +123,21 @@
         .esbuild_win32_x64 = .{
             .url = "https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.28.1.tgz",
             .hash = "N-V-__8AAAUWsgADIvOQ_zr9hPKyb3-uQejm-LDGKBfXE_JM",
+            .lazy = true,
+        },
+        .esbuild_android_arm = .{
+            .url = "https://registry.npmjs.org/@esbuild/android-arm/-/android-arm-0.28.1.tgz",
+            .hash = "N-V-__8AACoM1QD7Efms4N-O3M4c4lq3fSP70r60xd8jCFun",
+            .lazy = true,
+        },
+        .esbuild_android_x64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/android-x64/-/android-x64-0.28.1.tgz",
+            .hash = "N-V-__8AACoM1QBe5c4gdJdDaVv_AMvEA7UiNsQKbCpdhP0x",
+            .lazy = true,
+        },
+        .esbuild_openharmony_arm64 = .{
+            .url = "https://registry.npmjs.org/@esbuild/openharmony-arm64/-/openharmony-arm64-0.28.1.tgz",
+            .hash = "N-V-__8AAEIM1QChDG9qBF6Zl27IdfO9aXrvIlOPHsApL_aD",
             .lazy = true,
         },
     },
