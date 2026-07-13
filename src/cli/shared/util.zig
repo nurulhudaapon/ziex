@@ -160,6 +160,28 @@ pub fn randInt(io: std.Io, comptime T: type) T {
     return x;
 }
 
+pub const TempDir = struct {
+    const temp_dir = std.fs.path.fmtJoin(&.{ ".zig-cache", "ziex", "tmp" });
+    path: []const u8,
+
+    pub fn init(io: std.Io, allocator: std.mem.Allocator) !TempDir {
+        return .{
+            .path = try std.fmt.allocPrint(
+                allocator,
+                "{f}{s}{x}",
+                .{ temp_dir, std.fs.path.sep_str, randInt(io, u32) },
+            ),
+        };
+    }
+
+    pub fn deinit(self: *TempDir, io: std.Io, allocator: std.mem.Allocator) void {
+        std.Io.Dir.cwd().deleteTree(io, self.path) catch |err| switch (err) {
+            else => log.err("failed to delete temp directory: {any}", .{err}),
+        };
+        allocator.free(self.path);
+    }
+};
+
 pub const stdio = @import("stdio.zig");
 pub const OutputMode = stdio.OutputMode;
 pub const OutputTarget = stdio.OutputTarget;

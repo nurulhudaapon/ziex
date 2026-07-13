@@ -285,7 +285,7 @@ pub fn initInner(
     transpile_cmd.addArgs(&.{ "--map", "inline" });
     // TODO: Instead of using named zx_transpile path, figoure out a way to use persistant outputDirectoryArg
     transpile_cmd.addArgs(&.{"--cache-dir"});
-    transpile_cmd.addDirectoryArg(b.graph.path(.local_cache, "zx_transpile"));
+    transpile_cmd.addDirectoryArg(b.graph.path(.local_cache, "ziex").path(b, "tnsn"));
     transpile_cmd.expectExitCode(0);
 
     const asset_installer_exe = b.addExecutable(.{
