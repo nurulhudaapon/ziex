@@ -1545,6 +1545,7 @@ code[class*="language-"] {
 #tab-unix:checked~.install-tab-labels label[for="tab-unix"],
 #tab-windows:checked~.install-tab-labels label[for="tab-windows"],
 #tab-node:checked~.install-tab-labels label[for="tab-node"],
+#tab-manual:checked~.install-tab-labels label[for="tab-manual"],
 #tab-zig-mac:checked~.install-tab-labels label[for="tab-zig-mac"],
 #tab-zig-win:checked~.install-tab-labels label[for="tab-zig-win"],
 #tab-zig-other:checked~.install-tab-labels label[for="tab-zig-other"] {
@@ -1556,6 +1557,7 @@ code[class*="language-"] {
 .install-box-header:has(#tab-unix:checked)+.install-box-content #content-unix,
 .install-box-header:has(#tab-windows:checked)+.install-box-content #content-windows,
 .install-box-header:has(#tab-node:checked)+.install-box-content #content-node,
+.install-box-header:has(#tab-manual:checked)+.install-box-content #content-manual,
 .install-box-header:has(#tab-zig-mac:checked)+.install-box-content #content-zig-mac,
 .install-box-header:has(#tab-zig-win:checked)+.install-box-content #content-zig-win,
 .install-box-header:has(#tab-zig-other:checked)+.install-box-content #content-zig-other {

@@ -457,10 +457,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     </div>
                 </section>
                 <BenchmarksSection eyebrow="" title="Performance" subtitle=`<a href='{zx.info.repository}/tree/main/bench' target='_blank' class='bench-label-link'>View benchmark →</a> <br/> Each framework runs in a Docker container limited to 2 CPU cores and 2 GB RAM.` tabs={benchmark_tabs[0..]} run_url={bench_run.url} run_date={bench_run.date} />
-                // <ArchitectureSection allocator={allocator} />
                 <DeploymentSection allocator={allocator} />
-                // <TestingSection allocator={allocator} />
-                // <TechnicalSection allocator={allocator} />
                 <section class="feature-examples">
                     <div class="feature-examples-header">
                         <h2 class="section-title">Code Examples</h2>
@@ -693,111 +690,6 @@ fn DeploymentSection(allocator: zx.Allocator, _: DeploymentSectionProps) zx.Comp
                         <p class="deployment-card-text">{d.description}</p>
                     </div>
                 )}
-            </div>
-        </section>
-    );
-}
-
-fn ArchitectureSection(allocator: zx.Allocator, _: struct {}) zx.Component {
-    return (
-        <section @allocator={allocator} class="architecture">
-            <div class="architecture-header">
-                <h2 class="section-title">Zero Overhead Pipeline</h2>
-                <p class="section-subtitle">
-                    A request in Ziex travels through a streamlined pipeline written in native Zig code, bypassing the heavy overhead of interpreted runtimes.
-                </p>
-            </div>
-            <div class="architecture-diagram">
-                <div class="architecture-node">
-                    <div class="architecture-node-icon">{icons.Monitor(allocator)}</div>
-                    <span class="architecture-node-label">Browser</span>
-                </div>
-                <div class="architecture-connector"></div>
-                <div class="architecture-node">
-                    <div class="architecture-node-icon">{icons.Server(allocator)}</div>
-                    <span class="architecture-node-label">Ziex Edge</span>
-                </div>
-                <div class="architecture-connector"></div>
-                <div class="architecture-node">
-                    <div class="architecture-node-icon">{icons.Flow(allocator)}</div>
-                    <span class="architecture-node-label">Zig Router</span>
-                </div>
-                <div class="architecture-connector"></div>
-                <div class="architecture-node">
-                    <div class="architecture-node-icon">{icons.Lightning(allocator)}</div>
-                    <span class="architecture-node-label">Handler</span>
-                </div>
-                <div class="architecture-connector"></div>
-                <div class="architecture-node">
-                    <div class="architecture-node-icon">{icons.Layers(allocator)}</div>
-                    <span class="architecture-node-label">Response</span>
-                </div>
-            </div>
-        </section>
-    );
-}
-
-fn TechnicalSection(allocator: zx.Allocator, _: struct {}) zx.Component {
-    return (
-        <section @allocator={allocator} class="technical">
-            <div class="technical-grid">
-                <div class="technical-card">
-                    <span class="technical-card-eyebrow">Reliability</span>
-                    <h3 class="technical-card-title">Statically Checked Components</h3>
-                    <p class="technical-card-text">
-                        Every tag, attribute, and component link is verified at compile-time. There are no runtime string-matching errors or missing props in production.
-                    </p>
-                </div>
-                <div class="technical-card">
-                    <span class="technical-card-eyebrow">Efficiency</span>
-                    <h3 class="technical-card-title">Deterministic Allocation</h3>
-                    <p class="technical-card-text">
-                        Ziex uses arena allocators for every request. Memory is allocated once and cleared instantly when the request ends. Zero garbage collection, zero memory leaks.
-                    </p>
-                </div>
-                <div class="technical-card">
-                    <span class="technical-card-eyebrow">Resilience</span>
-                    <h3 class="technical-card-title">WASI Isolation</h3>
-                    <p class="technical-card-text">
-                        Deploy your application inside a WASI sandbox. Hardware-level isolation ensures your app is secure and portable across any edge infrastructure.
-                    </p>
-                </div>
-                <div class="technical-card">
-                    <span class="technical-card-eyebrow">Speed</span>
-                    <h3 class="technical-card-title">Native Binary Size</h3>
-                    <p class="technical-card-text">
-                        A typical Ziex application is less than 5MB. No node_modules, no shared libraries. Just a high-performance binary ready to serve.
-                    </p>
-                </div>
-            </div>
-        </section>
-    );
-}
-
-fn TestingSection(allocator: zx.Allocator, _: struct {}) zx.Component {
-    return (
-        <section @allocator={allocator} class="testing">
-            <div class="testing-header">
-                <h2 class="section-title">Deterministic Simulation Testing</h2>
-                <p class="section-subtitle">
-                    Ziex components are tested using deterministic simulation. We simulate thousands of edge cases, network failures, and race conditions in milliseconds.
-                </p>
-            </div>
-            <div class="testing-flex">
-                <div class="clock-panel">
-                    <div class="clock-wrapper">
-                        <div class="clock-hand clock-hand--slow"></div>
-                    </div>
-                    <span class="clock-label">Local Time</span>
-                    <span class="clock-time">Real World</span>
-                </div>
-                <div class="clock-panel">
-                    <div class="clock-wrapper">
-                        <div class="clock-hand clock-hand--fast"></div>
-                    </div>
-                    <span class="clock-label">Simulated Time</span>
-                    <span class="clock-time">10,000x Speed</span>
-                </div>
             </div>
         </section>
     );
