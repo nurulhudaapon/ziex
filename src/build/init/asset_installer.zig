@@ -1,6 +1,9 @@
 const std = @import("std");
-const Manifest = @import("Build").Manifest.Manifest;
+const Build = @import("Build");
 const hashing = @import("hashing.zig");
+
+const Manifest = Build.Manifest;
+const AddElementOptions = Build.AddElementOptions;
 
 /// Build helper: content-hash a static asset, install it, and upsert the
 /// corresponding manifest injection (wasm preload link or jsglue script tag).
@@ -70,6 +73,7 @@ pub fn main(init: std.process.Init) !void {
         try manifest.upsertJsglueInjection(.{
             .parent = .head,
             .position = .ending,
+            .id = AddElementOptions.Id.jsglue,
             .element = .{
                 .tag = .script,
                 .attributes = &.{
@@ -82,6 +86,7 @@ pub fn main(init: std.process.Init) !void {
         try manifest.upsertWasmlinkInjection(.{
             .parent = .head,
             .position = .ending,
+            .id = AddElementOptions.Id.wasmlink,
             .element = .{
                 .tag = .link,
                 .attributes = &.{

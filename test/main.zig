@@ -3,6 +3,7 @@ const std = @import("std");
 test {
     _ = @import("core/ast.zig");
     _ = @import("core/chk.zig");
+    _ = @import("core/build.zig");
     _ = @import("cli/fmt.zig");
     _ = @import("cli/cli.zig");
     _ = @import("core/net.zig");

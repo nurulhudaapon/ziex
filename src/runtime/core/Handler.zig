@@ -115,7 +115,7 @@ pub fn handlePage(
     page_component = Router.applyLayouts(route, request.pathname, layoutctx, page_component, app_ptr, proxy_state_ptr);
 
     // -- Inject build-time HTML (scripts, styles, etc.) --
-    injectZxInjections(arena, &page_component);
+    injectZxInjections(arena, &page_component, request.pathname);
 
     return .{ .component = page_component };
 }
@@ -226,8 +226,9 @@ pub fn renderHtmlDocument(writer: *std.Io.Writer, component: *Component, base_pa
 
 /// Inject build-time HTML (scripts, styles, etc.) into head/body elements.
 /// See `injections.zig` for the comptime rendering of structured injections.
-pub fn injectZxInjections(allocator: Allocator, page: *Component) void {
-    injections.inject(allocator, page);
+/// Only injections whose `pathname` filter matches are applied.
+pub fn injectZxInjections(allocator: Allocator, page: *Component, pathname: []const u8) void {
+    injections.inject(allocator, page, pathname);
 }
 
 /// Check if streaming is enabled for a route.

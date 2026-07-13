@@ -8,33 +8,38 @@ const Component = zx.Component;
 
 const manifest: Build.Manifest.App = @import("manifest");
 
-pub fn inject(allocator: Allocator, page: *Component) void {
-    const rendered = comptime .{
-        .head_starting = renderSlot(.head, .starting),
-        .head_ending = renderSlot(.head, .ending),
-        .body_starting = renderSlot(.body, .starting),
-        .body_ending = renderSlot(.body, .ending),
+const SlotPiece = struct {
+    html: []const u8,
+    pathname: Build.AddElementOptions.Pathname,
+};
+
+pub fn inject(allocator: Allocator, page: *Component, pathname: []const u8) void {
+    const pieces = comptime .{
+        .head_starting = collectSlot(.head, .starting),
+        .head_ending = collectSlot(.head, .ending),
+        .body_starting = collectSlot(.body, .starting),
+        .body_ending = collectSlot(.body, .ending),
     };
 
-    if (rendered.head_starting.len > 0) {
+    if (joinMatching(allocator, pieces.head_starting, pathname)) |html| {
         if (tree.getElementByName(page, allocator, .head)) |el|
-            tree.prependChild(el, allocator, .{ .text = rendered.head_starting }) catch {};
+            tree.prependChild(el, allocator, .{ .text = html }) catch {};
     }
-    if (rendered.head_ending.len > 0) {
+    if (joinMatching(allocator, pieces.head_ending, pathname)) |html| {
         if (tree.getElementByName(page, allocator, .head)) |el|
-            tree.appendChild(el, allocator, .{ .text = rendered.head_ending }) catch {};
+            tree.appendChild(el, allocator, .{ .text = html }) catch {};
     }
-    if (rendered.body_starting.len > 0) {
+    if (joinMatching(allocator, pieces.body_starting, pathname)) |html| {
         if (tree.getElementByName(page, allocator, .body)) |el|
-            tree.prependChild(el, allocator, .{ .text = rendered.body_starting }) catch {};
+            tree.prependChild(el, allocator, .{ .text = html }) catch {};
     }
-    if (rendered.body_ending.len > 0) {
+    if (joinMatching(allocator, pieces.body_ending, pathname)) |html| {
         if (tree.getElementByName(page, allocator, .body)) |el|
-            tree.appendChild(el, allocator, .{ .text = rendered.body_ending }) catch {};
+            tree.appendChild(el, allocator, .{ .text = html }) catch {};
     }
 }
 
-fn renderSlot(comptime parent: Build.AddElementOptions.Parent, comptime position: Build.AddElementOptions.Position) []const u8 {
+fn collectSlot(comptime parent: Build.AddElementOptions.Parent, comptime position: Build.AddElementOptions.Position) []const SlotPiece {
     comptime var sorted_indices: [manifest.injections.len]usize = undefined;
     comptime var match_count: usize = 0;
     inline for (manifest.injections, 0..) |inj, i| {
@@ -56,12 +61,34 @@ fn renderSlot(comptime parent: Build.AddElementOptions.Parent, comptime position
         }
     }
 
-    comptime var str: []const u8 = "";
-    inline for (sorted) |idx| {
-        const comp = comptime toComponent(manifest.injections[idx].element);
-        str = str ++ renderComponent(comp);
+    comptime var pieces: [match_count]SlotPiece = undefined;
+    inline for (sorted, 0..) |idx, i| {
+        const inj = manifest.injections[idx];
+        const comp = comptime toComponent(inj.element);
+        pieces[i] = .{
+            .html = renderComponent(comp),
+            .pathname = inj.pathname,
+        };
     }
-    return str;
+    const final: [match_count]SlotPiece = pieces;
+    return &final;
+}
+
+fn joinMatching(allocator: Allocator, pieces: []const SlotPiece, pathname: []const u8) ?[]const u8 {
+    var total: usize = 0;
+    for (pieces) |piece| {
+        if (piece.pathname.matches(pathname)) total += piece.html.len;
+    }
+    if (total == 0) return null;
+
+    const buf = allocator.alloc(u8, total) catch return null;
+    var offset: usize = 0;
+    for (pieces) |piece| {
+        if (!piece.pathname.matches(pathname)) continue;
+        @memcpy(buf[offset .. offset + piece.html.len], piece.html);
+        offset += piece.html.len;
+    }
+    return buf;
 }
 
 fn renderComponent(comptime comp: Component) []const u8 {
@@ -89,7 +116,7 @@ fn toComponent(comptime elem: Build.AddElementOptions.ElementDef) Component {
         if (elem.children) |defs| {
             var kids: [defs.len]Component = undefined;
             for (defs, 0..) |child, i| {
-                kids[i] = toComponent(child);
+                kids[i] = toChildComponent(child);
             }
             const kids_final = kids;
             children = &kids_final;
@@ -100,5 +127,14 @@ fn toComponent(comptime elem: Build.AddElementOptions.ElementDef) Component {
             .attributes = &attrs_final,
             .children = children,
         } };
+    }
+}
+
+fn toChildComponent(comptime child: Build.AddElementOptions.ElementDef.Child) Component {
+    comptime {
+        return switch (child) {
+            .text => |t| .{ .text = t },
+            .element => |e| toComponent(e),
+        };
     }
 }

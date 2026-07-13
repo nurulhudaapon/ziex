@@ -1,5 +1,6 @@
-//! Ziex - A full-stack web framework for Zig
-//! This module provides the core component system, rendering engine, and utilities
+/// Ziex - A full-stack web framework for Zig
+/// This module provides the core component system, rendering engine, and utilities
+const zx = @This();
 
 const std = @import("std");
 const builtin = @import("builtin");
@@ -14,6 +15,9 @@ const opts = @import("runtime/core/options.zig");
 const ctxs = @import("runtime/core/contexts.zig");
 const reactivity = @import("runtime/client/reactivity.zig");
 const app_mod = @import("runtime/core/App.zig");
+
+// -- Build System --- //
+pub const Build = @import("Build.zig");
 
 // -- Core Language --//
 pub const Ast = if (!module_options.exclude_core_lang) @import("zx_core_lang").Ast else @compileError("core_lang is excluded. Set exclude-core-lang=false to enable.");

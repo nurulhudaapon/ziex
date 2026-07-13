@@ -367,6 +367,7 @@ pub fn initInner(
         injections.add(b, .{
             .parent = .head,
             .position = .ending,
+            .id = AddElementOptions.Id.jsglue,
             .element = .{
                 .tag = .script,
                 .attributes = &.{
@@ -651,17 +652,27 @@ fn addStaticAssetRun(
 
 const Injections = struct {
     items: std.ArrayListUnmanaged(AddElementOptions) = .empty,
+    wf: ?*std.Build.Step.WriteFile = null,
 
     pub fn add(self: *Injections, b: *std.Build, options: AddElementOptions) void {
         self.items.append(b.allocator, options) catch @panic("OOM");
+        if (self.wf != null) _ = self.rewriteSeed(b);
     }
 
     pub fn seedBuildInjections(self: *Injections, b: *std.Build) !std.Build.LazyPath {
+        self.wf = b.addWriteFiles();
+        return self.rewriteSeed(b);
+    }
+
+    fn rewriteSeed(self: *Injections, b: *std.Build) std.Build.LazyPath {
+        const wf = self.wf.?;
+
         var aw = std.Io.Writer.Allocating.init(b.allocator);
         defer aw.deinit();
-        try std.zon.stringify.serializeArbitraryDepth(self.items.items, .{ .whitespace = true }, &aw.writer);
-        const manifest_wf = b.addWriteFiles();
-        return manifest_wf.add("build-injections.zon", aw.written());
+        std.zon.stringify.serializeArbitraryDepth(self.items.items, .{ .whitespace = true }, &aw.writer) catch @panic("OOM");
+
+        wf.embeds.clearRetainingCapacity();
+        return wf.add("build-injections.zon", aw.written());
     }
 };
 

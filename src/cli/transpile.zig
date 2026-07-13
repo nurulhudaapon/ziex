@@ -2,12 +2,10 @@ const std = @import("std");
 const zli = @import("zli");
 const core_lang = @import("core_lang");
 
-const manifest_build = @import("../build/Manifest.zig");
-const Manifest = manifest_build.Manifest;
-
-const util = @import("shared/util.zig");
-const AppContext = @import("shared/context.zig").AppContext;
 const flags = @import("shared/flag.zig");
+const util = @import("shared/util.zig");
+const Manifest = @import("../build/Manifest.zig");
+const AppContext = @import("shared/context.zig").AppContext;
 
 const base64 = std.base64.standard;
 const log = std.log.scoped(.cli);
@@ -1057,7 +1055,7 @@ fn mergeBuildInjectionsFromFile(
     const source_z = try std.mem.concatWithSentinel(allocator, u8, &.{source}, 0);
     defer allocator.free(source_z);
 
-    const build_injections = try std.zon.parse.fromSliceAlloc([]const manifest_build.AddElementOptions, allocator, source_z, null, .{});
+    const build_injections = try std.zon.parse.fromSliceAlloc([]const Manifest.AddElementOptions, allocator, source_z, null, .{});
     defer std.zon.parse.free(allocator, build_injections);
 
     try manifest.mergeBuildInjections(build_injections);
@@ -1101,7 +1099,7 @@ fn genRoutes(io: std.Io, allocator: std.mem.Allocator, output_dir: []const u8, _
     }
 
     if (manifest) |m| {
-        const entries = try allocator.alloc(manifest_build.RouteEntry, routes.items.len);
+        const entries = try allocator.alloc(Manifest.RouteEntry, routes.items.len);
         defer allocator.free(entries);
         for (routes.items, entries) |route, *entry| {
             entry.* = .{

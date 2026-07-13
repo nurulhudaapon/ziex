@@ -672,8 +672,8 @@ const ElementInjector = struct {
         return false;
     }
 
-    pub fn injectZxInjections(self: ElementInjector, page: *Component) void {
-        core_handler.injectZxInjections(self.allocator, page);
+    pub fn injectZxInjections(self: ElementInjector, page: *Component, pathname: []const u8) void {
+        core_handler.injectZxInjections(self.allocator, page, pathname);
     }
 };
 
