@@ -66,22 +66,24 @@ pub fn InstallCLI(allocator: zx.Allocator, props: struct { show_init: bool = fal
                 )}
                 {if (props.show_init) (
                     <div class="install-tab-content" id="content-manual">
-                        <div class="install-code">
-                            <span class="install-prompt" aria-hidden="true">$ </span>
-                            <span class="function">git</span>
-                            <span class="operator"> clone </span>
-                            <span class="variable">{ziex_org_url}/template-starter </span>
-                            <span class="variable">my-app</span>
-                        </div>
-                        <div class="install-code">
-                            <span class="install-prompt" aria-hidden="true">$ </span>
-                            <span class="function">cd</span>
-                            <span class="operator"> </span>
-                            <span class="variable"> my-app</span>
-                            <span class="operator"> && </span>
-                            <span class="function">zig</span>
-                            <span class="operator"> build </span>
-                            <span class="variable">dev</span>
+                        <div class="install-code install-code-multiline">
+                            <div class="install-code">
+                                <span class="install-prompt" aria-hidden="true">$ </span>
+                                <span class="function">git</span>
+                                <span class="operator"> clone </span>
+                                <span class="variable">{ziex_org_url}/template-starter </span>
+                                <span class="variable">my-app</span>
+                            </div>
+                            <div>
+                                <span class="install-prompt" aria-hidden="true">$ </span>
+                                <span class="function">cd</span>
+                                <span class="operator"> </span>
+                                <span class="variable"> my-app</span>
+                                <span class="operator"> && </span>
+                                <span class="function">zig</span>
+                                <span class="operator"> build </span>
+                                <span class="variable">dev</span>
+                            </div>
                         </div>
                     </div>
                 )}

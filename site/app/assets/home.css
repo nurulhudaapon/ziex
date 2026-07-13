@@ -15,16 +15,26 @@
     .hero {
         min-height: unset;
         padding: .5rem;
+        overflow-x: clip;
     }
 
     .hero-inner {
         flex-direction: column;
         gap: 1.5rem;
         padding-top: 2rem;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
     }
 
     .hero-title-main {
         font-size: 2.2rem !important;
+    }
+
+    .hero-subtitle,
+    .hero-description {
+        max-width: 100%;
+        overflow-wrap: anywhere;
     }
 
     .hero-mascot {
@@ -39,30 +49,54 @@
     }
 
     .hero-install {
+        width: 100%;
         max-width: 100%;
+        min-width: 0;
         margin: 1rem 0 1.5rem;
     }
 
-    .hero-install .install-box-header,
+    .hero-install .install-box {
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
+    }
+
+    .hero-install .install-box-header {
+        min-width: 0;
+        max-width: 100%;
+        overflow-x: auto;
+        overflow-y: hidden;
+    }
+
     .hero-install .install-tab-labels {
         flex-wrap: nowrap;
-        gap: .2rem;
+        gap: .15rem;
+        min-width: 0;
+        max-width: 100%;
         overflow-x: auto;
+        overflow-y: hidden;
     }
 
     .hero-install .install-tab-label {
-        min-width: 90px;
-        padding: .35rem .5rem;
-        font-size: .7rem;
+        min-width: 0;
+        padding: .35rem .4rem;
+        font-size: .62rem;
+    }
+
+    .hero-install .install-tab-separator {
+        margin: .35rem .05rem;
     }
 
     .hero-install .install-box-content {
         padding: .5rem .3rem;
+        min-width: 0;
+        max-width: 100%;
     }
 
     .hero-install .install-code {
         white-space: pre-line;
-        word-break: break-all;
+        overflow-wrap: anywhere;
+        word-break: break-word;
         padding: .5rem .2rem;
         font-size: .68rem;
         overflow-x: auto;
@@ -91,8 +125,8 @@
     }
 
     .hero-install .install-tab-label {
-        min-width: 70px;
-        font-size: .6rem;
+        padding: .3rem .3rem;
+        font-size: .55rem;
     }
 }
 
@@ -290,6 +324,7 @@ body {
     gap: 4rem;
     width: 100%;
     max-width: 1200px;
+    min-width: 0;
     display: flex;
     position: relative;
 }
@@ -298,6 +333,7 @@ body {
     text-align: left;
     z-index: 2;
     flex: 1;
+    min-width: 0;
     animation: .8s ease-out fadeInUp;
 }
 
@@ -523,11 +559,15 @@ a.hero-badge:hover {
 }
 
 .hero-install {
+    width: 100%;
     max-width: 520px;
+    min-width: 0;
     margin: 2.5rem 0 3rem;
 }
 
 .hero-install .install-box {
+    width: 100%;
+    min-width: 0;
     background: var(--zx-code-bg);
     border: 1px solid #ffffff14;
     border-radius: 14px;
@@ -540,12 +580,16 @@ a.hero-badge:hover {
     border-bottom: 1px solid #ffffff14;
     align-items: center;
     min-width: 0;
+    max-width: 100%;
     display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
 }
 
 .hero-install .install-box-content {
     background: linear-gradient(#0d1016fa 0%, #0a0d12 100%);
     min-width: 0;
+    max-width: 100%;
     padding: .8rem;
     overflow-x: hidden;
 }
@@ -562,7 +606,12 @@ a.hero-badge:hover {
 .hero-install .install-tab-labels {
     gap: .4rem;
     min-width: 0;
+    max-width: 100%;
+    flex: 1;
+    flex-wrap: nowrap;
     display: flex;
+    overflow-x: auto;
+    overflow-y: hidden;
 }
 
 .hero-install .install-tab-label {
@@ -574,6 +623,8 @@ a.hero-badge:hover {
     border-radius: 8px 8px 0 0;
     justify-content: center;
     align-items: center;
+    flex-shrink: 0;
+    white-space: nowrap;
     margin-bottom: -1px;
     padding: .4rem .7rem;
     font-weight: 600;
@@ -663,6 +714,7 @@ a.hero-badge:hover {
     width: 100%;
     min-width: 0;
     max-width: 100%;
+    box-sizing: border-box;
     padding-bottom: .2rem;
     font-family: Monaco, Menlo, Ubuntu Mono, Consolas, monospace;
     font-size: .86rem;
@@ -2239,11 +2291,6 @@ a.hero-badge:hover {
 }
 
 @media (max-width: 1100px) {
-    .hero-inner {
-        gap: 2rem;
-        padding: 0 1rem;
-    }
-
     .hero-title-main {
         font-size: 5rem;
     }
@@ -2360,22 +2407,29 @@ a.hero-badge:hover {
     .hero-inner {
         flex-direction: column;
         padding-top: 0;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
         display: flex;
     }
 
     .hero-content {
         order: 1;
         display: block;
+        width: 100%;
+        max-width: 100%;
+        min-width: 0;
     }
 
     .hero-mascot {
         opacity: .9;
         pointer-events: none;
         z-index: 1;
-        width: 270px;
+        width: min(270px, 45vw);
+        max-width: 100%;
         position: absolute;
         top: -75px;
-        right: -10px;
+        right: 0;
     }
 
     .hero-title-main {
