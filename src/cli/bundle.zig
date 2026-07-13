@@ -27,11 +27,11 @@ fn bundle(ctx: zli.CommandContext) !void {
     const install_prefix = ctx.flag("install-prefix", []const u8);
 
     const program_path = util.resolveExePath(io, ctx.allocator, install_prefix, binpath) catch |err| {
-        if (err == error.ExecutableNotFound) {
-            try ctx.writer.print("Run \x1b[34mzig build\x1b[0m to build the ZX executable first!\n", .{});
+        if (err == error.ExecutableNotFound or err == error.FileNotFound) {
+            std.log.err("Run \x1b[34mzig build\x1b[0m to build your app first!\n", .{});
             return;
         }
-        try ctx.writer.print("Error finding ZX executable! {any}\n", .{err});
+        std.log.err("Error finding app manifest executable! {any}\n", .{err});
         return;
     };
     defer ctx.allocator.free(program_path);
@@ -42,10 +42,10 @@ fn bundle(ctx: zli.CommandContext) !void {
     var printer = tui.Printer.init(ctx.allocator, .{ .file_path_mode = .flat, .file_tree_max_depth = 1 });
     defer printer.deinit();
 
-    printer.header("{s} Bundling ZX site!", .{tui.Printer.emoji("○")});
+    printer.header("{s} Bundling your app!", .{tui.Printer.emoji("○")});
     printer.info("{s}", .{outdir});
 
-    log.debug("Bundling ZX site! binpath={s} staticdir={s}", .{ program_path, staticdir });
+    log.debug("Bundling your app! binpath={s} staticdir={s}", .{ program_path, staticdir });
     log.debug("Outdir: {s}", .{outdir});
 
     const bin_name = std.fs.path.basename(program_path);
@@ -68,7 +68,7 @@ fn bundle(ctx: zli.CommandContext) !void {
         return err;
     };
 
-    printer.footer("Now run {s}\n\n{s}(cd {s} && ./{s}{s}", .{ tui.Printer.emoji("→"), tui.Colors.cyan, outdir, bin_name, tui.Colors.reset });
+    printer.footer("Now run {s}\n\n{s}(cd {s} && ./{s}){s}", .{ tui.Printer.emoji("→"), tui.Colors.cyan, outdir, bin_name, tui.Colors.reset });
 }
 
 const std = @import("std");

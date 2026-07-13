@@ -115,7 +115,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
     var printer = tui.Printer.init(ctx.allocator, .{ .file_path_mode = .flat, .file_tree_max_depth = 1 });
     defer printer.deinit();
 
-    printer.header("{s} Building static ZX site!", .{tui.Printer.emoji("○")});
+    printer.header("{s} Bundling static site!", .{tui.Printer.emoji("○")});
     printer.info("{s}", .{outdir});
     // delete the outdir if it exists
     // std.Io.Dir.cwd().deleteTree(outdir) catch |err| switch (err) {
@@ -125,7 +125,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
     const staticdir = try std.fs.path.join(ctx.allocator, &.{ DEFAULT_INSTALL_PREFIX, "static" });
     defer ctx.allocator.free(staticdir);
 
-    log.debug("Building static ZX site! binpath={s} rootdir={s}", .{ exe_path, DEFAULT_INSTALL_PREFIX });
+    log.debug("Building static app! binpath={s} rootdir={s}", .{ exe_path, DEFAULT_INSTALL_PREFIX });
     log.debug("Port: {d}, Outdir: {s}, Staticdir: {s}", .{ port, outdir, staticdir });
 
     log.debug("Processing routes! {d}", .{manifest.routes.len});
