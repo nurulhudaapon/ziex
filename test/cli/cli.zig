@@ -161,7 +161,7 @@ test "export" {
         .args = &.{"export"},
         .expected_exit_code = 0,
         .expected_stderr_strings = &.{
-            "Building static ZX site!",
+            "Exporting static site!",
             "dist",
             "index.html",
             "form.html",
@@ -189,7 +189,7 @@ test "bundle" {
         .args = &.{"bundle"},
         .expected_exit_code = 0,
         .expected_stderr_strings = &.{
-            "Bundling ZX site!",
+            "Bundling app!",
             "bundle",
             "ziex_app",
             "style.css",

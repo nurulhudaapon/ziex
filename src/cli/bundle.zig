@@ -42,10 +42,10 @@ fn bundle(ctx: zli.CommandContext) !void {
     var printer = tui.Printer.init(ctx.allocator, .{ .file_path_mode = .flat, .file_tree_max_depth = 1 });
     defer printer.deinit();
 
-    printer.header("{s} Bundling your app!", .{tui.Printer.emoji("○")});
+    printer.header("{s} Bundling app!", .{tui.Printer.emoji("○")});
     printer.info("{s}", .{outdir});
 
-    log.debug("Bundling your app! binpath={s} staticdir={s}", .{ program_path, staticdir });
+    log.debug("Bundling app! binpath={s} staticdir={s}", .{ program_path, staticdir });
     log.debug("Outdir: {s}", .{outdir});
 
     const bin_name = std.fs.path.basename(program_path);
@@ -64,7 +64,7 @@ fn bundle(ctx: zli.CommandContext) !void {
     defer ctx.allocator.free(static_outdir);
     log.debug("Copying static directory! {s}", .{staticdir});
     util.copydirs(io, ctx.allocator, staticdir, &.{"."}, static_outdir, false, &printer) catch |err| {
-        std.log.err("Failed to copy static directories: {any}", .{err});
+        std.log.err("Failed to copy static directory: {any}", .{err});
         return err;
     };
 

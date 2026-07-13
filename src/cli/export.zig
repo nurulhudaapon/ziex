@@ -66,7 +66,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
     defer ctx.allocator.free(manifest_path);
 
     const manifest_source = std.Io.Dir.cwd().readFileAlloc(io, manifest_path, ctx.allocator, .unlimited) catch |err| {
-        try ctx.writer.print("Failed to read manifest at {s}: {}\n", .{ manifest_path, err });
+        std.log.err("Failed to read manifest at {s}: {}\n", .{ manifest_path, err });
         return;
     };
     defer ctx.allocator.free(manifest_source);
@@ -75,14 +75,14 @@ fn @"export"(ctx: zli.CommandContext) !void {
     defer ctx.allocator.free(manifest_source_z);
 
     const manifest = std.zon.parse.fromSliceAlloc(ManifestApp, ctx.allocator, manifest_source_z, null, .{ .ignore_unknown_fields = true }) catch |err| {
-        try ctx.writer.print("Failed to parse manifest at {s}: {}\n", .{ manifest_path, err });
+        std.log.err("Failed to parse manifest at {s}: {}\n", .{ manifest_path, err });
         return;
     };
     defer std.zon.parse.free(ctx.allocator, manifest);
 
     const binpath_flag = ctx.flag("binpath", []const u8);
     const exe_path = util.resolveExePath(io, ctx.allocator, DEFAULT_INSTALL_PREFIX, binpath_flag) catch {
-        try ctx.writer.print("Run \x1b[34mzig build\x1b[0m to build the ZX executable first!\n", .{});
+        std.log.err("Run \x1b[34mzig build\x1b[0m to build the app first!\n", .{});
         return;
     };
     defer ctx.allocator.free(exe_path);
@@ -115,7 +115,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
     var printer = tui.Printer.init(ctx.allocator, .{ .file_path_mode = .flat, .file_tree_max_depth = 1 });
     defer printer.deinit();
 
-    printer.header("{s} Bundling static site!", .{tui.Printer.emoji("○")});
+    printer.header("{s} Exporting static site!", .{tui.Printer.emoji("○")});
     printer.info("{s}", .{outdir});
     // delete the outdir if it exists
     // std.Io.Dir.cwd().deleteTree(outdir) catch |err| switch (err) {
@@ -125,7 +125,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
     const staticdir = try std.fs.path.join(ctx.allocator, &.{ DEFAULT_INSTALL_PREFIX, "static" });
     defer ctx.allocator.free(staticdir);
 
-    log.debug("Building static app! binpath={s} rootdir={s}", .{ exe_path, DEFAULT_INSTALL_PREFIX });
+    log.debug("Exporting app! binpath={s} rootdir={s}", .{ exe_path, DEFAULT_INSTALL_PREFIX });
     log.debug("Port: {d}, Outdir: {s}, Staticdir: {s}", .{ port, outdir, staticdir });
 
     log.debug("Processing routes! {d}", .{manifest.routes.len});
