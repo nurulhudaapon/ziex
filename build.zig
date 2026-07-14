@@ -1,6 +1,7 @@
 const std = @import("std");
 const initlib = @import("src/build/init.zig");
 const build_zon = @import("build.zig.zon");
+const util = @import("src/build/util.zig");
 
 /// Options for initializing
 pub const InitOptions = initlib.InitOptions;
@@ -19,15 +20,15 @@ pub fn build(b: *std.Build) !void {
     const enable_sqlite = b.option(bool, "feature-sqlite", "Enabled sqlite support") orelse false;
     const enable_postgres = b.option(bool, "feature-postgres", "Enabled postgres support") orelse false;
     const exclude_core_lang = b.option(bool, "exclude-core-lang", "Exclude core language tools (Ast/Parse/sourcemap) - only needed by CLI") orelse false;
-    const version = b.option([]const u8, "version", "Version to embed in the binary") orelse build_zon.version;
     const log_level = b.option(std.log.Level, "cli-log-level", "Log level for the CLI") orelse .info;
     const zig_exe_path = b.option([]const u8, "zig-path", "Path to the zig executable") orelse "zig";
+    const version = util.getVersion(b);
 
     const is_client = b.option(bool, "is-client", "Building for the browser (client)") orelse false;
 
     // Options
     const options = b.addOptions();
-    options.addOption([]const u8, "version", version);
+    options.addOption([]const u8, "version", b.fmt("{f}", .{version}));
     options.addOption([]const u8, "description", build_zon.description);
     options.addOption([]const u8, "repository", build_zon.repository);
     options.addOption([]const u8, "homepage", build_zon.homepage);
