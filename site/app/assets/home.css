@@ -440,26 +440,141 @@ body {
     }
 }
 
-.hero-badge {
-    border: 1px solid var(--zx-border);
+.hero-install-meta {
     color: var(--zx-text-muted);
-    letter-spacing: .05em;
-    text-transform: uppercase;
-    background: none;
-    border-radius: 4px;
-    margin-bottom: 3rem;
-    padding: .375rem .875rem;
-    font-size: .75rem;
+    align-items: center;
+    gap: .4rem;
+    margin-bottom: .65rem;
+    font-size: .7rem;
     font-weight: 500;
-    text-decoration: none;
-    transition: color .2s, border-color .2s;
+    letter-spacing: .02em;
+    line-height: 1.3;
     animation: 1s ease-out .2s both fadeIn;
-    display: inline-block;
+    display: flex;
+    flex-wrap: wrap;
 }
 
-a.hero-badge:hover {
-    color: var(--zx-white);
-    border-color: var(--zx-primary);
+.hero-install-meta-trigger {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    cursor: default;
+}
+
+.hero-install-meta-link {
+    color: inherit;
+    text-decoration: none;
+    transition: color .2s;
+}
+
+.hero-install-meta-link:hover,
+.hero-install-meta-trigger:hover .hero-install-meta-link,
+.hero-install-meta-trigger:focus-within .hero-install-meta-link {
+    color: var(--zx-primary-light);
+}
+
+.hero-install-meta-sep {
+    opacity: .5;
+}
+
+.hero-install-meta-zig {
+    opacity: .85;
+}
+
+.hero-install-meta-tooltip {
+    visibility: hidden;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 20;
+    background: #0d1117;
+    border: 1px solid #ffffff1f;
+    border-radius: 8px;
+    padding: .2rem;
+    position: absolute;
+    bottom: calc(100% + .35rem);
+    left: -2px;
+    box-shadow: 0 10px 28px #000000a6;
+    transition:
+        opacity .15s ease .25s,
+        visibility .15s ease .25s,
+        pointer-events 0s linear .25s;
+}
+
+.hero-install-meta-tooltip:before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 100%;
+    height: .45rem;
+}
+
+.hero-install-meta-trigger:hover .hero-install-meta-tooltip,
+.hero-install-meta-trigger:focus-within .hero-install-meta-tooltip {
+    visibility: visible;
+    opacity: 1;
+    pointer-events: auto;
+    transition-delay: 0s;
+}
+
+.hero-install-meta-table {
+    border-collapse: collapse;
+    white-space: nowrap;
+    font-size: .65rem;
+    font-weight: 500;
+    line-height: 1.35;
+}
+
+.hero-install-meta-table th,
+.hero-install-meta-table td {
+    padding: .2rem .45rem;
+    text-align: left;
+}
+
+.hero-install-meta-table th {
+    color: #ffffff66;
+    font-weight: 600;
+    border-bottom: 1px solid #ffffff14;
+}
+
+.hero-install-meta-table td {
+    color: #ffffffb3;
+}
+
+.hero-install-meta-table a {
+    color: inherit;
+    text-decoration: none;
+}
+
+.hero-install-meta-table a:hover {
+    filter: brightness(1.15);
+}
+
+.hero-install-meta-table tr.is-stale td {
+    color: #9aa4b2;
+}
+
+.hero-install-meta-table tr.is-stale a {
+    color: #9aa4b2;
+}
+
+.hero-install-meta-table tr.is-latest td,
+.hero-install-meta-table tr.is-current td {
+    color: var(--zx-primary-light);
+}
+
+.hero-install-meta-table tr.is-latest a,
+.hero-install-meta-table tr.is-current a {
+    color: var(--zx-primary-light);
+}
+
+.hero-install-meta-table tr.is-development td {
+    color: #f0c674;
+}
+
+.hero-install-meta-table tr.is-development a {
+    color: #f0c674;
 }
 
 @keyframes fadeIn {
@@ -2308,8 +2423,7 @@ a.hero-badge:hover {
 @media (max-width: 768px) {
     .hero-inner {
         grid-template-columns: 1fr 280px;
-        grid-template-areas: "badge mascot"
-            "title mascot"
+        grid-template-areas: "title mascot"
             "subtitle mascot"
             "description mascot"
             "install install"
@@ -2327,13 +2441,6 @@ a.hero-badge:hover {
 
     .hero-content {
         display: contents;
-    }
-
-    .hero-badge {
-        grid-area: badge;
-        place-self: start;
-        width: fit-content;
-        margin-bottom: 1.5rem;
     }
 
     .hero-title-wrapper {
@@ -2436,7 +2543,6 @@ a.hero-badge:hover {
         font-size: 3.2rem;
     }
 
-    .hero-badge,
     .hero-description {
         margin-bottom: 2.5rem;
     }

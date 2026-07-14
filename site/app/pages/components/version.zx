@@ -1,17 +1,96 @@
-pub fn Version(allocator: zx.Allocator) !zx.Component {
-    return (<VersionBadge @{allocator} @caching="1h:ziex_version" />);
-}
 
-fn VersionBadge(allocator: zx.Allocator) zx.Component {
-    const release = fetchLatestRelease(allocator);
-    const version = if (release) |r| r.version else zx.info.version;
-    const url = if (release) |r| r.url else releasesUrl(allocator) orelse zx.info.repository;
+pub fn Version(allocator: zx.Allocator) !zx.Component {
     return (
-        <a @{allocator} class="hero-badge" href={url} target="_blank" rel="noopener noreferrer">v{version}</a>
+        <LiveVersionBadge
+            @{allocator}
+            @caching="1h:ziex_version"
+        />
     );
 }
 
-const Release = struct {
+pub fn VersionMeta(allocator: zx.Allocator) zx.Component {
+    const latest = latestRelease();
+    const version_raw = if (latest) |r| r.version else zx.info.version;
+    const zig_raw = if (latest) |r| r.minimum_zig_version else zx.info.minimum_zig_version;
+    const version = displayVersion(allocator, version_raw);
+    const zig_version = displayVersion(allocator, zig_raw);
+    const version_url = if (latest) |_| releaseUrl(allocator, version_raw) else zx.info.repository;
+    const others = versions.releases;
+    const development = displayVersion(allocator, zx.info.version);
+    const development_zig = displayVersion(allocator, zx.info.minimum_zig_version);
+
+    return (
+        <div @{allocator} class="hero-install-meta">
+            <span class="hero-install-meta-trigger" tabindex="0">
+                <a class="hero-install-meta-link" href={version_url} target="_blank" rel="noopener noreferrer">v{version}</a>
+                <span class="hero-install-meta-sep" aria-hidden="true">·</span>
+                <span class="hero-install-meta-zig">Zig {zig_version}</span>
+                <div class="hero-install-meta-tooltip" role="tooltip">
+                    <table class="hero-install-meta-table">
+                        <thead>
+                            <tr>
+                                <th>Ziex</th>
+                                <th>Zig</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {for (others) |release| (
+                                <tr class=`is-{release.status}`>
+                                    <td>
+                                        <a href={releaseUrl(allocator, release.version)} target="_blank" rel="noopener noreferrer">v{displayVersion(allocator, release.version)}</a>
+                                    </td>
+                                    <td>{displayVersion(allocator, release.minimum_zig_version)}</td>
+                                </tr>
+                            )}
+                            <tr class="is-development">
+                                <td>
+                                    <a href={zx.info.repository} target="_blank" rel="noopener noreferrer">v{development}</a>
+                                </td>
+                                <td>{development_zig}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </span>
+        </div>
+    );
+}
+
+fn latestRelease() ?Versions.Release {
+    for (versions.releases) |release| {
+        if (release.status == .latest) return release;
+    }
+    if (versions.releases.len > 0) return versions.releases[0];
+    return null;
+}
+
+fn displayVersion(allocator: zx.Allocator, raw: []const u8) []const u8 {
+    const text = if (raw.len > 0 and raw[0] == 'v') raw[1..] else raw;
+    var parsed = std.SemanticVersion.parse(text) catch return text;
+    parsed.build = null;
+    return std.fmt.allocPrint(allocator, "{f}", .{parsed}) catch text;
+}
+
+fn releaseUrl(allocator: zx.Allocator, version: []const u8) []const u8 {
+    return std.fmt.allocPrint(allocator, "{s}/releases/tag/v{s}", .{ zx.info.repository, version }) catch zx.info.repository;
+}
+
+fn LiveVersionBadge(allocator: zx.Allocator) zx.Component {
+    const release = fetchLatestRelease(allocator);
+    const version_raw = if (release) |r| r.version else zx.info.version;
+    const version = displayVersion(allocator, version_raw);
+    const zig_version = displayVersion(allocator, zx.info.minimum_zig_version);
+    const url = if (release) |r| r.url else releasesUrl(allocator) orelse zx.info.repository;
+    return (
+        <div @{allocator} class="hero-install-meta">
+            <a class="hero-install-meta-link" href={url} target="_blank" rel="noopener noreferrer">v{version}</a>
+            <span class="hero-install-meta-sep" aria-hidden="true">·</span>
+            <span class="hero-install-meta-zig">Zig {zig_version}</span>
+        </div>
+    );
+}
+
+const GhRelease = struct {
     version: []const u8,
     url: []const u8,
 };
@@ -21,7 +100,7 @@ const GithubRelease = struct {
     html_url: []const u8 = "",
 };
 
-fn fetchLatestRelease(allocator: zx.Allocator) ?Release {
+fn fetchLatestRelease(allocator: zx.Allocator) ?GhRelease {
     zx.log.debug("Fetching version from GH...", .{});
     const slug = repoSlug() orelse return null;
 
@@ -135,5 +214,25 @@ fn releasesUrl(allocator: zx.Allocator) ?[]const u8 {
     return std.fmt.allocPrint(allocator, "{s}/releases", .{zx.info.repository}) catch null;
 }
 
+// TODO: dedupe the struct for versions.zon
+const Versions = struct {
+    pub const Release = struct {
+        version: []const u8,
+        minimum_zig_version: []const u8,
+        branch: []const u8,
+        status: ReleaseStatus,
+    };
+
+    pub const ReleaseStatus = enum {
+        current,
+        latest,
+        development,
+        stale,
+    };
+
+    releases: []const Release,
+};
+
+const versions: Versions = @import("../versions.zon");
 const std = @import("std");
 const zx = @import("zx");

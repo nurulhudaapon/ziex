@@ -397,12 +397,12 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         </ul>
                         <div class="nav-social" role="group" aria-label="Community links">
                             <a href="/r/discord" target="_blank" rel="noopener noreferrer" class="nav-social-link" aria-label="Discord">
-                                <DiscordIcon allocator={allocator} />
+                                <icons.Discord />
                                 <span class="nav-social-text">Discord</span>
                             </a>
                             <span class="nav-social-divider" aria-hidden="true"></span>
                             <a href={zx.info.repository} target="_blank" rel="noopener noreferrer" class="nav-social-link" aria-label="GitHub">
-                                <GitHubIcon allocator={allocator} />
+                                <icons.GitHub />
                                 <span class="nav-social-text">GitHub</span>
                             </a>
                         </div>
@@ -418,19 +418,19 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     </div>
                     <div class="hero-inner">
                         <div class="hero-content">
-                            <Version allocator={allocator} />
                             <div class="hero-title-wrapper">
                                 <h1 class="hero-title-main">Ziex</h1>
                                 <div class="hero-title-accent">/</div>
                             </div>
                             <p class="hero-subtitle">
-                                The full-stack web framework for Zig.
+                                Full-stack web framework for Zig.
                             </p>
                             <p class="hero-description">
                                 Compile-time safety, deterministic performance, absolute simplicity, and a delightful developer experience.
                             </p>
                             <div class="hero-install">
-                                <InstallCLI allocator={allocator} show_init={true} />
+                                <VersionMeta />
+                                <InstallCLI show_init={true} />
                             </div>
                             <div class="hero-cta">
                                 <a href="/learn" class="btn btn-primary">Get Started</a>
@@ -440,7 +440,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
                         <div class="hero-mascot">
                             <div class="hero-mascot-glow"></div>
-                            // <div class="hero-mascot-glow hero-mascot-glow--inner"></div>
                             <img src="/assets/branding/compressed/ziex-ziguana.webp" alt="Ziguana Mascot" />
                         </div>
                     </div>
@@ -457,7 +456,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                     </div>
                 </section>
                 <BenchmarksSection eyebrow="" title="Performance" subtitle=`<a href='{zx.info.repository}/tree/main/bench' target='_blank' class='bench-label-link'>View benchmark →</a> <br/> Each framework runs in a Docker container limited to 2 CPU cores and 2 GB RAM.` tabs={benchmark_tabs[0..]} run_url={bench_run.url} run_date={bench_run.date} />
-                <DeploymentSection allocator={allocator} />
+                <DeploymentSection />
                 <section class="feature-examples">
                     <div class="feature-examples-header">
                         <h2 class="section-title">Code Examples</h2>
@@ -476,17 +475,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         <FeatureExample title="Client-side Rendering" wide={true} child={(<CodePreviewExample title="counter.zx" section="Client-side Rendering" source={feature_examples} code="" preview={(<Examples.Client />)} />)} />
                     </div>
                 </section>
-                // <section class="code-section">
-                //     <div class="code-container">
-                //         <div class="code-header">
-                //             <h2 class="section-title">Familiar Syntax</h2>
-                //             <p class="section-subtitle">
-                //                 Familiar JSX like syntax or just like HTML with having access to Zig's control flow.
-                //             </p>
-                //         </div>
-                //         <CodeWindow allocator={allocator} title="example.zx" section="" source="" code={overview_code} />
-                //     </div>
-                // </section>
             </main>
             <footer class="footer">
                 <div class="footer-runner">
@@ -669,10 +657,7 @@ fn BenchmarksSection(allocator: zx.Allocator, props: BenchmarksSectionProps) zx.
     );
 }
 
-const DeploymentSectionProps = struct {
-    allocator: zx.Allocator,
-};
-
+const DeploymentSectionProps = struct {};
 fn DeploymentSection(allocator: zx.Allocator, _: DeploymentSectionProps) zx.Component {
     return (
         <section @allocator={allocator} class="deployment">
@@ -778,11 +763,13 @@ fn CodePreviewExample(allocator: zx.Allocator, props: CodePreviewExampleProps) z
                     <span></span>
                     <span></span>
                 </div>
-                // <div class="code-example-actions">
-                //     <button class="code-example-open-playground" data-code-section={props.section} data-code-source="preview" data-tooltip="Open in playground" aria-label="Open in playground">
-                //         ▶
-                //     </button>
-                // </div>
+                {if (false) (
+                    <div class="code-example-actions">
+                        <button class="code-example-open-playground" data-code-section={props.section} data-code-source="preview" data-tooltip="Open in playground" aria-label="Open in playground">
+                            ▶
+                        </button>
+                    </div>
+                )}
                 <div class="code-example-title">{props.title}</div>
             </div>
             <div class="code-preview-body">
@@ -800,25 +787,25 @@ fn CodePreviewExample(allocator: zx.Allocator, props: CodePreviewExampleProps) z
     );
 }
 
-fn buildTabStyles(allocator: zx.Allocator, container_id: []const u8, tabs: []const CodeTab) []const u8 {
+fn buildTabStyles(allocator: zx.Allocator, container_id: []const u8, tabs: []const CodeTab) ![]const u8 {
     var out = std.array_list.Managed(u8).init(allocator);
     defer out.deinit();
 
     for (tabs) |tab| {
-        out.appendSlice("#") catch unreachable;
-        out.appendSlice(container_id) catch unreachable;
-        out.appendSlice(":has(#") catch unreachable;
-        out.appendSlice(tab.id) catch unreachable;
-        out.appendSlice(":checked) .code-example-panel[data-tab=\"") catch unreachable;
-        out.appendSlice(tab.id) catch unreachable;
-        out.appendSlice("\"] { display: block; }\n") catch unreachable;
+        try out.appendSlice("#");
+        try out.appendSlice(container_id);
+        try out.appendSlice(":has(#");
+        try out.appendSlice(tab.id);
+        try out.appendSlice(":checked) .code-example-panel[data-tab=\"");
+        try out.appendSlice(tab.id);
+        try out.appendSlice("\"] { display: block; }\n");
     }
 
-    return allocator.dupe(u8, out.items) catch unreachable;
+    return try allocator.dupe(u8, out.items);
 }
 
-fn CodeWindowTabs(allocator: zx.Allocator, props: CodeWindowTabsProps) zx.Component {
-    const tab_styles = buildTabStyles(allocator, props.id, props.tabs);
+fn CodeWindowTabs(allocator: zx.Allocator, props: CodeWindowTabsProps) !zx.Component {
+    const tab_styles = try buildTabStyles(allocator, props.id, props.tabs);
 
     return (
         <div @allocator={allocator} id={props.id} class="code-example code-example--tabs code-example--compact">
@@ -869,13 +856,13 @@ fn renderTabPanel(allocator: zx.Allocator, source: []const u8, tab: CodeTab) zx.
     );
 }
 
+const InstallCLI = @import("./components/install_guide.zx").InstallCLI;
+const VersionMeta = @import("./components/version.zx").VersionMeta;
+const Examples = @import("./examples/feature_examples.zx");
+
+const icons = @import("./components/icons.zx");
+const util = @import("./reference/util.zig");
+
+const root = @import("root");
 const std = @import("std");
 const zx = @import("zx");
-const util = @import("./reference/util.zig");
-const icons = @import("./components/icons.zx");
-const GitHubIcon = icons.GitHub;
-const DiscordIcon = icons.Discord;
-const InstallCLI = @import("./components/install_guide.zx").InstallCLI;
-const Version = @import("./components/version.zx").Version;
-const Examples = @import("./examples/feature_examples.zx");
-const root = @import("root");
