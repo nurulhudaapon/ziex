@@ -120,7 +120,7 @@ pub fn Playground(allocator: zx.Allocator) zx.Component {
 // A Ziex Component is a Zig function that returns a `zx.Component`.
 // It can have signatures like:
 // - `pub fn ComponentName(allocator: zx.Allocator) zx.Component`
-// - `pub fn ComponentName(ctx: *zx.ComponentCtx<PropsType>) zx.Component`
+// - `pub fn ComponentName(ctx: *zx.ComponentCtx(PropsType)) zx.Component`
 // - `pub fn ComponentName(allocator: zx.Allocator, props: PropsType) zx.Component`
 fn Profile(ctx: *zx.ComponentCtx(User)) zx.Component {
     return (
