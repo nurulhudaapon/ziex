@@ -2,14 +2,17 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     visit_count += 1;
 
     return (
-        <section @allocator={ctx.arena}>
-            // <CounterComponent @rendering={.react} visit_count={visit_count} />
+        <fragment @allocator={ctx.arena}>
+            <script src="/assets/jsx.js"></script>
 
-            <script src="/assets/react.js"></script>
-        </section>
+            <Counter  @rendering={.react} visit_count={visit_count} name="Nurul" />
+        </fragment>
     );
+}
+
+pub fn Counter(allocator: zx.Allocator, props: struct { visit_count: u64, name: []const u8 }) !zx.Component {
+    return try zx.client.jsx.component(allocator, "Counter", props, .{ .children = null });
 }
 
 var visit_count: u64 = 0;
 const zx = @import("zx");
-// const CounterComponent = @jsImport("./../../react.tsx");

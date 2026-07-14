@@ -11,7 +11,7 @@ pub fn component(
     name: []const u8,
     props: anytype,
     options: ComponentOptions,
-) zx.Component {
+) !zx.Component {
     if (zx.platform.role == .client) {
         @compileError(
             \\ Client side zx.Component can't have JSX Component as children, 
@@ -22,22 +22,22 @@ pub fn component(
         );
     }
 
-    const props_json = std.json.Stringify.valueAlloc(options.allocator, props, .{}) catch @panic("OOM");
+    const props_json = std.json.Stringify.valueAlloc(allocator, props, .{}) catch @panic("OOM");
 
     var aw: std.Io.Writer.Allocating = .init(allocator);
-    if (options.children) |c| c.render(&aw.writer, .{});
+    if (options.children) |c| try c.render(&aw.writer, .{});
 
     return zx.Component{ .element = .{ .tag = .div, .attributes = &.{
-        &.{
-            .key = "data-name",
+        .{
+            .name = "data-name",
             .value = name,
         },
-        &.{
-            .key = "data-props",
+        .{
+            .name = "data-props",
             .value = props_json,
         },
-        &.{
-            .key = "data-children",
+        .{
+            .name = "data-children",
             .value = if (options.children) |_| aw.written() else null,
         },
     } } };
