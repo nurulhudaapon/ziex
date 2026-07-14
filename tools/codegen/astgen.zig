@@ -74,7 +74,7 @@ pub const Editor = struct {
         @memcpy(sentinel[0..raw.len], raw);
         sentinel[raw.len] = 0;
 
-        var tree = try std.zig.Ast.parse(self.allocator, sentinel[0..raw.len :0], .zig);
+        var tree = try std.zig.Ast.parse(self.allocator, sentinel[0..raw.len :0], .{ .mode = .zig });
         defer tree.deinit(self.allocator);
         if (tree.errors.len != 0) return error.InvalidGeneratedSource;
 
@@ -162,7 +162,7 @@ pub const File = struct {
         @memcpy(sentinel[0..raw.len], raw);
         sentinel[raw.len] = 0;
 
-        var tree = std.zig.Ast.parse(final_allocator, sentinel[0..raw.len :0], .zig) catch |err| {
+        var tree = std.zig.Ast.parse(final_allocator, sentinel[0..raw.len :0], .{ .mode = .zig }) catch |err| {
             std.debug.print("AST parse error: {any}\n", .{err});
             return err;
         };

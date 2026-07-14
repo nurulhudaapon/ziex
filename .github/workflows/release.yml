@@ -137,7 +137,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.17.0-dev.1158+1d1193aa7
+          version: 0.17.0-dev.1398+cb5635714
 
       - name: Cache Zig build artifacts
         uses: actions/cache@v4
@@ -240,7 +240,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.17.0-dev.1158+1d1193aa7
+          version: 0.17.0-dev.1398+cb5635714
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -304,7 +304,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.17.0-dev.1158+1d1193aa7
+          version: 0.17.0-dev.1398+cb5635714
 
       - name: Download all artifacts
         uses: actions/download-artifact@v4
@@ -384,7 +384,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.17.0-dev.1158+1d1193aa7
+          version: 0.17.0-dev.1398+cb5635714
 
       - name: Setup Git
         run: |

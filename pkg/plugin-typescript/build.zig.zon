@@ -2,7 +2,7 @@
     .name = .typescript,
     .version = "7.0.2",
     .fingerprint = 0x98b5ec518393e509,
-    .minimum_zig_version = "0.17.0-dev.1158+1d1193aa7",
+    .minimum_zig_version = "0.17.0-dev.1398+cb5635714",
     .dependencies = .{
         .plugin_system = .{ .path = "../plugin-system" },
         .typescript = .{

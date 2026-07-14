@@ -64,7 +64,7 @@ pub fn parse(gpa: std.mem.Allocator, zx_source: [:0]const u8, options: ParseOpti
 
     const render_result = try parse_result.renderAlloc(arena, .{ .mode = .zig, .sourcemap = options.map.enabled(), .path = options.path });
     const zx_sourcez = try gpa.dupeSentinel(u8, render_result.source, 0);
-    var zig_ast = try std.zig.Ast.parse(gpa, zx_sourcez, .zig);
+    var zig_ast = try std.zig.Ast.parse(gpa, zx_sourcez, .{ .mode = .zig });
     const zig_sourcez = try arena.dupeSentinel(u8, if (zig_ast.errors.len == 0) try zig_ast.renderAlloc(arena) else render_result.source, 0);
 
     var components = std.ArrayList(ClientComponentMetadata).empty;

@@ -2,7 +2,8 @@
   "name": "ziex_dev",
   "type": "module",
   "scripts": {
-    "build": "zig build -Dtarget=wasm32-wasi -Doptimize=ReleaseSmall"
+    "build": "zig build -Dtarget=wasm32-wasi -Doptimize=ReleaseSmall",
+    "purgecss": "npx purgecss --css ./app/assets/docs.css --content dist/learn.html dist/reference.html  app/assets/clipboard.js app/assets/runner.js app/assets/home.js --output ./app/assets/docs.css"
   },
   "devDependencies": {
     "@tailwindcss/cli": "4.1.18",

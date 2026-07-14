@@ -41,7 +41,7 @@ jobs:
     - name: Setup Zig
       uses: mlugg/setup-zig@v2
       with:
-        version: 0.17.0-dev.1158+1d1193aa7
+        version: 0.17.0-dev.1398+cb5635714
           
     - name: Build project
       # run: zig build -Dlsp=true
@@ -68,7 +68,7 @@ jobs:
     - name: Setup Zig
       uses: mlugg/setup-zig@v2
       with:
-        version: 0.17.0-dev.1158+1d1193aa7
+        version: 0.17.0-dev.1398+cb5635714
 
     - name: Run tests
       run: zig build test

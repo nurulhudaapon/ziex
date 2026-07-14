@@ -5,10 +5,6 @@
     .minimum_zig_version = "0.17.0-dev",
     .dependencies = .{
         .ziex = .{ .path = "../" },
-        // .playground = .{
-        //     .url = "git+https://github.com/zigtools/playground.git#9f9403892077b7624b97b8c1cd0ca5504afebfe7",
-        //     .hash = "playground-0.0.0-iNkPNs5RAQAi9QGPVgK1FfiPQ7iAA3xSmyfev36uVu4X",
-        // },
         .esbuild = .{ .path = "../pkg/plugin-esbuild" },
         .tailwindcss = .{ .path = "../pkg/plugin-tailwindcss" },
         .ui = .{ .path = "../pkg/ui" },
@@ -16,6 +12,7 @@
         .zig = .{
             .url = "git+https://github.com/ziex-dev/zig.git?ref=0.17.0.dev-1158#168beded93fae57203d15ac381177612c67a875b",
             .hash = "zig-0.0.0-Fp4XJB26Fg4GqNb7sPQVsZBIX4d1HUWIDe2Jhew11q7L",
+            .lazy = true,
         },
         .branding = .{
             .url = "git+https://github.com/ziex-dev/branding.git#04a22af76e2198d06c429e4025f960f76d93bf9f",
@@ -25,6 +22,11 @@
             .lazy = true,
             .url = "git+https://github.com/nuhulabs/lunasvg.git#3a977d33d137795f04f3dd7df00298f1d1b729de",
             .hash = "lunasvg-0.0.0-9mEwLqAcAABMUDN1zRkpqiP0vtANX3cPTcomKCm-9X6w",
+        },
+        .assets = .{
+            .url = "git+https://github.com/ziex-dev/ziex.dev#261b2386eb95be7e3259bc8f790053fe094097f4",
+            .hash = "N-V-__8AAPreiQA2G8qeraUdcGI258fAuf8A01IyP6FppNAn",
+            .lazy = true,
         },
     },
     .paths = .{

@@ -221,7 +221,7 @@ pub fn renderNode(self: *Ast, node: ts.Node, w: *std.Io.Writer) !void {
         defer extract_result.deinit(allocator);
 
         // Format the Zig code with placeholders
-        var zig_ast = try std.zig.Ast.parse(allocator, extract_result.zig_source, .zig);
+        var zig_ast = try std.zig.Ast.parse(allocator, extract_result.zig_source, .{ .mode = .zig });
         defer zig_ast.deinit(allocator);
 
         if (zig_ast.errors.len > 0) {

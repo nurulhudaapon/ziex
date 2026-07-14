@@ -10,6 +10,7 @@ pub const Build = struct {
 };
 
 pub const Output = struct {
+    name: ?[]const u8 = null,
     file: std.Build.LazyPath,
     run: *std.Build.Step.Run,
 };
@@ -81,7 +82,7 @@ fn innerInitSingle(b: *std.Build, build_item: Build) !Output {
         run.addFileArg(source);
     }
 
-    return .{ .file = output, .run = run };
+    return .{ .name = build_item.name, .file = output, .run = run };
 }
 
 fn deriveName(b: *std.Build, self: Build, step: *std.Build.Step) []const u8 {

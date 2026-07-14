@@ -429,7 +429,7 @@ fn copyCompanionsForCached(
     const zig_src_z = try allocator.dupeSentinel(u8, zig_src, 0);
     defer allocator.free(zig_src_z);
 
-    var ast = try std.zig.Ast.parse(allocator, zig_src_z, .zig);
+    var ast = try std.zig.Ast.parse(allocator, zig_src_z, .{ .mode = .zig });
     defer ast.deinit(allocator);
 
     try collectEmbedFiles(io, allocator, input_files, &ast, source_dir, out_dir);
@@ -512,7 +512,7 @@ fn copyCompanionRecursive(
     const zig_src_z = try allocator.dupeSentinel(u8, zig_src, 0);
     defer allocator.free(zig_src_z);
 
-    var ast = try std.zig.Ast.parse(allocator, zig_src_z, .zig);
+    var ast = try std.zig.Ast.parse(allocator, zig_src_z, .{ .mode = .zig });
     defer ast.deinit(allocator);
 
     const source_dir = std.fs.path.dirname(source_path) orelse ".";
@@ -1144,7 +1144,7 @@ fn genRoutes(io: std.Io, allocator: std.mem.Allocator, output_dir: []const u8, _
 
     const content_z = try allocator.dupeSentinel(u8, content.written(), 0);
     defer allocator.free(content_z);
-    var ast = try std.zig.Ast.parse(allocator, content_z, .zig);
+    var ast = try std.zig.Ast.parse(allocator, content_z, .{ .mode = .zig });
     defer ast.deinit(allocator);
 
     if (ast.errors.len > 0) return error.ParseError;
