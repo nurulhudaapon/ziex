@@ -447,7 +447,7 @@ fn reconcileChildren(
             try diff(allocator, old_child, resolved, parent, patches);
             last_placed_index = old_idx;
         } else if (componentIsFragment(old_child.component) or componentIsFragment(resolved)) {
-            // Fragment↔element mismatches must not REPLACE — fragments have no DOM node.
+            // Fragment↔element mismatches must not REPLACE - fragments have no DOM node.
             try patches.append(allocator, Patch{
                 .type = .DELETION,
                 .data = .{ .DELETION = .{

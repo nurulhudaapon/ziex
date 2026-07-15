@@ -247,7 +247,7 @@ fn httpGet(a: std.mem.Allocator, io: std.Io, url: []const u8, accept: ?[]const u
         .{ .name = "user-agent", .value = "ziex-stats" },
         .{ .name = "accept", .value = accept orelse "application/vnd.github+json" },
     });
-    // Optional auth — lifts the unauthenticated rate limit.
+    // Optional auth - lifts the unauthenticated rate limit.
     if (std.c.getenv("GITHUB_TOKEN")) |tok_z| {
         const tok = std.mem.span(tok_z);
         if (tok.len > 0) {

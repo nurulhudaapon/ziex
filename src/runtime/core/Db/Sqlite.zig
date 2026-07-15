@@ -522,7 +522,7 @@ fn paramsCount(ud: ?*anyopaque) usize {
 // --- SQLite-only statement extensions (reached via `Db.Sqlite.fromStatement`) --- //
 
 /// Recover the SQLite statement context from a `Db.Statement`. The statement's
-/// vtable pointer is the type witness — returns `DbError.WrongBackend` if the
+/// vtable pointer is the type witness - returns `DbError.WrongBackend` if the
 /// statement was not prepared on a SQLite connection.
 fn fromStatement(statement: Db.Statement) !*StatementCtx {
     if (statement.db.vtable != &database_vtable) return Db.DbError.WrongBackend;
@@ -530,7 +530,7 @@ fn fromStatement(statement: Db.Statement) !*StatementCtx {
 }
 
 /// SQLite's per-column declared type strings (`sqlite3_column_decltype`). This
-/// reflects SQLite's flexible typing and has no portable equivalent — use the
+/// reflects SQLite's flexible typing and has no portable equivalent - use the
 /// neutral `Statement.columnTypes` for cross-backend type info.
 pub fn declaredTypes(statement: Db.Statement) ![]const ?[]const u8 {
     const stmt_ctx = try fromStatement(statement);

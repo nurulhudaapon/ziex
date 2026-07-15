@@ -500,7 +500,7 @@ test "api > iterate abandoned early frees the in-flight row" {
     defer statement.deinit();
 
     var it = try statement.iterate(.{});
-    // Pull one row, then bail without draining — deinit must free the held row.
+    // Pull one row, then bail without draining - deinit must free the held row.
     const row = (try it.next()).?;
     try std.testing.expectEqual(@as(i64, 1), row.int("id"));
     it.deinit();

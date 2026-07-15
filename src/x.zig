@@ -545,7 +545,7 @@ const Context = struct {
             @hasField(@typeInfo(FirstPropType).pointer.child, "allocator") and
             @hasField(@typeInfo(FirstPropType).pointer.child, "children");
 
-        const name = options.name orelse "";
+        const name = if (copts.src) |src| src.fn_name else "";
         // Context-based component or function with props parameter
         var comp_fn = if (first_is_ctx_ptr or param_count == 2) blk: {
             const PropsType = if (first_is_ctx_ptr) @TypeOf(props) else FuncInfo.@"fn".param_types[1].?;
@@ -715,8 +715,6 @@ pub const Id = enum(u64) {
         if (start) |s| {
             hash.value = s.asU64();
         }
-        // `src.module` intentionally excluded — see `extendId` for why. Keep these
-        // two functions in sync so a comptime id and its runtime equivalent match.
         hash.update(src.file);
         var buf: [40]u8 = undefined;
         hash.update(std.fmt.bufPrint(&buf, "{d}", .{src.line}) catch unreachable);

@@ -5,7 +5,7 @@
   "injectionSelector": "L:(source.zig, source.zx) - string - comment",
   "patterns": [
     {
-      "comment": "SQL injection for db/database query-taking methods (optionally namespaced, e.g. zx.db.run). The first string literal inside the call is the SQL — no preceding argument (allocator, comptime type) is a string, so matching the first string is safe for prepare/run (1st arg), get/all (2nd arg), and row/rows (3rd arg).",
+      "comment": "SQL injection for db/database query-taking methods (optionally namespaced, e.g. zx.db.run). The first string literal inside the call is the SQL - no preceding argument (allocator, comptime type) is a string, so matching the first string is safe for prepare/run (1st arg), get/all (2nd arg), and row/rows (3rd arg).",
       "begin": "((?:\\b[a-zA-Z_][a-zA-Z0-9_]*\\.)?(?:db|database)\\.(?:prepare|run|get|all|row|rows))\\s*\\(",
       "beginCaptures": {
         "1": {

@@ -25,6 +25,9 @@ pub const Component = union(enum) {
         getStateItems: ?*const anyopaque = null,
         /// SSR-rendered content of the component (for hydration)
         children: ?*const Component = null,
+        // TODO: get rid of react specific rendering flag, we will use server component with
+        // hydraton as is with kind in props to mean that this is js component
+        // which we then render with client side Zig
         /// Whether this is a React component (uses JSON) or Zig component (uses ZON)
         is_react: bool = false,
     };
@@ -43,10 +46,12 @@ pub const Component = union(enum) {
         key: ?[]const u8 = null,
         id: zx.x.Id = .undef,
 
-        pub fn init(comptime func: anytype, name: []const u8, allocator: Allocator, props: anytype) ComponentFn {
+        pub fn init(comptime func: anytype, comptime name: []const u8, allocator: Allocator, props: anytype) ComponentFn {
             const FuncInfo = @typeInfo(@TypeOf(func));
             const param_count = FuncInfo.@"fn".param_types.len;
             const fn_name = @typeName(@TypeOf(func));
+
+            const fn_signature = std.fmt.comptimePrint("fn {s} {s}", .{ name, fn_name["fn ".len..] });
 
             // Validation of parameters
             if (param_count != 1 and param_count != 2)
@@ -59,18 +64,18 @@ pub const Component = union(enum) {
                 @hasField(@typeInfo(FirstPropType).pointer.child, "children");
 
             if (!first_is_allocator and !first_is_ctx_ptr)
-                @compileError("Component " ++ fn_name ++ " must have allocator or *ComponentCtx as the first parameter");
+                @compileError("Component " ++ fn_signature ++ " must have allocator or *ComponentCtx as the first parameter");
 
             // If two parameters are passed with allocator first, the props type must be a struct
             if (first_is_allocator and param_count == 2) {
                 const SecondPropType = FuncInfo.@"fn".param_types[1].?;
                 if (@typeInfo(SecondPropType) != .@"struct")
-                    @compileError("Component" ++ fn_name ++ " must have a struct as the second parameter, found " ++ @typeName(SecondPropType));
+                    @compileError("Component" ++ fn_signature ++ " must have a struct as the second parameter, found " ++ @typeName(SecondPropType));
             }
 
             // Context-based components should only have 1 parameter
             if (first_is_ctx_ptr and param_count != 1)
-                @compileError("Component " ++ fn_name ++ " with *ComponentCtx must have exactly 1 parameter");
+                @compileError("Component " ++ fn_signature ++ " with *ComponentCtx must have exactly 1 parameter");
 
             // Allocate props on heap to persist
             const props_copy = if (first_is_allocator and param_count == 2) blk: {

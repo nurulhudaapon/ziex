@@ -91,7 +91,7 @@ const Trend = struct {
 fn loadStats(arena: zx.Allocator) !Stats {
     if (zx.kv.as(arena, KV_KEY, Stats)) |cached| {
         if (cached) |s| return s;
-    } else |_| {} // stale/invalid type — fall through and regenerate
+    } else |_| {} // stale/invalid type - fall through and regenerate
 
     const fresh = try stats_gen.collect(arena, zx.io());
     zx.kv.putAs(KV_KEY, fresh, .{ .ttl = .fromSeconds(TTL_SECONDS) }) catch {};

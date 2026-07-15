@@ -22,7 +22,8 @@
 #
 # The base version (everything before the pre-release number) is read from
 # build.zig.zon and may be either numberless ("0.1.0-dev") or already
-# numbered ("0.1.0-dev.123") — both are handled.
+# numbered ("0.1.0-dev.123") - both are handled.
+# TODO: delete in favour of build.zig getVersion()
 
 BUILD_ZON_FILE="build.zig.zon"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

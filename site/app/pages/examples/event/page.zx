@@ -1,16 +1,16 @@
 // Demonstrates and exercises `zx.client.Event.as(T)` across every case the
 // debug-build type assertion guards:
 //
-//   1. Correct match    — as(PointerEvent) in a click handler          → reads data
-//   2. Correct match    — as(KeyboardEvent) in a keydown handler       → reads data
-//   3. Correct match    — as(InputEvent) in an input handler           → reads data
-//   4. Correct match    — as(SubmitEvent) in a submit handler          → reads data
-//   5. Catch-all        — as(Event) in any handler                     → never asserts
-//   6. Deliberate mismatch — as(KeyboardEvent) in a click handler      → debug panic
+//   1. Correct match    - as(PointerEvent) in a click handler          → reads data
+//   2. Correct match    - as(KeyboardEvent) in a keydown handler       → reads data
+//   3. Correct match    - as(InputEvent) in an input handler           → reads data
+//   4. Correct match    - as(SubmitEvent) in a submit handler          → reads data
+//   5. Catch-all        - as(Event) in any handler                     → never asserts
+//   6. Deliberate mismatch - as(KeyboardEvent) in a click handler      → debug panic
 //
 // Open the browser console and interact with each control to watch the typed
 // fields print. In a debug build, clicking "Trigger type mismatch" panics with
-// a descriptive message — that's the guard working.
+// a descriptive message - that's the guard working.
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
@@ -121,7 +121,7 @@ fn onAnyEvent(ctx: *zx.client.Event.Stateful) void {
 // in `as()` panics with a message naming the requested vs. actual type. This is
 // the bug the guard exists to catch.
 fn onMismatch(ctx: *zx.client.Event.Stateful) void {
-    zx.log.info("About to request KeyboardEvent for a click — expect a debug panic.", .{});
+    zx.log.info("About to request KeyboardEvent for a click - expect a debug panic.", .{});
     const e = ctx.as(zx.client.events.KeyboardEvent, zx.allocator);
     zx.log.info("Unreachable in debug builds: {s}", .{e.key});
 }

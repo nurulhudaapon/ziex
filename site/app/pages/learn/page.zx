@@ -772,7 +772,7 @@ fn KVStorage(allocator: zx.Allocator, props: KVStorageProps) zx.Component {
 
             <p>Store and retrieve raw bytes:</p>
             <CodeBlock code={props.kv_basic} />
-            <p><code>zx.kv.get</code> returns owned bytes (or <code>null</code>), so free them when you're done — or use the request arena as shown. List keys with a prefix using <code>zx.kv.list</code>.</p>
+            <p><code>zx.kv.get</code> returns owned bytes (or <code>null</code>), so free them when you're done - or use the request arena as shown. List keys with a prefix using <code>zx.kv.list</code>.</p>
 
             <h3>Typed values</h3>
             <p>Use <code>zx.kv.putAs</code> and <code>zx.kv.as</code> to store and read typed Zig structs directly:</p>
@@ -786,7 +786,7 @@ fn KVStorage(allocator: zx.Allocator, props: KVStorageProps) zx.Component {
 
             <div class="callout note">
                 <strong>Storage backend:</strong>
-                 On native platforms, data is stored on the filesystem under <code>datadir/kv/</code>. On edge runtimes like Cloudflare Workers, ZX uses the platform's KV binding instead.
+                 On native platforms, data is stored on the filesystem under <code>{"<ZIEX_ROOT_DIR>/data/kv/"}</code> and in dev mode <code>{"zig-out/data/kv/"}</code> in production mode. On edge runtimes like Cloudflare Workers, ZX uses the platform's KV binding instead.
             </div>
         </section>
     );
@@ -923,20 +923,24 @@ fn NextSteps(allocator: zx.Allocator) zx.Component {
     );
 }
 
-const zx = @import("zx");
-const std = @import("std");
-const example_block = @import("../components/example_block.zx");
-const ExampleBlock = example_block.ExampleBlock;
-const File = example_block.File;
-const CodeBlock = @import("../components/code_block.zx").CodeBlock;
-const ProjectTree = @import("../components/project_tree.zx").ProjectTree;
-const InstallCLI = @import("../components/install_guide.zx").InstallCLI;
-const InstallZig = @import("../components/install_guide.zx").InstallZig;
-
-// Helper to allocate files on heap to avoid stack lifetime issues
 fn layoutFiles(allocator: zx.Allocator, layout_code: []const u8, page_code: []const u8) []const File {
     const files = allocator.alloc(File, 2) catch unreachable;
     files[0] = .{ .filename = "layout.zx", .code = layout_code };
     files[1] = .{ .filename = "page.zx", .code = page_code };
     return files;
 }
+
+const ExampleBlock = example_block.ExampleBlock;
+const File = example_block.File;
+const CodeBlock = code_block.CodeBlock;
+const ProjectTree = project_tree.ProjectTree;
+const InstallCLI = install_guide.InstallCLI;
+const InstallZig = install_guide.InstallZig;
+
+const example_block = @import("../components/example_block.zx");
+const code_block = @import("../components/code_block.zx");
+const install_guide = @import("../components/install_guide.zx");
+const project_tree = @import("../components/project_tree.zx");
+
+const zx = @import("zx");
+const std = @import("std");

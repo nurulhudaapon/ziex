@@ -65,7 +65,7 @@ pub fn getOutput(self: *TranslatedZx) std.Build.LazyPath {
 }
 
 /// Create a private module from the translated source. The module has no `zx`
-/// import — add it afterwards, e.g. `mod.addImport("zx", zx_module)`.
+/// import - add it afterwards, e.g. `mod.addImport("zx", zx_module)`.
 pub fn createModule(self: *TranslatedZx) *std.Build.Module {
     return self.owner.createModule(self.mod_opts);
 }

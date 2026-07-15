@@ -253,7 +253,7 @@ pub fn prepare(self: Db, sql: []const u8) !Statement {
 }
 
 /// Execute a statement that returns no rows (INSERT/UPDATE/DELETE/DDL).
-/// `args` is an inline binding literal — see `BoundArgs` for accepted shapes,
+/// `args` is an inline binding literal - see `BoundArgs` for accepted shapes,
 /// e.g. `.{ "Ada", 9.5 }` (positional) or `.{ .name = "Ada" }` (named).
 pub fn run(self: Db, sql: []const u8, args: anytype) !RunResult {
     const bound = BoundArgs(@TypeOf(args)).init(args);
@@ -327,7 +327,7 @@ pub const Statement = struct {
 
         /// Yield the next row, or `null` when exhausted. The returned row is
         /// owned by the iterator and valid only until the next `next` call or
-        /// `deinit` — copy out any fields you need to keep. Do not free it.
+        /// `deinit` - copy out any fields you need to keep. Do not free it.
         pub fn next(self: *Iterator) !?Row {
             const ctx = self.userdata orelse return null;
             const next_fn = self.next_fn orelse return null;

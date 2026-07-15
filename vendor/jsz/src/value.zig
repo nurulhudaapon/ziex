@@ -198,8 +198,6 @@ pub const Value = enum(u64) {
         const buf = try alloc.alloc(u8, @intCast(len));
         errdefer alloc.free(buf);
 
-        // Skip the copy for empty strings — buf.ptr is an undefined sentinel
-        // for zero-length slices and passing it to JS triggers a RangeError.
         if (buf.len != 0) ext.valueStringCopy(self.ref().id, buf.ptr, buf.len);
 
         return buf;

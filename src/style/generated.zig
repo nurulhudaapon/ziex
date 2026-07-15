@@ -3459,7 +3459,7 @@ pub const AnchorScope = union(enum) {
     revert,
     revert_layer,
     unset,
-    /// Specifies that all anchor names defined by this element or its descendants—​whose scope is not already limited by a descendant using anchor-scope—​to be in scope only for this element’s descendants; and limits descendants to only match anchor names to anchor elements within this subtree. This value only affects anchor names in the same tree scope, as if it were a strictly matched tree-scoped name. (That is, anchor-scope: all acts identically to anchor-scope: --foo, --bar, ..., listing all relevant anchor names.)
+    /// Specifies that all anchor names defined by this element or its descendants-​whose scope is not already limited by a descendant using anchor-scope-​to be in scope only for this element’s descendants; and limits descendants to only match anchor names to anchor elements within this subtree. This value only affects anchor names in the same tree scope, as if it were a strictly matched tree-scoped name. (That is, anchor-scope: all acts identically to anchor-scope: --foo, --bar, ..., listing all relevant anchor names.)
     all,
 
     pub fn format(self: AnchorScope, w: anytype) std.Io.Writer.Error!void {
@@ -5189,7 +5189,7 @@ pub const BlockEllipsis = union(enum) {
     unset,
     /// The rendering is unaffected.
     no_ellipsis,
-    /// Render an ellipsis character (U+2026)—​or a more typographically-appropriate equivalent—​as the block overflow ellipsis at the end of the affected line box. UAs should use the conventions of the content language, writing system, and writing mode to determine the most appropriate ellipsis string.
+    /// Render an ellipsis character (U+2026)-​or a more typographically-appropriate equivalent-​as the block overflow ellipsis at the end of the affected line box. UAs should use the conventions of the content language, writing system, and writing mode to determine the most appropriate ellipsis string.
     auto,
 
     pub fn format(self: BlockEllipsis, w: anytype) std.Io.Writer.Error!void {
@@ -20730,7 +20730,7 @@ pub const GridTemplateColumns = union(enum) {
     min_content,
     /// Represents the largest max-content contribution of the grid items occupying the grid track.
     max_content,
-    /// As a maximum: represents the largest max-content contribution of the grid items occupying the grid track; however, unlike max-content, allows expansion of the track by the align-content and justify-content properties. As a minimum: represents the largest minimum size (specified by min-width/min-height) of the grid items occupying the grid track. (This initially is often, but not always, equal to a min-content minimum—​see § 6.6 Automatic Minimum Size of Grid Items.) When appearing outside a minmax() notation: equivalent to minmax(auto, auto), representing the range between the minimum and maximum described above. (This behaves similar to minmax(min-content, max-content) in the most basic cases, but with extra abilities.)
+    /// As a maximum: represents the largest max-content contribution of the grid items occupying the grid track; however, unlike max-content, allows expansion of the track by the align-content and justify-content properties. As a minimum: represents the largest minimum size (specified by min-width/min-height) of the grid items occupying the grid track. (This initially is often, but not always, equal to a min-content minimum-​see § 6.6 Automatic Minimum Size of Grid Items.) When appearing outside a minmax() notation: equivalent to minmax(auto, auto), representing the range between the minimum and maximum described above. (This behaves similar to minmax(min-content, max-content) in the most basic cases, but with extra abilities.)
     auto,
     auto_fill,
     auto_fit,
@@ -20805,7 +20805,7 @@ pub const GridTemplateRows = union(enum) {
     min_content,
     /// Represents the largest max-content contribution of the grid items occupying the grid track.
     max_content,
-    /// As a maximum: represents the largest max-content contribution of the grid items occupying the grid track; however, unlike max-content, allows expansion of the track by the align-content and justify-content properties. As a minimum: represents the largest minimum size (specified by min-width/min-height) of the grid items occupying the grid track. (This initially is often, but not always, equal to a min-content minimum—​see § 6.6 Automatic Minimum Size of Grid Items.) When appearing outside a minmax() notation: equivalent to minmax(auto, auto), representing the range between the minimum and maximum described above. (This behaves similar to minmax(min-content, max-content) in the most basic cases, but with extra abilities.)
+    /// As a maximum: represents the largest max-content contribution of the grid items occupying the grid track; however, unlike max-content, allows expansion of the track by the align-content and justify-content properties. As a minimum: represents the largest minimum size (specified by min-width/min-height) of the grid items occupying the grid track. (This initially is often, but not always, equal to a min-content minimum-​see § 6.6 Automatic Minimum Size of Grid Items.) When appearing outside a minmax() notation: equivalent to minmax(auto, auto), representing the range between the minimum and maximum described above. (This behaves similar to minmax(min-content, max-content) in the most basic cases, but with extra abilities.)
     auto,
     auto_fill,
     auto_fit,
@@ -27604,7 +27604,7 @@ pub const PositionAnchor = union(enum) {
     normal,
     /// Use the implicit anchor element if it exists; otherwise the box has no default anchor element.
     auto,
-    /// Uses the same default anchor element as the parent—​or originating element, if this is a pseudo-element—​if any, and if that would be an acceptable anchor element. Otherwise, the box has no default anchor element.
+    /// Uses the same default anchor element as the parent-​or originating element, if this is a pseudo-element-​if any, and if that would be an acceptable anchor element. Otherwise, the box has no default anchor element.
     match_parent,
 
     pub fn format(self: PositionAnchor, w: anytype) std.Io.Writer.Error!void {
@@ -34204,7 +34204,7 @@ pub const TextJustify = union(enum) {
     revert,
     revert_layer,
     unset,
-    /// The UA determines the justification algorithm to follow, based on a balance between performance and adequate presentation quality. Since justification rules vary by writing system and language, UAs should, where possible, use a justification algorithm appropriate to the text. For example, the UA could use by default a justification method that is a simple universal compromise for all writing systems—​such as primarily expanding word separators and between CJK typographic letter units along with secondarily expanding between Southeast Asian typographic letter units. Then, in cases where the content language of the paragraph is known, it could choose a more language-tailored justification behavior e.g. following the Requirements for Japanese Text Layout for Japanese [JLREQ], using cursive elongation for Arabic, using inter-word for German, etc. An example of cursively-justified Arabic text, rendered by Tasmeem. Like English, Arabic can be justified by adjusting the spacing between words, but in most styles it can also be justified by calligraphically elongating or compressing the letterforms themselves. In this example, the upper text is extended to fill the line by the use of elongated (kashida) forms and swash forms, while the bottom line is compressed slightly by using a stacked combination for the characters between ت and م. By employing traditional calligraphic techniques, a typesetter can justify the line while preserving flow and color, providing a very high quality justification effect. However, this is by its nature a very script-specific effect. Mixed-script text with text-justify: auto: this interpretation uses a universal-compromise justification method, expanding at spaces as well as between CJK and Southeast Asian letters. This effectively uses inter-word + inter-ideograph spacing for lines that have word-separators and/or CJK characters and falls back to inter-cluster behavior for lines that don’t or for which the space stretches too far.
+    /// The UA determines the justification algorithm to follow, based on a balance between performance and adequate presentation quality. Since justification rules vary by writing system and language, UAs should, where possible, use a justification algorithm appropriate to the text. For example, the UA could use by default a justification method that is a simple universal compromise for all writing systems-​such as primarily expanding word separators and between CJK typographic letter units along with secondarily expanding between Southeast Asian typographic letter units. Then, in cases where the content language of the paragraph is known, it could choose a more language-tailored justification behavior e.g. following the Requirements for Japanese Text Layout for Japanese [JLREQ], using cursive elongation for Arabic, using inter-word for German, etc. An example of cursively-justified Arabic text, rendered by Tasmeem. Like English, Arabic can be justified by adjusting the spacing between words, but in most styles it can also be justified by calligraphically elongating or compressing the letterforms themselves. In this example, the upper text is extended to fill the line by the use of elongated (kashida) forms and swash forms, while the bottom line is compressed slightly by using a stacked combination for the characters between ت and م. By employing traditional calligraphic techniques, a typesetter can justify the line while preserving flow and color, providing a very high quality justification effect. However, this is by its nature a very script-specific effect. Mixed-script text with text-justify: auto: this interpretation uses a universal-compromise justification method, expanding at spaces as well as between CJK and Southeast Asian letters. This effectively uses inter-word + inter-ideograph spacing for lines that have word-separators and/or CJK characters and falls back to inter-cluster behavior for lines that don’t or for which the space stretches too far.
     auto,
     /// Justification adjusts spacing at word separators only (effectively varying the used word-spacing on the line). This behavior is typical for languages that separate words using spaces, like English or Korean. Mixed-script text with text-justify: inter-word
     inter_word,
@@ -34788,7 +34788,7 @@ pub const TextWrapStyle = union(enum) {
     unset,
     /// The exact algorithm for selecting which soft wrap opportunity to break at is UA-defined. The algorithm may consider multiple lines when making break decisions. The UA may bias for speed over best layout. The UA must not attempt to even out all lines (including the last) as for balance. This value selects the UA’s preferred (or most Web-compatible) wrapping algorithm.
     auto,
-    /// Line breaks are chosen to balance the remaining (empty) space in each line box, if better balance than auto is possible. This should avoid changing—​and in the case of 5 or fewer lines must not change—​the number of line boxes the block would contain if text-wrap were set to auto. The remaining space to consider is that which remains after placing floats and inline content, but before any adjustments due to text justification. Line boxes are balanced when the standard deviation from the average inline-size of the remaining space in each line box is reduced over the block (including lines that end in a forced line break). Groups of lines separated by a forced line break are processed separately. If the element is affected by line-clamp, the clamping effect is applied first, then the remaining lines are balanced. The exact algorithm is UA-defined. UAs may treat this value as auto if there are more than ten lines to balance.
+    /// Line breaks are chosen to balance the remaining (empty) space in each line box, if better balance than auto is possible. This should avoid changing-​and in the case of 5 or fewer lines must not change-​the number of line boxes the block would contain if text-wrap were set to auto. The remaining space to consider is that which remains after placing floats and inline content, but before any adjustments due to text justification. Line boxes are balanced when the standard deviation from the average inline-size of the remaining space in each line box is reduced over the block (including lines that end in a forced line break). Groups of lines separated by a forced line break are processed separately. If the element is affected by line-clamp, the clamping effect is applied first, then the remaining lines are balanced. The exact algorithm is UA-defined. UAs may treat this value as auto if there are more than ten lines to balance.
     balance,
     /// Specifies that content on subsequent lines should not be considered when making break decisions so that when editing text any content before the cursor remains stable; otherwise equivalent to auto,
     stable,
@@ -34811,7 +34811,7 @@ pub const TimelineScope = union(enum) {
     revert,
     revert_layer,
     unset,
-    /// Specifies that all timeline names defined by this element or its flat tree descendants—​whose scope is not already limited by a descendant using timeline-scope—​to be in scope only for this element’s flat tree descendants; and limits descendants to only match timeline names to elements within this subtree.
+    /// Specifies that all timeline names defined by this element or its flat tree descendants-​whose scope is not already limited by a descendant using timeline-scope-​to be in scope only for this element’s flat tree descendants; and limits descendants to only match timeline names to elements within this subtree.
     all,
 
     pub fn format(self: TimelineScope, w: anytype) std.Io.Writer.Error!void {
@@ -35594,7 +35594,7 @@ pub const TriggerScope = union(enum) {
     revert,
     revert_layer,
     unset,
-    /// Specifies that all trigger names defined by this element or its descendants—​whose scope is not already limited by a descendant using trigger-scope—​to be in scope only for this element’s flat tree descendants; and limits descendants to only match trigger names to triggers within this subtree. This value only affects trigger names in the same tree scope, as if it were a strictly matched tree-scoped name. (That is, trigger-scope: all acts identically to trigger-scope: --foo, --bar, ..., listing all relevant trigger names.)
+    /// Specifies that all trigger names defined by this element or its descendants-​whose scope is not already limited by a descendant using trigger-scope-​to be in scope only for this element’s flat tree descendants; and limits descendants to only match trigger names to triggers within this subtree. This value only affects trigger names in the same tree scope, as if it were a strictly matched tree-scoped name. (That is, trigger-scope: all acts identically to trigger-scope: --foo, --bar, ..., listing all relevant trigger names.)
     all,
 
     pub fn format(self: TriggerScope, w: anytype) std.Io.Writer.Error!void {

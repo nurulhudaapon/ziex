@@ -83,7 +83,6 @@ test "hover: cursor outside tag returns null" {
         \\    return (<div>hi</div>);
         \\}
     ;
-    // Point at "Page" — plain Zig, not an HTML tag.
     const off = offsetOf(src, "Page", 1);
     try testing.expect((try html_hover.hoverMarkdown(arena, src, off)) == null);
 }

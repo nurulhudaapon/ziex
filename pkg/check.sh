@@ -70,7 +70,6 @@ fi
 
 # Publish @ziex/cli* packages to local registry.
 # --workspaces publishes all @ziex/cli* at once; if some are already present
-# (E409 on re-run), that's fine for a smoke test — tolerate it and continue.
 echo "==> Publishing @ziex/cli* to local registry..."
 cd "$VERDACCIO_DIR"
 cli_rc=0

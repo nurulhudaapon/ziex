@@ -63,7 +63,7 @@ fn elementMarkdown(arena: std.mem.Allocator, name: []const u8) !?[]const u8 {
     const w = &out.writer;
 
     try w.print("**`<{s}>`**", .{doc.name});
-    if (doc.interface.len > 0) try w.print(" — {s}", .{doc.interface});
+    if (doc.interface.len > 0) try w.print(" - {s}", .{doc.interface});
     try w.writeAll("\n\n");
 
     if (doc.description.len > 0) {
