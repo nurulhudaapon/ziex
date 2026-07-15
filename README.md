@@ -29,6 +29,9 @@ powershell -c "irm ziex.dev/install.ps1 | iex"
 zx init
 # or
 npm init ziex
+# or
+git clone https://github.com/ziex-dev/template-starter my-app
+cd my-app && zig build dev
 ```
 
 You will need [compatible](#versions) Zig version when using zx CLI or you can use the `Node` template from `npm init ziex`
