@@ -1,6 +1,7 @@
 const window = @import("client/window.zig");
 
 pub const Event = @import("client/Event.zig");
+pub const Action = @import("client/Action.zig");
 pub const events = @import("client/events/generated.zig");
 pub const jsx = @import("client/jsx.zig");
 

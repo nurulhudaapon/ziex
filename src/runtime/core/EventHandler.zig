@@ -82,6 +82,13 @@ pub fn wrap(comptime func: anytype) Self {
                     .action_fn = &Wrap.w,
                 };
             },
+            zx.client.Action => {
+                return actionClient(struct {
+                    fn w(ctx: *zx.client.Action) void {
+                        func(ctx.*);
+                    }
+                }.w);
+            },
             zx.server.Event => {
                 const Wrapper = struct {
                     fn w(ctx: *zx.server.Event) void {
@@ -101,6 +108,12 @@ pub fn wrap(comptime func: anytype) Self {
                 );
             },
             else => {
+                if (comptime @typeInfo(arg_type) == .pointer) {
+                    const child = @typeInfo(arg_type).pointer.child;
+                    if (comptime child == zx.client.Action) {
+                        return actionClient(func);
+                    }
+                }
                 if (comptime @typeInfo(arg_type) == .@"struct" and arg_type != zx.client.Event) {
                     @compileError(
                         "A struct-typed handler `" ++ @typeName(@TypeOf(func)) ++ "` can only be used " ++
@@ -138,9 +151,17 @@ pub fn action(comptime func: anytype) Self {
         const arg_type = params[0].?;
         if (comptime @typeInfo(arg_type) == .@"struct" and
             arg_type != zx.server.Action and
+            arg_type != zx.client.Action and
             arg_type != zx.client.Event and
             arg_type != zx.server.Event)
         {
+            if (comptime zx.platform.role == .client) {
+                return actionClient(struct {
+                    fn w(ctx: *zx.client.Action) void {
+                        func(ctx.data(arg_type));
+                    }
+                }.w);
+            }
             const DirectTyped = struct {
                 fn w(ctx: *zx.server.Action) void {
                     func(ctx.data(arg_type));
@@ -260,6 +281,53 @@ pub fn serverSS(
         }
     }.call);
     return finalizeServer(alloc, &wrap_fn, bound_states);
+}
+
+/// Stateless client form action: fn(*zx.client.Action) void / fn(zx.client.Action) void
+pub fn actionClient(comptime handler: anytype) Self {
+    const Wrap = struct {
+        fn w(_: *anyopaque, event: zx.client.Event) void {
+            event.preventDefault();
+            var action_ctx = zx.client.Action.fromEvent(event, getGlobalAllocator());
+            const params = @typeInfo(@TypeOf(handler)).@"fn".param_types;
+            const arg0 = params[0].?;
+            if (comptime arg0 == zx.client.Action) {
+                handler(action_ctx);
+            } else {
+                handler(&action_ctx);
+            }
+        }
+    };
+    return .{
+        .callback = &Wrap.w,
+        .context = @as(*anyopaque, @ptrFromInt(1)),
+        .may_suspend = true,
+    };
+}
+
+/// Stateful client form action: fn(*zx.client.Action.Stateful) void
+pub fn actionClientStateful(
+    comptime handler: anytype,
+    alloc: Allocator,
+    component_id: []const u8,
+) Self {
+    const cid = alloc.create([]const u8) catch @panic("OOM");
+    cid.* = alloc.dupe(u8, component_id) catch @panic("OOM");
+    const Wrap = struct {
+        fn w(ctx: *anyopaque, event: zx.client.Event) void {
+            event.preventDefault();
+            const p: *[]const u8 = @ptrCast(@alignCast(ctx));
+            var action_ctx = zx.client.Action.fromEvent(event, getGlobalAllocator());
+            action_ctx._internal.component_id = p.*;
+            var sf = zx.client.Action.Stateful{ .inner = &action_ctx };
+            handler(&sf);
+        }
+    };
+    return .{
+        .callback = &Wrap.w,
+        .context = @ptrCast(cid),
+        .may_suspend = true,
+    };
 }
 
 /// Stateful action handler: fn(*zx.server.Action.Stateful) void (auto-binds states from component)

@@ -278,6 +278,7 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                 var has_method = false;
                 var form_bound_states: []const zx.EventHandler.Bound = &.{};
                 var form_action_id: u32 = 1;
+                var client_action_handler: ?zx.EventHandler = null;
 
                 for (attrs) |attr| {
                     if (std.mem.eql(u8, attr.name, "key")) continue;
@@ -286,6 +287,8 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                             has_action_handler = true;
                             form_bound_states = handler.bound_states;
                             form_action_id = handler.handler_id;
+                        } else if (std.mem.eql(u8, attr.name, "action")) {
+                            client_action_handler = handler;
                         }
                         continue;
                     }
@@ -315,7 +318,7 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                 }
 
                 // Mimic Next.js: auto-inject method="post" enctype="multipart/form-data"
-                // on form elements with an action handler
+                // on form elements with a server action handler
                 if (elem.tag == .form and has_action_handler and !has_method) {
                     const method = "method";
                     const post = "post";
@@ -325,15 +328,23 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                     ext._sa(vnode.id, enctype_key.ptr, enctype_key.len, enctype_val.ptr, enctype_val.len);
                 }
 
-                // Register a synthetic onsubmit handler that POSTs form data to the server
-                if (elem.tag == .form and has_action_handler) {
+                // Register onsubmit: server actions POST; client actions run handler.callback locally
+                if (elem.tag == .form) {
                     const Client = @import("Client.zig");
-                    if (allocator.create(FormActionCtx) catch null) |form_ctx| {
-                        form_ctx.* = .{ .vnode_id = vnode.id, .action_id = form_action_id, .bound_states = form_bound_states };
-                        client.registerHandler(vnode.id, Client.EventType.submit, zx.EventHandler{
-                            .callback = &formActionCallback,
-                            .context = @ptrCast(form_ctx),
-                        });
+                    if (has_action_handler) {
+                        if (allocator.create(FormActionCtx) catch null) |form_ctx| {
+                            form_ctx.* = .{
+                                .vnode_id = vnode.id,
+                                .action_id = form_action_id,
+                                .bound_states = form_bound_states,
+                            };
+                            client.registerHandler(vnode.id, Client.EventType.submit, zx.EventHandler{
+                                .callback = &formActionCallback,
+                                .context = @ptrCast(form_ctx),
+                            });
+                        }
+                    } else if (client_action_handler) |handler| {
+                        client.registerHandler(vnode.id, Client.EventType.submit, handler);
                     }
                 }
             }

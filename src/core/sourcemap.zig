@@ -19,7 +19,7 @@ pub const DecodedMap = struct {
 
     /// Map a source (original .zx) position to the generated (.zig) position.
     ///
-    /// Finds the mapping that owns the source position — the one with the
+    /// Finds the mapping that owns the source position - the one with the
     /// greatest `(source_line, source_column)` that is still `<= (line,
     /// column)`. Within the owning segment the generated column is
     /// extrapolated by the in-segment offset, but never past the start of the
@@ -86,7 +86,7 @@ pub const DecodedMap = struct {
     /// Map a generated (.zig) position back to the source (original .zx)
     /// position.
     ///
-    /// Returns the mapping that owns the generated position — the one with the
+    /// Returns the mapping that owns the generated position - the one with the
     /// greatest `(generated_line, generated_column)` that is still `<= (line,
     /// column)`. The source column is extrapolated by the in-segment offset but
     /// clamped so it never runs past the start of the next mapping sharing the

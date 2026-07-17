@@ -1,0 +1,41 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <main @allocator={ctx.arena}>
+            <EventForm @rendering={.client} />
+        </main>
+    );
+}
+
+pub fn EventForm(ctx: *zx.ComponentContext) zx.Component {
+    const count = ctx.state(i32, 1);
+    return (
+        <div @allocator={ctx.allocator}>
+            <button onclick={ctx.bind(onclick)}>
+                Click Me {count}
+            </button>
+            <form action={ctx.bind(handleSubmit)}>
+                <input type="text" name="message" value="hello" />
+                <button type="submit">Submit</button>
+            </form>
+        </div>
+    );
+}
+
+fn onclick(e: *zx.client.Event.Stateful) void {
+    const c = e.state(i32);
+    c.set(c.get() + 1);
+    zx.log.info("Count> {d}. \n", .{c.get()});
+}
+
+fn handleSubmit(ctx: *zx.client.Action.Stateful) void {
+    const data = ctx.data(struct { message: []const u8 });
+    const count = ctx.state(i32);
+    count.set(count.get() + 1);
+    zx.log.info("Client action message: {s}, count: {d}\n", .{ data.message, count.get() });
+}
+
+pub const options: zx.PageOptions = .{
+    .methods = &.{ .GET, .POST },
+};
+
+const zx = @import("zx");

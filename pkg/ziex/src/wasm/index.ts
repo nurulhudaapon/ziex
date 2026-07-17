@@ -2,6 +2,7 @@ export {
     CallbackType,
     jsz,
     storeValueGetRef,
+    loadValueFromRef,
     textDecoder,
     textEncoder,
     getMemoryView,
@@ -15,6 +16,7 @@ import {
     ZxBridgeCore,
     jsz,
     storeValueGetRef,
+    loadValueFromRef,
     wrapPromisingExport,
     invokeWasmExport,
     readString,
@@ -134,7 +136,7 @@ export class ZxBridge extends ZxBridgeCore {
                 const data: Uint8Array = isBinary
                     ? new Uint8Array(event.data as ArrayBuffer)
                     : textEncoder.encode(event.data as string);
-                const { ptr, len } = this._writeBytesToWasm(data);
+                const { ptr, len } = this.writeBytesToWasm(data);
                 invokeWasmExport(handler, wsId, ptr, len, isBinary ? 1 : 0);
             };
 
@@ -353,14 +355,22 @@ export class ZxBridge extends ZxBridgeCore {
                     writeBytes(bufPtr, bytes.subarray(0, len));
                     return len;
                 },
-                _getFormData: (vnodeId: bigint, bufPtr: number, bufLen: number): number => {
-                    const form = domNodes.get(vnodeId) as HTMLFormElement | undefined;
-                    if (!form || !(form instanceof HTMLFormElement)) return 0;
-                    const formData = new FormData(form);
-                    const urlEncoded = new URLSearchParams(formData as any).toString();
-                    const bytes = textEncoder.encode(urlEncoded);
-                    const len = Math.min(bytes.length, bufLen);
-                    writeBytes(bufPtr, bytes.subarray(0, len));
+                _getFormData: (eventRef: bigint, outPtrAddr: number): number => {
+                    const event = loadValueFromRef(eventRef) as Event | undefined;
+                    const el = event?.target as Element | null | undefined;
+                    const form = el instanceof HTMLFormElement
+                        ? el
+                        : el?.closest?.('form') ?? null;
+                    if (!form) return 0;
+
+                    // Flat ZXON/JSON array: [k1, v1, k2, v2, ...]
+                    const entries: string[] = [];
+                    for (const [k, v] of new FormData(form).entries()) {
+                        entries.push(k, String(v));
+                    }
+                    const bytes = textEncoder.encode(JSON.stringify(entries));
+                    const { ptr, len } = bridgeRef.current!.writeBytesToWasm(bytes);
+                    new DataView(jsz.memory!.buffer).setUint32(outPtrAddr, ptr, true);
                     return len;
                 },
                 _submitFormAction: (vnodeId: bigint, actionId: number): void => {

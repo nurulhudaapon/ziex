@@ -10,7 +10,6 @@ const BuiltinAttribute = zx.BuiltinAttribute;
 const Component = zx.Component;
 const ElementAttribute = zx.Element.Attribute;
 const reactivity = zx.client.reactivity;
-
 const platform = zx.platform;
 //TODO: Do not escape ahead of time, remove escaping from this place
 const escapHtmlTextNode = zx.util.html.escapeText;
@@ -36,8 +35,7 @@ const Options = struct {
     fallback: ?*const Component = null,
     caching: ?BuiltinAttribute.Caching = null,
     client: ?ComponentClientOptions = null,
-    /// Component name used for devtools / debugging.
-    /// Pass `null` (or omit) in release builds to reduce binary size.
+    /// TODO: component name is available through @src(), we can remove this option
     name: ?[]const u8 = null,
 };
 
@@ -65,8 +63,7 @@ pub fn allocInit(allocator: std.mem.Allocator, comptime options: InitOptions) Co
 }
 
 /// Create a lazy component from a function
-/// The function will be invoked during rendering, allowing for dynamic slot handling
-/// Supports functions with 0 params (), 1 param (allocator), or 2 params (allocator, props)
+/// The function will be invoked during rendering to create the component
 pub fn lazy(allocator: Allocator, comptime func: anytype, props: anytype) Component {
     return .{ .component_fn = Component.ComponentFn.init(func, allocator, props) };
 }

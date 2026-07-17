@@ -147,7 +147,7 @@ pub const ClientOptions = struct {
     ///
     /// Ziex auto-injects the JS glue at runtime for normal server deployments,
     /// so this is `null` (no install) by default. Set it for platforms that
-    /// need the package available on disk to install it themselves — e.g. Vercel
+    /// need the package available on disk to install it themselves - e.g. Vercel
     jsglue_install_subdir: ?[]const u8 = null,
 };
 

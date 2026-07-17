@@ -42,6 +42,16 @@ export function storeValueGetRef(val: any): bigint {
     return tempRefView.getBigUint64(0, true);
 }
 
+/** Resolve a NaN-boxed 64-bit reference back to the JS value. */
+export function loadValueFromRef(ref: bigint): any {
+    tempRefView.setBigUint64(0, ref, true);
+    const originalMemory = jsz.memory;
+    jsz.memory = { buffer: tempRefBuffer } as WebAssembly.Memory;
+    const val = jsz.loadRef(0);
+    jsz.memory = originalMemory;
+    return val;
+}
+
 /** Shared encoder/decoder - avoids allocating new instances on every call. */
 export const textDecoder = new TextDecoder();
 export const textEncoder = new TextEncoder();
@@ -242,10 +252,11 @@ export class ZxBridgeCore {
 
     /** Write a string to WASM memory, returning pointer and length */
     protected _writeStringToWasm(str: string): { ptr: number; len: number } {
-        return this._writeBytesToWasm(textEncoder.encode(str));
+        return this.writeBytesToWasm(textEncoder.encode(str));
     }
 
-    protected _writeBytesToWasm(data: Uint8Array): { ptr: number; len: number } {
+    writeBytesToWasm(data: Uint8Array): { ptr: number; len: number } {
+        if (data.length === 0) return { ptr: 0, len: 0 };
         const ptr = this._alloc(data.length);
         writeBytes(ptr, data);
         return { ptr, len: data.length };

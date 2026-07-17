@@ -2,6 +2,7 @@ const zx = @import("../../root.zig");
 const reactivity = @import("../client/reactivity.zig");
 
 const ActionContext = @import("../server/Action.zig");
+const ClientActionContext = @import("../client/Action.zig");
 const ClientEvent = @import("../client/Event.zig");
 const CoreEvent = @import("Event.zig");
 const Request = @import("Request.zig");
@@ -51,6 +52,9 @@ const BindSignMsg =
     \\Handler must be one of:
     \\ - fn(*zx.client.Event.Stateful) void
     \\ - fn(*zx.client.Event) void
+    \\ - fn(*zx.client.Action.Stateful) void
+    \\ - fn(*zx.client.Action) void
+    \\ - fn(zx.client.Action) void
     \\ - fn(*zx.server.Event.Stateful) void
     \\ - fn(*zx.server.Event) void
     \\ - fn(*zx.server.Action.Stateful) void
@@ -113,6 +117,11 @@ pub fn ComponentCtx(comptime PropsType: type) type {
                 // Client
                 fn (*ClientEvent) void => zx.EventHandler.client(handler),
                 fn (*ClientEvent.Stateful) void => zx.EventHandler.clientS(handler, alloc, self._internal.component_id),
+
+                // Client Actions
+                fn (*ClientActionContext.Stateful) void => zx.EventHandler.actionClientStateful(handler, alloc, self._internal.component_id),
+                fn (*ClientActionContext) void => zx.EventHandler.actionClient(handler),
+                fn (ClientActionContext) void => zx.EventHandler.actionClient(handler),
 
                 // Server
                 fn (*ServerEvent.Stateful) void => zx.EventHandler.serverS(handler, alloc, self._internal.component_id, self._internal.state_idx),

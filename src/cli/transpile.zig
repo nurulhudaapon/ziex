@@ -251,7 +251,7 @@ fn isFsRouteZigRoot(basename: []const u8) bool {
 }
 
 /// True when `zig_path` (…/foo.zig) has a sibling `foo.zx` / `foo.mdzx` that
-/// owns the output — do not copy the `.zig` from source in that case.
+/// owns the output - do not copy the `.zig` from source in that case.
 fn hasZxTwin(io: std.Io, zig_path: []const u8) bool {
     if (!std.mem.endsWith(u8, zig_path, ".zig")) return false;
     const stem = zig_path[0 .. zig_path.len - ".zig".len];
@@ -462,7 +462,7 @@ fn collectAndCopyCompanions(
         const import_path = std.zig.string_literal.parseAlloc(allocator, raw) catch continue;
         defer allocator.free(import_path);
 
-        // Module imports (`std`, `zx`, …) have no extension — skip.
+        // Module imports (`std`, `zx`, …) have no extension - skip.
         if (std.fs.path.extension(import_path).len == 0) continue;
 
         const src = std.fs.path.join(allocator, &.{ source_dir, import_path }) catch continue;
@@ -1580,7 +1580,7 @@ fn transpileDirectory(
                         std.debug.print("Warning: Failed to copy cached file {s} to {s}: {}\n", .{ cache_out_path, output_path, err });
                     };
                 }
-                // Transpilation was skipped — replay companion copies from the
+                // Transpilation was skipped - replay companion copies from the
                 // cached `.zig` (`@embedFile` + relative `@import`s).
                 {
                     const embed_src_dir = std.fs.path.dirname(input_path) orelse ".";
@@ -1613,7 +1613,7 @@ fn transpileDirectory(
             }
         } else if (isFsRouteZigRoot(getBasename(entry.path)) and !hasZxTwin(io, input_path)) {
             // Hand-written filesystem-routing roots (`route.zig`, `proxy.zig`, …)
-            // with no `.zx` twin — copy and follow their import/embed graph.
+            // with no `.zx` twin - copy and follow their import/embed graph.
             const output_path = try std.fs.path.join(allocator, &.{ opts.outdir, entry.path });
             defer allocator.free(output_path);
             copyCompanionRecursive(io, allocator, input_files, companions_visited, input_path, output_path, opts.verbose) catch |err| {
