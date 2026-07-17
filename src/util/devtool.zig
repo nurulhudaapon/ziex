@@ -184,6 +184,11 @@ pub const ComponentSerializable = struct {
     props: ?[]const StateItem = null,
     attributes: ?[]const AttributeSerializable = null,
     children: ?[]ComponentSerializable = null,
+    /// The owning component's instance id (e.g. "c1a2b3c4"). Set for both
+    /// `component_csr` and `component_fn` nodes. The client and server
+    /// renderers stamp this same id as `data-zx-owner` on the component's
+    /// elements in dev builds, letting the devtool locate and highlight them.
+    csr_id: ?[]const u8 = null,
 
     /// Convert Element.Attribute slice to serializable form (strips handlers)
     fn serializeAttributes(allocator: Allocator, attrs: ?[]const zx.Element.Attribute) !?[]const AttributeSerializable {
@@ -229,6 +234,7 @@ pub const ComponentSerializable = struct {
                 } else null;
                 break :blk .{
                     .component = component_csr.name,
+                    .csr_id = component_csr.id,
                     .props = if (options.include_props) try serializeProps(allocator, component_csr.getStateItems, component_csr.props_ptr) else null,
                     .children = children_serializable,
                 };
@@ -243,6 +249,10 @@ pub const ComponentSerializable = struct {
                 children_slice[0] = resolved_serializable;
                 break :blk .{
                     .component = comp_fn.name,
+                    // Same id the client renderer assigns as `owner_component_id`
+                    // and stamps as `data-zx-owner`; lets the devtool locate this
+                    // component's rendered elements in the inspected page.
+                    .csr_id = comp_fn.id.fmtShort(allocator, "c"),
                     .props = if (options.include_props) try serializeProps(allocator, comp_fn.getStateItems, comp_fn.propsPtr) else null,
                     .children = children_slice,
                 };

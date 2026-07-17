@@ -7,6 +7,12 @@ const html_util = zx.util.html;
 /// handlers encountered during the render pass are registered for this route.
 pub var current_route_path: ?[]const u8 = null;
 
+/// Enabled by handler.zig in dev builds. When set, every rendered element is
+/// stamped with a `data-zx-owner` attribute carrying its owning component's id,
+/// which the devtool uses to locate and highlight components in the page.
+/// Kept off in production so the attribute never bloats served HTML.
+pub var devtool_tagging: bool = false;
+
 pub const streaming_bootstrap_script =
     \\<script>window.$ZX=function(id,html){var t=document.getElementById('__ZX_S-'+id);if(t){var d=document.createElement('div');d.innerHTML=html;while(d.firstChild)t.parentNode.insertBefore(d.firstChild,t);t.remove();}}</script>
 ;
@@ -68,6 +74,9 @@ pub const RenderOptions = struct {
     async_components: ?*std.array_list.Managed(AsyncComponent) = null,
     async_counter: ?*u32 = null,
     base_path: ?[]const u8 = null,
+    /// Id of the nearest enclosing component, stamped as `data-zx-owner` on
+    /// elements when `devtool_tagging` is enabled. Propagated to children.
+    owner_id: ?[]const u8 = null,
 };
 
 pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions) !void {
@@ -83,6 +92,12 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
             }
         },
         .component_fn => |func| {
+            // Children of this component are owned by it: stamp them with its id
+            // (dev-only). Computed once and used for both the cached and direct
+            // render paths below.
+            var child_options = options;
+            if (!@inComptime() and devtool_tagging) child_options.owner_id = func.id.fmtShort(func.allocator, "c");
+
             // Check for component-level caching
             if (func.caching) |caching| {
                 const cmp_cache = zx.cache.scoped(.cmp);
@@ -124,7 +139,7 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
                     // Render to buffer for caching
                     var buf_writer = std.Io.Writer.Allocating.init(func.allocator);
                     const component = try func.call();
-                    try render(component, &buf_writer.writer, options);
+                    try render(component, &buf_writer.writer, child_options);
 
                     const rendered = buf_writer.written();
                     cmp_cache.put(generated_key, rendered, .{ .ttl = caching.ttl }) catch |err| switch (err) {
@@ -139,7 +154,7 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
 
             // No caching or cache miss - render directly
             const component = try func.call();
-            try render(component, writer, options);
+            try render(component, writer, child_options);
         },
         .component_csr => |component_csr| {
             // Start comment marker format: <!--$id {"prop":"value"}--> (JSON)
@@ -173,9 +188,11 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
                 }
             }
 
-            // Render SSR content
+            // Render SSR content — its elements are owned by this component.
             if (component_csr.children) |children| {
-                try render(children.*, writer, options);
+                var child_options = options;
+                if (!@inComptime() and devtool_tagging) child_options.owner_id = component_csr.id;
+                try render(children.*, writer, child_options);
             }
 
             // End comment marker: <!--/$id-->
@@ -221,6 +238,16 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
             // Otherwise, render normally
             // Opening tag
             try writer.print("<{s}", .{@tagName(elem.tag)});
+
+            // Dev-only: tag the element with its owning component id so the
+            // devtool can locate and highlight components in the page. Skipped
+            // during comptime rendering (injections.zig) where the runtime flag
+            // isn't readable.
+            if (!@inComptime() and devtool_tagging) {
+                if (options.owner_id) |owner_id| {
+                    if (owner_id.len > 0) try writer.print(" data-zx-owner=\"{s}\"", .{owner_id});
+                }
+            }
 
             const is_self_closing = elem.tag.isSelf();
             const is_no_closing = elem.tag.isVoid();
@@ -302,6 +329,8 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
                     .async_components = options.async_components,
                     .async_counter = options.async_counter,
                     .base_path = options.base_path,
+                    // Elements don't own DOM — children keep the same owner.
+                    .owner_id = options.owner_id,
                 };
                 for (children) |child| {
                     try render(child, writer, child_options);

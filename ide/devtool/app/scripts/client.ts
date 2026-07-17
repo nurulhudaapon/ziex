@@ -87,6 +87,15 @@ function evalInInspectedWindow<T = unknown>(expression: string): Promise<T | und
     });
 }
 
+/**
+ * Build a script that, when eval'd in the inspected page, positions a highlight
+ * overlay over the *union* of every element owned by the component `componentId`.
+ *
+ * In dev builds the ziex renderers stamp each element with a `data-zx-owner`
+ * attribute carrying its owning component's id, so a single `querySelectorAll`
+ * finds the component's whole rendered output (native elements included). Pass
+ * `null` to hide the overlay.
+ */
 function inspectedHighlightScript(componentId: string | null): string {
     const idLiteral = JSON.stringify(componentId);
     return `(() => {
@@ -116,100 +125,36 @@ function inspectedHighlightScript(componentId: string | null): string {
             return false;
         };
 
-        const currentId = ${idLiteral};
-        if (!currentId) return hideOverlay();
+        const componentId = ${idLiteral};
+        if (!componentId) return hideOverlay();
 
-        const parsePath = (id) => {
-            const numericSegments = id
-                .split('.')
-                .map((segment) => Number.parseInt(segment, 10))
-                .filter((segment) => Number.isInteger(segment) && segment >= 0);
-            return numericSegments.length > 0 ? numericSegments.slice(1) : numericSegments;
-        };
+        /* Component ids are always "c" + hex, so no selector escaping is needed. */
+        const nodes = document.querySelectorAll('[data-zx-owner="' + componentId + '"]');
+        if (!nodes.length) return hideOverlay();
 
-        const buildCommentTree = () => {
-            const walker = document.createTreeWalker(document.body || document, NodeFilter.SHOW_COMMENT);
-            const rootNode = { children: [], start: null, end: null };
-            const stack = [rootNode];
+        /* Union the bounding box of every element the component owns. */
+        let minLeft = Infinity, minTop = Infinity, maxRight = -Infinity, maxBottom = -Infinity;
+        nodes.forEach((el) => {
+            const rect = el.getBoundingClientRect();
+            if (!rect || (rect.width <= 0 && rect.height <= 0)) return;
+            if (rect.left   < minLeft)   minLeft   = rect.left;
+            if (rect.top    < minTop)    minTop    = rect.top;
+            if (rect.right  > maxRight)  maxRight  = rect.right;
+            if (rect.bottom > maxBottom) maxBottom = rect.bottom;
+        });
 
-            while (walker.nextNode()) {
-                const comment = walker.currentNode;
-                const text = (comment && comment.nodeValue ? comment.nodeValue : '').trim();
-                if (!text) continue;
-
-                if (text[0] === '/') {
-                    if (stack.length > 1) {
-                        const node = stack.pop();
-                        if (node) node.end = comment;
-                    }
-                    continue;
-                }
-
-                if (text[0] !== '$') continue;
-                const node = { children: [], start: comment, end: null };
-                stack[stack.length - 1].children.push(node);
-                stack.push(node);
-            }
-
-            return rootNode;
-        };
-
-        const findNodeByPath = (tree, path) => {
-            let node = tree;
-            for (const index of path) {
-                if (!node.children || index < 0 || index >= node.children.length) return null;
-                node = node.children[index];
-            }
-            return node;
-        };
-
-        const findRenderTarget = (componentNode) => {
-            if (!componentNode || !componentNode.start) return null;
-            const stopAt = componentNode.end;
-            let cursor = componentNode.start.nextSibling;
-            while (cursor && cursor !== stopAt) {
-                if (cursor.nodeType === Node.ELEMENT_NODE) return cursor;
-                if (cursor.nodeType === Node.TEXT_NODE && cursor.textContent && cursor.textContent.trim().length > 0) {
-                    return cursor.parentElement || null;
-                }
-                cursor = cursor.nextSibling;
-            }
-            return null;
-        };
-
-        const path = parsePath(currentId);
-        const tree = buildCommentTree();
-        const componentNode = findNodeByPath(tree, path);
-        let el = findRenderTarget(componentNode);
-
-        if (!el) {
-            const selectors = [
-                '[data-zx-component-id="' + currentId + '"]',
-                '[data-zx-owner-component-id="' + currentId + '"]',
-                '[data-component-id="' + currentId + '"]',
-                '[data-zx-cid="' + currentId + '"]',
-            ];
-
-            for (const selector of selectors) {
-                try {
-                    el = document.querySelector(selector);
-                    if (el) break;
-                } catch {}
-            }
-        }
-
-        if (!el || !(el instanceof Element)) return hideOverlay();
-
-        const rect = el.getBoundingClientRect();
-        if (!rect || (rect.width <= 0 && rect.height <= 0)) return hideOverlay();
+        if (minLeft === Infinity) return hideOverlay();
+        const width  = maxRight - minLeft;
+        const height = maxBottom - minTop;
+        if (width <= 0 && height <= 0) return hideOverlay();
 
         const overlay = ensureOverlay();
         overlay.style.display = 'block';
-        overlay.style.left = rect.left + 'px';
-        overlay.style.top = rect.top + 'px';
-        overlay.style.width = Math.max(1, rect.width) + 'px';
-        overlay.style.height = Math.max(1, rect.height) + 'px';
-        state.activeId = currentId;
+        overlay.style.left = minLeft + 'px';
+        overlay.style.top = minTop + 'px';
+        overlay.style.width = Math.max(1, width) + 'px';
+        overlay.style.height = Math.max(1, height) + 'px';
+        state.activeId = componentId;
         return true;
     })()`;
 }
@@ -281,7 +226,7 @@ window.addEventListener('zx-navigation', async (e: Event) => {
 document.addEventListener('mouseover', async (e: MouseEvent) => {
     const btn = getHoveredComponentButton(e.target);
     if (!btn) return;
-    const componentId = btn.getAttribute('value');
+    const componentId = btn.getAttribute('data-owner-id');
     if (!componentId) return;
     await startHover(componentId);
 });

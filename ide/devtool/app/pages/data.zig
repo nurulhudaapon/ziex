@@ -14,6 +14,12 @@ pub const Component = struct {
     badge: []const u8 = "",
     meta: ?ComponentMeta = null,
     is_native: bool = false,
+    /// The id of the component that owns this node's DOM output, matching the
+    /// `data-zx-owner` attribute stamped on elements in dev builds. For a
+    /// component node it is that component's own id; for a native element/text
+    /// node it is the id of its nearest ancestor component. Empty when no
+    /// owning component exists (e.g. synthetic wrapper roots).
+    owner_id: []const u8 = "",
 };
 
 pub const Route = struct {
@@ -258,7 +264,7 @@ pub const routes = [_]Route{
     .{ .method = "GET", .path = "/settings" },
 };
 
-pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.Component.Serializable, path: []const u8) anyerror!Component {
+pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.Component.Serializable, path: []const u8, inherited_owner: []const u8) anyerror!Component {
     var name: []const u8 = "unknown";
     var badge: []const u8 = "";
     var is_native: bool = true;
@@ -273,12 +279,18 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.Component.Serializab
         badge = "text";
     }
 
+    // A component node owns its own DOM output (its `csr_id`); a native
+    // element/text node inherits the nearest ancestor component's id. This
+    // matches the `data-zx-owner` attribute stamped on the inspected page.
+    const node_csr_id = s.csr_id orelse "";
+    const owner_id = if (node_csr_id.len > 0) node_csr_id else inherited_owner;
+
     var children: []const Component = &[_]Component{};
     if (s.children) |sc| {
         var children_mut = try allocator.alloc(Component, sc.len);
         for (sc, 0..) |child_s, i| {
             const child_path = try std.fmt.allocPrint(allocator, "{s}.{d}", .{ path, i });
-            children_mut[i] = try fromSerializable(allocator, child_s, child_path);
+            children_mut[i] = try fromSerializable(allocator, child_s, child_path, owner_id);
         }
         children = children_mut;
     }
@@ -310,6 +322,7 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.Component.Serializab
         .badge = badge,
         .meta = meta,
         .is_native = is_native,
+        .owner_id = owner_id,
     };
 }
 
@@ -317,7 +330,7 @@ pub fn fromSerializableSlice(allocator: std.mem.Allocator, sc: []const zx.Compon
     var children = try allocator.alloc(Component, sc.len);
     for (sc, 0..) |child_s, i| {
         const path = try std.fmt.allocPrint(allocator, "{d}", .{i});
-        children[i] = try fromSerializable(allocator, child_s, path);
+        children[i] = try fromSerializable(allocator, child_s, path, "");
     }
 
     var root_page = try allocator.alloc(Component, 1);

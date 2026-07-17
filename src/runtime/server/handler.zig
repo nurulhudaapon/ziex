@@ -44,6 +44,10 @@ pub fn Handler(comptime AppCtxType: type) type {
         pub fn init(io: std.Io, allocator: std.mem.Allocator, meta: *ServerApp, config: AppConfig, app_ctx: *AppCtxType) !Self {
             const cache_config = config.cache;
 
+            // Dev builds tag every rendered element with `data-zx-owner` so the
+            // devtool can locate and highlight components in the inspected page.
+            if (comptime is_dev) rndr.devtool_tagging = true;
+
             return Self{
                 .meta = meta,
                 .config = config,
