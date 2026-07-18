@@ -18,6 +18,10 @@ pub fn build(b: *std.Build) !void {
 
     // --- Ziex setup: wires dependencies and adds `zx`/`dev` build steps ---
     _ = try ziex.init(b, app_exe, .{
-        .client = .{ .jsglue_install_subdir = "pkg/ziex" },
+        .app = .{
+            .client = .{
+                .bindings = .{ .install_subdir = "pkg/ziex" },
+            },
+        },
     });
 }

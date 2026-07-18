@@ -13,6 +13,7 @@
             .url = "https://registry.npmjs.org/ziex/-/ziex-0.1.0-dev.1382.tgz",
             .hash = "ziex_js-0.1.0-dev-v1W0Ge0RBACcCGoBYR-Ltt1BSWi2I50dZL68YRsddiWL",
         },
+        .ziex_jsbindings = .{ .path = "pkg/ziex", .lazy = true }, // source of JS Bindings to be built with esbuild
         // httpz - HTTP server for Ziex
         .httpz = .{
             .url = "git+https://github.com/ziex-dev/httpz.git?ref=dev#49684ddd1fb030f72594cce8370b076dfa922ff9",
@@ -41,6 +42,8 @@
         "pkg/db-postgres",
         "pkg/tree-sitter-zx",
         "pkg/tree-sitter-mdzx",
+        "pkg/ziex",
+        "pkg/plugin-esbuild",
         "vendor/cliz",
         "vendor/jsz",
         "vendor/zig-tree-sitter",

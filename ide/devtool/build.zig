@@ -35,9 +35,11 @@ pub fn build(b: *std.Build) !void {
                 .chromium => "/pages/",
                 else => null,
             },
-        },
-        .client = .{
-            .jsglue_href = "/assets/app.js",
+            .client = .{
+                .bindings = .{
+                    .href = "/assets/app.js",
+                },
+            },
         },
     });
     ziex_b = ziex_b;

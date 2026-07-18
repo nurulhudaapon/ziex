@@ -134,21 +134,36 @@ pub const AppOptions = struct {
 
     /// Features that can be optionally enabled
     features: FeatureOptions = .default,
+
+    client: ClientOptions = .default,
 };
 
 pub const ClientOptions = struct {
+    /// Client-side JS bindings (`ziex` / wasm init script).
+    pub const BindingsOptions = struct {
+        pub const default: BindingsOptions = .{};
+
+        /// URL for the client JS bindings script.
+        ///
+        /// When `null`, Ziex installs and injects the default hashed asset
+        /// (`/assets/_/app.js` or `/assets/_/app.dev.js`).
+        href: ?[]const u8 = null,
+
+        /// Install the JS bindings package under `zig-out/<subdir>`.
+        ///
+        /// Ziex auto-injects bindings at runtime for normal server deployments,
+        /// so this is `null` (no install) by default. Set it for platforms that
+        /// need the package on disk (e.g. Vercel).
+        install_subdir: ?[]const u8 = null,
+
+        /// Build bindings from TypeScript (`pkg/ziex` via esbuild) instead of
+        /// the published `ziex_js` npm package.
+        from_source: bool = false,
+    };
+
     pub const default: ClientOptions = .{};
 
-    jsglue_href: ?[]const u8 = null,
-    wasm_href: ?[]const u8 = null,
-
-    /// Install the JS-glue package source (the `ziex_js` npm package) into a
-    /// subdirectory under the install prefix (`zig-out/<subdir>`).
-    ///
-    /// Ziex auto-injects the JS glue at runtime for normal server deployments,
-    /// so this is `null` (no install) by default. Set it for platforms that
-    /// need the package available on disk to install it themselves - e.g. Vercel
-    jsglue_install_subdir: ?[]const u8 = null,
+    bindings: BindingsOptions = .default,
 };
 
 /// Experimental features that may change in future versions.
@@ -165,13 +180,6 @@ app: ?AppOptions = null,
 /// Controls which ZX CLI executable to use and which build steps to create.
 /// If `null`, uses default configuration with ZX CLI from dependency source.
 cli: CliOptions = .{},
-
-/// Enable Client-Side Rendering (CSR) support.
-///
-/// When enabled, ZX will compile a WebAssembly module for client-side
-/// interactivity and hydration. This generates additional build artifacts
-/// in the assets directory.
-client: ClientOptions = .default,
 
 /// Experimental features configuration.
 ///

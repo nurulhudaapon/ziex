@@ -155,10 +155,13 @@ pub fn build(b: *std.Build) !void {
                 .kv = .enabled,
                 .cache = .enabled,
             },
-        },
-        .client = .{
-            .jsglue_href = b.fmt("/assets/{s}", .{jsbinding_name}),
-            .jsglue_install_subdir = "pkg/ziex",
+            .client = .{
+                .bindings = .{
+                    .href = b.fmt("/assets/{s}", .{jsbinding_name}),
+                    .install_subdir = "pkg/ziex",
+                    .from_source = true,
+                },
+            },
         },
         .cli = .{ .optimize = optimize, .log_level = log_level, .zig_path = "zig" },
     });

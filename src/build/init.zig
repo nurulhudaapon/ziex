@@ -47,7 +47,17 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     const zx_wasm_module = zx_wasm_dep.module("zx");
     const zx_exe = zx_host_dep.artifact("zx");
     const zx_full_exe = zx_full_dep.artifact("zx");
-    const ziex_js_dep = zx_dep.builder.dependency("ziex_js", .{});
+
+    const client = if (options.app) |app| app.client else InitOptions.ClientOptions.default;
+    const ziex_js_root: LazyPath = if (client.bindings.from_source) blk: {
+        const jsbindings_dep = zx_dep.builder.dependency("ziex_jsbindings", .{
+            .optimize = optimize,
+            .target = target,
+            .@"type-decl" = false,
+        });
+        break :blk jsbindings_dep.namedWriteFiles("ziex_js").getDirectory();
+    } else
+        zx_dep.builder.dependency("ziex_js", .{}).path(".");
 
     var opts: InitInnerOptions = .{
         .base_path = null,
@@ -55,9 +65,9 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         .cli_path = null,
         .site_outdir = null,
         .steps = .default,
-        .client = options.client,
+        .client = client,
         .static_path = options.static_path,
-        .ziex_js_dep = ziex_js_dep,
+        .ziex_js_root = ziex_js_root,
         .version = options.version,
         .server_only_stub_mode = .strict,
     };
@@ -96,7 +106,8 @@ const InitInnerOptions = struct {
     features: InitOptions.AppOptions.FeatureOptions = .default,
     client: InitOptions.ClientOptions,
     static_path: ?LazyPath,
-    ziex_js_dep: *std.Build.Dependency,
+    /// Root of the JS bindings package (npm `ziex_js`, or esbuild output when `from_source`).
+    ziex_js_root: LazyPath,
     element_injections: []const AddElementOptions = &.{},
     version: ?[]const u8 = null,
     server_only_stub_mode: ServerOnlyStubMode = .strict,
@@ -249,8 +260,6 @@ pub fn initInner(
     const is_dev_build = std.mem.eql(u8, cli_command_opt orelse "--", "dev");
 
     const app_opts = b.addOptions();
-    app_opts.addOption(?[]const u8, "jsglue_href", opts.client.jsglue_href);
-    app_opts.addOption(?[]const u8, "wasm_href", opts.client.wasm_href);
     app_opts.addOption(?[]const u8, "app_base_path", opts.base_path);
     app_opts.addOption(?u16, "server_port", port_opt);
     app_opts.addOption(?[]const u8, "server_address", address_opt);
@@ -303,12 +312,7 @@ pub fn initInner(
         }),
     });
 
-    const app_wasm_href_stem = blk: {
-        const default = "/assets/_/app.wasm";
-        const href = opts.client.wasm_href orelse default;
-        const stem = wasmHrefStem(href);
-        break :blk html_util.prefixPathWithBasePath(b.allocator, opts.base_path, stem);
-    };
+    const app_wasm_href_stem = html_util.prefixPathWithBasePath(b.allocator, opts.base_path, "/assets/_/app");
     const prod_zxjs_href_stem = html_util.prefixPathWithBasePath(b.allocator, opts.base_path, "/assets/_/app");
     const dev_zxjs_href_stem = html_util.prefixPathWithBasePath(b.allocator, opts.base_path, "/assets/_/app.dev");
     // --- Static Directory Setup --- //
@@ -341,15 +345,15 @@ pub fn initInner(
         } else |_| {}
     }
 
-    // --- JS-Glue Package Install --- //
-    if (opts.client.jsglue_install_subdir) |subdir| {
+    // --- JS Bindings Package Install --- //
+    if (opts.client.bindings.install_subdir) |subdir| {
         const install_pkg = b.addInstallDirectory(.{
-            .source_dir = opts.ziex_js_dep.path("."),
+            .source_dir = opts.ziex_js_root,
             .install_dir = .prefix,
             .include_extensions = &.{ ".js", ".ts" },
             .install_subdir = subdir,
         });
-        install_pkg.step.name = "install jsglue package";
+        install_pkg.step.name = "install js bindings package";
         b.getInstallStep().dependOn(&install_pkg.step);
     }
 
@@ -359,11 +363,11 @@ pub fn initInner(
     for (opts.element_injections) |inj| {
         injections.add(b, inj);
     }
-    if (opts.client.jsglue_href) |jsglue_href| {
-        const href = if (std.mem.startsWith(u8, jsglue_href, "http://") or std.mem.startsWith(u8, jsglue_href, "https://"))
-            jsglue_href
+    if (opts.client.bindings.href) |bindings_href| {
+        const href = if (std.mem.startsWith(u8, bindings_href, "http://") or std.mem.startsWith(u8, bindings_href, "https://"))
+            bindings_href
         else
-            html_util.prefixPathWithBasePath(b.allocator, opts.base_path, jsglue_href);
+            html_util.prefixPathWithBasePath(b.allocator, opts.base_path, bindings_href);
         injections.add(b, .{
             .parent = .head,
             .position = .ending,
@@ -494,14 +498,14 @@ pub fn initInner(
     wasm_exe.step.dependOn(&transpile_cmd.step);
 
     const wasm_binpath = wasm_exe.getEmittedBin();
-    const zxjs_path = opts.ziex_js_dep.path(if (is_dev_build) "wasm/init.dev.js" else "wasm/init.js");
+    const zxjs_path = opts.ziex_js_root.path(b, if (is_dev_build) "wasm/init.dev.js" else "wasm/init.js");
     const zxjs_href_stem = if (is_dev_build) dev_zxjs_href_stem else prod_zxjs_href_stem;
     const zxjs_file_stem = if (is_dev_build) "app.dev" else "app";
-    const uses_local_jsglue = opts.client.jsglue_href == null;
+    const uses_local_bindings = opts.client.bindings.href == null;
 
     var wasm_manifest_in = base_manifest_path;
     var js_run: ?*std.Build.Step.Run = null;
-    if (uses_local_jsglue) {
+    if (uses_local_bindings) {
         const js_asset = addStaticAssetRun(b, asset_installer_exe, &transpile_cmd.step, base_manifest_path, zxjs_path, zxjs_href_stem, zxjs_file_stem, ".js", "script", true);
         js_asset.run.setName(b.fmt("install client bindings", .{}));
         js_asset.run.step.dependOn(&transpile_cmd.step);
@@ -520,7 +524,7 @@ pub fn initInner(
         "app",
         ".wasm",
         "wasmlink",
-        !uses_local_jsglue,
+        !uses_local_bindings,
     );
     const manifest_path = wasm_asset_run.manifest_out;
     const manifest_mod = b.createModule(.{ .root_source_file = manifest_path });
@@ -599,13 +603,6 @@ pub fn initInner(
         },
         .transformer = .{ .b = b, .userdata = injections },
     };
-}
-
-fn wasmHrefStem(wasm_href: []const u8) []const u8 {
-    if (std.mem.endsWith(u8, wasm_href, ".wasm")) {
-        return wasm_href[0 .. wasm_href.len - ".wasm".len];
-    }
-    return wasm_href;
 }
 
 fn addStaticAssetRun(
