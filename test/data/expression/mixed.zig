@@ -17,6 +17,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             _zx.expr(name),
                             _zx.txt(", you have "),
                             _zx.expr(count),
+                            _zx.txt(" "),
                             _zx.expr(item),
                             _zx.txt("s in your cart."),
                         },

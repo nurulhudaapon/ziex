@@ -56,7 +56,31 @@ pub fn FmtWhitespace(allocator: zx.Allocator) zx.Component {
                     .span,
                     .{
                         .children = &.{
-                            _zx.txt(" |"),
+                            _zx.txt("|"),
+                        },
+                    },
+                ),
+                _zx.ele(
+                    .span,
+                    .{
+                        .children = &.{
+                            _zx.txt("  |  "),
+                        },
+                    },
+                ),
+                _zx.ele(
+                    .p,
+                    .{
+                        .children = &.{
+                            _zx.txt("hello"),
+                        },
+                    },
+                ),
+                _zx.ele(
+                    .p,
+                    .{
+                        .children = &.{
+                            _zx.txt(" hello "),
                         },
                     },
                 ),

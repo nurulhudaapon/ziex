@@ -10,6 +10,11 @@ pub fn FmtWhitespace(allocator: zx.Allocator) zx.Component {
             <span>
                 |
             </span>
+            <span> | </span>
+            <p>
+                hello
+            </p>
+            <p> hello </p>
         </div>
     );
 }

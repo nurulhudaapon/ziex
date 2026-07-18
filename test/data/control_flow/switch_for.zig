@@ -31,6 +31,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                                 },
                                             },
                                         ),
+                                        _zx.txt(" "),
                                     },
                                 },
                             );

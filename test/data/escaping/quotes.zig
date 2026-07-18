@@ -5,7 +5,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .{
             .allocator = allocator,
             .children = &.{
-                _zx.txt(" quote should be escaped "),
+                _zx.txt("quote should be escaped"),
                 _zx.ele(
                     .code,
                     .{

@@ -14,7 +14,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                 _zx.attr(@src(), "style", style),
             }),
             .children = &.{
-                _zx.txt(" Hello"),
+                _zx.txt("Hello"),
             },
         },
     );

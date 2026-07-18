@@ -12,7 +12,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             _zx.attr(@src(), "onclick", handleClick),
                         }),
                         .children = &.{
-                            _zx.txt(" Click me"),
+                            _zx.txt("Click me"),
                         },
                     },
                 ),

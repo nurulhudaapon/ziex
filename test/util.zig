@@ -91,6 +91,7 @@ pub const TestFileCache = struct {
         "element/nested",
         "element/fragment",
         "element/fragment_root",
+        "element/whitespace",
 
         // Expression
         "expression/optional",

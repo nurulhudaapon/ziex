@@ -258,6 +258,10 @@ test "element_fragment_root" {
     try test_transpile("element/fragment_root");
     try test_render("element/fragment_root", @import("./../data/element/fragment_root.zig").Page);
 }
+test "element_whitespace" {
+    try test_transpile("element/whitespace");
+    try test_render("element/whitespace", @import("./../data/element/whitespace.zig").Page);
+}
 
 test "escaping_pre" {
     try test_transpile("escaping/pre");
@@ -565,6 +569,7 @@ fn getPageFn(comptime path: []const u8) ?fn (std.mem.Allocator) zx.Component {
         .{ "element/nested", @import("./../data/element/nested.zig") },
         .{ "element/fragment", @import("./../data/element/fragment.zig") },
         .{ "element/fragment_root", @import("./../data/element/fragment_root.zig") },
+        .{ "element/whitespace", @import("./../data/element/whitespace.zig") },
         .{ "escaping/pre", @import("./../data/escaping/pre.zig") },
         .{ "escaping/quotes", @import("./../data/escaping/quotes.zig") },
         .{ "control_flow/if_while_if", @import("./../data/control_flow/if_while_if.zig") },

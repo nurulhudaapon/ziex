@@ -788,6 +788,37 @@ fn isPreElement(tag: []const u8) bool {
     return std.mem.eql(u8, tag, "pre");
 }
 
+fn normalizeText(source: []const u8, node_start: u32, node_end: u32) ?[]const u8 {
+    if (node_start >= node_end or node_end > source.len) return null;
+    const text = source[node_start..node_end];
+    if (text.len == 0) return null;
+
+    const preceded_by_newline = node_start > 0 and isNewline(source[node_start - 1]);
+    const followed_by_newline = node_end < source.len and isNewline(source[node_end]);
+
+    const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
+    if (trimmed.len == 0) {
+        if (std.mem.indexOfAny(u8, text, "\n\r") != null or preceded_by_newline) return null;
+        return text;
+    }
+
+    const content_start = @intFromPtr(trimmed.ptr) - @intFromPtr(text.ptr);
+    const content_end = content_start + trimmed.len;
+    const leading = text[0..content_start];
+    const trailing = text[content_end..];
+
+    const strip_leading = preceded_by_newline or std.mem.indexOfAny(u8, leading, "\n\r") != null;
+    const strip_trailing = followed_by_newline or std.mem.indexOfAny(u8, trailing, "\n\r") != null;
+
+    const start: usize = if (strip_leading) content_start else 0;
+    const end: usize = if (strip_trailing) content_end else text.len;
+    return text[start..end];
+}
+
+fn isNewline(c: u8) bool {
+    return c == '\n' or c == '\r';
+}
+
 /// Escape text for use in Zig string literal
 fn escapeZigString(text: []const u8, ctx: *TranspileContext) !void {
     for (text) |c| {
@@ -1461,11 +1492,10 @@ pub fn transpileChild(self: *Ast, node: ts.Node, ctx: *TranspileContext, preserv
 
         switch (NodeKind.fromNode(child)) {
             .zx_text => {
-                const text = try self.getNodeText(child);
-
                 if (preserve_whitespace) {
                     // For <pre> and similar: preserve whitespace exactly
                     // Add \n at end of each text node except the last child
+                    const text = try self.getNodeText(child);
                     if (text.len == 0) continue;
 
                     try ctx.writeM("_zx.txt(\"", child.startByte(), self);
@@ -1475,19 +1505,10 @@ pub fn transpileChild(self: *Ast, node: ts.Node, ctx: *TranspileContext, preserv
                     try ctx.write("\")");
                     had_output = true;
                 } else {
-                    // Normal mode: trim and normalize whitespace
-                    const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
-                    if (trimmed.len == 0) continue;
-
-                    // JSX-like whitespace handling: preserve leading/trailing single space
-                    // when adjacent to expressions or other inline content
-                    const has_leading_ws = text.len > 0 and std.ascii.isWhitespace(text[0]);
-                    const has_trailing_ws = text.len > 0 and std.ascii.isWhitespace(text[text.len - 1]);
+                    const normalized = normalizeText(self.source, child.startByte(), child.endByte()) orelse continue;
 
                     try ctx.writeM("_zx.txt(\"", child.startByte(), self);
-                    if (has_leading_ws) try ctx.write(" ");
-                    try escapeZigString(trimmed, ctx);
-                    if (has_trailing_ws) try ctx.write(" ");
+                    try escapeZigString(normalized, ctx);
                     try ctx.write("\")");
                     had_output = true;
                 }

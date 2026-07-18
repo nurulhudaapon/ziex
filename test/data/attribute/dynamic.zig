@@ -24,7 +24,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                         _zx.attr(@src(), "class", if (is_active) "active" else "inactive"),
                                     }),
                                     .children = &.{
-                                        _zx.txt(" Click me"),
+                                        _zx.txt("Click me"),
                                     },
                                 },
                             ),

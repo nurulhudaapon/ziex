@@ -10,14 +10,14 @@ pub fn Collection(allocator: zx.Allocator, props: anytype) zx.Component {
                     .fragment,
                     .{
                         .children = &.{
-                            _zx.txt(" No cards found with '"),
+                            _zx.txt("No cards found with '"),
                             _zx.expr(props.name),
                             _zx.txt("' in their name"),
                             _zx.ele(
                                 .br,
                                 .{},
                             ),
-                            _zx.txt(" HINT: Try "),
+                            _zx.txt("HINT: Try "),
                             _zx.ele(
                                 .a,
                                 .{
@@ -37,12 +37,12 @@ pub fn Collection(allocator: zx.Allocator, props: anytype) zx.Component {
                         .children = &.{
                             _zx.expr(props.name),
                             _zx.expr(' '),
-                            _zx.txt(" in their name"),
+                            _zx.txt("in their name"),
                             _zx.ele(
                                 .br,
                                 .{},
                             ),
-                            _zx.txt(" HINT: Try"),
+                            _zx.txt("HINT: Try"),
                             _zx.ele(
                                 .a,
                                 .{
