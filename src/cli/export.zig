@@ -160,14 +160,17 @@ fn @"export"(ctx: zli.CommandContext) !void {
 
                 log.debug("Static params for {s}: {d} paths", .{ route.path, static_params.items.len });
 
+                const route_display = try formatRouteDisplayPath(ctx.allocator, route.path);
+                defer ctx.allocator.free(route_display);
                 if (static_params.items.len > 0) {
+                    printer.filepathKind(route_display, .param_route);
                     for (static_params.items) |expanded_path| {
                         const expanded_route = Server.SerilizableAppMeta.Route{
                             .path = expanded_path,
                             .has_notfound = route.has_notfound,
                             .is_dynamic = false,
                         };
-                        processRoute(io, ctx.allocator, host, port, expanded_route, outdir, &printer, .page) catch |err| {
+                        processRoute(io, ctx.allocator, host, port, expanded_route, outdir, &printer, .page, .param_child) catch |err| {
                             if (err == error.ConnectionRefused) {
                                 try waitForServerRetry(io, &connection_retries, expanded_route.path, "page", &app_child);
                                 continue :process_block;
@@ -177,9 +180,10 @@ fn @"export"(ctx: zli.CommandContext) !void {
                     }
                 } else {
                     log.debug("No static params for dynamic route: {s}", .{route.path});
+                    printer.filepathKind(route_display, .dynamic);
                 }
             } else {
-                processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .page) catch |err| {
+                processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .page, .static) catch |err| {
                     if (err == error.ConnectionRefused) {
                         try waitForServerRetry(io, &connection_retries, route.path, "page", &app_child);
                         continue :process_block;
@@ -191,7 +195,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
 
             // Also export 404.html for routes that have notfound handler
             if (route.has_notfound) {
-                processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .notfound) catch |err| {
+                processRoute(io, ctx.allocator, host, port, route, outdir, &printer, .notfound, .static) catch |err| {
                     if (err == error.ConnectionRefused) {
                         try waitForServerRetry(io, &connection_retries, route.path, "notfound", &app_child);
                         continue :process_block;
@@ -289,8 +293,8 @@ fn processRoute(
     outdir: []const u8,
     printer: *tui.Printer,
     export_type: ExportType,
+    print_as: tui.Printer.FilePathKind,
 ) !void {
-    // Fetch the route's HTML content
     var client = std.http.Client{ .allocator = allocator, .io = io };
     defer client.deinit();
 
@@ -301,90 +305,56 @@ fn processRoute(
     const url = try std.fmt.allocPrint(allocator, "http://{s}:{d}{s}", .{ effective_host, port, route.path });
     defer allocator.free(url);
 
+    const uri = try std.Uri.parse(url);
     var extra_headers: [1]std.http.Header = .{.{ .name = "x-zx-export-notfound", .value = "true" }};
 
     log.debug("Fetching {s} kind={s} url={s}", .{ route.path, @tagName(export_type), url });
 
-    const result = try client.fetch(.{
-        .method = .GET,
-        .location = .{ .url = url },
+    var req = try client.request(.GET, uri, .{
         .extra_headers = if (export_type == .notfound) &extra_headers else &.{},
-        .response_writer = &aw.writer,
     });
+    defer req.deinit();
 
-    const response_text = aw.written();
-    log.debug("Fetched {s} kind={s} status={} body_len={d}", .{ route.path, @tagName(export_type), result.status, response_text.len });
+    try req.sendBodiless();
 
-    // Determine the output file path
-    var file_path: []const u8 = undefined;
-    var file_path_owned: ?[]u8 = null;
-    defer if (file_path_owned) |fp| allocator.free(fp);
+    var redirect_buffer: [8 * 1024]u8 = undefined;
+    var response = try req.receiveHead(&redirect_buffer);
 
-    if (export_type == .notfound) {
-        // For 404 pages, output as 404.html in the route's directory
-        if (std.mem.eql(u8, route.path, "/")) {
-            file_path = "404.html";
-        } else {
-            // For non-root paths like /docs, output as docs/404.html
-            var path_components = std.ArrayList([]const u8).empty;
-            defer path_components.deinit(allocator);
+    const is_dynamic = responseHeaderEquals(response.head, "x-zx-dynamic", "true");
 
-            var path_iter = std.mem.splitScalar(u8, route.path, '/');
-            while (path_iter.next()) |component| {
-                if (component.len > 0) {
-                    try path_components.append(allocator, component);
-                }
-            }
-            try path_components.append(allocator, "404.html");
-            file_path_owned = try std.fs.path.join(allocator, path_components.items);
-            file_path = file_path_owned.?;
-        }
-    } else if (std.mem.eql(u8, route.path, "/")) {
-        // For root path "/", use "index.html"
-        file_path = "index.html";
-    } else {
-        // Split the URL path by "/" to get path components
-        // Skip the first empty component (from leading "/")
-        var path_components = std.ArrayList([]const u8).empty;
-        defer path_components.deinit(allocator);
+    const export_path = try resolveExportFilePath(allocator, route.path, export_type);
+    defer export_path.deinit(allocator);
 
-        var path_iter = std.mem.splitScalar(u8, route.path, '/');
-        while (path_iter.next()) |component| {
-            if (component.len > 0) {
-                try path_components.append(allocator, component);
-            }
-        }
+    var transfer_buffer: [64]u8 = undefined;
+    var decompress: std.http.Decompress = undefined;
+    const decompress_buffer: []u8 = switch (response.head.content_encoding) {
+        .identity => &.{},
+        .zstd => try allocator.alloc(u8, std.compress.zstd.default_window_len),
+        .deflate, .gzip => try allocator.alloc(u8, std.compress.flate.max_window_len),
+        .compress => return error.UnsupportedCompressionMethod,
+    };
+    defer if (decompress_buffer.len > 0) allocator.free(decompress_buffer);
 
-        if (route.path[route.path.len - 1] == '/') {
-            // For paths ending in "/", create directory/index.html structure
-            try path_components.append(allocator, "index.html");
-            file_path_owned = try std.fs.path.join(allocator, path_components.items);
-            file_path = file_path_owned.?;
-        } else {
-            // Get the last component (filename)
-            const last_component = path_components.items[path_components.items.len - 1];
-            // Add .html extension if it doesn't have one
-            if (std.fs.path.extension(last_component).len == 0) {
-                const last_with_ext = try std.fmt.allocPrint(allocator, "{s}.html", .{last_component});
-                defer allocator.free(last_with_ext);
+    const body_reader = response.readerDecompressing(&transfer_buffer, &decompress, decompress_buffer);
 
-                // Replace the last component with the one that has .html extension
-                _ = path_components.pop();
-                try path_components.append(allocator, last_with_ext);
-                file_path_owned = try std.fs.path.join(allocator, path_components.items);
-                file_path = file_path_owned.?;
-            } else {
-                // Path already has an extension, join all components
-                file_path_owned = try std.fs.path.join(allocator, path_components.items);
-                file_path = file_path_owned.?;
-            }
-        }
+    if (is_dynamic) {
+        log.debug("Skipping dynamic route: {s}", .{route.path});
+        _ = body_reader.discardRemaining() catch {};
+        printer.filepathKind(export_path.path, .dynamic);
+        return;
     }
 
-    const output_path = try std.fs.path.join(allocator, &.{ outdir, file_path });
+    _ = body_reader.streamRemaining(&aw.writer) catch |err| switch (err) {
+        error.ReadFailed => return response.bodyErr().?,
+        else => |e| return e,
+    };
+
+    const response_text = aw.written();
+    log.debug("Fetched {s} kind={s} status={} body_len={d}", .{ route.path, @tagName(export_type), response.head.status, response_text.len });
+
+    const output_path = try std.fs.path.join(allocator, &.{ outdir, export_path.path });
     defer allocator.free(output_path);
 
-    // Create parent directories if they don't exist
     const output_dir = std.fs.path.dirname(output_path);
     if (output_dir) |dir| {
         try std.Io.Dir.cwd().createDirPath(io, dir);
@@ -395,7 +365,122 @@ fn processRoute(
         .data = response_text,
     });
 
-    printer.filepath(file_path);
+    printer.filepathKind(export_path.path, print_as);
+}
+
+/// Format a route pattern for display: strip leading `/`, `:param` -> `[param]`, `*` -> `[..]`.
+fn formatRouteDisplayPath(allocator: std.mem.Allocator, route_path: []const u8) ![]const u8 {
+    const stripped = if (route_path.len > 0 and route_path[0] == '/') route_path[1..] else route_path;
+
+    var out = std.array_list.Managed(u8).init(allocator);
+    errdefer out.deinit();
+
+    var first = true;
+    var i: usize = 0;
+    while (i <= stripped.len) {
+        const end = if (i < stripped.len)
+            std.mem.indexOfScalarPos(u8, stripped, i, '/') orelse stripped.len
+        else
+            stripped.len;
+        const seg = stripped[i..end];
+
+        if (!first) try out.append('/');
+        first = false;
+
+        if (seg.len > 0 and seg[0] == ':') {
+            try out.append('[');
+            try out.appendSlice(seg[1..]);
+            try out.append(']');
+        } else if (seg.len == 1 and seg[0] == '*') {
+            try out.appendSlice("[..]");
+        } else {
+            try out.appendSlice(seg);
+        }
+
+        if (end == stripped.len) break;
+        i = end + 1;
+    }
+
+    return out.toOwnedSlice();
+}
+
+fn responseHeaderEquals(head: std.http.Client.Response.Head, name: []const u8, value: []const u8) bool {
+    var it = head.iterateHeaders();
+    while (it.next()) |header| {
+        if (std.ascii.eqlIgnoreCase(header.name, name) and std.mem.eql(u8, header.value, value)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+const ExportFilePath = struct {
+    path: []const u8,
+    owned: bool,
+
+    fn deinit(self: ExportFilePath, allocator: std.mem.Allocator) void {
+        if (self.owned) allocator.free(self.path);
+    }
+};
+
+fn resolveExportFilePath(allocator: std.mem.Allocator, route_path: []const u8, export_type: ExportType) !ExportFilePath {
+    if (export_type == .notfound) {
+        // For 404 pages, output as 404.html in the route's directory
+        if (std.mem.eql(u8, route_path, "/")) {
+            return .{ .path = "404.html", .owned = false };
+        }
+        // For non-root paths like /docs, output as docs/404.html
+        var path_components = std.ArrayList([]const u8).empty;
+        defer path_components.deinit(allocator);
+
+        var path_iter = std.mem.splitScalar(u8, route_path, '/');
+        while (path_iter.next()) |component| {
+            if (component.len > 0) {
+                try path_components.append(allocator, component);
+            }
+        }
+        try path_components.append(allocator, "404.html");
+        return .{ .path = try std.fs.path.join(allocator, path_components.items), .owned = true };
+    }
+
+    if (std.mem.eql(u8, route_path, "/")) {
+        // For root path "/", use "index.html"
+        return .{ .path = "index.html", .owned = false };
+    }
+
+    // Split the URL path by "/" to get path components
+    // Skip the first empty component (from leading "/")
+    var path_components = std.ArrayList([]const u8).empty;
+    defer path_components.deinit(allocator);
+
+    var path_iter = std.mem.splitScalar(u8, route_path, '/');
+    while (path_iter.next()) |component| {
+        if (component.len > 0) {
+            try path_components.append(allocator, component);
+        }
+    }
+
+    if (route_path[route_path.len - 1] == '/') {
+        // For paths ending in "/", create directory/index.html structure
+        try path_components.append(allocator, "index.html");
+        return .{ .path = try std.fs.path.join(allocator, path_components.items), .owned = true };
+    }
+
+    // Get the last component (filename)
+    const last_component = path_components.items[path_components.items.len - 1];
+    // Add .html extension if it doesn't have one
+    if (std.fs.path.extension(last_component).len == 0) {
+        const last_with_ext = try std.fmt.allocPrint(allocator, "{s}.html", .{last_component});
+        defer allocator.free(last_with_ext);
+
+        // Replace the last component with the one that has .html extension
+        _ = path_components.pop();
+        try path_components.append(allocator, last_with_ext);
+        return .{ .path = try std.fs.path.join(allocator, path_components.items), .owned = true };
+    }
+
+    // Path already has an extension, join all components
+    return .{ .path = try std.fs.path.join(allocator, path_components.items), .owned = true };
 }
 
 /// Fetch static params from server via x-zx-static-data header

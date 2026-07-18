@@ -219,9 +219,9 @@ pub fn Handler(comptime AppCtxType: type) type {
                 if (req.header("x-zx-export-notfound")) |_| {
                     return self.notFound(req, res);
                 }
-                if (req.header("x-zx-static-data")) |_| {
-                    if (req.route_data) |rd| {
-                        const route: *const ServerApp.Route = @ptrCast(@alignCast(rd));
+                if (req.route_data) |rd| {
+                    const route: *const ServerApp.Route = @ptrCast(@alignCast(rd));
+                    if (req.header("x-zx-static-data")) |_| {
                         const static_opts = blk: {
                             if (route.page_opts) |page_opts| {
                                 if (page_opts.static) |s| break :blk s;
@@ -235,8 +235,23 @@ pub fn Handler(comptime AppCtxType: type) type {
                             const params = try self.resolveStaticParams(req.arena, static_fn);
                             try std.zon.stringify.serialize(params, .{ .whitespace = true }, res.writer());
                         }
+                        return;
                     }
-                    return;
+
+                    const is_dynamic = blk: {
+                        if (route.page_opts) |page_opts| {
+                            if (page_opts.dynamic) break :blk true;
+                        }
+                        if (route.route_opts) |route_opts| {
+                            if (route_opts.dynamic) break :blk true;
+                        }
+                        break :blk false;
+                    };
+                    if (is_dynamic) {
+                        res.header("x-zx-dynamic", "true");
+                        try std.zon.stringify.serialize(.{ .dynamic = true }, .{ .whitespace = true }, res.writer());
+                        return;
+                    }
                 }
             }
 

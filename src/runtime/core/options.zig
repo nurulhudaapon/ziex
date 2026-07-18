@@ -88,6 +88,8 @@ pub const PageOptions = struct {
     static: ?StaticFn = null,
     /// Enable streaming SSR with async components
     streaming: bool = false,
+    /// When true export command will skip over generating static content for this route.
+    dynamic: bool = false,
 };
 
 pub const LayoutOptions = struct {
@@ -102,6 +104,7 @@ pub const ErrorOptions = struct {};
 pub const RouteOptions = struct {
     caching: ?BuiltinAttribute.Caching = null,
     static: ?StaticFn = null,
+    dynamic: bool = false,
 };
 
 /// Options for proxy middleware

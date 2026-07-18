@@ -36,11 +36,46 @@ pub fn deinit(self: *Printer) void {
     self.arena.deinit();
 }
 
+pub const FilePathKind = enum {
+    /// Statically exported file
+    @"static",
+    /// Dynamic page skipped during export (no static HTML)
+    dynamic,
+    /// Dynamic route pattern that expands via static params
+    param_route,
+    /// Path generated from a param route's static params
+    param_child,
+
+    fn marker(self: FilePathKind) []const u8 {
+        return switch (self) {
+            .@"static", .param_child => "+",
+            .dynamic => if (emoji("∞").len == 0) "~" else emoji("∞"),
+            .param_route => "*",
+        };
+    }
+
+    /// Number of 4-space indent levels before the marker.
+    fn depth(self: FilePathKind) usize {
+        return switch (self) {
+            .param_child => 2,
+            else => 1,
+        };
+    }
+};
+
 pub fn filepath(self: *Printer, file_path: []const u8) void {
+    self.filepathKind(file_path, .@"static");
+}
+
+pub fn filepathKind(self: *Printer, file_path: []const u8, kind: FilePathKind) void {
+    const marker = kind.marker();
     switch (self.options.file_path_mode) {
         .flat => {
-            // Show as single flat path like before
-            std.debug.print("    + \x1b[90m{s}\x1b[0m\n", .{file_path});
+            var i: usize = 0;
+            while (i < kind.depth()) : (i += 1) {
+                std.debug.print("    ", .{});
+            }
+            std.debug.print("{s} \x1b[90m{s}\x1b[0m\n", .{ marker, file_path });
             return;
         },
         .tree => {
@@ -96,7 +131,7 @@ pub fn filepath(self: *Printer, file_path: []const u8) void {
                 std.debug.print("    ", .{});
             }
             const filename = components.items[components.items.len - 1];
-            std.debug.print("+ \x1b[90m{s}\x1b[0m\n", .{filename});
+            std.debug.print("{s} \x1b[90m{s}\x1b[0m\n", .{ marker, filename });
         },
     }
 }
