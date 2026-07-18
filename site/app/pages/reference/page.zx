@@ -372,9 +372,11 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
             </section>
             <section id="importing" class="section">
                 <h2>Importing</h2>
-                <p>ZX supports importing components and modules from various sources. You can import ZX components from other files, React/TSX components for client-side interactivity, and standard Zig modules.</p>
+                <p>
+                    ZX supports importing components and modules from various sources. You can import ZX components from other files, 
+                    and standard Zig modules. You can't import .zx file to standard .zig file, in case you need to do that you can name your .zig file .zx such as route.zx for example when you need to import things from a .zx file.
+                </p>
                 <ExampleBlock id="importing" zx_code={zx_example_importing} zig_code={zig_example_importing} html_code={html_example_importing} filename="import_demo.zx" />
-                <p>Use <code>@jsImport</code> for React/TSX components and the standard <code>@import</code> for ZX and Zig files.</p>
             </section>
             <section id="dynamic-routes" class="section">
                 <h2>Dynamic Routes</h2>
