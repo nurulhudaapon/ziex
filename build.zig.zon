@@ -44,6 +44,8 @@
         "pkg/tree-sitter-mdzx",
         "pkg/ziex",
         "pkg/plugin-esbuild",
+        "pkg/plugin-system",
+        "pkg/plugin-typescript",
         "vendor/cliz",
         "vendor/jsz",
         "vendor/zig-tree-sitter",
