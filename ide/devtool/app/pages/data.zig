@@ -14,6 +14,16 @@ pub const Component = struct {
     badge: []const u8 = "",
     meta: ?ComponentMeta = null,
     is_native: bool = false,
+    /// CSS selector locating this node's root element in the inspected page,
+    /// e.g. `div[class="bench-row"]`. For a component/text node it is the
+    /// selector of its first descendant element (its rendered root). Empty when
+    /// the node maps to no element.
+    selector: []const u8 = "",
+    /// Which match of `selector` (in document order) this node is — computed by
+    /// counting prior elements with the same selector while walking the
+    /// serialized tree in pre-order, which mirrors the DOM's document order.
+    /// The devtool highlights `document.querySelectorAll(selector)[occurrence]`.
+    occurrence: usize = 0,
 };
 
 pub const Route = struct {
@@ -258,7 +268,41 @@ pub const routes = [_]Route{
     .{ .method = "GET", .path = "/settings" },
 };
 
-pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.Component.Serializable, path: []const u8) anyerror!Component {
+/// Tracks, per CSS selector, how many matching elements have been seen so far
+/// while walking the serialized tree in pre-order (mirrors DOM document order).
+pub const SelectorCounters = std.StringHashMap(usize);
+
+/// Build a CSS selector that locates an element by tag plus its most specific
+/// available attribute (`id`, else `class`). The same string is counted in the
+/// devtool and queried in the page, so it must be derived identically here.
+fn buildSelector(allocator: std.mem.Allocator, tag: zx.ElementTag, attributes: anytype) []const u8 {
+    const tag_name = @tagName(tag);
+    if (attributes) |attrs| {
+        for (attrs) |a| {
+            if (std.mem.eql(u8, a.name, "id")) {
+                if (a.value) |v| if (v.len > 0)
+                    return std.fmt.allocPrint(allocator, "{s}[id=\"{s}\"]", .{ tag_name, v }) catch tag_name;
+            }
+        }
+        for (attrs) |a| {
+            if (std.mem.eql(u8, a.name, "class")) {
+                if (a.value) |v| if (v.len > 0)
+                    return std.fmt.allocPrint(allocator, "{s}[class=\"{s}\"]", .{ tag_name, v }) catch tag_name;
+            }
+        }
+    }
+    return allocator.dupe(u8, tag_name) catch tag_name;
+}
+
+fn nextOccurrence(counters: *SelectorCounters, selector: []const u8) usize {
+    const gop = counters.getOrPut(selector) catch return 0;
+    if (!gop.found_existing) gop.value_ptr.* = 0;
+    const occ = gop.value_ptr.*;
+    gop.value_ptr.* = occ + 1;
+    return occ;
+}
+
+pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.Component.Serializable, path: []const u8, counters: *SelectorCounters) anyerror!Component {
     var name: []const u8 = "unknown";
     var badge: []const u8 = "";
     var is_native: bool = true;
@@ -273,14 +317,35 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.Component.Serializab
         badge = "text";
     }
 
+    // Assign this node's own element locator (pre-order, before children) so
+    // the occurrence numbering follows document order.
+    var selector: []const u8 = "";
+    var occurrence: usize = 0;
+    if (s.tag) |t| {
+        selector = buildSelector(allocator, t, s.attributes);
+        occurrence = nextOccurrence(counters, selector);
+    }
+
     var children: []const Component = &[_]Component{};
     if (s.children) |sc| {
         var children_mut = try allocator.alloc(Component, sc.len);
         for (sc, 0..) |child_s, i| {
             const child_path = try std.fmt.allocPrint(allocator, "{s}.{d}", .{ path, i });
-            children_mut[i] = try fromSerializable(allocator, child_s, child_path);
+            children_mut[i] = try fromSerializable(allocator, child_s, child_path, counters);
         }
         children = children_mut;
+    }
+
+    // A component/text node has no element of its own — it is located by its
+    // first descendant element (its rendered root).
+    if (s.tag == null) {
+        for (children) |child| {
+            if (child.selector.len > 0) {
+                selector = child.selector;
+                occurrence = child.occurrence;
+                break;
+            }
+        }
     }
 
     var meta: ?ComponentMeta = null;
@@ -310,14 +375,31 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.Component.Serializab
         .badge = badge,
         .meta = meta,
         .is_native = is_native,
+        .selector = selector,
+        .occurrence = occurrence,
     };
 }
 
 pub fn fromSerializableSlice(allocator: std.mem.Allocator, sc: []const zx.Component.Serializable) anyerror![]const Component {
+    var counters = SelectorCounters.init(allocator);
+    defer counters.deinit();
+
     var children = try allocator.alloc(Component, sc.len);
     for (sc, 0..) |child_s, i| {
         const path = try std.fmt.allocPrint(allocator, "{d}", .{i});
-        children[i] = try fromSerializable(allocator, child_s, path);
+        children[i] = try fromSerializable(allocator, child_s, path, &counters);
+    }
+
+    // Synthetic wrapper roots have no element of their own; locate them by the
+    // first descendant element so hovering them still highlights the page.
+    var root_sel: []const u8 = "";
+    var root_occ: usize = 0;
+    for (children) |child| {
+        if (child.selector.len > 0) {
+            root_sel = child.selector;
+            root_occ = child.occurrence;
+            break;
+        }
     }
 
     var root_page = try allocator.alloc(Component, 1);
@@ -328,6 +410,8 @@ pub fn fromSerializableSlice(allocator: std.mem.Allocator, sc: []const zx.Compon
         .has_children = children.len > 0,
         .badge = "",
         .meta = null,
+        .selector = root_sel,
+        .occurrence = root_occ,
     };
 
     var root_layout = try allocator.alloc(Component, 1);
@@ -338,6 +422,8 @@ pub fn fromSerializableSlice(allocator: std.mem.Allocator, sc: []const zx.Compon
         .has_children = root_page.len > 0,
         .badge = "",
         .meta = null,
+        .selector = root_sel,
+        .occurrence = root_occ,
     };
 
     var root_component = try allocator.alloc(Component, 1);
@@ -348,6 +434,8 @@ pub fn fromSerializableSlice(allocator: std.mem.Allocator, sc: []const zx.Compon
         .has_children = root_layout.len > 0,
         .badge = "fragment",
         .meta = null,
+        .selector = root_sel,
+        .occurrence = root_occ,
     };
 
     return root_component;

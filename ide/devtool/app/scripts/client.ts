@@ -61,11 +61,122 @@ async function syncLocationFromUrl(href: string): Promise<boolean> {
 }
 
 async function refreshFromNavigation(href?: string): Promise<void> {
+    await clearInspectedComponentHighlight();
     const updatedFromUrl = typeof href === "string" ? await syncLocationFromUrl(href) : false;
     if (!updatedFromUrl) {
         await syncInspectedPageLocation();
     }
     await window.__zx_dev_reinit?.();
+}
+
+function evalInInspectedWindow<T = unknown>(expression: string): Promise<T | undefined> {
+    const chromeApi = (globalThis as any).chrome;
+    if (!chromeApi?.devtools?.inspectedWindow?.eval) return Promise.resolve(undefined);
+
+    return new Promise<T | undefined>((resolve) => {
+        chromeApi.devtools.inspectedWindow.eval(
+            expression,
+            (result: T | undefined, exceptionInfo: { isException?: boolean } | undefined) => {
+                if (exceptionInfo?.isException) {
+                    resolve(undefined);
+                    return;
+                }
+                resolve(result);
+            }
+        );
+    });
+}
+
+/**
+ * Build a script that, when eval'd in the inspected page, positions a highlight
+ * overlay over a component's root element.
+ *
+ * The devtool derives a CSS `selector` and an `occurrence` index for each
+ * component from the serialized tree (see data.zig). The inspected page needs no
+ * special markup: we locate the element with
+ * `document.querySelectorAll(selector)[occurrence]`. Pass a null/empty selector
+ * to hide the overlay.
+ */
+function inspectedHighlightScript(selector: string | null, occurrence: number): string {
+    const selLiteral = JSON.stringify(selector);
+    const occLiteral = JSON.stringify(occurrence | 0);
+    return `(() => {
+        const key = '__ZX_DEVTOOL_HOVER_OVERLAY__';
+        const root = window;
+        const state = root[key] || (root[key] = { overlay: null, activeId: null });
+
+        const ensureOverlay = () => {
+            if (state.overlay && state.overlay.isConnected) return state.overlay;
+            const overlay = document.createElement('div');
+            overlay.style.position = 'fixed';
+            overlay.style.zIndex = '2147483647';
+            overlay.style.pointerEvents = 'none';
+            overlay.style.border = '2px solid #41b883';
+            overlay.style.background = 'rgba(65, 184, 131, 0.18)';
+            overlay.style.borderRadius = '4px';
+            overlay.style.boxSizing = 'border-box';
+            overlay.style.display = 'none';
+            document.documentElement.appendChild(overlay);
+            state.overlay = overlay;
+            return overlay;
+        };
+
+        const hideOverlay = () => {
+            if (state.overlay) state.overlay.style.display = 'none';
+            state.activeId = null;
+            return false;
+        };
+
+        const selector = ${selLiteral};
+        const occurrence = ${occLiteral};
+        if (!selector) return hideOverlay();
+
+        let nodes;
+        try { nodes = document.querySelectorAll(selector); } catch { return hideOverlay(); }
+        const el = nodes[occurrence];
+        if (!el) return hideOverlay();
+
+        const rect = el.getBoundingClientRect();
+        if (!rect || (rect.width <= 0 && rect.height <= 0)) return hideOverlay();
+
+        const overlay = ensureOverlay();
+        overlay.style.display = 'block';
+        overlay.style.left = rect.left + 'px';
+        overlay.style.top = rect.top + 'px';
+        overlay.style.width = Math.max(1, rect.width) + 'px';
+        overlay.style.height = Math.max(1, rect.height) + 'px';
+        state.activeId = selector + '#' + occurrence;
+        return true;
+    })()`;
+}
+
+async function highlightInspectedComponent(selector: string, occurrence: number): Promise<void> {
+    await evalInInspectedWindow(inspectedHighlightScript(selector, occurrence));
+}
+
+async function clearInspectedComponentHighlight(): Promise<void> {
+    await evalInInspectedWindow(inspectedHighlightScript(null, 0));
+}
+
+let hoveredKey: string | null = null;
+
+function getHoveredComponentButton(target: EventTarget | null): HTMLElement | null {
+    if (!(target instanceof Element)) return null;
+    return target.closest('.component-select-btn, .component-select-btn-leaf');
+}
+
+async function startHover(selector: string, occurrence: number): Promise<void> {
+    if (!selector) return;
+    const key = selector + '#' + occurrence;
+    if (hoveredKey === key) return;
+    hoveredKey = key;
+    await highlightInspectedComponent(selector, occurrence);
+}
+
+async function stopHover(): Promise<void> {
+    if (!hoveredKey) return;
+    hoveredKey = null;
+    await clearInspectedComponentHighlight();
 }
 
 async function main() {
@@ -103,4 +214,25 @@ window.addEventListener('zx-navigation', async (e: Event) => {
     if (typeof href === 'string') {
         await refreshFromNavigation(href);
     }
+});
+
+document.addEventListener('mouseover', async (e: MouseEvent) => {
+    const btn = getHoveredComponentButton(e.target);
+    if (!btn) return;
+    const selector = btn.getAttribute('data-sel');
+    if (!selector) return;
+    const occurrence = parseInt(btn.getAttribute('data-idx') || '0', 10) || 0;
+    await startHover(selector, occurrence);
+});
+
+document.addEventListener('mouseout', async (e: MouseEvent) => {
+    const from = getHoveredComponentButton(e.target);
+    if (!from) return;
+    const to = getHoveredComponentButton(e.relatedTarget);
+    if (to) return;
+    await stopHover();
+});
+
+window.addEventListener('blur', async () => {
+    await stopHover();
 });
