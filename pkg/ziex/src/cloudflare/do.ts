@@ -2,6 +2,7 @@ import { ZxBridge } from "../wasm";
 import { createKVImports, createMemoryKV } from "../kv";
 import { createFetchImports } from "../fetch";
 import { createD1Imports } from "../db";
+import { bindWasmAlloc, type WasmAllocRef } from "../wasm/core";
 import { createWasiImports } from "../wasi";
 import { buildWsImports, attachWebSocket } from "../runtime";
 import type { WsState } from "../runtime";
@@ -122,13 +123,14 @@ export function createWebSocketDO(
 
             const kvBindings = options?.kv?.(this.env);
             const dbBindings = options?.db?.(this.env);
+            const allocRef: WasmAllocRef = { current: null };
 
             const instance = new WebAssembly.Instance(module, {
                 wasi_snapshot_preview1: wasiImport,
                 __zx_sys: sysImports,
                 __zx_ws: wsImports,
-                __zx_kv: createKVImports(kvBindings ?? { default: createMemoryKV() }, mem),
-                __zx_db: createD1Imports(dbBindings ?? {}, mem),
+                __zx_kv: createKVImports(kvBindings ?? { default: createMemoryKV() }, mem, allocRef),
+                __zx_db: createD1Imports(dbBindings ?? {}, mem, allocRef),
                 __zx_net: createFetchImports(mem),
                 ...(options?.imports ? options.imports(mem) : {}),
                 ...bridgeImports,
@@ -137,6 +139,7 @@ export function createWebSocketDO(
             wasmMemory = instance.exports.memory as WebAssembly.Memory;
             setMemory(wasmMemory);
             bridgeRef.current = new ZxBridge(instance.exports);
+            bindWasmAlloc(allocRef, instance.exports);
 
             const start = (WebAssembly as any).promising(instance.exports._start as Function);
 

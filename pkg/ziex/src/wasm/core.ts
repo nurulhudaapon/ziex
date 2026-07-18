@@ -322,3 +322,37 @@ export class ZxBridgeCore {
         };
     }
 }
+
+export type WasmAllocRef = { current: ((size: number) => number) | null };
+export function writeBytesOut(
+    getMemory: () => WebAssembly.Memory,
+    allocRef: WasmAllocRef,
+    outPtrAddr: number,
+    data: Uint8Array,
+): number {
+    if (data.length === 0) {
+        new DataView(getMemory().buffer).setUint32(outPtrAddr, 0, true);
+        return 0;
+    }
+    const alloc = allocRef.current;
+    if (!alloc) return -1;
+    const ptr = alloc(data.length);
+    if (!ptr) return -1;
+    const buffer = getMemory().buffer;
+    new Uint8Array(buffer, ptr, data.length).set(data);
+    new DataView(buffer).setUint32(outPtrAddr, ptr, true);
+    return data.length;
+}
+
+export function writeJsonOut(
+    getMemory: () => WebAssembly.Memory,
+    allocRef: WasmAllocRef,
+    outPtrAddr: number,
+    value: unknown,
+): number {
+    return writeBytesOut(getMemory, allocRef, outPtrAddr, textEncoder.encode(JSON.stringify(value)));
+}
+
+export function bindWasmAlloc(allocRef: WasmAllocRef, exports: WebAssembly.Exports): void {
+    allocRef.current = exports.__zx_alloc as (size: number) => number;
+}

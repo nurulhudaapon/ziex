@@ -424,6 +424,12 @@ pub fn initInner(
     zx_module.addImport("app", app_module);
     exe.root_module.addImport("app", app_module);
     exe.root_module.addImport("zx", zx_module);
+    if (exe.root_module.resolved_target) |t| {
+        if (t.result.os.tag == .wasi) {
+            exe.rdynamic = true;
+            exe.export_memory = true;
+        }
+    }
 
     exe.step.dependOn(&transpile_cmd.step);
     exe.step.name = b.fmt("install server exe", .{});

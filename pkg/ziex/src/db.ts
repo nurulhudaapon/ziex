@@ -1,3 +1,7 @@
+import { type WasmAllocRef, writeJsonOut } from "./wasm/core";
+
+export type { WasmAllocRef };
+
 export type D1Value =
     | null
     | string
@@ -118,19 +122,12 @@ function valuesToWireRows(rows: unknown[][]): WireValue[][] {
 export function createD1Imports(
     bindings: Record<string, D1Database>,
     getMemory: () => WebAssembly.Memory,
+    allocRef: WasmAllocRef,
 ): Record<string, unknown> {
-    const encoder = new TextEncoder();
     const decoder = new TextDecoder();
 
     function readStr(ptr: number, len: number): string {
         return decoder.decode(new Uint8Array(getMemory().buffer, ptr, len));
-    }
-
-    function writeJson(buf_ptr: number, buf_max: number, value: unknown): number {
-        const data = encoder.encode(JSON.stringify(value));
-        if (data.length > buf_max) return -2;
-        new Uint8Array(getMemory().buffer, buf_ptr, data.length).set(data);
-        return data.length;
     }
 
     function binding(ns: string): D1Database | null {
@@ -157,10 +154,10 @@ export function createD1Imports(
     if (typeof Suspending !== "function") {
         return {
             db_open: (_ns: number, _ns_len: number): number => -1,
-            db_run: (_a: number, _b: number, _c: number, _d: number, _e: number, _f: number, _g: number, _h: number): number => -1,
-            db_get: (_a: number, _b: number, _c: number, _d: number, _e: number, _f: number, _g: number, _h: number): number => -1,
-            db_all: (_a: number, _b: number, _c: number, _d: number, _e: number, _f: number, _g: number, _h: number): number => -1,
-            db_values: (_a: number, _b: number, _c: number, _d: number, _e: number, _f: number, _g: number, _h: number): number => -1,
+            db_run: (_a: number, _b: number, _c: number, _d: number, _e: number, _f: number, _g: number): number => -1,
+            db_get: (_a: number, _b: number, _c: number, _d: number, _e: number, _f: number, _g: number): number => -1,
+            db_all: (_a: number, _b: number, _c: number, _d: number, _e: number, _f: number, _g: number): number => -1,
+            db_values: (_a: number, _b: number, _c: number, _d: number, _e: number, _f: number, _g: number): number => -1,
         };
     }
 
@@ -171,12 +168,12 @@ export function createD1Imports(
             ns_ptr: number, ns_len: number,
             sql_ptr: number, sql_len: number,
             bindings_ptr: number, bindings_len: number,
-            buf_ptr: number, buf_max: number,
+            out_ptr: number,
         ): Promise<number> => {
             const stmt = await statement(ns_ptr, ns_len, sql_ptr, sql_len, bindings_ptr, bindings_len);
             if (!stmt) return -1;
             const result = await stmt.run();
-            return writeJson(buf_ptr, buf_max, {
+            return writeJsonOut(getMemory, allocRef, out_ptr, {
                 last_insert_rowid: result.meta?.last_row_id ?? 0,
                 changes: result.meta?.changes ?? 0,
             });
@@ -186,37 +183,49 @@ export function createD1Imports(
             ns_ptr: number, ns_len: number,
             sql_ptr: number, sql_len: number,
             bindings_ptr: number, bindings_len: number,
-            buf_ptr: number, buf_max: number,
+            out_ptr: number,
         ): Promise<number> => {
             const stmt = await statement(ns_ptr, ns_len, sql_ptr, sql_len, bindings_ptr, bindings_len);
             if (!stmt) return -1;
             const row = await stmt.first<Record<string, unknown>>();
-            if (!row) return 0;
-            return writeJson(buf_ptr, buf_max, [objectToWireRow(row)]);
+            if (!row) {
+                new DataView(getMemory().buffer).setUint32(out_ptr, 0, true);
+                return 0;
+            }
+            return writeJsonOut(getMemory, allocRef, out_ptr, [objectToWireRow(row)]);
         }),
 
         db_all: new Suspending(async (
             ns_ptr: number, ns_len: number,
             sql_ptr: number, sql_len: number,
             bindings_ptr: number, bindings_len: number,
-            buf_ptr: number, buf_max: number,
+            out_ptr: number,
         ): Promise<number> => {
             const stmt = await statement(ns_ptr, ns_len, sql_ptr, sql_len, bindings_ptr, bindings_len);
             if (!stmt) return -1;
             const result = await stmt.all<Record<string, unknown>>();
-            return writeJson(buf_ptr, buf_max, (result.results ?? []).map(objectToWireRow));
+            const rows = (result.results ?? []).map(objectToWireRow);
+            if (rows.length === 0) {
+                new DataView(getMemory().buffer).setUint32(out_ptr, 0, true);
+                return 0;
+            }
+            return writeJsonOut(getMemory, allocRef, out_ptr, rows);
         }),
 
         db_values: new Suspending(async (
             ns_ptr: number, ns_len: number,
             sql_ptr: number, sql_len: number,
             bindings_ptr: number, bindings_len: number,
-            buf_ptr: number, buf_max: number,
+            out_ptr: number,
         ): Promise<number> => {
             const stmt = await statement(ns_ptr, ns_len, sql_ptr, sql_len, bindings_ptr, bindings_len);
             if (!stmt) return -1;
             const rows = await stmt.raw();
-            return writeJson(buf_ptr, buf_max, valuesToWireRows(rows));
+            if (rows.length === 0) {
+                new DataView(getMemory().buffer).setUint32(out_ptr, 0, true);
+                return 0;
+            }
+            return writeJsonOut(getMemory, allocRef, out_ptr, valuesToWireRows(rows));
         }),
     };
 }

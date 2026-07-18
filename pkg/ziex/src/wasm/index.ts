@@ -8,9 +8,12 @@ export {
     getMemoryView,
     readString,
     writeBytes,
+    writeBytesOut,
+    writeJsonOut,
+    bindWasmAlloc,
     ZxBridgeCore,
 } from "./core";
-export type { CallbackTypeValue } from "./core";
+export type { CallbackTypeValue, WasmAllocRef } from "./core";
 
 import {
     ZxBridgeCore,
@@ -26,6 +29,7 @@ import {
     getMemoryView,
 } from "./core";
 import { createKVImports, type KVNamespace } from "../kv";
+import { bindWasmAlloc, type WasmAllocRef } from "./core";
 import { createFetchImports } from "../fetch";
 import { createBrowserKVBindings } from "../browser/kv";
 import type {
@@ -735,12 +739,13 @@ export async function init(options: InitOptions = {}): Promise<{ source: WebAsse
     let wasmMemory: WebAssembly.Memory | null = null;
 
     const kvBindings = options.kv ?? createBrowserKVBindings();
+    const allocRef: WasmAllocRef = { current: null };
     const kvImportObject = {
         __zx_kv: createKVImports(kvBindings, () => {
             if (wasmMemory) return wasmMemory;
             if (jsz.memory) return jsz.memory;
             throw new Error("WASM memory is not ready");
-        }),
+        }, allocRef),
     };
 
     const importObject = Object.assign(
@@ -755,6 +760,7 @@ export async function init(options: InitOptions = {}): Promise<{ source: WebAsse
 
     wasmMemory = instance.exports.memory as WebAssembly.Memory;
     jsz.memory = wasmMemory;
+    bindWasmAlloc(allocRef, instance.exports);
 
     const bridge = new ZxBridge(instance.exports);
     bridgeRef.current = bridge;

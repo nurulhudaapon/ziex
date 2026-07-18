@@ -180,7 +180,7 @@ fn runQuery(binding_name: []const u8, sql: []const u8, bindings: Db.Bindings) !D
     defer bindings_writer.deinit();
     try writeBindingsJson(&bindings_writer.writer, bindings);
 
-    var buf: [8192]u8 = undefined;
+    var ptr: [*]u8 = undefined;
     const n = ext.db_run(
         binding_name.ptr,
         binding_name.len,
@@ -188,12 +188,13 @@ fn runQuery(binding_name: []const u8, sql: []const u8, bindings: Db.Bindings) !D
         sql.len,
         bindings_writer.written().ptr,
         bindings_writer.written().len,
-        &buf,
-        buf.len,
+        &ptr,
     );
     if (n < 0) return error.DatabaseRunFailed;
+    if (n == 0) return error.DatabaseRunFailed;
+    defer std.heap.wasm_allocator.free(ptr[0..@intCast(n)]);
 
-    const parsed = try std.json.parseFromSlice(WireRunResult, std.heap.wasm_allocator, buf[0..@intCast(n)], .{
+    const parsed = try std.json.parseFromSlice(WireRunResult, std.heap.wasm_allocator, ptr[0..@intCast(n)], .{
         .ignore_unknown_fields = true,
         .allocate = .alloc_always,
     });
@@ -216,7 +217,7 @@ fn selectRows(
     defer bindings_writer.deinit();
     try writeBindingsJson(&bindings_writer.writer, bindings);
 
-    var buf: [65536]u8 = undefined;
+    var ptr: [*]u8 = undefined;
     const n = op(
         binding_name.ptr,
         binding_name.len,
@@ -224,13 +225,13 @@ fn selectRows(
         sql.len,
         bindings_writer.written().ptr,
         bindings_writer.written().len,
-        &buf,
-        buf.len,
+        &ptr,
     );
     if (n < 0) return error.DatabaseQueryFailed;
     if (n == 0) return &[_]Db.Row{};
+    defer std.heap.wasm_allocator.free(ptr[0..@intCast(n)]);
 
-    const parsed = try std.json.parseFromSlice([]WireRow, allocator, buf[0..@intCast(n)], .{
+    const parsed = try std.json.parseFromSlice([]WireRow, allocator, ptr[0..@intCast(n)], .{
         .ignore_unknown_fields = true,
         .allocate = .alloc_always,
     });
@@ -244,7 +245,7 @@ fn selectValues(allocator: std.mem.Allocator, binding_name: []const u8, sql: []c
     defer bindings_writer.deinit();
     try writeBindingsJson(&bindings_writer.writer, bindings);
 
-    var buf: [65536]u8 = undefined;
+    var ptr: [*]u8 = undefined;
     const n = ext.db_values(
         binding_name.ptr,
         binding_name.len,
@@ -252,13 +253,13 @@ fn selectValues(allocator: std.mem.Allocator, binding_name: []const u8, sql: []c
         sql.len,
         bindings_writer.written().ptr,
         bindings_writer.written().len,
-        &buf,
-        buf.len,
+        &ptr,
     );
     if (n < 0) return error.DatabaseQueryFailed;
     if (n == 0) return &[_][]const Db.Value{};
+    defer std.heap.wasm_allocator.free(ptr[0..@intCast(n)]);
 
-    const parsed = try std.json.parseFromSlice([][]WireValue, allocator, buf[0..@intCast(n)], .{
+    const parsed = try std.json.parseFromSlice([][]WireValue, allocator, ptr[0..@intCast(n)], .{
         .ignore_unknown_fields = true,
         .allocate = .alloc_always,
     });
@@ -370,8 +371,7 @@ const ext = struct {
         sql_len: usize,
         bindings_ptr: [*]const u8,
         bindings_len: usize,
-        buf_ptr: [*]u8,
-        buf_max: usize,
+        out_ptr: *[*]u8,
     ) i32;
 
     pub extern "__zx_db" fn db_get(
@@ -381,8 +381,7 @@ const ext = struct {
         sql_len: usize,
         bindings_ptr: [*]const u8,
         bindings_len: usize,
-        buf_ptr: [*]u8,
-        buf_max: usize,
+        out_ptr: *[*]u8,
     ) i32;
 
     pub extern "__zx_db" fn db_all(
@@ -392,8 +391,7 @@ const ext = struct {
         sql_len: usize,
         bindings_ptr: [*]const u8,
         bindings_len: usize,
-        buf_ptr: [*]u8,
-        buf_max: usize,
+        out_ptr: *[*]u8,
     ) i32;
 
     pub extern "__zx_db" fn db_values(
@@ -403,8 +401,7 @@ const ext = struct {
         sql_len: usize,
         bindings_ptr: [*]const u8,
         bindings_len: usize,
-        buf_ptr: [*]u8,
-        buf_max: usize,
+        out_ptr: *[*]u8,
     ) i32;
 };
 

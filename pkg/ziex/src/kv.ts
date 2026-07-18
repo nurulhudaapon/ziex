@@ -1,3 +1,7 @@
+import { type WasmAllocRef, writeBytesOut, writeJsonOut } from "./wasm/core";
+
+export type { WasmAllocRef };
+
 // Minimal type definition for a key-value namespace
 export interface KVNamespace {
     get(key: string): Promise<string | null>;
@@ -82,18 +86,13 @@ function isSyncKVNamespace(binding: KVNamespace): binding is SyncKVNamespace {
 export function createKVImports(
     bindings: Record<string, KVNamespace>,
     getMemory: () => WebAssembly.Memory,
+    allocRef: WasmAllocRef,
 ): Record<string, unknown> {
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
 
     function readStr(ptr: number, len: number): string {
         return decoder.decode(new Uint8Array(getMemory().buffer, ptr, len));
-    }
-
-    function writeBytes(buf_ptr: number, buf_max: number, data: Uint8Array): number {
-        if (data.length > buf_max) return -2;
-        new Uint8Array(getMemory().buffer, buf_ptr, data.length).set(data);
-        return data.length;
     }
 
     function binding(ns: string): KVNamespace | null {
@@ -108,12 +107,12 @@ export function createKVImports(
         }
 
         return {
-            kv_get: (ns_ptr: number, ns_len: number, key_ptr: number, key_len: number, buf_ptr: number, buf_max: number): number => {
+            kv_get: (ns_ptr: number, ns_len: number, key_ptr: number, key_len: number, out_ptr: number): number => {
                 const b = syncBinding(readStr(ns_ptr, ns_len));
                 if (!b) return -1;
                 const value = b.getSync(readStr(key_ptr, key_len));
                 if (value === null) return -1;
-                return writeBytes(buf_ptr, buf_max, encoder.encode(value));
+                return writeBytesOut(getMemory, allocRef, out_ptr, encoder.encode(value));
             },
             kv_put: (ns_ptr: number, ns_len: number, key_ptr: number, key_len: number, val_ptr: number, val_len: number, ttl_seconds: number): number => {
                 const b = syncBinding(readStr(ns_ptr, ns_len));
@@ -127,12 +126,12 @@ export function createKVImports(
                 b.deleteSync(readStr(key_ptr, key_len));
                 return 0;
             },
-            kv_list: (ns_ptr: number, ns_len: number, pfx_ptr: number, pfx_len: number, buf_ptr: number, buf_max: number): number => {
+            kv_list: (ns_ptr: number, ns_len: number, pfx_ptr: number, pfx_len: number, out_ptr: number): number => {
                 const b = syncBinding(readStr(ns_ptr, ns_len));
-                if (!b) return writeBytes(buf_ptr, buf_max, encoder.encode("[]"));
+                if (!b) return writeJsonOut(getMemory, allocRef, out_ptr, []);
                 const prefix = readStr(pfx_ptr, pfx_len);
                 const result = b.listSync(prefix.length > 0 ? { prefix } : undefined);
-                return writeBytes(buf_ptr, buf_max, encoder.encode(JSON.stringify(result.keys.map((k) => k.name))));
+                return writeJsonOut(getMemory, allocRef, out_ptr, result.keys.map((k) => k.name));
             },
         };
     }
@@ -141,13 +140,13 @@ export function createKVImports(
         kv_get: new Suspending(async (
             ns_ptr: number, ns_len: number,
             key_ptr: number, key_len: number,
-            buf_ptr: number, buf_max: number,
+            out_ptr: number,
         ): Promise<number> => {
             const b = binding(readStr(ns_ptr, ns_len));
             if (!b) return -1;
             const value = await b.get(readStr(key_ptr, key_len));
             if (value === null) return -1;
-            return writeBytes(buf_ptr, buf_max, encoder.encode(value));
+            return writeBytesOut(getMemory, allocRef, out_ptr, encoder.encode(value));
         }),
 
         kv_put: new Suspending(async (
@@ -175,13 +174,18 @@ export function createKVImports(
         kv_list: new Suspending(async (
             ns_ptr: number, ns_len: number,
             prefix_ptr: number, prefix_len: number,
-            buf_ptr: number, buf_max: number,
+            out_ptr: number,
         ): Promise<number> => {
             const b = binding(readStr(ns_ptr, ns_len));
-            if (!b) return writeBytes(buf_ptr, buf_max, encoder.encode("[]"));
+            if (!b) return writeJsonOut(getMemory, allocRef, out_ptr, []);
             const prefix = readStr(prefix_ptr, prefix_len);
             const result = await b.list(prefix.length > 0 ? { prefix } : undefined);
-            return writeBytes(buf_ptr, buf_max, encoder.encode(JSON.stringify(result.keys.map((k) => k.name))));
+            const names = result.keys.map((k) => k.name);
+            if (names.length === 0) {
+                new DataView(getMemory().buffer).setUint32(out_ptr, 0, true);
+                return 0;
+            }
+            return writeJsonOut(getMemory, allocRef, out_ptr, names);
         }),
     };
 }

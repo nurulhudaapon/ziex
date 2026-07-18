@@ -2,6 +2,7 @@ import { ZxWasiBridge } from "./wasm/wasi";
 import { createKVImports, createMemoryKV } from "./kv";
 import { createFetchImports } from "./fetch";
 import { createD1Imports } from "./db";
+import { bindWasmAlloc, type WasmAllocRef } from "./wasm/core";
 import { createWasiImports, ProcExit, mergeUint8Arrays } from "./wasi";
 import type { WASI } from "./wasi";
 import type { KVNamespace } from "./kv";
@@ -263,6 +264,7 @@ export async function run({
     const mem = () => wasmMemory;
 
     const bridgeRef: { current: ZxWasiBridge | null } = { current: null };
+    const allocRef: WasmAllocRef = { current: null };
 
     const Suspending = (WebAssembly as any).Suspending;
     const jspi = typeof Suspending === 'function';
@@ -279,8 +281,8 @@ export async function run({
         wasi_snapshot_preview1: { ...wasi?.wasiImport, ...wasiImport },
         __zx_sys: buildSysImports(jspi, Suspending),
         __zx_ws: buildWsImports(jspi ? Suspending : null, mem, new TextDecoder(), wsState),
-        __zx_kv: createKVImports(kvBindings ?? { default: createMemoryKV() }, mem),
-        __zx_db: createD1Imports(dbBindings ?? {}, mem),
+        __zx_kv: createKVImports(kvBindings ?? { default: createMemoryKV() }, mem, allocRef),
+        __zx_db: createD1Imports(dbBindings ?? {}, mem, allocRef),
         __zx_net: createFetchImports(mem),
         ...(imports ? imports(mem) : {}),
         ...ZxWasiBridge.createImportObject(bridgeRef),
@@ -289,6 +291,7 @@ export async function run({
     wasmMemory = instance.exports.memory as WebAssembly.Memory;
     setMemory(wasmMemory);
     bridgeRef.current = new ZxWasiBridge(instance.exports);
+    bindWasmAlloc(allocRef, instance.exports);
 
     const wasmPromise = executeWasm(instance, jspi, Suspending, wsState);
 
