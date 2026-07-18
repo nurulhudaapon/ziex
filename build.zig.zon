@@ -35,6 +35,7 @@
         .tree_sitter_mdzx = .{ .path = "pkg/tree-sitter-mdzx" },
     },
     .paths = .{
+        "README.md",
         "build.zig",
         "build.zig.zon",
         "src",
