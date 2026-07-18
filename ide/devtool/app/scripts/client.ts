@@ -89,15 +89,17 @@ function evalInInspectedWindow<T = unknown>(expression: string): Promise<T | und
 
 /**
  * Build a script that, when eval'd in the inspected page, positions a highlight
- * overlay over the *union* of every element owned by the component `componentId`.
+ * overlay over a component's root element.
  *
- * In dev builds the ziex renderers stamp each element with a `data-zx-owner`
- * attribute carrying its owning component's id, so a single `querySelectorAll`
- * finds the component's whole rendered output (native elements included). Pass
- * `null` to hide the overlay.
+ * The devtool derives a CSS `selector` and an `occurrence` index for each
+ * component from the serialized tree (see data.zig). The inspected page needs no
+ * special markup: we locate the element with
+ * `document.querySelectorAll(selector)[occurrence]`. Pass a null/empty selector
+ * to hide the overlay.
  */
-function inspectedHighlightScript(componentId: string | null): string {
-    const idLiteral = JSON.stringify(componentId);
+function inspectedHighlightScript(selector: string | null, occurrence: number): string {
+    const selLiteral = JSON.stringify(selector);
+    const occLiteral = JSON.stringify(occurrence | 0);
     return `(() => {
         const key = '__ZX_DEVTOOL_HOVER_OVERLAY__';
         const root = window;
@@ -125,64 +127,55 @@ function inspectedHighlightScript(componentId: string | null): string {
             return false;
         };
 
-        const componentId = ${idLiteral};
-        if (!componentId) return hideOverlay();
+        const selector = ${selLiteral};
+        const occurrence = ${occLiteral};
+        if (!selector) return hideOverlay();
 
-        /* Component ids are "c<hex>" or "c<hex>_<n>", so no escaping is needed. */
-        const nodes = document.querySelectorAll('[data-zx-owner="' + componentId + '"]');
-        if (!nodes.length) return hideOverlay();
+        let nodes;
+        try { nodes = document.querySelectorAll(selector); } catch { return hideOverlay(); }
+        const el = nodes[occurrence];
+        if (!el) return hideOverlay();
 
-        /* Union the bounding box of every element the component owns. */
-        let minLeft = Infinity, minTop = Infinity, maxRight = -Infinity, maxBottom = -Infinity;
-        nodes.forEach((el) => {
-            const rect = el.getBoundingClientRect();
-            if (!rect || (rect.width <= 0 && rect.height <= 0)) return;
-            if (rect.left   < minLeft)   minLeft   = rect.left;
-            if (rect.top    < minTop)    minTop    = rect.top;
-            if (rect.right  > maxRight)  maxRight  = rect.right;
-            if (rect.bottom > maxBottom) maxBottom = rect.bottom;
-        });
-
-        if (minLeft === Infinity) return hideOverlay();
-        const width  = maxRight - minLeft;
-        const height = maxBottom - minTop;
-        if (width <= 0 && height <= 0) return hideOverlay();
+        const rect = el.getBoundingClientRect();
+        if (!rect || (rect.width <= 0 && rect.height <= 0)) return hideOverlay();
 
         const overlay = ensureOverlay();
         overlay.style.display = 'block';
-        overlay.style.left = minLeft + 'px';
-        overlay.style.top = minTop + 'px';
-        overlay.style.width = Math.max(1, width) + 'px';
-        overlay.style.height = Math.max(1, height) + 'px';
-        state.activeId = componentId;
+        overlay.style.left = rect.left + 'px';
+        overlay.style.top = rect.top + 'px';
+        overlay.style.width = Math.max(1, rect.width) + 'px';
+        overlay.style.height = Math.max(1, rect.height) + 'px';
+        state.activeId = selector + '#' + occurrence;
         return true;
     })()`;
 }
 
-async function highlightInspectedComponent(componentId: string): Promise<void> {
-    await evalInInspectedWindow(inspectedHighlightScript(componentId));
+async function highlightInspectedComponent(selector: string, occurrence: number): Promise<void> {
+    await evalInInspectedWindow(inspectedHighlightScript(selector, occurrence));
 }
 
 async function clearInspectedComponentHighlight(): Promise<void> {
-    await evalInInspectedWindow(inspectedHighlightScript(null));
+    await evalInInspectedWindow(inspectedHighlightScript(null, 0));
 }
 
-let hoveredComponentId: string | null = null;
+let hoveredKey: string | null = null;
 
 function getHoveredComponentButton(target: EventTarget | null): HTMLElement | null {
     if (!(target instanceof Element)) return null;
     return target.closest('.component-select-btn, .component-select-btn-leaf');
 }
 
-async function startHover(componentId: string): Promise<void> {
-    if (!componentId || hoveredComponentId === componentId) return;
-    hoveredComponentId = componentId;
-    await highlightInspectedComponent(componentId);
+async function startHover(selector: string, occurrence: number): Promise<void> {
+    if (!selector) return;
+    const key = selector + '#' + occurrence;
+    if (hoveredKey === key) return;
+    hoveredKey = key;
+    await highlightInspectedComponent(selector, occurrence);
 }
 
 async function stopHover(): Promise<void> {
-    if (!hoveredComponentId) return;
-    hoveredComponentId = null;
+    if (!hoveredKey) return;
+    hoveredKey = null;
     await clearInspectedComponentHighlight();
 }
 
@@ -226,9 +219,10 @@ window.addEventListener('zx-navigation', async (e: Event) => {
 document.addEventListener('mouseover', async (e: MouseEvent) => {
     const btn = getHoveredComponentButton(e.target);
     if (!btn) return;
-    const componentId = btn.getAttribute('data-owner-id');
-    if (!componentId) return;
-    await startHover(componentId);
+    const selector = btn.getAttribute('data-sel');
+    if (!selector) return;
+    const occurrence = parseInt(btn.getAttribute('data-idx') || '0', 10) || 0;
+    await startHover(selector, occurrence);
 });
 
 document.addEventListener('mouseout', async (e: MouseEvent) => {

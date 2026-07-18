@@ -238,13 +238,6 @@ pub const Component = union(enum) {
         only_components: bool = true,
         include_props: bool = true,
         include_attributes: bool = true,
-        /// Per-id occurrence table giving each non-island component instance a
-        /// unique devtool id (mirrors the server renderer's stamp). Null outside
-        /// the devtool serialization path. See `serializeInstanceId` in devtool.zig.
-        instance_table: ?*devtool.InstanceTable = null,
-        /// True once inside a CSR island subtree; island descendants keep their
-        /// stable `@src` id so client hydration stays consistent.
-        inside_island: bool = false,
     };
 
     pub fn format(
@@ -263,13 +256,7 @@ pub const Component = union(enum) {
         defer arena.deinit();
         const allocator = arena.allocator();
 
-        // Number component instances per-id so the devtool ids match the
-        // renderer's `data-zx-owner` stamps (which count in the same order).
-        var table: devtool.InstanceTable = .{};
-        var opts = options;
-        opts.instance_table = &table;
-
-        var serializable = try devtool.ComponentSerializable.init(allocator, self.*, opts);
+        var serializable = try devtool.ComponentSerializable.init(allocator, self.*, options);
         try serializable.serialize(w);
     }
 };

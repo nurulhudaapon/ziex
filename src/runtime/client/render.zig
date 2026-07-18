@@ -273,13 +273,6 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
 
             const ref_id = ext._ce(@intFromEnum(elem.tag), vnode.id);
 
-            // Dev-only: tag hydrated island elements with their owning component
-            // id (mirrors the server renderer) so the devtool can highlight them.
-            if (devtool_tagging and vnode.owner_component_id.len > 0) {
-                const name = "data-zx-owner";
-                ext._sa(vnode.id, name.ptr, name.len, vnode.owner_component_id.ptr, vnode.owner_component_id.len);
-            }
-
             if (elem.attributes) |attrs| {
                 var has_action_handler = false;
                 var has_method = false;
@@ -425,10 +418,6 @@ const app_opts = @import("app_opts");
 
 /// Base path for the application, read from build options at comptime.
 pub const base_path: ?[]const u8 = app_opts.app_base_path;
-
-/// Dev builds tag hydrated elements with `data-zx-owner` for the devtool.
-/// Compiled out entirely in production.
-const devtool_tagging: bool = std.mem.eql(u8, app_opts.cli_command, "dev");
 
 fn isDomProperty(name: []const u8) bool {
     return std.mem.eql(u8, name, "checked") or

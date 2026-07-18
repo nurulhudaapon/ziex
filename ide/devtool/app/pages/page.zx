@@ -28,8 +28,9 @@ fn fetch() void {
     const host = data.host;
     const path = data.current_path;
     const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://")) host else std.fmt.allocPrint(zx.allocator, "http://{s}", .{host}) catch return;
-    const include_native = if (data.show_native_elements) "1" else "0";
-    const url = std.fmt.allocPrint(zx.allocator, "{s}/.well-known/_zx/devtool?path={s}&include_native={s}", .{ base, path, include_native }) catch return;
+    // Always fetch native elements so every component has a DOM locator; the
+    // `show_native_elements` setting only filters what the tree displays.
+    const url = std.fmt.allocPrint(zx.allocator, "{s}/.well-known/_zx/devtool?path={s}&include_native=1", .{ base, path }) catch return;
     fetched = true;
     _ = zx.fetch(.wasm(&onFetchText), zx.allocator, url, .{ .method = .GET }) catch {};
 }
@@ -74,7 +75,7 @@ pub fn ComponentTree(
     return (
         <div @allocator={ctx.allocator} class="component-tree">
             <div class="component-list">
-                {for (display_components) |comp| (<ComponentItem allocator={ctx.allocator} id={comp.id} name={comp.name} has_children={comp.has_children} children={comp.children} depth={0} selected={std.mem.eql(u8, comp.id, sel)} badge={comp.badge} is_native={comp.is_native} owner_id={comp.owner_id} />)}
+                {for (display_components) |comp| (<ComponentItem allocator={ctx.allocator} id={comp.id} name={comp.name} has_children={comp.has_children} children={comp.children} depth={0} selected={std.mem.eql(u8, comp.id, sel)} badge={comp.badge} is_native={comp.is_native} selector={comp.selector} occurrence={comp.occurrence} />)}
             </div>
         </div>
     );
@@ -204,7 +205,7 @@ fn hasNativeChild(children: []const Component) bool {
     return false;
 }
 
-const ComponentItemProps = struct { id: []const u8, name: []const u8, has_children: bool, children: []const Component, depth: usize = 0, selected: bool = false, badge: []const u8 = "", is_native: bool = false, owner_id: []const u8 = "" };
+const ComponentItemProps = struct { id: []const u8, name: []const u8, has_children: bool, children: []const Component, depth: usize = 0, selected: bool = false, badge: []const u8 = "", is_native: bool = false, selector: []const u8 = "", occurrence: usize = 0 };
 
 fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Component {
     const sel = selected_component;
@@ -212,6 +213,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
     const padding = props.depth * 24 + 16;
     const style_str = std.fmt.allocPrint(allocator, "padding-left: {d}px", .{padding}) catch "";
     const is_selected = std.mem.eql(u8, props.id, sel);
+    const idx_str = std.fmt.allocPrint(allocator, "{d}", .{props.occurrence}) catch "0";
     const item_class = if (is_selected) "component-root" else "component-item";
     const name_class = if (is_selected) "component-name-root" else "component-name";
     const group_class = getComponentGroupClass(props.name, props.has_children, props.children);
@@ -221,7 +223,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
         return (
             <div @allocator={allocator} class={group_class}>
                 <div class={item_class} style={style_str}>
-                    <button value={props.id} data-owner-id={props.owner_id} onclick={handleComponentClick} class="component-select-btn-leaf">
+                    <button value={props.id} data-sel={props.selector} data-idx={idx_str} onclick={handleComponentClick} class="component-select-btn-leaf">
                         <span class="tree-arrow-spacer"></span>
                         <span class="bracket">{"<"}</span>
                         <span class={name_class}>{props.name}</span>
@@ -243,7 +245,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
                     <label for={dom_id} class="component-toggle-label">
                         <span class="tree-arrow">{icons.ChevronRight(allocator)}</span>
                     </label>
-                    <button value={props.id} data-owner-id={props.owner_id} onclick={handleComponentClick} class="component-select-btn">
+                    <button value={props.id} data-sel={props.selector} data-idx={idx_str} onclick={handleComponentClick} class="component-select-btn">
                         <span class="bracket">{"<"}</span>
                         <span class={name_class}>{props.name}</span>
                         <span class="bracket">{">"}</span>
@@ -252,7 +254,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
                 </div>
                 <div class="component-children">
                     {for (props.children) |child| (
-                        <ComponentItem allocator={allocator} id={child.id} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} selected={std.mem.eql(u8, child.id, sel)} badge={child.badge} is_native={child.is_native} owner_id={child.owner_id} />
+                        <ComponentItem allocator={allocator} id={child.id} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} selected={std.mem.eql(u8, child.id, sel)} badge={child.badge} is_native={child.is_native} selector={child.selector} occurrence={child.occurrence} />
                     )}
                 </div>
             </div>
@@ -269,7 +271,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
                     <label for={dom_id} class="component-toggle-label">
                         <span class="tree-arrow">{icons.ChevronRight(allocator)}</span>
                     </label>
-                    <button value={props.id} data-owner-id={props.owner_id} onclick={handleComponentClick} class="component-select-btn">
+                    <button value={props.id} data-sel={props.selector} data-idx={idx_str} onclick={handleComponentClick} class="component-select-btn">
                         <span class="bracket">{"<"}</span>
                         <span class={name_class}>{props.name}</span>
                         <span class="bracket">{">"}</span>
@@ -278,7 +280,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
                 </div>
                 <div class="component-children">
                     {for (props.children) |child| (
-                        <ComponentItem allocator={allocator} id={child.id} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} selected={std.mem.eql(u8, child.id, sel)} badge={child.badge} is_native={child.is_native} owner_id={child.owner_id} />
+                        <ComponentItem allocator={allocator} id={child.id} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} selected={std.mem.eql(u8, child.id, sel)} badge={child.badge} is_native={child.is_native} selector={child.selector} occurrence={child.occurrence} />
                     )}
                 </div>
             </div>
@@ -294,7 +296,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
                 <label for={dom_id} class="component-toggle-label">
                     <span class="tree-arrow">{icons.ChevronRight(allocator)}</span>
                 </label>
-                <button value={props.id} data-owner-id={props.owner_id} onclick={handleComponentClick} class="component-select-btn">
+                <button value={props.id} data-sel={props.selector} data-idx={idx_str} onclick={handleComponentClick} class="component-select-btn">
                     <span class="bracket">{"<"}</span>
                     <span class={name_class}>{props.name}</span>
                     <span class="bracket">{">"}</span>
@@ -303,7 +305,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
             </div>
             <div class="component-children">
                 {for (props.children) |child| (
-                    <ComponentItem allocator={allocator} id={child.id} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} selected={std.mem.eql(u8, child.id, sel)} badge={child.badge} is_native={child.is_native} owner_id={child.owner_id} />
+                    <ComponentItem allocator={allocator} id={child.id} name={child.name} has_children={child.has_children} children={child.children} depth={props.depth + 1} selected={std.mem.eql(u8, child.id, sel)} badge={child.badge} is_native={child.is_native} selector={child.selector} occurrence={child.occurrence} />
                 )}
             </div>
         </div>

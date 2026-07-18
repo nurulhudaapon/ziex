@@ -3,32 +3,6 @@ const zx = @import("../root.zig");
 
 const Allocator = std.mem.Allocator;
 
-/// Per-component-id occurrence counter used to give each non-island component
-/// instance a unique devtool id. Lives on the stack for one render/serialize
-/// pass (no allocation), keyed by the component's short `@src` id. The server
-/// renderer and the devtool serializer each build one and, by visiting each
-/// id's instances in the same order, arrive at identical `c<hex>_<n>` ids.
-pub const InstanceTable = struct {
-    const Entry = struct { id: u32, count: u32 };
-    entries: [512]Entry = undefined,
-    len: usize = 0,
-
-    /// Return the number of prior instances of `id` seen, then record one more.
-    pub fn next(self: *InstanceTable, id: u32) u32 {
-        for (self.entries[0..self.len]) |*e| {
-            if (e.id == id) {
-                defer e.count += 1;
-                return e.count;
-            }
-        }
-        if (self.len < self.entries.len) {
-            self.entries[self.len] = .{ .id = id, .count = 1 };
-            self.len += 1;
-        }
-        return 0;
-    }
-};
-
 pub const ComponentSerializable = struct {
     pub const StateItem = struct {
         key: []const u8,
@@ -210,11 +184,6 @@ pub const ComponentSerializable = struct {
     props: ?[]const StateItem = null,
     attributes: ?[]const AttributeSerializable = null,
     children: ?[]ComponentSerializable = null,
-    /// The owning component's instance id (e.g. "c1a2b3c4"). Set for both
-    /// `component_csr` and `component_fn` nodes. The client and server
-    /// renderers stamp this same id as `data-zx-owner` on the component's
-    /// elements in dev builds, letting the devtool locate and highlight them.
-    csr_id: ?[]const u8 = null,
 
     /// Convert Element.Attribute slice to serializable form (strips handlers)
     fn serializeAttributes(allocator: Allocator, attrs: ?[]const zx.Element.Attribute) !?[]const AttributeSerializable {
@@ -253,59 +222,32 @@ pub const ComponentSerializable = struct {
                 };
             },
             .component_csr => |component_csr| blk: {
-                // Descendants are inside a CSR island: keep their stable `@src`
-                // ids so client hydration stamps match (see serializeInstanceId).
-                var child_opts = options;
-                child_opts.inside_island = true;
                 const children_serializable = if (component_csr.children) |children| blk2: {
                     const serializable = try allocator.alloc(ComponentSerializable, 1);
-                    serializable[0] = try ComponentSerializable.init(allocator, children.*, child_opts);
+                    serializable[0] = try ComponentSerializable.init(allocator, children.*, options);
                     break :blk2 serializable;
                 } else null;
                 break :blk .{
                     .component = component_csr.name,
-                    .csr_id = component_csr.id,
                     .props = if (options.include_props) try serializeProps(allocator, component_csr.getStateItems, component_csr.props_ptr) else null,
                     .children = children_serializable,
                 };
             },
             .component_fn => |comp_fn| blk: {
-                // Assign this instance's id BEFORE recursing so the pre-order
-                // numbering matches the renderer's `data-zx-owner` stamps.
-                const csr_id = serializeInstanceId(allocator, options, comp_fn);
-
                 // Resolve component_fn by calling it, then serialize the result
                 // This avoids serializing anyopaque fields
                 const resolved = try comp_fn.call();
+
                 const resolved_serializable = try ComponentSerializable.init(allocator, resolved, options);
                 const children_slice = try allocator.alloc(ComponentSerializable, 1);
                 children_slice[0] = resolved_serializable;
                 break :blk .{
                     .component = comp_fn.name,
-                    .csr_id = csr_id,
                     .props = if (options.include_props) try serializeProps(allocator, comp_fn.getStateItems, comp_fn.propsPtr) else null,
                     .children = children_slice,
                 };
             },
         };
-    }
-
-    /// Compute a component instance's devtool id. Island descendants use their
-    /// stable `@src`-derived id (so client-side hydration stamps match); every
-    /// other instance gets `c<hex>_<occurrence>`, where the occurrence counts
-    /// prior instances of that *same* component id. The server renderer assigns
-    /// the identical id in the same order, disambiguating list items — and
-    /// because the count is per-id, an unrelated component being visited
-    /// differently by the two walks can't shift it.
-    fn serializeInstanceId(allocator: Allocator, options: zx.Component.SerializeOptions, comp_fn: anytype) []const u8 {
-        if (!options.inside_island) {
-            if (options.instance_table) |table| {
-                const short = comp_fn.id.short();
-                return std.fmt.allocPrint(allocator, "c{x:0>8}_{d}", .{ short, table.next(short) }) catch
-                    comp_fn.id.fmtShort(allocator, "c");
-            }
-        }
-        return comp_fn.id.fmtShort(allocator, "c");
     }
 
     pub fn initChildren(allocator: Allocator, children: []const zx.Component, options: zx.Component.SerializeOptions) anyerror![]ComponentSerializable {
