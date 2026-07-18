@@ -77,9 +77,29 @@ pub const RenderOptions = struct {
     /// Id of the nearest enclosing component, stamped as `data-zx-owner` on
     /// elements when `devtool_tagging` is enabled. Propagated to children.
     owner_id: ?[]const u8 = null,
+    /// Per-id occurrence table giving each non-island component a unique devtool
+    /// id, matching the serializer's numbering. Created at the entry render call.
+    instance_table: ?*zx.util.devtool.InstanceTable = null,
+    /// True once inside a CSR island subtree; island descendants keep their
+    /// stable `@src` id so client hydration stamps match.
+    inside_island: bool = false,
 };
 
 pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions) !void {
+    // On the entry call (dev only), create the per-id instance table once. It
+    // lives on this frame's stack for the whole synchronous recursion; the
+    // table var is scoped to this branch so recursive calls don't each reserve
+    // it (avoiding stack growth on deep trees).
+    if (!@inComptime() and devtool_tagging and options.instance_table == null) {
+        var table: zx.util.devtool.InstanceTable = .{};
+        var opts = options;
+        opts.instance_table = &table;
+        return renderBody(self, writer, opts);
+    }
+    return renderBody(self, writer, options);
+}
+
+fn renderBody(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions) !void {
     switch (self) {
         .none => {
             // Render nothing
@@ -93,16 +113,24 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
         },
         .component_fn => |func| {
             // Children of this component are owned by it: stamp them with its id
-            // (dev-only). Computed once and used for both the cached and direct
-            // render paths below.
+            // (dev-only). Assigned pre-order so the numbering matches the
+            // serializer. Computed once for both the cached and direct paths.
             var child_options = options;
-            if (!@inComptime() and devtool_tagging) child_options.owner_id = func.id.fmtShort(func.allocator, "c");
+            if (!@inComptime() and devtool_tagging) {
+                child_options.owner_id = if (!options.inside_island and options.instance_table != null) blk: {
+                    const short = func.id.short();
+                    break :blk std.fmt.allocPrint(func.allocator, "c{x:0>8}_{d}", .{ short, options.instance_table.?.next(short) }) catch
+                        func.id.fmtShort(func.allocator, "c");
+                } else func.id.fmtShort(func.allocator, "c");
+            }
 
-            // Check for component-level caching
+            // Check for component-level caching. Skipped under devtool tagging so
+            // the render walk always recurses and the instance counter stays in
+            // step with the serializer (a cached subtree wouldn't be numbered).
             if (func.caching) |caching| {
                 const cmp_cache = zx.cache.scoped(.cmp);
 
-                if (caching.ttl.nanoseconds > 0) {
+                if (caching.ttl.nanoseconds > 0 and (@inComptime() or !devtool_tagging)) {
                     // Generate cache key from function pointer + props pointer + optional custom key
                     var key_buf: [128]u8 = undefined;
                     const generated_key = key_blk: {
@@ -139,7 +167,7 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
                     // Render to buffer for caching
                     var buf_writer = std.Io.Writer.Allocating.init(func.allocator);
                     const component = try func.call();
-                    try render(component, &buf_writer.writer, child_options);
+                    try renderBody(component, &buf_writer.writer, child_options);
 
                     const rendered = buf_writer.written();
                     cmp_cache.put(generated_key, rendered, .{ .ttl = caching.ttl }) catch |err| switch (err) {
@@ -154,7 +182,7 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
 
             // No caching or cache miss - render directly
             const component = try func.call();
-            try render(component, writer, child_options);
+            try renderBody(component, writer, child_options);
         },
         .component_csr => |component_csr| {
             // Start comment marker format: <!--$id {"prop":"value"}--> (JSON)
@@ -188,11 +216,13 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
                 }
             }
 
-            // Render SSR content — its elements are owned by this component.
+            // Render SSR content — its elements are owned by this component, and
+            // everything below is inside an island (keep stable `@src` ids).
             if (component_csr.children) |children| {
                 var child_options = options;
+                child_options.inside_island = true;
                 if (!@inComptime() and devtool_tagging) child_options.owner_id = component_csr.id;
-                try render(children.*, writer, child_options);
+                try renderBody(children.*, writer, child_options);
             }
 
             // End comment marker: <!--/$id-->
@@ -209,7 +239,7 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
 
                 // Render fallback content if provided
                 if (elem.fallback) |fallback| {
-                    try render(fallback.*, writer, .{
+                    try renderBody(fallback.*, writer, .{
                         .escaping = options.escaping,
                         .rendering = options.rendering,
                     });
@@ -229,7 +259,7 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
             if (elem.tag == .fragment) {
                 if (elem.children) |children| {
                     for (children) |child| {
-                        try render(child, writer, options);
+                        try renderBody(child, writer, options);
                     }
                 }
                 return;
@@ -329,11 +359,14 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
                     .async_components = options.async_components,
                     .async_counter = options.async_counter,
                     .base_path = options.base_path,
-                    // Elements don't own DOM — children keep the same owner.
+                    // Elements don't own DOM — children keep the same owner and
+                    // devtool numbering context.
                     .owner_id = options.owner_id,
+                    .instance_table = options.instance_table,
+                    .inside_island = options.inside_island,
                 };
                 for (children) |child| {
-                    try render(child, writer, child_options);
+                    try renderBody(child, writer, child_options);
                 }
             }
 

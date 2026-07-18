@@ -128,7 +128,7 @@ function inspectedHighlightScript(componentId: string | null): string {
         const componentId = ${idLiteral};
         if (!componentId) return hideOverlay();
 
-        /* Component ids are always "c" + hex, so no selector escaping is needed. */
+        /* Component ids are "c<hex>" or "c<hex>_<n>", so no escaping is needed. */
         const nodes = document.querySelectorAll('[data-zx-owner="' + componentId + '"]');
         if (!nodes.length) return hideOverlay();
 
