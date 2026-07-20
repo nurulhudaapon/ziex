@@ -637,6 +637,11 @@ const DELEGATED_EVENTS = [
     { domType: 'touchend', eventTypeId: 16 },
     { domType: 'touchmove', eventTypeId: 17 },
     { domType: 'scroll', eventTypeId: 18 },
+    { domType: 'wheel', eventTypeId: 19 },
+    { domType: 'pointerdown', eventTypeId: 20 },
+    { domType: 'pointermove', eventTypeId: 21 },
+    { domType: 'pointerup', eventTypeId: 22 },
+    { domType: 'pointercancel', eventTypeId: 23 },
 ] as const;
 
 const eventHandlerModes = new Map<bigint, number>();
@@ -661,7 +666,10 @@ export function initEventDelegation(bridge: ZxBridge, rootSelector: string = 'bo
             }
         };
 
-        const options = { passive: delegatedEvent.domType.startsWith('touch') || delegatedEvent.domType === 'scroll' };
+        const passive =
+            delegatedEvent.domType.startsWith('touch') ||
+            delegatedEvent.domType === 'scroll';
+        const options = { passive };
         root.addEventListener(delegatedEvent.domType, listener, options);
         // @ts-ignore
         removers.push(() => root.removeEventListener(delegatedEvent.domType, listener, options));

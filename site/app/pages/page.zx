@@ -1,9 +1,6 @@
 const features = [_]Feature{
     .{ .icon_fn = icons.Lightning, .title = "Fast Performance", .description = "Significantly faster at SSR than many other frameworks. Optimized for speed and low latency." },
-    // .{ .icon_fn = icons.Shield, .title = "Deterministic Safety", .description = "Built on Zig's safety features. Zero undefined behavior at runtime. Predictable and reliable." },
     .{ .icon_fn = icons.Code, .title = "Familiar Syntax", .description = "Familiar plain HTML-style markup, with full access to Zig's control flow." },
-    // .{ .icon_fn = icons.Globe, .title = "Edge First", .description = "Native support for WASI and Edge runtimes. Deploy to Cloudflare Workers or Vercel Edge with zero config." },
-    // .{ .icon_fn = icons.Package, .title = "Zero Dependencies", .description = "Self-contained framework. No node_modules, no external runtimes. Just one small binary." },
     .{ .icon_fn = icons.Folder, .title = "File System Routing", .description = "Just files in folders to create routes." },
     .{ .icon_fn = icons.Server, .title = "API Routes", .description = "Create API endpoints by adding route.zig files to your project." },
     .{ .icon_fn = icons.Monitor, .title = "Hybrid Rendering", .description = "Client-side rendering for interactive experiences when you need it." },
@@ -27,89 +24,12 @@ const benchmark_cwv_rows = [_]BenchmarkRow{
     .{ .label = "Leptos", .value = 27, .display = "27%", .url = "https://leptos.dev" },
 };
 
-// Import benchmark data from auto-generated file
 const bench_data = @import("bench.zon");
 const benchfig = @import("benchfig.zon");
 const bench_run = bench_data.run;
 const bench_results = bench_data.results;
 const bench_len = @typeInfo(@TypeOf(bench_results)).@"struct".field_types.len;
 
-// Helper function to format large numbers (e.g., 25153 -> "25k")
-fn formatLargeNumber(n: f64) []const u8 {
-    if (n >= 1000) {
-        const k = n / 1000;
-        if (k >= 10) {
-            return std.fmt.comptimePrint("{d}k", .{@as(u32, @intFromFloat(k))});
-        } else {
-            return std.fmt.comptimePrint("{d:.1}k", .{k});
-        }
-    }
-    return std.fmt.comptimePrint("{d}", .{@as(u32, @intFromFloat(n))});
-}
-
-// Helper function to format memory with 1 decimal place (e.g., 9.8 MB)
-fn formatMemory(mb: f64) []const u8 {
-    return std.fmt.comptimePrint("{d:.1} MB", .{mb});
-}
-
-// Helper function to format requests per second with comma separator
-fn formatRequests(n: f64) []const u8 {
-    const int_val = @as(u32, @intFromFloat(n));
-    if (int_val >= 10000) {
-        const thousands = int_val / 1000;
-        const remainder = int_val % 1000;
-        return std.fmt.comptimePrint("{d},{d:0>3}", .{ thousands, remainder });
-    }
-    if (int_val >= 1000) {
-        const thousands = int_val / 1000;
-        const remainder = int_val % 1000;
-        return std.fmt.comptimePrint("{d},{d}", .{ thousands, remainder });
-    }
-    return std.fmt.comptimePrint("{d}", .{int_val});
-}
-
-// Helper function to format latency in milliseconds
-fn formatLatency(ms: f64) []const u8 {
-    return std.fmt.comptimePrint("{d:.2} ms", .{ms});
-}
-
-// Helper function to format build time in seconds
-fn formatBuildTime(s: f64) []const u8 {
-    const int_s = @as(u32, @intFromFloat(s));
-    if (int_s >= 60) {
-        const mins = int_s / 60;
-        const secs = int_s % 60;
-        return std.fmt.comptimePrint("{d}m {d}s", .{ mins, secs });
-    }
-    return std.fmt.comptimePrint("{d}s", .{int_s});
-}
-
-// Helper function to format image size (e.g., "18 MB", "1.0 GB")
-fn formatImageSize(mb: f64) []const u8 {
-    if (mb >= 1000) {
-        const gb = mb / 1000;
-        return std.fmt.comptimePrint("{d:.1} GB", .{gb});
-    }
-    return std.fmt.comptimePrint("{d} MB", .{@as(u32, @intFromFloat(mb))});
-}
-
-// Helper function to format cold start time in milliseconds
-fn formatColdStart(ms: f64) []const u8 {
-    return std.fmt.comptimePrint("{d} ms", .{@as(u32, @intFromFloat(ms))});
-}
-
-// Helper function to format CPU peak percentage
-fn formatCpuPeak(pct: f64) []const u8 {
-    return std.fmt.comptimePrint("{d:.1}%", .{pct});
-}
-
-// Helper function to format binary size in MB
-fn formatBinarySize(mb: f64) []const u8 {
-    if (mb == 0) return "N/A";
-    return std.fmt.comptimePrint("{d:.1} MB", .{mb});
-}
-
-// Map framework id to its website URL
 fn getFrameworkUrl(comptime id: []const u8) []const u8 {
     if (std.mem.eql(u8, id, "jetzig")) return "https://jetzig.dev";
     if (std.mem.eql(u8, id, "leptos")) return "https://leptos.dev";
@@ -136,13 +56,13 @@ fn buildSsrRows() [bench_len]BenchmarkRow {
         rows[i] = .{
             .label = d.label,
             .value = d.requests_per_sec,
-            .display = formatLargeNumber(d.requests_per_sec),
+            .display = util.formatLargeNumber(d.requests_per_sec),
             .url = getFrameworkUrl(d.id),
             .tooltip_metrics = &[_]TooltipMetric{
                 .{ .label = "Framework", .value = d.label },
-                .{ .label = "Requests/sec", .value = formatRequests(d.requests_per_sec) },
-                .{ .label = "P50 Latency", .value = formatLatency(d.p50_latency_ms) },
-                .{ .label = "P99 Latency", .value = formatLatency(d.p99_latency_ms) },
+                .{ .label = "Requests/sec", .value = util.formatRequests(d.requests_per_sec) },
+                .{ .label = "P50 Latency", .value = util.formatLatency(d.p50_latency_ms) },
+                .{ .label = "P99 Latency", .value = util.formatLatency(d.p99_latency_ms) },
             },
         };
     }
@@ -159,12 +79,12 @@ fn buildMemoryRows() [bench_len]BenchmarkRow {
         rows[i] = .{
             .label = d.label,
             .value = d.peak_memory_mb,
-            .display = formatMemory(d.peak_memory_mb),
+            .display = util.formatMemory(d.peak_memory_mb),
             .url = getFrameworkUrl(d.id),
             .tooltip_metrics = &[_]TooltipMetric{
                 .{ .label = "Framework", .value = d.label },
-                .{ .label = "Idle Memory", .value = formatMemory(d.idle_memory_mb) },
-                .{ .label = "Peak Memory", .value = formatMemory(d.peak_memory_mb) },
+                .{ .label = "Idle Memory", .value = util.formatMemory(d.idle_memory_mb) },
+                .{ .label = "Peak Memory", .value = util.formatMemory(d.peak_memory_mb) },
             },
         };
     }
@@ -181,11 +101,11 @@ fn buildBuildTimeRows() [bench_len]BenchmarkRow {
         rows[i] = .{
             .label = d.label,
             .value = d.build_time_s,
-            .display = formatBuildTime(d.build_time_s),
+            .display = util.formatBuildTime(d.build_time_s),
             .url = getFrameworkUrl(d.id),
             .tooltip_metrics = &[_]TooltipMetric{
                 .{ .label = "Framework", .value = d.label },
-                .{ .label = "Build Time", .value = formatBuildTime(d.build_time_s) },
+                .{ .label = "Build Time", .value = util.formatBuildTime(d.build_time_s) },
             },
         };
     }
@@ -202,12 +122,12 @@ fn buildColdStartRows() [bench_len]BenchmarkRow {
         rows[i] = .{
             .label = d.label,
             .value = d.cold_start_ms,
-            .display = formatColdStart(d.cold_start_ms),
+            .display = util.formatColdStart(d.cold_start_ms),
             .url = getFrameworkUrl(d.id),
             .tooltip_metrics = &[_]TooltipMetric{
                 .{ .label = "Framework", .value = d.label },
-                .{ .label = "Cold Start", .value = formatColdStart(d.cold_start_ms) },
-                .{ .label = "Image Size", .value = formatImageSize(d.image_mb) },
+                .{ .label = "Cold Start", .value = util.formatColdStart(d.cold_start_ms) },
+                .{ .label = "Image Size", .value = util.formatImageSize(d.image_mb) },
             },
         };
     }
@@ -224,12 +144,12 @@ fn buildImageSizeRows() [bench_len]BenchmarkRow {
         rows[i] = .{
             .label = d.label,
             .value = d.image_mb,
-            .display = formatImageSize(d.image_mb),
+            .display = util.formatImageSize(d.image_mb),
             .url = getFrameworkUrl(d.id),
             .tooltip_metrics = &[_]TooltipMetric{
                 .{ .label = "Framework", .value = d.label },
-                .{ .label = "Image Size", .value = formatImageSize(d.image_mb) },
-                .{ .label = "Binary Size", .value = formatBinarySize(d.binary_mb) },
+                .{ .label = "Image Size", .value = util.formatImageSize(d.image_mb) },
+                .{ .label = "Binary Size", .value = util.formatBinarySize(d.binary_mb) },
             },
         };
     }
@@ -246,13 +166,13 @@ fn buildCpuUsageRows() [bench_len]BenchmarkRow {
         rows[i] = .{
             .label = d.label,
             .value = d.cpu_avg_pct,
-            .display = formatCpuPeak(d.cpu_avg_pct),
+            .display = util.formatCpuPeak(d.cpu_avg_pct),
             .url = getFrameworkUrl(d.id),
             .tooltip_metrics = &[_]TooltipMetric{
                 .{ .label = "Framework", .value = d.label },
-                .{ .label = "Avg CPU", .value = formatCpuPeak(d.cpu_avg_pct) },
-                .{ .label = "Peak CPU", .value = formatCpuPeak(d.cpu_peak_pct) },
-                .{ .label = "Requests/sec", .value = formatRequests(d.requests_per_sec) },
+                .{ .label = "Avg CPU", .value = util.formatCpuPeak(d.cpu_avg_pct) },
+                .{ .label = "Peak CPU", .value = util.formatCpuPeak(d.cpu_peak_pct) },
+                .{ .label = "Requests/sec", .value = util.formatRequests(d.requests_per_sec) },
             },
         };
     }
@@ -349,7 +269,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         break :blk 1970 + years_since_epoch;
     };
 
-    // const overview_code = @embedFile("./examples/overview.zx");
     const feature_examples = @embedFile("./examples/feature_examples.zx");
 
     const control_tabs = [_]CodeTab{

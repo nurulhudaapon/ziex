@@ -617,3 +617,69 @@ fn logTimingFmt(comptime label: []const u8, args: anytype, elapsed_ns: u64) void
         elapsed_ms,      color_reset,
     });
 }
+
+pub fn formatLargeNumber(n: f64) []const u8 {
+    if (n >= 1000) {
+        const k = n / 1000;
+        if (k >= 10) {
+            return std.fmt.comptimePrint("{d}k", .{@as(u32, @intFromFloat(k))});
+        } else {
+            return std.fmt.comptimePrint("{d:.1}k", .{k});
+        }
+    }
+    return std.fmt.comptimePrint("{d}", .{@as(u32, @intFromFloat(n))});
+}
+
+pub fn formatMemory(mb: f64) []const u8 {
+    return std.fmt.comptimePrint("{d:.1} MB", .{mb});
+}
+
+pub fn formatRequests(n: f64) []const u8 {
+    const int_val = @as(u32, @intFromFloat(n));
+    if (int_val >= 10000) {
+        const thousands = int_val / 1000;
+        const remainder = int_val % 1000;
+        return std.fmt.comptimePrint("{d},{d:0>3}", .{ thousands, remainder });
+    }
+    if (int_val >= 1000) {
+        const thousands = int_val / 1000;
+        const remainder = int_val % 1000;
+        return std.fmt.comptimePrint("{d},{d}", .{ thousands, remainder });
+    }
+    return std.fmt.comptimePrint("{d}", .{int_val});
+}
+
+pub fn formatLatency(ms: f64) []const u8 {
+    return std.fmt.comptimePrint("{d:.2} ms", .{ms});
+}
+
+pub fn formatBuildTime(s: f64) []const u8 {
+    const int_s = @as(u32, @intFromFloat(s));
+    if (int_s >= 60) {
+        const mins = int_s / 60;
+        const secs = int_s % 60;
+        return std.fmt.comptimePrint("{d}m {d}s", .{ mins, secs });
+    }
+    return std.fmt.comptimePrint("{d}s", .{int_s});
+}
+
+pub fn formatImageSize(mb: f64) []const u8 {
+    if (mb >= 1000) {
+        const gb = mb / 1000;
+        return std.fmt.comptimePrint("{d:.1} GB", .{gb});
+    }
+    return std.fmt.comptimePrint("{d} MB", .{@as(u32, @intFromFloat(mb))});
+}
+
+pub fn formatColdStart(ms: f64) []const u8 {
+    return std.fmt.comptimePrint("{d} ms", .{@as(u32, @intFromFloat(ms))});
+}
+
+pub fn formatCpuPeak(pct: f64) []const u8 {
+    return std.fmt.comptimePrint("{d:.1}%", .{pct});
+}
+
+pub fn formatBinarySize(mb: f64) []const u8 {
+    if (mb == 0) return "N/A";
+    return std.fmt.comptimePrint("{d:.1} MB", .{mb});
+}

@@ -134,6 +134,11 @@ pub const EventType = enum(u8) {
     touchend,
     touchmove,
     scroll,
+    wheel,
+    pointerdown,
+    pointermove,
+    pointerup,
+    pointercancel,
 
     /// Parse event type from attribute name (e.g., "onclick" -> .click)
     pub fn fromAttributeName(name: []const u8) ?EventType {
