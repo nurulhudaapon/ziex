@@ -12,6 +12,8 @@ on:
       - 'vendor/**'
       - 'build.zig'
       - 'build.zig.zon'
+      - '.github/workflows/e2e.yml'
+      
   workflow_dispatch:
     inputs:
       base_url:
@@ -61,7 +63,7 @@ jobs:
 
       - name: Install Playwright Browsers
         working-directory: test/e2e
-        run: npx playwright install --with-deps chromium
+        run: npx playwright install --with-deps
 
 
       - name: Run E2E Tests
