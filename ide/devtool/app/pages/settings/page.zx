@@ -231,8 +231,9 @@ pub fn HostSetting(ctx: *zx.ComponentCtx(HostSettingProps)) zx.Component {
 
 pub fn handleHostInput(ctx: zx.client.Event) void {
     if (ctx.value()) |val| {
-        data.host = zx.allocator.dupe(u8, val) catch val;
-        data.saveSettings();
+        // `val` is already a fresh `zx.allocator` allocation owned by the
+        // slot after this call; `setHost` frees the previous host and persists.
+        data.setHost(val);
         zx.client.rerender();
     }
 }

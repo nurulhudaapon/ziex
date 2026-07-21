@@ -48,15 +48,55 @@ pub var tree_collapsed: bool = false;
 pub var host: []const u8 = "localhost:3000";
 pub var current_path: []const u8 = "/";
 
+/// Heap allocation currently backing `host`, or null while `host` still points
+/// at a static literal. Tracked so reassigning `host` can free the previous
+/// copy without ever calling free() on a literal.
+var host_owned: ?[]const u8 = null;
+
 fn settingsKV() zx.Kv {
     return zx.kv.scoped(.settings_namespace);
+}
+
+/// Store `new` into `slot`, freeing whatever heap allocation the slot
+/// previously owned. `new` must be either null or a heap allocation owned by
+/// `zx.allocator` (e.g. the result of `zx.client.Event.value()`); the slot
+/// takes ownership of it, so do not free `new` afterwards. `owned` tracks the
+/// currently-owned allocation so an initial static-literal value is never
+/// passed to free(); it must start as `null`. When `new` is null the slot is
+/// reset to `fallback` (a literal) and ownership is dropped.
+///
+/// This is the single safe way the devtool mutates the long-lived string
+/// globals it reads back across renders — without it, each keystroke/click
+/// leaked the previous value into the persistent WASM allocator.
+pub fn adopt(owned: *?[]const u8, slot: *[]const u8, new: ?[]const u8, fallback: []const u8) void {
+    if (owned.*) |old| zx.allocator.free(old);
+    if (new) |n| {
+        owned.* = n;
+        slot.* = n;
+    } else {
+        owned.* = null;
+        slot.* = fallback;
+    }
+}
+
+/// Update the connection host from a freshly-allocated value (owned by
+/// `zx.allocator`, e.g. an input event value), freeing the previous host copy,
+/// then persist it.
+pub fn setHost(new: []const u8) void {
+    adopt(&host_owned, &host, new, host);
+    saveSettings();
 }
 
 pub fn loadSettings() bool {
     if (_show_native_elements_loaded) return true;
     show_native_elements = settingsKV().as(zx.allocator, storage_key, bool) catch null orelse true;
     tree_collapsed = settingsKV().as(zx.allocator, tree_collapsed_key, bool) catch null orelse false;
-    host = settingsKV().get(zx.allocator, host_storage_key) catch null orelse host;
+    if (settingsKV().get(zx.allocator, host_storage_key) catch null) |loaded| {
+        // Record ownership so the first `setHost` frees this copy rather than
+        // leaking it.
+        host = loaded;
+        host_owned = loaded;
+    }
     current_path = settingsKV().get(zx.allocator, path_storage_key) catch null orelse current_path;
     _show_native_elements_loaded = true;
     return _show_native_elements_loaded;

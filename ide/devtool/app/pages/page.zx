@@ -1,9 +1,12 @@
 var components: []const data.Component = &.{};
 
 var inputvalue: []const u8 = "";
+var inputvalue_owned: ?[]const u8 = null;
 var stateFilter: []const u8 = "";
+var stateFilter_owned: ?[]const u8 = null;
 
 var selected_component: []const u8 = "0";
+var selected_component_owned: ?[]const u8 = null;
 
 var fetched = false;
 // Helper function to find a component by ID recursively
@@ -27,10 +30,17 @@ fn fetch() void {
     if (!data.loadSettings()) return;
     const host = data.host;
     const path = data.current_path;
-    const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://")) host else std.fmt.allocPrint(zx.allocator, "http://{s}", .{host}) catch return;
+    const host_has_scheme = std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://");
+    const base = if (host_has_scheme) host else std.fmt.allocPrint(zx.allocator, "http://{s}", .{host}) catch return;
+    // `base` is a fresh allocation only when we prefixed a scheme; otherwise it
+    // aliases `host` and must not be freed. `url` is always freshly allocated.
+    // Both are consumed synchronously by `zx.fetch`, so freeing them on return
+    // is safe and avoids leaking them into the persistent allocator.
+    defer if (!host_has_scheme) zx.allocator.free(base);
     // Always fetch native elements so every component has a DOM locator; the
     // `show_native_elements` setting only filters what the tree displays.
     const url = std.fmt.allocPrint(zx.allocator, "{s}/.well-known/_zx/devtool?path={s}&include_native=1", .{ base, path }) catch return;
+    defer zx.allocator.free(url);
     fetched = true;
     _ = zx.fetch(.wasm(&onFetchText), zx.allocator, url, .{ .method = .GET }) catch {};
 }
@@ -114,12 +124,12 @@ pub fn ComponentState(
 }
 
 pub fn handleComponentSearchInput(ctx: zx.client.Event) void {
-    inputvalue = ctx.value() orelse "";
+    data.adopt(&inputvalue_owned, &inputvalue, ctx.value(), "");
     zx.client.rerender();
 }
 
 pub fn handleStateFilterInput(ctx: zx.client.Event) void {
-    stateFilter = ctx.value() orelse "";
+    data.adopt(&stateFilter_owned, &stateFilter, ctx.value(), "");
     zx.client.rerender();
 }
 
@@ -134,8 +144,7 @@ pub fn ComponentStateFilter(
 }
 
 pub fn handleComponentClick(ctx: zx.client.Event) void {
-    const id = ctx.value() orelse "0";
-    selected_component = id;
+    data.adopt(&selected_component_owned, &selected_component, ctx.value(), "0");
     zx.client.rerender();
 }
 

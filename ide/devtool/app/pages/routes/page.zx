@@ -28,8 +28,11 @@ fn fetch() void {
     if (fetched) return;
     if (!data.loadSettings()) return;
     const host = data.host;
-    const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://")) host else std.fmt.allocPrint(zx.allocator, "http://{s}", .{host}) catch return;
+    const host_has_scheme = std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://");
+    const base = if (host_has_scheme) host else std.fmt.allocPrint(zx.allocator, "http://{s}", .{host}) catch return;
+    defer if (!host_has_scheme) zx.allocator.free(base);
     const url = std.fmt.allocPrint(zx.allocator, "{s}/.well-known/_zx/devtool?meta=true", .{base}) catch return;
+    defer zx.allocator.free(url);
     fetched = true;
     _ = zx.fetch(.wasm(&onFetchText), zx.allocator, url, .{ .method = .GET }) catch {};
 }
@@ -122,6 +125,7 @@ pub fn ComponentRotes(
 
 
 var inputvalue: []const u8 = "";
+var inputvalue_owned: ?[]const u8 = null;
 const ComponentSearchInputProps = struct {  };
 pub fn ComponentSearchInput(
     ctx: *zx.ComponentCtx(ComponentSearchInputProps),
@@ -132,7 +136,7 @@ pub fn ComponentSearchInput(
 }
 
 pub fn handleComponentSearchInput(ctx: zx.client.Event) void {
-    inputvalue = ctx.value() orelse "";
+    data.adopt(&inputvalue_owned, &inputvalue, ctx.value(), "");
     zx.client.rerender();
 }
 
