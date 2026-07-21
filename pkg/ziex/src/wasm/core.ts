@@ -69,28 +69,22 @@ export function getMemoryView(): Uint8Array {
     return memoryView!;
 }
 
-/**
- * Cache for WASM string reads keyed by (ptr, len).
- * Attribute names / tag names are Zig string literals whose pointers are
- * stable for the lifetime of the module, so caching avoids repeated
- * TextDecoder.decode calls for the same pointer+length pair.
- */
-const stringCache = new Map<number, string>();
-function stringCacheKey(ptr: number, len: number): number { return ptr * 0x10000 + len; }
-
-/** Read a string from WASM memory */
+/** Read a string from WASM memory. Treats ptr/len as u32 (WASM i32 is signed in JS). */
 export function readString(ptr: number, len: number): string {
-    const key = stringCacheKey(ptr, len);
-    const cached = stringCache.get(key);
-    if (cached !== undefined) return cached;
-    const str = textDecoder.decode(getMemoryView().subarray(ptr, ptr + len));
-    stringCache.set(key, str);
-    return str;
+    const start = ptr >>> 0;
+    const length = len >>> 0;
+    if (length === 0) return "";
+    const view = getMemoryView();
+    if (start + length > view.byteLength) return "";
+    return textDecoder.decode(view.subarray(start, start + length));
 }
 
 /** Write bytes to WASM memory at a specific location */
 export function writeBytes(ptr: number, data: Uint8Array): void {
-    getMemoryView().set(data, ptr);
+    const start = ptr >>> 0;
+    const view = getMemoryView();
+    if (start + data.length > view.byteLength) return;
+    view.set(data, start);
 }
 
 export function wrapPromisingExport<F extends (...args: any[]) => any>(fn: F | undefined): F | undefined {
@@ -214,7 +208,8 @@ export class ZxBridgeCore {
     ): void {
         const handler = this.#fetchCompleteHandler;
         const encoded = typeof body === 'string' ? textEncoder.encode(body) : body;
-        const ptr = this._alloc(encoded.length);
+        const ptr = this._alloc(encoded.length) >>> 0;
+        if (!ptr && encoded.length > 0) return;
         writeBytes(ptr, encoded);
         invokeWasmExport(handler, fetchId, statusCode, ptr, encoded.length, isError ? 1 : 0);
     }
@@ -257,14 +252,19 @@ export class ZxBridgeCore {
 
     writeBytesToWasm(data: Uint8Array): { ptr: number; len: number } {
         if (data.length === 0) return { ptr: 0, len: 0 };
-        const ptr = this._alloc(data.length);
+        const ptr = this._alloc(data.length) >>> 0;
+        if (!ptr) return { ptr: 0, len: 0 };
         writeBytes(ptr, data);
         return { ptr, len: data.length };
     }
 
     /** Log a message from WASM at the given level (0=error, 1=warn, 2=info, 3=debug) */
     static log(level: number, ptr: number, len: number): void {
-        const msg = textDecoder.decode(getMemoryView().subarray(ptr, ptr + len));
+        const start = ptr >>> 0;
+        const length = len >>> 0;
+        const view = getMemoryView();
+        if (start + length > view.byteLength) return;
+        const msg = textDecoder.decode(view.subarray(start, start + length));
         switch (level) {
             case 0: console.error(msg); break;
             case 1: console.warn(msg); break;
@@ -336,11 +336,12 @@ export function writeBytesOut(
     }
     const alloc = allocRef.current;
     if (!alloc) return -1;
-    const ptr = alloc(data.length);
+    const ptr = alloc(data.length) >>> 0;
     if (!ptr) return -1;
     const buffer = getMemory().buffer;
+    if (ptr + data.length > buffer.byteLength) return -1;
     new Uint8Array(buffer, ptr, data.length).set(data);
-    new DataView(buffer).setUint32(outPtrAddr, ptr, true);
+    new DataView(buffer).setUint32(outPtrAddr >>> 0, ptr, true);
     return data.length;
 }
 

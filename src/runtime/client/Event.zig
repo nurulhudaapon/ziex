@@ -42,11 +42,18 @@ pub fn stopImmediatePropagation(self: Event) void {
     self.getEvent().stopImmediatePropagation();
 }
 
-/// Get the input value from event.target.value
+/// Get the input/button value for the element that owns the handler.
+/// Prefers `currentTarget` so nested children (e.g. spans inside a button)
+/// still resolve the bound element's `value`.
 pub fn value(self: Event) ?[]const u8 {
     if (platform_role != .client) return null;
     const event = self.getEvent();
+    if (event.ref.get(js.Object, "currentTarget") catch null) |current| {
+        defer current.deinit();
+        if (current.getAlloc(js.String, zx.allocator, "value") catch null) |v| return v;
+    }
     const target = event.ref.get(js.Object, "target") catch return null;
+    defer target.deinit();
     return target.getAlloc(js.String, zx.allocator, "value") catch null;
 }
 
@@ -59,10 +66,24 @@ pub fn key(self: Event) ?[]const u8 {
 
 /// Get the event data by providing zx.client.events.<Type>.
 pub fn as(self: Event, comptime T: type, allocator: Allocator) T {
+    _ = allocator;
     if (platform_role != .client) return std.mem.zeroInit(T, .{});
     const event = self.getEvent();
     if (comptime (builtin.mode == .Debug)) assertType(T, event);
-    return readStruct(T, allocator, event.ref);
+    return readStruct(T, scratchAllocator(), event.ref);
+}
+
+var scratch_arena: std.heap.ArenaAllocator = undefined;
+var scratch_ready: bool = false;
+
+fn scratchAllocator() Allocator {
+    if (!scratch_ready) {
+        scratch_arena = .init(zx.allocator);
+        scratch_ready = true;
+    } else {
+        _ = scratch_arena.reset(.retain_capacity);
+    }
+    return scratch_arena.allocator();
 }
 
 /// Debug-only guard: validates that requested struct `T` matches the live event.

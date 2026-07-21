@@ -176,10 +176,13 @@ export class ZxBridge extends ZxBridgeCore {
         const ws = this.#websockets.get(wsId);
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
         const memory = getMemoryView();
+        const start = dataPtr >>> 0;
+        const length = dataLen >>> 0;
+        if (start + length > memory.byteLength) return;
         if (isBinary) {
-            ws.send(memory.slice(dataPtr, dataPtr + dataLen));
+            ws.send(memory.slice(start, start + length));
         } else {
-            ws.send(textDecoder.decode(memory.subarray(dataPtr, dataPtr + dataLen)));
+            ws.send(textDecoder.decode(memory.subarray(start, start + length)));
         }
     }
 

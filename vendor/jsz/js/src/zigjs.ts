@@ -129,11 +129,15 @@ export class ZigJS {
   protected valueStringCopy(id: number, ptr: number, max: number): void {
     if (this.memory == null) return;
 
+    const dest = ptr >>> 0;
+    const cap = max >>> 0;
     const val = this.loadValue(id);
+    if (typeof val !== "string") return;
     const bytes = encoder.encode(val);
-    if (bytes.byteLength > max) return;
-    if (bytes.length === 0) return;
-    new Uint8Array(this.memory.buffer, ptr, bytes.length).set(bytes);
+    if (bytes.byteLength > cap || bytes.length === 0) return;
+    const buf = this.memory.buffer;
+    if (dest + bytes.length > buf.byteLength) return;
+    new Uint8Array(buf, dest, bytes.length).set(bytes);
   }
 
   /**
@@ -142,8 +146,10 @@ export class ZigJS {
   protected valueNew(out: number, id: number, argsAddr: number, argsLen: number): void {
     const fn = this.loadValue(id);
     const args = [];
-    for (let i = 0; i < argsLen; i++) {
-      args.push(this.loadRef(argsAddr + (i * 8)));
+    const base = argsAddr >>> 0;
+    const count = argsLen >>> 0;
+    for (let i = 0; i < count; i++) {
+      args.push(this.loadRef(base + (i * 8)));
     }
 
     const result = Reflect.construct(fn, args);
@@ -155,10 +161,12 @@ export class ZigJS {
    * */
   protected funcApply(out: number, id: number, thisRefAddr: number, argsAddr: number, argsLen: number): void {
     const fn = this.loadValue(id);
-    const thisVal = this.loadRef(thisRefAddr);
+    const thisVal = this.loadRef(thisRefAddr >>> 0);
     const args = [];
-    for (let i = 0; i < argsLen; i++) {
-      args.push(this.loadRef(argsAddr + (i * 8)));
+    const base = argsAddr >>> 0;
+    const count = argsLen >>> 0;
+    for (let i = 0; i < count; i++) {
+      args.push(this.loadRef(base + (i * 8)));
     }
 
     const result = Reflect.apply(fn, thisVal, args);
@@ -186,25 +194,27 @@ export class ZigJS {
 
   loadRef(refAddr: number): any {
     if (this.memory == null) return;
+    const addr = refAddr >>> 0;
     const view = new DataView(this.memory.buffer);
 
     // If the value at the memory location is not a NaN, return it directly.
-    const floatVal = view.getFloat64(refAddr, true);
+    const floatVal = view.getFloat64(addr, true);
     if (!isNaN(floatVal)) return floatVal;
 
     // If it is a NaN, we need to get the ID.
-    const id = this.loadRefId(refAddr);
+    const id = this.loadRefId(addr);
     return this.values[id];
   }
 
   loadRefId(refAddr: number): number {
     if (this.memory == null) return 0;
-    return new DataView(this.memory.buffer).getUint32(refAddr, true);
+    return new DataView(this.memory.buffer).getUint32(refAddr >>> 0, true);
   }
 
   storeValue(out: number, val: any): void {
     if (this.memory == null) return;
     const view = new DataView(this.memory.buffer);
+    out = out >>> 0;
 
     if (typeof val === "number") {
       // We have to turn NaNs into a single value (since NaN can be
@@ -274,10 +284,16 @@ export class ZigJS {
   loadString(ptr: number, len: number): string {
     if (this.memory == null) return "";
 
+    // WASM i32 args are signed in JS; pointers/lengths must be treated as u32.
+    const start = ptr >>> 0;
+    const length = Number(len) >>> 0;
+    const buf = this.memory.buffer;
+    if (length === 0 || start + length > buf.byteLength) return "";
+
     // We slice a clamped array instead of using a DataView so that
     // we can also support SharedArrayBuffers. It would probably be slightly
     // more performant (maybe?) to check and use either.
-    const arr = new Uint8ClampedArray(this.memory.buffer, ptr, Number(len));
+    const arr = new Uint8ClampedArray(buf, start, length);
     const data = arr.slice();
     return decoder.decode(data);
   }
