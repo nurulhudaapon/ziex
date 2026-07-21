@@ -178,6 +178,9 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         <ComponentSearchInput @rendering={.client} />
                         {icons.Search(ctx.arena)}
                         <NativeToggle @rendering={.client} />
+                        <button id="zx-devtool-pick-btn" class="native-toggle-btn picker-btn" title="Select an element in the page to inspect" aria-label="Pick an element in the page" aria-pressed="false">
+                            {icons.Inspect(ctx.arena)}
+                        </button>
                     </div>
                 </div>
 

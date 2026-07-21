@@ -1048,6 +1048,21 @@ input:checked+.slider:before {
     color: var(--text-muted);
 }
 
+.picker-btn {
+    border: 1px solid var(--zx-border);
+    color: var(--text-muted);
+}
+
+.picker-btn:hover {
+    color: var(--text-base);
+}
+
+.picker-btn-active {
+    border-color: var(--zx-primary);
+    color: var(--zx-primary);
+    background: color-mix(in srgb, var(--zx-primary) 14%, transparent);
+}
+
 .bracket {
     color: var(--text-muted);
 }

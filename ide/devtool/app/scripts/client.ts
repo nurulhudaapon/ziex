@@ -61,6 +61,8 @@ async function syncLocationFromUrl(href: string): Promise<boolean> {
 }
 
 async function refreshFromNavigation(href?: string): Promise<void> {
+    // A navigation drops the page-injected picker listeners, so leave pick mode.
+    await exitPickMode();
     await clearInspectedComponentHighlight();
     const updatedFromUrl = typeof href === "string" ? await syncLocationFromUrl(href) : false;
     if (!updatedFromUrl) {
@@ -240,6 +242,238 @@ async function focusInspectedComponent(selector: string, occurrence: number): Pr
     await evalInInspectedWindow(inspectedFocusScript(selector, occurrence));
 }
 
+// ---------------------------------------------------------------------------
+// Element picker ("inspect" mode)
+//
+// The inverse of tree-hover highlighting: the user arms the picker, then hovers
+// the *inspected page* to highlight elements and clicks one to select the
+// matching component in the tree. Chrome DevTools' native element picker works
+// the same way.
+//
+// Implemented with the same `inspectedWindow.eval` bridge as the highlight
+// helpers: an injected page script draws the hover overlay and, on click,
+// records the clicked element's ancestor chain (each as the same
+// `selector`/`occurrence` pair the tree uses). The panel polls for that result
+// and clicks the matching tree button. The selector/occurrence scheme must stay
+// identical to `data.zig`'s `buildSelector` + document-order counting.
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a script that toggles the in-page picker. When `enable`, it installs
+ * (once) capture-phase mouse/keyboard listeners that draw the shared overlay on
+ * hover and, on click, swallow the event and stash the clicked element's
+ * selector chain on the shared overlay state for the panel to poll. When
+ * disabled, it deactivates those listeners and restores the cursor/overlay.
+ */
+function inspectedPickerScript(enable: boolean): string {
+    const enableLiteral = JSON.stringify(!!enable);
+    return `(() => {
+        const key = '__ZX_DEVTOOL_HOVER_OVERLAY__';
+        const state = window[key] || (window[key] = { overlay: null, activeId: null });
+        const enable = ${enableLiteral};
+
+        const ensureOverlay = () => {
+            if (state.overlay && state.overlay.isConnected) return state.overlay;
+            const overlay = document.createElement('div');
+            overlay.style.position = 'fixed';
+            overlay.style.zIndex = '2147483647';
+            overlay.style.pointerEvents = 'none';
+            overlay.style.border = '2px solid #41b883';
+            overlay.style.background = 'rgba(65, 184, 131, 0.18)';
+            overlay.style.borderRadius = '4px';
+            overlay.style.boxSizing = 'border-box';
+            overlay.style.display = 'none';
+            document.documentElement.appendChild(overlay);
+            state.overlay = overlay;
+            return overlay;
+        };
+        const hideOverlay = () => { if (state.overlay) state.overlay.style.display = 'none'; };
+        const restoreCursor = () => {
+            if (state.prevCursor !== undefined && state.prevCursor !== null) {
+                document.body.style.cursor = state.prevCursor;
+            }
+            state.prevCursor = null;
+        };
+
+        const buildSelector = (el) => {
+            const tag = el.tagName.toLowerCase();
+            const id = el.getAttribute && el.getAttribute('id');
+            if (id) return tag + '[id="' + id + '"]';
+            const cls = el.getAttribute && el.getAttribute('class');
+            if (cls) return tag + '[class="' + cls + '"]';
+            return tag;
+        };
+        const occurrenceOf = (el, selector) => {
+            let nodes;
+            try { nodes = document.querySelectorAll(selector); } catch { return -1; }
+            for (let i = 0; i < nodes.length; i++) if (nodes[i] === el) return i;
+            return -1;
+        };
+        // Walk from the clicked element up to <html>, emitting each ancestor's
+        // (selector, occurrence). The panel picks the deepest one that maps to a
+        // visible tree node, so hovering nested content still selects the right
+        // component even when native elements are hidden.
+        const chainOf = (el) => {
+            const chain = [];
+            let node = el;
+            while (node && node.nodeType === 1 && node !== document.documentElement) {
+                const selector = buildSelector(node);
+                const occurrence = occurrenceOf(node, selector);
+                if (occurrence >= 0) chain.push({ selector, occurrence });
+                node = node.parentElement;
+            }
+            return chain;
+        };
+        const drawFor = (el) => {
+            if (!el || el.nodeType !== 1) return hideOverlay();
+            const rect = el.getBoundingClientRect();
+            if (!rect || (rect.width <= 0 && rect.height <= 0)) return hideOverlay();
+            const overlay = ensureOverlay();
+            overlay.style.display = 'block';
+            overlay.style.left = rect.left + 'px';
+            overlay.style.top = rect.top + 'px';
+            overlay.style.width = Math.max(1, rect.width) + 'px';
+            overlay.style.height = Math.max(1, rect.height) + 'px';
+        };
+
+        if (!enable) {
+            state.pickerActive = false;
+            hideOverlay();
+            restoreCursor();
+            return false;
+        }
+
+        state.pickerActive = true;
+        state.picked = null;
+        state.cancelled = false;
+        if (state.prevCursor === undefined || state.prevCursor === null) {
+            state.prevCursor = document.body.style.cursor || '';
+        }
+        document.body.style.cursor = 'crosshair';
+
+        if (!state.pickerInstalled) {
+            state.pickerInstalled = true;
+            const onMove = (e) => {
+                if (!state.pickerActive) return;
+                drawFor(e.target);
+            };
+            const onClick = (e) => {
+                if (!state.pickerActive) return;
+                e.preventDefault();
+                e.stopPropagation();
+                const el = e.target;
+                state.picked = (el && el.nodeType === 1) ? chainOf(el) : [];
+                state.pickerActive = false;
+                hideOverlay();
+                restoreCursor();
+            };
+            const onKey = (e) => {
+                if (!state.pickerActive || e.key !== 'Escape') return;
+                e.preventDefault();
+                e.stopPropagation();
+                state.cancelled = true;
+                state.pickerActive = false;
+                hideOverlay();
+                restoreCursor();
+            };
+            document.addEventListener('mousemove', onMove, true);
+            document.addEventListener('click', onClick, true);
+            document.addEventListener('keydown', onKey, true);
+        }
+        return true;
+    })()`;
+}
+
+let pickMode = false;
+let pickPollTimer: ReturnType<typeof setInterval> | null = null;
+
+function setPickButtonActive(active: boolean): void {
+    const btn = document.getElementById('zx-devtool-pick-btn');
+    if (!btn) return;
+    btn.classList.toggle('picker-btn-active', active);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+}
+
+function findTreeButton(selector: string, occurrence: number): HTMLElement | null {
+    const btns = document.querySelectorAll('.component-select-btn, .component-select-btn-leaf');
+    for (const b of Array.from(btns)) {
+        if (
+            b.getAttribute('data-sel') === selector &&
+            (parseInt(b.getAttribute('data-idx') || '0', 10) || 0) === occurrence
+        ) {
+            return b as HTMLElement;
+        }
+    }
+    return null;
+}
+
+/**
+ * Given the clicked element's ancestor chain (deepest first), select the first
+ * ancestor that maps to a tree node by clicking its button — which drives the
+ * framework's own selection + page focus — and scroll it into view in the tree.
+ */
+function selectComponentFromChain(chain: Array<{ selector: string; occurrence: number }>): boolean {
+    for (const item of chain) {
+        const btn = findTreeButton(item.selector, item.occurrence);
+        if (btn) {
+            btn.click();
+            btn.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            return true;
+        }
+    }
+    return false;
+}
+
+async function pollPick(): Promise<void> {
+    const result = await evalInInspectedWindow<
+        { cancelled?: boolean; chain?: Array<{ selector: string; occurrence: number }> } | null
+    >(`(() => {
+        const s = window['__ZX_DEVTOOL_HOVER_OVERLAY__'];
+        if (!s) return null;
+        if (s.cancelled) { s.cancelled = false; return { cancelled: true }; }
+        const p = s.picked;
+        s.picked = null;
+        return p ? { chain: p } : null;
+    })()`);
+
+    if (!result) return;
+    if (result.cancelled) {
+        await exitPickMode();
+        return;
+    }
+    if (result.chain) {
+        selectComponentFromChain(result.chain);
+        await exitPickMode();
+    }
+}
+
+async function enterPickMode(): Promise<void> {
+    if (pickMode) return;
+    pickMode = true;
+    setPickButtonActive(true);
+    await stopHover();
+    await evalInInspectedWindow(inspectedPickerScript(true));
+    pickPollTimer = setInterval(() => {
+        void pollPick();
+    }, 120);
+}
+
+async function exitPickMode(): Promise<void> {
+    if (!pickMode) return;
+    pickMode = false;
+    setPickButtonActive(false);
+    if (pickPollTimer) {
+        clearInterval(pickPollTimer);
+        pickPollTimer = null;
+    }
+    await evalInInspectedWindow(inspectedPickerScript(false));
+}
+
+async function togglePickMode(): Promise<void> {
+    if (pickMode) await exitPickMode();
+    else await enterPickMode();
+}
+
 let hoveredKey: string | null = null;
 
 function getHoveredComponentButton(target: EventTarget | null): HTMLElement | null {
@@ -329,4 +563,21 @@ document.addEventListener('click', async (e: MouseEvent) => {
 
 window.addEventListener('blur', async () => {
     await stopHover();
+});
+
+// Toggle the element picker from the sidebar button. The button is static
+// (server-rendered), so delegation on document survives WASM re-renders.
+document.addEventListener('click', (e: MouseEvent) => {
+    const btn = (e.target as Element)?.closest?.('#zx-devtool-pick-btn');
+    if (!btn) return;
+    e.preventDefault();
+    void togglePickMode();
+});
+
+// Escape cancels picking from the panel side (the page side handles Escape too,
+// for when focus is in the inspected page).
+document.addEventListener('keydown', (e: KeyboardEvent) => {
+    if (e.key === 'Escape' && pickMode) {
+        void exitPickMode();
+    }
 });
