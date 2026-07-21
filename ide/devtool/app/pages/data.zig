@@ -442,24 +442,16 @@ pub fn fromSerializableSlice(allocator: std.mem.Allocator, sc: []const zx.Compon
         }
     }
 
-    var root_page = try allocator.alloc(Component, 1);
-    root_page[0] = Component{
-        .id = "0.root.layout.page",
-        .name = "Page",
-        .children = children,
-        .has_children = children.len > 0,
-        .badge = "",
-        .meta = null,
-        .selector = root_sel,
-        .occurrence = root_occ,
-    };
-
+    // Note: no synthetic "Page" wrapper. The serialized `children` already are
+    // the page's real content (the framework sends the page's own rendered
+    // tree, which has no "Page" node), so an extra Page level would just wrap
+    // every component redundantly. `Layout` holds the content directly.
     var root_layout = try allocator.alloc(Component, 1);
     root_layout[0] = Component{
         .id = "0.root.layout",
         .name = "Layout",
-        .children = root_page,
-        .has_children = root_page.len > 0,
+        .children = children,
+        .has_children = children.len > 0,
         .badge = "",
         .meta = null,
         .selector = root_sel,

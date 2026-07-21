@@ -46,12 +46,14 @@ pub const Component = union(enum) {
         key: ?[]const u8 = null,
         id: zx.x.Id = .undef,
 
-        pub fn init(comptime func: anytype, comptime name: []const u8, allocator: Allocator, props: anytype) ComponentFn {
+        // `name` is the component's display name (e.g. "FeatureCard"), supplied
+        // by the caller at runtime. It is intentionally NOT comptime: it comes
+        // from the transpiled `options.name`, which `@src().fn_name` cannot
+        // provide (that yields the *enclosing* function's name instead).
+        pub fn init(comptime func: anytype, name: []const u8, allocator: Allocator, props: anytype) ComponentFn {
             const FuncInfo = @typeInfo(@TypeOf(func));
             const param_count = FuncInfo.@"fn".param_types.len;
             const fn_name = @typeName(@TypeOf(func));
-
-            const fn_signature = std.fmt.comptimePrint("fn {s} {s}", .{ name, fn_name["fn ".len..] });
 
             // Validation of parameters
             if (param_count != 1 and param_count != 2)
@@ -64,18 +66,18 @@ pub const Component = union(enum) {
                 @hasField(@typeInfo(FirstPropType).pointer.child, "children");
 
             if (!first_is_allocator and !first_is_ctx_ptr)
-                @compileError("Component " ++ fn_signature ++ " must have allocator or *ComponentCtx as the first parameter");
+                @compileError("Component " ++ fn_name ++ " must have allocator or *ComponentCtx as the first parameter");
 
             // If two parameters are passed with allocator first, the props type must be a struct
             if (first_is_allocator and param_count == 2) {
                 const SecondPropType = FuncInfo.@"fn".param_types[1].?;
                 if (@typeInfo(SecondPropType) != .@"struct")
-                    @compileError("Component" ++ fn_signature ++ " must have a struct as the second parameter, found " ++ @typeName(SecondPropType));
+                    @compileError("Component " ++ fn_name ++ " must have a struct as the second parameter, found " ++ @typeName(SecondPropType));
             }
 
             // Context-based components should only have 1 parameter
             if (first_is_ctx_ptr and param_count != 1)
-                @compileError("Component " ++ fn_signature ++ " with *ComponentCtx must have exactly 1 parameter");
+                @compileError("Component " ++ fn_name ++ " with *ComponentCtx must have exactly 1 parameter");
 
             // Allocate props on heap to persist
             const props_copy = if (first_is_allocator and param_count == 2) blk: {

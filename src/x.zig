@@ -35,7 +35,9 @@ const Options = struct {
     fallback: ?*const Component = null,
     caching: ?BuiltinAttribute.Caching = null,
     client: ?ComponentClientOptions = null,
-    /// TODO: component name is available through @src(), we can remove this option
+    /// The component's display name (e.g. "FeatureCard"), emitted by the
+    /// transpiler. This is authoritative: `@src().fn_name` cannot be used here
+    /// because it resolves to the enclosing function, not the component.
     name: ?[]const u8 = null,
 };
 
@@ -542,7 +544,8 @@ const Context = struct {
             @hasField(@typeInfo(FirstPropType).pointer.child, "allocator") and
             @hasField(@typeInfo(FirstPropType).pointer.child, "children");
 
-        const name = if (copts.src) |src| src.fn_name else "";
+        // Use the component's real display name emitted by the transpiler
+        const name = options.name orelse "";
         // Context-based component or function with props parameter
         var comp_fn = if (first_is_ctx_ptr or param_count == 2) blk: {
             const PropsType = if (first_is_ctx_ptr) @TypeOf(props) else FuncInfo.@"fn".param_types[1].?;
