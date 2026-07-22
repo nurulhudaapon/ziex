@@ -72,6 +72,10 @@ export class ZigJS {
    * */
   protected valueGet(out: number, id: number, ptr: number, len: number): void {
     const val = this.loadValue(id);
+    if (val === null || val === undefined || (typeof val !== 'object' && typeof val !== 'function')) {
+      this.storeValue(out, undefined);
+      return;
+    }
     const str = this.loadString(ptr, len);
     const result = Reflect.get(val, str);
     this.storeValue(out, result);
@@ -169,8 +173,17 @@ export class ZigJS {
       args.push(this.loadRef(base + (i * 8)));
     }
 
-    const result = Reflect.apply(fn, thisVal, args);
-    this.storeValue(out, result);
+    if (typeof fn !== 'function') {
+      this.storeValue(out, undefined);
+      return;
+    }
+    try {
+      const result = Reflect.apply(fn, thisVal, args);
+      this.storeValue(out, result);
+    } catch {
+      // Native DOM methods throw Illegal invocation when `this` is wrong/stale.
+      this.storeValue(out, undefined);
+    }
   }
 
   /**

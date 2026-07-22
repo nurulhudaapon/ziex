@@ -13,6 +13,17 @@ pub const HTMLElement = struct {
     ref: JsObject,
     allocator: std.mem.Allocator,
 
+    pub const Rect = struct {
+        x: f64,
+        y: f64,
+        width: f64,
+        height: f64,
+        top: f64,
+        right: f64,
+        bottom: f64,
+        left: f64,
+    };
+
     pub fn init(allocator: std.mem.Allocator, ref: JsObject) HTMLElement {
         return .{
             .ref = ref,
@@ -67,6 +78,37 @@ pub const HTMLElement = struct {
     pub fn getProperty(self: HTMLElement, comptime T: type, name: []const u8) !T {
         if (!is_wasm) return error.NotInBrowser;
         return try self.ref.get(T, name);
+    }
+
+    pub fn focus(self: HTMLElement) !void {
+        if (!is_wasm) return error.NotInBrowser;
+        try self.ref.call(void, "focus", .{});
+    }
+
+    pub fn getBoundingClientRect(self: HTMLElement) !Rect {
+        if (!is_wasm) return error.NotInBrowser;
+        const rect = try self.ref.call(@import("js").Object, "getBoundingClientRect", .{});
+        defer rect.deinit();
+        return .{
+            .x = try rect.get(f64, "x"),
+            .y = try rect.get(f64, "y"),
+            .width = try rect.get(f64, "width"),
+            .height = try rect.get(f64, "height"),
+            .top = try rect.get(f64, "top"),
+            .right = try rect.get(f64, "right"),
+            .bottom = try rect.get(f64, "bottom"),
+            .left = try rect.get(f64, "left"),
+        };
+    }
+
+    pub fn setPointerCapture(self: HTMLElement, pointer_id: i32) !void {
+        if (!is_wasm) return error.NotInBrowser;
+        try self.ref.call(void, "setPointerCapture", .{pointer_id});
+    }
+
+    pub fn releasePointerCapture(self: HTMLElement, pointer_id: i32) !void {
+        if (!is_wasm) return error.NotInBrowser;
+        try self.ref.call(void, "releasePointerCapture", .{pointer_id});
     }
 
     pub fn removeChild(self: HTMLElement, child: HTMLNode) !void {

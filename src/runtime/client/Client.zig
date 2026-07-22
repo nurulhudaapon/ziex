@@ -139,6 +139,9 @@ pub const EventType = enum(u8) {
     pointermove,
     pointerup,
     pointercancel,
+    pointerenter,
+    pointerleave,
+    lostpointercapture,
 
     /// Parse event type from attribute name (e.g., "onclick" -> .click)
     pub fn fromAttributeName(name: []const u8) ?EventType {

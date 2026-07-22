@@ -44,7 +44,12 @@ pub fn data(self: Action, comptime T: type) T {
     var result: T = undefined;
     const type_struct = @typeInfo(T).@"struct";
     inline for (type_struct.field_names, type_struct.field_types) |field_name, field_type| {
-        @field(result, field_name) = parseFormField(field_type, get(self._internal.entries, field_name));
+        @field(result, field_name) = parseFormField(
+            field_type,
+            self.allocator,
+            self._internal.entries,
+            field_name,
+        );
     }
     return result;
 }
@@ -55,6 +60,24 @@ fn get(entries: []const []const u8, name: []const u8) ?[]const u8 {
         if (std.mem.eql(u8, entries[i], name)) return entries[i + 1];
     }
     return null;
+}
+
+fn getAll(allocator: Allocator, entries: []const []const u8, name: []const u8) []const []const u8 {
+    var count: usize = 0;
+    var i: usize = 0;
+    while (i + 1 < entries.len) : (i += 2) {
+        if (std.mem.eql(u8, entries[i], name)) count += 1;
+    }
+
+    const values = allocator.alloc([]const u8, count) catch return &.{};
+    i = 0;
+    var out: usize = 0;
+    while (i + 1 < entries.len) : (i += 2) {
+        if (!std.mem.eql(u8, entries[i], name)) continue;
+        values[out] = entries[i + 1];
+        out += 1;
+    }
+    return values;
 }
 
 /// Stateful client action - provides `state()` access to bound component state.
@@ -76,9 +99,19 @@ pub const Stateful = struct {
 };
 
 // TODO: this is duplicated logic that we can later re-use by isolating to it's own thing and adding tests for it.
-fn parseFormField(comptime T: type, raw: ?[]const u8) T {
+fn parseFormField(
+    comptime T: type,
+    allocator: Allocator,
+    entries: []const []const u8,
+    name: []const u8,
+) T {
+    if (comptime T == []const []const u8) return getAll(allocator, entries, name);
+    return parseScalar(T, get(entries, name));
+}
+
+fn parseScalar(comptime T: type, raw: ?[]const u8) T {
     switch (@typeInfo(T)) {
-        .optional => |opt| return parseFormField(opt.child, raw orelse return null),
+        .optional => |opt| return parseScalar(opt.child, raw orelse return null),
         .pointer => {
             comptime if (T != []const u8) @compileError("ctx.data(): unsupported pointer type: " ++ @typeName(T));
             return raw orelse "";

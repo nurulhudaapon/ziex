@@ -63,12 +63,18 @@ jobs:
 
       - name: Install Playwright Browsers
         working-directory: test/e2e
-        run: npx playwright install --with-deps
+        run: npx playwright install --with-deps chromium webkit
 
-
-      - name: Run E2E Tests
+      - name: Run E2E Tests (Chromium)
         working-directory: test/e2e
-        run: npx playwright test --reporter=html,github --browser all
+        run: npx playwright test --reporter=html,github --browser chromium
+        env:
+          CI: true
+          BASE_URL: ${{ inputs.base_url }}
+
+      - name: Run E2E Tests (WebKit)
+        working-directory: test/e2e
+        run: npx playwright test --reporter=html,github --browser webkit
         env:
           CI: true
           BASE_URL: ${{ inputs.base_url }}
