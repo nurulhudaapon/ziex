@@ -146,17 +146,19 @@ pub const Value = enum(u64) {
     /// Set the value of a property on an object.
     pub fn set(self: Value, n: []const u8, v: Value) !void {
         if (self.typeOf() != .object) return js.Error.InvalidType;
-        ext.valueSet(self.ref().id, n.ptr, n.len, &@as(u64, @bitCast(v.ref())));
+        var value_ref: u64 = @bitCast(v.ref());
+        ext.valueSet(self.ref().id, n.ptr, n.len, &value_ref);
     }
 
     /// Call this value as a function.
     pub fn apply(self: Value, this: Value, args: []Value) !Value {
         if (self.typeOf() != .function) return js.Error.InvalidType;
         var result: u64 = undefined;
+        var this_ref: u64 = @bitCast(this.ref());
         ext.funcApply(
             &result,
             self.ref().id,
-            &@as(u64, @bitCast(this.ref())),
+            &this_ref,
             @ptrCast(args.ptr),
             args.len,
         );

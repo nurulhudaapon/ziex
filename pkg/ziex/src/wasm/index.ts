@@ -176,10 +176,13 @@ export class ZxBridge extends ZxBridgeCore {
         const ws = this.#websockets.get(wsId);
         if (!ws || ws.readyState !== WebSocket.OPEN) return;
         const memory = getMemoryView();
+        const start = dataPtr >>> 0;
+        const length = dataLen >>> 0;
+        if (start + length > memory.byteLength) return;
         if (isBinary) {
-            ws.send(memory.slice(dataPtr, dataPtr + dataLen));
+            ws.send(memory.slice(start, start + length));
         } else {
-            ws.send(textDecoder.decode(memory.subarray(dataPtr, dataPtr + dataLen)));
+            ws.send(textDecoder.decode(memory.subarray(start, start + length)));
         }
     }
 
@@ -637,6 +640,11 @@ const DELEGATED_EVENTS = [
     { domType: 'touchend', eventTypeId: 16 },
     { domType: 'touchmove', eventTypeId: 17 },
     { domType: 'scroll', eventTypeId: 18 },
+    { domType: 'wheel', eventTypeId: 19 },
+    { domType: 'pointerdown', eventTypeId: 20 },
+    { domType: 'pointermove', eventTypeId: 21 },
+    { domType: 'pointerup', eventTypeId: 22 },
+    { domType: 'pointercancel', eventTypeId: 23 },
 ] as const;
 
 const eventHandlerModes = new Map<bigint, number>();
@@ -661,7 +669,10 @@ export function initEventDelegation(bridge: ZxBridge, rootSelector: string = 'bo
             }
         };
 
-        const options = { passive: delegatedEvent.domType.startsWith('touch') || delegatedEvent.domType === 'scroll' };
+        const passive =
+            delegatedEvent.domType.startsWith('touch') ||
+            delegatedEvent.domType === 'scroll';
+        const options = { passive };
         root.addEventListener(delegatedEvent.domType, listener, options);
         // @ts-ignore
         removers.push(() => root.removeEventListener(delegatedEvent.domType, listener, options));

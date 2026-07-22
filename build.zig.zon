@@ -5,7 +5,7 @@
     .repository = "https://github.com/ziex-dev/ziex",
     .homepage = "https://ziex.dev",
     .fingerprint = 0x249409a7bd1c7667,
-    .minimum_zig_version = "0.17.0-dev.1398+cb5635714",
+    .minimum_zig_version = "0.17.0-dev.1422+e863bf3be",
     .dependencies = .{
         // Ziex JS - The JavaScript glue code for csr/wasi/cloudflare/aws-lambda/vercel/react
         .ziex_js = .{

@@ -40,11 +40,19 @@ export class ZxWasiBridge {
     }
 
     #readString(ptr: number, len: number): string {
-        return decoder.decode(this.#view().subarray(ptr, ptr + len));
+        const start = ptr >>> 0;
+        const length = len >>> 0;
+        if (length === 0) return "";
+        const view = this.#view();
+        if (start + length > view.byteLength) return "";
+        return decoder.decode(view.subarray(start, start + length));
     }
 
     #writeBytes(ptr: number, data: Uint8Array): void {
-        this.#view().set(data, ptr);
+        const start = ptr >>> 0;
+        const view = this.#view();
+        if (start + data.length > view.byteLength) return;
+        view.set(data, start);
     }
 
     log(level: number, ptr: number, len: number): void {
