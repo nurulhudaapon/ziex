@@ -697,7 +697,41 @@ test "parse empty string input" {
 test "parse truncated input" {
     const P = struct { a: i32, b: i32 };
     // Missing closing bracket and second field
-    try testing.expectError(error.ExpectedArrayEnd, zxon.parse(P, testing.allocator, "[42", .{}));
+    try testing.expectError(error.ExpectedComma, zxon.parse(P, testing.allocator, "[42", .{}));
+}
+
+test "parse omits trailing default fields" {
+    const Link = struct { label: []const u8, href: []const u8 };
+    const User = struct {
+        username: []const u8,
+        places: []const struct { lat: f64, lng: f64 },
+        links: []const Link = &.{},
+    };
+    const r = try zxon.parse(User, testing.allocator, "[\"miktwon\",[[50.4501,30.5234]]]", .{});
+    defer {
+        testing.allocator.free(r.username);
+        testing.allocator.free(r.places);
+    }
+    try testing.expectEqualStrings("miktwon", r.username);
+    try testing.expectEqual(@as(usize, 1), r.places.len);
+    try testing.expectEqual(@as(usize, 0), r.links.len);
+}
+
+test "parse omits multiple trailing defaults" {
+    const P = struct {
+        required: i32,
+        opt_a: bool = false,
+        opt_b: []const u8 = "",
+    };
+    const r = try zxon.parse(P, testing.allocator, "[7]", .{});
+    try testing.expectEqual(@as(i32, 7), r.required);
+    try testing.expect(!r.opt_a);
+    try testing.expectEqualStrings("", r.opt_b);
+}
+
+test "parse missing required field when array ends early" {
+    const P = struct { a: i32, b: i32 };
+    try testing.expectError(error.MissingRequiredField, zxon.parse(P, testing.allocator, "[42]", .{}));
 }
 
 test "parse empty struct" {
