@@ -1,3 +1,4 @@
+const std = @import("std");
 const zx = @import("../../root.zig");
 const reactivity = @import("../client/reactivity.zig");
 
@@ -18,12 +19,14 @@ pub const ProxyContext = struct {
     response: Response,
     allocator: Allocator,
     arena: Allocator,
+    /// Process I/O passed to `App.init` by the user.
+    io: std.Io,
 
     _aborted: bool = false,
     _state_ptr: ?*const anyopaque = null,
 
-    pub fn init(request: Request, response: Response, allocator: Allocator, arena: Allocator) ProxyContext {
-        return .{ .request = request, .response = response, .allocator = allocator, .arena = arena };
+    pub fn init(request: Request, response: Response, allocator: Allocator, arena: Allocator, io: std.Io) ProxyContext {
+        return .{ .request = request, .response = response, .allocator = allocator, .arena = arena, .io = io };
     }
 
     pub fn state(self: *ProxyContext, value: anytype) void {

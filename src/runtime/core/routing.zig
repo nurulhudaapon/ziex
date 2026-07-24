@@ -14,13 +14,16 @@ pub const BaseContext = struct {
     allocator: std.mem.Allocator,
     /// Arena allocator cleared automatically after the request is processed.
     arena: std.mem.Allocator,
+    /// Process I/O passed to `App.init` by the user.
+    io: std.Io,
 
-    pub fn init(request: Request, response: Response, alloc: std.mem.Allocator) Self {
+    pub fn init(request: Request, response: Response, alloc: std.mem.Allocator, io: std.Io) Self {
         return .{
             .request = request,
             .response = response,
             .allocator = alloc,
             .arena = request.arena,
+            .io = io,
         };
     }
 
@@ -75,15 +78,18 @@ pub const ErrorContext = struct {
     allocator: std.mem.Allocator,
     /// Arena allocator for request-scoped allocations
     arena: std.mem.Allocator,
+    /// Process I/O passed to `App.init` by the user.
+    io: std.Io,
     /// The error that occurred
     err: anyerror,
 
-    pub fn init(request: Request, response: Response, alloc: std.mem.Allocator, err: anyerror) ErrorContext {
+    pub fn init(request: Request, response: Response, alloc: std.mem.Allocator, io: std.Io, err: anyerror) ErrorContext {
         return .{
             .request = request,
             .response = response,
             .allocator = alloc,
             .arena = request.arena,
+            .io = io,
             .err = err,
         };
     }
@@ -224,24 +230,28 @@ pub const RouteContext = struct {
     socket: Socket,
     allocator: std.mem.Allocator,
     arena: std.mem.Allocator,
+    /// Process I/O passed to `App.init` by the user.
+    io: std.Io,
 
-    pub fn init(request: Request, response: Response, alloc: std.mem.Allocator) Self {
+    pub fn init(request: Request, response: Response, alloc: std.mem.Allocator, io: std.Io) Self {
         return .{
             .request = request,
             .response = response,
             .socket = .{},
             .allocator = alloc,
             .arena = request.arena,
+            .io = io,
         };
     }
 
-    pub fn initWithSocket(request: Request, response: Response, socket: Socket, alloc: std.mem.Allocator) Self {
+    pub fn initWithSocket(request: Request, response: Response, socket: Socket, alloc: std.mem.Allocator, io: std.Io) Self {
         return .{
             .request = request,
             .response = response,
             .socket = socket,
             .allocator = alloc,
             .arena = request.arena,
+            .io = io,
         };
     }
 
@@ -276,6 +286,8 @@ pub fn SocketCtx(comptime DataType: type) type {
         allocator: std.mem.Allocator,
         /// Arena allocator for request-scoped allocations
         arena: std.mem.Allocator,
+        /// Process I/O passed to `App.init` by the user.
+        io: std.Io,
 
         const Self = @This();
 
@@ -299,6 +311,8 @@ pub fn SocketOpenCtx(comptime DataType: type) type {
         allocator: std.mem.Allocator,
         /// Arena allocator for request-scoped allocations
         arena: std.mem.Allocator,
+        /// Process I/O passed to `App.init` by the user.
+        io: std.Io,
 
         const Self = @This();
 
@@ -322,6 +336,8 @@ pub fn SocketCloseCtx(comptime DataType: type) type {
         allocator: std.mem.Allocator,
         /// Arena allocator for request-scoped allocations
         arena: std.mem.Allocator,
+        /// Process I/O passed to `App.init` by the user.
+        io: std.Io,
 
         const Self = @This();
 

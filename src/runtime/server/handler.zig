@@ -142,14 +142,14 @@ pub fn Handler(comptime AppCtxType: type) type {
             else
                 zx.Router.findRoute(path, .{ .match = .exact });
 
-            const proxy_result = core_handler.executeNotFoundProxy(path, abstract_req, abstract_res, req.arena);
+            const proxy_result = core_handler.executeNotFoundProxy(path, abstract_req, abstract_res, req.arena, self.io);
             if (proxy_result.aborted) {
                 ProxyStatus.markAborted();
                 return;
             }
             if (proxy_result.state_ptr != null) ProxyStatus.markExecuted();
 
-            const component = core_handler.prepareNotFound(http, path, abstract_req, abstract_res, req.arena, matched_route);
+            const component = core_handler.prepareNotFound(http, path, abstract_req, abstract_res, req.arena, self.io, matched_route);
             try self.emitHtmlOrPlain(req, res, component);
         }
 
@@ -159,7 +159,7 @@ pub fn Handler(comptime AppCtxType: type) type {
             const abstract_res = httpz_backend.createResponse(&hctx, req.arena);
             const http = hctx.http();
 
-            const component = core_handler.prepareError(http, req.url.path, abstract_req, abstract_res, req.arena, err);
+            const component = core_handler.prepareError(http, req.url.path, abstract_req, abstract_res, req.arena, self.io, err);
             self.emitHtmlOrPlain(req, res, component) catch {
                 res.body = "500 Internal Server Error";
             };
@@ -291,6 +291,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                 .method = abstract_req.method,
                 .allocator = allocator,
                 .arena = req.arena,
+                .io = self.io,
                 .base_path = app_opts.app_base_path,
                 .app_ctx = @ptrCast(self.app_ctx),
                 .socket = socket,
@@ -337,6 +338,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                                     .socket_open_handler = handlers.socket_open,
                                     .socket_close_handler = handlers.socket_close,
                                     .allocator = allocator,
+                                    .io = self.io,
                                     .upgrade_data = upgrade_ctx.upgrade_data,
                                 };
                                 if (try httpz.upgradeWebsocket(WebsocketHandler, req, res, ws_ctx) == false) {
@@ -376,8 +378,7 @@ pub fn Handler(comptime AppCtxType: type) type {
         }
 
         fn resolveStaticParams(self: *Self, allocator_arg: Allocator, static_fn: zx.StaticFn) ![]const []const zx.StaticParam {
-            _ = self;
-            var ctx = zx.StaticContext.init(allocator_arg);
+            var ctx = zx.StaticContext.init(allocator_arg, self.io);
             try static_fn(&ctx);
             return try ctx.params.entries.toOwnedSlice(allocator_arg);
         }
@@ -536,6 +537,7 @@ pub fn Handler(comptime AppCtxType: type) type {
             socket_open_handler: ?ServerApp.SocketOpenHandler = null,
             socket_close_handler: ?ServerApp.SocketCloseHandler = null,
             allocator: std.mem.Allocator = std.heap.page_allocator,
+            io: std.Io = .failing,
             /// Copied user data bytes passed during upgrade
             upgrade_data: ?[]const u8 = null,
         };
@@ -546,6 +548,7 @@ pub fn Handler(comptime AppCtxType: type) type {
             socket_open_handler: ?ServerApp.SocketOpenHandler,
             socket_close_handler: ?ServerApp.SocketCloseHandler,
             ws_allocator: std.mem.Allocator,
+            io: std.Io,
             upgrade_data: ?[]const u8,
             /// Subscriber data for pub/sub (stored directly on connection)
             subscriber: pubsub.SubscriberData,
@@ -557,6 +560,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                     .socket_open_handler = ctx.socket_open_handler,
                     .socket_close_handler = ctx.socket_close_handler,
                     .ws_allocator = ctx.allocator,
+                    .io = ctx.io,
                     .upgrade_data = ctx.upgrade_data,
                     .subscriber = pubsub.SubscriberData.init(conn, ctx.allocator),
                 };
@@ -566,7 +570,7 @@ pub fn Handler(comptime AppCtxType: type) type {
             pub fn afterInit(self: *WebsocketHandler) !void {
                 if (self.socket_open_handler) |handler| {
                     const socket = self.createSocket();
-                    handler(socket, self.upgrade_data, self.ws_allocator, self.ws_allocator) catch |err| {
+                    handler(socket, self.upgrade_data, self.ws_allocator, self.ws_allocator, self.io) catch |err| {
                         log.err("SocketOpen handler error: {}", .{err});
                     };
                 }
@@ -581,7 +585,7 @@ pub fn Handler(comptime AppCtxType: type) type {
 
                 if (self.socket_handler) |handler| {
                     const socket = self.createSocket();
-                    handler(socket, data, msg_type, self.upgrade_data, self.ws_allocator, self.ws_allocator) catch |err| {
+                    handler(socket, data, msg_type, self.upgrade_data, self.ws_allocator, self.ws_allocator, self.io) catch |err| {
                         log.err("Socket handler error: {}", .{err});
                     };
                 } else {
@@ -597,7 +601,7 @@ pub fn Handler(comptime AppCtxType: type) type {
 
                 if (self.socket_close_handler) |handler| {
                     const socket = self.createSocket();
-                    handler(socket, self.upgrade_data, self.ws_allocator);
+                    handler(socket, self.upgrade_data, self.ws_allocator, self.io);
                 }
 
                 // Free the upgrade_data that was allocated with page_allocator during upgrade

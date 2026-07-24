@@ -183,6 +183,7 @@ fn Counter(allocator: zx.Allocator) zx.Component {
         .response = .{ .arena = allocator },
         .allocator = allocator,
         .arena = allocator,
+        .io = std.Io.failing,
     };
     const counter_page = CounterPage(ctx);
     return (

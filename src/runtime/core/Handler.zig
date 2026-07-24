@@ -1,5 +1,4 @@
 const std = @import("std");
-const builtin = @import("builtin");
 const zx = @import("../../root.zig");
 
 const Router = zx.Router;
@@ -44,18 +43,18 @@ pub const ApiResult = union(enum) {
 };
 
 /// Execute cascading + page-local proxy chain for a page route.
-pub fn executePageProxy(route: *const Route, request: Request, response: Response, arena: Allocator) ProxyResult {
-    return Router.executeProxyChain(route.path, route.page_proxy, request, response, arena);
+pub fn executePageProxy(route: *const Route, request: Request, response: Response, arena: Allocator, io: std.Io) ProxyResult {
+    return Router.executeProxyChain(route.path, route.page_proxy, request, response, arena, io);
 }
 
 /// Execute cascading + route-local proxy chain for an API route.
-pub fn executeRouteProxy(route: *const Route, request: Request, response: Response, arena: Allocator) ProxyResult {
-    return Router.executeProxyChain(route.path, route.route_proxy, request, response, arena);
+pub fn executeRouteProxy(route: *const Route, request: Request, response: Response, arena: Allocator, io: std.Io) ProxyResult {
+    return Router.executeProxyChain(route.path, route.route_proxy, request, response, arena, io);
 }
 
 /// Execute cascading proxy chain for not-found handling (no local proxy).
-pub fn executeNotFoundProxy(pathname: []const u8, request: Request, response: Response, arena: Allocator) ProxyResult {
-    return Router.executeProxyChain(pathname, null, request, response, arena);
+pub fn executeNotFoundProxy(pathname: []const u8, request: Request, response: Response, arena: Allocator, io: std.Io) ProxyResult {
+    return Router.executeProxyChain(pathname, null, request, response, arena, io);
 }
 
 /// Handle a page request.
@@ -75,12 +74,13 @@ pub fn handlePage(
     response: Response,
     allocator: Allocator,
     arena: Allocator,
+    io: std.Io,
     app_ctx: ?*anyopaque,
     proxy_state_ptr: ?*const anyopaque,
     base_path: ?[]const u8,
 ) !PageResult {
     const app_ptr: ?*const anyopaque = if (app_ctx) |p| @ptrCast(p) else null;
-    const pagectx = zx.PageContext.init(request, response, allocator);
+    const pagectx = zx.PageContext.init(request, response, allocator, io);
 
     const page_fn = route.page orelse return .not_found;
 
@@ -111,7 +111,7 @@ pub fn handlePage(
     };
 
     // -- Apply layout hierarchy --
-    const layoutctx = zx.LayoutContext.init(request, response, allocator);
+    const layoutctx = zx.LayoutContext.init(request, response, allocator, io);
     page_component = Router.applyLayouts(route, request.pathname, layoutctx, page_component, app_ptr, proxy_state_ptr);
 
     // -- Inject build-time HTML (scripts, styles, etc.) --
@@ -135,6 +135,7 @@ pub fn handleApi(
     request: Request,
     response: Response,
     allocator: Allocator,
+    io: std.Io,
     app_ctx: ?*anyopaque,
     proxy_state_ptr: ?*const anyopaque,
     socket: zx.Socket,
@@ -146,10 +147,10 @@ pub fn handleApi(
 
     const app_ptr: ?*const anyopaque = if (app_ctx) |p| @ptrCast(p) else null;
     if (handlers.socket != null) {
-        const routectx = zx.RouteContext.initWithSocket(request, response, socket, allocator);
+        const routectx = zx.RouteContext.initWithSocket(request, response, socket, allocator, io);
         route_fn(routectx, app_ptr, proxy_state_ptr) catch |err| return .{ .handler_error = err };
     } else {
-        const routectx = zx.RouteContext.init(request, response, allocator);
+        const routectx = zx.RouteContext.init(request, response, allocator, io);
         route_fn(routectx, app_ptr, proxy_state_ptr) catch |err| return .{ .handler_error = err };
     }
 
@@ -163,9 +164,10 @@ pub fn renderNotFound(
     request: Request,
     response: Response,
     allocator: Allocator,
+    io: std.Io,
     matched_route: ?*const Route,
 ) ?Component {
-    return Router.renderNotFoundComponent(allocator, request, response, pathname, matched_route);
+    return Router.renderNotFoundComponent(allocator, request, response, io, pathname, matched_route);
 }
 
 /// Render an error page with layout hierarchy.
@@ -175,9 +177,10 @@ pub fn renderError(
     request: Request,
     response: Response,
     allocator: Allocator,
+    io: std.Io,
     err: anyerror,
 ) ?Component {
-    return Router.renderErrorComponent(allocator, request, response, pathname, err);
+    return Router.renderErrorComponent(allocator, request, response, io, pathname, err);
 }
 
 /// Set 404 status/content-type and build the notfound component (if any).
@@ -188,11 +191,12 @@ pub fn prepareNotFound(
     request: Request,
     response: Response,
     allocator: Allocator,
+    io: std.Io,
     matched_route: ?*const Route,
 ) ?Component {
     http.resSetStatus(404);
     http.resHeaderSet("Content-Type", "text/html");
-    if (renderNotFound(pathname, request, response, allocator, matched_route)) |cmp| {
+    if (renderNotFound(pathname, request, response, allocator, io, matched_route)) |cmp| {
         return cmp;
     }
     http.resSetBody("404 Not Found");
@@ -207,11 +211,12 @@ pub fn prepareError(
     request: Request,
     response: Response,
     allocator: Allocator,
+    io: std.Io,
     err: anyerror,
 ) ?Component {
     http.resSetStatus(500);
     http.resHeaderSet("Content-Type", "text/html");
-    if (renderError(pathname, request, response, allocator, err)) |cmp| {
+    if (renderError(pathname, request, response, allocator, io, err)) |cmp| {
         return cmp;
     }
     http.resSetBody("500 Internal Server Error");

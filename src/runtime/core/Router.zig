@@ -51,8 +51,9 @@ pub fn executeProxyChain(
     req: zx.server.Request,
     res: zx.server.Response,
     arena: std.mem.Allocator,
+    io: std.Io,
 ) ProxyResult {
-    var proxy_ctx = zx.ProxyContext.init(req, res, arena, arena);
+    var proxy_ctx = zx.ProxyContext.init(req, res, arena, arena, io);
     var proxies: [16]ServerApp.ProxyHandler = undefined;
     var count: usize = 0;
 
@@ -330,8 +331,9 @@ pub fn executeCascadingProxies(
     req: zx.server.Request,
     res: zx.server.Response,
     arena: std.mem.Allocator,
+    io: std.Io,
 ) ProxyResult {
-    var proxy_ctx = zx.ProxyContext.init(req, res, arena, arena);
+    var proxy_ctx = zx.ProxyContext.init(req, res, arena, arena, io);
 
     var proxies: [16]ServerApp.ProxyHandler = undefined;
     var count: usize = 0;
@@ -404,8 +406,9 @@ pub fn executeLocalProxy(
     req: zx.server.Request,
     res: zx.server.Response,
     arena: std.mem.Allocator,
+    io: std.Io,
 ) ProxyResult {
-    var proxy_ctx = zx.ProxyContext.init(req, res, arena, arena);
+    var proxy_ctx = zx.ProxyContext.init(req, res, arena, arena, io);
     proxy_ctx._state_ptr = parent_result.state_ptr;
     proxy_fn(&proxy_ctx) catch {};
     if (proxy_ctx.isAborted()) {
@@ -582,18 +585,20 @@ pub fn renderErrorComponent(
     arena: std.mem.Allocator,
     req: zx.server.Request,
     res: zx.server.Response,
+    io: std.Io,
     path: []const u8,
     err: anyerror,
 ) ?Component {
     const route = findRoute(path, .{ .match = .closest, .has_error = true }) orelse return null;
     const err_fn = route.@"error" orelse return null;
 
-    const errorctx = zx.ErrorContext.init(req, res, arena, err);
+    const errorctx = zx.ErrorContext.init(req, res, arena, io, err);
     const layoutctx = zx.LayoutContext{
         .request = req,
         .response = res,
         .allocator = arena,
         .arena = arena,
+        .io = io,
     };
 
     var component = err_fn(errorctx);
@@ -607,6 +612,7 @@ pub fn renderNotFoundComponent(
     arena: std.mem.Allocator,
     req: zx.server.Request,
     res: zx.server.Response,
+    io: std.Io,
     path: []const u8,
     matched_route: ?*const Route,
 ) ?Component {
@@ -628,12 +634,14 @@ pub fn renderNotFoundComponent(
         .response = res,
         .allocator = arena,
         .arena = arena,
+        .io = io,
     };
     const layoutctx = zx.LayoutContext{
         .request = req,
         .response = res,
         .allocator = arena,
         .arena = arena,
+        .io = io,
     };
 
     var component = nf_fn(notfoundctx);
@@ -649,6 +657,8 @@ pub const HandleOptions = struct {
     method: zx.server.Request.Method,
     allocator: std.mem.Allocator,
     arena: std.mem.Allocator,
+    /// Process I/O passed to `App.init` by the user.
+    io: std.Io,
     base_path: ?[]const u8 = null,
     /// App context pointer (native server). WASI passes null.
     app_ctx: ?*anyopaque = null,
@@ -683,6 +693,7 @@ pub fn handle(opts: HandleOptions) !HandleResult {
     const pathname = opts.pathname;
     const allocator = opts.allocator;
     const arena = opts.arena;
+    const io = opts.io;
 
     const route_match = matchRoute(pathname, .{ .match = .exact });
     const matched_route = if (route_match) |m| m.route else null;
@@ -692,7 +703,7 @@ pub fn handle(opts: HandleOptions) !HandleResult {
     if (matched_route) |route| {
         // -- Proxy chain --
         const local_proxy = route.page_proxy orelse route.route_proxy;
-        proxy_result = executeProxyChain(pathname, local_proxy, request, response, arena);
+        proxy_result = executeProxyChain(pathname, local_proxy, request, response, arena, io);
         if (proxy_result.aborted) return .{ .outcome = .response_ready, .proxy = proxy_result };
 
         // -- Page (action/event dispatch + render) --
@@ -702,6 +713,7 @@ pub fn handle(opts: HandleOptions) !HandleResult {
             response,
             allocator,
             arena,
+            io,
             opts.app_ctx,
             proxy_result.state_ptr,
             opts.base_path,
@@ -731,7 +743,7 @@ pub fn handle(opts: HandleOptions) !HandleResult {
                 return .{ .outcome = .response_ready, .proxy = proxy_result };
             },
             .page_error => |err| {
-                if (core_handler.prepareError(http, pathname, request, response, allocator, err)) |cmp| {
+                if (core_handler.prepareError(http, pathname, request, response, allocator, io, err)) |cmp| {
                     return .{ .outcome = .{ .component = .{ .component = cmp, .streaming = false } }, .proxy = proxy_result };
                 }
                 return .{ .outcome = .response_ready, .proxy = proxy_result };
@@ -758,6 +770,7 @@ pub fn handle(opts: HandleOptions) !HandleResult {
                     request,
                     response,
                     allocator,
+                    io,
                     opts.app_ctx,
                     proxy_result.state_ptr,
                     opts.socket,
@@ -766,7 +779,7 @@ pub fn handle(opts: HandleOptions) !HandleResult {
                 switch (api_result) {
                     .handler_error => |err| {
                         if (!opts.socket.isUpgraded()) {
-                            if (core_handler.prepareError(http, pathname, request, response, allocator, err)) |cmp| {
+                            if (core_handler.prepareError(http, pathname, request, response, allocator, io, err)) |cmp| {
                                 return .{ .outcome = .{ .component = .{ .component = cmp, .streaming = false } }, .proxy = proxy_result };
                             }
                             return .{ .outcome = .response_ready, .proxy = proxy_result };
@@ -783,13 +796,13 @@ pub fn handle(opts: HandleOptions) !HandleResult {
     }
 
     // -- Not found --
-    const nf_proxy = core_handler.executeNotFoundProxy(pathname, request, response, arena);
+    const nf_proxy = core_handler.executeNotFoundProxy(pathname, request, response, arena, io);
     if (nf_proxy.aborted) {
         return .{ .outcome = .response_ready, .proxy = nf_proxy };
     }
     if (nf_proxy.state_ptr != null) proxy_result = nf_proxy;
 
-    const nf_component = core_handler.prepareNotFound(http, pathname, request, response, allocator, matched_route);
+    const nf_component = core_handler.prepareNotFound(http, pathname, request, response, allocator, io, matched_route);
     return .{ .outcome = .{ .not_found = .{ .component = nf_component } }, .proxy = proxy_result };
 }
 

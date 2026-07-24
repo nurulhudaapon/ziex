@@ -132,6 +132,7 @@ pub fn run(process_init: std.process.Init) !void {
         .method = method,
         .allocator = allocator,
         .arena = allocator,
+        .io = process_init.io,
         .base_path = base_path,
         .app_ctx = null,
         .socket = socket,
@@ -157,12 +158,12 @@ pub fn run(process_init: std.process.Init) !void {
                 var shell_writer = std.Io.Writer.Allocating.init(allocator);
                 const async_components = Router.streamComponent(component, allocator, &shell_writer.writer, base_path) catch |stream_err| switch (stream_err) {
                     error.NotFound => {
-                        try emitNotFoundPage(stdout, stderr, &backend, http, pathname, request, response, allocator, matched);
+                        try emitNotFoundPage(stdout, stderr, &backend, http, pathname, request, response, allocator, process_init.io, matched);
                         return;
                     },
                     else => {
                         // Fallback: render the whole page at once.
-                        try emitComponentBuffered(stdout, stderr, &backend, &page_cache, cache_status, request, response, http, pathname, allocator, matched, &component);
+                        try emitComponentBuffered(stdout, stderr, &backend, &page_cache, cache_status, request, response, http, pathname, allocator, process_init.io, matched, &component);
                         return;
                     },
                 };
@@ -182,13 +183,13 @@ pub fn run(process_init: std.process.Init) !void {
                 return;
             }
 
-            try emitComponentBuffered(stdout, stderr, &backend, &page_cache, cache_status, request, response, http, pathname, allocator, matched, &component);
+            try emitComponentBuffered(stdout, stderr, &backend, &page_cache, cache_status, request, response, http, pathname, allocator, process_init.io, matched, &component);
         },
 
         .ws_upgraded => {
             const upgrade_data = backend.upgradeData();
             if (handlers.?.socket_open) |open_fn| {
-                open_fn(socket, upgrade_data, allocator, allocator) catch {};
+                open_fn(socket, upgrade_data, allocator, allocator, process_init.io) catch {};
             }
 
             const recv_buf = allocator.alloc(u8, 65536) catch return;
@@ -198,12 +199,12 @@ pub fn run(process_init: std.process.Init) !void {
                 const n = ext.ws_recv(recv_buf.ptr, recv_buf.len);
                 if (n < 0) break; // connection closed
                 if (handlers.?.socket) |socket_fn| {
-                    socket_fn(socket, recv_buf[0..@intCast(n)], .text, upgrade_data, allocator, allocator) catch {};
+                    socket_fn(socket, recv_buf[0..@intCast(n)], .text, upgrade_data, allocator, allocator, process_init.io) catch {};
                 }
             }
 
             if (handlers.?.socket_close) |close_fn| {
-                close_fn(socket, upgrade_data, allocator);
+                close_fn(socket, upgrade_data, allocator, process_init.io);
             }
         },
 
@@ -224,6 +225,7 @@ fn emitComponentBuffered(
     http: zx.Http,
     pathname: []const u8,
     allocator: std.mem.Allocator,
+    io: std.Io,
     matched_route: ?*const core_handler.Route,
     component: *zx.Component,
 ) !void {
@@ -231,11 +233,11 @@ fn emitComponentBuffered(
     defer aw.deinit();
     core_handler.renderHtmlDocument(&aw.writer, component, base_path) catch |err| switch (err) {
         error.NotFound => {
-            try emitNotFoundPage(stdout, stderr, backend, http, pathname, request, response, allocator, matched_route);
+            try emitNotFoundPage(stdout, stderr, backend, http, pathname, request, response, allocator, io, matched_route);
             return;
         },
         else => {
-            try emitErrorPage(stdout, stderr, backend, http, pathname, request, response, allocator, err);
+            try emitErrorPage(stdout, stderr, backend, http, pathname, request, response, allocator, io, err);
             return;
         },
     };
@@ -262,9 +264,10 @@ fn emitNotFoundPage(
     request: zx.server.Request,
     response: zx.server.Response,
     allocator: std.mem.Allocator,
+    io: std.Io,
     matched_route: ?*const core_handler.Route,
 ) !void {
-    const component = core_handler.prepareNotFound(http, pathname, request, response, allocator, matched_route);
+    const component = core_handler.prepareNotFound(http, pathname, request, response, allocator, io, matched_route);
     try emitHtmlOrPlain(stdout, stderr, backend, component);
 }
 
@@ -277,9 +280,10 @@ fn emitErrorPage(
     request: zx.server.Request,
     response: zx.server.Response,
     allocator: std.mem.Allocator,
+    io: std.Io,
     err: anyerror,
 ) !void {
-    const component = core_handler.prepareError(http, pathname, request, response, allocator, err);
+    const component = core_handler.prepareError(http, pathname, request, response, allocator, io, err);
     try emitHtmlOrPlain(stdout, stderr, backend, component);
 }
 

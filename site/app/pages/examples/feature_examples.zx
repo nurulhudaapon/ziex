@@ -1113,12 +1113,14 @@ pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
         .response = response,
         .allocator = allocator,
         .arena = allocator,
+        .io = ctx.io,
     };
     const page_ctx = zx.PageContext{
         .request = request,
         .response = response,
         .allocator = allocator,
         .arena = allocator,
+        .io = ctx.io,
     };
 
     const route_ctx = zx.RouteContext{
@@ -1127,6 +1129,7 @@ pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
         .socket = .{},
         .allocator = allocator,
         .arena = allocator,
+        .io = ctx.io,
     };
     const socket_ctx = zx.SocketContext{
         .socket = .{},
@@ -1135,6 +1138,7 @@ pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
         .allocator = allocator,
         .message_type = .text,
         .arena = allocator,
+        .io = ctx.io,
     };
 
     _ = try RefInline__GET(route_ctx);

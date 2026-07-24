@@ -44,7 +44,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     // Layout example - use simple example like learn page
     const zx_example_layout = util.extractSection(allocator, examples_source, "File System Routing: layout");
     const zig_example_layout = zx_example_layout;
-    const layoutctx = zx.LayoutContext.init(ctx.request, ctx.response, ctx.allocator);
+    const layoutctx = zx.LayoutContext.init(ctx.request, ctx.response, ctx.allocator, ctx.io);
     const html_example_layout = util.renderComponentToHtml(allocator, examples.Layout(layoutctx, zx.Component{ .text = "Hello, World!" }));
 
     // Allocator example

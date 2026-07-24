@@ -391,6 +391,7 @@ pub const ServerApp = struct {
         upgrade_data: ?[]const u8,
         allocator: std.mem.Allocator,
         arena: std.mem.Allocator,
+        io: std.Io,
     ) anyerror!void;
 
     /// Socket open handler function type (optional)
@@ -400,6 +401,7 @@ pub const ServerApp = struct {
         upgrade_data: ?[]const u8,
         allocator: std.mem.Allocator,
         arena: std.mem.Allocator,
+        io: std.Io,
     ) anyerror!void;
 
     /// Socket close handler function type (optional)
@@ -408,6 +410,7 @@ pub const ServerApp = struct {
         socket: zx.Socket,
         upgrade_data: ?[]const u8,
         allocator: std.mem.Allocator,
+        io: std.Io,
     ) void;
 
     /// Custom method entry for non-standard HTTP methods
@@ -536,7 +539,7 @@ pub const ServerApp = struct {
         const DataType = @TypeOf(@as(CtxType, undefined).data);
 
         return struct {
-            fn wrapper(socket: zx.Socket, message: []const u8, message_type: zx.SocketMessageType, upgrade_data: ?[]const u8, allocator: std.mem.Allocator, arena: std.mem.Allocator) anyerror!void {
+            fn wrapper(socket: zx.Socket, message: []const u8, message_type: zx.SocketMessageType, upgrade_data: ?[]const u8, allocator: std.mem.Allocator, arena: std.mem.Allocator, io: std.Io) anyerror!void {
                 const data: DataType = if (upgrade_data) |bytes|
                     std.mem.bytesToValue(DataType, bytes[0..@sizeOf(DataType)])
                 else
@@ -549,6 +552,7 @@ pub const ServerApp = struct {
                     .data = data,
                     .allocator = allocator,
                     .arena = arena,
+                    .io = io,
                 };
                 if (R == void) {
                     socketFn(ctx);
@@ -567,7 +571,7 @@ pub const ServerApp = struct {
         const DataType = @TypeOf(@as(CtxType, undefined).data);
 
         return struct {
-            fn wrapper(socket: zx.Socket, upgrade_data: ?[]const u8, allocator: std.mem.Allocator, arena: std.mem.Allocator) anyerror!void {
+            fn wrapper(socket: zx.Socket, upgrade_data: ?[]const u8, allocator: std.mem.Allocator, arena: std.mem.Allocator, io: std.Io) anyerror!void {
                 const data: DataType = if (upgrade_data) |bytes|
                     std.mem.bytesToValue(DataType, bytes[0..@sizeOf(DataType)])
                 else
@@ -578,6 +582,7 @@ pub const ServerApp = struct {
                     .data = data,
                     .allocator = allocator,
                     .arena = arena,
+                    .io = io,
                 };
                 if (R == void) {
                     socketOpenFn(ctx);
@@ -594,7 +599,7 @@ pub const ServerApp = struct {
         const DataType = @TypeOf(@as(CtxType, undefined).data);
 
         return struct {
-            fn wrapper(socket: zx.Socket, upgrade_data: ?[]const u8, allocator: std.mem.Allocator) void {
+            fn wrapper(socket: zx.Socket, upgrade_data: ?[]const u8, allocator: std.mem.Allocator, io: std.Io) void {
                 const data: DataType = if (upgrade_data) |bytes|
                     std.mem.bytesToValue(DataType, bytes[0..@sizeOf(DataType)])
                 else
@@ -605,6 +610,7 @@ pub const ServerApp = struct {
                     .data = data,
                     .allocator = allocator,
                     .arena = allocator,
+                    .io = io,
                 };
                 socketCloseFn(ctx);
             }

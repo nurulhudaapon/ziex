@@ -68,10 +68,12 @@ pub const StaticParams = struct {
 /// ```
 pub const StaticContext = struct {
     arena: std.mem.Allocator,
+    /// Process I/O passed to `App.init` by the user.
+    io: std.Io,
     params: StaticParams,
 
-    pub fn init(arena: std.mem.Allocator) StaticContext {
-        return .{ .arena = arena, .params = .{ .allocator = arena } };
+    pub fn init(arena: std.mem.Allocator, io: std.Io) StaticContext {
+        return .{ .arena = arena, .io = io, .params = .{ .allocator = arena } };
     }
 };
 

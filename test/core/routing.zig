@@ -83,7 +83,7 @@ test "PageContext: has request field" {
         .arena = alloc,
     }).build();
 
-    const ctx = PageContext.init(req, res, alloc);
+    const ctx = PageContext.init(req, res, alloc, std.testing.io);
 
     try std.testing.expectEqualStrings("/test", ctx.request.url);
     try std.testing.expectEqual(Request.Method.POST, ctx.request.method);
@@ -100,7 +100,7 @@ test "PageContext: has response field" {
         .arena = alloc,
     }).build();
 
-    const ctx = PageContext.init(req, res, alloc);
+    const ctx = PageContext.init(req, res, alloc, std.testing.io);
 
     try std.testing.expectEqual(@as(u16, 201), ctx.response.status);
     try std.testing.expect(ctx.response.ok);
@@ -114,11 +114,12 @@ test "PageContext: has allocator and arena fields" {
 
     const req = (Request.Builder{ .arena = alloc }).build();
     const res = (Response.Builder{ .arena = alloc }).build();
-    const ctx = PageContext.init(req, res, alloc);
+    const ctx = PageContext.init(req, res, alloc, std.testing.io);
 
     // Verify fields are accessible
     _ = ctx.allocator;
     _ = ctx.arena;
+    _ = ctx.io;
 }
 
 // --- ErrorContext --- //
@@ -132,7 +133,7 @@ test "ErrorContext: has error field" {
     const res = (Response.Builder{ .arena = alloc }).build();
     const err = error.OutOfMemory;
 
-    const ctx = ErrorContext.init(req, res, alloc, err);
+    const ctx = ErrorContext.init(req, res, alloc, std.testing.io, err);
 
     try std.testing.expectEqual(error.OutOfMemory, ctx.err);
 }
@@ -152,7 +153,7 @@ test "ErrorContext: has request and response fields" {
         .arena = alloc,
     }).build();
 
-    const ctx = ErrorContext.init(req, res, alloc, error.Unexpected);
+    const ctx = ErrorContext.init(req, res, alloc, std.testing.io, error.Unexpected);
 
     try std.testing.expectEqualStrings("/error-page", ctx.request.url);
     try std.testing.expectEqual(@as(u16, 500), ctx.response.status);
@@ -165,10 +166,11 @@ test "ErrorContext: has allocator and arena fields" {
 
     const req = (Request.Builder{ .arena = alloc }).build();
     const res = (Response.Builder{ .arena = alloc }).build();
-    const ctx = ErrorContext.init(req, res, alloc, error.Unexpected);
+    const ctx = ErrorContext.init(req, res, alloc, std.testing.io, error.Unexpected);
 
     _ = ctx.allocator;
     _ = ctx.arena;
+    _ = ctx.io;
 }
 
 test "ServerMeta.page injects app/state positional values" {
@@ -178,7 +180,7 @@ test "ServerMeta.page injects app/state positional values" {
 
     const rr = makeReqRes(alloc);
     const page_fn = ServerApp.page(PageModule);
-    const ctx = zx.PageContext.init(rr.req, rr.res, alloc);
+    const ctx = zx.PageContext.init(rr.req, rr.res, alloc, std.testing.io);
 
     var app = AppCtx{ .port = 5588 };
     var state = StateCtx{ .count = 42 };
@@ -196,7 +198,7 @@ test "ServerMeta.layout injects app/state positional values" {
 
     const rr = makeReqRes(alloc);
     const layout_fn = ServerApp.layout(LayoutModule);
-    const ctx = zx.LayoutContext.init(rr.req, rr.res, alloc);
+    const ctx = zx.LayoutContext.init(rr.req, rr.res, alloc, std.testing.io);
 
     var app = AppCtx{ .port = 9000 };
     var state = StateCtx{ .count = 7 };
@@ -218,7 +220,7 @@ test "ServerMeta.page injects null for optional app parameter" {
 
     const rr = makeReqRes(alloc);
     const page_fn = ServerApp.page(OptionalPageModule);
-    const ctx = zx.PageContext.init(rr.req, rr.res, alloc);
+    const ctx = zx.PageContext.init(rr.req, rr.res, alloc, std.testing.io);
 
     _ = try page_fn(ctx, null, null);
 

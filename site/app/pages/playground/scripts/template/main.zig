@@ -26,14 +26,14 @@ pub fn main() !void {
     }
 
     inline for (decls) |decl_name| {
-        const component = try resolveComponent(allocator, decl_name);
+        const component = try resolveComponent(allocator, io, decl_name);
         try component.render(&aw.writer, .{});
     }
 
     try std.Io.File.stdout().writeStreamingAll(io, aw.written());
 }
 
-fn resolveComponent(allocator: zx.Allocator, comptime field_name: []const u8) !zx.Component {
+fn resolveComponent(allocator: zx.Allocator, io: std.Io, comptime field_name: []const u8) !zx.Component {
     const Cmp = @field(pg, field_name);
 
     switch (@typeInfo(@TypeOf(Cmp))) {
@@ -65,6 +65,7 @@ fn resolveComponent(allocator: zx.Allocator, comptime field_name: []const u8) !z
                     .response = .{ .arena = allocator },
                     .allocator = allocator,
                     .arena = allocator,
+                    .io = io,
                 };
                 const result = Cmp(ctx);
                 if (@typeInfo(@TypeOf(result)) == .error_union) {
@@ -86,6 +87,7 @@ fn resolveComponent(allocator: zx.Allocator, comptime field_name: []const u8) !z
                     .response = .{ .arena = allocator },
                     .allocator = allocator,
                     .arena = allocator,
+                    .io = io,
                 };
                 return Cmp(ctx, .none);
             }
