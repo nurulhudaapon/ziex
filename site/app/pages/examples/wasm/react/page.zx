@@ -5,14 +5,14 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         <fragment @allocator={ctx.arena}>
             <script src="/assets/jsx.js"></script>
             
-            <Counter visit_count={visit_count} name="Nurul" />
+            // <Counter visit_count={visit_count} name="Nurul" />
         </fragment>
     );
 }
 
-pub fn Counter(allocator: zx.Allocator, props: struct { visit_count: u64, name: []const u8 }) !zx.Component {
-    return try zx.client.jsx.component(allocator, "Counter", props, .{ .children = null });
-}
+// pub fn Counter(allocator: zx.Allocator, props: struct { visit_count: u64, name: []const u8 }) !zx.Component {
+//     return try zx.client.jsx.component(allocator, "Counter", props, .{ .children = null });
+// }
 
 var visit_count: u64 = 0;
 const zx = @import("zx");
