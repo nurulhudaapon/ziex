@@ -19,6 +19,23 @@ fn fileExists(io: std.Io, path: []const u8) bool {
     return true;
 }
 
+pub fn spawnZig(io: std.Io, options: std.process.SpawnOptions) std.process.SpawnError!std.process.Child {
+    return std.process.spawn(io, options) catch |err| switch (err) {
+        error.FileNotFound => {
+            if (options.argv.len == 0 or std.mem.eql(u8, options.argv[0], "zig")) return err;
+            log.debug("zig not found at {s}, falling back to PATH", .{options.argv[0]});
+            var argv_buf: [64][]const u8 = undefined;
+            if (options.argv.len > argv_buf.len) return err;
+            @memcpy(argv_buf[0..options.argv.len], options.argv);
+            argv_buf[0] = "zig";
+            var retry = options;
+            retry.argv = argv_buf[0..options.argv.len];
+            return std.process.spawn(io, retry);
+        },
+        else => return err,
+    };
+}
+
 const ManifestApp = @import("../../build/Manifest.zig").App;
 
 /// Resolve the installed app executable from `manifest/app.zon`, or `--binpath`.

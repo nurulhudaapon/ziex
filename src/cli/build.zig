@@ -5,6 +5,7 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
     }, build);
 
     try cmd.addFlag(flags.build_args);
+    try cmd.addFlag(flags.zig_path_flag);
 
     return cmd;
 }
@@ -16,7 +17,7 @@ fn build(ctx: zli.CommandContext) !void {
 
     var build_args = std.ArrayList([]const u8).empty;
     defer build_args.deinit(allocator);
-    try build_args.appendSlice(allocator, &.{ cli_options.zig_exe, "build" });
+    try build_args.appendSlice(allocator, &.{ ctx.flag("zig-path", []const u8), "build" });
 
     var i_build_args = std.mem.splitSequence(u8, ctx.flag("build-args", []const u8), " ");
     while (i_build_args.next()) |arg| {
@@ -25,7 +26,7 @@ fn build(ctx: zli.CommandContext) !void {
         try build_args.append(allocator, trimmed_arg);
     }
 
-    var system = try std.process.spawn(io, .{
+    var system = try util.spawnZig(io, .{
         .argv = build_args.items,
         .stderr = .pipe,
         .stdout = .ignore,
@@ -130,8 +131,8 @@ fn formatBuildErrors(
 const std = @import("std");
 const zli = @import("zli");
 const flags = @import("shared/flag.zig");
+const util = @import("shared/util.zig");
 const AppContext = @import("shared/context.zig").AppContext;
-const cli_options = @import("cli_options");
 const Builder = @import("dev/Builder.zig");
 const Diagnostics = @import("dev/Diagnostics.zig");
 const tui = @import("../tui/main.zig");

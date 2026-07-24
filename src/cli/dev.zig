@@ -1,7 +1,6 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const zli = @import("zli");
-const cli_options = @import("cli_options");
 const util = @import("shared/util.zig");
 const flag = @import("shared/flag.zig");
 const AppContext = @import("shared/context.zig").AppContext;
@@ -23,6 +22,7 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
 
     try cmd.addFlag(flag.binpath_flag);
     try cmd.addFlag(flag.build_args);
+    try cmd.addFlag(flag.zig_path_flag);
     try cmd.addFlag(flag.install_prefix_flag);
     try cmd.addFlag(.{
         .name = "port",
@@ -98,10 +98,11 @@ fn dev(ctx: zli.CommandContext) !void {
     defer build_args_array.deinit(allocator);
     defer initial_build_args_array.deinit(allocator);
 
-    try build_args_array.appendSlice(allocator, &.{ cli_options.zig_exe, "build", "-Dcli-command=dev", "--watch", "--verbose", "--summary", "all", "--color", "off" });
-    try initial_build_args_array.appendSlice(allocator, &.{ cli_options.zig_exe, "build", "-Dcli-command=dev" });
+    const zig_path = ctx.flag("zig-path", []const u8);
+    try build_args_array.appendSlice(allocator, &.{ zig_path, "build", "-Dcli-command=dev", "--watch", "--verbose", "--summary", "all", "--color", "off" });
+    try initial_build_args_array.appendSlice(allocator, &.{ zig_path, "build", "-Dcli-command=dev" });
 
-    log.debug("zig path: {s}", .{build_args_array.items[0]});
+    log.debug("zig path: {s}", .{zig_path});
 
     while (build_args.next()) |arg| {
         const trimmed_arg = std.mem.trim(u8, arg, " ");
@@ -110,7 +111,7 @@ fn dev(ctx: zli.CommandContext) !void {
         try initial_build_args_array.appendSlice(allocator, &.{trimmed_arg});
     }
 
-    var initial_build = try std.process.spawn(io, .{ .argv = initial_build_args_array.items });
+    var initial_build = try util.spawnZig(io, .{ .argv = initial_build_args_array.items });
     const initial_term = initial_build.wait(io) catch |err| {
         log.err("Failed to run initial build: {any}", .{err});
         std.process.exit(1);
@@ -158,7 +159,7 @@ fn dev(ctx: zli.CommandContext) !void {
         return;
     };
 
-    builder = try std.process.spawn(io, .{
+    builder = try util.spawnZig(io, .{
         .argv = build_args_array.items,
         .stderr = .pipe,
         .stdout = .ignore,

@@ -6,6 +6,7 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
 
     try cmd.addFlag(version_flag);
     try cmd.addFlag(dev_flag);
+    try cmd.addFlag(flag.zig_path_flag);
 
     return cmd;
 }
@@ -29,7 +30,7 @@ fn update(ctx: zli.CommandContext) !void {
     const fetch_uri = try std.fmt.allocPrint(ctx.allocator, "git+{s}{s}", .{ zx_info.repository, ref });
     defer ctx.allocator.free(fetch_uri);
 
-    var system = try std.process.spawn(app.io, .{ .argv = &.{ cli_options.zig_exe, "fetch", "--save", fetch_uri } });
+    var system = try util.spawnZig(app.io, .{ .argv = &.{ ctx.flag("zig-path", []const u8), "fetch", "--save", fetch_uri } });
     const term = try system.wait(app.io);
     _ = term;
 }
@@ -111,5 +112,6 @@ const dev_flag = zli.Flag{
 const std = @import("std");
 const zli = @import("zli");
 const AppContext = @import("shared/context.zig").AppContext;
+const util = @import("shared/util.zig");
+const flag = @import("shared/flag.zig");
 const zx_info = @import("zx_info");
-const cli_options = @import("cli_options");

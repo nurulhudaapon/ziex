@@ -21,7 +21,6 @@ pub fn build(b: *std.Build) !void {
     const enable_postgres = b.option(bool, "feature-postgres", "Enabled postgres support") orelse false;
     const exclude_core_lang = b.option(bool, "exclude-core-lang", "Exclude core language tools (Ast/Parse/sourcemap) - only needed by CLI") orelse false;
     const log_level = b.option(std.log.Level, "cli-log-level", "Log level for the CLI") orelse .info;
-    const zig_exe_path = b.option([]const u8, "zig-path", "Path to the zig executable") orelse "zig";
     const version = util.getVersion(b);
 
     const is_client = b.option(bool, "is-client", "Building for the browser (client)") orelse false;
@@ -33,9 +32,6 @@ pub fn build(b: *std.Build) !void {
     options.addOption([]const u8, "repository", build_zon.repository);
     options.addOption([]const u8, "homepage", build_zon.homepage);
     options.addOption([]const u8, "minimum_zig_version", build_zon.minimum_zig_version);
-
-    const cli_options_dev = b.addOptions();
-    cli_options_dev.addOption([]const u8, "zig_exe", zig_exe_path);
 
     // Dependencies
     const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });
@@ -89,7 +85,6 @@ pub fn build(b: *std.Build) !void {
         .target = target,
         .optimize = optimize,
         .imports = &.{
-            .{ .name = "cli_options", .module = cli_options_dev.createModule() },
             .{ .name = "core_lang", .module = zx_core_lang_mod },
             .{ .name = "zx_info", .module = options.createModule() },
             .{ .name = "zli", .module = zli_dep.module("zli") },
@@ -133,7 +128,6 @@ pub fn build(b: *std.Build) !void {
             .target = target,
             .optimize = optimize,
             .imports = &.{
-                .{ .name = "cli_options", .module = cli_options_dev.createModule() },
                 .{ .name = "zx", .module = mode_test },
                 .{ .name = "html_hover", .module = b.createModule(.{
                     .root_source_file = b.path("src/lsp/html_hover.zig"),
@@ -298,10 +292,6 @@ pub fn build(b: *std.Build) !void {
 
         const release_step = b.step("release", "Build release binaries for all targets");
 
-        // --- ZX CLI Options (Release) --- //
-        const cli_options_rel = b.addOptions();
-        cli_options_rel.addOption([]const u8, "zig_exe", "zig");
-
         for (release_targets) |release_target| {
             const resolved_target = b.resolveTargetQuery(release_target.target);
 
@@ -322,7 +312,6 @@ pub fn build(b: *std.Build) !void {
                     .target = resolved_target,
                     .optimize = .ReleaseSafe,
                     .imports = &.{
-                        .{ .name = "cli_options", .module = cli_options_rel.createModule() },
                         .{ .name = "core_lang", .module = release_core_lang_mod },
                         .{ .name = "zx_info", .module = options.createModule() },
                         .{ .name = "zli", .module = zli_dep.module("zli") },

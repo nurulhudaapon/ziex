@@ -104,9 +104,24 @@ fn readValue(comptime T: type, allocator: std.mem.Allocator, d: []const u8, p: *
             skip(d, p);
 
             var result: T = undefined;
-            inline for (s.field_names, s.field_types, 0..) |field_name, field_type, i| {
-                if (i > 0) comma(d, p);
-                @field(result, field_name) = try readValue(field_type, allocator, d, p);
+            var filling_defaults = false;
+            inline for (s.field_names, s.field_types, s.field_attrs, 0..) |field_name, field_type, field_attr, i| {
+                skip(d, p);
+                if (filling_defaults or peek(d, p) == ']') {
+                    filling_defaults = true;
+                    if (field_attr.defaultValue(field_type)) |default_value| {
+                        @field(result, field_name) = default_value;
+                    } else {
+                        return error.MissingRequiredField;
+                    }
+                } else {
+                    if (i > 0) {
+                        if (peek(d, p) != ',') return error.ExpectedComma;
+                        p.* += 1;
+                        skip(d, p);
+                    }
+                    @field(result, field_name) = try readValue(field_type, allocator, d, p);
+                }
             }
 
             skip(d, p);

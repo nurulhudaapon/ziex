@@ -46,10 +46,10 @@ pub const CliOptions = struct {
     /// - Otherwise: Uses the specified path to a ZX CLI executable
     path: ?LazyPath = null,
 
-    /// Path to the Zig executable.
+    /// Path to the Zig executable passed to the ZX CLI as `--zig-path`.
     ///
-    /// - If `null`: Uses the Zig executable from build graph
-    /// - Otherwise: Uses the specified path to a Zig executable
+    /// - If `null`: Uses `b.graph.zig_exe`
+    /// - Otherwise: Uses the specified path
     zig_path: ?[]const u8 = null,
 
     /// Configuration for which build steps to create.

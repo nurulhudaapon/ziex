@@ -15,6 +15,14 @@ pub const build_args = zli.Flag{
     .hidden = true,
 };
 
+pub const zig_path_flag = zli.Flag{
+    .name = "zig-path",
+    .description = "Path to the zig executable",
+    .type = .String,
+    .default_value = .{ .String = "zig" },
+    .hidden = true,
+};
+
 pub const verbose_flag = zli.Flag{
     .name = "verbose",
     .shortcut = "v",
