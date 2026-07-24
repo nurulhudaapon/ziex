@@ -75,6 +75,7 @@ pub const TestFileCache = struct {
         "component/import",
         "component/root_cmp",
         "component/caching",
+        "component/zx_collision",
 
         // Attribute
         "attribute/builtin",

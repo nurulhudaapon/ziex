@@ -367,6 +367,11 @@ test "component_caching" {
     try test_render("component/caching", @import("./../data/component/caching.zig").Page);
 }
 
+test "component_zx_collision" {
+    try test_transpile("component/zx_collision");
+    try test_render("component/zx_collision", @import("./../data/component/zx_collision.zig").Page);
+}
+
 test "component_optional" {
     try test_transpile("component/optional");
     try test_render("component/optional", @import("./../data/component/optional.zig").Page);

@@ -50,6 +50,7 @@ pub const NodeKind = enum {
     identifier,
     field_expression,
     string,
+    function_declaration,
     variable_declaration,
     return_expression,
     range_expression,

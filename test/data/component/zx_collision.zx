@@ -1,0 +1,96 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    // User-declared `_zx` must not collide with the synthesized builder → `_zx1`.
+    const _zx: []const u8 = "user";
+    return (
+        <main @allocator={allocator}>
+            <p>{_zx}</p>
+        </main>
+    );
+}
+
+pub fn WithPrefix(allocator: zx.Allocator) zx.Component {
+    // Any `_zx_*` binding also forces a numbered builder name → `_zx1`.
+    const _zx_custom: usize = 1;
+    _ = _zx_custom;
+    return (
+        <main @allocator={allocator}>
+            <p>ok</p>
+        </main>
+    );
+}
+
+pub fn ParameterCollision(allocator: zx.Allocator, _zx: []const u8) zx.Component {
+    return (
+        <main @allocator={allocator}>{_zx}</main>
+    );
+}
+
+pub fn CaptureCollision(allocator: zx.Allocator) zx.Component {
+    const values = [_][]const u8{ "a", "b" };
+    return (
+        <main @allocator={allocator}>
+            {for (values) |_zx| (<span>{_zx}</span>)}
+        </main>
+    );
+}
+
+var _zx3 = 1;
+const _zx2 = 2;
+const __zx2_children_0 = 3;
+const _zx_ele_blk_0 = 4;
+
+// A module-scope ZX block must also avoid module declarations.
+const module_component = (<aside>module</aside>);
+
+pub fn NestedCollision(allocator: zx.Allocator) zx.Component {
+    // Locals `_zx`/`_zx1` plus module `_zx2`/`_zx3` and helper-like names → `_zx4`.
+    const _zx: []const u8 = "a";
+    const _zx1: []const u8 = "b";
+    const items = [_][]const u8{ "x", "y" };
+    return (
+        <main @allocator={allocator}>
+            <p>{_zx}{_zx1}</p>
+            {for (items) |item| (<span>{item}</span>)}
+        </main>
+    );
+}
+
+pub fn ElementBlockCollision(allocator: zx.Allocator) zx.Component {
+    const marker = _zx1_ele_blk_0: {
+        break :_zx1_ele_blk_0 1;
+    };
+    _ = marker;
+
+    // User/module block names occupy `_zx` through `_zx3`; the inline block uses `_zx4`.
+    const child = (<section @allocator={allocator}>inline</section>);
+    return child;
+}
+
+pub fn ForHelperCollision(allocator: zx.Allocator) zx.Component {
+    const _zx1_for_blk_0 = 1;
+    const _zx1_i_0 = 2;
+    const __zx1_children_0 = 3;
+    _ = .{ _zx1_for_blk_0, _zx1_i_0, __zx1_children_0 };
+
+    const items = [_][]const u8{ "x", "y" };
+    return (
+        <main @allocator={allocator}>
+            {for (items) |item| (<span>{item}</span>)}
+        </main>
+    );
+}
+
+pub fn WhileHelperCollision(allocator: zx.Allocator) zx.Component {
+    const _zx1_whl_blk_0 = 1;
+    const __zx1_list_0 = 2;
+    _ = .{ _zx1_whl_blk_0, __zx1_list_0 };
+
+    var i: usize = 0;
+    return (
+        <main @allocator={allocator}>
+            {while (i < 2) : (i += 1) (<span>{i}</span>)}
+        </main>
+    );
+}
+
+const zx = @import("zx");

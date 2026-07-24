@@ -98,8 +98,12 @@ pub const TranspileContext = struct {
     file_path: ?[]const u8 = null,
     /// Counter for generating unique block labels and variable names (for nested loops)
     block_counter: u32 = 0,
-    /// Flag to track if _zx has been initialized in the current scope (e.g., inside a return statement)
+    /// Flag to track if the zx builder has been initialized in the current scope (e.g., inside a return statement)
     zx_initialized: bool = false,
+    /// Synthesized builder / helper name (`_zx`, or `_zx1` / `_zx2` / … when user code already binds those).
+    zx_name: []const u8 = "_zx",
+    /// Whether `zx_name` was allocated (numbered collision) and must be freed in deinit.
+    zx_name_owned: bool = false,
     /// Track client components (components with @rendering attribute)
     client_components: std.ArrayList(ClientComponentMetadata),
     /// Optional position of an open parenthesis in source to map the next generated parenthesis to
@@ -129,11 +133,26 @@ pub const TranspileContext = struct {
         self.sourcemap_builder.deinit();
         self.js_imports.deinit();
         self.client_components.deinit(self.allocator);
+        if (self.zx_name_owned) self.allocator.free(self.zx_name);
     }
 
     fn write(self: *TranspileContext, bytes: []const u8) !void {
         try self.output.appendSlice(bytes);
         self.updatePosition(bytes);
+    }
+
+    /// Format and write a short synthesized snippet. Use `{s}` for `zx_name`.
+    /// Dunder helpers: `"_{s}_children_"` → `__zx_children_` or `__zx1_children_`.
+    fn print(self: *TranspileContext, comptime fmt: []const u8, args: anytype) !void {
+        var buf: [128]u8 = undefined;
+        const formatted = std.fmt.bufPrint(&buf, fmt, args) catch return error.OutOfMemory;
+        try self.write(formatted);
+    }
+
+    fn printM(self: *TranspileContext, comptime fmt: []const u8, args: anytype, source_byte: u32, ast: *const Ast) !void {
+        var buf: [128]u8 = undefined;
+        const formatted = std.fmt.bufPrint(&buf, fmt, args) catch return error.OutOfMemory;
+        try self.writeM(formatted, source_byte, ast);
     }
 
     fn writeWithMapping(self: *TranspileContext, bytes: []const u8, source_line: i32, source_column: i32) !void {
@@ -212,6 +231,110 @@ fn collectJsImports(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{Out
         const child = node.child(i) orelse continue;
         try collectJsImports(self, child, ctx);
     }
+}
+
+fn isZxRelatedIdent(name: []const u8) bool {
+    return std.mem.startsWith(u8, name, "_zx") or std.mem.startsWith(u8, name, "__zx");
+}
+
+fn zxNameConflicts(candidate: []const u8, used: []const []const u8) bool {
+    for (used) |name| {
+        if (std.mem.eql(u8, name, candidate)) return true;
+        if (name.len > candidate.len and std.mem.startsWith(u8, name, candidate) and name[candidate.len] == '_') return true;
+
+        // Dunder helpers: __zx_children_N / __zx1_list_N
+        if (name.len >= candidate.len + 1 and name[0] == '_' and std.mem.startsWith(u8, name[1..], candidate)) {
+            if (name.len == candidate.len + 1) return true;
+            if (name[candidate.len + 1] == '_') return true;
+        }
+    }
+    return false;
+}
+
+fn collectZxRelatedIdents(self: *Ast, node: ts.Node, list: *std.ArrayList([]const u8)) error{OutOfMemory}!void {
+    if (NodeKind.fromNode(node) == .identifier) {
+        const name = try self.getNodeText(node);
+        if (isZxRelatedIdent(name)) {
+            try list.append(self.allocator, name);
+        }
+    }
+
+    const child_count = node.childCount();
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        try collectZxRelatedIdents(self, child, list);
+    }
+}
+
+fn enclosingFunctionScope(node: ts.Node) ?ts.Node {
+    var current: ?ts.Node = node;
+    while (current) |n| {
+        if (NodeKind.fromNode(n) == .function_declaration) return n;
+        current = n.parent();
+    }
+    return null;
+}
+
+/// Collect `_zx*` / `__zx*` identifiers at module scope only (skip function bodies).
+fn collectModuleScopeZxIdents(self: *Ast, node: ts.Node, list: *std.ArrayList([]const u8)) error{OutOfMemory}!void {
+    if (NodeKind.fromNode(node) == .function_declaration) return;
+
+    if (NodeKind.fromNode(node) == .identifier) {
+        const name = try self.getNodeText(node);
+        if (isZxRelatedIdent(name)) {
+            try list.append(self.allocator, name);
+        }
+    }
+
+    const child_count = node.childCount();
+    var i: u32 = 0;
+    while (i < child_count) : (i += 1) {
+        const child = node.child(i) orelse continue;
+        try collectModuleScopeZxIdents(self, child, list);
+    }
+}
+
+fn pickZxName(allocator: std.mem.Allocator, used: []const []const u8) error{OutOfMemory}!struct { []const u8, bool } {
+    if (used.len == 0) return .{ "_zx", false };
+
+    var n: u32 = 0;
+    while (n < 10_000) : (n += 1) {
+        var buf: [32]u8 = undefined;
+        const candidate = if (n == 0)
+            "_zx"
+        else
+            std.fmt.bufPrint(&buf, "_zx{d}", .{n}) catch return error.OutOfMemory;
+
+        if (!zxNameConflicts(candidate, used)) {
+            if (n == 0) return .{ "_zx", false };
+            return .{ try allocator.dupe(u8, candidate), true };
+        }
+    }
+    return error.OutOfMemory;
+}
+
+/// Resolve builder name for the enclosing function, also avoiding module-scope bindings.
+/// Prefer `_zx`; on collision with user `_zx` / `_zx_*` / `__zx_*`, use `_zx1`, `_zx2`, …
+fn resolveZxNameFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
+    if (ctx.zx_name_owned) {
+        ctx.allocator.free(ctx.zx_name);
+        ctx.zx_name_owned = false;
+    }
+    ctx.zx_name = "_zx";
+
+    var used: std.ArrayList([]const u8) = .empty;
+    defer used.deinit(self.allocator);
+
+    // Function-locals (params, captures, locals) + module-scope decls that Zig would shadow.
+    if (enclosingFunctionScope(node)) |fn_scope| {
+        try collectZxRelatedIdents(self, fn_scope, &used);
+    }
+    try collectModuleScopeZxIdents(self, self.tree.rootNode(), &used);
+
+    const picked = try pickZxName(self.allocator, used.items);
+    ctx.zx_name = picked[0];
+    ctx.zx_name_owned = picked[1];
 }
 
 pub fn transpileNode(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
@@ -500,8 +623,10 @@ pub fn transpileReturn(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void 
                     // Check if we need to initialize _zx with allocator
                     const allocator_value = try getAllocatorAttribute(self, child);
 
-                    // Synthesized _zx init - no source mapping (it's boilerplate)
-                    try ctx.write("var _zx = @import(\"zx\").x.");
+                    try resolveZxNameFor(self, child, ctx);
+
+                    // Synthesized builder init - no source mapping (it's boilerplate)
+                    try ctx.print("var {s} = @import(\"zx\").x.", .{ctx.zx_name});
                     // `@src()` is only valid inside a function scope. Module-scope
                     // block level component (e.g. `const x = zx { ... }`) can't use @src so skipping.
                     if (allocator_value) |alloc| {
@@ -583,14 +708,17 @@ pub fn transpileBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
                 // Check if element has @allocator attribute
                 const allocator_value = try getAllocatorAttribute(self, child);
 
-                // Generate: _zx_ele_blk_N: { var _zx = @import("zx").init(); break :_zx_ele_blk_N _zx.ele(...); }
-                try ctx.write("_zx_ele_blk_");
+                try resolveZxNameFor(self, child, ctx);
+
+                // Generate: _zx_ele_blk_N: { var _zx = …; break :_zx_ele_blk_N …; }
+                // (or _zx1_ele_blk_N / var _zx1 when the default name collides)
+                try ctx.print("{s}_ele_blk_", .{ctx.zx_name});
                 try ctx.write(idx_str);
                 try ctx.write(": {\n");
 
                 ctx.indent_level += 1;
                 try ctx.writeIndent();
-                try ctx.write("var _zx = @import(\"zx\").x.");
+                try ctx.print("var {s} = @import(\"zx\").x.", .{ctx.zx_name});
                 if (allocator_value) |alloc| {
                     try ctx.write("allocInit(");
                     try ctx.write(alloc);
@@ -609,7 +737,7 @@ pub fn transpileBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
                 try ctx.write(";\n");
 
                 try ctx.writeIndent();
-                try ctx.write("break :_zx_ele_blk_");
+                try ctx.print("break :{s}_ele_blk_", .{ctx.zx_name});
                 try ctx.write(idx_str);
                 try ctx.write(" ");
                 try transpileElement(self, child, ctx, false);
@@ -714,7 +842,7 @@ pub fn transpileFragment(self: *Ast, node: ts.Node, ctx: *TranspileContext, is_r
     }
 
     // Fragment is just like a regular element but with .fragment tag and no attributes
-    try ctx.write("_zx.ele");
+    try ctx.print("{s}.ele", .{ctx.zx_name});
     if (ctx.paren_byte) |p| {
         try ctx.writeM("(", p, self);
         ctx.paren_byte = null;
@@ -1016,7 +1144,7 @@ fn writeCustomComponent(self: *Ast, _: ts.Node, tag: []const u8, tag_name_byte: 
         try ctx.client_components.append(ctx.allocator, client_cmp);
 
         // Write _zx.client(.{ .name = "Name", .path = "path", .id = "id" }, .{ props })
-        try ctx.write("_zx.client");
+        try ctx.print("{s}.client", .{ctx.zx_name});
         if (ctx.paren_byte) |p| {
             try ctx.writeM("(", p, self);
             ctx.paren_byte = null;
@@ -1106,7 +1234,7 @@ fn writeCustomComponent(self: *Ast, _: ts.Node, tag: []const u8, tag_name_byte: 
         try ctx.client_components.append(ctx.allocator, client_cmp);
 
         // Write _zx.cmp(Component, .{ .name = ..., .client = .{ .name = ..., .id = ... } }, .{ props })
-        try ctx.write("_zx.cmp");
+        try ctx.print("{s}.cmp", .{ctx.zx_name});
         if (ctx.paren_byte) |p| {
             try ctx.writeM("(", p, self);
             ctx.paren_byte = null;
@@ -1176,7 +1304,7 @@ fn writeCustomComponent(self: *Ast, _: ts.Node, tag: []const u8, tag_name_byte: 
 
     {
         // Regular cmp component: _zx.cmp(Func, .{ .name = ..., options }, .{ props })
-        try ctx.write("_zx.cmp");
+        try ctx.print("{s}.cmp", .{ctx.zx_name});
         if (ctx.paren_byte) |p| {
             try ctx.writeM("(", p, self);
             ctx.paren_byte = null;
@@ -1237,7 +1365,7 @@ fn writeCustomComponent(self: *Ast, _: ts.Node, tag: []const u8, tag_name_byte: 
             try ctx.writeIndent();
             var need_merge = false;
             if (spreads.items.len > 0) {
-                try ctx.write("_zx.propsM(");
+                try ctx.print("{s}.propsM(", .{ctx.zx_name});
                 try ctx.writeM(spreads.items[0].value, spreads.items[0].value_byte_offset, self);
                 need_merge = true;
             }
@@ -1363,7 +1491,7 @@ fn writeComponentBuiltinOptions(self: *Ast, builtin_attrs: []const ZxAttribute, 
         if (std.mem.eql(u8, attr.name, "@async")) {
             try ctx.write(" .@\"async\" = ");
         } else if (std.mem.eql(u8, attr.name, "@fallback")) {
-            try ctx.write(" .fallback = _zx.ptr(");
+            try ctx.print(" .fallback = {s}.ptr(", .{ctx.zx_name});
         } else if (std.mem.eql(u8, attr.name, "@caching")) {
             try ctx.write(" .caching = ");
             // If it's a string value (not a zx_block), wrap with comptime .tag()
@@ -1398,7 +1526,7 @@ fn writeChildrenValue(self: *Ast, children: []const ts.Node, ctx: *TranspileCont
     if (children.len == 1) {
         _ = try transpileChild(self, children[0], ctx, false, true);
     } else {
-        try ctx.write("_zx.ele(.fragment, .{ .children = &.{");
+        try ctx.print("{s}.ele(.fragment, .{{ .children = &.{{", .{ctx.zx_name});
         for (children, 0..) |child, idx| {
             const saved_len = ctx.output.items.len;
             const had_output = try transpileChild(self, child, ctx, false, idx == children.len - 1);
@@ -1417,7 +1545,7 @@ fn writeChildrenValue(self: *Ast, children: []const ts.Node, ctx: *TranspileCont
 fn writeHtmlElement(self: *Ast, node: ts.Node, tag: []const u8, tag_name_byte: u32, end_tag_start_byte: u32, end_tag_end_byte: u32, attributes: []const ZxAttribute, children: []const ts.Node, ctx: *TranspileContext, preserve_whitespace: bool) !void {
     const in_function = isInFunction(node);
     // _zx.ele( is synthesized - no source mapping
-    try ctx.write("_zx.ele");
+    try ctx.print("{s}.ele", .{ctx.zx_name});
     if (ctx.paren_byte) |p| {
         try ctx.writeM("(", p, self);
         ctx.paren_byte = null;
@@ -1498,7 +1626,7 @@ pub fn transpileChild(self: *Ast, node: ts.Node, ctx: *TranspileContext, preserv
                     const text = try self.getNodeText(child);
                     if (text.len == 0) continue;
 
-                    try ctx.writeM("_zx.txt(\"", child.startByte(), self);
+                    try ctx.printM("{s}.txt(\"", .{ctx.zx_name}, child.startByte(), self);
                     try escapeZigString(text, ctx);
                     // Add newline at end unless this is the last child
                     if (!is_last_child) try ctx.write("\\n");
@@ -1507,7 +1635,7 @@ pub fn transpileChild(self: *Ast, node: ts.Node, ctx: *TranspileContext, preserv
                 } else {
                     const normalized = normalizeText(self.source, child.startByte(), child.endByte()) orelse continue;
 
-                    try ctx.writeM("_zx.txt(\"", child.startByte(), self);
+                    try ctx.printM("{s}.txt(\"", .{ctx.zx_name}, child.startByte(), self);
                     try escapeZigString(normalized, ctx);
                     try ctx.write("\")");
                     had_output = true;
@@ -1586,7 +1714,7 @@ pub fn transpileExprBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) err
         if (trimmed.len == 0) continue;
 
         // Regular expression like {user.name}
-        try ctx.writeM("_zx.expr(", child.startByte(), self);
+        try ctx.printM("{s}.expr(", .{ctx.zx_name}, child.startByte(), self);
         try ctx.writeM(trimmed, child.startByte(), self);
         try ctx.write(")");
     }
@@ -1597,7 +1725,7 @@ fn transpileMultilineString(self: *Ast, node: ts.Node, ctx: *TranspileContext) !
     const expr_text = try self.getNodeText(node);
 
     // Write _zx.expr( followed by newline
-    try ctx.writeM("_zx.expr(", node.startByte(), self);
+    try ctx.printM("{s}.expr(", .{ctx.zx_name}, node.startByte(), self);
     try ctx.write("\n");
 
     ctx.indent_level += 1;
@@ -1700,7 +1828,7 @@ pub fn transpileIf(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         }
         try transpileBranch(self, else_n, ctx);
     } else {
-        try ctx.write(" else _zx.ele(.fragment, .{})");
+        try ctx.print(" else {s}.ele(.fragment, .{{}})", .{ctx.zx_name});
     }
 }
 
@@ -1710,12 +1838,12 @@ fn transpileBranch(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutO
         .zx_block => try transpileBlock(self, node, ctx),
         .if_expression => try transpileIf(self, node, ctx), // Handle else-if chains
         .parenthesized_expression => {
-            try ctx.write("_zx.ele(.fragment, .{ .children = &.{\n");
+            try ctx.print("{s}.ele(.fragment, .{{ .children = &.{{\n", .{ctx.zx_name});
             try transpileExprBlock(self, node, ctx);
             try ctx.write(",},},)");
         },
         else => {
-            try ctx.write("_zx.txt(");
+            try ctx.print("{s}.txt(", .{ctx.zx_name});
             try ctx.writeM(try self.getNodeText(node), node.startByte(), self);
             try ctx.write(")");
         },
@@ -1776,14 +1904,14 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         var idx_buf: [16]u8 = undefined;
         const idx_str = std.fmt.bufPrint(&idx_buf, "{d}", .{block_idx}) catch unreachable;
 
-        try ctx.write("_zx_for_blk_");
+        try ctx.print("{s}_for_blk_", .{ctx.zx_name});
         try ctx.write(idx_str);
         try ctx.write(": {\n");
         ctx.indent_level += 1;
         try ctx.writeIndent();
-        try ctx.write("const __zx_children_");
+        try ctx.print("const _{s}_children_", .{ctx.zx_name});
         try ctx.write(idx_str);
-        try ctx.write(" = _zx.getAlloc().alloc(@import(\"zx\").Component, ");
+        try ctx.print(" = {s}.getAlloc().alloc(@import(\"zx\").Component, ", .{ctx.zx_name});
         if (NodeKind.fromNode(first_iterable_node) == .range_expression) {
             const left_node = first_iterable_node.?.childByFieldName("left").?;
             const right_node = first_iterable_node.?.childByFieldName("right").?;
@@ -1811,15 +1939,15 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
             payload;
 
         try ctx.write(payload_clean);
-        try ctx.write(", _zx_i_");
+        try ctx.print(", {s}_i_", .{ctx.zx_name});
         try ctx.write(idx_str);
         try ctx.write("| {\n");
 
         ctx.indent_level += 1;
         try ctx.writeIndent();
-        try ctx.write("__zx_children_");
+        try ctx.print("_{s}_children_", .{ctx.zx_name});
         try ctx.write(idx_str);
-        try ctx.write("[_zx_i_");
+        try ctx.print("[{s}_i_", .{ctx.zx_name});
         try ctx.write(idx_str);
         try ctx.write("] = ");
         try transpileBranch(self, body_node.?, ctx);
@@ -1830,9 +1958,9 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         try ctx.write("}\n");
 
         try ctx.writeIndent();
-        try ctx.write("break :_zx_for_blk_");
+        try ctx.print("break :{s}_for_blk_", .{ctx.zx_name});
         try ctx.write(idx_str);
-        try ctx.write(" _zx.ele(.fragment, .{ .children = __zx_children_");
+        try ctx.print(" {s}.ele(.fragment, .{{ .children = _{s}_children_", .{ ctx.zx_name, ctx.zx_name });
         try ctx.write(idx_str);
         try ctx.write(" });\n");
 
@@ -1910,13 +2038,13 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         const idx_str = std.fmt.bufPrint(&idx_buf, "{d}", .{block_idx}) catch unreachable;
 
         // Generate: _zx_whl_blk_N: { var __zx_list_N = std.ArrayList(@import("zx").Component).init(_zx.getAlloc()); while (cond) |payload| : (cont) { __zx_list_N.append(...); } else |err| { ... }; break :_zx_whl_blk_N ...; }
-        try ctx.writeM("_zx_whl_blk_", node.startByte(), self);
+        try ctx.printM("{s}_whl_blk_", .{ctx.zx_name}, node.startByte(), self);
         try ctx.write(idx_str);
         try ctx.write(": {\n");
 
         ctx.indent_level += 1;
         try ctx.writeIndent();
-        try ctx.write("var __zx_list_");
+        try ctx.print("var _{s}_list_", .{ctx.zx_name});
         try ctx.write(idx_str);
         try ctx.write(" = @import(\"std\").ArrayList(@import(\"zx\").Component).empty;\n");
 
@@ -1942,9 +2070,9 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
 
         ctx.indent_level += 1;
         try ctx.writeIndent();
-        try ctx.write("__zx_list_");
+        try ctx.print("_{s}_list_", .{ctx.zx_name});
         try ctx.write(idx_str);
-        try ctx.write(".append(_zx.getAlloc(), ");
+        try ctx.print(".append({s}.getAlloc(), ", .{ctx.zx_name});
         try transpileBlock(self, body_node.?, ctx);
         try ctx.write(") catch unreachable;\n");
         ctx.indent_level -= 1;
@@ -1963,9 +2091,9 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
             try ctx.write("{\n");
             ctx.indent_level += 1;
             try ctx.writeIndent();
-            try ctx.write("__zx_list_");
+            try ctx.print("_{s}_list_", .{ctx.zx_name});
             try ctx.write(idx_str);
-            try ctx.write(".append(_zx.getAlloc(), ");
+            try ctx.print(".append({s}.getAlloc(), ", .{ctx.zx_name});
             try transpileBranch(self, else_n, ctx);
             try ctx.write(") catch unreachable;\n");
             ctx.indent_level -= 1;
@@ -1976,9 +2104,9 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         }
 
         try ctx.writeIndent();
-        try ctx.write("break :_zx_whl_blk_");
+        try ctx.print("break :{s}_whl_blk_", .{ctx.zx_name});
         try ctx.write(idx_str);
-        try ctx.write(" _zx.ele(.fragment, .{ .children = __zx_list_");
+        try ctx.print(" {s}.ele(.fragment, .{{ .children = _{s}_list_", .{ ctx.zx_name, ctx.zx_name });
         try ctx.write(idx_str);
         try ctx.write(".items });\n");
 
@@ -2100,7 +2228,7 @@ fn transpileCaseValue(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         .switch_expression => try transpileSwitch(self, node, ctx),
         .string => {
             // String literal without parentheses like "Admin" -> _zx.txt("Admin")
-            try ctx.writeM("_zx.txt(", node.startByte(), self);
+            try ctx.printM("{s}.txt(", .{ctx.zx_name}, node.startByte(), self);
             try ctx.writeM(try self.getNodeText(node), node.startByte(), self);
             try ctx.write(")");
         },
@@ -2110,7 +2238,7 @@ fn transpileCaseValue(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
                 try transpileCaseValue(self, child, ctx);
             } else {
                 // Simple parenthesized expression like ("Admin")
-                try ctx.writeM("_zx.txt", node.startByte(), self);
+                try ctx.printM("{s}.txt", .{ctx.zx_name}, node.startByte(), self);
                 try ctx.writeM(try self.getNodeText(node), node.startByte(), self);
             }
         },
@@ -2188,7 +2316,7 @@ fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileC
         // @fallback={(<UserProfile user_id={0} />)}
         const is_fallback = std.mem.eql(u8, attr.name, "@fallback");
         const is_caching = std.mem.eql(u8, attr.name, "@caching");
-        if (is_fallback) try ctx.write("_zx.ptr(");
+        if (is_fallback) try ctx.print("{s}.ptr(", .{ctx.zx_name});
 
         // If value contains a zx_block, transpile it instead of writing raw text
         if (attr.zx_block_node) |zx_node| {
@@ -2216,9 +2344,9 @@ fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileC
 
     // If we have spread attributes, use _zx.attrsM to merge regular and spread attributes
     if (has_spread) {
-        try ctx.write(".attributes = _zx.attrsM(.{\n");
+        try ctx.print(".attributes = {s}.attrsM(.{{\n", .{ctx.zx_name});
     } else {
-        try ctx.write(".attributes = _zx.attrs(.{\n");
+        try ctx.print(".attributes = {s}.attrs(.{{\n", .{ctx.zx_name});
     }
     ctx.indent_level += 1;
 
@@ -2229,7 +2357,7 @@ fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileC
 
         // Handle spread attributes
         if (attr.is_spread) {
-            try ctx.write("_zx.attrSpr(");
+            try ctx.print("{s}.attrSpr(", .{ctx.zx_name});
             try ctx.writeM(attr.value, attr.value_byte_offset, self);
             try ctx.write("),\n");
             continue;
@@ -2240,7 +2368,7 @@ fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileC
             try transpileTemplateStringAttr(self, attr, template_node, ctx);
         } else if (attr.zx_block_node) |zx_node| {
             // If value contains a zx_block, transpile it instead of writing raw text
-            try ctx.write("_zx.attr(");
+            try ctx.print("{s}.attr(", .{ctx.zx_name});
             try ctx.write(src_arg);
             try ctx.write(", \"");
             try ctx.writeM(attr.name, attr.name_byte_offset, self);
@@ -2248,7 +2376,7 @@ fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileC
             try transpileBlock(self, zx_node, ctx);
             try ctx.write("),\n");
         } else {
-            try ctx.write("_zx.attr(");
+            try ctx.print("{s}.attr(", .{ctx.zx_name});
             try ctx.write(src_arg);
             try ctx.write(", \"");
             try ctx.writeM(attr.name, attr.name_byte_offset, self);
@@ -2328,13 +2456,13 @@ fn transpileTemplateStringProp(self: *Ast, template_node: ts.Node, ctx: *Transpi
     }
 
     // Write _zx.propf("format", .{ values })
-    try ctx.write("_zx.propf(\"");
+    try ctx.print("{s}.propf(\"", .{ctx.zx_name});
     try ctx.write(format_parts.items);
     try ctx.write("\", .{");
 
     for (substitutions.items, 0..) |sub_node, idx| {
         if (idx > 0) try ctx.write(",");
-        try ctx.write(" _zx.propv(");
+        try ctx.print(" {s}.propv(", .{ctx.zx_name});
         const expr_text = try self.getNodeText(sub_node);
         try ctx.writeM(expr_text, sub_node.startByte(), self);
         try ctx.write(")");
@@ -2409,7 +2537,7 @@ fn transpileTemplateStringAttr(self: *Ast, attr: ZxAttribute, template_node: ts.
     }
 
     // Write _zx.attrf("name", "format", .{ values })
-    try ctx.write("_zx.attrf(\"");
+    try ctx.print("{s}.attrf(\"", .{ctx.zx_name});
     try ctx.writeM(attr.name, attr.name_byte_offset, self);
     try ctx.write("\", \"");
     try ctx.write(format_parts.items);
@@ -2418,7 +2546,7 @@ fn transpileTemplateStringAttr(self: *Ast, attr: ZxAttribute, template_node: ts.
     ctx.indent_level += 1;
     for (substitutions.items) |sub_node| {
         try ctx.writeIndent();
-        try ctx.write("_zx.attrv(");
+        try ctx.print("{s}.attrv(", .{ctx.zx_name});
         const expr_text = try self.getNodeText(sub_node);
         try ctx.writeM(expr_text, sub_node.startByte(), self);
         try ctx.write("),\n");
@@ -2636,10 +2764,7 @@ pub fn getAttributeValue(self: *Ast, node: ts.Node) ![]const u8 {
 fn isInFunction(node: ts.Node) bool {
     var current: ?ts.Node = node.parent();
     while (current) |n| {
-        const k = n.kind();
-        if (std.mem.startsWith(u8, k, "fn_") or std.mem.indexOf(u8, k, "function") != null) {
-            return true;
-        }
+        if (NodeKind.fromNode(n) == .function_declaration) return true;
         current = n.parent();
     }
     return false;
