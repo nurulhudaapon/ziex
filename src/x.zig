@@ -544,7 +544,7 @@ const Context = struct {
             @hasField(@typeInfo(FirstPropType).pointer.child, "allocator") and
             @hasField(@typeInfo(FirstPropType).pointer.child, "children");
 
-        // Use the component's real display name emitted by the transpiler
+        // TODO: use the name from the InitOptions @src() passed to x.init
         const name = options.name orelse "";
         // Context-based component or function with props parameter
         var comp_fn = if (first_is_ctx_ptr or param_count == 2) blk: {
