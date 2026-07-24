@@ -1,7 +1,10 @@
 import { WASI, PreopenDirectory, Fd, ConsoleStdout } from "@bjorn3/browser_wasi_shim";
-import { getLatestZigArchive, fetchWithCache } from "../utils";
+import { getLatestZigArchive, getZxArchive, fetchWithCache } from "../utils";
 
 declare const ZLS_VERSION: string;
+
+const ZX_IMPORT = 'const zx = @import("zx");';
+const ZX_IMPORT_RESOLVED = 'const zx = @import("zx/src/root.zig");';
 
 class Stdio extends Fd {
     constructor() {
@@ -20,8 +23,35 @@ class Stdio extends Fd {
 let instance: any;
 let bufferedMessages: string[] = [];
 
+function rewriteZxImport(text: string): string {
+    return text.replaceAll(ZX_IMPORT, ZX_IMPORT_RESOLVED);
+}
+
+/** Rewrite `@import("zx")` inside textDocument sync payloads before they reach ZLS. */
+function prepareMessage(message: string): string {
+    try {
+        const msg = JSON.parse(message);
+        if (msg.method === "textDocument/didOpen" && typeof msg.params?.textDocument?.text === "string") {
+            msg.params.textDocument.text = rewriteZxImport(msg.params.textDocument.text);
+            return JSON.stringify(msg);
+        }
+        if (msg.method === "textDocument/didChange" && Array.isArray(msg.params?.contentChanges)) {
+            for (const change of msg.params.contentChanges) {
+                if (typeof change.text === "string") {
+                    change.text = rewriteZxImport(change.text);
+                }
+            }
+            return JSON.stringify(msg);
+        }
+    } catch {
+        // not a JSON LSP message
+    }
+    return message;
+}
+
 function sendMessage(message: string) {
-    const inputMessageBuffer = new TextEncoder().encode(message);
+    const prepared = prepareMessage(message);
+    const inputMessageBuffer = new TextEncoder().encode(prepared);
     const ptr = instance.exports.allocMessage(inputMessageBuffer.length);
     new Uint8Array(instance.exports.memory.buffer).set(inputMessageBuffer, ptr);
     instance.exports.call();
@@ -44,21 +74,21 @@ onmessage = (event) => {
 };
 
 (async () => {
-    // TODO: zls is not available for Zig 0.17 yet.
-    // return;
-    let libDirectory = await getLatestZigArchive();
+    const libDirectory = await getLatestZigArchive();
+    const zxDirectory = await getZxArchive();
 
-    let args = ["zls.wasm"];
-    let env: string[] = [];
-    let fds = [
+    const fds = [
         new Stdio(), // stdin
         new Stdio(), // stdout
         ConsoleStdout.lineBuffered((line) => postMessage(JSON.stringify({ stderr: line }))), // stderr
-        new PreopenDirectory(".", new Map([])),
+        new PreopenDirectory(".", new Map([
+            ["zx", zxDirectory],
+        ])),
+        new PreopenDirectory("/zx", zxDirectory.contents),
         new PreopenDirectory("/lib", libDirectory.contents),
         new PreopenDirectory("/cache", new Map()),
     ];
-    let wasii = new WASI(args, env, fds, { debug: false });
+    const wasii = new WASI(["zls.wasm"], [], fds, { debug: false });
 
     const response = await fetchWithCache(`/assets/playground/zls-${ZLS_VERSION}.wasm`);
     const { instance: localInstance } = await WebAssembly.instantiateStreaming(response, {

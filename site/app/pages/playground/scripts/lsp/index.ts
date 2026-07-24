@@ -176,8 +176,19 @@ const semanticTokens = ViewPlugin.fromClass(
                 }
 
                 const lineStart = syncedDoc.line(line + 1).from;
-                const from = map.mapPos(lineStart + col);
-                const to = map.mapPos(lineStart + col + length);
+                const lineEnd = syncedDoc.line(line + 1).to;
+                const fromRaw = Math.min(lineStart + col, lineEnd);
+                const toRaw = Math.min(lineStart + col + length, lineEnd);
+                if (toRaw <= fromRaw) continue;
+
+                let from: number;
+                let to: number;
+                try {
+                    from = map.mapPos(fromRaw);
+                    to = map.mapPos(toRaw);
+                } catch {
+                    continue;
+                }
                 if (to > from) builder.add(from, to, Decoration.mark({ class: className }));
             }
 
