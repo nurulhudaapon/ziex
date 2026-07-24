@@ -1,0 +1,41 @@
+pub fn Page(ctx: zx.PageContext) !zx.Component {
+    return (
+        <main @allocator={ctx.arena}>
+            <p>Click and type;  open the console to see logs.</p>
+            <EventDemo @rendering={.client} />
+        </main>
+    );
+}
+
+pub fn EventDemo(ctx: *zx.ComponentContext) zx.Component {
+    const clicks = ctx.state(i32, 0);
+    return (
+        <div @allocator={ctx.allocator}>
+            <button onclick={ctx.bind(onClick)}>Clicked {clicks}</button>
+            <input oninput={onInput} />
+            <form action={onSubmit}>
+                <input name="msg"/>
+                <button type="submit">Send</button>
+            </form>
+        </div>
+    );
+}
+
+fn onClick(e: *zx.client.Event.Stateful) void {
+    const c = e.state(i32);
+    c.set(c.get() + 1);
+    const pe = e.as(zx.client.events.PointerEvent, zx.allocator);
+    zx.log.info("click ({d},{d})", .{ pe.client_x, pe.client_y });
+}
+
+fn onInput(e: zx.client.Event) void {
+    const v = e.value() orelse "";
+    zx.log.info("input: {s}", .{v});
+}
+
+fn onSubmit(a: zx.client.Action) void {
+    const data = a.data(struct { msg: []const u8 });
+    zx.log.info("submit message: {s}", .{data.msg});
+}
+
+const zx = @import("zx");

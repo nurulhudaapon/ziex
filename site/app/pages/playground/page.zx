@@ -9,7 +9,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
             <TopNavigation />
             <div class="pg-feature-notice is-hidden" id="pg-feature-notice" role="status" aria-live="polite">
                 <span class="pg-feature-notice-icon" aria-hidden="true">i</span>
-                <p class="pg-feature-notice-text">Some framework features are not supported in Playground yet, including client-side rendering.</p>
+                <p class="pg-feature-notice-text" id="pg-feature-notice-text">Toggle App for client-side rendering. Not all framework features are supported in the playground yet.</p>
                 <button class="pg-feature-notice-close" id="pg-feature-notice-close" type="button" aria-label="Dismiss notice" title="Dismiss">Dismiss</button>
             </div>
             <div class="pg-ide-body" id="pg-ide-body">
@@ -61,16 +61,16 @@ pub fn EditorPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
     return (
         <div @allocator={ctx.allocator}  class="pg-editor" id="pg-editor" style="flex: 1 1 55%;">
             <div class="pg-tabs" id="pg-tabs">
-                <button class="pg-tab pg-tab--active" data-file="page.zx" id="pg-tab-0">
+                <button class="pg-tab pg-tab--active" data-file="Playground.zx" id="pg-tab-0">
                     <span class="pg-tab-icon type-zx"><AllFileIcons /></span>
                     Playground.zx
                     <span class="pg-tab-close" aria-label="Close tab" style="opacity: 0.3; pointer-events: none;">×</span>
                 </button>
-                // <button class="pg-tab" data-file="style.css" id="pg-tab-2">
-                //     <span class="pg-tab-icon type-css"><AllFileIcons /></span>
-                //     style.css
-                //     <span class="pg-tab-close" aria-label="Close tab">×</span>
-                // </button>
+                <button class="pg-tab" data-file="style.css" id="pg-tab-2">
+                    <span class="pg-tab-icon type-css"><AllFileIcons /></span>
+                    style.css
+                    <span class="pg-tab-close" aria-label="Close tab">×</span>
+                </button>
                 <button class="pg-tab-add" id="pg-add-file" aria-label="Add new file" title="New file">+</button>
             </div>
             <template id="pg-icons-template">
@@ -83,15 +83,24 @@ pub fn EditorPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
     );
 }
 
-// ── Editor status bar (cursor, language, format, future actions) ──
 pub fn EditorStatusBar(ctx: *zx.ComponentCtx(struct {})) zx.Component {
     return (
         <div @allocator={ctx.allocator} class="pg-editor-status" id="pg-editor-status">
             <div class="pg-editor-status-left">
                 <span class="pg-editor-status-item" id="pg-cursor-pos">Ln 1, Col 1</span>
+                <select id="pg-template-select" class="pg-template-select" aria-label="Select template"></select>
             </div>
             <div class="pg-editor-status-right">
-                <span class="pg-editor-status-item" id="pg-file-lang">ZX</span>
+                <button
+                    type="button"
+                    class="pg-app-toggle"
+                    id="pg-app-toggle"
+                    aria-pressed="false"
+                    title="Toggle App mode (full mini-app with SSR + client hydrate)"
+                    aria-label="App mode"
+                >
+                    App
+                </button>
                 <button
                     class="pg-editor-status-btn"
                     id="pg-format-btn"
@@ -105,6 +114,7 @@ pub fn EditorStatusBar(ctx: *zx.ComponentCtx(struct {})) zx.Component {
                         <path d="M15.28 9.22a.75.75 0 0 1 1.06 0l2.22 2.22a.75.75 0 1 1-1.06 1.06l-.94-.94V16.5a.75.75 0 0 1-1.5 0v-4.94l-.94.94a.75.75 0 1 1-1.06-1.06l2.22-2.22Z"/>
                     </svg>
                 </button>
+                <span class="pg-editor-status-item" id="pg-file-lang">ZX</span>
             </div>
         </div>
     );
@@ -163,19 +173,24 @@ pub fn StatusBar(ctx: *zx.ComponentCtx(struct {})) zx.Component {
 
 pub fn BrowserToolbar(ctx: *zx.ComponentCtx(struct {})) zx.Component {
     return (
-        <div @allocator={ctx.allocator} class="pg-browser-toolbar" style="display: none;">
-            <div class="pg-browser-dots">
-                <span></span><span></span><span></span>
-            </div>
+        <div @allocator={ctx.allocator} class="pg-browser-toolbar is-hidden" id="pg-browser-toolbar">
             <div class="pg-browser-nav">
-                <button class="pg-browser-nav-btn" aria-label="Back" id="pg-browser-back">◀</button>
-                <button class="pg-browser-nav-btn" aria-label="Forward" id="pg-browser-forward">▶</button>
+                <button class="pg-browser-nav-btn" type="button" aria-label="Back" id="pg-browser-back" disabled="true">◀</button>
+                <button class="pg-browser-nav-btn" type="button" aria-label="Forward" id="pg-browser-forward" disabled="true">▶</button>
             </div>
-            <div class="pg-browser-url">
-                <span class="pg-browser-url-lock">🔒</span>
-                <input class="pg-browser-url-text" value="localhost:5588/" id="pg-browser-url-input" readonly="true" />
-            </div>
-            <button class="pg-browser-refresh-btn" aria-label="Refresh" id="pg-browser-refresh">⟳</button>
+            <form class="pg-browser-url" id="pg-browser-url-form">
+                <span class="pg-browser-url-lock" aria-hidden="true"></span>
+                <input
+                    class="pg-browser-url-text"
+                    type="text"
+                    value="playground.local/"
+                    id="pg-browser-url-input"
+                    spellcheck="false"
+                    autocomplete="off"
+                    aria-label="Preview URL"
+                />
+            </form>
+            <button class="pg-browser-refresh-btn" type="button" aria-label="Refresh" id="pg-browser-refresh">⟳</button>
         </div>
     );
 }

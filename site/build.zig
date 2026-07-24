@@ -51,9 +51,22 @@ pub fn build(b: *std.Build) !void {
         run_zx_tar.addDirectoryArg(zx_wasm_dep.path("."));
         run_zx_tar.addArg("src");
 
+        const run_jsz_tar = b.addSystemCommand(&.{ "tar", "-czf" });
+        run_jsz_tar.setName("pack jsz sources (playground)");
+        run_jsz_tar.has_side_effects = true;
+        const jsz_tar_gz = run_jsz_tar.addOutputFileArg("jsz.tar.gz");
+        run_jsz_tar.addArg("-C");
+        run_jsz_tar.addDirectoryArg(zx_wasm_dep.path("vendor/jsz"));
+        run_jsz_tar.addArg("src");
+
+        const ziex_js_files = ziex_jsbindings_dep.namedWriteFiles("ziex_js");
+        const pg_init_js = ziex_js_files.getDirectory().path(b, "wasm/init.js");
+
         const playground_assets = b.addNamedWriteFiles("playground_assets");
         _ = playground_assets.addCopyFile(zx_exe.getEmittedBin(), b.fmt("zx-{s}-{s}.wasm", .{ ziex.info.version, id }));
         _ = playground_assets.addCopyFile(zx_tar_gz, b.fmt("zx-{s}-{s}.tar.gz", .{ ziex.info.version, id }));
+        _ = playground_assets.addCopyFile(jsz_tar_gz, "jsz.tar.gz");
+        _ = playground_assets.addCopyFile(pg_init_js, "init.js");
 
         if (build_zig) {
             const zls_wasm_url = "https://playground.zigtools.org/assets/zls-Cv7Q1mLZ.wasm";

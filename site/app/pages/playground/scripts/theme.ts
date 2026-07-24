@@ -45,7 +45,6 @@ export const editorTheme = EditorView.theme(
       backgroundColor: "transparent",
       color: "rgba(255, 255, 255, 0.45)",
     },
-    /* Tooltip styling — VS Code-like floating hover/autocomplete */
     ".cm-tooltip": {
       backgroundColor: "#252526",
       color: "#cccccc",
@@ -91,11 +90,11 @@ export const editorTheme = EditorView.theme(
       marginBottom: "0",
     },
     ".cm-lsp-documentation pre": {
-      margin: "0.4em 0",
-      padding: "6px 8px",
-      backgroundColor: "#1e1e1e",
-      border: "1px solid #333333",
-      borderRadius: "3px",
+      margin: "0",
+      padding: "0",
+      backgroundColor: "transparent",
+      border: "none",
+      borderRadius: "0",
       overflowX: "auto",
       whiteSpace: "pre-wrap",
       wordBreak: "break-word",
@@ -116,10 +115,10 @@ export const editorTheme = EditorView.theme(
       borderRadius: "0",
     },
     ".cm-lsp-documentation code": {
-      backgroundColor: "rgba(255, 255, 255, 0.08)",
+      backgroundColor: "transparent",
       color: "#ce9178",
-      padding: "1px 4px",
-      borderRadius: "3px",
+      padding: "0",
+      borderRadius: "0",
       border: "none",
       fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace",
       fontSize: "0.92em",

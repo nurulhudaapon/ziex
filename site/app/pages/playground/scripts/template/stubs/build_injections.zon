@@ -1,0 +1,32 @@
+.{ .{
+    .id = "jsglue",
+    .parent = .head,
+    .position = .ending,
+    .element = .{
+        .tag = .script,
+        .children = null,
+        .attributes = .{
+            .{ .name = "defer", .value = null },
+            .{ .name = "src", .value = "/assets/playground/init.js" },
+        },
+    },
+    .priority = 128,
+    .pathname = .{ .includes = .{}, .excludes = .{} },
+}, .{
+    .id = "wasmlink",
+    .parent = .head,
+    .position = .ending,
+    .element = .{
+        .tag = .link,
+        .children = null,
+        .attributes = .{
+            .{ .name = "id", .value = "__$wasmlink" },
+            .{ .name = "rel", .value = "preload" },
+            .{ .name = "as", .value = "fetch" },
+            .{ .name = "href", .value = "__PLAYGROUND_CLIENT_WASM__" },
+            .{ .name = "crossorigin", .value = null },
+        },
+    },
+    .priority = 128,
+    .pathname = .{ .includes = .{}, .excludes = .{} },
+} }

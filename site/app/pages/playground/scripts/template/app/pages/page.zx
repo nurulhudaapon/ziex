@@ -1,0 +1,23 @@
+pub fn Page(ctx: zx.PageContext) !zx.Component {
+    return (
+        <main @allocator={ctx.arena}>
+            <p><a href="/about">About →</a></p>
+            <Counter @rendering={.client} initial={0} />
+        </main>
+    );
+}
+
+pub fn Counter(ctx: *zx.ComponentCtx(struct { initial: i32 })) ?zx.Component {
+    const count = ctx.state(i32, ctx.props.initial);
+    return (
+        <div @allocator={ctx.allocator}>
+            <button onclick={count.bind(increment)}>Count: {count}</button>
+        </div>
+    );
+}
+
+fn increment(x: i32) i32 {
+    return x + 1;
+}
+
+const zx = @import("zx");

@@ -21,4 +21,3 @@ fn decrement(x: i32) i32 {
 }
 
 const zx = @import("zx");
-const std = @import("std");

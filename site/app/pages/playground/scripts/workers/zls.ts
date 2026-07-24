@@ -3,9 +3,6 @@ import { getLatestZigArchive, getZxArchive, fetchWithCache } from "../utils";
 
 declare const ZLS_VERSION: string;
 
-const ZX_IMPORT = 'const zx = @import("zx");';
-const ZX_IMPORT_RESOLVED = 'const zx = @import("zx/src/root.zig");';
-
 class Stdio extends Fd {
     constructor() {
         super();
@@ -23,22 +20,32 @@ class Stdio extends Fd {
 let instance: any;
 let bufferedMessages: string[] = [];
 
-function rewriteZxImport(text: string): string {
-    return text.replaceAll(ZX_IMPORT, ZX_IMPORT_RESOLVED);
+function zxImportPathForUri(uri: string | undefined): string {
+    if (!uri) return "zx/src/root.zig";
+    const path = uri.replace(/^file:\/+/, "").replace(/^\//, "");
+    const parts = path.split("/").filter(Boolean);
+    const depth = Math.max(0, parts.length - 1);
+    return `${"../".repeat(depth)}zx/src/root.zig`;
 }
 
-/** Rewrite `@import("zx")` inside textDocument sync payloads before they reach ZLS. */
+function rewriteZxImport(text: string, uri?: string): string {
+    const resolved = zxImportPathForUri(uri);
+    return text.replaceAll('@import("zx")', `@import("${resolved}")`);
+}
+
 function prepareMessage(message: string): string {
     try {
         const msg = JSON.parse(message);
         if (msg.method === "textDocument/didOpen" && typeof msg.params?.textDocument?.text === "string") {
-            msg.params.textDocument.text = rewriteZxImport(msg.params.textDocument.text);
+            const uri = msg.params.textDocument.uri as string | undefined;
+            msg.params.textDocument.text = rewriteZxImport(msg.params.textDocument.text, uri);
             return JSON.stringify(msg);
         }
         if (msg.method === "textDocument/didChange" && Array.isArray(msg.params?.contentChanges)) {
+            const uri = msg.params?.textDocument?.uri as string | undefined;
             for (const change of msg.params.contentChanges) {
                 if (typeof change.text === "string") {
-                    change.text = rewriteZxImport(change.text);
+                    change.text = rewriteZxImport(change.text, uri);
                 }
             }
             return JSON.stringify(msg);

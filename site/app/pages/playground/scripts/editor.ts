@@ -7,12 +7,25 @@ import { formatDocument } from "@codemirror/lsp-client";
 import { indentWithTab } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
 import { editorTheme, editorHighlightStyle } from "./theme.ts";
+import { isGeneratedPlaygroundPath, CLIENT_WASM_PLACEHOLDER, type PlaygroundBuildArtifacts } from "./csr.ts";
+import {
+    type PlaygroundMode,
+    defaultTemplateId,
+    getTemplate,
+    templatesForMode,
+} from "./templates.ts";
 // @ts-ignore
-import zigMainSource from './template/main.zig' with { type: "text" };
-// @ts-ignores
-import zxModSource from './template/Playground.zx' with { type: "text" };
+import stubZxOptsServer from './template/stubs/zx_module_options_server.zig' with { type: "text" };
 // @ts-ignore
-import zxstylecss from './template/style.css' with { type: "text" };
+import stubZxOptsClient from './template/stubs/zx_module_options_client.zig' with { type: "text" };
+// @ts-ignore
+import stubZxInfo from './template/stubs/zx_info.zig' with { type: "text" };
+// @ts-ignore
+import stubAppOpts from './template/stubs/app_opts.zig' with { type: "text" };
+// @ts-ignore
+import stubManifest from './template/stubs/manifest.zon' with { type: "text" };
+// @ts-ignore
+import stubBuildInjections from './template/stubs/build_injections.zon' with { type: "text" };
 import { fileManager, PlaygroundFile } from "./file";
 import { html } from "@codemirror/lang-html";
 import { css } from "@codemirror/lang-css";
@@ -22,6 +35,30 @@ import { createPlaygroundShareUrl, decodeFilesFromQuery } from "../../../scripts
 // TODO: zls is not available for Zig 0.17 yet.
 let client = createZlsClient(workerTransport(new Worker('/assets/playground/workers/zls.js')));
 const PLAYGROUND_NOTICE_STORAGE_KEY = "playground_feature_notice_dismissed_v1";
+const MODE_STORAGE_KEY = "playground_mode_v1";
+const TEMPLATE_STORAGE_KEY = "playground_template_v1";
+
+let playgroundMode: PlaygroundMode = "playground";
+let activeTemplateId = defaultTemplateId("playground");
+
+try {
+    const savedMode = localStorage.getItem(MODE_STORAGE_KEY);
+    if (savedMode === "app" || savedMode === "playground") playgroundMode = savedMode;
+    const savedTemplate = localStorage.getItem(TEMPLATE_STORAGE_KEY);
+    if (savedTemplate && getTemplate(savedTemplate)?.mode === playgroundMode) {
+        activeTemplateId = savedTemplate;
+    } else {
+        activeTemplateId = defaultTemplateId(playgroundMode);
+    }
+} catch { /* ignore */ }
+
+window.addEventListener("message", (ev: MessageEvent) => {
+    if (ev.data?.type === "pg-hydrate-error" && typeof ev.data.message === "string") {
+        appendTerminalLine(ev.data.message, "pg-terminal-error");
+        setTerminalCollapsed(false);
+        revealOutputWindow();
+    }
+});
 
 
 interface EditorFile {
@@ -162,7 +199,8 @@ function updateTabs() {
         }
         tab.appendChild(iconSpan);
 
-        tab.appendChild(document.createTextNode(file.name));
+        const tabLabel = file.name.includes("/") ? file.name.slice(file.name.lastIndexOf("/") + 1) : file.name;
+        tab.appendChild(document.createTextNode(tabLabel));
 
         const closeBtn = document.createElement("span");
         closeBtn.className = "pg-tab-close";
@@ -171,7 +209,7 @@ function updateTabs() {
         if (file.locked) {
             closeBtn.style.opacity = "0.3";
             closeBtn.style.pointerEvents = "none";
-            closeBtn.title = "Main playground file: cannot rename or close, and fn Playground must exist in it";
+            closeBtn.title = "Locked framework entry file";
         } else {
             closeBtn.onclick = (e) => {
                 e.stopPropagation();
@@ -185,7 +223,7 @@ function updateTabs() {
             tab.ondblclick = () => renameFile(index);
         } else {
             tab.ondblclick = null;
-            tab.title = "Main playground file: cannot rename or close, and fn Playground must exist in it";
+            tab.title = file.name;
         }
 
         tabsContainer.appendChild(tab);
@@ -374,33 +412,110 @@ document.getElementById("pg-share-btn")?.addEventListener("click", async () => {
     }
 });
 
-function loadTemplateFiles() {
-    fileManager.addFile("Playground.zx", zxModSource);
-    fileManager.addFile("main.zig", zigMainSource);
-    fileManager.addFile("style.css", zxstylecss);
+function persistModeState() {
+    try {
+        localStorage.setItem(MODE_STORAGE_KEY, playgroundMode);
+        localStorage.setItem(TEMPLATE_STORAGE_KEY, activeTemplateId);
+    } catch { /* ignore */ }
+}
+
+function updateModeNotice() {
+    const el = document.getElementById("pg-feature-notice-text");
+    if (!el) return;
+    el.textContent = playgroundMode === "app"
+        ? "App mode: SSR + client hydrate. Not all framework features are supported in the playground."
+        : "Toggle App for client-side rendering. Not all framework features are supported in the playground yet.";
+}
+
+function refreshTemplateSelect() {
+    const select = document.getElementById("pg-template-select") as HTMLSelectElement | null;
+    if (!select) return;
+    const options = templatesForMode(playgroundMode);
+    select.innerHTML = "";
+    for (const t of options) {
+        const opt = document.createElement("option");
+        opt.value = t.id;
+        opt.textContent = t.label;
+        select.appendChild(opt);
+    }
+    if (!options.some((t) => t.id === activeTemplateId)) {
+        activeTemplateId = defaultTemplateId(playgroundMode);
+    }
+    select.value = activeTemplateId;
+}
+
+function loadFilesFromMap(fileMap: { [filename: string]: string }) {
+    fileManager.getAllFiles().forEach((f) => fileManager.removeFile(f.name));
+    Object.entries(fileMap).forEach(([name, content]) => fileManager.addFile(name, content));
+    const newFiles = fileManager.getAllFiles().map((f) => ({
+        name: f.name,
+        state: createEditorState(f.name, f.content),
+        hidden: isHiddenPlaygroundFile(f.name),
+        locked: isLockedPlaygroundFile(f.name),
+    }));
+    files.length = 0;
+    files.push(...newFiles);
+    activeFileIndex = -1;
+    let initialFileIndex = files.findIndex((f) => !f.hidden && (f.name.endsWith("page.zx") || f.name === "Playground.zx"));
+    if (initialFileIndex < 0) initialFileIndex = files.findIndex((f) => !f.hidden);
+    if (initialFileIndex < 0) initialFileIndex = 0;
+    updateTabs();
+    void switchFile(initialFileIndex);
+    transpileCache.clear();
+    buildCache.clear();
+    resetPreviewNavigation();
+    resetPreviewPlaceholder();
+}
+
+function loadTemplateFiles(templateId = activeTemplateId) {
+    const template = getTemplate(templateId) ?? getTemplate(defaultTemplateId(playgroundMode))!;
+    activeTemplateId = template.id;
+    playgroundMode = template.mode;
+    persistModeState();
+    loadFilesFromMap(template.files);
 }
 
 function ensureBaselinePlaygroundFiles(filesDecoded: { [filename: string]: string }): { [filename: string]: string } {
     const normalized: { [filename: string]: string } = { ...filesDecoded };
+    const looksLikeApp = Boolean(normalized["app/pages/page.zx"] || normalized["app/main.zig"]);
 
+    if (looksLikeApp) {
+        playgroundMode = "app";
+        activeTemplateId = defaultTemplateId("app");
+        const fallback = getTemplate(activeTemplateId)!.files;
+        for (const [name, content] of Object.entries(fallback)) {
+            if (!normalized[name]) normalized[name] = content;
+        }
+        return normalized;
+    }
+
+    playgroundMode = "playground";
     if (!normalized["Playground.zx"]) {
         const firstZx = Object.keys(normalized).find((name) => name.endsWith(".zx"));
         if (firstZx) {
             normalized["Playground.zx"] = normalized[firstZx];
-            if (firstZx !== "Playground.zx") {
-                delete normalized[firstZx];
-            }
+            if (firstZx !== "Playground.zx") delete normalized[firstZx];
         }
     }
-
-    if (!normalized["Playground.zx"]) {
-        normalized["Playground.zx"] = zxModSource;
+    const fallback = getTemplate(defaultTemplateId("playground"))!.files;
+    for (const [name, content] of Object.entries(fallback)) {
+        if (!normalized[name]) normalized[name] = content;
     }
-    if (!normalized["main.zig"]) {
-        normalized["main.zig"] = zigMainSource;
-    }
-
+    activeTemplateId = defaultTemplateId("playground");
     return normalized;
+}
+
+function isLockedPlaygroundFile(name: string): boolean {
+    return playgroundMode === "app"
+        ? name === "app/main.zig"
+        : name === "Playground.zx" || name === "main.zig";
+}
+
+function isHiddenPlaygroundFile(name: string): boolean {
+    if (playgroundMode === "app") {
+        return isGeneratedPlaygroundPath(name) || name === "app/main.zig";
+    }
+    return name.endsWith(".zig");
 }
 
 function clearSharedDataHashFromUrl() {
@@ -443,66 +558,217 @@ function setupFeatureNotice() {
 
 window.addEventListener("DOMContentLoaded", async () => {
     setupFeatureNotice();
-    // TODO: zls is not available for Zig 0.17 yet.
-    await client.initializing;
+    setupModeControls();
+    await Promise.race([
+        client.initializing,
+        new Promise<void>((resolve) => setTimeout(resolve, 2500)),
+    ]);
     let code = null;
     if (location.hash.startsWith("#data=")) {
         code = location.hash.slice(6);
     }
-    let initialFileIndex = 0;
     if (code) {
         const filesDecoded = await decodeFilesFromQuery(code);
         if (filesDecoded) {
             const filesWithDefaults = ensureBaselinePlaygroundFiles(filesDecoded);
-            fileManager.getAllFiles().forEach(f => fileManager.removeFile(f.name));
-            Object.entries(filesWithDefaults).forEach(([name, content]) => fileManager.addFile(name, content));
-            const newFiles = fileManager.getAllFiles().map(f => ({
-                name: f.name,
-                state: createEditorState(f.name, f.content),
-                hidden: f.name === "main.zig",
-                locked: f.name === "Playground.zx" || f.name === "main.zig",
-            }));
-            files.length = 0;
-            files.push(...newFiles);
-            updateTabs();
-            await switchFile(initialFileIndex);
-            // Force re-setting the state to trigger LSP plugin
-            if (editorView && files[initialFileIndex]) {
-                editorView.setState(files[initialFileIndex].state);
-            }
+            loadFilesFromMap(filesWithDefaults);
             clearSharedDataHashFromUrl();
-            // Enable Run and Share buttons only after files are loaded and editor is ready
-            const runBtn = document.getElementById("pg-run-btn");
-            if (runBtn) runBtn.removeAttribute("disabled");
-            const shareBtn = document.getElementById("pg-share-btn");
-            if (shareBtn) shareBtn.removeAttribute("disabled");
-            const formatBtn = document.getElementById("pg-format-btn");
-            if (formatBtn) formatBtn.removeAttribute("disabled");
+            syncModeUi();
+            enableChromeButtons();
             return;
         }
     }
     loadTemplateFiles();
-    const newFiles = fileManager.getAllFiles().map(f => ({
-        name: f.name,
-        state: createEditorState(f.name, f.content),
-        hidden: f.name === "main.zig",
-        locked: f.name === "Playground.zx" || f.name === "main.zig",
-    }));
-    files.length = 0;
-    files.push(...newFiles);
-    updateTabs();
-    await switchFile(initialFileIndex);
-    if (editorView && files[initialFileIndex]) {
-        editorView.setState(files[initialFileIndex].state);
-    }
-    // Enable Run and Share buttons only after files are loaded and editor is ready
-    const runBtn = document.getElementById("pg-run-btn");
-    if (runBtn) runBtn.removeAttribute("disabled");
-    const shareBtn = document.getElementById("pg-share-btn");
-    if (shareBtn) shareBtn.removeAttribute("disabled");
-    const formatBtn = document.getElementById("pg-format-btn");
-    if (formatBtn) formatBtn.removeAttribute("disabled");
+    syncModeUi();
+    enableChromeButtons();
 });
+
+function enableChromeButtons() {
+    document.getElementById("pg-run-btn")?.removeAttribute("disabled");
+    document.getElementById("pg-share-btn")?.removeAttribute("disabled");
+    document.getElementById("pg-format-btn")?.removeAttribute("disabled");
+}
+
+function syncModeUi() {
+    const appToggle = document.getElementById("pg-app-toggle") as HTMLButtonElement | null;
+    if (appToggle) {
+        const on = playgroundMode === "app";
+        appToggle.classList.toggle("is-active", on);
+        appToggle.setAttribute("aria-pressed", on ? "true" : "false");
+    }
+    refreshTemplateSelect();
+    updateModeNotice();
+    syncBrowserToolbar();
+}
+
+const PREVIEW_HOST = "playground.local";
+const PREVIEW_ORIGIN = `https://${PREVIEW_HOST}`;
+
+type PreviewLocation = { pathname: string; search: string; url: string; display: string };
+
+let previewLocation: PreviewLocation = normalizePreviewLocation("/");
+let previewHistory: PreviewLocation[] = [previewLocation];
+let previewHistoryIndex = 0;
+let lastAppArtifacts: PlaygroundBuildArtifacts | null = null;
+let previewNavigating = false;
+
+function normalizePreviewLocation(input: string): PreviewLocation {
+    let raw = input.trim();
+    if (!raw) raw = "/";
+
+    try {
+        if (/^https?:\/\//i.test(raw)) {
+            const u = new URL(raw);
+            const pathname = u.pathname || "/";
+            const search = u.search || "";
+            return {
+                pathname,
+                search,
+                url: `${PREVIEW_ORIGIN}${pathname}${search}`,
+                display: `${PREVIEW_HOST}${pathname}${search}`,
+            };
+        }
+    } catch { /* fall through */ }
+
+    raw = raw.replace(/^(https?:\/\/)?(playground\.local|localhost(?::\d+)?)/i, "");
+    if (!raw.startsWith("/")) raw = `/${raw}`;
+    const q = raw.indexOf("?");
+    const pathname = (q >= 0 ? raw.slice(0, q) : raw) || "/";
+    const search = q >= 0 ? raw.slice(q) : "";
+    return {
+        pathname,
+        search,
+        url: `${PREVIEW_ORIGIN}${pathname}${search}`,
+        display: `${PREVIEW_HOST}${pathname}${search}`,
+    };
+}
+
+function setPreviewLocation(loc: PreviewLocation, mode: "replace" | "push" | "none" = "replace") {
+    previewLocation = loc;
+    if (mode === "push") {
+        previewHistory = previewHistory.slice(0, previewHistoryIndex + 1);
+        const prev = previewHistory[previewHistory.length - 1];
+        if (!prev || prev.url !== loc.url) {
+            previewHistory.push(loc);
+            previewHistoryIndex = previewHistory.length - 1;
+        }
+    } else if (mode === "replace") {
+        previewHistory = [loc];
+        previewHistoryIndex = 0;
+    }
+    const input = document.getElementById("pg-browser-url-input") as HTMLInputElement | null;
+    if (input && document.activeElement !== input) input.value = loc.display;
+    updateBrowserNavButtons();
+}
+
+function resetPreviewNavigation() {
+    lastAppArtifacts = null;
+    setPreviewLocation(normalizePreviewLocation("/"), "replace");
+}
+
+function updateBrowserNavButtons() {
+    const back = document.getElementById("pg-browser-back") as HTMLButtonElement | null;
+    const forward = document.getElementById("pg-browser-forward") as HTMLButtonElement | null;
+    if (back) back.disabled = previewHistoryIndex <= 0;
+    if (forward) forward.disabled = previewHistoryIndex >= previewHistory.length - 1;
+}
+
+function syncBrowserToolbar() {
+    const toolbar = document.getElementById("pg-browser-toolbar");
+    if (!toolbar) return;
+    toolbar.classList.toggle("is-hidden", playgroundMode !== "app");
+    const input = document.getElementById("pg-browser-url-input") as HTMLInputElement | null;
+    if (input && document.activeElement !== input) input.value = previewLocation.display;
+    updateBrowserNavButtons();
+}
+
+function setupBrowserToolbar() {
+    const form = document.getElementById("pg-browser-url-form") as HTMLFormElement | null;
+    form?.addEventListener("submit", (ev) => {
+        ev.preventDefault();
+        const input = document.getElementById("pg-browser-url-input") as HTMLInputElement | null;
+        void navigatePreview(input?.value ?? "/", { history: "push" });
+    });
+
+    document.getElementById("pg-browser-refresh")?.addEventListener("click", () => {
+        void navigatePreview(previewLocation.display, { history: "none" });
+    });
+    document.getElementById("pg-browser-back")?.addEventListener("click", () => {
+        if (previewHistoryIndex <= 0) return;
+        previewHistoryIndex -= 1;
+        const loc = previewHistory[previewHistoryIndex]!;
+        void navigatePreview(loc.display, { history: "none", location: loc });
+    });
+    document.getElementById("pg-browser-forward")?.addEventListener("click", () => {
+        if (previewHistoryIndex >= previewHistory.length - 1) return;
+        previewHistoryIndex += 1;
+        const loc = previewHistory[previewHistoryIndex]!;
+        void navigatePreview(loc.display, { history: "none", location: loc });
+    });
+
+    window.addEventListener("message", (ev) => {
+        const data = ev.data;
+        if (!data || typeof data !== "object") return;
+        if (data.type === "pg-navigate" && typeof data.href === "string") {
+            void navigatePreview(data.href, { history: "push" });
+        }
+    });
+}
+
+async function navigatePreview(
+    input: string,
+    opts: { history?: "push" | "replace" | "none"; location?: PreviewLocation } = {},
+) {
+    if (playgroundMode !== "app") return;
+    if (!lastAppArtifacts) {
+        appendTerminalLine("Run the app first, then use the URL bar to navigate.", "pg-terminal-error");
+        setTerminalCollapsed(false);
+        revealOutputWindow();
+        return;
+    }
+    if (previewNavigating) return;
+
+    const loc = opts.location ?? normalizePreviewLocation(input);
+    const historyMode = opts.history ?? "push";
+    if (historyMode === "push") setPreviewLocation(loc, "push");
+    else if (historyMode === "replace") setPreviewLocation(loc, "replace");
+    else {
+        previewLocation = loc;
+        const urlInput = document.getElementById("pg-browser-url-input") as HTMLInputElement | null;
+        if (urlInput && document.activeElement !== urlInput) urlInput.value = loc.display;
+        updateBrowserNavButtons();
+    }
+
+    previewNavigating = true;
+    setRunButtonLoading(true);
+    try {
+        await runAppArtifacts(lastAppArtifacts, loc);
+    } finally {
+        previewNavigating = false;
+        setRunButtonLoading(false);
+    }
+}
+
+function setupModeControls() {
+    setupBrowserToolbar();
+    document.getElementById("pg-app-toggle")?.addEventListener("click", () => {
+        const next: PlaygroundMode = playgroundMode === "app" ? "playground" : "app";
+        playgroundMode = next;
+        activeTemplateId = defaultTemplateId(next);
+        persistModeState();
+        loadTemplateFiles(activeTemplateId);
+        syncModeUi();
+    });
+    document.getElementById("pg-template-select")?.addEventListener("change", (ev) => {
+        const id = (ev.target as HTMLSelectElement).value;
+        const template = getTemplate(id);
+        if (!template || template.mode !== playgroundMode) return;
+        activeTemplateId = id;
+        persistModeState();
+        loadTemplateFiles(id);
+        syncModeUi();
+    });
+}
 
 // Client connects on construction; file loading is handled in DOMContentLoaded.
 
@@ -527,8 +793,8 @@ new ResizeObserver(updateTabsScrollShadow).observe(tabsEl);
 new MutationObserver(updateTabsScrollShadow).observe(tabsEl, { childList: true });
 
 
-let zigWorker = new Worker('/assets/playground/workers/zig.js');
-let zxWorker = new Worker('/assets/playground/workers/zx.js');
+let zigWorker = new Worker(`/assets/playground/workers/zig.js?v=${Date.now()}`);
+let zxWorker = new Worker(`/assets/playground/workers/zx.js?v=${Date.now()}`);
 
 function setRunButtonLoading(loading: boolean) {
     const btn = document.getElementById("pg-run-btn")!;
@@ -590,18 +856,45 @@ interface CacheEntry<V> {
 }
 
 const transpileCache = new Map<string, CacheEntry<{ [name: string]: string }>>();
-const buildCache = new Map<string, CacheEntry<unknown>>();
+const buildCache = new Map<string, CacheEntry<PlaygroundBuildArtifacts>>();
 
-// Promisified transpile
-let transpile_start_time: number | null = null;
+function stubFiles(): { [name: string]: string } {
+    return {
+        "stubs/zx_module_options_server.zig": stubZxOptsServer,
+        "stubs/zx_module_options_client.zig": stubZxOptsClient,
+        "stubs/zx_info.zig": stubZxInfo,
+        "stubs/app_opts.zig": stubAppOpts,
+        "stubs/manifest.zon": stubManifest,
+        "stubs/build_injections.zon": stubBuildInjections,
+    };
+}
+
+function transpileAppAsync(filesMap: { [name: string]: string }): Promise<{ [filename: string]: string }> {
+    return new Promise((resolve, reject) => {
+        function handler(ev: MessageEvent) {
+            const d = ev.data;
+            if (d?.failed) {
+                zxWorker.removeEventListener("message", handler);
+                reject({ stderr: d.stderr || "Transpile failed" });
+            } else if (d?.transpiled) {
+                zxWorker.removeEventListener("message", handler);
+                resolve(d.transpiled);
+            }
+        }
+        zxWorker.addEventListener("message", handler);
+        zxWorker.postMessage({
+            files: { ...filesMap, ...stubFiles() },
+            path: "app",
+            buildInjections: "stubs/build_injections.zon",
+        });
+    });
+}
+
 function transpileZxFileAsync(zxName: string, zxContent: string): Promise<{ [filename: string]: string }> {
     return new Promise((resolve, reject) => {
         function handler(ev: MessageEvent) {
             const d = ev.data;
-            if (d && d.filename && d.transpiled) {
-                zxWorker.removeEventListener('message', handler);
-                resolve({ [d.filename]: d.transpiled });
-            } else if (d && d.failed) {
+            if (d && d.failed) {
                 zxWorker.removeEventListener('message', handler);
                 reject({ stderr: d.stderr || 'Transpile failed' });
             } else if (d && d.stdout) {
@@ -610,7 +903,6 @@ function transpileZxFileAsync(zxName: string, zxContent: string): Promise<{ [fil
             }
         }
         zxWorker.addEventListener('message', handler);
-        transpile_start_time = performance.now();
         zxWorker.postMessage({ filename: zxName, content: zxContent });
     });
 }
@@ -709,92 +1001,334 @@ document.getElementById("pg-format-btn")?.addEventListener("click", () => {
 
 // Promisified build
 let build_start_time = performance.now();
-function buildFilesAsync(filesMap: { [name: string]: string }): Promise<unknown> {
+function buildFilesAsync(filesMap: { [name: string]: string }): Promise<PlaygroundBuildArtifacts | Uint8Array> {
     return new Promise((resolve, reject) => {
+        let stderrAcc = "";
         function handler(ev: MessageEvent) {
-            zigWorker.removeEventListener('message', handler);
             const d = ev.data;
-            console.info('Build finished in', (performance.now() - build_start_time).toFixed(2), 'ms');
-            if (d.stderr) reject({ type: 'stderr', stderr: d.stderr });
-            else if (d.failed) reject({ type: 'failed' });
-            else if (d.compiled) resolve(d.compiled);
+            if (d.stderr) {
+                stderrAcc += (stderrAcc ? "\n" : "") + d.stderr;
+            }
+            if (d.stderr && !d.compiled && !d.failed) return;
+            if (d.failed) {
+                zigWorker.removeEventListener("message", handler);
+                reject({ type: "failed", stderr: d.stderr || stderrAcc });
+            } else if (d.compiled) {
+                zigWorker.removeEventListener("message", handler);
+                console.info("Build finished in", (performance.now() - build_start_time).toFixed(2), "ms");
+                resolve(d.compiled as PlaygroundBuildArtifacts | Uint8Array);
+            }
         }
-        zigWorker.addEventListener('message', handler);
+        zigWorker.addEventListener("message", handler);
         build_start_time = performance.now();
-        zigWorker.postMessage({ files: filesMap });
+        const payload = playgroundMode === "app"
+            ? { files: { ...filesMap, ...stubFiles() }, mode: "app" }
+            : { files: filesMap, mode: "playground" };
+        zigWorker.postMessage(payload);
     });
 }
 
-// Run compiled binary
-function runCompiled(compiled: unknown) {
-    appendStatusStep('run', 'Running\u2026');
-    updatePreviewStatus('', 'Running\u2026', 'run');
+let lastClientWasmUrl: string | null = null;
 
-    const runnerWorker = new Worker('/assets/playground/workers/runner.js');
-    runnerWorker.postMessage({ run: compiled });
-    runnerWorker.onmessage = (rev: MessageEvent) => {
-        if (rev.data.stderr) {
-            completeStatusStep('run', 'error');
-            const lines = rev.data.stderr.split('\n').filter((l: string) => l.length > 0);
-            for (const l of lines) appendTerminalLine(l, 'pg-terminal-error');
+function showHtmlPreview(html: string) {
+    const vp = document.getElementById("pg-browser-viewport")!;
+    vp.innerHTML = "";
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "width:100%;height:100%;border:none;background-color:white";
+    vp.appendChild(iframe);
+    iframe.contentDocument?.open();
+    iframe.contentDocument?.write(html);
+    iframe.contentDocument?.close();
+}
+
+function showHydratedPreview(html: string, clientWasm: Uint8Array) {
+    if (lastClientWasmUrl) URL.revokeObjectURL(lastClientWasmUrl);
+    lastClientWasmUrl = URL.createObjectURL(new Blob([clientWasm], { type: "application/wasm" }));
+
+    const baseHref = `${location.origin}/`;
+    let doc = html;
+    if (!/__PLAYGROUND_CLIENT_WASM__|#__\$wasmlink|id=["']__\$wasmlink["']/.test(doc)) {
+        doc = doc.replace(
+            /<\/head>/i,
+            `<link id="__$wasmlink" rel="preload" as="fetch" href="${CLIENT_WASM_PLACEHOLDER}" crossorigin></link>\n` +
+            `<script defer src="/assets/playground/init.js"></script>\n</head>`,
+        );
+    }
+    doc = doc.split(CLIENT_WASM_PLACEHOLDER).join(lastClientWasmUrl);
+    if (/<base\s/i.test(doc)) {
+        doc = doc.replace(/<base\b[^>]*>/i, `<base href="${baseHref}">`);
+    } else {
+        doc = doc.replace(/<head([^>]*)>/i, `<head$1><base href="${baseHref}">`);
+    }
+
+    const previewBridge = `<script>
+(function(){
+  function report(err) {
+    var msg = (err && err.stack) ? String(err.stack) : String(err);
+    if (window.__pgHydrateReported === msg) return;
+    window.__pgHydrateReported = msg;
+    console.error('[playground hydrate]', msg);
+    try { parent.postMessage({ type: 'pg-hydrate-error', message: msg }, '*'); } catch (_) {}
+  }
+  window.addEventListener('error', function(e) { report(e.error || e.message); });
+  window.addEventListener('unhandledrejection', function(e) { report(e.reason); });
+  var origErr = console.error.bind(console);
+  console.error = function() {
+    origErr.apply(console, arguments);
+    try {
+      var a = arguments[0];
+      if (a && (a instanceof Error || (typeof a === 'object' && a.message))) report(a);
+    } catch (_) {}
+  };
+  if (typeof WebAssembly.promising === 'function') {
+    var origP = WebAssembly.promising.bind(WebAssembly);
+    WebAssembly.promising = function(fn) {
+      var wrapped = origP(fn);
+      return function() {
+        var ret = wrapped.apply(this, arguments);
+        if (ret && typeof ret.then === 'function') {
+          return ret.then(undefined, function(err) { report(err); throw err; });
+        }
+        return ret;
+      };
+    };
+  }
+
+  var SITE_ORIGIN = ${JSON.stringify(location.origin)};
+  var PREVIEW_HOST = ${JSON.stringify(PREVIEW_HOST)};
+
+  function previewPathForAnchor(a) {
+    var raw = a.getAttribute('href') || '';
+    if (!raw || raw.charAt(0) === '#' || /^(javascript:|mailto:|tel:)/i.test(raw)) return null;
+    try {
+      var resolved = new URL(a.href);
+      if (resolved.origin === SITE_ORIGIN || resolved.hostname === PREVIEW_HOST) {
+        return resolved.pathname + resolved.search;
+      }
+    } catch (_) {}
+    if (raw.charAt(0) === '/') return raw.split('#')[0];
+    return null;
+  }
+
+  function onNavClick(e) {
+    if (e.defaultPrevented) return;
+    if (e.button != null && e.button !== 0) return;
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var t = e.target;
+    if (!t || !t.closest) return;
+    var a = t.closest('a[href]');
+    if (!a || a.target === '_blank' || a.hasAttribute('download')) return;
+    var path = previewPathForAnchor(a);
+    if (path == null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+    try { parent.postMessage({ type: 'pg-navigate', href: path }, '*'); } catch (_) {}
+  }
+  document.addEventListener('click', onNavClick, true);
+})();
+</script>`;
+
+    if (/<\/head>/i.test(doc)) {
+        doc = doc.replace(/<\/head>/i, previewBridge + "\n</head>");
+    } else {
+        doc = previewBridge + doc;
+    }
+
+    const vp = document.getElementById("pg-browser-viewport")!;
+    vp.innerHTML = "";
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "width:100%;height:100%;border:none;background-color:white";
+    iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms");
+    vp.appendChild(iframe);
+    iframe.srcdoc = doc;
+}
+
+function runCompiled(compiled: PlaygroundBuildArtifacts | Uint8Array) {
+    appendStatusStep("run", "Running\u2026");
+    updatePreviewStatus("", "Running\u2026", "run");
+
+    if (compiled instanceof Uint8Array) {
+        lastAppArtifacts = null;
+        void runPlaygroundWasm(compiled);
+        return;
+    }
+
+    lastAppArtifacts = compiled;
+    const input = document.getElementById("pg-browser-url-input") as HTMLInputElement | null;
+    const loc = normalizePreviewLocation(input?.value || previewLocation.display);
+    setPreviewLocation(loc, "replace");
+    void runAppArtifacts(compiled, loc);
+}
+
+function runPlaygroundWasm(compiled: Uint8Array): Promise<void> {
+    return new Promise((resolve) => {
+        const runnerWorker = new Worker(`/assets/playground/workers/runner.js?v=${Date.now()}`);
+        runnerWorker.onerror = (ev) => {
+            completeStatusStep("run", "error");
+            appendTerminalLine(`runner worker error: ${ev.message}`, "pg-terminal-error");
             setTerminalCollapsed(false);
             revealOutputWindow();
             setRunButtonLoading(false);
             resetPreviewPlaceholder();
-            return;
-        }
-        if (rev.data.preview) {
-            const vp = document.getElementById('pg-browser-viewport')!;
-            let iframe = vp.querySelector('iframe') as HTMLIFrameElement;
-            if (!iframe) {
-                vp.innerHTML = '';
-                iframe = document.createElement('iframe');
-                iframe.style.cssText = 'width:100%;height:100%;border:none;background-color:white';
-                vp.appendChild(iframe);
-                iframe.contentDocument?.open();
-            }
-            iframe.contentDocument?.write(rev.data.preview);
-            return;
-        }
-        if (rev.data.done) {
-            completeStatusStep('run', 'done');
-            const iframe = document.getElementById('pg-browser-viewport')!.querySelector('iframe') as HTMLIFrameElement;
-            if (iframe) iframe.contentDocument?.close();
             runnerWorker.terminate();
-            setRunButtonLoading(false);
-        }
-    };
+            resolve();
+        };
+        runnerWorker.onmessage = (rev: MessageEvent) => {
+            if (rev.data?.stderr) appendTerminalLine(rev.data.stderr, "pg-terminal-error");
+            if (rev.data?.failed) {
+                completeStatusStep("run", "error");
+                setTerminalCollapsed(false);
+                revealOutputWindow();
+                setRunButtonLoading(false);
+                resetPreviewPlaceholder();
+                runnerWorker.terminate();
+                resolve();
+                return;
+            }
+            if (rev.data?.preview != null) {
+                showHtmlPreview(rev.data.preview);
+                if (rev.data?.done) {
+                    completeStatusStep("run", "done");
+                    runnerWorker.terminate();
+                    setRunButtonLoading(false);
+                    resolve();
+                }
+                return;
+            }
+            if (rev.data?.done) {
+                completeStatusStep("run", "done");
+                runnerWorker.terminate();
+                setRunButtonLoading(false);
+                resolve();
+            }
+        };
+        const copy = compiled.slice();
+        runnerWorker.postMessage({ run: copy }, [copy.buffer]);
+    });
 }
 
-// getCurrentFilesMap
+function runAppArtifacts(compiled: PlaygroundBuildArtifacts, loc: PreviewLocation): Promise<void> {
+    return new Promise((resolve) => {
+        const runnerWorker = new Worker(`/assets/playground/workers/runner.js?v=${Date.now()}`);
+        const clientWasm = compiled.clientWasm;
+        const ssr = compiled.ssrWasm;
+
+        runnerWorker.onerror = (ev) => {
+            completeStatusStep("run", "error");
+            appendTerminalLine(`runner worker error: ${ev.message}`, "pg-terminal-error");
+            setTerminalCollapsed(false);
+            revealOutputWindow();
+            setRunButtonLoading(false);
+            resetPreviewPlaceholder();
+            runnerWorker.terminate();
+            resolve();
+        };
+
+        runnerWorker.onmessage = (rev: MessageEvent) => {
+            if (rev.data?.stderr) appendTerminalLine(rev.data.stderr, "pg-terminal-error");
+            if (rev.data?.failed) {
+                completeStatusStep("run", "error");
+                setTerminalCollapsed(false);
+                revealOutputWindow();
+                setRunButtonLoading(false);
+                resetPreviewPlaceholder();
+                runnerWorker.terminate();
+                resolve();
+                return;
+            }
+            if (rev.data?.preview != null) {
+                if (clientWasm instanceof Uint8Array) {
+                    showHydratedPreview(rev.data.preview, clientWasm);
+                } else {
+                    showHtmlPreview(rev.data.preview);
+                }
+                if (rev.data?.done) {
+                    completeStatusStep("run", "done");
+                    runnerWorker.terminate();
+                    setRunButtonLoading(false);
+                    resolve();
+                }
+                return;
+            }
+            if (rev.data?.done) {
+                completeStatusStep("run", "done");
+                runnerWorker.terminate();
+                setRunButtonLoading(false);
+                resolve();
+            }
+        };
+
+        if (!(ssr instanceof Uint8Array) || ssr.byteLength < 8) {
+            completeStatusStep("run", "error");
+            appendTerminalLine("Invalid SSR wasm artifact", "pg-terminal-error");
+            setTerminalCollapsed(false);
+            revealOutputWindow();
+            setRunButtonLoading(false);
+            resetPreviewPlaceholder();
+            runnerWorker.terminate();
+            resolve();
+            return;
+        }
+        if (!(clientWasm instanceof Uint8Array) || clientWasm.byteLength < 8) {
+            completeStatusStep("run", "error");
+            appendTerminalLine("Invalid client wasm artifact", "pg-terminal-error");
+            setTerminalCollapsed(false);
+            revealOutputWindow();
+            setRunButtonLoading(false);
+            resetPreviewPlaceholder();
+            runnerWorker.terminate();
+            resolve();
+            return;
+        }
+
+        const ssrCopy = ssr.slice();
+        runnerWorker.postMessage({
+            run: {
+                ssrWasm: ssrCopy,
+                pathname: loc.pathname,
+                search: loc.search,
+                method: "GET",
+                url: loc.url,
+            },
+        }, [ssrCopy.buffer]);
+    });
+}
+
 function getCurrentFilesMap(): { [filename: string]: string } {
     if (activeFileIndex !== -1 && editorView) {
         fileManager.updateContent(files[activeFileIndex].name, editorView.state.doc.toString());
     }
     const map: { [filename: string]: string } = {};
-    fileManager.getAllFiles().forEach(f => {
-        if (!files.find(x => x.name === f.name)?.hidden) map[f.name] = f.content;
+    fileManager.getAllFiles().forEach((f) => {
+        if (playgroundMode === "app") {
+            if (isGeneratedPlaygroundPath(f.name)) return;
+        } else if (f.name.endsWith(".zig") && f.name !== "main.zig") {
+            return;
+        }
+        map[f.name] = f.content;
     });
+    if (playgroundMode === "app") {
+        const appMain = getTemplate("app-counter")?.files["app/main.zig"];
+        if (!map["app/main.zig"] && appMain) map["app/main.zig"] = appMain;
+    } else {
+        const pgMain = getTemplate("pg-hello")?.files["main.zig"];
+        if (!map["main.zig"] && pgMain) map["main.zig"] = pgMain;
+    }
     return map;
 }
 
-// Core pipeline (shared by Run click + silent prefetch)
-async function runTranspileAndBuild(visible: boolean): Promise<unknown | null> {
+async function runTranspileAndBuild(visible: boolean): Promise<PlaygroundBuildArtifacts | Uint8Array | null> {
     let filesMap = getCurrentFilesMap();
-    if (!filesMap['main.zig']) filesMap['main.zig'] = zigMainSource;
-
-    const zxEntries = Object.entries(filesMap).filter(([n]) => n.endsWith('.zx'));
-
-    // Transpile
-    const zxHash = hashFiles(Object.fromEntries(zxEntries));
+    const zxEntries = Object.entries(filesMap).filter(([n]) => n.endsWith(".zx"));
+    const zxHash = hashFiles(Object.fromEntries(zxEntries)) + `|${playgroundMode}`;
     let transpiledFiles: { [name: string]: string } = {};
 
-    // Check for empty zx files
     const emptyZxFiles = zxEntries.filter(([_, content]) => !content.trim());
     if (emptyZxFiles.length > 0) {
         if (visible) {
-            completeStatusStep('transpile', 'error');
-            appendTerminalLine('One or more .zx files are empty. Please add code or remove the empty file(s).', 'pg-terminal-error');
+            completeStatusStep("transpile", "error");
+            appendTerminalLine("One or more .zx files are empty. Please add code or remove the empty file(s).", "pg-terminal-error");
             setTerminalCollapsed(false);
             revealOutputWindow();
             resetPreviewPlaceholder();
@@ -808,33 +1342,36 @@ async function runTranspileAndBuild(visible: boolean): Promise<unknown | null> {
         if (hit) {
             transpiledFiles = hit.value;
             if (visible) {
-                appendStatusStep('transpile', 'Transpiling\u2026');
+                appendStatusStep("transpile", "Transpiling\u2026");
                 if (hit.isPrefetch) {
-                    completeStatusStep('transpile', 'prefetched', hit.duration);
-                    hit.isPrefetch = false; // Next run will just be 'cached'
+                    completeStatusStep("transpile", "prefetched", hit.duration);
+                    hit.isPrefetch = false;
                 } else {
-                    completeStatusStep('transpile', 'cached');
+                    completeStatusStep("transpile", "cached");
                 }
-                updatePreviewStatus('', 'Transpiling\u2026 (cached)', 'transpile');
+                updatePreviewStatus("", "Transpiling\u2026 (cached)", "transpile");
             }
         } else {
             if (visible) {
-                appendStatusStep('transpile', 'Transpiling\u2026');
-                updatePreviewStatus('', 'Transpiling\u2026', 'transpile');
+                appendStatusStep("transpile", "Transpiling\u2026");
+                updatePreviewStatus("", "Transpiling\u2026", "transpile");
             }
             const start = performance.now();
             try {
-                for (const [name, content] of zxEntries) {
-                    const result = await transpileZxFileAsync(name, content);
-                    Object.assign(transpiledFiles, result);
+                if (playgroundMode === "app") {
+                    transpiledFiles = await transpileAppAsync(filesMap);
+                } else {
+                    for (const [name, content] of zxEntries) {
+                        Object.assign(transpiledFiles, await transpileZxFileAsync(name, content));
+                    }
                 }
                 const duration = performance.now() - start;
                 cachePut(transpileCache, zxHash, { value: { ...transpiledFiles }, duration, isPrefetch: !visible });
-                if (visible) completeStatusStep('transpile', 'done');
+                if (visible) completeStatusStep("transpile", "done");
             } catch (err: any) {
                 if (visible) {
-                    completeStatusStep('transpile', 'error');
-                    appendTerminalLine(err.stderr || 'Transpile failed', 'pg-terminal-error');
+                    completeStatusStep("transpile", "error");
+                    appendTerminalLine(err.stderr || "Transpile failed", "pg-terminal-error");
                     setTerminalCollapsed(false);
                     revealOutputWindow();
                     resetPreviewPlaceholder();
@@ -844,15 +1381,18 @@ async function runTranspileAndBuild(visible: boolean): Promise<unknown | null> {
             }
         }
     } else if (visible) {
-        updatePreviewStatus('', 'Building\u2026', 'build');
+        updatePreviewStatus("", "Building\u2026", "build");
     }
 
-    // Merge transpiled zig files into filesMap + file manager
     for (const [zigName, zigContent] of Object.entries(transpiledFiles)) {
+        if (playgroundMode === "app" && zigName.endsWith(".zon")) {
+            filesMap[zigName === "app/app.zon" ? "stubs/manifest.zon" : zigName] = zigContent;
+            continue;
+        }
         filesMap[zigName] = zigContent;
         if (fileManager.hasFile(zigName)) {
             fileManager.updateContent(zigName, zigContent);
-            const f = files.find(x => x.name === zigName);
+            const f = files.find((x) => x.name === zigName);
             if (f) { f.state = createEditorState(zigName, zigContent); f.hidden = true; }
         } else {
             fileManager.addFile(zigName, zigContent);
@@ -860,42 +1400,53 @@ async function runTranspileAndBuild(visible: boolean): Promise<unknown | null> {
         }
     }
 
-    // Build
-    const buildKey = hashFiles(filesMap);
+    if (playgroundMode === "app" && !filesMap["app/app.zig"]) {
+        if (visible) {
+            completeStatusStep("build", "error");
+            appendTerminalLine("Transpile did not produce app/app.zig", "pg-terminal-error");
+            setTerminalCollapsed(false);
+            revealOutputWindow();
+            resetPreviewPlaceholder();
+            setRunButtonLoading(false);
+        }
+        return null;
+    }
+
+    const buildKey = hashFiles(filesMap) + `|${playgroundMode}|v5`;
     const buildHit = buildCache.get(buildKey);
     if (buildHit) {
         if (visible) {
-            appendStatusStep('build', 'Building\u2026');
+            appendStatusStep("build", "Building\u2026");
             if (buildHit.isPrefetch) {
-                completeStatusStep('build', 'prefetched', buildHit.duration);
+                completeStatusStep("build", "prefetched", buildHit.duration);
                 buildHit.isPrefetch = false;
             } else {
-                completeStatusStep('build', 'cached');
+                completeStatusStep("build", "cached");
             }
-            updatePreviewStatus('', 'Building\u2026 (cached)', 'build');
+            updatePreviewStatus("", "Building\u2026 (cached)", "build");
         }
-        return buildHit.value;
+        return buildHit.value as PlaygroundBuildArtifacts | Uint8Array;
     }
 
     if (visible) {
-        appendStatusStep('build', 'Building\u2026');
-        updatePreviewStatus('', 'Building\u2026', 'build');
+        appendStatusStep("build", "Building\u2026");
+        updatePreviewStatus("", "Building\u2026", "build");
     }
     const bStart = performance.now();
     try {
         const compiled = await buildFilesAsync(filesMap);
         const bDuration = performance.now() - bStart;
         cachePut(buildCache, buildKey, { value: compiled, duration: bDuration, isPrefetch: !visible });
-        if (visible) completeStatusStep('build', 'done');
+        if (visible) completeStatusStep("build", "done");
         return compiled;
     } catch (err: any) {
         if (visible) {
-            completeStatusStep('build', 'error');
+            completeStatusStep("build", "error");
             if (err.stderr) {
-                const lines = err.stderr.split('\n').filter((l: string) => l.length > 0);
-                for (const l of lines) appendTerminalLine(l, 'pg-terminal-error');
+                const lines = err.stderr.split("\n").filter((l: string) => l.length > 0);
+                for (const l of lines) appendTerminalLine(l, "pg-terminal-error");
             } else {
-                appendTerminalLine('Compilation failed.', 'pg-terminal-error');
+                appendTerminalLine("Compilation failed.", "pg-terminal-error");
             }
             setTerminalCollapsed(false);
             revealOutputWindow();
@@ -942,11 +1493,10 @@ document.getElementById('pg-editor')?.addEventListener('mouseleave', () => {
     if (prefetchPromise) return; // already prefetching
 
     const snap = getCurrentFilesMap();
-    if (!snap['main.zig']) snap['main.zig'] = zigMainSource;
     const zxEntries = Object.entries(snap).filter(([n]) => n.endsWith('.zx'));
-    const zxHash = hashFiles(Object.fromEntries(zxEntries));
+    const zxHash = hashFiles(Object.fromEntries(zxEntries)) + `|${playgroundMode}`;
     const transpiled = transpileCache.get(zxHash) ?? (zxEntries.length === 0 ? { value: {} } : null);
-    if (transpiled !== null && buildCache.has(hashFiles({ ...snap, ...transpiled.value }))) return;
+    if (transpiled !== null && buildCache.has(hashFiles({ ...snap, ...transpiled.value }) + `|${playgroundMode}|v5`)) return;
 
     prefetchPromise = (async () => {
         try { await runTranspileAndBuild(false); } catch { /* silent */ }

@@ -3,6 +3,7 @@ import {
     EditorView,
     ViewPlugin,
     Decoration,
+    hoverTooltip,
     type DecorationSet,
     type ViewUpdate,
     type PluginValue,
@@ -13,11 +14,102 @@ import {
     LSPClient,
     LSPPlugin,
     serverCompletion,
-    hoverTooltips,
     type LSPClientExtension,
     type Transport,
 } from "@codemirror/lsp-client";
 import type * as LSP from "vscode-languageserver-protocol";
+
+const HOVER_KIND_ONLY = /^\([A-Za-z]+\)$/;
+
+function isHoverKindLabel(text: string): boolean {
+    return HOVER_KIND_ONLY.test(text.trim());
+}
+
+function stripHoverKindLabels(value: string): string {
+    return value
+        .replace(/(^|\n)\s*\([A-Za-z]+\)\s*(?=\n|$)/g, "$1")
+        .replace(/```[^\n]*\n\([A-Za-z]+\)\n```/g, "")
+        .trim();
+}
+
+function filterHoverContents(contents: LSP.Hover["contents"]): LSP.Hover["contents"] | null {
+    if (typeof contents === "string") {
+        const trimmed = stripHoverKindLabels(contents);
+        return trimmed && !isHoverKindLabel(trimmed) ? trimmed : null;
+    }
+    if (Array.isArray(contents)) {
+        const filtered = contents.flatMap((item) => {
+            if (typeof item === "string") {
+                const trimmed = stripHoverKindLabels(item);
+                return trimmed && !isHoverKindLabel(trimmed) ? [trimmed] : [];
+            }
+            if (item && typeof item === "object" && "value" in item) {
+                const trimmed = stripHoverKindLabels(String(item.value));
+                if (!trimmed || isHoverKindLabel(trimmed)) return [];
+                return [{ ...item, value: trimmed }];
+            }
+            return [item];
+        });
+        return filtered.length > 0 ? (filtered as LSP.MarkedString[]) : null;
+    }
+    if (contents && typeof contents === "object" && "value" in contents) {
+        const trimmed = stripHoverKindLabels(contents.value);
+        if (!trimmed || isHoverKindLabel(trimmed)) return null;
+        return { ...contents, value: trimmed };
+    }
+    return contents;
+}
+
+function renderHoverItem(plugin: LSPPlugin, item: string | LSP.MarkedString | LSP.MarkupContent): string {
+    if (typeof item === "string") return plugin.docToHTML(item, "markdown");
+    if ("language" in item && item.language) {
+        return plugin.docToHTML(`\`\`\`${item.language}\n${item.value}\n\`\`\``, "markdown");
+    }
+    if ("kind" in item) return plugin.docToHTML(item);
+    return plugin.docToHTML(item.value, "markdown");
+}
+
+function renderHoverHtml(plugin: LSPPlugin, contents: LSP.Hover["contents"]): string {
+    if (Array.isArray(contents)) {
+        return contents.map((item) => renderHoverItem(plugin, item)).join("");
+    }
+    return renderHoverItem(plugin, contents);
+}
+
+function playgroundHoverTooltips() {
+    return hoverTooltip((view, pos) => {
+        const plugin = LSPPlugin.get(view);
+        if (!plugin || plugin.client.hasCapability("hoverProvider") === false) {
+            return null;
+        }
+        plugin.client.sync();
+        return plugin.client
+            .request("textDocument/hover", {
+                position: plugin.toPosition(pos),
+                textDocument: { uri: plugin.uri },
+            })
+            .then((result: LSP.Hover | null) => {
+                if (!result?.contents) return null;
+                const contents = filterHoverContents(result.contents);
+                if (!contents) return null;
+                const html = renderHoverHtml(plugin, contents);
+                if (!html.trim()) return null;
+                return {
+                    pos: result.range ? plugin.fromPosition(result.range.start) : pos,
+                    end: result.range ? plugin.fromPosition(result.range.end) : pos,
+                    create() {
+                        const elt = document.createElement("div");
+                        elt.className = "cm-lsp-hover-tooltip cm-lsp-documentation";
+                        elt.innerHTML = html;
+                        return { dom: elt };
+                    },
+                    above: true,
+                };
+            });
+    }, {
+        hideOn: (tr) => tr.docChanged,
+    });
+}
 
 function workspaceConfiguration(): LSPClientExtension {
     return {
@@ -280,7 +372,7 @@ export function createZlsClient(transport: Transport): LSPClient {
             zlsDiagnostics(),
             zlsLogging(),
             serverCompletion(),
-            hoverTooltips(),
+            playgroundHoverTooltips(),
             semanticTokens,
             foldRanges,
             lspFolding,

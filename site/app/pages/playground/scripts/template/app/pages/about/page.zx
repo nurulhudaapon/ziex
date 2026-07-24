@@ -1,0 +1,11 @@
+pub fn Page(ctx: zx.PageContext) !zx.Component {
+    return (
+        <main @allocator={ctx.arena}>
+            <p><a href="/">← Home</a></p>
+            <h2>About</h2>
+            <p>Reached via the preview URL bar.</p>
+        </main>
+    );
+}
+
+const zx = @import("zx");

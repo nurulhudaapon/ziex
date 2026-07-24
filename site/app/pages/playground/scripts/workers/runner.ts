@@ -1,41 +1,245 @@
-// Runs compiled Zig code
+import { WASI, PreopenDirectory, OpenFile, File, ConsoleStdout, WASIProcExit } from "@bjorn3/browser_wasi_shim";
 
-import { WASI, PreopenDirectory, OpenFile, File } from "@bjorn3/browser_wasi_shim";
-import { stderrOutput, previewOutput } from "../utils";
+function asUint8Array(data: unknown): Uint8Array {
+    if (data instanceof Uint8Array) return data;
+    if (data instanceof ArrayBuffer) return new Uint8Array(data);
+    if (ArrayBuffer.isView(data)) {
+        return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
+    }
+    throw new Error(`expected wasm bytes, got ${Object.prototype.toString.call(data)}`);
+}
 
-async function run(wasmData: Uint8Array) {
-    let args = ["main.wasm"];
-    let env: string[] = [];
-    let fds = [
-        new OpenFile(new File([])), // stdin
-        previewOutput(), // stdout
-        stderrOutput(), // stderr
-        new PreopenDirectory(".", new Map([])),
-    ];
-    let wasi = new WASI(args, env, fds);
+function readU32LEB(bytes: Uint8Array, offset: { i: number }): number {
+    let result = 0;
+    let shift = 0;
+    while (true) {
+        const byte = bytes[offset.i++]!;
+        result |= (byte & 0x7f) << shift;
+        if ((byte & 0x80) === 0) break;
+        shift += 7;
+    }
+    return result >>> 0;
+}
 
-    let { instance } = await WebAssembly.instantiate(wasmData, {
-        "wasi_snapshot_preview1": wasi.wasiImport,
-    });;
+function stripWasmStartSection(bytes: Uint8Array): Uint8Array {
+    if (bytes.byteLength < 8) return bytes;
+    const out = [bytes[0]!, bytes[1]!, bytes[2]!, bytes[3]!, bytes[4]!, bytes[5]!, bytes[6]!, bytes[7]!];
+    const pos = { i: 8 };
+    let stripped = false;
+    while (pos.i < bytes.byteLength) {
+        const idStart = pos.i;
+        const id = bytes[pos.i++]!;
+        const size = readU32LEB(bytes, pos);
+        const payloadStart = pos.i;
+        const payloadEnd = payloadStart + size;
+        if (payloadEnd > bytes.byteLength) {
+            return bytes;
+        }
+        if (id === 8) {
+            stripped = true;
+        } else {
+            for (let i = idStart; i < payloadEnd; i++) out.push(bytes[i]!);
+        }
+        pos.i = payloadEnd;
+    }
+    return stripped ? new Uint8Array(out) : bytes;
+}
 
+function noopWsImports() {
+    return {
+        ws_upgrade: () => {},
+        ws_write: () => {},
+        ws_close: () => {},
+        ws_recv: () => -1,
+        ws_subscribe: () => {},
+        ws_unsubscribe: () => {},
+        ws_publish: () => 0,
+        ws_is_subscribed: () => 0,
+    };
+}
+
+function stubKvImports() {
+    return {
+        kv_get: () => -1,
+        kv_put: () => 0,
+        kv_delete: () => 0,
+        kv_list: () => 0,
+    };
+}
+
+function stubDbImports() {
+    return {
+        db_open: () => -1,
+        db_run: () => -1,
+        db_get: () => -1,
+        db_all: () => -1,
+        db_values: () => -1,
+    };
+}
+
+function stubNetImports() {
+    return {
+        fetch: () => -1,
+    };
+}
+
+function stubSysImports() {
+    return {
+        sleep_ms: (_ms: number) => {},
+    };
+}
+
+function createZxImports(getMemory: () => WebAssembly.Memory | null) {
+    const decoder = new TextDecoder("utf-8", { fatal: false });
+    return {
+        _log: (_level: number, ptr: number, len: number) => {
+            const mem = getMemory();
+            if (!mem || len <= 0) return;
+            const msg = decoder.decode(new Uint8Array(mem.buffer, ptr >>> 0, len >>> 0));
+            if (msg) postMessage({ stderr: msg });
+        },
+        _fetchAsync: () => {},
+        _setTimeout: () => {},
+        _setInterval: () => {},
+        _clearInterval: () => {},
+    };
+}
+
+async function run(wasmData: unknown, kind: "playground" | "app", opts: {
+    pathname?: string;
+    search?: string;
+    method?: string;
+    url?: string;
+} = {}) {
+    let bytes: Uint8Array;
     try {
-        // @ts-ignore
-        const exitCode = wasi.start(instance);
-
-        // postMessage({
-        //     stderr: `\n\n---\nexit with exit code ${exitCode}\n---\n`,
-        // });
+        bytes = asUint8Array(wasmData);
     } catch (err) {
         postMessage({ stderr: `${err}` });
+        postMessage({ done: true, failed: true });
+        return;
+    }
+
+    if (bytes.byteLength < 8 || bytes[0] !== 0x00 || bytes[1] !== 0x61 || bytes[2] !== 0x73 || bytes[3] !== 0x6d) {
+        postMessage({
+            stderr: `invalid wasm magic (len=${bytes.byteLength}, head=${[...bytes.slice(0, 8)].join(",")})`,
+        });
+        postMessage({ done: true, failed: true });
+        return;
+    }
+
+    bytes = stripWasmStartSection(bytes);
+
+    const pathname = opts.pathname && opts.pathname.length > 0 ? opts.pathname : "/";
+    const search = opts.search ?? "";
+    const method = opts.method ?? "GET";
+    const url = opts.url ?? `https://playground.local${pathname}${search}`;
+
+    const args = kind === "app"
+        ? [
+            "ziex_ssr.wasm",
+            "--pathname", pathname,
+            "--method", method,
+            "--search", search,
+            "--url", url,
+        ]
+        : ["main.wasm"];
+
+    let html = "";
+    const htmlDec = new TextDecoder("utf-8", { fatal: false });
+    let meta = "";
+    const metaDec = new TextDecoder("utf-8", { fatal: false });
+    let metaPartial = "";
+    let wasmMemory: WebAssembly.Memory | null = null;
+
+    const fds = [
+        new OpenFile(new File([])),
+        new ConsoleStdout((buffer) => {
+            html += htmlDec.decode(buffer, { stream: true });
+        }),
+        new ConsoleStdout((buffer) => {
+            const text = metaDec.decode(buffer, { stream: true });
+            const lines = (metaPartial + text).split("\n");
+            metaPartial = lines.pop() ?? "";
+            for (const line of lines) {
+                if (line.startsWith("__ZIEX_META__:")) {
+                    meta += line + "\n";
+                } else if (line.length > 0) {
+                    postMessage({ stderr: line });
+                }
+            }
+        }),
+        new PreopenDirectory(".", new Map([])),
+    ];
+    const wasi = new WASI(args, [], fds);
+
+    try {
+        const module = await WebAssembly.compile(bytes);
+        const imports: WebAssembly.Imports = {
+            wasi_snapshot_preview1: wasi.wasiImport,
+        };
+        if (kind === "app") {
+            Object.assign(imports, {
+                __zx: createZxImports(() => wasmMemory),
+                __zx_ws: noopWsImports(),
+                __zx_sys: stubSysImports(),
+                __zx_kv: stubKvImports(),
+                __zx_db: stubDbImports(),
+                __zx_net: stubNetImports(),
+            });
+        }
+
+        const instance = new WebAssembly.Instance(module, imports);
+
+        wasmMemory = instance.exports.memory as WebAssembly.Memory | null;
+        (wasi as { inst?: WebAssembly.Instance }).inst = instance;
+        const ctors = instance.exports.__wasm_call_ctors as (() => void) | undefined;
+        if (typeof ctors === "function") ctors();
+
+        const startFn = instance.exports._start as (() => void) | undefined;
+        if (typeof startFn !== "function") {
+            const exportNames = Object.keys(instance.exports).slice(0, 40).join(",");
+            throw new Error(`wasm has no _start export (exports: ${exportNames})`);
+        }
+
+        try {
+            wasi.start(instance);
+        } catch (e) {
+            if (!(e instanceof WASIProcExit)) throw e;
+        }
+
+        html += htmlDec.decode();
+        if (metaPartial.startsWith("__ZIEX_META__:")) meta += metaPartial + "\n";
+    } catch (err) {
+        const base = err instanceof Error ? `${err.name}: ${err.message}` : `${err}`;
+        postMessage({ stderr: base });
+        postMessage({ done: true, failed: true });
+        return;
     }
 
     postMessage({
+        preview: html,
+        meta,
         done: true,
     });
 }
 
 onmessage = (event) => {
-    if (event.data.run) {
-        run(event.data.run);
+    try {
+        if (event.data?.run == null) return;
+        const payload = event.data.run;
+        if (payload && typeof payload === "object" && "ssrWasm" in payload) {
+            void run(payload.ssrWasm, "app", {
+                pathname: typeof payload.pathname === "string" ? payload.pathname : "/",
+                search: typeof payload.search === "string" ? payload.search : "",
+                method: typeof payload.method === "string" ? payload.method : "GET",
+                url: typeof payload.url === "string" ? payload.url : undefined,
+            });
+        } else {
+            void run(payload, "playground");
+        }
+    } catch (err) {
+        postMessage({ stderr: `runner onmessage: ${err}` });
+        postMessage({ done: true, failed: true });
     }
-}
+};
