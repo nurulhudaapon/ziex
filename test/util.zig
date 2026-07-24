@@ -177,6 +177,29 @@ pub fn shouldRunNetworkTest() bool {
     return testing.environ.contains(testing.allocator, "E2E_NET") catch false;
 }
 
+/// Throughput for perf prints. Formats as MB/s when ≥ 1 MB/s, otherwise KB/s (SI units).
+pub const Throughput = struct {
+    bytes: u64,
+    elapsed_ns: u64,
+
+    pub fn init(bytes: u64, elapsed_ns: u64) Throughput {
+        return .{ .bytes = bytes, .elapsed_ns = elapsed_ns };
+    }
+
+    pub fn format(self: Throughput, w: *std.Io.Writer) std.Io.Writer.Error!void {
+        const secs = @as(f64, @floatFromInt(self.elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_s));
+        const bytes_per_s = if (secs > 0)
+            @as(f64, @floatFromInt(self.bytes)) / secs
+        else
+            0.0;
+        if (bytes_per_s >= 1_000_000.0) {
+            try w.print("{d:.2} MB/s", .{bytes_per_s / 1_000_000.0});
+        } else {
+            try w.print("{d:.2} KB/s", .{bytes_per_s / 1_000.0});
+        }
+    }
+};
+
 const std = @import("std");
 const testing = std.testing;
 const zx = @import("zx");

@@ -412,19 +412,25 @@ test "flaky: performance > render" {
     const MAX_TIME_PER_FILE_MS = 0.25 * 12; // 0.06ms is on M1 Pro
 
     var total_time_ns: f64 = 0.0;
+    var total_bytes: u64 = 0;
     inline for (TestFileCache.test_files) |comptime_path| {
         const start_time = std.Io.Clock.awake.now(std.testing.io).nanoseconds;
-        try test_render_inner(comptime_path, true);
+        const bytes = try test_render_inner(comptime_path, true);
         const end_time = std.Io.Clock.awake.now(std.testing.io).nanoseconds;
         const duration = @as(f64, @floatFromInt(end_time - start_time));
         total_time_ns += duration;
+        total_bytes += bytes;
         const duration_ms = duration / std.time.ns_per_ms;
         try expectLessThan(MAX_TIME_PER_FILE_MS, duration_ms);
     }
 
     const total_time_ms = total_time_ns / std.time.ns_per_ms;
     const average_time_ms = total_time_ms / TestFileCache.test_files.len;
-    std.debug.print("\x1b[33m⏲\x1b[0m render \x1b[90m>\x1b[0m {d:.2}ms | Avg: {d:.2}ms\n", .{ total_time_ms, average_time_ms });
+    const rate = test_util.Throughput.init(total_bytes, @intFromFloat(total_time_ns));
+    std.debug.print(
+        "\x1b[33m⏲\x1b[0m render \x1b[90m>\x1b[0m {d:.2}ms | Avg: {d:.2}ms | {f} ({d} bytes)\n",
+        .{ total_time_ms, average_time_ms, rate, total_bytes },
+    );
 
     try expectLessThan(MAX_TIME_MS, total_time_ms);
     try expectLessThan(MAX_TIME_PER_FILE_MS, average_time_ms);
@@ -479,14 +485,15 @@ fn test_transpile_inner(comptime file_path: []const u8, comptime no_expect: bool
 }
 
 fn test_render(comptime file_path: []const u8, comptime cmp: fn (allocator: std.mem.Allocator) zx.Component) !void {
-    try test_render_inner_with_cmp(file_path, cmp, false);
+    _ = try test_render_inner_with_cmp(file_path, cmp, false);
 }
 
-fn test_render_inner(comptime file_path: []const u8, comptime no_expect: bool) !void {
+fn test_render_inner(comptime file_path: []const u8, comptime no_expect: bool) !u64 {
     const cmp_opt = comptime getPageFn(file_path);
     if (cmp_opt) |cmp| {
-        try test_render_inner_with_cmp(file_path, cmp, no_expect);
+        return try test_render_inner_with_cmp(file_path, cmp, no_expect);
     }
+    return 0;
 }
 
 fn getPageFn(comptime path: []const u8) ?fn (std.mem.Allocator) zx.Component {
@@ -581,7 +588,7 @@ fn getPageFn(comptime path: []const u8) ?fn (std.mem.Allocator) zx.Component {
     return null;
 }
 
-fn test_render_inner_with_cmp(comptime file_path: []const u8, comptime cmp: fn (allocator: std.mem.Allocator) zx.Component, comptime no_expect: bool) !void {
+fn test_render_inner_with_cmp(comptime file_path: []const u8, comptime cmp: fn (allocator: std.mem.Allocator) zx.Component, comptime no_expect: bool) !u64 {
     const gpa = std.testing.allocator;
     var aa = std.heap.ArenaAllocator.init(gpa);
     defer aa.deinit();
@@ -593,8 +600,9 @@ fn test_render_inner_with_cmp(comptime file_path: []const u8, comptime cmp: fn (
         var trash: [4096]u8 = undefined;
         var dw = std.Io.Writer.Discarding.init(&trash);
         try component.render(&dw.writer, .{});
-        try testing.expect(dw.fullCount() > 0);
-        return;
+        const bytes = dw.fullCount();
+        try testing.expect(bytes > 0);
+        return bytes;
     }
 
     var aw = std.Io.Writer.Allocating.init(allocator);
@@ -612,7 +620,7 @@ fn test_render_inner_with_cmp(comptime file_path: []const u8, comptime cmp: fn (
             std.log.err("Failed to create snapshot file {s}: {}\n", .{ html_path, err });
             return err;
         };
-        return; // Skip comparison in snapshot mode
+        return rendered.len; // Skip comparison in snapshot mode
     }
 
     // Read expected HTML file directly
@@ -622,6 +630,7 @@ fn test_render_inner_with_cmp(comptime file_path: []const u8, comptime cmp: fn (
     };
 
     try testing.expectEqualStrings(expected_html, rendered);
+    return rendered.len;
 }
 
 fn expectLessThan(expected: f64, actual: f64) !void {

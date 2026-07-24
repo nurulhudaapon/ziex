@@ -883,16 +883,23 @@ test "flaky: performance > serialize" {
     const content_parsed = std.json.parseFromSlice([]SearchContent, testing.allocator, search_txt, .{}) catch unreachable;
     defer content_parsed.deinit();
 
+    var total_bytes: u64 = 0;
     const start = std.Io.Clock.awake.now(std.testing.io).nanoseconds;
     for (0..ITERATIONS) |_| {
         var aw = std.Io.Writer.Allocating.init(testing.allocator);
         zxon.serialize(content_parsed.value, &aw.writer, .{}) catch {};
+        total_bytes += aw.written().len;
         aw.deinit();
     }
-    const total_ms = @as(f64, @floatFromInt(std.Io.Clock.awake.now(std.testing.io).nanoseconds - start)) / std.time.ns_per_ms;
+    const elapsed_ns: u64 = @intCast(std.Io.Clock.awake.now(std.testing.io).nanoseconds - start);
+    const total_ms = @as(f64, @floatFromInt(elapsed_ns)) / std.time.ns_per_ms;
     const avg_ms = total_ms / ITERATIONS;
+    const rate = test_util.Throughput.init(total_bytes, elapsed_ns);
 
-    std.debug.print("\x1b[33m⏲\x1b[0m zxon serialize \x1b[90m>\x1b[0m {d:.2}ms | Avg: {d:.4}ms\n", .{ total_ms, avg_ms });
+    std.debug.print(
+        "\x1b[33m⏲\x1b[0m zxon serialize \x1b[90m>\x1b[0m {d:.2}ms | Avg: {d:.4}ms | {f} ({d} bytes)\n",
+        .{ total_ms, avg_ms, rate, total_bytes },
+    );
     try expectLessThan(MAX_MS, total_ms);
 }
 
@@ -918,10 +925,16 @@ test "flaky: performance > parse" {
         _ = arena.reset(.retain_capacity);
         _ = zxon.parse([]SearchContent, arena.allocator(), zxon_data, .{}) catch {};
     }
-    const total_ms = @as(f64, @floatFromInt(std.Io.Clock.awake.now(std.testing.io).nanoseconds - start)) / std.time.ns_per_ms;
+    const elapsed_ns: u64 = @intCast(std.Io.Clock.awake.now(std.testing.io).nanoseconds - start);
+    const total_ms = @as(f64, @floatFromInt(elapsed_ns)) / std.time.ns_per_ms;
     const avg_ms = total_ms / ITERATIONS;
+    const total_bytes: u64 = zxon_data.len * ITERATIONS;
+    const rate = test_util.Throughput.init(total_bytes, elapsed_ns);
 
-    std.debug.print("\x1b[33m⏲\x1b[0m zxon parse \x1b[90m>\x1b[0m {d:.2}ms | Avg: {d:.4}ms\n", .{ total_ms, avg_ms });
+    std.debug.print(
+        "\x1b[33m⏲\x1b[0m zxon parse \x1b[90m>\x1b[0m {d:.2}ms | Avg: {d:.4}ms | {f} ({d} bytes)\n",
+        .{ total_ms, avg_ms, rate, total_bytes },
+    );
     try expectLessThan(MAX_MS, total_ms);
 }
 
