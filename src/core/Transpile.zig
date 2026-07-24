@@ -1,13 +1,38 @@
+const Transpile = @This();
+
 const std = @import("std");
 const ts = @import("tree_sitter");
+
 const sourcemap = @import("sourcemap.zig");
 const Parse = @import("Parse.zig");
+
 const Ast = Parse.Parse;
 const NodeKind = Parse.NodeKind;
 
+ast: *Ast,
+output: std.array_list.Managed(u8),
+sourcemap_builder: sourcemap.Builder,
+current_line: i32 = 0,
+current_column: i32 = 0,
+track_mappings: bool,
+indent_level: u32 = 0,
+/// Source file path relative to the working directory.
+file_path: ?[]const u8 = null,
+block_counter: u32 = 0,
+zx_initialized: bool = false,
+zx_name: []const u8 = "_zx",
+zx_name_owned: bool = false,
+client_components: std.ArrayList(ClientComponentMetadata),
+paren_byte: ?u32 = null,
+allocator: std.mem.Allocator,
+
+pub const Options = struct {
+    sourcemap: bool,
+    path: ?[]const u8,
+};
+
 pub const ClientComponentMetadata = struct {
     pub const Type = enum {
-        react,
         client,
         server,
         static,
@@ -82,155 +107,103 @@ const SkipTokens = enum {
     }
 };
 
-pub const TranspileContext = struct {
-    output: std.array_list.Managed(u8),
-    source: []const u8,
-    sourcemap_builder: sourcemap.Builder,
-    current_line: i32 = 0,
-    current_column: i32 = 0,
-    track_mappings: bool,
-    indent_level: u32 = 0,
-    /// Maps component name to its import path (from @jsImport)
-    js_imports: std.StringHashMap([]const u8),
-    /// Flag to track if we've done the pre-pass for @jsImport collection
-    js_imports_collected: bool = false,
-    /// The file path of the source file being transpiled (relative to cwd)
-    file_path: ?[]const u8 = null,
-    /// Counter for generating unique block labels and variable names (for nested loops)
-    block_counter: u32 = 0,
-    /// Flag to track if the zx builder has been initialized in the current scope (e.g., inside a return statement)
-    zx_initialized: bool = false,
-    /// Synthesized builder / helper name (`_zx`, or `_zx1` / `_zx2` / … when user code already binds those).
-    zx_name: []const u8 = "_zx",
-    /// Whether `zx_name` was allocated (numbered collision) and must be freed in deinit.
-    zx_name_owned: bool = false,
-    /// Track client components (components with @rendering attribute)
-    client_components: std.ArrayList(ClientComponentMetadata),
-    /// Optional position of an open parenthesis in source to map the next generated parenthesis to
-    paren_byte: ?u32 = null,
-    allocator: std.mem.Allocator,
-
-    pub const TranspileOptions = struct {
-        sourcemap: bool,
-        path: ?[]const u8,
+pub fn init(ast: *Ast, allocator: std.mem.Allocator, options: Options) Transpile {
+    return .{
+        .ast = ast,
+        .output = std.array_list.Managed(u8).init(allocator),
+        .sourcemap_builder = sourcemap.Builder.init(allocator),
+        .track_mappings = options.sourcemap,
+        .file_path = options.path,
+        .client_components = std.ArrayList(ClientComponentMetadata).empty,
+        .allocator = allocator,
     };
+}
 
-    pub fn init(allocator: std.mem.Allocator, source: []const u8, options: TranspileOptions) TranspileContext {
-        return .{
-            .output = std.array_list.Managed(u8).init(allocator),
-            .source = source,
-            .sourcemap_builder = sourcemap.Builder.init(allocator),
-            .track_mappings = options.sourcemap,
-            .js_imports = std.StringHashMap([]const u8).init(allocator),
-            .file_path = options.path,
-            .client_components = std.ArrayList(ClientComponentMetadata).empty,
-            .allocator = allocator,
-        };
-    }
+pub fn deinit(self: *Transpile) void {
+    self.output.deinit();
+    self.sourcemap_builder.deinit();
+    self.client_components.deinit(self.allocator);
+    if (self.zx_name_owned) self.allocator.free(self.zx_name);
+}
 
-    pub fn deinit(self: *TranspileContext) void {
-        self.output.deinit();
-        self.sourcemap_builder.deinit();
-        self.js_imports.deinit();
-        self.client_components.deinit(self.allocator);
-        if (self.zx_name_owned) self.allocator.free(self.zx_name);
-    }
+pub fn run(self: *Transpile) !void {
+    try self.transpileNode(self.ast.tree.rootNode());
+}
 
-    fn write(self: *TranspileContext, bytes: []const u8) !void {
-        try self.output.appendSlice(bytes);
-        self.updatePosition(bytes);
-    }
+fn write(self: *Transpile, bytes: []const u8) !void {
+    try self.output.appendSlice(bytes);
+    self.updatePosition(bytes);
+}
 
-    /// Format and write a short synthesized snippet. Use `{s}` for `zx_name`.
-    /// Dunder helpers: `"_{s}_children_"` → `__zx_children_` or `__zx1_children_`.
-    fn print(self: *TranspileContext, comptime fmt: []const u8, args: anytype) !void {
-        var buf: [128]u8 = undefined;
-        const formatted = std.fmt.bufPrint(&buf, fmt, args) catch return error.OutOfMemory;
-        try self.write(formatted);
-    }
+/// Format and write a short synthesized snippet. Use `{s}` for `zx_name`.
+/// Dunder helpers: `"_{s}_children_"` → `__zx_children_` or `__zx1_children_`.
+fn print(self: *Transpile, comptime fmt: []const u8, args: anytype) !void {
+    var buf: [128]u8 = undefined;
+    const formatted = std.fmt.bufPrint(&buf, fmt, args) catch return error.OutOfMemory;
+    try self.write(formatted);
+}
 
-    fn printM(self: *TranspileContext, comptime fmt: []const u8, args: anytype, source_byte: u32, ast: *const Ast) !void {
-        var buf: [128]u8 = undefined;
-        const formatted = std.fmt.bufPrint(&buf, fmt, args) catch return error.OutOfMemory;
-        try self.writeM(formatted, source_byte, ast);
-    }
+fn printM(self: *Transpile, comptime fmt: []const u8, args: anytype, source_byte: u32) !void {
+    var buf: [128]u8 = undefined;
+    const formatted = std.fmt.bufPrint(&buf, fmt, args) catch return error.OutOfMemory;
+    try self.writeM(formatted, source_byte);
+}
 
-    fn writeWithMapping(self: *TranspileContext, bytes: []const u8, source_line: i32, source_column: i32) !void {
-        if (self.track_mappings and bytes.len > 0) {
-            try self.sourcemap_builder.addMapping(.{
-                .generated_line = self.current_line,
-                .generated_column = self.current_column,
-                .source_line = source_line,
-                .source_column = source_column,
-            });
-        }
-        try self.write(bytes);
-    }
-
-    fn writeM(self: *TranspileContext, bytes: []const u8, source_byte: u32, ast: *const Ast) !void {
-        const pos = ast.getLineColumn(source_byte);
-        try self.writeWithMapping(bytes, pos.line, pos.column);
-    }
-
-    fn addMapping(self: *TranspileContext, source_byte: u32, ast: *const Ast) !void {
-        if (!self.track_mappings) return;
-        const pos = ast.getLineColumn(source_byte);
+fn writeWithMapping(self: *Transpile, bytes: []const u8, source_line: i32, source_column: i32) !void {
+    if (self.track_mappings and bytes.len > 0) {
         try self.sourcemap_builder.addMapping(.{
             .generated_line = self.current_line,
             .generated_column = self.current_column,
-            .source_line = pos.line,
-            .source_column = pos.column,
+            .source_line = source_line,
+            .source_column = source_column,
         });
     }
+    try self.write(bytes);
+}
 
-    fn updatePosition(self: *TranspileContext, bytes: []const u8) void {
-        for (bytes) |byte| {
-            if (byte == '\n') {
-                self.current_line += 1;
-                self.current_column = 0;
-            } else {
-                self.current_column += 1;
-            }
+fn writeM(self: *Transpile, bytes: []const u8, source_byte: u32) !void {
+    const pos = self.ast.getLineColumn(source_byte);
+    try self.writeWithMapping(bytes, pos.line, pos.column);
+}
+
+fn addMapping(self: *Transpile, source_byte: u32) !void {
+    if (!self.track_mappings) return;
+    const pos = self.ast.getLineColumn(source_byte);
+    try self.sourcemap_builder.addMapping(.{
+        .generated_line = self.current_line,
+        .generated_column = self.current_column,
+        .source_line = pos.line,
+        .source_column = pos.column,
+    });
+}
+
+fn updatePosition(self: *Transpile, bytes: []const u8) void {
+    for (bytes) |byte| {
+        if (byte == '\n') {
+            self.current_line += 1;
+            self.current_column = 0;
+        } else {
+            self.current_column += 1;
         }
     }
+}
 
-    fn writeIndent(self: *TranspileContext) !void {
-        const spaces = self.indent_level * 4;
-        var i: u32 = 0;
-        while (i < spaces) : (i += 1) {
-            try self.write(" ");
-        }
-    }
-
-    pub fn finalizeSourceMap(self: *TranspileContext) !sourcemap.SourceMap {
-        return try self.sourcemap_builder.build();
-    }
-
-    /// Get the next unique block index for generating unique labels/variable names
-    pub fn nextBlockIndex(self: *TranspileContext) u32 {
-        const idx = self.block_counter;
-        self.block_counter += 1;
-        return idx;
-    }
-};
-
-/// Pre-pass to collect all @jsImport mappings from the entire AST
-fn collectJsImports(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
-    const node_kind = NodeKind.fromNode(node);
-
-    if (node_kind == .variable_declaration) {
-        if (try extractJsImport(self, node)) |js_import| {
-            try ctx.js_imports.put(js_import.name, js_import.path);
-        }
-    }
-
-    // Recursively collect from children
-    const child_count = node.childCount();
+fn writeIndent(self: *Transpile) !void {
+    const spaces = self.indent_level * 4;
     var i: u32 = 0;
-    while (i < child_count) : (i += 1) {
-        const child = node.child(i) orelse continue;
-        try collectJsImports(self, child, ctx);
+    while (i < spaces) : (i += 1) {
+        try self.write(" ");
     }
+}
+
+pub fn finalizeSourceMap(self: *Transpile) !sourcemap.SourceMap {
+    return self.sourcemap_builder.build();
+}
+
+fn nextBlockIndex(self: *Transpile) u32 {
+    const idx = self.block_counter;
+    self.block_counter += 1;
+    return idx;
 }
 
 fn isZxRelatedIdent(name: []const u8) bool {
@@ -251,9 +224,9 @@ fn zxNameConflicts(candidate: []const u8, used: []const []const u8) bool {
     return false;
 }
 
-fn collectZxRelatedIdents(self: *Ast, node: ts.Node, list: *std.ArrayList([]const u8)) error{OutOfMemory}!void {
+fn collectZxRelatedIdents(self: *Transpile, node: ts.Node, list: *std.ArrayList([]const u8)) error{OutOfMemory}!void {
     if (NodeKind.fromNode(node) == .identifier) {
-        const name = try self.getNodeText(node);
+        const name = try self.ast.getNodeText(node);
         if (isZxRelatedIdent(name)) {
             try list.append(self.allocator, name);
         }
@@ -263,7 +236,7 @@ fn collectZxRelatedIdents(self: *Ast, node: ts.Node, list: *std.ArrayList([]cons
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        try collectZxRelatedIdents(self, child, list);
+        try self.collectZxRelatedIdents(child, list);
     }
 }
 
@@ -277,11 +250,11 @@ fn enclosingFunctionScope(node: ts.Node) ?ts.Node {
 }
 
 /// Collect `_zx*` / `__zx*` identifiers at module scope only (skip function bodies).
-fn collectModuleScopeZxIdents(self: *Ast, node: ts.Node, list: *std.ArrayList([]const u8)) error{OutOfMemory}!void {
+fn collectModuleScopeZxIdents(self: *Transpile, node: ts.Node, list: *std.ArrayList([]const u8)) error{OutOfMemory}!void {
     if (NodeKind.fromNode(node) == .function_declaration) return;
 
     if (NodeKind.fromNode(node) == .identifier) {
-        const name = try self.getNodeText(node);
+        const name = try self.ast.getNodeText(node);
         if (isZxRelatedIdent(name)) {
             try list.append(self.allocator, name);
         }
@@ -291,7 +264,7 @@ fn collectModuleScopeZxIdents(self: *Ast, node: ts.Node, list: *std.ArrayList([]
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        try collectModuleScopeZxIdents(self, child, list);
+        try self.collectModuleScopeZxIdents(child, list);
     }
 }
 
@@ -316,69 +289,50 @@ fn pickZxName(allocator: std.mem.Allocator, used: []const []const u8) error{OutO
 
 /// Resolve builder name for the enclosing function, also avoiding module-scope bindings.
 /// Prefer `_zx`; on collision with user `_zx` / `_zx_*` / `__zx_*`, use `_zx1`, `_zx2`, …
-fn resolveZxNameFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
-    if (ctx.zx_name_owned) {
-        ctx.allocator.free(ctx.zx_name);
-        ctx.zx_name_owned = false;
+fn resolveZxNameFor(self: *Transpile, node: ts.Node) error{OutOfMemory}!void {
+    if (self.zx_name_owned) {
+        self.allocator.free(self.zx_name);
+        self.zx_name_owned = false;
     }
-    ctx.zx_name = "_zx";
+    self.zx_name = "_zx";
 
     var used: std.ArrayList([]const u8) = .empty;
     defer used.deinit(self.allocator);
 
     // Function-locals (params, captures, locals) + module-scope decls that Zig would shadow.
     if (enclosingFunctionScope(node)) |fn_scope| {
-        try collectZxRelatedIdents(self, fn_scope, &used);
+        try self.collectZxRelatedIdents(fn_scope, &used);
     }
-    try collectModuleScopeZxIdents(self, self.tree.rootNode(), &used);
+    try self.collectModuleScopeZxIdents(self.ast.tree.rootNode(), &used);
 
     const picked = try pickZxName(self.allocator, used.items);
-    ctx.zx_name = picked[0];
-    ctx.zx_name_owned = picked[1];
+    self.zx_name = picked[0];
+    self.zx_name_owned = picked[1];
 }
 
-pub fn transpileNode(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
+fn transpileNode(self: *Transpile, node: ts.Node) error{OutOfMemory}!void {
     const start_byte = node.startByte();
     const end_byte = node.endByte();
     const node_kind = NodeKind.fromNode(node);
-
-    // On first call, do a pre-pass to collect all @jsImport mappings
-    if (!ctx.js_imports_collected) {
-        ctx.js_imports_collected = true;
-        try collectJsImports(self, node, ctx);
-    }
 
     // Check if this is a ZX block or return expression that needs special handling
     switch (node_kind) {
         .zx_block => {
             // For inline zx_blocks (not in return statements), just transpile the content
-            try transpileBlock(self, node, ctx);
+            try self.transpileBlock(node);
             return;
-        },
-        .variable_declaration => {
-            // Check if this variable declaration contains @jsImport
-            if (try extractJsImport(self, node)) |js_import| {
-                // Store the mapping for later use
-                try ctx.js_imports.put(js_import.name, js_import.path);
-                // Comment out the entire declaration
-                try ctx.writeM("// ", start_byte, self);
-                if (start_byte < end_byte and end_byte <= self.source.len) {
-                    try ctx.write(self.source[start_byte..end_byte]);
-                }
-                return;
-            }
         },
         .return_expression => {
             const has_zx_block = findZxBlockInReturn(node) != null;
 
             if (has_zx_block) {
                 // Special handling for return (ZX)
-                try transpileReturn(self, node, ctx);
+                try self.transpileReturn(node);
                 return;
             }
         },
         .builtin_function => {
-            const had_output = try transpileBuiltin(self, node, ctx);
+            const had_output = try self.transpileBuiltin(node);
             if (had_output)
                 return;
         },
@@ -388,9 +342,9 @@ pub fn transpileNode(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{Ou
     // For regular Zig code, copy as-is with source mapping
     const child_count = node.childCount();
     if (child_count == 0) {
-        if (start_byte < end_byte and end_byte <= self.source.len) {
-            const text = self.source[start_byte..end_byte];
-            try ctx.writeM(text, start_byte, self);
+        if (start_byte < end_byte and end_byte <= self.ast.source.len) {
+            const text = self.ast.source[start_byte..end_byte];
+            try self.writeM(text, start_byte);
         }
         return;
     }
@@ -403,113 +357,23 @@ pub fn transpileNode(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{Ou
         const child_start = child.startByte();
         const child_end = child.endByte();
 
-        if (current_pos < child_start and child_start <= self.source.len) {
-            const text = self.source[current_pos..child_start];
-            try ctx.writeM(text, current_pos, self);
+        if (current_pos < child_start and child_start <= self.ast.source.len) {
+            const text = self.ast.source[current_pos..child_start];
+            try self.writeM(text, current_pos);
         }
 
-        try transpileNode(self, child, ctx);
+        try self.transpileNode(child);
         current_pos = child_end;
     }
 
-    if (current_pos < end_byte and end_byte <= self.source.len) {
-        const text = self.source[current_pos..end_byte];
-        try ctx.writeM(text, current_pos, self);
+    if (current_pos < end_byte and end_byte <= self.ast.source.len) {
+        const text = self.ast.source[current_pos..end_byte];
+        try self.writeM(text, current_pos);
     }
-}
-
-const JsImportInfo = struct {
-    name: []const u8,
-    path: []const u8,
-};
-
-/// Extract @jsImport info from a variable declaration: const Name = @jsImport("path");
-fn extractJsImport(self: *Ast, node: ts.Node) !?JsImportInfo {
-    var component_name: ?[]const u8 = null;
-    var import_path: ?[]const u8 = null;
-
-    const child_count = node.childCount();
-    var i: u32 = 0;
-    while (i < child_count) : (i += 1) {
-        const child = node.child(i) orelse continue;
-        const child_kind = NodeKind.fromNode(child);
-
-        // Get the variable name (identifier)
-        if (child_kind == .identifier) {
-            component_name = try self.getNodeText(child);
-        }
-
-        // Check for @jsImport builtin
-        if (child_kind == .builtin_function) {
-            var is_js_import = false;
-            const builtin_child_count = child.childCount();
-            var j: u32 = 0;
-            while (j < builtin_child_count) : (j += 1) {
-                const builtin_child = child.child(j) orelse continue;
-                const builtin_child_kind = NodeKind.fromNode(builtin_child);
-
-                if (builtin_child_kind == .builtin_identifier) {
-                    const ident = try self.getNodeText(builtin_child);
-                    if (std.mem.eql(u8, ident, "@jsImport")) {
-                        is_js_import = true;
-                    }
-                }
-
-                // Extract the path from arguments
-                if (is_js_import and builtin_child_kind == .arguments) {
-                    const args_count = builtin_child.childCount();
-                    var k: u32 = 0;
-                    while (k < args_count) : (k += 1) {
-                        const arg = builtin_child.child(k) orelse continue;
-                        if (NodeKind.fromNode(arg) == .string) {
-                            // Get string content (strip quotes)
-                            const str_count = arg.childCount();
-                            var m: u32 = 0;
-                            while (m < str_count) : (m += 1) {
-                                const str_child = arg.child(m) orelse continue;
-                                if (NodeKind.fromNode(str_child) == .string_content) {
-                                    import_path = try self.getNodeText(str_child);
-                                    break;
-                                }
-                            }
-                            // Fallback: strip quotes manually
-                            if (import_path == null) {
-                                const full = try self.getNodeText(arg);
-                                if (full.len >= 2) {
-                                    import_path = full[1 .. full.len - 1];
-                                }
-                            }
-                            break;
-                        }
-                    }
-                }
-            }
-
-            if (is_js_import) {
-                if (component_name != null and import_path != null) {
-                    return JsImportInfo{
-                        .name = component_name.?,
-                        .path = import_path.?,
-                    };
-                }
-                // Has @jsImport but couldn't extract all info - still return something
-                return JsImportInfo{
-                    .name = component_name orelse "Unknown",
-                    .path = import_path orelse "",
-                };
-            }
-        }
-
-        // Recursively check children
-        if (try extractJsImport(self, child)) |info| {
-            return info;
-        }
-    }
-    return null;
 }
 
 // @import("component.zx") --> @import("component.zig")
-pub fn transpileBuiltin(self: *Ast, node: ts.Node, ctx: *TranspileContext) !bool {
+fn transpileBuiltin(self: *Transpile, node: ts.Node) !bool {
     var had_output = false;
     var builtin_identifier: ?[]const u8 = null;
     var import_string: ?[]const u8 = null;
@@ -524,7 +388,7 @@ pub fn transpileBuiltin(self: *Ast, node: ts.Node, ctx: *TranspileContext) !bool
 
         switch (child_kind) {
             .builtin_identifier => {
-                builtin_identifier = try self.getNodeText(child);
+                builtin_identifier = try self.ast.getNodeText(child);
             },
             .arguments => {
                 // Look for string inside arguments
@@ -536,7 +400,7 @@ pub fn transpileBuiltin(self: *Ast, node: ts.Node, ctx: *TranspileContext) !bool
 
                     if (arg_child_kind == .string) {
                         // Get the string with quotes
-                        const full_string = try self.getNodeText(arg_child);
+                        const full_string = try self.ast.getNodeText(arg_child);
 
                         // Look for string_content inside
                         const string_child_count = arg_child.childCount();
@@ -546,7 +410,7 @@ pub fn transpileBuiltin(self: *Ast, node: ts.Node, ctx: *TranspileContext) !bool
                             const str_child_kind = NodeKind.fromNode(str_child);
 
                             if (str_child_kind == .string_content) {
-                                import_string = try self.getNodeText(str_child);
+                                import_string = try self.ast.getNodeText(str_child);
                                 break;
                             }
                         }
@@ -570,13 +434,13 @@ pub fn transpileBuiltin(self: *Ast, node: ts.Node, ctx: *TranspileContext) !bool
                 // Check if it ends with .zx
                 if (std.mem.endsWith(u8, import_path, ".zx")) {
                     // Write @import with transformed path
-                    try ctx.writeM("@import", node.startByte(), self);
-                    try ctx.write("(\"");
+                    try self.writeM("@import", node.startByte());
+                    try self.write("(\"");
 
                     // Write path with .zig instead of .zx
                     const base_path = import_path[0 .. import_path.len - 3]; // Remove ".zx"
-                    try ctx.write(base_path);
-                    try ctx.write(".zig\")");
+                    try self.write(base_path);
+                    try self.write(".zig\")");
 
                     had_output = true;
                 }
@@ -587,7 +451,7 @@ pub fn transpileBuiltin(self: *Ast, node: ts.Node, ctx: *TranspileContext) !bool
     return had_output;
 }
 
-pub fn transpileReturn(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
+fn transpileReturn(self: *Transpile, node: ts.Node) !void {
     // Handle: return (<zx>...</zx>) or return ((<zx>...</zx>))
     // This should NOT initialize _zx here - that's done in the parent block
     const zx_block_node = findZxBlockInReturn(node);
@@ -621,43 +485,43 @@ pub fn transpileReturn(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void 
             switch (child_kind) {
                 .zx_element, .zx_self_closing_element, .zx_fragment => {
                     // Check if we need to initialize _zx with allocator
-                    const allocator_value = try getAllocatorAttribute(self, child);
+                    const allocator_value = try self.getAllocatorAttribute(child);
 
-                    try resolveZxNameFor(self, child, ctx);
+                    try self.resolveZxNameFor(child);
 
                     // Synthesized builder init - no source mapping (it's boilerplate)
-                    try ctx.print("var {s} = @import(\"zx\").x.", .{ctx.zx_name});
+                    try self.print("var {s} = @import(\"zx\").x.", .{self.zx_name});
                     // `@src()` is only valid inside a function scope. Module-scope
                     // block level component (e.g. `const x = zx { ... }`) can't use @src so skipping.
                     if (allocator_value) |alloc| {
-                        try ctx.write("allocInit(");
-                        try ctx.write(alloc);
+                        try self.write("allocInit(");
+                        try self.write(alloc);
                         if (isInFunction(child)) {
-                            try ctx.write(", .{ .src = @src() })");
+                            try self.write(", .{ .src = @src() })");
                         } else {
-                            try ctx.write(", .{})");
+                            try self.write(", .{})");
                         }
                     } else {
                         if (isInFunction(child)) {
-                            try ctx.write("init(.{ .src = @src() })");
+                            try self.write("init(.{ .src = @src() })");
                         } else {
-                            try ctx.write("init(.{})");
+                            try self.write("init(.{})");
                         }
                     }
-                    try ctx.write(";\n");
+                    try self.write(";\n");
                     // Mark that _zx is now initialized for nested ZX blocks
-                    ctx.zx_initialized = true;
-                    try ctx.writeIndent();
+                    self.zx_initialized = true;
+                    try self.writeIndent();
                     // Map generated `return` to the source `return` keyword
-                    try ctx.writeM("return", node.startByte(), self);
-                    try ctx.write(" ");
+                    try self.writeM("return", node.startByte());
+                    try self.write(" ");
 
                     // Set the paren position for the upcoming element transpilation
-                    ctx.paren_byte = paren_byte;
+                    self.paren_byte = paren_byte;
 
-                    try transpileElement(self, child, ctx, true);
+                    try self.transpileElement(child, true);
                     // Reset the flag after processing the return statement
-                    ctx.zx_initialized = false;
+                    self.zx_initialized = false;
                     return;
                 },
                 else => {},
@@ -682,7 +546,7 @@ fn findZxBlockInReturn(node: ts.Node) ?ts.Node {
     return null;
 }
 
-pub fn transpileBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
+fn transpileBlock(self: *Transpile, node: ts.Node) !void {
     // This is for zx_block nodes found inside expressions (not top-level)
     const child_count = node.childCount();
     var i: u32 = 0;
@@ -694,58 +558,58 @@ pub fn transpileBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
             .zx_element, .zx_self_closing_element, .zx_fragment => {
                 // If _zx is already initialized (e.g., inside a return statement),
                 // just transpile the element directly without wrapping
-                if (ctx.zx_initialized) {
-                    try transpileElement(self, child, ctx, false);
+                if (self.zx_initialized) {
+                    try self.transpileElement(child, false);
                     return;
                 }
 
                 // Otherwise, wrap in a self-contained labeled block with local _zx initialization
                 // Get unique block index for this inline ZX expression
-                const block_idx = ctx.nextBlockIndex();
+                const block_idx = self.nextBlockIndex();
                 var idx_buf: [16]u8 = undefined;
                 const idx_str = std.fmt.bufPrint(&idx_buf, "{d}", .{block_idx}) catch unreachable;
 
                 // Check if element has @allocator attribute
-                const allocator_value = try getAllocatorAttribute(self, child);
+                const allocator_value = try self.getAllocatorAttribute(child);
 
-                try resolveZxNameFor(self, child, ctx);
+                try self.resolveZxNameFor(child);
 
                 // Generate: _zx_ele_blk_N: { var _zx = …; break :_zx_ele_blk_N …; }
                 // (or _zx1_ele_blk_N / var _zx1 when the default name collides)
-                try ctx.print("{s}_ele_blk_", .{ctx.zx_name});
-                try ctx.write(idx_str);
-                try ctx.write(": {\n");
+                try self.print("{s}_ele_blk_", .{self.zx_name});
+                try self.write(idx_str);
+                try self.write(": {\n");
 
-                ctx.indent_level += 1;
-                try ctx.writeIndent();
-                try ctx.print("var {s} = @import(\"zx\").x.", .{ctx.zx_name});
+                self.indent_level += 1;
+                try self.writeIndent();
+                try self.print("var {s} = @import(\"zx\").x.", .{self.zx_name});
                 if (allocator_value) |alloc| {
-                    try ctx.write("allocInit(");
-                    try ctx.write(alloc);
+                    try self.write("allocInit(");
+                    try self.write(alloc);
                     if (isInFunction(child)) {
-                        try ctx.write(", .{ .src = @src() })");
+                        try self.write(", .{ .src = @src() })");
                     } else {
-                        try ctx.write(", .{})");
+                        try self.write(", .{})");
                     }
                 } else {
                     if (isInFunction(child)) {
-                        try ctx.write("init(.{ .src = @src() })");
+                        try self.write("init(.{ .src = @src() })");
                     } else {
-                        try ctx.write("init(.{})");
+                        try self.write("init(.{})");
                     }
                 }
-                try ctx.write(";\n");
+                try self.write(";\n");
 
-                try ctx.writeIndent();
-                try ctx.print("break :{s}_ele_blk_", .{ctx.zx_name});
-                try ctx.write(idx_str);
-                try ctx.write(" ");
-                try transpileElement(self, child, ctx, false);
-                try ctx.write(";\n");
+                try self.writeIndent();
+                try self.print("break :{s}_ele_blk_", .{self.zx_name});
+                try self.write(idx_str);
+                try self.write(" ");
+                try self.transpileElement(child, false);
+                try self.write(";\n");
 
-                ctx.indent_level -= 1;
-                try ctx.writeIndent();
-                try ctx.write("}");
+                self.indent_level -= 1;
+                try self.writeIndent();
+                try self.write("}");
                 return;
             },
             else => {},
@@ -754,7 +618,7 @@ pub fn transpileBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
 }
 
 /// Returns the allocator attribute value text if found, null otherwise
-pub fn getAllocatorAttribute(self: *Ast, node: ts.Node) !?[]const u8 {
+fn getAllocatorAttribute(self: *Transpile, node: ts.Node) !?[]const u8 {
     const child_count = node.childCount();
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
@@ -767,19 +631,19 @@ pub fn getAllocatorAttribute(self: *Ast, node: ts.Node) !?[]const u8 {
             var j: u32 = 0;
             while (j < tag_children) : (j += 1) {
                 const attr = child.child(j) orelse continue;
-                if (try checkAllocatorAttr(self, attr)) |value| return value;
+                if (try self.checkAllocatorAttr(attr)) |value| return value;
             }
         }
 
         // Self-closing elements (like <Button @allocator={allocator} /> or <Button @{allocator} />)
         if (child_kind == .zx_attribute or child_kind == .zx_builtin_attribute or child_kind == .zx_shorthand_attribute or child_kind == .zx_builtin_shorthand_attribute) {
-            if (try checkAllocatorAttr(self, child)) |value| return value;
+            if (try self.checkAllocatorAttr(child)) |value| return value;
         }
     }
     return null;
 }
 
-fn checkAllocatorAttr(self: *Ast, attr: ts.Node) !?[]const u8 {
+fn checkAllocatorAttr(self: *Transpile, attr: ts.Node) !?[]const u8 {
     const attr_kind = NodeKind.fromNode(attr);
     if (attr_kind != .zx_attribute and attr_kind != .zx_builtin_attribute and attr_kind != .zx_shorthand_attribute and attr_kind != .zx_builtin_shorthand_attribute) return null;
 
@@ -792,7 +656,7 @@ fn checkAllocatorAttr(self: *Ast, attr: ts.Node) !?[]const u8 {
     // Handle builtin shorthand: @{allocator} -> @allocator={allocator}
     if (actual_kind == .zx_builtin_shorthand_attribute) {
         const name_node = actual_attr.childByFieldName("name") orelse return null;
-        const name = try self.getNodeText(name_node);
+        const name = try self.ast.getNodeText(name_node);
         if (std.mem.eql(u8, name, "allocator")) {
             return name; // The variable name is "allocator"
         }
@@ -800,31 +664,31 @@ fn checkAllocatorAttr(self: *Ast, attr: ts.Node) !?[]const u8 {
     }
 
     const name_node = actual_attr.childByFieldName("name") orelse return null;
-    const name = try self.getNodeText(name_node);
+    const name = try self.ast.getNodeText(name_node);
 
     if (std.mem.eql(u8, name, "@allocator")) {
         const value_node = actual_attr.childByFieldName("value") orelse return "allocator"; // TODO: need to catch and add to errors list in case of no value
-        return try getAttributeValue(self, value_node);
+        return try self.getAttributeValue(value_node);
     }
     return null;
 }
 
-pub fn transpileElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, is_root: bool) !void {
+fn transpileElement(self: *Transpile, node: ts.Node, is_root: bool) !void {
     const node_kind = NodeKind.fromNode(node);
     switch (node_kind) {
-        .zx_fragment => try transpileFragment(self, node, ctx, is_root),
-        .zx_self_closing_element => try transpileSelfClosing(self, node, ctx, is_root),
-        .zx_element => try transpileFullElement(self, node, ctx, is_root, false),
+        .zx_fragment => try self.transpileFragment(node, is_root),
+        .zx_self_closing_element => try self.transpileSelfClosing(node, is_root),
+        .zx_element => try self.transpileFullElement(node, is_root, false),
         else => unreachable,
     }
 }
 
-pub fn transpileFragment(self: *Ast, node: ts.Node, ctx: *TranspileContext, is_root: bool) !void {
+fn transpileFragment(self: *Transpile, node: ts.Node, is_root: bool) !void {
     _ = is_root;
 
     // Collect all zx_child nodes from the fragment
     var children = std.ArrayList(ts.Node).empty;
-    defer children.deinit(ctx.output.allocator);
+    defer children.deinit(self.output.allocator);
 
     var end_tag_start_byte: u32 = node.endByte();
     var end_tag_end_byte: u32 = node.endByte();
@@ -834,7 +698,7 @@ pub fn transpileFragment(self: *Ast, node: ts.Node, ctx: *TranspileContext, is_r
         const child = node.child(i) orelse continue;
         const kind = NodeKind.fromNode(child);
         if (kind == .zx_child) {
-            try children.append(ctx.output.allocator, child);
+            try children.append(self.output.allocator, child);
         } else if (kind == .zx_end_tag) {
             end_tag_start_byte = child.startByte();
             end_tag_end_byte = child.endByte();
@@ -842,62 +706,62 @@ pub fn transpileFragment(self: *Ast, node: ts.Node, ctx: *TranspileContext, is_r
     }
 
     // Fragment is just like a regular element but with .fragment tag and no attributes
-    try ctx.print("{s}.ele", .{ctx.zx_name});
-    if (ctx.paren_byte) |p| {
-        try ctx.writeM("(", p, self);
-        ctx.paren_byte = null;
+    try self.print("{s}.ele", .{self.zx_name});
+    if (self.paren_byte) |p| {
+        try self.writeM("(", p);
+        self.paren_byte = null;
     } else {
-        try ctx.write("(");
+        try self.write("(");
     }
-    try ctx.write("\n");
+    try self.write("\n");
 
-    ctx.indent_level += 1;
-    try ctx.writeIndent();
+    self.indent_level += 1;
+    try self.writeIndent();
     // Map both start and end tag to the fragment name for tooltips
-    try ctx.addMapping(end_tag_start_byte, self);
-    try ctx.writeM(".", node.startByte(), self);
-    try ctx.addMapping(end_tag_start_byte, self);
-    try ctx.writeM("fragment", node.startByte(), self);
-    try ctx.writeM(",\n", end_tag_start_byte, self);
+    try self.addMapping(end_tag_start_byte);
+    try self.writeM(".", node.startByte());
+    try self.addMapping(end_tag_start_byte);
+    try self.writeM("fragment", node.startByte());
+    try self.writeM(",\n", end_tag_start_byte);
 
-    try ctx.writeIndent();
-    try ctx.write(".{\n");
-    ctx.indent_level += 1;
+    try self.writeIndent();
+    try self.write(".{\n");
+    self.indent_level += 1;
 
     // Write children
     if (children.items.len > 0) {
-        try ctx.writeIndent();
-        try ctx.write(".children = &.{\n");
-        ctx.indent_level += 1;
+        try self.writeIndent();
+        try self.write(".children = &.{\n");
+        self.indent_level += 1;
 
         for (children.items, 0..) |child, idx| {
-            const saved_len = ctx.output.items.len;
-            try ctx.writeIndent();
+            const saved_len = self.output.items.len;
+            try self.writeIndent();
             const is_last_child = idx == children.items.len - 1;
-            const had_output = try transpileChild(self, child, ctx, false, is_last_child);
+            const had_output = try self.transpileChild(child, false, is_last_child);
 
             if (had_output) {
-                try ctx.write(",\n");
+                try self.write(",\n");
             } else {
-                ctx.output.shrinkRetainingCapacity(saved_len);
+                self.output.shrinkRetainingCapacity(saved_len);
             }
         }
 
-        ctx.indent_level -= 1;
-        try ctx.writeIndent();
-        try ctx.write("},\n");
+        self.indent_level -= 1;
+        try self.writeIndent();
+        try self.write("},\n");
     }
 
-    ctx.indent_level -= 1;
-    try ctx.writeIndent();
-    try ctx.write("},\n");
-    ctx.indent_level -= 1;
+    self.indent_level -= 1;
+    try self.writeIndent();
+    try self.write("},\n");
+    self.indent_level -= 1;
 
-    try ctx.writeIndent();
-    try ctx.writeM(")", end_tag_end_byte, self);
+    try self.writeIndent();
+    try self.writeM(")", end_tag_end_byte);
 }
 
-pub fn isCustomComponent(tag: []const u8) bool {
+fn isCustomComponent(tag: []const u8) bool {
     // Namespaced components (e.g., components.Button, icons.GitHub) are always custom
     if (std.mem.indexOfScalar(u8, tag, '.') != null) return true;
     return tag.len > 0 and std.ascii.isUpper(tag[0]);
@@ -948,26 +812,26 @@ fn isNewline(c: u8) bool {
 }
 
 /// Escape text for use in Zig string literal
-fn escapeZigString(text: []const u8, ctx: *TranspileContext) !void {
+fn escapeZigString(self: *Transpile, text: []const u8) !void {
     for (text) |c| {
         switch (c) {
-            '\\' => try ctx.write("\\\\"),
-            '"' => try ctx.write("\\\""),
-            '\n' => try ctx.write("\\n"),
-            '\r' => try ctx.write("\\r"),
-            '\t' => try ctx.write("\\t"),
-            else => try ctx.write(&[_]u8{c}),
+            '\\' => try self.write("\\\\"),
+            '"' => try self.write("\\\""),
+            '\n' => try self.write("\\n"),
+            '\r' => try self.write("\\r"),
+            '\t' => try self.write("\\t"),
+            else => try self.write(&[_]u8{c}),
         }
     }
 }
 
-pub fn transpileSelfClosing(self: *Ast, node: ts.Node, ctx: *TranspileContext, is_root: bool) !void {
+fn transpileSelfClosing(self: *Transpile, node: ts.Node, is_root: bool) !void {
     _ = is_root;
 
     var tag_name: ?[]const u8 = null;
     var tag_name_byte: u32 = node.startByte();
     var attributes = std.ArrayList(ZxAttribute).empty;
-    defer attributes.deinit(ctx.output.allocator);
+    defer attributes.deinit(self.output.allocator);
 
     // Parse the self-closing element
     const child_count = node.childCount();
@@ -977,13 +841,13 @@ pub fn transpileSelfClosing(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
 
         switch (NodeKind.fromNode(child)) {
             .zx_tag_name => {
-                tag_name = try self.getNodeText(child);
+                tag_name = try self.ast.getNodeText(child);
                 tag_name_byte = child.startByte();
             },
             .zx_attribute, .zx_builtin_attribute, .zx_regular_attribute, .zx_shorthand_attribute, .zx_builtin_shorthand_attribute, .zx_spread_attribute => {
-                const attr = try parseAttribute(self, child);
+                const attr = try self.parseAttribute(child);
                 if (attr.isValid()) {
-                    try attributes.append(ctx.output.allocator, attr);
+                    try attributes.append(self.output.allocator, attr);
                 }
             },
             else => {},
@@ -993,22 +857,22 @@ pub fn transpileSelfClosing(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
     const tag = tag_name orelse return;
 
     if (isCustomComponent(tag)) {
-        try writeCustomComponent(self, node, tag, node.startByte(), node.endByte(), node.endByte(), attributes.items, &.{}, ctx);
+        try self.writeCustomComponent(node, tag, node.startByte(), node.endByte(), node.endByte(), attributes.items, &.{});
     } else {
-        try writeHtmlElement(self, node, tag, node.startByte(), node.endByte(), node.endByte(), attributes.items, &.{}, ctx, false);
+        try self.writeHtmlElement(node, tag, node.startByte(), node.endByte(), node.endByte(), attributes.items, &.{}, false);
     }
 }
 
-pub fn transpileFullElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, is_root: bool, parent_preserve_whitespace: bool) !void {
+fn transpileFullElement(self: *Transpile, node: ts.Node, is_root: bool, parent_preserve_whitespace: bool) !void {
     _ = is_root;
 
     // Parse element structure
     var tag_name: ?[]const u8 = null;
     var tag_name_byte: u32 = node.startByte();
     var attributes = std.ArrayList(ZxAttribute).empty;
-    defer attributes.deinit(ctx.output.allocator);
+    defer attributes.deinit(self.output.allocator);
     var children = std.ArrayList(ts.Node).empty;
-    defer children.deinit(ctx.output.allocator);
+    defer children.deinit(self.output.allocator);
 
     var end_tag_start_byte: u32 = node.endByte();
     var end_tag_end_byte: u32 = node.endByte();
@@ -1028,20 +892,20 @@ pub fn transpileFullElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
 
                     switch (NodeKind.fromNode(tag_child)) {
                         .zx_tag_name => {
-                            tag_name = try self.getNodeText(tag_child);
+                            tag_name = try self.ast.getNodeText(tag_child);
                             tag_name_byte = tag_child.startByte();
                         },
                         .zx_attribute, .zx_builtin_attribute, .zx_regular_attribute, .zx_shorthand_attribute, .zx_builtin_shorthand_attribute, .zx_spread_attribute => {
-                            const attr = try parseAttribute(self, tag_child);
+                            const attr = try self.parseAttribute(tag_child);
                             if (attr.isValid()) {
-                                try attributes.append(ctx.output.allocator, attr);
+                                try attributes.append(self.output.allocator, attr);
                             }
                         },
                         else => {},
                     }
                 }
             },
-            .zx_child => try children.append(ctx.output.allocator, child),
+            .zx_child => try children.append(self.output.allocator, child),
             .zx_end_tag => {
                 end_tag_start_byte = child.startByte();
                 end_tag_end_byte = child.endByte();
@@ -1054,7 +918,7 @@ pub fn transpileFullElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
 
     // Custom component with children
     if (isCustomComponent(tag)) {
-        try writeCustomComponent(self, node, tag, node.startByte(), end_tag_start_byte, end_tag_end_byte, attributes.items, children.items, ctx);
+        try self.writeCustomComponent(node, tag, node.startByte(), end_tag_start_byte, end_tag_end_byte, attributes.items, children.items);
         return;
     }
 
@@ -1063,12 +927,12 @@ pub fn transpileFullElement(self: *Ast, node: ts.Node, ctx: *TranspileContext, i
     const preserve_whitespace = parent_preserve_whitespace or isPreElement(tag);
 
     // Regular HTML element (with optional whitespace preservation for <pre>)
-    try writeHtmlElement(self, node, tag, node.startByte(), end_tag_start_byte, end_tag_end_byte, attributes.items, children.items, ctx, preserve_whitespace);
+    try self.writeHtmlElement(node, tag, node.startByte(), end_tag_start_byte, end_tag_end_byte, attributes.items, children.items, preserve_whitespace);
 }
 
-/// Write a custom component: _zx.cmp(Component, .{ .prop = value }) or _zx.client(...) for React CSR
-fn writeCustomComponent(self: *Ast, _: ts.Node, tag: []const u8, tag_name_byte: u32, end_tag_start_byte: u32, end_tag_end_byte: u32, attributes: []const ZxAttribute, children: []const ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
-    // Check if this is a client-side rendered component (@rendering={.react} or @rendering={.client})
+/// Write a custom component with optional client rendering metadata.
+fn writeCustomComponent(self: *Transpile, _: ts.Node, tag: []const u8, tag_name_byte: u32, end_tag_start_byte: u32, end_tag_end_byte: u32, attributes: []const ZxAttribute, children: []const ts.Node) error{OutOfMemory}!void {
+    // Check whether this is a client-side rendered Zig component.
     var rendering_value: ?[]const u8 = null;
     for (attributes) |attr| {
         if (attr.is_builtin and std.mem.eql(u8, attr.name, "@rendering")) {
@@ -1077,130 +941,7 @@ fn writeCustomComponent(self: *Ast, _: ts.Node, tag: []const u8, tag_name_byte: 
         }
     }
 
-    const is_csr = if (rendering_value) |rv| std.mem.eql(u8, rv, ".react") else false;
     const is_client = if (rendering_value) |rv| std.mem.eql(u8, rv, ".client") else false;
-
-    // React CSR components use _zx.client() directly
-    if (is_csr) {
-        var path_buf: [512]u8 = undefined;
-        var full_path: []const u8 = undefined;
-
-        // CSR: use current file's directory + @jsImport path
-        const raw_path = ctx.js_imports.get(tag) orelse "unknown.tsx";
-
-        // Get the directory of the current file
-        if (ctx.file_path) |fp| {
-            // Find the last slash to get the directory
-            if (std.mem.lastIndexOfScalar(u8, fp, '/')) |last_slash| {
-                const dir = fp[0 .. last_slash + 1];
-                // Strip leading ./ from raw_path if present
-                const clean_path = if (std.mem.startsWith(u8, raw_path, "./"))
-                    raw_path[2..]
-                else
-                    raw_path;
-                const len = dir.len + clean_path.len;
-                if (len <= path_buf.len) {
-                    @memcpy(path_buf[0..dir.len], dir);
-                    @memcpy(path_buf[dir.len..][0..clean_path.len], clean_path);
-                    full_path = path_buf[0..len];
-                } else {
-                    full_path = raw_path;
-                }
-            } else {
-                // No directory, just use the raw path with ./
-                if (std.mem.startsWith(u8, raw_path, "./")) {
-                    full_path = raw_path;
-                } else {
-                    const len = 2 + raw_path.len;
-                    if (len <= path_buf.len) {
-                        @memcpy(path_buf[0..2], "./");
-                        @memcpy(path_buf[2..][0..raw_path.len], raw_path);
-                        full_path = path_buf[0..len];
-                    } else {
-                        full_path = raw_path;
-                    }
-                }
-            }
-        } else {
-            // No file path, fallback to ./ + raw_path
-            if (std.mem.startsWith(u8, raw_path, "./")) {
-                full_path = raw_path;
-            } else {
-                const len = 2 + raw_path.len;
-                if (len <= path_buf.len) {
-                    @memcpy(path_buf[0..2], "./");
-                    @memcpy(path_buf[2..][0..raw_path.len], raw_path);
-                    full_path = path_buf[0..len];
-                } else {
-                    full_path = raw_path;
-                }
-            }
-        }
-
-        // Add to client components list (use current list length as stable index)
-        const rendering_type = ClientComponentMetadata.Type.from(rendering_value orelse "react");
-        const component_index = ctx.client_components.items.len;
-        const client_cmp = try ClientComponentMetadata.init(ctx.allocator, tag, full_path, rendering_type, component_index);
-        try ctx.client_components.append(ctx.allocator, client_cmp);
-
-        // Write _zx.client(.{ .name = "Name", .path = "path", .id = "id" }, .{ props })
-        try ctx.print("{s}.client", .{ctx.zx_name});
-        if (ctx.paren_byte) |p| {
-            try ctx.writeM("(", p, self);
-            ctx.paren_byte = null;
-        } else {
-            try ctx.write("(");
-        }
-        try ctx.write("\n");
-
-        ctx.indent_level += 1;
-        try ctx.writeIndent();
-        try ctx.write(".{ .name = \"");
-        try ctx.writeM(componentDisplayName(tag), tag_name_byte, self);
-        try ctx.write("\", .path = \"");
-        try ctx.write(full_path);
-        try ctx.write("\", .id = \"");
-        try ctx.write(client_cmp.id);
-        try ctx.write("\" },\n");
-
-        try ctx.writeIndent();
-        try ctx.write(".{");
-
-        // Write props (non-builtin attributes)
-        var first_prop = true;
-        for (attributes) |attr| {
-            if (attr.is_builtin) continue;
-            if (!first_prop) try ctx.write(",");
-            first_prop = false;
-
-            try ctx.write("\n");
-            ctx.indent_level += 1;
-            try ctx.writeIndent();
-            try ctx.write(".");
-            try ctx.writeM(attr.name, attr.name_byte_offset, self);
-            try ctx.write(" = ");
-            // Handle template strings, zx_blocks, and regular values
-            if (attr.template_string_node) |template_node| {
-                try transpileTemplateStringProp(self, template_node, ctx);
-            } else if (attr.zx_block_node) |zx_node| {
-                try transpileBlock(self, zx_node, ctx);
-            } else {
-                try ctx.writeM(attr.value, attr.value_byte_offset, self);
-            }
-            ctx.indent_level -= 1;
-        }
-
-        if (!first_prop) {
-            try ctx.write("\n");
-            try ctx.writeIndent();
-        }
-        try ctx.write("}\n");
-
-        ctx.indent_level -= 1;
-        try ctx.writeIndent();
-        try ctx.writeM(")", end_tag_end_byte, self);
-        return;
-    }
 
     // Zig client components (@rendering={.client}) use _zx.cmp() with client option
     if (is_client) {
@@ -1208,7 +949,7 @@ fn writeCustomComponent(self: *Ast, _: ts.Node, tag: []const u8, tag_name_byte: 
         var full_path: []const u8 = undefined;
 
         // Client: use file path with .zig extension (relative to cwd)
-        if (ctx.file_path) |fp| {
+        if (self.file_path) |fp| {
             // Replace .zx extension with .zig
             if (std.mem.endsWith(u8, fp, ".zx")) {
                 const base_len = fp.len - 3;
@@ -1229,116 +970,116 @@ fn writeCustomComponent(self: *Ast, _: ts.Node, tag: []const u8, tag_name_byte: 
 
         // Add to client components list (use current list length as stable index)
         const rendering_type = ClientComponentMetadata.Type.from(rendering_value orelse "client");
-        const component_index = ctx.client_components.items.len;
-        const client_cmp = try ClientComponentMetadata.init(ctx.allocator, tag, full_path, rendering_type, component_index);
-        try ctx.client_components.append(ctx.allocator, client_cmp);
+        const component_index = self.client_components.items.len;
+        const client_cmp = try ClientComponentMetadata.init(self.allocator, tag, full_path, rendering_type, component_index);
+        try self.client_components.append(self.allocator, client_cmp);
 
         // Write _zx.cmp(Component, .{ .name = ..., .client = .{ .name = ..., .id = ... } }, .{ props })
-        try ctx.print("{s}.cmp", .{ctx.zx_name});
-        if (ctx.paren_byte) |p| {
-            try ctx.writeM("(", p, self);
-            ctx.paren_byte = null;
+        try self.print("{s}.cmp", .{self.zx_name});
+        if (self.paren_byte) |p| {
+            try self.writeM("(", p);
+            self.paren_byte = null;
         } else {
-            try ctx.write("(");
+            try self.write("(");
         }
-        try ctx.write("\n");
+        try self.write("\n");
 
-        ctx.indent_level += 1;
-        try ctx.writeIndent();
-        try ctx.addMapping(end_tag_start_byte, self);
-        try ctx.writeM(tag, tag_name_byte, self);
-        try ctx.writeM(",\n", end_tag_start_byte, self);
+        self.indent_level += 1;
+        try self.writeIndent();
+        try self.addMapping(end_tag_start_byte);
+        try self.writeM(tag, tag_name_byte);
+        try self.writeM(",\n", end_tag_start_byte);
 
-        try ctx.writeIndent();
-        try ctx.write(".{ .src = @src() },\n");
+        try self.writeIndent();
+        try self.write(".{ .src = @src() },\n");
 
-        try ctx.writeIndent();
-        try ctx.write(".{ .name = \"");
-        try ctx.write(componentDisplayName(tag));
-        try ctx.write("\", .client = .{ .name = \"");
-        try ctx.write(componentDisplayName(tag));
-        // try ctx.write("\", .path = \"");
-        // try ctx.write(full_path);
-        try ctx.write("\", .id = \"");
-        try ctx.write(client_cmp.id);
-        try ctx.write("\" } },\n");
+        try self.writeIndent();
+        try self.write(".{ .name = \"");
+        try self.write(componentDisplayName(tag));
+        try self.write("\", .client = .{ .name = \"");
+        try self.write(componentDisplayName(tag));
+        // try self.write("\", .path = \"");
+        // try self.write(full_path);
+        try self.write("\", .id = \"");
+        try self.write(client_cmp.id);
+        try self.write("\" } },\n");
 
-        try ctx.writeIndent();
-        try ctx.write(".{");
+        try self.writeIndent();
+        try self.write(".{");
 
         // Write props (non-builtin attributes)
         var first_prop = true;
         for (attributes) |attr| {
             if (attr.is_builtin) continue;
-            if (!first_prop) try ctx.write(",");
+            if (!first_prop) try self.write(",");
             first_prop = false;
 
-            try ctx.write("\n");
-            ctx.indent_level += 1;
-            try ctx.writeIndent();
-            try ctx.write(".");
-            try ctx.writeM(attr.name, attr.name_byte_offset, self);
-            try ctx.write(" = ");
+            try self.write("\n");
+            self.indent_level += 1;
+            try self.writeIndent();
+            try self.write(".");
+            try self.writeM(attr.name, attr.name_byte_offset);
+            try self.write(" = ");
             // Handle template strings, zx_blocks, and regular values
             if (attr.template_string_node) |template_node| {
-                try transpileTemplateStringProp(self, template_node, ctx);
+                try self.transpileTemplateStringProp(template_node);
             } else if (attr.zx_block_node) |zx_node| {
-                try transpileBlock(self, zx_node, ctx);
+                try self.transpileBlock(zx_node);
             } else {
-                try ctx.writeM(attr.value, attr.value_byte_offset, self);
+                try self.writeM(attr.value, attr.value_byte_offset);
             }
-            ctx.indent_level -= 1;
+            self.indent_level -= 1;
         }
 
         if (!first_prop) {
-            try ctx.write("\n");
-            try ctx.writeIndent();
+            try self.write("\n");
+            try self.writeIndent();
         }
-        try ctx.write("},\n");
+        try self.write("},\n");
 
-        ctx.indent_level -= 1;
-        try ctx.writeIndent();
-        try ctx.writeM(")", end_tag_end_byte, self);
+        self.indent_level -= 1;
+        try self.writeIndent();
+        try self.writeM(")", end_tag_end_byte);
         return;
     }
 
     {
         // Regular cmp component: _zx.cmp(Func, .{ .name = ..., options }, .{ props })
-        try ctx.print("{s}.cmp", .{ctx.zx_name});
-        if (ctx.paren_byte) |p| {
-            try ctx.writeM("(", p, self);
-            ctx.paren_byte = null;
+        try self.print("{s}.cmp", .{self.zx_name});
+        if (self.paren_byte) |p| {
+            try self.writeM("(", p);
+            self.paren_byte = null;
         } else {
-            try ctx.write("(");
+            try self.write("(");
         }
-        try ctx.write("\n");
+        try self.write("\n");
 
-        ctx.indent_level += 1;
-        try ctx.writeIndent();
-        try ctx.addMapping(end_tag_start_byte, self);
-        try ctx.writeM(tag, tag_name_byte, self);
-        try ctx.writeM(",\n", end_tag_start_byte, self);
+        self.indent_level += 1;
+        try self.writeIndent();
+        try self.addMapping(end_tag_start_byte);
+        try self.writeM(tag, tag_name_byte);
+        try self.writeM(",\n", end_tag_start_byte);
 
-        try ctx.writeIndent();
-        try ctx.write(".{ .src = @src() },\n");
+        try self.writeIndent();
+        try self.write(".{ .src = @src() },\n");
 
         var spreads = std.ArrayList(ZxAttribute).empty;
-        defer spreads.deinit(ctx.output.allocator);
+        defer spreads.deinit(self.output.allocator);
         var regular_props = std.ArrayList(ZxAttribute).empty;
-        defer regular_props.deinit(ctx.output.allocator);
+        defer regular_props.deinit(self.output.allocator);
         var builtin_attrs = std.ArrayList(ZxAttribute).empty;
-        defer builtin_attrs.deinit(ctx.output.allocator);
+        defer builtin_attrs.deinit(self.output.allocator);
 
         for (attributes) |attr| {
             if (attr.is_builtin) {
                 // Collect builtin attributes for the options parameter
-                try builtin_attrs.append(ctx.output.allocator, attr);
+                try builtin_attrs.append(self.output.allocator, attr);
                 continue;
             }
             if (attr.is_spread) {
-                try spreads.append(ctx.output.allocator, attr);
+                try spreads.append(self.output.allocator, attr);
             } else {
-                try regular_props.append(ctx.output.allocator, attr);
+                try regular_props.append(self.output.allocator, attr);
             }
         }
 
@@ -1347,136 +1088,136 @@ fn writeCustomComponent(self: *Ast, _: ts.Node, tag: []const u8, tag_name_byte: 
         const has_children = children.len > 0;
 
         // Write options parameter (name + builtin attributes)
-        try ctx.writeIndent();
-        try ctx.write(".{ .name = \"");
-        try ctx.write(componentDisplayName(tag));
-        try ctx.write("\"");
-        try writeComponentBuiltinOptions(self, builtin_attrs.items, ctx, true);
-        try ctx.write(" },\n");
+        try self.writeIndent();
+        try self.write(".{ .name = \"");
+        try self.write(componentDisplayName(tag));
+        try self.write("\"");
+        try self.writeComponentBuiltinOptions(builtin_attrs.items, true);
+        try self.write(" },\n");
 
         // Case 1: Single spread
         if (spreads.items.len == 1 and !has_regular_props and !has_children) {
-            try ctx.writeIndent();
-            try ctx.writeM(spreads.items[0].value, spreads.items[0].value_byte_offset, self);
-            try ctx.write("\n");
+            try self.writeIndent();
+            try self.writeM(spreads.items[0].value, spreads.items[0].value_byte_offset);
+            try self.write("\n");
         }
         // Case 2: Multiple spreads with other props or children - use propsM
         else if (has_spread) {
-            try ctx.writeIndent();
+            try self.writeIndent();
             var need_merge = false;
             if (spreads.items.len > 0) {
-                try ctx.print("{s}.propsM(", .{ctx.zx_name});
-                try ctx.writeM(spreads.items[0].value, spreads.items[0].value_byte_offset, self);
+                try self.print("{s}.propsM(", .{self.zx_name});
+                try self.writeM(spreads.items[0].value, spreads.items[0].value_byte_offset);
                 need_merge = true;
             }
 
             for (spreads.items[1..]) |spread| {
-                try ctx.write(", ");
-                try ctx.writeM(spread.value, spread.value_byte_offset, self);
+                try self.write(", ");
+                try self.writeM(spread.value, spread.value_byte_offset);
             }
 
             if (has_regular_props or has_children) {
-                if (need_merge) try ctx.write(", ");
-                try ctx.write(".{");
+                if (need_merge) try self.write(", ");
+                try self.write(".{");
 
                 var first_prop = true;
                 for (regular_props.items) |attr| {
-                    if (!first_prop) try ctx.write(",");
+                    if (!first_prop) try self.write(",");
                     first_prop = false;
 
-                    try ctx.write("\n");
-                    ctx.indent_level += 1;
-                    try ctx.writeIndent();
-                    try ctx.write(".");
-                    try ctx.writeM(attr.name, attr.name_byte_offset, self);
-                    try ctx.write(" = ");
+                    try self.write("\n");
+                    self.indent_level += 1;
+                    try self.writeIndent();
+                    try self.write(".");
+                    try self.writeM(attr.name, attr.name_byte_offset);
+                    try self.write(" = ");
                     // Handle template strings, zx_blocks, and regular values
                     if (attr.template_string_node) |template_node| {
-                        try transpileTemplateStringProp(self, template_node, ctx);
+                        try self.transpileTemplateStringProp(template_node);
                     } else if (attr.zx_block_node) |zx_node| {
-                        try transpileBlock(self, zx_node, ctx);
+                        try self.transpileBlock(zx_node);
                     } else {
-                        try ctx.writeM(attr.value, attr.value_byte_offset, self);
+                        try self.writeM(attr.value, attr.value_byte_offset);
                     }
-                    ctx.indent_level -= 1;
+                    self.indent_level -= 1;
                 }
 
                 // Add children prop
                 if (has_children) {
-                    if (!first_prop) try ctx.write(",");
-                    try ctx.write("\n");
-                    ctx.indent_level += 1;
-                    try ctx.writeIndent();
-                    try ctx.write(".children = ");
-                    try writeChildrenValue(self, children, ctx);
-                    ctx.indent_level -= 1;
+                    if (!first_prop) try self.write(",");
+                    try self.write("\n");
+                    self.indent_level += 1;
+                    try self.writeIndent();
+                    try self.write(".children = ");
+                    try self.writeChildrenValue(children);
+                    self.indent_level -= 1;
                 }
 
                 if (!first_prop) {
-                    try ctx.write("\n");
-                    try ctx.writeIndent();
+                    try self.write("\n");
+                    try self.writeIndent();
                 }
-                try ctx.write("}");
+                try self.write("}");
             }
 
-            if (need_merge) try ctx.write(")");
-            try ctx.write("\n");
+            if (need_merge) try self.write(")");
+            try self.write("\n");
         }
         // Case 3: Regular attrs
         else {
-            try ctx.writeIndent();
-            try ctx.write(".{");
+            try self.writeIndent();
+            try self.write(".{");
 
             var first_prop = true;
             for (regular_props.items) |attr| {
-                if (!first_prop) try ctx.write(",");
+                if (!first_prop) try self.write(",");
                 first_prop = false;
 
-                try ctx.write("\n");
-                ctx.indent_level += 1;
-                try ctx.writeIndent();
-                try ctx.write(".");
-                try ctx.writeM(attr.name, attr.name_byte_offset, self);
-                try ctx.write(" = ");
+                try self.write("\n");
+                self.indent_level += 1;
+                try self.writeIndent();
+                try self.write(".");
+                try self.writeM(attr.name, attr.name_byte_offset);
+                try self.write(" = ");
                 // Handle template strings, zx_blocks, and regular values
                 if (attr.template_string_node) |template_node| {
-                    try transpileTemplateStringProp(self, template_node, ctx);
+                    try self.transpileTemplateStringProp(template_node);
                 } else if (attr.zx_block_node) |zx_node| {
-                    try transpileBlock(self, zx_node, ctx);
+                    try self.transpileBlock(zx_node);
                 } else {
-                    try ctx.writeM(attr.value, attr.value_byte_offset, self);
+                    try self.writeM(attr.value, attr.value_byte_offset);
                 }
-                ctx.indent_level -= 1;
+                self.indent_level -= 1;
             }
 
             // Add children prop
             if (has_children) {
-                if (!first_prop) try ctx.write(",");
-                try ctx.write("\n");
-                ctx.indent_level += 1;
-                try ctx.writeIndent();
-                try ctx.write(".children = ");
-                try writeChildrenValue(self, children, ctx);
-                ctx.indent_level -= 1;
+                if (!first_prop) try self.write(",");
+                try self.write("\n");
+                self.indent_level += 1;
+                try self.writeIndent();
+                try self.write(".children = ");
+                try self.writeChildrenValue(children);
+                self.indent_level -= 1;
             }
 
             if (!first_prop) {
-                try ctx.write("\n");
-                try ctx.writeIndent();
+                try self.write("\n");
+                try self.writeIndent();
             }
-            try ctx.write("}\n");
+            try self.write("}\n");
         }
 
-        ctx.indent_level -= 1;
-        try ctx.writeIndent();
-        try ctx.writeM(",)", end_tag_end_byte, self);
+        self.indent_level -= 1;
+        try self.writeIndent();
+        try self.writeM(",)", end_tag_end_byte);
     }
 }
 
 /// Write builtin options for component (cmp) calls.
 /// `has_prior_field` should be true when a field (e.g. `.name`) was already written
 /// so the first builtin attr is prefixed with a comma separator.
-fn writeComponentBuiltinOptions(self: *Ast, builtin_attrs: []const ZxAttribute, ctx: *TranspileContext, has_prior_field: bool) !void {
+fn writeComponentBuiltinOptions(self: *Transpile, builtin_attrs: []const ZxAttribute, has_prior_field: bool) !void {
     var first = !has_prior_field;
     for (builtin_attrs) |attr| {
         // Skip @rendering which is handled separately for CSR components
@@ -1484,129 +1225,129 @@ fn writeComponentBuiltinOptions(self: *Ast, builtin_attrs: []const ZxAttribute, 
         // Skip @allocator which is not relevant for components
         if (std.mem.eql(u8, attr.name, "@allocator")) continue;
 
-        if (!first) try ctx.write(",");
+        if (!first) try self.write(",");
         first = false;
 
         // Map attribute names to Zig field names
         if (std.mem.eql(u8, attr.name, "@async")) {
-            try ctx.write(" .@\"async\" = ");
+            try self.write(" .@\"async\" = ");
         } else if (std.mem.eql(u8, attr.name, "@fallback")) {
-            try ctx.print(" .fallback = {s}.ptr(", .{ctx.zx_name});
+            try self.print(" .fallback = {s}.ptr(", .{self.zx_name});
         } else if (std.mem.eql(u8, attr.name, "@caching")) {
-            try ctx.write(" .caching = ");
+            try self.write(" .caching = ");
             // If it's a string value (not a zx_block), wrap with comptime .tag()
             if (attr.zx_block_node == null) {
-                try ctx.write("comptime .tag(");
-                try ctx.writeM(attr.value, attr.value_byte_offset, self);
-                try ctx.write(")");
+                try self.write("comptime .tag(");
+                try self.writeM(attr.value, attr.value_byte_offset);
+                try self.write(")");
                 continue;
             }
         } else {
-            try ctx.write(" .");
+            try self.write(" .");
             const name = if (attr.name[0] == '@') attr.name[1..] else attr.name;
-            try ctx.writeM(name, attr.name_byte_offset, self);
-            try ctx.write(" = ");
+            try self.writeM(name, attr.name_byte_offset);
+            try self.write(" = ");
         }
 
         // Write the value
         if (attr.zx_block_node) |zx_node| {
-            try transpileBlock(self, zx_node, ctx);
+            try self.transpileBlock(zx_node);
         } else {
-            try ctx.writeM(attr.value, attr.value_byte_offset, self);
+            try self.writeM(attr.value, attr.value_byte_offset);
         }
 
         // Close the ptr() wrapper for @fallback
         if (std.mem.eql(u8, attr.name, "@fallback")) {
-            try ctx.write(")");
+            try self.write(")");
         }
     }
 }
 
-fn writeChildrenValue(self: *Ast, children: []const ts.Node, ctx: *TranspileContext) !void {
+fn writeChildrenValue(self: *Transpile, children: []const ts.Node) !void {
     if (children.len == 1) {
-        _ = try transpileChild(self, children[0], ctx, false, true);
+        _ = try self.transpileChild(children[0], false, true);
     } else {
-        try ctx.print("{s}.ele(.fragment, .{{ .children = &.{{", .{ctx.zx_name});
+        try self.print("{s}.ele(.fragment, .{{ .children = &.{{", .{self.zx_name});
         for (children, 0..) |child, idx| {
-            const saved_len = ctx.output.items.len;
-            const had_output = try transpileChild(self, child, ctx, false, idx == children.len - 1);
+            const saved_len = self.output.items.len;
+            const had_output = try self.transpileChild(child, false, idx == children.len - 1);
             if (had_output) {
-                try ctx.write(", ");
+                try self.write(", ");
             } else {
-                ctx.output.shrinkRetainingCapacity(saved_len);
+                self.output.shrinkRetainingCapacity(saved_len);
             }
         }
-        try ctx.write("} })");
+        try self.write("} })");
     }
 }
 
 /// Write a regular HTML element: _zx.ele(.tag, .{ ... })
 /// When preserve_whitespace is true (e.g. for <pre>), text nodes won't be trimmed
-fn writeHtmlElement(self: *Ast, node: ts.Node, tag: []const u8, tag_name_byte: u32, end_tag_start_byte: u32, end_tag_end_byte: u32, attributes: []const ZxAttribute, children: []const ts.Node, ctx: *TranspileContext, preserve_whitespace: bool) !void {
+fn writeHtmlElement(self: *Transpile, node: ts.Node, tag: []const u8, tag_name_byte: u32, end_tag_start_byte: u32, end_tag_end_byte: u32, attributes: []const ZxAttribute, children: []const ts.Node, preserve_whitespace: bool) !void {
     const in_function = isInFunction(node);
     // _zx.ele( is synthesized - no source mapping
-    try ctx.print("{s}.ele", .{ctx.zx_name});
-    if (ctx.paren_byte) |p| {
-        try ctx.writeM("(", p, self);
-        ctx.paren_byte = null;
+    try self.print("{s}.ele", .{self.zx_name});
+    if (self.paren_byte) |p| {
+        try self.writeM("(", p);
+        self.paren_byte = null;
     } else {
-        try ctx.write("(");
+        try self.write("(");
     }
-    try ctx.write("\n");
+    try self.write("\n");
 
-    ctx.indent_level += 1;
-    try ctx.writeIndent();
+    self.indent_level += 1;
+    try self.writeIndent();
     // Map both start and end tags to the tag name for tooltips
-    try ctx.addMapping(end_tag_start_byte, self);
-    try ctx.writeM(".", tag_name_byte, self);
-    try ctx.addMapping(end_tag_start_byte, self);
-    try ctx.writeM(tag, tag_name_byte, self);
-    try ctx.writeM(",\n", end_tag_start_byte, self);
+    try self.addMapping(end_tag_start_byte);
+    try self.writeM(".", tag_name_byte);
+    try self.addMapping(end_tag_start_byte);
+    try self.writeM(tag, tag_name_byte);
+    try self.writeM(",\n", end_tag_start_byte);
 
     // Write options struct
-    try ctx.writeIndent();
-    try ctx.write(".{\n");
-    ctx.indent_level += 1;
+    try self.writeIndent();
+    try self.write(".{\n");
+    self.indent_level += 1;
 
-    try writeAttributes(self, attributes, ctx, in_function);
+    try self.writeAttributes(attributes, in_function);
 
     // Write children
     if (children.len > 0) {
-        try ctx.writeIndent();
-        try ctx.write(".children = &.{\n");
-        ctx.indent_level += 1;
+        try self.writeIndent();
+        try self.write(".children = &.{\n");
+        self.indent_level += 1;
 
         for (children, 0..) |child, idx| {
-            const saved_len = ctx.output.items.len;
-            try ctx.writeIndent();
+            const saved_len = self.output.items.len;
+            try self.writeIndent();
             const is_last_child = idx == children.len - 1;
-            const had_output = try transpileChild(self, child, ctx, preserve_whitespace, is_last_child);
+            const had_output = try self.transpileChild(child, preserve_whitespace, is_last_child);
 
             if (had_output) {
-                try ctx.write(",\n");
+                try self.write(",\n");
             } else {
-                ctx.output.shrinkRetainingCapacity(saved_len);
+                self.output.shrinkRetainingCapacity(saved_len);
             }
         }
 
-        ctx.indent_level -= 1;
-        try ctx.writeIndent();
-        try ctx.write("},\n");
+        self.indent_level -= 1;
+        try self.writeIndent();
+        try self.write("},\n");
     }
 
-    ctx.indent_level -= 1;
-    try ctx.writeIndent();
-    try ctx.write("},\n");
-    ctx.indent_level -= 1;
+    self.indent_level -= 1;
+    try self.writeIndent();
+    try self.write("},\n");
+    self.indent_level -= 1;
 
-    try ctx.writeIndent();
-    try ctx.writeM(")", end_tag_end_byte, self);
+    try self.writeIndent();
+    try self.writeM(")", end_tag_end_byte);
 }
 
 /// Transpile a child node. When preserve_whitespace is true (e.g. inside <pre>),
 /// text nodes are not trimmed and whitespace is preserved exactly.
 /// is_last_child indicates if this is the last child in the parent (used for newline handling in <pre>).
-pub fn transpileChild(self: *Ast, node: ts.Node, ctx: *TranspileContext, preserve_whitespace: bool, is_last_child: bool) error{OutOfMemory}!bool {
+fn transpileChild(self: *Transpile, node: ts.Node, preserve_whitespace: bool, is_last_child: bool) error{OutOfMemory}!bool {
     // Returns true if any output was generated, false otherwise
     // zx_child can be: zx_element, zx_self_closing_element, zx_fragment, zx_expression_block, zx_text
     const child_count = node.childCount();
@@ -1623,39 +1364,39 @@ pub fn transpileChild(self: *Ast, node: ts.Node, ctx: *TranspileContext, preserv
                 if (preserve_whitespace) {
                     // For <pre> and similar: preserve whitespace exactly
                     // Add \n at end of each text node except the last child
-                    const text = try self.getNodeText(child);
+                    const text = try self.ast.getNodeText(child);
                     if (text.len == 0) continue;
 
-                    try ctx.printM("{s}.txt(\"", .{ctx.zx_name}, child.startByte(), self);
-                    try escapeZigString(text, ctx);
+                    try self.printM("{s}.txt(\"", .{self.zx_name}, child.startByte());
+                    try self.escapeZigString(text);
                     // Add newline at end unless this is the last child
-                    if (!is_last_child) try ctx.write("\\n");
-                    try ctx.write("\")");
+                    if (!is_last_child) try self.write("\\n");
+                    try self.write("\")");
                     had_output = true;
                 } else {
-                    const normalized = normalizeText(self.source, child.startByte(), child.endByte()) orelse continue;
+                    const normalized = normalizeText(self.ast.source, child.startByte(), child.endByte()) orelse continue;
 
-                    try ctx.printM("{s}.txt(\"", .{ctx.zx_name}, child.startByte(), self);
-                    try escapeZigString(normalized, ctx);
-                    try ctx.write("\")");
+                    try self.printM("{s}.txt(\"", .{self.zx_name}, child.startByte());
+                    try self.escapeZigString(normalized);
+                    try self.write("\")");
                     had_output = true;
                 }
             },
             .zx_expression_block => {
-                try transpileExprBlock(self, child, ctx);
+                try self.transpileExprBlock(child);
                 had_output = true;
             },
             .zx_element => {
                 // Pass preserve_whitespace to nested elements (e.g., elements inside <pre>)
-                try transpileFullElement(self, child, ctx, false, preserve_whitespace);
+                try self.transpileFullElement(child, false, preserve_whitespace);
                 had_output = true;
             },
             .zx_self_closing_element => {
-                try transpileSelfClosing(self, child, ctx, false);
+                try self.transpileSelfClosing(child, false);
                 had_output = true;
             },
             .zx_fragment => {
-                try transpileFragment(self, child, ctx, false);
+                try self.transpileFragment(child, false);
                 had_output = true;
             },
             else => {},
@@ -1664,7 +1405,7 @@ pub fn transpileChild(self: *Ast, node: ts.Node, ctx: *TranspileContext, preserv
     return had_output;
 }
 
-pub fn transpileExprBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
+fn transpileExprBlock(self: *Transpile, node: ts.Node) error{OutOfMemory}!void {
     // zx_expression_block is: '{' expression '}'
     // We need to extract the expression and handle special cases
     const child_count = node.childCount();
@@ -1677,7 +1418,7 @@ pub fn transpileExprBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) err
         switch (SkipTokens.from(child_type)) {
             .open_brace, .close_brace => continue,
             .open_paren, .close_paren => {
-                try ctx.write(child_type);
+                try self.write(child_type);
                 continue;
             },
             .other => {},
@@ -1686,49 +1427,49 @@ pub fn transpileExprBlock(self: *Ast, node: ts.Node, ctx: *TranspileContext) err
         // Handle control flow and special expressions
         switch (NodeKind.fromNode(child)) {
             .if_expression => {
-                try transpileIf(self, child, ctx);
+                try self.transpileIf(child);
                 continue;
             },
             .for_expression => {
-                try transpileFor(self, child, ctx);
+                try self.transpileFor(child);
                 continue;
             },
             .while_expression => {
-                try transpileWhile(self, child, ctx);
+                try self.transpileWhile(child);
                 continue;
             },
             .switch_expression => {
-                try transpileSwitch(self, child, ctx);
+                try self.transpileSwitch(child);
                 continue;
             },
             .multiline_string => {
-                try transpileMultilineString(self, child, ctx);
+                try self.transpileMultilineString(child);
                 continue;
             },
             else => {},
         }
 
         // Regular expression handling
-        const expr_text = try self.getNodeText(child);
+        const expr_text = try self.ast.getNodeText(child);
         const trimmed = std.mem.trim(u8, expr_text, &std.ascii.whitespace);
         if (trimmed.len == 0) continue;
 
         // Regular expression like {user.name}
-        try ctx.printM("{s}.expr(", .{ctx.zx_name}, child.startByte(), self);
-        try ctx.writeM(trimmed, child.startByte(), self);
-        try ctx.write(")");
+        try self.printM("{s}.expr(", .{self.zx_name}, child.startByte());
+        try self.writeM(trimmed, child.startByte());
+        try self.write(")");
     }
 }
 
 /// Transpile multiline string expression with proper formatting
-fn transpileMultilineString(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
-    const expr_text = try self.getNodeText(node);
+fn transpileMultilineString(self: *Transpile, node: ts.Node) !void {
+    const expr_text = try self.ast.getNodeText(node);
 
     // Write _zx.expr( followed by newline
-    try ctx.printM("{s}.expr(", .{ctx.zx_name}, node.startByte(), self);
-    try ctx.write("\n");
+    try self.printM("{s}.expr(", .{self.zx_name}, node.startByte());
+    try self.write("\n");
 
-    ctx.indent_level += 1;
+    self.indent_level += 1;
 
     // Split by newlines and write each line with proper indentation
     var lines = std.mem.splitScalar(u8, expr_text, '\n');
@@ -1736,19 +1477,19 @@ fn transpileMultilineString(self: *Ast, node: ts.Node, ctx: *TranspileContext) !
         const trimmed_line = std.mem.trimStart(u8, line, " \t");
         if (trimmed_line.len == 0) continue;
 
-        try ctx.writeIndent();
-        try ctx.write(trimmed_line);
-        try ctx.write("\n");
+        try self.writeIndent();
+        try self.write(trimmed_line);
+        try self.write("\n");
     }
 
-    ctx.indent_level -= 1;
+    self.indent_level -= 1;
 
     // Write closing paren with proper indentation
-    try ctx.writeIndent();
-    try ctx.write(")");
+    try self.writeIndent();
+    try self.write(")");
 }
 
-pub fn transpileIf(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
+fn transpileIf(self: *Transpile, node: ts.Node) !void {
     // if_expression: 'if' '(' condition ')' [payload] then_expr ['else' [else_payload] else_expr]
     var condition_text: ?[]const u8 = null;
     var payload_text: ?[]const u8 = null;
@@ -1778,15 +1519,15 @@ pub fn transpileIf(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
             in_then = false;
             in_else = true;
         } else if (in_condition and condition_text == null) {
-            condition_text = try self.getNodeText(child);
+            condition_text = try self.ast.getNodeText(child);
         } else if (in_then and child_kind == .payload) {
             // Capture payload like |un|
-            payload_text = try self.getNodeText(child);
+            payload_text = try self.ast.getNodeText(child);
         } else if (in_then and then_node == null) {
             then_node = child;
         } else if (in_else and child_kind == .payload) {
             // Capture else payload like |err|
-            else_payload_text = try self.getNodeText(child);
+            else_payload_text = try self.ast.getNodeText(child);
         } else if (in_else and else_node == null) {
             else_node = child;
         }
@@ -1795,65 +1536,65 @@ pub fn transpileIf(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
     const cond = condition_text orelse return;
     const then_n = then_node orelse return;
 
-    try ctx.writeM("if", node.startByte(), self);
-    try ctx.write(" ");
+    try self.writeM("if", node.startByte());
+    try self.write(" ");
 
     // Write condition - ensure wrapped in parens
     const cond_trimmed = std.mem.trim(u8, cond, &std.ascii.whitespace);
     if (cond_trimmed.len > 0 and cond_trimmed[0] == '(' and cond_trimmed[cond_trimmed.len - 1] == ')') {
-        try ctx.write(cond_trimmed);
+        try self.write(cond_trimmed);
     } else {
-        try ctx.write("(");
-        try ctx.write(cond_trimmed);
-        try ctx.write(")");
+        try self.write("(");
+        try self.write(cond_trimmed);
+        try self.write(")");
     }
-    try ctx.write(" ");
+    try self.write(" ");
 
     // Write payload if present (e.g., |un|)
     if (payload_text) |payload| {
-        try ctx.write(payload);
-        try ctx.write(" ");
+        try self.write(payload);
+        try self.write(" ");
     }
 
     // Handle then branch
-    try transpileBranch(self, then_n, ctx);
+    try self.transpileBranch(then_n);
 
     // Handle else branch
     if (else_node) |else_n| {
-        try ctx.write(" else ");
+        try self.write(" else ");
         // Write else payload if present (e.g., |err|)
         if (else_payload_text) |else_payload| {
-            try ctx.write(else_payload);
-            try ctx.write(" ");
+            try self.write(else_payload);
+            try self.write(" ");
         }
-        try transpileBranch(self, else_n, ctx);
+        try self.transpileBranch(else_n);
     } else {
-        try ctx.print(" else {s}.ele(.fragment, .{{}})", .{ctx.zx_name});
+        try self.print(" else {s}.ele(.fragment, .{{}})", .{self.zx_name});
     }
 }
 
 /// Helper to transpile if/else branches consistently
-fn transpileBranch(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
+fn transpileBranch(self: *Transpile, node: ts.Node) error{OutOfMemory}!void {
     switch (NodeKind.fromNode(node)) {
-        .zx_block => try transpileBlock(self, node, ctx),
-        .if_expression => try transpileIf(self, node, ctx), // Handle else-if chains
+        .zx_block => try self.transpileBlock(node),
+        .if_expression => try self.transpileIf(node), // Handle else-if chains
         .parenthesized_expression => {
-            try ctx.print("{s}.ele(.fragment, .{{ .children = &.{{\n", .{ctx.zx_name});
-            try transpileExprBlock(self, node, ctx);
-            try ctx.write(",},},)");
+            try self.print("{s}.ele(.fragment, .{{ .children = &.{{\n", .{self.zx_name});
+            try self.transpileExprBlock(node);
+            try self.write(",},},)");
         },
         else => {
-            try ctx.print("{s}.txt(", .{ctx.zx_name});
-            try ctx.writeM(try self.getNodeText(node), node.startByte(), self);
-            try ctx.write(")");
+            try self.print("{s}.txt(", .{self.zx_name});
+            try self.writeM(try self.ast.getNodeText(node), node.startByte());
+            try self.write(")");
         },
     }
 }
 
-pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
+fn transpileFor(self: *Transpile, node: ts.Node) !void {
     // for_expression: 'for' '(' iterable ')' payload body
     var iterables = std.ArrayList(ts.Node).empty;
-    defer iterables.deinit(ctx.allocator);
+    defer iterables.deinit(self.allocator);
     var first_iterable_node: ?ts.Node = null;
     var payload_text: ?[]const u8 = null;
     var body_node: ?ts.Node = null;
@@ -1878,14 +1619,14 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
 
         if (seen_for and !seen_payload) {
             if (child_kind == .payload) {
-                payload_text = try self.getNodeText(child);
+                payload_text = try self.ast.getNodeText(child);
                 seen_payload = true;
                 continue;
             }
 
             if (first_iterable_node == null) first_iterable_node = child;
             if (!std.mem.eql(u8, child_type, ",")) {
-                try iterables.append(ctx.allocator, child);
+                try iterables.append(self.allocator, child);
             }
             continue;
         }
@@ -1900,36 +1641,36 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
 
     if (first_iterable_node != null and payload_text != null and body_node != null) {
         // Get unique index for this block to avoid conflicts with nested loops
-        const block_idx = ctx.nextBlockIndex();
+        const block_idx = self.nextBlockIndex();
         var idx_buf: [16]u8 = undefined;
         const idx_str = std.fmt.bufPrint(&idx_buf, "{d}", .{block_idx}) catch unreachable;
 
-        try ctx.print("{s}_for_blk_", .{ctx.zx_name});
-        try ctx.write(idx_str);
-        try ctx.write(": {\n");
-        ctx.indent_level += 1;
-        try ctx.writeIndent();
-        try ctx.print("const _{s}_children_", .{ctx.zx_name});
-        try ctx.write(idx_str);
-        try ctx.print(" = {s}.getAlloc().alloc(@import(\"zx\").Component, ", .{ctx.zx_name});
+        try self.print("{s}_for_blk_", .{self.zx_name});
+        try self.write(idx_str);
+        try self.write(": {\n");
+        self.indent_level += 1;
+        try self.writeIndent();
+        try self.print("const _{s}_children_", .{self.zx_name});
+        try self.write(idx_str);
+        try self.print(" = {s}.getAlloc().alloc(@import(\"zx\").Component, ", .{self.zx_name});
         if (NodeKind.fromNode(first_iterable_node) == .range_expression) {
             const left_node = first_iterable_node.?.childByFieldName("left").?;
             const right_node = first_iterable_node.?.childByFieldName("right").?;
-            try ctx.writeM(try self.getNodeText(right_node), right_node.startByte(), self);
-            try ctx.write(" - ");
-            try ctx.writeM(try self.getNodeText(left_node), left_node.startByte(), self);
+            try self.writeM(try self.ast.getNodeText(right_node), right_node.startByte());
+            try self.write(" - ");
+            try self.writeM(try self.ast.getNodeText(left_node), left_node.startByte());
         } else {
-            try ctx.writeM(try self.getNodeText(first_iterable_node.?), first_iterable_node.?.startByte(), self);
-            try ctx.write(".len");
+            try self.writeM(try self.ast.getNodeText(first_iterable_node.?), first_iterable_node.?.startByte());
+            try self.write(".len");
         }
-        try ctx.write(") catch unreachable;\n");
-        try ctx.writeIndent();
-        try ctx.write("for (");
+        try self.write(") catch unreachable;\n");
+        try self.writeIndent();
+        try self.write("for (");
         for (iterables.items, 0..) |it, it_idx| {
-            if (it_idx > 0) try ctx.write(", ");
-            try ctx.write(try self.getNodeText(it));
+            if (it_idx > 0) try self.write(", ");
+            try self.write(try self.ast.getNodeText(it));
         }
-        try ctx.write(", 0..) |");
+        try self.write(", 0..) |");
 
         // Extract just the variable name from payload (remove pipes)
         const payload = payload_text.?;
@@ -1938,39 +1679,39 @@ pub fn transpileFor(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         else
             payload;
 
-        try ctx.write(payload_clean);
-        try ctx.print(", {s}_i_", .{ctx.zx_name});
-        try ctx.write(idx_str);
-        try ctx.write("| {\n");
+        try self.write(payload_clean);
+        try self.print(", {s}_i_", .{self.zx_name});
+        try self.write(idx_str);
+        try self.write("| {\n");
 
-        ctx.indent_level += 1;
-        try ctx.writeIndent();
-        try ctx.print("_{s}_children_", .{ctx.zx_name});
-        try ctx.write(idx_str);
-        try ctx.print("[{s}_i_", .{ctx.zx_name});
-        try ctx.write(idx_str);
-        try ctx.write("] = ");
-        try transpileBranch(self, body_node.?, ctx);
-        try ctx.write(";\n");
-        ctx.indent_level -= 1;
+        self.indent_level += 1;
+        try self.writeIndent();
+        try self.print("_{s}_children_", .{self.zx_name});
+        try self.write(idx_str);
+        try self.print("[{s}_i_", .{self.zx_name});
+        try self.write(idx_str);
+        try self.write("] = ");
+        try self.transpileBranch(body_node.?);
+        try self.write(";\n");
+        self.indent_level -= 1;
 
-        try ctx.writeIndent();
-        try ctx.write("}\n");
+        try self.writeIndent();
+        try self.write("}\n");
 
-        try ctx.writeIndent();
-        try ctx.print("break :{s}_for_blk_", .{ctx.zx_name});
-        try ctx.write(idx_str);
-        try ctx.print(" {s}.ele(.fragment, .{{ .children = _{s}_children_", .{ ctx.zx_name, ctx.zx_name });
-        try ctx.write(idx_str);
-        try ctx.write(" });\n");
+        try self.writeIndent();
+        try self.print("break :{s}_for_blk_", .{self.zx_name});
+        try self.write(idx_str);
+        try self.print(" {s}.ele(.fragment, .{{ .children = _{s}_children_", .{ self.zx_name, self.zx_name });
+        try self.write(idx_str);
+        try self.write(" });\n");
 
-        ctx.indent_level -= 1;
-        try ctx.writeIndent();
-        try ctx.write("}");
+        self.indent_level -= 1;
+        try self.writeIndent();
+        try self.write("}");
     }
 }
 
-pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
+fn transpileWhile(self: *Transpile, node: ts.Node) !void {
     // while_expression: 'while' '(' condition ')' [payload] ':' '(' continue_expr ')' body ['else' [else_payload] else_body]
     var condition_text: ?[]const u8 = null;
     var payload_text: ?[]const u8 = null;
@@ -1992,7 +1733,7 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
         // Check for condition field
         if (field_name) |name| {
             if (std.mem.eql(u8, name, "condition")) {
-                condition_text = try self.getNodeText(child);
+                condition_text = try self.ast.getNodeText(child);
                 i += 1;
                 continue;
             }
@@ -2009,15 +1750,15 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
             .payload => {
                 if (in_else) {
                     // Else payload like |err|
-                    else_payload_text = try self.getNodeText(child);
+                    else_payload_text = try self.ast.getNodeText(child);
                 } else if (body_node == null) {
                     // Condition payload like |value|
-                    payload_text = try self.getNodeText(child);
+                    payload_text = try self.ast.getNodeText(child);
                     in_body = true;
                 }
             },
             .assignment_expression => {
-                continue_text = try self.getNodeText(child);
+                continue_text = try self.ast.getNodeText(child);
             },
             .zx_block => {
                 if (in_else) {
@@ -2033,90 +1774,90 @@ pub fn transpileWhile(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
 
     if (condition_text != null and body_node != null) {
         // Get unique index for this block to avoid conflicts with nested loops
-        const block_idx = ctx.nextBlockIndex();
+        const block_idx = self.nextBlockIndex();
         var idx_buf: [16]u8 = undefined;
         const idx_str = std.fmt.bufPrint(&idx_buf, "{d}", .{block_idx}) catch unreachable;
 
         // Generate: _zx_whl_blk_N: { var __zx_list_N = std.ArrayList(@import("zx").Component).init(_zx.getAlloc()); while (cond) |payload| : (cont) { __zx_list_N.append(...); } else |err| { ... }; break :_zx_whl_blk_N ...; }
-        try ctx.printM("{s}_whl_blk_", .{ctx.zx_name}, node.startByte(), self);
-        try ctx.write(idx_str);
-        try ctx.write(": {\n");
+        try self.printM("{s}_whl_blk_", .{self.zx_name}, node.startByte());
+        try self.write(idx_str);
+        try self.write(": {\n");
 
-        ctx.indent_level += 1;
-        try ctx.writeIndent();
-        try ctx.print("var _{s}_list_", .{ctx.zx_name});
-        try ctx.write(idx_str);
-        try ctx.write(" = @import(\"std\").ArrayList(@import(\"zx\").Component).empty;\n");
+        self.indent_level += 1;
+        try self.writeIndent();
+        try self.print("var _{s}_list_", .{self.zx_name});
+        try self.write(idx_str);
+        try self.write(" = @import(\"std\").ArrayList(@import(\"zx\").Component).empty;\n");
 
-        try ctx.writeIndent();
-        try ctx.writeM("while", node.startByte(), self);
-        try ctx.write(" (");
-        try ctx.write(condition_text.?);
-        try ctx.write(")");
+        try self.writeIndent();
+        try self.writeM("while", node.startByte());
+        try self.write(" (");
+        try self.write(condition_text.?);
+        try self.write(")");
 
         // Write payload if present (e.g., |value|)
         if (payload_text) |payload| {
-            try ctx.write(" ");
-            try ctx.write(payload);
+            try self.write(" ");
+            try self.write(payload);
         }
 
         if (continue_text) |cont| {
-            try ctx.write(" : (");
-            try ctx.write(std.mem.trim(u8, cont, &std.ascii.whitespace));
-            try ctx.write(")");
+            try self.write(" : (");
+            try self.write(std.mem.trim(u8, cont, &std.ascii.whitespace));
+            try self.write(")");
         }
 
-        try ctx.write(" {\n");
+        try self.write(" {\n");
 
-        ctx.indent_level += 1;
-        try ctx.writeIndent();
-        try ctx.print("_{s}_list_", .{ctx.zx_name});
-        try ctx.write(idx_str);
-        try ctx.print(".append({s}.getAlloc(), ", .{ctx.zx_name});
-        try transpileBlock(self, body_node.?, ctx);
-        try ctx.write(") catch unreachable;\n");
-        ctx.indent_level -= 1;
+        self.indent_level += 1;
+        try self.writeIndent();
+        try self.print("_{s}_list_", .{self.zx_name});
+        try self.write(idx_str);
+        try self.print(".append({s}.getAlloc(), ", .{self.zx_name});
+        try self.transpileBlock(body_node.?);
+        try self.write(") catch unreachable;\n");
+        self.indent_level -= 1;
 
-        try ctx.writeIndent();
-        try ctx.write("}");
+        try self.writeIndent();
+        try self.write("}");
 
         // Handle else branch - append to list instead of breaking
         if (else_node) |else_n| {
-            try ctx.write(" else ");
+            try self.write(" else ");
             // Write else payload if present (e.g., |err|)
             if (else_payload_text) |else_payload| {
-                try ctx.write(else_payload);
-                try ctx.write(" ");
+                try self.write(else_payload);
+                try self.write(" ");
             }
-            try ctx.write("{\n");
-            ctx.indent_level += 1;
-            try ctx.writeIndent();
-            try ctx.print("_{s}_list_", .{ctx.zx_name});
-            try ctx.write(idx_str);
-            try ctx.print(".append({s}.getAlloc(), ", .{ctx.zx_name});
-            try transpileBranch(self, else_n, ctx);
-            try ctx.write(") catch unreachable;\n");
-            ctx.indent_level -= 1;
-            try ctx.writeIndent();
-            try ctx.write("}\n");
+            try self.write("{\n");
+            self.indent_level += 1;
+            try self.writeIndent();
+            try self.print("_{s}_list_", .{self.zx_name});
+            try self.write(idx_str);
+            try self.print(".append({s}.getAlloc(), ", .{self.zx_name});
+            try self.transpileBranch(else_n);
+            try self.write(") catch unreachable;\n");
+            self.indent_level -= 1;
+            try self.writeIndent();
+            try self.write("}\n");
         } else {
-            try ctx.write("\n");
+            try self.write("\n");
         }
 
-        try ctx.writeIndent();
-        try ctx.print("break :{s}_whl_blk_", .{ctx.zx_name});
-        try ctx.write(idx_str);
-        try ctx.print(" {s}.ele(.fragment, .{{ .children = _{s}_list_", .{ ctx.zx_name, ctx.zx_name });
-        try ctx.write(idx_str);
-        try ctx.write(".items });\n");
+        try self.writeIndent();
+        try self.print("break :{s}_whl_blk_", .{self.zx_name});
+        try self.write(idx_str);
+        try self.print(" {s}.ele(.fragment, .{{ .children = _{s}_list_", .{ self.zx_name, self.zx_name });
+        try self.write(idx_str);
+        try self.write(".items });\n");
 
-        ctx.indent_level -= 1;
-        try ctx.writeIndent();
-        try ctx.write("}");
+        self.indent_level -= 1;
+        try self.writeIndent();
+        try self.write("}");
     }
 }
 
-pub fn transpileSwitch(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
+fn transpileSwitch(self: *Transpile, node: ts.Node) error{OutOfMemory}!void {
     // switch_expression: 'switch' '(' expr ')' '{' switch_case... '}'
     var switch_expr: ?[]const u8 = null;
 
@@ -2138,37 +1879,37 @@ pub fn transpileSwitch(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{
         if (SkipTokens.from(child_type) != .other) continue;
 
         if (found_switch and switch_expr == null) {
-            switch_expr = try self.getNodeText(child);
+            switch_expr = try self.ast.getNodeText(child);
             break;
         }
     }
 
     const expr = switch_expr orelse return;
 
-    try ctx.writeM("switch", node.startByte(), self);
-    try ctx.write(" (");
-    try ctx.write(expr);
-    try ctx.write(") {\n");
+    try self.writeM("switch", node.startByte());
+    try self.write(" (");
+    try self.write(expr);
+    try self.write(") {\n");
 
-    ctx.indent_level += 1;
+    self.indent_level += 1;
 
     // Parse switch cases
     i = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
         if (NodeKind.fromNode(child) == .switch_case) {
-            try transpileCase(self, child, ctx);
+            try self.transpileCase(child);
         }
     }
 
-    ctx.indent_level -= 1;
-    try ctx.writeIndent();
-    try ctx.write("}");
+    self.indent_level -= 1;
+    try self.writeIndent();
+    try self.write("}");
 }
 
-pub fn transpileCase(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
+fn transpileCase(self: *Transpile, node: ts.Node) error{OutOfMemory}!void {
     // switch_case structure: pattern [payload] '=>' value
-    try ctx.writeIndent();
+    try self.writeIndent();
 
     var first_pattern: ?ts.Node = null;
     var last_pattern: ?ts.Node = null;
@@ -2199,50 +1940,50 @@ pub fn transpileCase(self: *Ast, node: ts.Node, ctx: *TranspileContext) error{Ou
     if (first_pattern != null and last_pattern != null) {
         const start = first_pattern.?.startByte();
         const end = last_pattern.?.endByte();
-        try ctx.writeM(self.source[start..end], start, self);
+        try self.writeM(self.ast.source[start..end], start);
     }
 
-    try ctx.write(" => ");
+    try self.write(" => ");
 
     if (payload_node) |pl| {
-        try ctx.write(" ");
-        try ctx.writeM(try self.getNodeText(pl), pl.startByte(), self);
+        try self.write(" ");
+        try self.writeM(try self.ast.getNodeText(pl), pl.startByte());
     }
 
     if (value_node) |v| {
-        try transpileCaseValue(self, v, ctx);
+        try self.transpileCaseValue(v);
     }
 
-    try ctx.write(",\n");
+    try self.write(",\n");
 }
 
 /// Transpile switch case value, handling parenthesized expressions with nested control flow/zx
-fn transpileCaseValue(self: *Ast, node: ts.Node, ctx: *TranspileContext) !void {
+fn transpileCaseValue(self: *Transpile, node: ts.Node) !void {
     const kind = NodeKind.fromNode(node);
 
     switch (kind) {
-        .zx_block => try transpileBlock(self, node, ctx),
-        .if_expression => try transpileIf(self, node, ctx),
-        .for_expression => try transpileFor(self, node, ctx),
-        .while_expression => try transpileWhile(self, node, ctx),
-        .switch_expression => try transpileSwitch(self, node, ctx),
+        .zx_block => try self.transpileBlock(node),
+        .if_expression => try self.transpileIf(node),
+        .for_expression => try self.transpileFor(node),
+        .while_expression => try self.transpileWhile(node),
+        .switch_expression => try self.transpileSwitch(node),
         .string => {
             // String literal without parentheses like "Admin" -> _zx.txt("Admin")
-            try ctx.printM("{s}.txt(", .{ctx.zx_name}, node.startByte(), self);
-            try ctx.writeM(try self.getNodeText(node), node.startByte(), self);
-            try ctx.write(")");
+            try self.printM("{s}.txt(", .{self.zx_name}, node.startByte());
+            try self.writeM(try self.ast.getNodeText(node), node.startByte());
+            try self.write(")");
         },
         .parenthesized_expression => {
             // Check if contains control flow or zx_block
             if (findSpecialChild(node)) |child| {
-                try transpileCaseValue(self, child, ctx);
+                try self.transpileCaseValue(child);
             } else {
                 // Simple parenthesized expression like ("Admin")
-                try ctx.printM("{s}.txt", .{ctx.zx_name}, node.startByte(), self);
-                try ctx.writeM(try self.getNodeText(node), node.startByte(), self);
+                try self.printM("{s}.txt", .{self.zx_name}, node.startByte());
+                try self.writeM(try self.ast.getNodeText(node), node.startByte());
             }
         },
-        else => try ctx.writeM(try self.getNodeText(node), node.startByte(), self),
+        else => try self.writeM(try self.ast.getNodeText(node), node.startByte()),
     }
 }
 
@@ -2262,7 +2003,7 @@ fn findSpecialChild(node: ts.Node) ?ts.Node {
     return null;
 }
 
-pub const ZxAttribute = struct {
+const ZxAttribute = struct {
     name: []const u8,
     name_byte_offset: u32,
     value: []const u8,
@@ -2300,7 +2041,7 @@ pub const ZxAttribute = struct {
 };
 
 /// Write builtin and regular attributes to the transpile context
-fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileContext, in_function: bool) error{OutOfMemory}!void {
+fn writeAttributes(self: *Transpile, attributes: []const ZxAttribute, in_function: bool) error{OutOfMemory}!void {
     // `@src()` is only valid inside a function scope.
     const src_arg = if (in_function) "@src()" else "null";
     // Write builtin attributes first (like @allocator), but skip transpiler directives
@@ -2308,30 +2049,30 @@ fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileC
         if (!attr.is_builtin) continue;
         // Skip transpiler directives - not runtime attributes
         if (std.mem.eql(u8, attr.name, "@rendering")) continue;
-        try ctx.writeIndent();
-        try ctx.write(".");
-        try ctx.write(attr.name[1..]); // Skip @ prefix
-        try ctx.write(" = ");
+        try self.writeIndent();
+        try self.write(".");
+        try self.write(attr.name[1..]); // Skip @ prefix
+        try self.write(" = ");
 
         // @fallback={(<UserProfile user_id={0} />)}
         const is_fallback = std.mem.eql(u8, attr.name, "@fallback");
         const is_caching = std.mem.eql(u8, attr.name, "@caching");
-        if (is_fallback) try ctx.print("{s}.ptr(", .{ctx.zx_name});
+        if (is_fallback) try self.print("{s}.ptr(", .{self.zx_name});
 
         // If value contains a zx_block, transpile it instead of writing raw text
         if (attr.zx_block_node) |zx_node| {
-            try transpileBlock(self, zx_node, ctx);
+            try self.transpileBlock(zx_node);
         } else if (is_caching) {
             // String value for @caching - wrap with comptime .tag()
-            try ctx.write("comptime .tag(");
-            try ctx.writeM(attr.value, attr.value_byte_offset, self);
-            try ctx.write(")");
+            try self.write("comptime .tag(");
+            try self.writeM(attr.value, attr.value_byte_offset);
+            try self.write(")");
         } else {
-            try ctx.writeM(attr.value, attr.value_byte_offset, self);
+            try self.writeM(attr.value, attr.value_byte_offset);
         }
 
-        if (is_fallback) try ctx.write(")");
-        try ctx.write(",\n");
+        if (is_fallback) try self.write(")");
+        try self.write(",\n");
     }
 
     // Write regular attributes using _zx.attrs() and _zx.attr() for type-aware handling
@@ -2340,63 +2081,63 @@ fn writeAttributes(self: *Ast, attributes: []const ZxAttribute, ctx: *TranspileC
 
     if (!has_regular and !has_spread) return;
 
-    try ctx.writeIndent();
+    try self.writeIndent();
 
     // If we have spread attributes, use _zx.attrsM to merge regular and spread attributes
     if (has_spread) {
-        try ctx.print(".attributes = {s}.attrsM(.{{\n", .{ctx.zx_name});
+        try self.print(".attributes = {s}.attrsM(.{{\n", .{self.zx_name});
     } else {
-        try ctx.print(".attributes = {s}.attrs(.{{\n", .{ctx.zx_name});
+        try self.print(".attributes = {s}.attrs(.{{\n", .{self.zx_name});
     }
-    ctx.indent_level += 1;
+    self.indent_level += 1;
 
     for (attributes) |attr| {
         if (attr.is_builtin) continue;
 
-        try ctx.writeIndent();
+        try self.writeIndent();
 
         // Handle spread attributes
         if (attr.is_spread) {
-            try ctx.print("{s}.attrSpr(", .{ctx.zx_name});
-            try ctx.writeM(attr.value, attr.value_byte_offset, self);
-            try ctx.write("),\n");
+            try self.print("{s}.attrSpr(", .{self.zx_name});
+            try self.writeM(attr.value, attr.value_byte_offset);
+            try self.write("),\n");
             continue;
         }
 
         // Handle template strings with _zx.attrf
         if (attr.template_string_node) |template_node| {
-            try transpileTemplateStringAttr(self, attr, template_node, ctx);
+            try self.transpileTemplateStringAttr(attr, template_node);
         } else if (attr.zx_block_node) |zx_node| {
             // If value contains a zx_block, transpile it instead of writing raw text
-            try ctx.print("{s}.attr(", .{ctx.zx_name});
-            try ctx.write(src_arg);
-            try ctx.write(", \"");
-            try ctx.writeM(attr.name, attr.name_byte_offset, self);
-            try ctx.write("\", ");
-            try transpileBlock(self, zx_node, ctx);
-            try ctx.write("),\n");
+            try self.print("{s}.attr(", .{self.zx_name});
+            try self.write(src_arg);
+            try self.write(", \"");
+            try self.writeM(attr.name, attr.name_byte_offset);
+            try self.write("\", ");
+            try self.transpileBlock(zx_node);
+            try self.write("),\n");
         } else {
-            try ctx.print("{s}.attr(", .{ctx.zx_name});
-            try ctx.write(src_arg);
-            try ctx.write(", \"");
-            try ctx.writeM(attr.name, attr.name_byte_offset, self);
-            try ctx.write("\", ");
-            try ctx.writeM(attr.value, attr.value_byte_offset, self);
-            try ctx.write("),\n");
+            try self.print("{s}.attr(", .{self.zx_name});
+            try self.write(src_arg);
+            try self.write(", \"");
+            try self.writeM(attr.name, attr.name_byte_offset);
+            try self.write("\", ");
+            try self.writeM(attr.value, attr.value_byte_offset);
+            try self.write("),\n");
         }
     }
 
-    ctx.indent_level -= 1;
-    try ctx.writeIndent();
-    try ctx.write("}),\n");
+    self.indent_level -= 1;
+    try self.writeIndent();
+    try self.write("}),\n");
 }
 
 /// Transpile a template string for component props to _zx.propf("format", .{ values })
-fn transpileTemplateStringProp(self: *Ast, template_node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
+fn transpileTemplateStringProp(self: *Transpile, template_node: ts.Node) error{OutOfMemory}!void {
     var format_parts = std.ArrayList(u8).empty;
-    defer format_parts.deinit(ctx.output.allocator);
+    defer format_parts.deinit(self.output.allocator);
     var substitutions = std.ArrayList(ts.Node).empty;
-    defer substitutions.deinit(ctx.output.allocator);
+    defer substitutions.deinit(self.output.allocator);
 
     const template_start = template_node.startByte();
     const template_end = template_node.endByte();
@@ -2413,35 +2154,35 @@ fn transpileTemplateStringProp(self: *Ast, template_node: ts.Node, ctx: *Transpi
         const child_end = child.endByte();
 
         // Capture any gap (like spaces) between previous position and this child
-        if (current_pos < child_start and child_start <= self.source.len) {
-            try format_parts.appendSlice(ctx.output.allocator, self.source[current_pos..child_start]);
+        if (current_pos < child_start and child_start <= self.ast.source.len) {
+            try format_parts.appendSlice(self.output.allocator, self.ast.source[current_pos..child_start]);
         }
 
         switch (child_kind) {
             .zx_template_content => {
                 // Add text content to format string
-                const text = try self.getNodeText(child);
-                try format_parts.appendSlice(ctx.output.allocator, text);
+                const text = try self.ast.getNodeText(child);
+                try format_parts.appendSlice(self.output.allocator, text);
             },
             .zx_template_substitution => {
                 // Tree-sitter may include leading whitespace in the substitution node.
                 // Find the actual '{' position and capture any text before it.
-                const sub_source = self.source[child_start..child_end];
+                const sub_source = self.ast.source[child_start..child_end];
                 const brace_pos = std.mem.indexOfScalar(u8, sub_source, '{');
                 if (brace_pos) |pos| {
                     if (pos > 0) {
                         // There's text before the '{' (like a space)
-                        try format_parts.appendSlice(ctx.output.allocator, sub_source[0..pos]);
+                        try format_parts.appendSlice(self.output.allocator, sub_source[0..pos]);
                     }
                 }
 
                 // Replace with {s} and save the expression node
-                try format_parts.appendSlice(ctx.output.allocator, "{s}");
+                try format_parts.appendSlice(self.output.allocator, "{s}");
 
                 // Get the expression using field name
                 const expr_node = child.childByFieldName("expression");
                 if (expr_node) |expr| {
-                    try substitutions.append(ctx.output.allocator, expr);
+                    try substitutions.append(self.output.allocator, expr);
                 }
             },
             else => {},
@@ -2451,33 +2192,33 @@ fn transpileTemplateStringProp(self: *Ast, template_node: ts.Node, ctx: *Transpi
     }
 
     // Capture any remaining content before closing backtick (unlikely but safe)
-    if (current_pos < template_end - 1 and template_end <= self.source.len) {
-        try format_parts.appendSlice(ctx.output.allocator, self.source[current_pos .. template_end - 1]);
+    if (current_pos < template_end - 1 and template_end <= self.ast.source.len) {
+        try format_parts.appendSlice(self.output.allocator, self.ast.source[current_pos .. template_end - 1]);
     }
 
     // Write _zx.propf("format", .{ values })
-    try ctx.print("{s}.propf(\"", .{ctx.zx_name});
-    try ctx.write(format_parts.items);
-    try ctx.write("\", .{");
+    try self.print("{s}.propf(\"", .{self.zx_name});
+    try self.write(format_parts.items);
+    try self.write("\", .{");
 
     for (substitutions.items, 0..) |sub_node, idx| {
-        if (idx > 0) try ctx.write(",");
-        try ctx.print(" {s}.propv(", .{ctx.zx_name});
-        const expr_text = try self.getNodeText(sub_node);
-        try ctx.writeM(expr_text, sub_node.startByte(), self);
-        try ctx.write(")");
+        if (idx > 0) try self.write(",");
+        try self.print(" {s}.propv(", .{self.zx_name});
+        const expr_text = try self.ast.getNodeText(sub_node);
+        try self.writeM(expr_text, sub_node.startByte());
+        try self.write(")");
     }
 
-    try ctx.write(" })");
+    try self.write(" })");
 }
 
 /// Transpile a template string attribute to _zx.attrf("name", "format", .{ values })
-fn transpileTemplateStringAttr(self: *Ast, attr: ZxAttribute, template_node: ts.Node, ctx: *TranspileContext) error{OutOfMemory}!void {
+fn transpileTemplateStringAttr(self: *Transpile, attr: ZxAttribute, template_node: ts.Node) error{OutOfMemory}!void {
     // Collect template content and substitutions
     var format_parts = std.ArrayList(u8).empty;
-    defer format_parts.deinit(ctx.output.allocator);
+    defer format_parts.deinit(self.output.allocator);
     var substitutions = std.ArrayList(ts.Node).empty;
-    defer substitutions.deinit(ctx.output.allocator);
+    defer substitutions.deinit(self.output.allocator);
 
     const template_start = template_node.startByte();
     const template_end = template_node.endByte();
@@ -2494,35 +2235,35 @@ fn transpileTemplateStringAttr(self: *Ast, attr: ZxAttribute, template_node: ts.
         const child_end = child.endByte();
 
         // Capture any gap (like spaces) between previous position and this child
-        if (current_pos < child_start and child_start <= self.source.len) {
-            try format_parts.appendSlice(ctx.output.allocator, self.source[current_pos..child_start]);
+        if (current_pos < child_start and child_start <= self.ast.source.len) {
+            try format_parts.appendSlice(self.output.allocator, self.ast.source[current_pos..child_start]);
         }
 
         switch (child_kind) {
             .zx_template_content => {
                 // Add text content to format string
-                const text = try self.getNodeText(child);
-                try format_parts.appendSlice(ctx.output.allocator, text);
+                const text = try self.ast.getNodeText(child);
+                try format_parts.appendSlice(self.output.allocator, text);
             },
             .zx_template_substitution => {
                 // Tree-sitter may include leading whitespace in the substitution node.
                 // Find the actual '{' position and capture any text before it.
-                const sub_source = self.source[child_start..child_end];
+                const sub_source = self.ast.source[child_start..child_end];
                 const brace_pos = std.mem.indexOfScalar(u8, sub_source, '{');
                 if (brace_pos) |pos| {
                     if (pos > 0) {
                         // There's text before the '{' (like a space)
-                        try format_parts.appendSlice(ctx.output.allocator, sub_source[0..pos]);
+                        try format_parts.appendSlice(self.output.allocator, sub_source[0..pos]);
                     }
                 }
 
                 // Replace with {s} and save the expression node
-                try format_parts.appendSlice(ctx.output.allocator, "{s}");
+                try format_parts.appendSlice(self.output.allocator, "{s}");
 
                 // Get the expression using field name
                 const expr_node = child.childByFieldName("expression");
                 if (expr_node) |expr| {
-                    try substitutions.append(ctx.output.allocator, expr);
+                    try substitutions.append(self.output.allocator, expr);
                 }
             },
             else => {},
@@ -2532,32 +2273,32 @@ fn transpileTemplateStringAttr(self: *Ast, attr: ZxAttribute, template_node: ts.
     }
 
     // Capture any remaining content before closing backtick (unlikely but safe)
-    if (current_pos < template_end - 1 and template_end <= self.source.len) {
-        try format_parts.appendSlice(ctx.output.allocator, self.source[current_pos .. template_end - 1]);
+    if (current_pos < template_end - 1 and template_end <= self.ast.source.len) {
+        try format_parts.appendSlice(self.output.allocator, self.ast.source[current_pos .. template_end - 1]);
     }
 
     // Write _zx.attrf("name", "format", .{ values })
-    try ctx.print("{s}.attrf(\"", .{ctx.zx_name});
-    try ctx.writeM(attr.name, attr.name_byte_offset, self);
-    try ctx.write("\", \"");
-    try ctx.write(format_parts.items);
-    try ctx.write("\", .{\n");
+    try self.print("{s}.attrf(\"", .{self.zx_name});
+    try self.writeM(attr.name, attr.name_byte_offset);
+    try self.write("\", \"");
+    try self.write(format_parts.items);
+    try self.write("\", .{\n");
 
-    ctx.indent_level += 1;
+    self.indent_level += 1;
     for (substitutions.items) |sub_node| {
-        try ctx.writeIndent();
-        try ctx.print("{s}.attrv(", .{ctx.zx_name});
-        const expr_text = try self.getNodeText(sub_node);
-        try ctx.writeM(expr_text, sub_node.startByte(), self);
-        try ctx.write("),\n");
+        try self.writeIndent();
+        try self.print("{s}.attrv(", .{self.zx_name});
+        const expr_text = try self.ast.getNodeText(sub_node);
+        try self.writeM(expr_text, sub_node.startByte());
+        try self.write("),\n");
     }
-    ctx.indent_level -= 1;
+    self.indent_level -= 1;
 
-    try ctx.writeIndent();
-    try ctx.write("}),\n");
+    try self.writeIndent();
+    try self.write("}),\n");
 }
 
-pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {
+fn parseAttribute(self: *Transpile, node: ts.Node) !ZxAttribute {
     const node_kind = NodeKind.fromNode(node);
 
     // Handle nested attribute structure: zx_attribute contains zx_builtin_attribute, zx_regular_attribute, or zx_shorthand_attribute
@@ -2578,7 +2319,7 @@ pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {
     if (attr_kind == .zx_shorthand_attribute) {
         const name_node = attr_node.childByFieldName("name");
         if (name_node) |n| {
-            const full_name = try self.getNodeText(n);
+            const full_name = try self.ast.getNodeText(n);
             // Extract clean name for HTML attribute (strip @"..." wrapper if present)
             const clean_name = extractCleanIdentifierName(full_name);
             return ZxAttribute{
@@ -2603,7 +2344,7 @@ pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {
     if (attr_kind == .zx_builtin_shorthand_attribute) {
         const name_node = attr_node.childByFieldName("name");
         if (name_node) |n| {
-            const var_name = try self.getNodeText(n);
+            const var_name = try self.ast.getNodeText(n);
             // Prepend @ to create the builtin attribute name
             const attr_name = try std.fmt.allocPrint(self.allocator, "@{s}", .{var_name});
             return ZxAttribute{
@@ -2628,7 +2369,7 @@ pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {
     if (attr_kind == .zx_spread_attribute) {
         const expr_node = attr_node.childByFieldName("expression");
         if (expr_node) |e| {
-            const expr_text = try self.getNodeText(e);
+            const expr_text = try self.ast.getNodeText(e);
             return ZxAttribute{
                 .name = "",
                 .name_byte_offset = e.startByte(),
@@ -2652,7 +2393,7 @@ pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {
     const name_node = attr_node.childByFieldName("name");
     const value_node = attr_node.childByFieldName("value");
 
-    const name = if (name_node) |n| try self.getNodeText(n) else "";
+    const name = if (name_node) |n| try self.ast.getNodeText(n) else "";
     const is_builtin = name.len > 0 and name[0] == '@';
 
     // Check if value contains a zx_block
@@ -2661,7 +2402,7 @@ pub fn parseAttribute(self: *Ast, node: ts.Node) !ZxAttribute {
     // Check if value is a template string
     const template_string_node = if (value_node) |v| findTemplateStringInValue(v) else null;
 
-    const value = if (value_node) |v| try getAttributeValue(self, v) else "\"\"";
+    const value = if (value_node) |v| try self.getAttributeValue(v) else "\"\"";
     const value_offset = if (value_node) |v| v.startByte() else node.startByte();
 
     return ZxAttribute{
@@ -2733,13 +2474,13 @@ fn findTemplateStringInValue(node: ts.Node) ?ts.Node {
     return null;
 }
 
-pub fn getAttributeValue(self: *Ast, node: ts.Node) ![]const u8 {
+fn getAttributeValue(self: *Transpile, node: ts.Node) ![]const u8 {
     const node_kind = NodeKind.fromNode(node);
 
     // For expression blocks, extract the inner expression using field name
     if (node_kind == .zx_expression_block) {
-        const expr_node = node.childByFieldName("expression") orelse return try self.getNodeText(node);
-        return try self.getNodeText(expr_node);
+        const expr_node = node.childByFieldName("expression") orelse return try self.ast.getNodeText(node);
+        return try self.ast.getNodeText(expr_node);
     }
 
     // For attribute values containing expression blocks, recurse
@@ -2749,16 +2490,16 @@ pub fn getAttributeValue(self: *Ast, node: ts.Node) ![]const u8 {
         while (i < child_count) : (i += 1) {
             const child = node.child(i) orelse continue;
             if (NodeKind.fromNode(child) == .zx_expression_block) {
-                return try getAttributeValue(self, child);
+                return try self.getAttributeValue(child);
             }
             // Skip braces, return first non-brace content
             if (SkipTokens.from(child.kind()) == .other) {
-                return try self.getNodeText(child);
+                return try self.ast.getNodeText(child);
             }
         }
     }
 
-    return try self.getNodeText(node);
+    return try self.ast.getNodeText(node);
 }
 
 fn isInFunction(node: ts.Node) bool {

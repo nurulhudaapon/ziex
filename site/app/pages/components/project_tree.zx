@@ -16,7 +16,6 @@ pub const default_project: Entry = .{
     .children = &.{
         .{ .name = "build.zig", .description = "Zig build entrypoint and ZX build steps" },
         .{ .name = "build.zig.zon", .description = "Zig package manifest and dependencies" },
-        // .{ .name = "package.json", .description = "JS deps for React/WASM client integration" },
         // .{ .name = "tsconfig.json", .description = "TypeScript config for client components" },
         .{ .name = "README.md", .description = "Project overview and quick start" },
         .{
@@ -24,7 +23,6 @@ pub const default_project: Entry = .{
             .description = "Application source root (pages, assets, public, entrypoints)",
             .children = &.{
                 .{ .name = "main.zig", .description = "Server entrypoint and app bootstrap" },
-                // .{ .name = "main.ts", .description = "React/WASM client bootstrap (browser entry)" },
                 .{
                     .name = "assets",
                     .description = "Static assets bundled and served at /assets/*",
@@ -39,7 +37,6 @@ pub const default_project: Entry = .{
                         .{ .name = "layout.zx", .description = "Root layout shared by all routes" },
                         .{ .name = "page.zx", .description = "Example page client component" },
                         .{ .name = "client.zx", .description = "ZX client component (counter logic)" },
-                        // .{ .name = "client.tsx", .description = "React client component example" },
                         .{
                             .name = "about",
                             .children = &.{

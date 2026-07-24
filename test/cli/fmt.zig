@@ -207,12 +207,6 @@ test "component_namespace" {
 test "component_multiple" {
     try test_fmt("component/multiple");
 }
-test "component_csr_react" {
-    try test_fmt("component/react");
-}
-test "component_csr_react_multiple" {
-    try test_fmt("component/csr_react_multiple");
-}
 test "component_nested" {
     try test_fmt("component/nested");
 }

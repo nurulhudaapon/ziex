@@ -2,8 +2,6 @@ const std = @import("std");
 
 pub const builtin = struct {
     pub const Rendering = enum {
-        /// Client-side React.js
-        react,
         /// Client-side Zig
         client,
         /// Server-side rendering (default)

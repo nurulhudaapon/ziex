@@ -8,7 +8,6 @@ const Manifest = @import("../build/Manifest.zig");
 const AppContext = @import("shared/context.zig").AppContext;
 
 const base64 = std.base64.standard;
-const log = std.log.scoped(.cli);
 
 const outdir_flag = zli.Flag{
     .name = "outdir",
@@ -716,42 +715,6 @@ fn extractRouteFromPath(allocator: std.mem.Allocator, source_path: []const u8) !
     return try allocator.dupe(u8, "");
 }
 
-/// Get the package root directory (where node_modules is located)
-/// This function finds package.json and returns its directory
-/// Walk up from `start_dir` looking for a directory that contains a
-/// package.json. Returns the absolute path to that directory (the package
-/// root). The caller owns the returned slice.
-fn findPackageRoot(allocator: std.mem.Allocator, io: std.Io, start_dir: []const u8) ![]const u8 {
-    // Resolve start_dir to an absolute path so the walk-up terminates.
-    var abs_buf: ?[]u8 = null;
-    defer if (abs_buf) |b| allocator.free(b);
-
-    var dir_path: []const u8 = if (std.fs.path.isAbsolute(start_dir)) start_dir else blk: {
-        const cwd_abs = try std.process.currentPathAlloc(io, allocator);
-        defer allocator.free(cwd_abs);
-        const joined = try std.fs.path.join(allocator, &.{ cwd_abs, start_dir });
-        abs_buf = joined;
-        break :blk joined;
-    };
-
-    const cwd = std.Io.Dir.cwd();
-    while (true) {
-        const candidate = try std.fs.path.join(allocator, &.{ dir_path, "package.json" });
-        defer allocator.free(candidate);
-
-        if (cwd.statFile(io, candidate, .{})) |_| {
-            return try allocator.dupe(u8, dir_path);
-        } else |err| switch (err) {
-            error.FileNotFound => {},
-            else => return err,
-        }
-
-        const parent = std.fs.path.dirname(dir_path) orelse return error.PackageJsonNotFound;
-        if (parent.len == dir_path.len) return error.PackageJsonNotFound;
-        dir_path = parent;
-    }
-}
-
 fn getBasename(path: []const u8) []const u8 {
     return std.fs.path.basename(path);
 }
@@ -970,53 +933,6 @@ fn writeClientComponents(writer: anytype, allocator: std.mem.Allocator, componen
         try writer.writeAll(zon_str[2 .. zon_str.len - 1]);
     }
     try writer.writeAll("\n};\n\n");
-}
-
-fn genReactComponents(io: std.Io, allocator: std.mem.Allocator, components: []const ClientComponentSerializable, output_dir: []const u8, input_dir: []const u8, verbose: bool) !void {
-    if (components.len == 0) return;
-
-    var json_str = std.json.Stringify.valueAlloc(allocator, components, .{
-        .whitespace = .indent_2,
-    }) catch @panic("OOM");
-    defer allocator.free(json_str);
-
-    // Strip the `"@`/`@"` placeholder markers that survived serialization.
-    json_str = try replaceAllOwned(allocator, json_str, "\"@", "");
-    json_str = try replaceAllOwned(allocator, json_str, "@\"", "");
-
-    const main_csr_react = @embedFile("./transpile/template/components.ts");
-    const placeholder = "`{[ZX_COMPONENTS]s}`";
-    const placeholder_index = std.mem.indexOf(u8, main_csr_react, placeholder) orelse {
-        @panic("Placeholder {ZX_COMPONENTS} not found in main_csr_react.tsx");
-    };
-
-    const before = main_csr_react[0..placeholder_index];
-    const after = main_csr_react[placeholder_index + placeholder.len ..];
-    const registry_exp = "export const registry = Object.fromEntries(components.map(c => [c.name, c.import]));";
-
-    const main_csr_react_z = try std.mem.concat(allocator, u8, &.{ before, json_str, after, registry_exp });
-    defer allocator.free(main_csr_react_z);
-
-    _ = output_dir;
-    if (verbose) {
-        log.debug("components input dir: {s}", .{input_dir});
-    }
-
-    // Locate the package root by walking up from the input directory looking
-    // for a package.json. The generated registry must live under the
-    // package's node_modules so bare-specifier imports like
-    // `@ziex/components` resolve correctly.
-    const pkg_rootdir = try findPackageRoot(allocator, io, input_dir);
-    defer allocator.free(pkg_rootdir);
-
-    const ziex_dir = try std.fs.path.join(allocator, &.{ pkg_rootdir, "node_modules", "@ziex", "components" });
-    defer allocator.free(ziex_dir);
-    try createDirSafe(io, ziex_dir);
-
-    const main_csr_react_path = try std.fs.path.join(allocator, &.{ ziex_dir, "index.ts" });
-    defer allocator.free(main_csr_react_path);
-
-    try writeFile(io, main_csr_react_path, main_csr_react_z);
 }
 
 const Route = struct {
@@ -1421,23 +1337,6 @@ fn transpileFile(
                 //   @@ - literal " (for quotes inside @import())
                 cloned_import = try std.fmt.allocPrint(allocator, "@zx.client.ComponentMeta.init(@@@import(@@{s}@@).{s})@", .{ clean_path, component.name });
             },
-            .react => {
-                // For .react components, the path is relative to project root (e.g., site/pages/...).
-                const abs_component_path = std.fs.path.resolve(allocator, &.{component.path}) catch |err| blk: {
-                    // Fallback to resolving relative to CWD if realpath fails
-                    std.log.warn("Warning: could not get realpath for {s}: {}\n", .{ component.path, err });
-                    const cwd = std.fs.path.resolve(allocator, &.{"."}) catch |err2| {
-                        std.log.err("Error: realpath(.) failed: {}\n", .{err2});
-                        break :blk try allocator.dupe(u8, component.path);
-                    };
-                    defer allocator.free(cwd);
-                    break :blk try std.fs.path.resolve(allocator, &.{ cwd, component.path });
-                };
-                defer allocator.free(abs_component_path);
-
-                cloned_import = try std.fmt.allocPrint(allocator, "@async () => (await import('{s}')).default@", .{abs_component_path});
-                cloned_path = try allocator.dupe(u8, component.path);
-            },
             else => return error.InvalidComponentType,
         }
 
@@ -1751,14 +1650,11 @@ fn transpileCommand(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOpt
     }
 
     // --- @rendering -> Client Side Rendering Related Files Generation --- //
-    var react_cmps = std.array_list.Managed(ClientComponentSerializable).init(allocator);
-    defer react_cmps.deinit();
     var client_cmps = std.array_list.Managed(ClientComponentSerializable).init(allocator);
     defer client_cmps.deinit();
 
     for (all_client_cmps.items) |component| {
         switch (component.type) {
-            .react => try react_cmps.append(component),
             .client => try client_cmps.append(component),
             else => return error.InvalidComponentType,
         }
@@ -1768,11 +1664,6 @@ fn transpileCommand(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOpt
     genRoutes(io, allocator, opts.outdir, opts.base_path, client_cmps.items, if (manifest) |*m| m else null, opts.verbose) catch |err| switch (err) {
         error.NoPagesOrRoutes => {}, // No routes to generate is not an error
         else => std.debug.print("Warning: Failed to generate app.zig: {}\n", .{err}),
-    };
-
-    // @rendering={.react}
-    genReactComponents(io, allocator, react_cmps.items, opts.outdir, opts.path, opts.verbose) catch |err| {
-        std.debug.print("Warning: Failed to generate main.tsx: {}\n", .{err});
     };
 
     // => manifest/app.zon

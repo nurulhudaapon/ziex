@@ -338,15 +338,6 @@ test "component_contexted_props" {
     try test_transpile("component/contexted_props");
     try test_render("component/contexted_props", @import("./../data/component/contexted_props.zig").Page);
 }
-test "component_csr_react" {
-    try test_transpile("component/react");
-    try test_render("component/react", @import("./../data/component/react.zig").Page);
-}
-test "component_csr_react_multiple" {
-    try test_transpile("component/csr_react_multiple");
-    try test_render("component/csr_react_multiple", @import("./../data/component/csr_react_multiple.zig").Page);
-}
-
 test "component_csr_zig" {
     try test_transpile("component/csr_zig");
     try test_render("component/csr_zig", @import("./../data/component/csr_zig.zig").Page);
@@ -555,8 +546,6 @@ fn getPageFn(comptime path: []const u8) ?fn (std.mem.Allocator) zx.Component {
         .{ "component/children_only", @import("./../data/component/children_only.zig") },
         .{ "component/contexted", @import("./../data/component/contexted.zig") },
         .{ "component/contexted_props", @import("./../data/component/contexted_props.zig") },
-        .{ "component/react", @import("./../data/component/react.zig") },
-        .{ "component/csr_react_multiple", @import("./../data/component/csr_react_multiple.zig") },
         .{ "component/csr_zig", @import("./../data/component/csr_zig.zig") },
         .{ "component/import", @import("./../data/component/import.zig") },
         .{ "component/root_cmp", @import("./../data/component/root_cmp.zig") },

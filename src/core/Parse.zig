@@ -1,5 +1,13 @@
 pub const Parse = @This();
 
+const std = @import("std");
+const ts = @import("tree_sitter");
+
+const sourcemap = @import("sourcemap.zig");
+const Render = @import("Render.zig");
+const Transpile = @import("Transpile.zig");
+const Markdown = @import("Markdown.zig");
+
 pub const NodeKind = enum {
     /// (<..>..</..>)
     zx_block,
@@ -156,16 +164,14 @@ pub fn renderAlloc(
         },
         .mdzx => @panic("MDZX rendering not implemented yet"),
         .zig => {
-            var ctx = Transpile.TranspileContext.init(allocator, self.source, .{ .sourcemap = options.sourcemap, .path = options.path });
-            defer ctx.deinit();
-
-            const root = self.tree.rootNode();
-            try Transpile.transpileNode(self, root, &ctx);
+            var transpiler = Transpile.init(self, allocator, .{ .sourcemap = options.sourcemap, .path = options.path });
+            defer transpiler.deinit();
+            try transpiler.run();
 
             return RenderResult{
-                .source = try ctx.output.toOwnedSlice(),
-                .sourcemap = if (options.sourcemap) try ctx.finalizeSourceMap() else null,
-                .client_components = try ctx.client_components.toOwnedSlice(allocator),
+                .source = try transpiler.output.toOwnedSlice(),
+                .sourcemap = if (options.sourcemap) try transpiler.finalizeSourceMap() else null,
+                .client_components = try transpiler.client_components.toOwnedSlice(allocator),
             };
         },
     }
@@ -202,11 +208,3 @@ pub fn getLineColumn(self: *const Parse, byte_offset: u32) struct { line: i32, c
 
     return .{ .line = line, .column = column };
 }
-
-const std = @import("std");
-const ts = @import("tree_sitter");
-
-const sourcemap = @import("sourcemap.zig");
-const Render = @import("Render.zig");
-const Transpile = @import("Transpile.zig");
-const Markdown = @import("Markdown.zig");

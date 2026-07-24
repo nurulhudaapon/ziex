@@ -5,7 +5,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
         <fragment @allocator={ctx.arena}>
             <script src="/assets/jsx.js"></script>
             
-            <Counter  @rendering={.react} visit_count={visit_count} name="Nurul" />
+            <Counter visit_count={visit_count} name="Nurul" />
         </fragment>
     );
 }

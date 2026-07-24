@@ -18,5 +18,3 @@ pub fn Page(allocator: z.Allocator) z.Component {
 
 const z = @import("zx");
 const Button = @import("basic.zig").Button;
-
-// const ClientComponent = @jsImport("basic.tsx");

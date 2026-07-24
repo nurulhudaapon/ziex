@@ -318,7 +318,6 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 <p><strong>Values:</strong></p>
                 <ul>
                     <li><code>.client</code> - Client-side render with Zig (compiles component to WebAssembly)</li>
-                    <li><code>.react</code> - Client-side render with React (for imported React/TSX components)</li>
                 </ul>
 
                 <h4 id="rendering-client">Client-side Zig rendering</h4>
@@ -351,8 +350,6 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 <CodeBlock code={csr_state_bind_example} />
                 <p>The transform function takes the current value and returns the new value. No event object is needed.</p>
 
-                <h4 id="rendering-react">React integration</h4>
-                <p>Use <code>@rendering={"{.react}"}</code> to embed a React or TSX component. Import the component with <code>@jsImport</code> and pass it as you would a ZX component. React handles rendering and hydration on the client.</p>
             </section>
             <section id="attribute-syntax" class="section">
                 <h2>Attribute Syntax</h2>

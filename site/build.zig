@@ -268,7 +268,6 @@ pub fn build(b: *std.Build) !void {
                 .entrypoints = &.{
                     b.path("app/scripts/client.ts"),
                     b.path("app/scripts/docs.ts"),
-                    b.path("app/scripts/jsx.tsx"),
                     b.path("app/scripts/home.ts"),
                 },
                 .platform = .browser,
@@ -291,12 +290,9 @@ pub fn build(b: *std.Build) !void {
         install_docs_js.step.name = "install docs.js";
         const install_home_js = b.addInstallFile(site_scripts.dir.path(b, "home.js"), "static/assets/home.js");
         install_home_js.step.name = "install home.js";
-        const install_jsx_js = b.addInstallFile(site_scripts.dir.path(b, "jsx.js"), "static/assets/jsx.js");
-        install_jsx_js.step.name = "install jsx.js";
         b.default_step.dependOn(&install_main_js.step);
         b.default_step.dependOn(&install_docs_js.step);
         b.default_step.dependOn(&install_home_js.step);
-        b.default_step.dependOn(&install_jsx_js.step);
     }
 
     if (true) {
