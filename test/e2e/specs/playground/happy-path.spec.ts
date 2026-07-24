@@ -8,7 +8,9 @@ test.describe('Ziex Playground', () => {
     await page.goto('/playground');
     // expect: Playground loads with default files, code editor, and Run/Share buttons visible.
     await expect(page.getByRole('button', { name: 'Run' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Format file' })).toBeVisible();
     await expect(page.getByRole('button', { name: /Share/ })).toBeVisible();
+    await expect(page.getByText('Console')).toBeVisible();
     await expect(page.getByRole('button', { name: /Playground\.zx/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /style\.css/ })).toBeVisible();
     // Always click Run on first load to expect preview
@@ -88,12 +90,24 @@ test.describe('Ziex Playground', () => {
     // expect: Share dialog or link is shown (if implemented)
   });
 
-  test('Terminal Panel', async ({ page }) => {
+  test('Format Button', async ({ page }) => {
+    await page.goto('/playground');
+    const formatButton = page.getByRole('button', { name: 'Format file' });
+    await formatButton.waitFor({ state: 'visible' });
+    await page.waitForFunction(() => {
+      const btn = document.getElementById('pg-format-btn') as HTMLButtonElement | null;
+      return btn && !btn.disabled;
+    });
+    await formatButton.click();
+    await expect(page.getByText(/Formatted Playground\.zx/)).toBeVisible({ timeout: 30_000 });
+  });
+
+  test('Console Panel', async ({ page }) => {
     await page.goto(`/playground`);
-    // Toggle terminal
-    await page.getByRole('button', { name: /Toggle terminal/ }).click();
-    // Clear terminal
-    await page.getByRole('button', { name: /Clear terminal/ }).click();
+    // Toggle console
+    await page.getByRole('button', { name: /Toggle console/ }).click();
+    // Clear console
+    await page.getByRole('button', { name: /Clear console/ }).click();
   });
 
   test('Error Handling', async ({ page }) => {

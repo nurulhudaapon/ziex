@@ -3,7 +3,6 @@ import {
     EditorView,
     ViewPlugin,
     Decoration,
-    keymap,
     type DecorationSet,
     type ViewUpdate,
     type PluginValue,
@@ -15,7 +14,6 @@ import {
     LSPPlugin,
     serverCompletion,
     hoverTooltips,
-    formatDocument,
     type LSPClientExtension,
     type Transport,
 } from "@codemirror/lsp-client";
@@ -276,7 +274,6 @@ export function createZlsClient(transport: Transport): LSPClient {
             foldRanges,
             lspFolding,
             trackFoldingView,
-            keymap.of([{ key: "Mod-s", run: formatDocument, preventDefault: true }]),
         ],
     });
 

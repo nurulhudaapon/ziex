@@ -1,8 +1,9 @@
 import { appendTerminalLine, revealOutputWindow, setTerminalCollapsed, clearTerminal, appendStatusStep, completeStatusStep } from "./terminal.ts";
 import { EditorState, Prec } from "@codemirror/state"
-import { keymap } from "@codemirror/view"
+import { keymap, ViewPlugin, type ViewUpdate } from "@codemirror/view"
 import { EditorView, basicSetup } from "codemirror"
 import { createZlsClient, workerTransport } from "./lsp";
+import { formatDocument } from "@codemirror/lsp-client";
 import { indentWithTab } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
 import { editorTheme, editorHighlightStyle } from "./theme.ts";
@@ -33,6 +34,41 @@ interface EditorFile {
 let files: EditorFile[] = [];
 let activeFileIndex = -1;
 let editorView: EditorView;
+let formatting = false;
+
+function languageLabel(filename: string): string {
+    if (filename.endsWith(".zx") || filename.endsWith(".mdzx")) return "ZX";
+    if (filename.endsWith(".zig") || filename.endsWith(".zon")) return "Zig";
+    if (filename.endsWith(".css")) return "CSS";
+    if (filename.endsWith(".html")) return "HTML";
+    if (filename.endsWith(".ts") || filename.endsWith(".tsx")) return "TS";
+    if (filename.endsWith(".js") || filename.endsWith(".jsx")) return "JS";
+    if (filename.endsWith(".md")) return "MD";
+    return "File";
+}
+
+function updateEditorStatus(view: EditorView, filename: string) {
+    const pos = view.state.selection.main.head;
+    const line = view.state.doc.lineAt(pos);
+    const col = pos - line.from + 1;
+    const cursorEl = document.getElementById("pg-cursor-pos");
+    if (cursorEl) cursorEl.textContent = `Ln ${line.number}, Col ${col}`;
+    const langEl = document.getElementById("pg-file-lang");
+    if (langEl) langEl.textContent = languageLabel(filename);
+}
+
+function editorStatusPlugin(filename: string) {
+    return ViewPlugin.fromClass(class {
+        constructor(view: EditorView) {
+            updateEditorStatus(view, filename);
+        }
+        update(update: ViewUpdate) {
+            if (update.selectionSet || update.docChanged || update.focusChanged) {
+                updateEditorStatus(update.view, filename);
+            }
+        }
+    });
+}
 
 function createEditorState(filename: string, content: string) {
     const extensions = [
@@ -40,6 +76,23 @@ function createEditorState(filename: string, content: string) {
         editorTheme,
         editorHighlightStyle,
         indentUnit.of("    "),
+        editorStatusPlugin(filename),
+        Prec.highest(keymap.of([
+            {
+                key: "Shift-Alt-f",
+                run: () => {
+                    void formatActiveFile();
+                    return true;
+                },
+            },
+            {
+                key: "Mod-s",
+                run: () => {
+                    void formatActiveFile();
+                    return true;
+                },
+            },
+        ])),
         keymap.of([
             indentWithTab,
             {
@@ -172,6 +225,7 @@ async function switchFile(index: number) {
         editorView.setState(file.state);
     }
 
+    updateEditorStatus(editorView, file.name);
     updateTabs();
 }
 
@@ -422,6 +476,8 @@ window.addEventListener("DOMContentLoaded", async () => {
             if (runBtn) runBtn.removeAttribute("disabled");
             const shareBtn = document.getElementById("pg-share-btn");
             if (shareBtn) shareBtn.removeAttribute("disabled");
+            const formatBtn = document.getElementById("pg-format-btn");
+            if (formatBtn) formatBtn.removeAttribute("disabled");
             return;
         }
     }
@@ -444,6 +500,8 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (runBtn) runBtn.removeAttribute("disabled");
     const shareBtn = document.getElementById("pg-share-btn");
     if (shareBtn) shareBtn.removeAttribute("disabled");
+    const formatBtn = document.getElementById("pg-format-btn");
+    if (formatBtn) formatBtn.removeAttribute("disabled");
 });
 
 // Client connects on construction; file loading is handled in DOMContentLoaded.
@@ -556,6 +614,98 @@ function transpileZxFileAsync(zxName: string, zxContent: string): Promise<{ [fil
         zxWorker.postMessage({ filename: zxName, content: zxContent });
     });
 }
+
+function formatZxFileAsync(zxName: string, zxContent: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+        function handler(ev: MessageEvent) {
+            const d = ev.data;
+            if (d && d.failed) {
+                zxWorker.removeEventListener("message", handler);
+                reject({ stderr: d.stderr || "Format failed" });
+            } else if (d && typeof d.stdout === "string") {
+                zxWorker.removeEventListener("message", handler);
+                resolve(d.stdout);
+            }
+        }
+        zxWorker.addEventListener("message", handler);
+        zxWorker.postMessage({ filename: zxName, content: zxContent, subcommand: "fmt" });
+    });
+}
+
+function setFormatButtonLoading(loading: boolean) {
+    const btn = document.getElementById("pg-format-btn") as HTMLButtonElement | null;
+    if (!btn) return;
+    if (loading) {
+        btn.classList.add("pg-editor-status-btn--loading");
+        btn.setAttribute("disabled", "true");
+        btn.setAttribute("aria-busy", "true");
+        btn.title = "Formatting…";
+    } else {
+        btn.classList.remove("pg-editor-status-btn--loading");
+        btn.removeAttribute("disabled");
+        btn.removeAttribute("aria-busy");
+        btn.title = "Format file (Shift+Alt+F)";
+    }
+}
+
+function applyFormattedContent(formatted: string) {
+    if (!editorView || activeFileIndex < 0) return;
+    const file = files[activeFileIndex];
+    const current = editorView.state.doc.toString();
+    if (current === formatted) return;
+
+    const selection = editorView.state.selection.main;
+    const nextPos = Math.min(selection.head, formatted.length);
+    editorView.dispatch({
+        changes: { from: 0, to: current.length, insert: formatted },
+        selection: { anchor: nextPos, head: nextPos },
+    });
+    file.state = editorView.state;
+    fileManager.updateContent(file.name, formatted);
+    transpileCache.clear();
+}
+
+async function formatActiveFile(): Promise<boolean> {
+    if (formatting || activeFileIndex < 0 || !editorView) return false;
+
+    const file = files[activeFileIndex];
+    const name = file.name;
+    const content = editorView.state.doc.toString();
+
+    if (name.endsWith(".zx") || name.endsWith(".mdzx")) {
+        formatting = true;
+        setFormatButtonLoading(true);
+        try {
+            const formatted = await formatZxFileAsync(name, content);
+            applyFormattedContent(formatted);
+            appendTerminalLine(`Formatted ${name}`, "pg-terminal-success");
+            setTerminalCollapsed(false);
+            revealOutputWindow();
+            return true;
+        } catch (err: any) {
+            const message = err?.stderr || `Failed to format ${name}`;
+            appendTerminalLine(message, "pg-terminal-error");
+            setTerminalCollapsed(false);
+            revealOutputWindow();
+            return false;
+        } finally {
+            formatting = false;
+            setFormatButtonLoading(false);
+        }
+    }
+
+    if (name.endsWith(".zig") || name.endsWith(".zon")) {
+        // Prefer ZLS formatting when the language server is available.
+        return formatDocument(editorView);
+    }
+
+    appendTerminalLine(`No formatter for ${name}`, "pg-terminal-info");
+    return false;
+}
+
+document.getElementById("pg-format-btn")?.addEventListener("click", () => {
+    void formatActiveFile();
+});
 
 // Promisified build
 let build_start_time = performance.now();

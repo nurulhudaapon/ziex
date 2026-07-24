@@ -6,7 +6,13 @@ let currentlyRunning = false;
 let compiledModule: WebAssembly.Module | null = null;
 
 async function run(filename: string, content: string, subcommand?: string) {
-    if (currentlyRunning) return;
+    if (currentlyRunning) {
+        postMessage({
+            stderr: "zx worker is busy",
+            failed: true,
+        });
+        return;
+    }
     currentlyRunning = true;
 
     const cmd = subcommand || "transpile";

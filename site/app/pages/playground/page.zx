@@ -78,6 +78,34 @@ pub fn EditorPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
             </template>
             <div class="pg-code" id="pg-code-area">
             </div>
+            <EditorStatusBar />
+        </div>
+    );
+}
+
+// ── Editor status bar (cursor, language, format, future actions) ──
+pub fn EditorStatusBar(ctx: *zx.ComponentCtx(struct {})) zx.Component {
+    return (
+        <div @allocator={ctx.allocator} class="pg-editor-status" id="pg-editor-status">
+            <div class="pg-editor-status-left">
+                <span class="pg-editor-status-item" id="pg-cursor-pos">Ln 1, Col 1</span>
+            </div>
+            <div class="pg-editor-status-right">
+                <span class="pg-editor-status-item" id="pg-file-lang">ZX</span>
+                <button
+                    class="pg-editor-status-btn"
+                    id="pg-format-btn"
+                    type="button"
+                    disabled="true"
+                    title="Format file (Shift+Alt+F)"
+                    aria-label="Format file"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="14" height="14" aria-hidden="true">
+                        <path d="M3 4.75A.75.75 0 0 1 3.75 4h12.5a.75.75 0 0 1 0 1.5H3.75A.75.75 0 0 1 3 4.75ZM3 9.75A.75.75 0 0 1 3.75 9h8.5a.75.75 0 0 1 0 1.5h-8.5A.75.75 0 0 1 3 9.75ZM3 14.75a.75.75 0 0 1 .75-.75h5.5a.75.75 0 0 1 0 1.5h-5.5a.75.75 0 0 1-.75-.75Z"/>
+                        <path d="M15.28 9.22a.75.75 0 0 1 1.06 0l2.22 2.22a.75.75 0 1 1-1.06 1.06l-.94-.94V16.5a.75.75 0 0 1-1.5 0v-4.94l-.94.94a.75.75 0 1 1-1.06-1.06l2.22-2.22Z"/>
+                    </svg>
+                </button>
+            </div>
         </div>
     );
 }
@@ -100,11 +128,11 @@ pub fn PreviewPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
                 <div class="pg-terminal-header" id="pg-terminal-header">
                     <div class="pg-terminal-title">
                         <span class="pg-terminal-title-dot"></span>
-                        Terminal
+                        Console
                     </div>
                     <div class="pg-terminal-actions">
-                        <button class="pg-terminal-action-btn" aria-label="Toggle terminal" id="pg-terminal-toggle" title="Show/Hide">▲</button>
-                        <button class="pg-terminal-action-btn" aria-label="Clear terminal" id="pg-terminal-clear" title="Clear">⌫</button>
+                        <button class="pg-terminal-action-btn" aria-label="Toggle console" id="pg-terminal-toggle" title="Show/Hide">▲</button>
+                        <button class="pg-terminal-action-btn" aria-label="Clear console" id="pg-terminal-clear" title="Clear">⌫</button>
                     </div>
                 </div>
                 <div class="pg-terminal-body" id="pg-terminal-body">
@@ -117,12 +145,12 @@ pub fn PreviewPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
     );
 }
 
-// ── Status Bar Component ──
+// ── Legacy full-IDE status bar (unused; editor has its own status bar) ──
 pub fn StatusBar(ctx: *zx.ComponentCtx(struct {})) zx.Component {
     return (
         <div @allocator={ctx.allocator}  class="pg-status">
             <div class="pg-status-left">
-                <span class="pg-status-item">⚡ Ziex Playground</span>
+                <span class="pg-status-item">Ziex Playground</span>
                 <span class="pg-status-item">Ln 1, Col 1</span>
             </div>
             <div class="pg-status-right">

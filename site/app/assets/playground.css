@@ -493,6 +493,70 @@ body {
     overflow: hidden;
     background: linear-gradient(180deg, rgba(13, 16, 22, 0.98) 0%, rgba(10, 13, 18, 1) 100%);
     position: relative;
+    min-height: 0;
+}
+
+/* ─── Editor status bar ─── */
+.pg-editor-status {
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0.55rem 0 0.75rem;
+    background: rgba(16, 18, 23, 0.98);
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.68rem;
+    font-weight: 500;
+    color: rgba(255, 255, 255, 0.45);
+    flex-shrink: 0;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+}
+
+.pg-editor-status-left,
+.pg-editor-status-right {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+}
+
+.pg-editor-status-item {
+    white-space: nowrap;
+    letter-spacing: 0.02em;
+}
+
+.pg-editor-status-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: rgba(255, 255, 255, 0.45);
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease;
+}
+
+.pg-editor-status-btn:hover:not(:disabled) {
+    color: var(--zx-primary);
+    background: rgba(0, 217, 255, 0.08);
+}
+
+.pg-editor-status-btn:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+}
+
+.pg-editor-status-btn.pg-editor-status-btn--loading {
+    opacity: 0.7;
+    pointer-events: none;
+    color: var(--zx-primary);
+}
+
+.pg-editor-status-btn.pg-editor-status-btn--loading svg {
+    animation: pg-spin 0.7s linear infinite;
 }
 
 .pg-code pre {
@@ -761,7 +825,7 @@ body {
     width: 48px;
 }
 
-/* ─── Terminal ─── */
+/* ─── Console (output panel) ─── */
 .pg-terminal {
     margin-bottom: -8px;
     height: 180px;
