@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { skipOnRemoteStatic } from '../../helpers/env';
 
 test.describe('KV Example', () => {
   test('server visit count increments across reloads', async ({ page }) => {
+    test.skip(skipOnRemoteStatic, 'Static deploy cannot persist KV writes across reloads');
     await page.goto('/examples/kv');
     await expect(page.getByText(/Visit count:\s*\d+/)).toBeVisible();
 

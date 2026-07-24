@@ -1,9 +1,10 @@
-
 import { test, expect } from '@playwright/test';
+import { skipOnRemoteStatic } from '../../helpers/env';
 // spec: .playwright-mcp/spec/server-action.plan.md
 
 test.describe('Counter and Age Actions', () => {
   test('Increment and update actions (happy path)', async ({ page }) => {
+    test.skip(skipOnRemoteStatic, 'Static deploy has no live server actions');
     // Navigate to the Server Action example page to begin test execution for Counter and Age Actions suite.
     await page.goto('/examples/server-action');
 

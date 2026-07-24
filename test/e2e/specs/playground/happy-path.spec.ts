@@ -1,5 +1,6 @@
 // spec: playground test plan
 import { test, expect } from '@playwright/test';
+import { skipOnRemoteStatic } from '../../helpers/env';
 
 
 test.describe('Ziex Playground', () => {
@@ -8,9 +9,12 @@ test.describe('Ziex Playground', () => {
     await page.goto('/playground');
     // expect: Playground loads with default files, code editor, and Run/Share buttons visible.
     await expect(page.getByRole('button', { name: 'Run' })).toBeVisible();
-    await expect(page.getByRole('button', { name: 'Format file' })).toBeVisible();
+    if (!skipOnRemoteStatic) {
+      // Format status-bar control is local/dev UI; may lag behind static deploys.
+      await expect(page.getByRole('button', { name: 'Format file' })).toBeVisible();
+      await expect(page.getByText('Console')).toBeVisible();
+    }
     await expect(page.getByRole('button', { name: /Share/ })).toBeVisible();
-    await expect(page.getByText('Console')).toBeVisible();
     await expect(page.getByRole('button', { name: /Playground\.zx/ })).toBeVisible();
     await expect(page.getByRole('button', { name: /style\.css/ })).toBeVisible();
     // Always click Run on first load to expect preview
@@ -91,6 +95,7 @@ test.describe('Ziex Playground', () => {
   });
 
   test('Format Button', async ({ page }) => {
+    test.skip(skipOnRemoteStatic, 'Format status-bar control may not be on static deploy yet');
     await page.goto('/playground');
     const formatButton = page.getByRole('button', { name: 'Format file' });
     await formatButton.waitFor({ state: 'visible' });
@@ -103,6 +108,7 @@ test.describe('Ziex Playground', () => {
   });
 
   test('Console Panel', async ({ page }) => {
+    test.skip(skipOnRemoteStatic, 'Console panel controls may not match static deploy UI yet');
     await page.goto(`/playground`);
     // Toggle console
     await page.getByRole('button', { name: /Toggle console/ }).click();

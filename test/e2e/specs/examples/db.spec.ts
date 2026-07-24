@@ -1,7 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { skipOnRemoteStatic } from '../../helpers/env';
 
 test.describe('Database Examples', () => {
   test('db page records a visit on every request', async ({ page }) => {
+    test.skip(skipOnRemoteStatic, 'Static deploy cannot persist DB writes across reloads');
     await page.goto('/examples/db');
     await expect(page.getByRole('heading', { name: 'Database Example' })).toBeVisible();
     await expect(page.getByText(/Total visits recorded:\s*\d+/)).toBeVisible();

@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { skipOnRemoteStatic } from '../../helpers/env';
 
 test.describe('API Route Examples', () => {
   test('GET /examples/api-route returns method and path json', async ({ request }) => {
@@ -13,6 +14,7 @@ test.describe('API Route Examples', () => {
   });
 
   test('POST /examples/api-route creates a user from json body', async ({ request }) => {
+    test.skip(skipOnRemoteStatic, 'Static deploy has no live POST API handlers');
     const res = await request.post('/examples/api-route', {
       data: { name: 'E2E Alice' },
     });
@@ -26,6 +28,7 @@ test.describe('API Route Examples', () => {
   });
 
   test('POST /examples/api-route without name returns validation message', async ({ request }) => {
+    test.skip(skipOnRemoteStatic, 'Static deploy has no live POST API handlers');
     const res = await request.post('/examples/api-route', {
       data: {},
     });
