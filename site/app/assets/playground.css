@@ -1,38 +1,103 @@
-/* --- Tooltip markdown code block and inline code styling --- */
-.cm-tooltip code {
-    background: var(--zx-code-bg, #0b0f14);
-    color: var(--code-text-color, #eeffff);
-    padding: 2px 6px;
-    border-radius: 4px;
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
-    font-size: 0.97em;
-    white-space: pre;
-    display: inline-block;
-    margin: 0.2em 0;
-    border: 1px solid rgba(255,255,255,0.06);
+/* --- VS Code-like LSP hover / docs tooltips --- */
+.cm-tooltip.cm-tooltip-hover {
+    background: #252526;
+    color: #cccccc;
+    border: 1px solid #454545;
+    border-radius: 3px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.36);
+    max-width: min(500px, calc(100vw - 32px));
+    max-height: min(280px, 45vh);
+    overflow: auto;
 }
-.cm-tooltip a {
-    color: var(--zx-primary, #00d9ff);
+
+.cm-tooltip.cm-tooltip-hover > .cm-tooltip-section,
+.cm-lsp-hover-tooltip,
+.cm-tooltip .cm-lsp-documentation {
+    max-width: 100%;
+    overflow: visible;
+    padding: 6px 10px;
+    box-sizing: border-box;
+    white-space: normal;
+    word-break: break-word;
+    font-size: 13px;
+    line-height: 1.45;
+    color: #cccccc;
+}
+
+.cm-tooltip .cm-lsp-documentation p {
+    margin: 0.45em 0;
+}
+
+.cm-tooltip .cm-lsp-documentation p:first-child {
+    margin-top: 0;
+}
+
+.cm-tooltip .cm-lsp-documentation p:last-child {
+    margin-bottom: 0;
+}
+
+.cm-tooltip .cm-lsp-documentation pre,
+.cm-tooltip .cm-lsp-documentation pre[class*="language-"] {
+    margin: 0.4em 0;
+    padding: 6px 8px;
+    background: #1e1e1e !important;
+    border: 1px solid #333;
+    border-radius: 3px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-word;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    color: #d4d4d4;
+}
+
+.cm-tooltip .cm-lsp-documentation pre code,
+.cm-tooltip .cm-lsp-documentation pre code[class*="language-"],
+.cm-tooltip .cm-lsp-documentation code[class*="language-"] {
+    background: transparent !important;
+    border: none;
+    padding: 0;
+    margin: 0;
+    display: inline;
+    white-space: inherit;
+    color: inherit;
+    font-size: inherit;
+    border-radius: 0;
+}
+
+.cm-tooltip .cm-lsp-documentation code,
+.cm-tooltip .cm-lsp-documentation .code {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ce9178;
+    padding: 1px 4px;
+    border-radius: 3px;
+    border: none;
+    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
+    font-size: 0.92em;
+    white-space: pre-wrap;
+    display: inline;
+    margin: 0;
+}
+
+.cm-tooltip .cm-lsp-documentation a {
+    color: var(--zx-primary, #4ade80);
+    text-decoration: none;
+    word-break: break-word;
+}
+
+.cm-tooltip .cm-lsp-documentation a:hover {
     text-decoration: underline;
-    word-break: break-all;
 }
-.cm-tooltip ul {
-    margin: 0.5em 0 0.5em 1.2em;
+
+.cm-tooltip .cm-lsp-documentation ul {
+    margin: 0.4em 0 0.4em 1.1em;
     padding: 0;
 }
-.cm-tooltip li {
-    margin: 0.2em 0;
+
+.cm-tooltip .cm-lsp-documentation li {
+    margin: 0.15em 0;
     padding: 0;
-}
-/* --- Tooltip code block styling --- */
-.cm-tooltip code, .cm-tooltip .code {
-    background: var(--zx-code-bg, #0b0f14);
-    color: var(--code-text-color, #eeffff);
-    padding: 2px 5px;
-    border-radius: 4px;
-    font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace;
-    font-size: 0.95em;
-    white-space: pre;
 }
 /* --- Collapsible Terminal --- */
 .pg-terminal.collapsed {

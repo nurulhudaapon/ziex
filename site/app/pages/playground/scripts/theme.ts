@@ -7,8 +7,6 @@ export const editorTheme = EditorView.theme(
     "&": {
       backgroundColor: "transparent",
       color: "#eeffff",
-      fontSize: "0.82rem",
-      fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace",
     },
     ".cm-content": {
       caretColor: "#00d9ff",
@@ -47,21 +45,101 @@ export const editorTheme = EditorView.theme(
       backgroundColor: "transparent",
       color: "rgba(255, 255, 255, 0.45)",
     },
-    /* Tooltip styling */
+    /* Tooltip styling — VS Code-like floating hover/autocomplete */
     ".cm-tooltip": {
-      backgroundColor: "#111111",
-      color: "#eeffff",
-      border: "1px solid #262626",
-      borderRadius: "6px",
-      boxShadow: "0 8px 32px rgba(0, 0, 0, 0.5)",
+      backgroundColor: "#252526",
+      color: "#cccccc",
+      border: "1px solid #454545",
+      borderRadius: "3px",
+      boxShadow: "0 2px 8px rgba(0, 0, 0, 0.36)",
+      fontSize: "13px",
+      lineHeight: "1.45",
+      maxWidth: "min(500px, calc(100vw - 32px))",
     },
     ".cm-tooltip.cm-tooltip-autocomplete": {
-      backgroundColor: "#111111",
-      border: "1px solid #262626",
+      backgroundColor: "#252526",
+      border: "1px solid #454545",
+      maxWidth: "none",
     },
     ".cm-tooltip-autocomplete ul li[aria-selected]": {
-      backgroundColor: "rgba(0, 217, 255, 0.12)",
+      backgroundColor: "rgba(74, 222, 128, 0.16)",
       color: "#eeffff",
+    },
+    ".cm-tooltip.cm-tooltip-hover": {
+      maxWidth: "min(500px, calc(100vw - 32px))",
+      maxHeight: "min(280px, 45vh)",
+      overflow: "auto",
+    },
+    ".cm-lsp-hover-tooltip.cm-lsp-documentation": {
+      padding: "6px 10px",
+      maxWidth: "100%",
+      boxSizing: "border-box",
+      whiteSpace: "normal",
+      wordBreak: "break-word",
+      color: "#cccccc",
+    },
+    ".cm-lsp-documentation": {
+      color: "#cccccc",
+    },
+    ".cm-lsp-documentation p": {
+      margin: "0.45em 0",
+    },
+    ".cm-lsp-documentation p:first-child": {
+      marginTop: "0",
+    },
+    ".cm-lsp-documentation p:last-child": {
+      marginBottom: "0",
+    },
+    ".cm-lsp-documentation pre": {
+      margin: "0.4em 0",
+      padding: "6px 8px",
+      backgroundColor: "#1e1e1e",
+      border: "1px solid #333333",
+      borderRadius: "3px",
+      overflowX: "auto",
+      whiteSpace: "pre-wrap",
+      wordBreak: "break-word",
+      fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace",
+      fontSize: "12px",
+      lineHeight: "1.4",
+      color: "#d4d4d4",
+    },
+    ".cm-lsp-documentation pre code": {
+      background: "transparent",
+      border: "none",
+      padding: "0",
+      margin: "0",
+      display: "inline",
+      whiteSpace: "inherit",
+      color: "inherit",
+      fontSize: "inherit",
+      borderRadius: "0",
+    },
+    ".cm-lsp-documentation code": {
+      backgroundColor: "rgba(255, 255, 255, 0.08)",
+      color: "#ce9178",
+      padding: "1px 4px",
+      borderRadius: "3px",
+      border: "none",
+      fontFamily: "'Monaco', 'Menlo', 'Ubuntu Mono', 'Consolas', monospace",
+      fontSize: "0.92em",
+      whiteSpace: "pre-wrap",
+      display: "inline",
+      margin: "0",
+    },
+    ".cm-lsp-documentation a": {
+      color: "#4ade80",
+      textDecoration: "none",
+    },
+    ".cm-lsp-documentation a:hover": {
+      textDecoration: "underline",
+    },
+    ".cm-lsp-documentation ul": {
+      margin: "0.4em 0 0.4em 1.1em",
+      padding: "0",
+    },
+    ".cm-lsp-documentation li": {
+      margin: "0.15em 0",
     },
     /* Scrollbar styling */
     ".cm-scroller": {
@@ -69,7 +147,7 @@ export const editorTheme = EditorView.theme(
       scrollbarColor: "rgba(255, 255, 255, 0.14) transparent",
     },
   },
-  {}
+  { dark: true }
 );
 
 /* Syntax highlighting matching playground.css / home.css color palette */
