@@ -6,6 +6,7 @@ pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.m
 
     try cmd.addFlag(outdir_flag);
     try cmd.addFlag(flag.binpath_flag);
+    try cmd.addFlag(flag.zig_path_flag);
     try cmd.addFlag(build_args_flag);
 
     return cmd;
@@ -38,7 +39,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
 
     var build_argv = std.ArrayList([]const u8).empty;
     defer build_argv.deinit(ctx.allocator);
-    try build_argv.appendSlice(ctx.allocator, &.{ cli_options.zig_exe, "build" });
+    try build_argv.appendSlice(ctx.allocator, &.{ ctx.flag("zig-path", []const u8), "build" });
     try build_argv.appendSlice(ctx.allocator, &.{"-Dcli-command=export"});
 
     var i_build_args = std.mem.splitSequence(u8, ctx.flag("build-args", []const u8), " ");
@@ -49,7 +50,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
     }
     try build_argv.appendSlice(ctx.allocator, &.{ "-p", install_prefix });
 
-    var build_proc = try std.process.spawn(io, .{
+    var build_proc = try util.spawnZig(io, .{
         .argv = build_argv.items,
         .environ_map = app.environ_map,
     });
@@ -596,7 +597,6 @@ fn findStaticParamValue(params: []const options_mod.StaticParam, key: []const u8
 
 const std = @import("std");
 const zli = @import("zli");
-const cli_options = @import("cli_options");
 const util = @import("shared/util.zig");
 const flag = @import("shared/flag.zig");
 const AppContext = @import("shared/context.zig").AppContext;

@@ -25,7 +25,6 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         .optimize = options.cli.optimize, // Always in release mode for faster transpilation
         // No target = host target, so zx CLI can execute during build
         .@"cli-log-level" = options.cli.log_level,
-        .@"zig-path" = zig_path,
     });
 
     // Full CLI dep
@@ -33,7 +32,6 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         .optimize = options.cli.optimize,
         .lsp = ziex_lsp,
         .@"cli-log-level" = options.cli.log_level,
-        .@"zig-path" = zig_path,
     });
 
     const zx_wasm_dep = b.dependencyFromBuildZig(build_zig, .{
@@ -70,6 +68,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         .ziex_js_root = ziex_js_root,
         .version = options.version,
         .server_only_stub_mode = .strict,
+        .zig_path = zig_path,
     };
 
     if (options.app) |site_opts| {
@@ -111,6 +110,7 @@ const InitInnerOptions = struct {
     element_injections: []const AddElementOptions = &.{},
     version: ?[]const u8 = null,
     server_only_stub_mode: ServerOnlyStubMode = .strict,
+    zig_path: []const u8,
 };
 
 pub fn getZxRun(b: *std.Build, zx_exe: *std.Build.Step.Compile, opts: InitInnerOptions) *std.Build.Step.Run {
@@ -557,6 +557,7 @@ pub fn initInner(
     if (opts.steps.serve) |serve_step_name| {
         const serve_cmd = getZxRun(b, zx_exe, opts);
         serve_cmd.addArg("serve");
+        serve_cmd.addArgs(&.{ "--zig-path", opts.zig_path });
         const serve_step = b.step(serve_step_name, "Run the Ziex app with production behavior");
         serve_step.dependOn(&serve_cmd.step);
         serve_cmd.addPassthruArgs();
@@ -566,6 +567,7 @@ pub fn initInner(
     if (opts.steps.dev) |dev_step_name| {
         const dev_cmd = getZxRun(b, zx_exe, opts);
         dev_cmd.addArg("dev");
+        dev_cmd.addArgs(&.{ "--zig-path", opts.zig_path });
         const dev_step = b.step(dev_step_name, "Run the Ziex app in development mode");
         dev_step.dependOn(&dev_cmd.step);
         dev_cmd.addPassthruArgs();
@@ -575,6 +577,7 @@ pub fn initInner(
     if (opts.steps.@"export") |export_step_name| {
         const export_cmd = getZxRun(b, zx_exe, opts);
         export_cmd.addArgs(&.{"export"});
+        export_cmd.addArgs(&.{ "--zig-path", opts.zig_path });
         const export_step = b.step(export_step_name, "Export the Ziex app for static hosting");
         export_step.dependOn(&export_cmd.step);
         export_cmd.addPassthruArgs();

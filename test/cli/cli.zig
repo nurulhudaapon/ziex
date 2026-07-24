@@ -75,7 +75,7 @@ test "init --force" {
 //     // Kill anything on that port (cross-platform)
 //     killPort(port) catch {};
 
-//     var build_child = std.process.Child.init(&.{ cli_options.zig_exe, "build" }, allocator);
+//     var build_child = std.process.Child.init(&.{ "zig", "build" }, allocator);
 //     build_child.cwd = test_dir_abs;
 //     build_child.stdout_behavior = .Ignore;
 //     build_child.stderr_behavior = .Ignore;
@@ -130,7 +130,7 @@ test "init → build" {
     try build_zig_zon.writeFile(std.testing.io, .{ .sub_path = build_zig_zon_path, .data = local_zon_str });
 
     const build_result = try std.process.run(allocator, std.testing.io, .{
-        .argv = &.{ cli_options.zig_exe, "build" },
+        .argv = &.{ "zig", "build" },
         .cwd = .{ .path = test_dir_abs },
     });
     defer allocator.free(build_result.stdout);
@@ -618,5 +618,4 @@ const test_util = @import("./../util.zig");
 
 const std = @import("std");
 const zx = @import("zx");
-const cli_options = @import("cli_options");
 const builtin = @import("builtin");
