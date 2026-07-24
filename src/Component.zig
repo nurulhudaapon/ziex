@@ -46,12 +46,13 @@ pub const Component = union(enum) {
         key: ?[]const u8 = null,
         id: zx.x.Id = .undef,
 
-        pub fn init(comptime func: anytype, comptime name: []const u8, allocator: Allocator, props: anytype) ComponentFn {
+        // TODO: get the name from inside the InitOptions @src() passed to x.init
+        pub fn init(comptime func: anytype, name: []const u8, allocator: Allocator, props: anytype) ComponentFn {
             const FuncInfo = @typeInfo(@TypeOf(func));
             const param_count = FuncInfo.@"fn".param_types.len;
             const fn_name = @typeName(@TypeOf(func));
 
-            const fn_signature = std.fmt.comptimePrint("fn {s} {s}", .{ name, fn_name["fn ".len..] });
+            const fn_signature = std.fmt.comptimePrint("fn {s} {s}", .{ "TODO: NAME", fn_name["fn ".len..] });
 
             // Validation of parameters
             if (param_count != 1 and param_count != 2)
@@ -70,7 +71,7 @@ pub const Component = union(enum) {
             if (first_is_allocator and param_count == 2) {
                 const SecondPropType = FuncInfo.@"fn".param_types[1].?;
                 if (@typeInfo(SecondPropType) != .@"struct")
-                    @compileError("Component" ++ fn_signature ++ " must have a struct as the second parameter, found " ++ @typeName(SecondPropType));
+                    @compileError("Component " ++ fn_name ++ " must have a struct as the second parameter, found " ++ @typeName(SecondPropType));
             }
 
             // Context-based components should only have 1 parameter
