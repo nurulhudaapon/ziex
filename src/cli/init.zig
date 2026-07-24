@@ -1,53 +1,36 @@
-pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
-    const cmd = try zli.Command.init(writer, reader, allocator, .{
-        .name = "init",
-        .description = "Initialize a new ZX project in the current directory",
-    }, init);
-
-    try cmd.addPositionalArg(init_path_arg);
-    try cmd.addFlag(template_flag);
-    try cmd.addFlag(force_flag);
-    try cmd.addFlag(existing_flag);
-
-    return cmd;
-}
-
-const template_flag = zli.Flag{
-    .name = "template",
-    .shortcut = "t",
-    .description = "Template to use: a builtin (default, docker) or any github:ziex-dev/template-<name> (e.g. cloudflare, vercel)",
-    .type = .String,
-    .default_value = .{ .String = "default" },
+pub const command: cli.Command = .{
+    .name = .init,
+    .help_short = "Initialize a new ZX project in the current directory",
+    .named_args = &.{
+        cli.Argument.init(.template, []const u8, .{
+            .default_value = "default",
+            .short = 't',
+            .help = "Template to use: a builtin (default, docker) or any github:ziex-dev/template-<name> (e.g. cloudflare, vercel)",
+        }),
+        cli.Argument.init(.force, bool, .{
+            .default_value = false,
+            .short = 'f',
+            .help = "Force initialization even if the directory is not empty",
+        }),
+        cli.Argument.init(.existing, bool, .{
+            .default_value = false,
+            .help = "Initialize ZX in an existing project",
+        }),
+    },
+    .positional_args = &.{
+        cli.Argument.init(.path, ?[]const u8, .{
+            .help = "Path to initialize the project in (default: current directory)",
+        }),
+    },
 };
 
-const force_flag = zli.Flag{
-    .name = "force",
-    .shortcut = "f",
-    .description = "Force initialization even if the directory is not empty",
-    .type = .Bool,
-    .default_value = .{ .Bool = false },
-};
-
-const existing_flag = zli.Flag{
-    .name = "existing",
-    .description = "Initialize ZX in an existing project",
-    .type = .Bool,
-    .default_value = .{ .Bool = false },
-};
-
-const init_path_arg = zli.PositionalArg{
-    .name = "path",
-    .description = "Path to initialize the project in (default: current directory)",
-    .required = false,
-};
-
-fn init(ctx: zli.CommandContext) !void {
-    const app = AppContext.from(&ctx);
+pub fn run(ctx: CommandContext, args: anytype) !void {
+    const app = ctx.app;
     const io = app.io;
-    const t_val = ctx.flag("template", []const u8);
-    const force_init = ctx.flag("force", bool);
-    const existing_init = ctx.flag("existing", bool);
-    const init_path = std.mem.trim(u8, ctx.getArg("path") orelse ".", " ");
+    const t_val = args.template;
+    const force_init = args.force;
+    const existing_init = args.existing;
+    const init_path = std.mem.trim(u8, args.path orelse ".", " ");
 
     var printer = tui.Printer.init(ctx.allocator, .{ .file_path_mode = .flat, .file_tree_max_depth = 1 });
     defer printer.deinit();
@@ -244,7 +227,7 @@ const templates = app_template.files;
 const std = @import("std");
 const app_template = @import("app_template");
 const remote = @import("init/remote.zig");
-const zli = @import("zli");
+const cli = @import("cli");
 const tui = @import("../tui/main.zig");
-const AppContext = @import("shared/context.zig").AppContext;
+const CommandContext = @import("shared/context.zig").CommandContext;
 const colors = tui.Colors;

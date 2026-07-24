@@ -1,9 +1,9 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const zli = @import("zli");
+const cli = @import("cli");
 const util = @import("shared/util.zig");
 const flag = @import("shared/flag.zig");
-const AppContext = @import("shared/context.zig").AppContext;
+const CommandContext = @import("shared/context.zig").CommandContext;
 const Builder = @import("dev/Builder.zig");
 const tui = @import("../tui/main.zig");
 const Diagnostics = @import("dev/Diagnostics.zig");
@@ -14,50 +14,36 @@ const sig = @import("../util/sig.zig");
 const Colors = tui.Colors;
 const log = std.log.scoped(.cli);
 
-pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
-    const cmd = try zli.Command.init(writer, reader, allocator, .{
-        .name = "dev",
-        .description = "Start the app in development mode with rebuild on change",
-    }, dev);
-
-    try cmd.addFlag(flag.binpath_flag);
-    try cmd.addFlag(flag.build_args);
-    try cmd.addFlag(flag.zig_path_flag);
-    try cmd.addFlag(flag.install_prefix_flag);
-    try cmd.addFlag(.{
-        .name = "port",
-        .description = "Port to run the server on (0 means default or configured port)",
-        .type = .Int,
-        .default_value = .{ .Int = 0 },
-        .hidden = true,
-    });
-    try cmd.addFlag(.{
-        .name = "tui-progress",
-        .description = "Show full build progress output from zig build",
-        .type = .Bool,
-        .default_value = .{ .Bool = true },
-    });
-    try cmd.addFlag(.{
-        .name = "tui-underline",
-        .description = "Show underlined status messages",
-        .type = .Bool,
-        .default_value = .{ .Bool = true },
-    });
-    try cmd.addFlag(.{
-        .name = "tui-spinner",
-        .description = "Show spinner for status messages",
-        .type = .Bool,
-        .default_value = .{ .Bool = false },
-    });
-    try cmd.addFlag(.{
-        .name = "tui-clear",
-        .description = "Clear the terminal before every restart",
-        .type = .Bool,
-        .default_value = .{ .Bool = false },
-    });
-
-    return cmd;
-}
+pub const command: cli.Command = .{
+    .name = .dev,
+    .help_short = "Start the app in development mode with rebuild on change",
+    .named_args = &.{
+        flag.binpath,
+        flag.build_args,
+        flag.zig_path,
+        flag.install_prefix,
+        cli.Argument.init(.port, u32, .{
+            .default_value = 0,
+            .help = "Port to run the server on (0 means default or configured port)",
+        }),
+        cli.Argument.init(.@"tui-progress", bool, .{
+            .default_value = true,
+            .help = "Show full build progress output from zig build",
+        }),
+        cli.Argument.init(.@"tui-underline", bool, .{
+            .default_value = true,
+            .help = "Show underlined status messages",
+        }),
+        cli.Argument.init(.@"tui-spinner", bool, .{
+            .default_value = false,
+            .help = "Show spinner for status messages",
+        }),
+        cli.Argument.init(.@"tui-clear", bool, .{
+            .default_value = false,
+            .help = "Clear the terminal before every restart",
+        }),
+    },
+};
 
 var runner: ?std.process.Child = null;
 var builder: ?std.process.Child = null;
@@ -74,8 +60,8 @@ fn onDevShutdown() void {
     std.c._exit(0);
 }
 
-fn dev(ctx: zli.CommandContext) !void {
-    const app = AppContext.from(&ctx);
+pub fn run(ctx: CommandContext, args: anytype) !void {
+    const app = ctx.app;
     const io = app.io;
     const env_map = app.environ_map;
 
@@ -83,14 +69,14 @@ fn dev(ctx: zli.CommandContext) !void {
     defer if (comptime builtin.mode == .Debug) sig.unregister();
 
     const allocator = ctx.allocator;
-    const binpath = ctx.flag("binpath", []const u8);
-    const install_prefix = ctx.flag("install-prefix", []const u8);
-    const port = ctx.flag("port", u32);
+    const binpath = args.binpath;
+    const install_prefix = args.@"install-prefix";
+    const port = args.port;
     const port_str = try std.fmt.allocPrint(allocator, "{d}", .{port});
     defer allocator.free(port_str);
-    const build_args_str = ctx.flag("build-args", []const u8);
-    const use_spinner = ctx.flag("tui-spinner", bool);
-    const clear_on_restart = ctx.flag("tui-clear", bool);
+    const build_args_str = args.@"build-args";
+    const use_spinner = args.@"tui-spinner";
+    const clear_on_restart = args.@"tui-clear";
     var build_args = std.mem.splitSequence(u8, build_args_str, " ");
 
     var build_args_array = std.ArrayList([]const u8).empty;
@@ -98,7 +84,7 @@ fn dev(ctx: zli.CommandContext) !void {
     defer build_args_array.deinit(allocator);
     defer initial_build_args_array.deinit(allocator);
 
-    const zig_path = ctx.flag("zig-path", []const u8);
+    const zig_path = args.@"zig-path";
     try build_args_array.appendSlice(allocator, &.{ zig_path, "build", "-Dcli-command=dev", "--watch", "--verbose", "--summary", "all", "--color", "off" });
     try initial_build_args_array.appendSlice(allocator, &.{ zig_path, "build", "-Dcli-command=dev" });
 
@@ -262,7 +248,7 @@ fn dev(ctx: zli.CommandContext) !void {
                         } else {
                             try ctx.writer.print("\n", .{});
                             var spinner = ctx.spinner;
-                            spinner.updateStyle(.{ .frames = zli.Spinner.SpinnerStyles.dots2, .refresh_rate_ms = 80 });
+                            spinner.updateStyle(.{ .frames = tui.Spinner.SpinnerStyles.dots2, .refresh_rate_ms = 80 });
                             try spinner.start("{s}Rebuilding...{s}", .{ Colors.cyan, Colors.reset });
                         }
                     } else {
@@ -380,7 +366,7 @@ fn dev(ctx: zli.CommandContext) !void {
                         if (use_spinner) {
                             var spinner = ctx.spinner;
                             if (!rebuilding_shown) try ctx.writer.print("\n", .{});
-                            spinner.updateStyle(.{ .frames = zli.Spinner.SpinnerStyles.dots2, .refresh_rate_ms = 80 });
+                            spinner.updateStyle(.{ .frames = tui.Spinner.SpinnerStyles.dots2, .refresh_rate_ms = 80 });
                             try spinner.start("{s}Restarting...{s}", .{ Colors.purple, Colors.reset });
                         } else {
                             try ctx.writer.print("{s}{s}↻ {s}Restarting...{s}", .{ restart_prefix, Colors.purple, Colors.bold, Colors.reset });
@@ -455,7 +441,7 @@ fn sleepMs(lio: std.Io, ms: i64) void {
 }
 
 fn emitNoChange(
-    ctx: *const zli.CommandContext,
+    ctx: *const CommandContext,
     dev_server: *DevServer,
     use_spinner: bool,
     rebuilding_shown: bool,

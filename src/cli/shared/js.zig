@@ -88,8 +88,8 @@ pub fn checkEsbuildBin(io: std.Io, allocator: std.mem.Allocator, pkg_rootdir: []
     return if (std.Io.Dir.cwd().statFile(io, esbuild_bin_path, .{}) catch null) |_| true else false;
 }
 
-pub fn buildjs(ctx: zli.CommandContext, binpath: []const u8, is_dev: bool, verbose: bool) !void {
-    const app = AppContext.from(&ctx);
+pub fn buildjs(ctx: CommandContext, binpath: []const u8, is_dev: bool, verbose: bool) !void {
+    const app = ctx.app;
     const io = app.io;
     var program_meta = try util.findprogram(io, ctx.allocator, binpath);
     defer util.freeBuildMeta(ctx.allocator, &program_meta);
@@ -486,8 +486,7 @@ pub const TransformError = error{
 };
 
 const std = @import("std");
-const zli = @import("zli");
 const util = @import("util.zig");
 const tui = @import("../../tui/main.zig");
-const AppContext = @import("context.zig").AppContext;
+const CommandContext = @import("context.zig").CommandContext;
 const log = std.log.scoped(.cli);

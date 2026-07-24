@@ -1,42 +1,30 @@
-pub const binpath_flag = zli.Flag{
-    .name = "binpath",
-    .shortcut = "b",
-    .description = "Binpath of the app in case if you have multiple exe artificats or using custom zig-out directory",
-    .type = .String,
-    .default_value = .{ .String = "" },
-};
+const cli = @import("cli");
 
-pub const build_args = zli.Flag{
-    .name = "build-args",
-    .shortcut = "a",
-    .description = "Additional build arguments to pass to zig build",
-    .type = .String,
-    .default_value = .{ .String = "" },
-    .hidden = true,
-};
+pub const binpath = cli.Argument.init(.binpath, []const u8, .{
+    .default_value = "",
+    .short = 'b',
+    .help = "Binpath of the app in case if you have multiple exe artificats or using custom zig-out directory",
+});
 
-pub const zig_path_flag = zli.Flag{
-    .name = "zig-path",
-    .description = "Path to the zig executable",
-    .type = .String,
-    .default_value = .{ .String = "zig" },
-    .hidden = true,
-};
+pub const build_args = cli.Argument.init(.@"build-args", []const u8, .{
+    .default_value = "",
+    .short = 'a',
+    .help = "Additional build arguments to pass to zig build",
+});
 
-pub const verbose_flag = zli.Flag{
-    .name = "verbose",
-    .shortcut = "v",
-    .description = "Show verbose output",
-    .type = .Bool,
-    .default_value = .{ .Bool = false },
-};
+pub const zig_path = cli.Argument.init(.@"zig-path", []const u8, .{
+    .default_value = "zig",
+    .help = "Path to the zig executable",
+});
 
-pub const install_prefix_flag = zli.Flag{
-    .name = "install-prefix",
-    .shortcut = "i",
-    .description = "Install prefix for the app (default: zig-out)",
-    .type = .String,
-    .default_value = .{ .String = "zig-out" },
-};
+pub const verbose = cli.Argument.init(.verbose, bool, .{
+    .default_value = false,
+    .short = 'v',
+    .help = "Show verbose output",
+});
 
-const zli = @import("zli");
+pub const install_prefix = cli.Argument.init(.@"install-prefix", []const u8, .{
+    .default_value = "zig-out",
+    .short = 'i',
+    .help = "Install prefix for the app (default: zig-out)",
+});

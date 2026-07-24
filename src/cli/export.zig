@@ -1,37 +1,25 @@
-pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
-    const cmd = try zli.Command.init(writer, reader, allocator, .{
-        .name = "export",
-        .description = "Export the site to a static HTML directory",
-    }, @"export");
-
-    try cmd.addFlag(outdir_flag);
-    try cmd.addFlag(flag.binpath_flag);
-    try cmd.addFlag(flag.zig_path_flag);
-    try cmd.addFlag(build_args_flag);
-
-    return cmd;
-}
-
-const outdir_flag = zli.Flag{
-    .name = "outdir",
-    .shortcut = "o",
-    .description = "Output directory",
-    .type = .String,
-    .default_value = .{ .String = "dist" },
+pub const command: cli.Command = .{
+    .name = .@"export",
+    .help_short = "Export the site to a static HTML directory",
+    .named_args = &.{
+        cli.Argument.init(.outdir, []const u8, .{
+            .default_value = "dist",
+            .short = 'o',
+            .help = "Output directory",
+        }),
+        flag.binpath,
+        flag.zig_path,
+        cli.Argument.init(.@"build-args", []const u8, .{
+            .default_value = "--release=small",
+            .help = "Additional arguments to pass to zig build (e.g., -Doptimize=ReleaseFast)",
+        }),
+    },
 };
 
-const build_args_flag = zli.Flag{
-    .name = "build-args",
-    .shortcut = null,
-    .description = "Additional arguments to pass to zig build (e.g., -Doptimize=ReleaseFast)",
-    .type = .String,
-    .default_value = .{ .String = "--release=small" },
-};
-
-fn @"export"(ctx: zli.CommandContext) !void {
-    const app = AppContext.from(&ctx);
+pub fn run(ctx: CommandContext, args: anytype) !void {
+    const app = ctx.app;
     const io = app.io;
-    const outdir = ctx.flag("outdir", []const u8);
+    const outdir = args.outdir;
 
     var temp_dir = try util.TempDir.init(io, ctx.allocator);
     defer temp_dir.deinit(io, ctx.allocator);
@@ -39,10 +27,10 @@ fn @"export"(ctx: zli.CommandContext) !void {
 
     var build_argv = std.ArrayList([]const u8).empty;
     defer build_argv.deinit(ctx.allocator);
-    try build_argv.appendSlice(ctx.allocator, &.{ ctx.flag("zig-path", []const u8), "build" });
+    try build_argv.appendSlice(ctx.allocator, &.{ args.@"zig-path", "build" });
     try build_argv.appendSlice(ctx.allocator, &.{"-Dcli-command=export"});
 
-    var i_build_args = std.mem.splitSequence(u8, ctx.flag("build-args", []const u8), " ");
+    var i_build_args = std.mem.splitSequence(u8, args.@"build-args", " ");
     while (i_build_args.next()) |arg| {
         const trimmed_arg = std.mem.trim(u8, arg, " ");
         if (std.mem.eql(u8, trimmed_arg, "")) continue;
@@ -84,7 +72,7 @@ fn @"export"(ctx: zli.CommandContext) !void {
     };
     defer std.zon.parse.free(ctx.allocator, manifest);
 
-    const binpath_flag = ctx.flag("binpath", []const u8);
+    const binpath_flag = args.binpath;
     const exe_path = util.resolveExePath(io, ctx.allocator, install_prefix, binpath_flag) catch {
         std.log.err("Run \x1b[34mzig build\x1b[0m to build the app first!\n", .{});
         return;
@@ -596,10 +584,10 @@ fn findStaticParamValue(params: []const options_mod.StaticParam, key: []const u8
 }
 
 const std = @import("std");
-const zli = @import("zli");
+const cli = @import("cli");
 const util = @import("shared/util.zig");
 const flag = @import("shared/flag.zig");
-const AppContext = @import("shared/context.zig").AppContext;
+const CommandContext = @import("shared/context.zig").CommandContext;
 const Server = @import("../runtime/server/Server.zig");
 const options_mod = @import("../runtime/core/options.zig");
 const DevServer = @import("dev/DevServer.zig");

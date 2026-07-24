@@ -1,20 +1,24 @@
-pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
-    const cmd = try zli.Command.init(writer, reader, allocator, .{
-        .name = "update",
-        .description = "Update the version of ZX dependency",
-    }, update);
+pub const command: cli.Command = .{
+    .name = .update,
+    .help_short = "Update the version of ZX dependency",
+    .named_args = &.{
+        cli.Argument.init(.version, []const u8, .{
+            .default_value = "latest",
+            .short = 'v',
+            .help = "Version to update to",
+        }),
+        cli.Argument.init(.dev, bool, .{
+            .default_value = false,
+            .help = "Update to the latest commit on the main branch instead of the latest release",
+        }),
+        flag.zig_path,
+    },
+};
 
-    try cmd.addFlag(version_flag);
-    try cmd.addFlag(dev_flag);
-    try cmd.addFlag(flag.zig_path_flag);
-
-    return cmd;
-}
-
-fn update(ctx: zli.CommandContext) !void {
-    const app = AppContext.from(&ctx);
-    const version = ctx.flag("version", []const u8);
-    const dev = ctx.flag("dev", bool);
+pub fn run(ctx: CommandContext, args: anytype) !void {
+    const app = ctx.app;
+    const version = args.version;
+    const dev = args.dev;
 
     const ref = if (!std.mem.eql(u8, version, "latest"))
         try std.fmt.allocPrint(ctx.allocator, "#v{s}", .{version})
@@ -30,7 +34,7 @@ fn update(ctx: zli.CommandContext) !void {
     const fetch_uri = try std.fmt.allocPrint(ctx.allocator, "git+{s}{s}", .{ zx_info.repository, ref });
     defer ctx.allocator.free(fetch_uri);
 
-    var system = try util.spawnZig(app.io, .{ .argv = &.{ ctx.flag("zig-path", []const u8), "fetch", "--save", fetch_uri } });
+    var system = try util.spawnZig(app.io, .{ .argv = &.{ args.@"zig-path", "fetch", "--save", fetch_uri } });
     const term = try system.wait(app.io);
     _ = term;
 }
@@ -94,24 +98,9 @@ fn fetchLatestReleaseTag(
     return allocator.dupe(u8, parsed.value.tag_name);
 }
 
-const version_flag = zli.Flag{
-    .name = "version",
-    .shortcut = "v",
-    .description = "Version to update to",
-    .type = .String,
-    .default_value = .{ .String = "latest" },
-};
-
-const dev_flag = zli.Flag{
-    .name = "dev",
-    .description = "Update to the latest commit on the main branch instead of the latest release",
-    .type = .Bool,
-    .default_value = .{ .Bool = false },
-};
-
 const std = @import("std");
-const zli = @import("zli");
-const AppContext = @import("shared/context.zig").AppContext;
+const cli = @import("cli");
+const CommandContext = @import("shared/context.zig").CommandContext;
 const util = @import("shared/util.zig");
 const flag = @import("shared/flag.zig");
 const zx_info = @import("zx_info");

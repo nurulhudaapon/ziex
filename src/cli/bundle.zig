@@ -1,30 +1,23 @@
-pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
-    const cmd = try zli.Command.init(writer, reader, allocator, .{
-        .name = "bundle",
-        .description = "Bundle the site into deployable directory",
-    }, bundle);
-
-    try cmd.addFlag(outdir_flag);
-    try cmd.addFlag(flag.binpath_flag);
-    try cmd.addFlag(flag.install_prefix_flag);
-
-    return cmd;
-}
-
-const outdir_flag = zli.Flag{
-    .name = "outdir",
-    .shortcut = "o",
-    .description = "Output directory",
-    .type = .String,
-    .default_value = .{ .String = "bundle" },
+pub const command: cli.Command = .{
+    .name = .bundle,
+    .help_short = "Bundle the site into deployable directory",
+    .named_args = &.{
+        cli.Argument.init(.outdir, []const u8, .{
+            .default_value = "bundle",
+            .short = 'o',
+            .help = "Output directory",
+        }),
+        flag.binpath,
+        flag.install_prefix,
+    },
 };
 
-fn bundle(ctx: zli.CommandContext) !void {
-    const app = AppContext.from(&ctx);
+pub fn run(ctx: CommandContext, args: anytype) !void {
+    const app = ctx.app;
     const io = app.io;
-    const outdir = ctx.flag("outdir", []const u8);
-    const binpath = ctx.flag("binpath", []const u8);
-    const install_prefix = ctx.flag("install-prefix", []const u8);
+    const outdir = args.outdir;
+    const binpath = args.binpath;
+    const install_prefix = args.@"install-prefix";
 
     const program_path = util.resolveExePath(io, ctx.allocator, install_prefix, binpath) catch |err| {
         if (err == error.ExecutableNotFound or err == error.FileNotFound) {
@@ -72,9 +65,9 @@ fn bundle(ctx: zli.CommandContext) !void {
 }
 
 const std = @import("std");
-const zli = @import("zli");
+const cli = @import("cli");
 const util = @import("shared/util.zig");
 const flag = @import("shared/flag.zig");
-const AppContext = @import("shared/context.zig").AppContext;
+const CommandContext = @import("shared/context.zig").CommandContext;
 const tui = @import("../tui/main.zig");
 const log = std.log.scoped(.cli);

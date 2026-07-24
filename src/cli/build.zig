@@ -1,25 +1,22 @@
-pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
-    const cmd = try zli.Command.init(writer, reader, allocator, .{
-        .name = "build",
-        .description = "Build the app (equivalent to `zig build`)",
-    }, build);
+pub const command: cli.Command = .{
+    .name = .build,
+    .help_short = "Build the app (equivalent to `zig build`)",
+    .named_args = &.{
+        flags.build_args,
+        flags.zig_path,
+    },
+};
 
-    try cmd.addFlag(flags.build_args);
-    try cmd.addFlag(flags.zig_path_flag);
-
-    return cmd;
-}
-
-fn build(ctx: zli.CommandContext) !void {
-    const app = AppContext.from(&ctx);
+pub fn run(ctx: CommandContext, args: anytype) !void {
+    const app = ctx.app;
     const io = app.io;
     const allocator = ctx.allocator;
 
     var build_args = std.ArrayList([]const u8).empty;
     defer build_args.deinit(allocator);
-    try build_args.appendSlice(allocator, &.{ ctx.flag("zig-path", []const u8), "build" });
+    try build_args.appendSlice(allocator, &.{ args.@"zig-path", "build" });
 
-    var i_build_args = std.mem.splitSequence(u8, ctx.flag("build-args", []const u8), " ");
+    var i_build_args = std.mem.splitSequence(u8, args.@"build-args", " ");
     while (i_build_args.next()) |arg| {
         const trimmed_arg = std.mem.trim(u8, arg, " ");
         if (std.mem.eql(u8, trimmed_arg, "")) continue;
@@ -34,7 +31,7 @@ fn build(ctx: zli.CommandContext) !void {
     defer system.kill(io);
 
     var spinner = ctx.spinner;
-    spinner.updateStyle(.{ .frames = zli.Spinner.SpinnerStyles.dots2, .refresh_rate_ms = 80 });
+    spinner.updateStyle(.{ .frames = tui.Spinner.SpinnerStyles.dots2, .refresh_rate_ms = 80 });
     try spinner.start("{s}Building...{s}", .{ Colors.cyan, Colors.reset });
 
     const start_ts = std.Io.Timestamp.now(io, .awake);
@@ -129,10 +126,10 @@ fn formatBuildErrors(
 }
 
 const std = @import("std");
-const zli = @import("zli");
+const cli = @import("cli");
 const flags = @import("shared/flag.zig");
 const util = @import("shared/util.zig");
-const AppContext = @import("shared/context.zig").AppContext;
+const CommandContext = @import("shared/context.zig").CommandContext;
 const Builder = @import("dev/Builder.zig");
 const Diagnostics = @import("dev/Diagnostics.zig");
 const tui = @import("../tui/main.zig");

@@ -79,7 +79,12 @@ pub fn build(b: *std.Build) !void {
     }
 
     // --- ZX CLI (Transpiler, Exporter, Dev Server) --- //
-    const zli_dep = b.dependency("zli", .{ .target = target, .optimize = optimize });
+    // Vendored from Zig PR #31620 until std.cli lands in the toolchain.
+    const cli_mod = b.createModule(.{
+        .root_source_file = b.path("vendor/std/cli.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
     const exe_rootmod_opts: std.Build.Module.CreateOptions = .{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
@@ -87,7 +92,7 @@ pub fn build(b: *std.Build) !void {
         .imports = &.{
             .{ .name = "core_lang", .module = zx_core_lang_mod },
             .{ .name = "zx_info", .module = options.createModule() },
-            .{ .name = "zli", .module = zli_dep.module("zli") },
+            .{ .name = "cli", .module = cli_mod },
             .{ .name = "tree_sitter", .module = tree_sitter_dep.module("tree_sitter") },
             .{ .name = "tree_sitter_zx", .module = tree_sitter_zx_dep.module("tree_sitter_zx") },
         },
@@ -314,7 +319,11 @@ pub fn build(b: *std.Build) !void {
                     .imports = &.{
                         .{ .name = "core_lang", .module = release_core_lang_mod },
                         .{ .name = "zx_info", .module = options.createModule() },
-                        .{ .name = "zli", .module = zli_dep.module("zli") },
+                        .{ .name = "cli", .module = b.createModule(.{
+                            .root_source_file = b.path("vendor/std/cli.zig"),
+                            .target = resolved_target,
+                            .optimize = .ReleaseSafe,
+                        }) },
                         .{ .name = "tree_sitter", .module = release_tree_sitter_dep.module("tree_sitter") },
                         .{ .name = "tree_sitter_zx", .module = release_tree_sitter_zx_dep.module("tree_sitter_zx") },
                     },

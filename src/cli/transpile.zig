@@ -1,109 +1,71 @@
 const std = @import("std");
-const zli = @import("zli");
+const cli = @import("cli");
 const core_lang = @import("core_lang");
 
 const flags = @import("shared/flag.zig");
 const util = @import("shared/util.zig");
 const Manifest = @import("../build/Manifest.zig");
-const AppContext = @import("shared/context.zig").AppContext;
+const CommandContext = @import("shared/context.zig").CommandContext;
 
 const base64 = std.base64.standard;
 
-const outdir_flag = zli.Flag{
-    .name = "outdir",
-    .shortcut = "o",
-    .description = "Output directory",
-    .type = .String,
-    .default_value = .{ .String = ".zx" },
+pub const command: cli.Command = .{
+    .name = .transpile,
+    .help_short = "Transpile a .zx file or directory to zig source code.",
+    .named_args = &.{
+        cli.Argument.init(.outdir, []const u8, .{
+            .default_value = ".zx",
+            .short = 'o',
+            .help = "Output directory",
+        }),
+        cli.Argument.init(.@"copy-only", bool, .{
+            .default_value = false,
+            .help = "Copy only the files to the output directory",
+        }),
+        flags.verbose,
+        cli.Argument.init(.map, []const u8, .{
+            .default_value = "none",
+            .help = "Generate source map",
+        }),
+        cli.Argument.init(.@"dep-file", []const u8, .{
+            .default_value = "",
+            .help = "Write a Make-format dependency file listing all transpiled input files",
+        }),
+        cli.Argument.init(.@"cache-dir", []const u8, .{
+            .default_value = "",
+            .help = "Persistent directory for content-hash-keyed transpile cache (survives zig-cache invalidation)",
+        }),
+        cli.Argument.init(.@"base-path", []const u8, .{
+            .default_value = "",
+            .help = "Base path for the application (e.g., /test)",
+        }),
+        cli.Argument.init(.manifest, []const u8, .{
+            .default_value = "",
+            .help = "Centralized app manifest path (zig-out/manifest/app.zon)",
+        }),
+        cli.Argument.init(.@"build-injections", []const u8, .{
+            .default_value = "",
+            .help = "Build-managed injections to merge into the app manifest",
+        }),
+        cli.Argument.init(.@"exe-path", []const u8, .{
+            .default_value = "",
+            .help = "Path to the executable",
+        }),
+    },
+    .positional_args = &.{
+        cli.Argument.init(.path, []const u8, .{
+            .help = "Path to .zx file or directory",
+        }),
+    },
 };
 
-const copy_only_flag = zli.Flag{
-    .name = "copy-only",
-    .description = "Copy only the files to the output directory",
-    .type = .Bool,
-    .default_value = .{ .Bool = false },
-};
-
-const map_flag = zli.Flag{
-    .name = "map",
-    .description = "Generate source map",
-    .type = .String,
-    .default_value = .{ .String = "none" },
-};
-
-const depfile_flag = zli.Flag{
-    .name = "dep-file",
-    .description = "Write a Make-format dependency file listing all transpiled input files",
-    .type = .String,
-    .default_value = .{ .String = "" },
-};
-
-const cachedir_flag = zli.Flag{
-    .name = "cache-dir",
-    .description = "Persistent directory for content-hash-keyed transpile cache (survives zig-cache invalidation)",
-    .type = .String,
-    .default_value = .{ .String = "" },
-};
-
-const base_path_flag = zli.Flag{
-    .name = "base-path",
-    .description = "Base path for the application (e.g., /test)",
-    .type = .String,
-    .default_value = .{ .String = "" },
-};
-
-const manifest_flag = zli.Flag{
-    .name = "manifest",
-    .description = "Centralized app manifest path (zig-out/manifest/app.zon)",
-    .type = .String,
-    .default_value = .{ .String = "" },
-};
-
-const build_injections_flag = zli.Flag{
-    .name = "build-injections",
-    .description = "Build-managed injections to merge into the app manifest",
-    .type = .String,
-    .default_value = .{ .String = "" },
-};
-
-const exe_path_flag = zli.Flag{
-    .name = "exe-path",
-    .description = "Path to the executable",
-    .type = .String,
-    .default_value = .{ .String = "" },
-};
-
-pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
-    const cmd = try zli.Command.init(writer, reader, allocator, .{
-        .name = "transpile",
-        .description = "Transpile a .zx file or directory to zig source code.",
-    }, transpile);
-
-    try cmd.addFlag(outdir_flag);
-    try cmd.addFlag(copy_only_flag);
-    try cmd.addFlag(flags.verbose_flag);
-    try cmd.addFlag(map_flag);
-    try cmd.addFlag(depfile_flag);
-    try cmd.addFlag(cachedir_flag);
-    try cmd.addFlag(base_path_flag);
-    try cmd.addFlag(manifest_flag);
-    try cmd.addFlag(build_injections_flag);
-    try cmd.addFlag(exe_path_flag);
-    try cmd.addPositionalArg(.{
-        .name = "path",
-        .description = "Path to .zx file or directory",
-        .required = true,
-    });
-    return cmd;
-}
-
-fn transpile(ctx: zli.CommandContext) !void {
-    const app = AppContext.from(&ctx);
+pub fn run(ctx: CommandContext, args: anytype) !void {
+    const app = ctx.app;
     const io = app.io;
-    const outdir = ctx.flag("outdir", []const u8);
-    const copy_only = ctx.flag("copy-only", bool);
-    const verbose = ctx.flag("verbose", bool);
-    const map = parseMapMode(ctx.flag("map", []const u8));
+    const outdir = args.outdir;
+    const copy_only = args.@"copy-only";
+    const verbose = args.verbose;
+    const map = parseMapMode(args.map);
 
     var arena = std.heap.ArenaAllocator.init(ctx.allocator);
     defer arena.deinit();
@@ -111,19 +73,16 @@ fn transpile(ctx: zli.CommandContext) !void {
     const allocator = arena.allocator();
 
     const opts: TranspileOptions = .{
-        .path = ctx.getArg("path") orelse {
-            try ctx.writer.print("Missing path arg\n", .{});
-            return;
-        },
+        .path = args.path,
         .outdir = outdir,
         .verbose = verbose,
         .map = map,
-        .dep_file = nonEmpty(ctx.flag("dep-file", []const u8)),
-        .cache_dir = nonEmpty(ctx.flag("cache-dir", []const u8)),
-        .base_path = nonEmpty(ctx.flag("base-path", []const u8)),
-        .manifest = nonEmpty(ctx.flag("manifest", []const u8)),
-        .build_injections = nonEmpty(ctx.flag("build-injections", []const u8)),
-        .exe_path = nonEmpty(ctx.flag("exe-path", []const u8)),
+        .dep_file = nonEmpty(args.@"dep-file"),
+        .cache_dir = nonEmpty(args.@"cache-dir"),
+        .base_path = nonEmpty(args.@"base-path"),
+        .manifest = nonEmpty(args.manifest),
+        .build_injections = nonEmpty(args.@"build-injections"),
+        .exe_path = nonEmpty(args.@"exe-path"),
     };
 
     if (verbose) {
@@ -163,7 +122,7 @@ fn parseMapMode(sourcemap_str: []const u8) core_lang.Ast.ParseOptions.MapMode {
 
 /// Transpile a single .zx/.mdzx file and write the result to stdout, emitting
 /// the configured sourcemap alongside it.
-fn transpileToStdout(ctx: zli.CommandContext, io: std.Io, path: []const u8, map: core_lang.Ast.ParseOptions.MapMode) !void {
+fn transpileToStdout(ctx: CommandContext, io: std.Io, path: []const u8, map: core_lang.Ast.ParseOptions.MapMode) !void {
     const allocator = ctx.allocator;
 
     const source = try readFile(io, allocator, path);

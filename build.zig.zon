@@ -27,8 +27,6 @@
         // },
         .db_sqlite = .{ .path = "pkg/db-sqlite", .lazy = true },
         .db_postgres = .{ .path = "pkg/db-postgres", .lazy = true },
-        //TODO:  Get rid of zli in favor of copying from Zig's new builtin args parser once 0.16.0 is released
-        .zli = .{ .path = "vendor/cliz" },
         .zig_js = .{ .path = "vendor/jsz" },
         .tree_sitter = .{ .path = "vendor/zig-tree-sitter" },
         .tree_sitter_zx = .{ .path = "pkg/tree-sitter-zx" },
@@ -47,8 +45,8 @@
         "pkg/plugin-esbuild",
         "pkg/plugin-system",
         "pkg/plugin-typescript",
-        "vendor/cliz",
         "vendor/jsz",
+        "vendor/std",
         "vendor/zig-tree-sitter",
         "templates/Template.zig",
         "templates/_base",

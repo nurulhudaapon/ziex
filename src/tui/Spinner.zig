@@ -6,8 +6,7 @@ const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const Thread = std.Thread;
 
-const builtin = @import("builtin.zig");
-pub const styles = builtin.styles;
+const styles = @import("spinner_styles.zig").styles;
 
 const Spinner = @This();
 

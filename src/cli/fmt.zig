@@ -1,6 +1,6 @@
 const std = @import("std");
-const zli = @import("zli");
-const AppContext = @import("shared/context.zig").AppContext;
+const cli = @import("cli");
+const CommandContext = @import("shared/context.zig").CommandContext;
 const log = std.log.scoped(.cli);
 const core_lang = @import("core_lang");
 const tui = @import("../tui/main.zig");
@@ -8,52 +8,39 @@ const colors = tui.Colors;
 const Builder = @import("dev/Builder.zig");
 const Diagnostics = @import("dev/Diagnostics.zig");
 
-const stdio_flag = zli.Flag{
-    .name = "stdio",
-    .description = "Read from stdin and write formatted output to stdout",
-    .type = .Bool,
-    .default_value = .{ .Bool = false },
+pub const command: cli.Command = .{
+    .name = .fmt,
+    .help_short = "Format .zx files or directories.",
+    .named_args = &.{
+        cli.Argument.init(.stdio, bool, .{
+            .default_value = false,
+            .help = "Read from stdin and write formatted output to stdout",
+        }),
+        cli.Argument.init(.stdout, bool, .{
+            .default_value = false,
+            .help = "Write formatted output to stdout instead of disk",
+        }),
+        cli.Argument.init(.@"error", bool, .{
+            .default_value = false,
+            .help = "Read zig build error output from stdin and pretty-print it (e.g. zig build 2>&1 | zx fmt --error)",
+        }),
+    },
+    .positional_args = &.{
+        cli.Argument.init(.paths, []const []const u8, .{
+            .count = .unlimited,
+            .default_value = &.{},
+            .help = "Paths to .zx files or directories",
+        }),
+    },
 };
 
-const stdout_flag = zli.Flag{
-    .name = "stdout",
-    .description = "Write formatted output to stdout instead of disk",
-    .type = .Bool,
-    .default_value = .{ .Bool = false },
-};
-
-const error_flag = zli.Flag{
-    .name = "error",
-    .description = "Read zig build error output from stdin and pretty-print it (e.g. zig build 2>&1 | zx fmt --error)",
-    .type = .Bool,
-    .default_value = .{ .Bool = false },
-};
-
-pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
-    const cmd = try zli.Command.init(writer, reader, allocator, .{
-        .name = "fmt",
-        .description = "Format .zx files or directories.",
-    }, fmt);
-
-    try cmd.addFlag(stdio_flag);
-    try cmd.addFlag(stdout_flag);
-    try cmd.addFlag(error_flag);
-    try cmd.addPositionalArg(.{
-        .name = "paths",
-        .description = "Paths to .zx files or directories",
-        .required = false,
-        .variadic = true,
-    });
-    return cmd;
-}
-
-fn fmt(ctx: zli.CommandContext) !void {
-    const app = AppContext.from(&ctx);
+pub fn run(ctx: CommandContext, args: anytype) !void {
+    const app = ctx.app;
     const io = app.io;
 
-    const use_stdio = ctx.flag("stdio", bool);
-    const use_stdout = ctx.flag("stdout", bool);
-    const use_error = ctx.flag("error", bool);
+    const use_stdio = args.stdio;
+    const use_stdout = args.stdout;
+    const use_error = args.@"error";
 
     if (use_error) {
         try formatErrorFromStdin(io, ctx.allocator, ctx.writer);
@@ -65,7 +52,7 @@ fn fmt(ctx: zli.CommandContext) !void {
         return;
     }
 
-    const paths = ctx.positional_args;
+    const paths = args.paths;
     if (paths.len == 0) {
         try ctx.writer.print("{s}No paths were given.{s}\n", .{ colors.yellow, colors.reset });
         try ctx.writer.print("\nUsage:\n\n", .{});

@@ -1,17 +1,18 @@
-pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
-    const cmd = try zli.Command.init(writer, reader, allocator, .{
-        .name = "upgrade",
-        .description = "Upgrade the version of ZX CLI",
-    }, upgrade);
+pub const command: cli.Command = .{
+    .name = .upgrade,
+    .help_short = "Upgrade the version of ZX CLI",
+    .named_args = &.{
+        cli.Argument.init(.version, []const u8, .{
+            .default_value = "latest",
+            .short = 'v',
+            .help = "Version to update to",
+        }),
+    },
+};
 
-    try cmd.addFlag(version_flag);
-
-    return cmd;
-}
-
-fn upgrade(ctx: zli.CommandContext) !void {
-    const app = AppContext.from(&ctx);
-    const version = ctx.flag("version", []const u8);
+pub fn run(ctx: CommandContext, args: anytype) !void {
+    const app = ctx.app;
+    const version = args.version;
 
     var maybe_cmd_str: ?[:0]u8 = null;
     defer if (maybe_cmd_str) |s| ctx.allocator.free(s);
@@ -48,16 +49,8 @@ fn upgrade(ctx: zli.CommandContext) !void {
     // _ = try zx_version.wait();
 }
 
-const version_flag = zli.Flag{
-    .name = "version",
-    .shortcut = "v",
-    .description = "Version to update to",
-    .type = .String,
-    .default_value = .{ .String = "latest" },
-};
-
 const std = @import("std");
-const zli = @import("zli");
-const AppContext = @import("shared/context.zig").AppContext;
+const cli = @import("cli");
+const CommandContext = @import("shared/context.zig").CommandContext;
 const zx_info = @import("zx_info");
 const builtin = @import("builtin");

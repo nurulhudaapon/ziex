@@ -1,42 +1,35 @@
-pub fn register(writer: *std.Io.Writer, reader: *std.Io.Reader, allocator: std.mem.Allocator) !*zli.Command {
-    const cmd = try zli.Command.init(writer, reader, allocator, .{
-        .name = "serve",
-        .description = "Run the server",
-    }, serve);
-
-    try cmd.addFlag(port_flag);
-    try cmd.addFlag(flags.binpath_flag);
-    try cmd.addFlag(flags.zig_path_flag);
-
-    var build_args_flag = flags.build_args;
-    build_args_flag.default_value = .{ .String = "-Doptimize=ReleaseFast" };
-    try cmd.addFlag(build_args_flag);
-
-    return cmd;
-}
-
-const port_flag = zli.Flag{
-    .name = "port",
-    .shortcut = "p",
-    .description = "Port to run the server on (0 means default or configured port)",
-    .type = .Int,
-    .default_value = .{ .Int = 0 },
-    .hidden = true,
+pub const command: cli.Command = .{
+    .name = .serve,
+    .help_short = "Run the server",
+    .named_args = &.{
+        cli.Argument.init(.port, u32, .{
+            .default_value = 0,
+            .short = 'p',
+            .help = "Port to run the server on (0 means default or configured port)",
+        }),
+        flags.binpath,
+        flags.zig_path,
+        cli.Argument.init(.@"build-args", []const u8, .{
+            .default_value = "-Doptimize=ReleaseFast",
+            .short = 'a',
+            .help = "Additional build arguments to pass to zig build",
+        }),
+    },
 };
 
 const DEFAULT_INSTALL_PREFIX = "zig-out";
 
-fn serve(ctx: zli.CommandContext) !void {
-    const app = AppContext.from(&ctx);
+pub fn run(ctx: CommandContext, args: anytype) !void {
+    const app = ctx.app;
     const io = app.io;
-    const port = ctx.flag("port", u32);
+    const port = args.port;
 
     var build_argv = std.ArrayList([]const u8).empty;
     defer build_argv.deinit(ctx.allocator);
-    try build_argv.appendSlice(ctx.allocator, &.{ ctx.flag("zig-path", []const u8), "build" });
+    try build_argv.appendSlice(ctx.allocator, &.{ args.@"zig-path", "build" });
     try build_argv.appendSlice(ctx.allocator, &.{"-Dcli-command=serve"});
 
-    var i_build_args = std.mem.splitSequence(u8, ctx.flag("build-args", []const u8), " ");
+    var i_build_args = std.mem.splitSequence(u8, args.@"build-args", " ");
     while (i_build_args.next()) |arg| {
         const trimmed_arg = std.mem.trim(u8, arg, " ");
         if (std.mem.eql(u8, trimmed_arg, "")) continue;
@@ -58,7 +51,7 @@ fn serve(ctx: zli.CommandContext) !void {
         },
     }
 
-    const binpath_flag = ctx.flag("binpath", []const u8);
+    const binpath_flag = args.binpath;
     const exe_path = util.resolveExePath(io, ctx.allocator, DEFAULT_INSTALL_PREFIX, binpath_flag) catch {
         try ctx.writer.print("Run \x1b[34mzig build\x1b[0m to build the ZX executable first!\n", .{});
         return;
@@ -86,8 +79,8 @@ fn serve(ctx: zli.CommandContext) !void {
 }
 
 const std = @import("std");
-const zli = @import("zli");
+const cli = @import("cli");
 const util = @import("shared/util.zig");
 const flags = @import("shared/flag.zig");
-const AppContext = @import("shared/context.zig").AppContext;
+const CommandContext = @import("shared/context.zig").CommandContext;
 const log = std.log.scoped(.cli);

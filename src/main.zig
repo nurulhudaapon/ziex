@@ -30,15 +30,16 @@ pub fn main(init: std.process.Init) !void {
     var stdin_reader = std.Io.File.stdin().readerStreaming(init.io, &buf);
     const stdin = &stdin_reader.interface;
 
-    const root = try cli.build(stdout, stdin, allocator);
-    defer root.deinit();
-
     var app_ctx: AppContext = .{
         .io = init.io,
         .environ_map = init.environ_map,
     };
 
-    try root.execute(.{ .process_args = init.minimal.args, .data = &app_ctx });
+    var arena_state = std.heap.ArenaAllocator.init(allocator);
+    defer arena_state.deinit();
+    const args = try init.minimal.args.toSlice(arena_state.allocator());
+
+    try cli.run(stdout, stdin, allocator, args, &app_ctx);
 
     try stdout.flush();
 }
