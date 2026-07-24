@@ -54,7 +54,7 @@ pub fn InstallCLI(allocator: zx.Allocator, props: struct { show_init: bool = fal
                             <span class="function">npm</span>
                             <span class="operator"> init </span>
                             <span class="variable">ziex</span>
-                            <span class="comment" aria-hidden="true" style="user-select: none; -webkit-user-select: none;"> #or </span>
+                            <span class="comment" aria-hidden="true" style="user-select: none; -webkit-user-select: none;"> # or </span>
                         </div>
                         <div class="install-code">
                             <span class="install-prompt" aria-hidden="true">$ </span>
@@ -124,7 +124,7 @@ pub fn InstallZig(allocator: zx.Allocator) zx.Component {
                 </div>
                 <div class="install-tab-content" id="content-zig-other">
                     <div class="install-other">
-                        See the <a href="https://ziglang.org/learn/getting-started/" target="_blank" rel="noopener noreferrer">official Zig installation guide</a>
+                        See the <a href="https://ziglang.org/learn/getting-started/" target="_blank" rel="noopener noreferrer">official Zig installation guide</a>.
                     </div>
                 </div>
             </div>

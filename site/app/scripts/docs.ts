@@ -62,6 +62,10 @@ function highlightHTML(html: string): string {
 
 // Find and format HTML code snippets
 document.addEventListener("DOMContentLoaded", async () => {
+  setupSectionAnchors();
+  setupOpenInPlaygroundButtons();
+  setupDocsNavActive();
+
   const htmlCodeElements = document.querySelectorAll<HTMLPreElement>('code.language-markup');
 
   for (const codeElement of htmlCodeElements) {
@@ -87,10 +91,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       }
     }
   }
-
-  // Setup section heading anchor links
-  setupSectionAnchors();
-  setupOpenInPlaygroundButtons();
 });
 
 function normalizeFileName(raw: string | null): string {
@@ -150,6 +150,126 @@ function setupOpenInPlaygroundButtons() {
       window.open(url, "_blank", "noopener,noreferrer");
     });
   });
+}
+
+function setupDocsNavActive() {
+  // Highlight the current section in the left nav and right TOC while scrolling.
+  const navLinks = Array.from(
+    document.querySelectorAll<HTMLAnchorElement>(
+      ".sidebar a[href*='#'], .right-sidebar a[href*='#']"
+    )
+  );
+  if (navLinks.length === 0) return;
+
+  const path = window.location.pathname.replace(/\/$/, "") || "/";
+  const pageLinks = Array.from(
+    document.querySelectorAll<HTMLAnchorElement>(".sidebar a[href]")
+  ).filter((link) => {
+    if (link.classList.contains("sidebar-tab")) return false;
+    try {
+      const url = new URL(link.href, window.location.origin);
+      const linkPath = url.pathname.replace(/\/$/, "") || "/";
+      return linkPath === path && !url.hash;
+    } catch {
+      return false;
+    }
+  });
+
+  type NavTarget = { id: string; links: HTMLAnchorElement[] };
+  const targets = new Map<string, NavTarget>();
+
+  for (const link of navLinks) {
+    let hash = "";
+    try {
+      hash = new URL(link.href, window.location.origin).hash.slice(1);
+    } catch {
+      const idx = link.getAttribute("href")?.indexOf("#") ?? -1;
+      hash = idx >= 0 ? link.getAttribute("href")!.slice(idx + 1) : "";
+    }
+    if (!hash || !document.getElementById(hash)) continue;
+
+    const existing = targets.get(hash);
+    if (existing) existing.links.push(link);
+    else targets.set(hash, { id: hash, links: [link] });
+  }
+
+  const ordered = Array.from(targets.values()).sort((a, b) => {
+    const aEl = document.getElementById(a.id);
+    const bEl = document.getElementById(b.id);
+    if (!aEl || !bEl) return 0;
+    return (aEl.compareDocumentPosition(bEl) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
+      ? -1
+      : 1;
+  });
+
+  let currentId = "";
+
+  const setActive = (id: string | null) => {
+    const next = id ?? "";
+    if (next === currentId) return;
+    currentId = next;
+
+    for (const link of navLinks) link.classList.remove("active");
+    for (const link of pageLinks) link.classList.remove("active");
+
+    if (!next) {
+      for (const link of pageLinks) link.classList.add("active");
+      return;
+    }
+
+    const target = targets.get(next);
+    if (!target) return;
+
+    for (const link of target.links) {
+      link.classList.add("active");
+      const details = link.closest("details");
+      if (details) details.open = true;
+    }
+  };
+
+  const updateFromScroll = () => {
+    const offset = 120;
+    let activeId: string | null = null;
+
+    for (const target of ordered) {
+      const el = document.getElementById(target.id);
+      if (!el) continue;
+      if (el.getBoundingClientRect().top - offset <= 0) activeId = target.id;
+      else break;
+    }
+
+    // Near the page top, prefer the page root link (e.g. Quick Start).
+    if (!activeId || window.scrollY < 48) {
+      setActive(null);
+      return;
+    }
+
+    setActive(activeId);
+  };
+
+  let ticking = false;
+  const onScroll = () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      updateFromScroll();
+      ticking = false;
+    });
+  };
+
+  window.addEventListener("scroll", onScroll, { passive: true });
+  window.addEventListener("hashchange", () => {
+    const hash = window.location.hash.slice(1);
+    if (hash && targets.has(hash)) setActive(hash);
+    else updateFromScroll();
+  });
+
+  const initialHash = window.location.hash.slice(1);
+  if (initialHash && targets.has(initialHash)) {
+    setActive(initialHash);
+  } else {
+    updateFromScroll();
+  }
 }
 
 // Convert section headings with IDs into clickable anchor links

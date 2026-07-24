@@ -520,7 +520,7 @@ pub fn Learn__Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component
             <body>
                 <nav><a href="/">Home</a> <a href="/about">About</a></nav>
                 <main>{children}</main>
-                <footer>© 2025 My App</footer>
+                <footer>© My App</footer>
             </body>
         </html>
     );
@@ -1090,6 +1090,84 @@ fn transfer(_: void, db: zx.Db) !void {
     _ = try db.run("UPDATE accounts SET balance = balance + 10 WHERE id = ?1", .{2});
 }
 
+// --- Learn: template attrs ---
+pub fn unwrap__learn_template_attrs() void {
+    const id = 42;
+    // ...
+    _ = (<a href=`/users/{id}/profile`>Profile</a>);
+}
+
+// --- Learn: spread attrs ---
+pub fn unwrap__learn_spread_attrs() void {
+    const attrs = .{ .class = "btn", .disabled = true };
+    // ...
+    _ = (<button {..attrs}>Click</button>);
+}
+
+// --- Learn: client action ---
+pub fn ContactForm(ctx: *zx.ComponentCtx(void)) zx.Component {
+    return (
+        <form @allocator={ctx.allocator} action={ctx.bind(ContactForm__onSubmit)}>
+            <input type="text" name="message" />
+            <button type="submit">Send</button>
+        </form>
+    );
+}
+
+fn ContactForm__onSubmit(a: *zx.client.Action.Stateful) void {
+    const data = a.data(struct { message: []const u8 });
+    zx.log.info("message: {s}", .{data.message});
+}
+
+// --- Learn: server action ---
+pub fn LoginForm(allocator: zx.Allocator) zx.Component {
+    return (
+        <form @allocator={allocator} action={onLogin}>
+            <input type="text" name="username" />
+            <button type="submit">Log in</button>
+        </form>
+    );
+}
+
+fn onLogin(a: zx.server.Action) void {
+    const data = a.data(struct { username: []const u8 });
+    zx.log.info("username: {s}", .{data.username});
+}
+
+// --- Reference Inline: csr simple handler ---
+fn handleInput(event: zx.client.Event) void {
+    const value = event.value() orelse "";
+    zx.log.info("Input: {s}", .{value});
+}
+// Attach: oninput={handleInput}
+
+// --- Reference Inline: csr stateful handler ---
+pub fn CsrStateful__Counter(ctx: *zx.ComponentCtx(void)) zx.Component {
+    const count = ctx.state(i32, 0);
+    return (
+        <div @allocator={ctx.allocator}>
+            <button onclick={ctx.bind(CsrStateful__increment)}>{count}</button>
+        </div>
+    );
+}
+fn CsrStateful__increment(e: *zx.client.Event.Stateful) void {
+    const count = e.state(i32); // same order as ctx.state()
+    count.set(count.get() + 1);
+}
+
+// --- Reference Inline: csr state bind ---
+pub fn CsrStateBind__Counter(ctx: *zx.ComponentCtx(void)) zx.Component {
+    const count = ctx.state(i32, 0);
+    return (
+        <div @allocator={ctx.allocator}>
+            <button onclick={count.bind(CsrStateBind__increment)}>{count}</button>
+        </div>
+    );
+}
+fn CsrStateBind__increment(value: i32) i32 {
+    return value + 1;
+}
+
 // --- Imports ---
 pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
     if (builtin.mode != .Debug) return .none;
@@ -1165,6 +1243,11 @@ pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
     _ = RefLayout__options;
     _ = CachingPage__options;
 
+    // Keep unwrap snippets linked for compile-time validation (they construct
+    // orphaned JSX without an allocator, so do not execute them at runtime).
+    _ = unwrap__learn_template_attrs;
+    _ = unwrap__learn_spread_attrs;
+
     return (
         <div @{allocator} style="display: none">
             <ControlIf is_admin={true} />
@@ -1182,6 +1265,11 @@ pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
             <Client />
             <RefInlineNoProps__Container />
             <RefInline__Card title="Hello" />
+            <ContactForm />
+            <LoginForm />
+            <CsrStateful__Counter />
+            <CsrStateBind__Counter />
+            <input oninput={handleInput} />
         </div>
     );
 }

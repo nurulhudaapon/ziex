@@ -19,7 +19,7 @@ pub const Component = struct {
     /// selector of its first descendant element (its rendered root). Empty when
     /// the node maps to no element.
     selector: []const u8 = "",
-    /// Which match of `selector` (in document order) this node is — computed by
+    /// Which match of `selector` (in document order) this node is computed by
     /// counting prior elements with the same selector while walking the
     /// serialized tree in pre-order, which mirrors the DOM's document order.
     /// The devtool highlights `document.querySelectorAll(selector)[occurrence]`.
@@ -66,7 +66,7 @@ fn settingsKV() zx.Kv {
 /// reset to `fallback` (a literal) and ownership is dropped.
 ///
 /// This is the single safe way the devtool mutates the long-lived string
-/// globals it reads back across renders — without it, each keystroke/click
+/// globals it reads back across renders without it, each keystroke/click
 /// leaked the previous value into the persistent WASM allocator.
 pub fn adopt(owned: *?[]const u8, slot: *[]const u8, new: ?[]const u8, fallback: []const u8) void {
     if (owned.*) |old| zx.allocator.free(old);
@@ -376,8 +376,6 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.Component.Serializab
         children = children_mut;
     }
 
-    // A component/text node has no element of its own — it is located by its
-    // first descendant element (its rendered root).
     if (s.tag == null) {
         for (children) |child| {
             if (child.selector.len > 0) {

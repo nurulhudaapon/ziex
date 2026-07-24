@@ -112,46 +112,11 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     const zig_example_children = zx_example_children;
     const html_example_children = util.renderComponentToHtml(allocator, examples.CardDemo(allocator));
 
-    // const setup_elapsed_ns = page_timer.read();
-    // const setup_elapsed_ms = @as(f64, @floatFromInt(setup_elapsed_ns)) / @as(f64, @floatFromInt(std.time.ns_per_ms));
-    // std.log.info("\x1b[1;36m[DOCS PAGE] Setup phase completed: {d:.3}ms\x1b[0m", .{setup_elapsed_ms});
-
-    const csr_simple_handler_example =
-        \\fn handleInput(event: zx.client.Event) void {
-        \\    const value = event.value() orelse "";
-        \\    zx.log.info("Input: {s}", .{value});
-        \\}
-        \\// Attach: oninput={handleInput}
-    ;
-
-    const csr_stateful_handler_example =
-        \\pub fn Counter(ctx: *zx.ComponentCtx(void)) zx.Component {
-        \\    const count = ctx.state(i32, 0);
-        \\    return (
-        \\        <div @allocator={ctx.allocator}>
-        \\            <button onclick={ctx.bind(increment)}>{count}</button>
-        \\        </div>
-        \\    );
-        \\}
-        \\fn increment(e: *zx.client.Event.Stateful) void {
-        \\    const count = e.state(i32); // same order as ctx.state()
-        \\    count.set(count.get() + 1);
-        \\}
-    ;
-
-    const csr_state_bind_example =
-        \\pub fn Counter(ctx: *zx.ComponentCtx(void)) zx.Component {
-        \\    const count = ctx.state(i32, 0);
-        \\    return (
-        \\        <div @allocator={ctx.allocator}>
-        \\            <button onclick={count.bind(increment)}>{count}</button>
-        \\        </div>
-        \\    );
-        \\}
-        \\fn increment(value: i32) i32 {
-        \\    return value + 1;
-        \\}
-    ;
+    const csr_simple_handler_example = util.extractSection(allocator, examples_source, "Reference Inline: csr simple handler");
+    const csr_stateful_handler_example = util.extractSection(allocator, examples_source, "Reference Inline: csr stateful handler");
+    const csr_state_bind_example = util.extractSection(allocator, examples_source, "Reference Inline: csr state bind");
+    const client_action_example = util.extractSection(allocator, examples_source, "Learn: client action");
+    const server_action_example = util.extractSection(allocator, examples_source, "Learn: server action");
 
     // Allocate files on heap to avoid stack lifetime issues
     const layout_files = blk: {
@@ -162,6 +127,11 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     };
     return (
         <div @allocator={allocator}>
+            <section class="section docs-page-header">
+                <p class="section-category">Reference</p>
+                <h1>API Reference</h1>
+                <p class="lead">Syntax, APIs, and behavior details for ZX templates, routing, and tooling.</p>
+            </section>
             // <Introduction />
             <section id="expressions" class="section">
                 <h2>Expressions</h2>
@@ -207,7 +177,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 <h2>Control Flow</h2>
                 <p>ZX supports conditional rendering and iteration using familiar Zig control flow constructs. These expressions allow you to conditionally render components or iterate over collections to build dynamic UIs.</p>
                 <h3 id="if-statements">If Statements</h3>
-                <p>Use <code>if</code> expressions to conditionally render components based on boolean conditions. The<code>else</code> branch is optional and can render alternative content when the condition is false.</p>
+                <p>Use <code>if</code> expressions to conditionally render components based on boolean conditions. The <code>else</code> branch is optional and can render alternative content when the condition is false.</p>
                 <ExampleBlock id="if" zx_code={zx_example_if} zig_code={zig_example_if} html_code={html_example_if} filename="conditional.zx" />
                 <h3 id="switch-statements">Switch Statements</h3>
                 <p>Use <code>switch</code> expressions to match against enum values or other types. Each case can return either a string literal or a component. Switch expressions are particularly useful for rendering different UI based on state or user roles.</p>
@@ -233,11 +203,11 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 <h3>Component Function Signatures</h3>
                 <p>Component functions can use one of several signatures depending on their needs:</p>
                 <ul>
-                    <li><strong>Allocator only:</strong><code>fn Component(allocator: zx.Allocator) zx.Component</code></li>
-                    <li><strong>With props:</strong><code>fn Component(allocator: zx.Allocator, props: Props) zx.Component</code></li>
-                    <li><strong>Context (children only):</strong><code>fn Component(ctx: *zx.ComponentContext) zx.Component</code></li>
-                    <li><strong>Context with props:</strong><code>fn Component(ctx: *zx.ComponentCtx(Props)) zx.Component</code></li>
-                    <li><strong>Fallible:</strong><code>fn Component(ctx: *zx.ComponentCtx(Props)) !zx.Component</code></li>
+                    <li><strong>Allocator only:</strong> <code>fn Component(allocator: zx.Allocator) zx.Component</code></li>
+                    <li><strong>With props:</strong> <code>fn Component(allocator: zx.Allocator, props: Props) zx.Component</code></li>
+                    <li><strong>Context (children only):</strong> <code>fn Component(ctx: *zx.ComponentContext) zx.Component</code></li>
+                    <li><strong>Context with props:</strong> <code>fn Component(ctx: *zx.ComponentCtx(Props)) zx.Component</code></li>
+                    <li><strong>Fallible:</strong> <code>fn Component(ctx: *zx.ComponentCtx(Props)) !zx.Component</code></li>
                 </ul>
                 <h3 id="component-context">ComponentContext</h3>
                 <p>Use <code>zx.ComponentContext</code> when your component needs access to children but has no custom props:</p>
@@ -291,7 +261,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 <p>ZX components can allocate memory for various purposes:</p>
                 <ul>
                     <li>Storing text content (which is HTML-escaped and allocated)</li>
-                    <li>Copying child components arrays</li>
+                    <li>Copying child component arrays</li>
                     <li>Copying attribute arrays</li>
                     <li>Formatting expressions that allocate formatted strings</li>
                 </ul>
@@ -302,7 +272,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                     <li>Always use <code>ctx.arena</code> in page components (it's automatically freed after the request)</li>
                     <li>Pass the allocator parameter to custom components and use it in the <code>@allocator</code> attribute</li>
                     <li>Set <code>@allocator</code> on the root element of each component that needs memory allocation</li>
-                    <li>Child components inherit the allocator from their parent's component, so you don't need to pass it explicitly to every nested component</li>
+                    <li>Child components inherit the allocator from their parent component, so you don't need to pass it explicitly to every nested component</li>
                 </ul>
                 <h3 id="escaping">@escaping</h3>
                 <p>The <code>@escaping</code> attribute controls how text content is escaped within an element. By default, all text is HTML-escaped to prevent XSS attacks.</p>
@@ -350,6 +320,25 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 <CodeBlock code={csr_state_bind_example} />
                 <p>The transform function takes the current value and returns the new value. No event object is needed.</p>
 
+                <h4 id="form-actions">Form actions</h4>
+                <p>Form submissions use the <code>action</code>{" "}attribute with an Action handler. Unlike event handlers, actions parse posted fields into a typed struct with <code>data(T)</code>.</p>
+
+                <p><strong>Client actions</strong> run in the browser via <code>zx.client.Action</code>:</p>
+                <CodeBlock code={client_action_example} />
+                <ul>
+                    <li><code>fn(zx.client.Action) void</code>{" "}or <code>fn(*zx.client.Action) void</code>{" "}- read form data only</li>
+                    <li><code>fn(*zx.client.Action.Stateful) void</code>{" "}with <code>ctx.bind()</code>{" "}- also access component state via <code>a.state(T)</code></li>
+                </ul>
+
+                <p><strong>Server actions</strong> run on the server via <code>zx.server.Action</code>:</p>
+                <CodeBlock code={server_action_example} />
+                <ul>
+                    <li><code>fn(zx.server.Action) void</code>{" "}or <code>fn(*zx.server.Action) void</code>{" "}- parse fields with <code>data(T)</code>; also exposes <code>request</code>, <code>response</code>, and <code>arena</code></li>
+                    <li><code>fn(*zx.server.Action.Stateful) void</code>{" "}with <code>ctx.bind()</code>{" "}- update bound component state on the server</li>
+                    <li>You can also pass a struct directly as the handler parameter (e.g. <code>fn(data: FormData) void</code>) and ZX will coerce the form fields into that type</li>
+                </ul>
+                <p>Supported <code>data(T)</code>{" "}field types include <code>[]const u8</code>, integers, floats, bools, optionals, <code>[]const []const u8</code>{" "}for multi-value fields, and on the server <code>zx.File</code>{" "}/ <code>?zx.File</code>{" "}for multipart uploads.</p>
+
             </section>
             <section id="attribute-syntax" class="section">
                 <h2>Attribute Syntax</h2>
@@ -370,8 +359,8 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
             <section id="importing" class="section">
                 <h2>Importing</h2>
                 <p>
-                    ZX supports importing components and modules from various sources. You can import ZX components from other files, 
-                    and standard Zig modules. You can't import .zx file to standard .zig file, in case you need to do that you can name your .zig file .zx such as route.zx for example when you need to import things from a .zx file.
+                    ZX supports importing components and modules from various sources. You can import ZX components from other files,{" "}
+                    and standard Zig modules. You can't import a <code>.zx</code>{" "}file into a standard <code>.zig</code>{" "}file. If you need to, rename the <code>.zig</code>{" "}file to <code>.zx</code>{" "}(for example, <code>route.zx</code>) so you can import from a <code>.zx</code>{" "}file.
                 </p>
                 <ExampleBlock id="importing" zx_code={zx_example_importing} zig_code={zig_example_importing} html_code={html_example_importing} filename="import_demo.zx" />
             </section>
@@ -381,9 +370,9 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 <h3>Creating Dynamic Routes</h3>
                 <p>Create a folder with brackets around the parameter name:</p>
                 <ul>
-                    <li><code>site/pages/user/[id]/page.zx</code> → <code>/user/:id</code></li>
-                    <li><code>site/pages/blog/[slug]/page.zx</code> → <code>/blog/:slug</code></li>
-                    <li><code>site/pages/[category]/[item]/page.zx</code> → <code>/:category/:item</code></li>
+                    <li><code>app/pages/user/[id]/page.zx</code> → <code>/user/:id</code></li>
+                    <li><code>app/pages/blog/[slug]/page.zx</code> → <code>/blog/:slug</code></li>
+                    <li><code>app/pages/[category]/[item]/page.zx</code> → <code>/:category/:item</code></li>
                 </ul>
                 <h3>Accessing Route and Query Parameters</h3>
                 <p>Use <code>ctx.request.params.get("name")</code> to access dynamic route parameters and <code>ctx.request.query("name")</code> for query strings:</p>

@@ -409,8 +409,7 @@ function findTreeButton(selector: string, occurrence: number): HTMLElement | nul
 
 /**
  * Given the clicked element's ancestor chain (deepest first), select the first
- * ancestor that maps to a tree node by clicking its button — which drives the
- * framework's own selection + page focus — and scroll it into view in the tree.
+ * ancestor that maps to a tree node by clicking its button
  */
 function selectComponentFromChain(chain: Array<{ selector: string; occurrence: number }>): boolean {
     for (const item of chain) {

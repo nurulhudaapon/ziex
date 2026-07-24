@@ -87,6 +87,7 @@ const categories = [_]SidebarProps.Category{
                     .{ .href = "/reference#allocator", .text = "@allocator" },
                     .{ .href = "/reference#escaping", .text = "@escaping" },
                     .{ .href = "/reference#rendering", .text = "@rendering" },
+                    .{ .href = "/reference#form-actions", .text = "Form Actions" },
                 },
             },
             .{
@@ -156,6 +157,7 @@ const toc_links = [_]SidebarProps.Link{
     .{ .href = "/reference#routing", .text = "Routing" },
     .{ .href = "/reference#api-and-websockets", .text = "API & WebSockets" },
     .{ .href = "/reference#builtin-attributes", .text = "Builtin Attributes" },
+    .{ .href = "/reference#form-actions", .text = "Form Actions" },
     .{ .href = "/reference#attribute-syntax", .text = "Attribute Syntax" },
     .{ .href = "/reference#importing", .text = "Importing" },
     .{ .href = "/reference#dynamic-routes", .text = "Dynamic Routes" },

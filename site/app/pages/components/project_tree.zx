@@ -14,42 +14,41 @@ pub const default_project: Entry = .{
     .name = "my-app",
     .description = "Project root",
     .children = &.{
-        .{ .name = "build.zig", .description = "Zig build entrypoint and ZX build steps" },
-        .{ .name = "build.zig.zon", .description = "Zig package manifest and dependencies" },
-        // .{ .name = "tsconfig.json", .description = "TypeScript config for client components" },
-        .{ .name = "README.md", .description = "Project overview and quick start" },
+        .{ .name = "build.zig", .description = "Build config" },
+        .{ .name = "build.zig.zon", .description = "Package manifest" },
+        .{ .name = "README.md", .description = "Overview" },
         .{
             .name = "app",
-            .description = "Application source root (pages, assets, public, entrypoints)",
+            .description = "Application source",
             .children = &.{
-                .{ .name = "main.zig", .description = "Server entrypoint and app bootstrap" },
+                .{ .name = "main.zig", .description = "Server entry" },
                 .{
                     .name = "assets",
-                    .description = "Static assets bundled and served at /assets/*",
+                    .description = "Bundled at /assets",
                     .children = &.{
-                        .{ .name = "style.css", .description = "Starter global styles" },
+                        .{ .name = "style.css", .description = "Global styles" },
                     },
                 },
                 .{
                     .name = "pages",
-                    .description = "File-based routes and layouts",
+                    .description = "File-based routes",
                     .children = &.{
-                        .{ .name = "layout.zx", .description = "Root layout shared by all routes" },
-                        .{ .name = "page.zx", .description = "Example page client component" },
-                        .{ .name = "client.zx", .description = "ZX client component (counter logic)" },
+                        .{ .name = "layout.zx", .description = "Root layout" },
+                        .{ .name = "page.zx", .description = "Home page" },
+                        .{ .name = "client.zx", .description = "Client component" },
                         .{
                             .name = "about",
                             .children = &.{
-                                .{ .name = "page.zx", .description = "About page (/about)" },
+                                .{ .name = "page.zx", .description = "/about" },
                             },
                         },
                     },
                 },
                 .{
                     .name = "public",
-                    .description = "Static files served to the site root (/*)",
+                    .description = "Static files at /*",
                     .children = &.{
-                        .{ .name = "favicon.ico", .description = "Site favicon" },
+                        .{ .name = "favicon.ico", .description = "Favicon" },
                     },
                 },
             },
@@ -65,8 +64,8 @@ pub const ProjectTreeProps = struct {
 pub fn ProjectTree(allocator: zx.Allocator, props: ProjectTreeProps) zx.Component {
     return (
         <div class="project-tree" @allocator={allocator}>
-            <div class="project-tree-container">
-                <EntryRow entry={props.root} depth={0} is_last={true} prefix="" show_descriptions={props.show_descriptions} />
+            <div class="project-tree-container" role="tree" aria-label="Project structure">
+                <EntryRow entry={props.root} depth={0} is_last={true} show_descriptions={props.show_descriptions} />
             </div>
         </div>
     );
@@ -76,23 +75,24 @@ const EntryRowProps = struct {
     entry: Entry,
     depth: usize,
     is_last: bool,
-    prefix: []const u8,
     show_descriptions: bool = true,
 };
 
 fn EntryRow(allocator: zx.Allocator, props: EntryRowProps) zx.Component {
     const entry = props.entry;
     const is_folder = entry.isFolder();
-
-    // Calculate indentation based on depth (in rem units)
-    const indent = std.fmt.allocPrint(allocator, "padding-left: {d}rem", .{props.depth * 1}) catch "padding-left: 0";
+    const row_class = if (is_folder) "project-tree-row is-folder" else "project-tree-row is-file";
+    const indent = std.fmt.allocPrint(allocator, "--depth:{d}", .{props.depth}) catch "--depth:0";
 
     return (
         <fragment @allocator={allocator}>
-            <div class="project-tree-row" style={indent} @allocator={allocator}>
+            <div class={row_class} style={indent} role="treeitem" @allocator={allocator}>
+                {if (props.depth > 0) (
+                    <span class="project-tree-indent" aria-hidden="true"></span>
+                )}
                 <span class={if (is_folder) "project-tree-folder" else "project-tree-file"} translate="no">
                     {if (is_folder) (<FolderIcon />) else (<FileIcon name={entry.name} />)}
-                    <span class="project-tree-name">{entry.name}{if (is_folder) "/" else ""}</span>
+                    <span class="project-tree-name">{entry.name}</span>
                 </span>
                 {if (props.show_descriptions and entry.description != null) (
                     <span class="project-tree-desc">{entry.description.?}</span>
@@ -113,7 +113,6 @@ fn renderChildren(allocator: zx.Allocator, children: []const Entry, depth: usize
             .entry = child,
             .depth = depth,
             .is_last = is_last,
-            .prefix = "",
             .show_descriptions = show_descriptions,
         });
     }
@@ -122,8 +121,8 @@ fn renderChildren(allocator: zx.Allocator, children: []const Entry, depth: usize
 
 fn FolderIcon(allocator: zx.Allocator) zx.Component {
     return (
-        <svg class="project-tree-icon project-tree-icon-folder" viewBox="0 0 24 24" fill="none" @allocator={allocator}>
-            <path d="M3 7C3 5.89543 3.89543 5 5 5H9.58579C9.851 5 10.1054 5.10536 10.2929 5.29289L12 7H19C20.1046 7 21 7.89543 21 9V17C21 18.1046 20.1046 19 19 19H5C3.89543 19 3 18.1046 3 17V7Z" fill="currentColor" />
+        <svg class="project-tree-icon project-tree-icon-folder" viewBox="0 0 16 16" fill="none" aria-hidden="true" @allocator={allocator}>
+            <path d="M1.75 2.5A.75.75 0 0 1 2.5 1.75h3.38c.2 0 .39.08.53.22L7.72 3.28c.14.14.33.22.53.22H13.5a.75.75 0 0 1 .75.75v8.25a.75.75 0 0 1-.75.75H2.5a.75.75 0 0 1-.75-.75V2.5Z" fill="currentColor" opacity="0.9" />
         </svg>
     );
 }
@@ -134,7 +133,7 @@ const FileIconProps = struct {
 
 fn FileIcon(allocator: zx.Allocator, props: FileIconProps) zx.Component {
     const ext = getExtension(props.name);
-    
+
     if (std.mem.eql(u8, ext, ".zig") or std.mem.eql(u8, ext, ".zon")) {
         return icons.ZigFileIcon(allocator);
     } else if (std.mem.eql(u8, ext, ".zx")) {
