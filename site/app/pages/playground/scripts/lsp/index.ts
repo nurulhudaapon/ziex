@@ -20,15 +20,24 @@ import {
 import type * as LSP from "vscode-languageserver-protocol";
 
 const HOVER_KIND_ONLY = /^\([A-Za-z]+\)$/;
+const ZX_IMPORT_RESOLVED = /@import\("(?:\.\.\/)*zx\/src\/root\.zig"\)/g;
 
 function isHoverKindLabel(text: string): boolean {
     return HOVER_KIND_ONLY.test(text.trim());
 }
 
+/** ZLS sees rewritten `@import("…/zx/src/root.zig")`; show the user-facing `@import("zx")`. */
+function displayZxImport(value: string): string {
+    return value.replace(ZX_IMPORT_RESOLVED, '@import("zx")');
+}
+
 function stripHoverKindLabels(value: string): string {
-    return value
-        .replace(/(^|\n)\s*\([A-Za-z]+\)\s*(?=\n|$)/g, "$1")
-        .replace(/```[^\n]*\n\([A-Za-z]+\)\n```/g, "")
+    return displayZxImport(value)
+        // Remove kind-only fenced blocks first (otherwise stripping the label leaves an empty <pre>).
+        .replace(/```[^\n]*\r?\n\s*\([A-Za-z]+\)\s*\r?\n```/g, "")
+        .replace(/(^|\n)\s*\([A-Za-z]+\)\s*(?=\n|$)/g, "\n")
+        .replace(/```[^\n]*\r?\n\s*\r?\n```/g, "")
+        .replace(/\n{2,}/g, "\n")
         .trim();
 }
 
@@ -44,7 +53,9 @@ function filterHoverContents(contents: LSP.Hover["contents"]): LSP.Hover["conten
                 return trimmed && !isHoverKindLabel(trimmed) ? [trimmed] : [];
             }
             if (item && typeof item === "object" && "value" in item) {
-                const trimmed = stripHoverKindLabels(String(item.value));
+                const raw = String(item.value);
+                if (isHoverKindLabel(raw)) return [];
+                const trimmed = stripHoverKindLabels(raw);
                 if (!trimmed || isHoverKindLabel(trimmed)) return [];
                 return [{ ...item, value: trimmed }];
             }
@@ -53,6 +64,7 @@ function filterHoverContents(contents: LSP.Hover["contents"]): LSP.Hover["conten
         return filtered.length > 0 ? (filtered as LSP.MarkedString[]) : null;
     }
     if (contents && typeof contents === "object" && "value" in contents) {
+        if (isHoverKindLabel(contents.value)) return null;
         const trimmed = stripHoverKindLabels(contents.value);
         if (!trimmed || isHoverKindLabel(trimmed)) return null;
         return { ...contents, value: trimmed };
@@ -61,19 +73,38 @@ function filterHoverContents(contents: LSP.Hover["contents"]): LSP.Hover["conten
 }
 
 function renderHoverItem(plugin: LSPPlugin, item: string | LSP.MarkedString | LSP.MarkupContent): string {
-    if (typeof item === "string") return plugin.docToHTML(item, "markdown");
-    if ("language" in item && item.language) {
-        return plugin.docToHTML(`\`\`\`${item.language}\n${item.value}\n\`\`\``, "markdown");
+    if (typeof item === "string") {
+        if (isHoverKindLabel(item)) return "";
+        return plugin.docToHTML(item, "markdown");
     }
-    if ("kind" in item) return plugin.docToHTML(item);
+    if ("language" in item && item.language) {
+        if (isHoverKindLabel(item.value)) return "";
+        return plugin.docToHTML(`\`\`\`${item.language}\n${item.value.trimEnd()}\n\`\`\``, "markdown");
+    }
+    if ("kind" in item) {
+        if (isHoverKindLabel(item.value)) return "";
+        return plugin.docToHTML(item);
+    }
+    if (isHoverKindLabel(item.value)) return "";
     return plugin.docToHTML(item.value, "markdown");
+}
+
+function cleanupHoverHtml(html: string): string {
+    return html
+        .replace(/<pre\b[^>]*>\s*(?:<code\b[^>]*>\s*<\/code>\s*)?<\/pre>/gi, "")
+        .replace(/<pre\b[^>]*>\s*<code\b[^>]*>\s*\([A-Za-z]+\)\s*<\/code>\s*<\/pre>/gi, "")
+        .replace(/(?:<br\s*\/?>\s*)+$/gi, "")
+        .replace(/(?:<p>(?:\s|&nbsp;|<br\s*\/?>)*<\/p>\s*)+$/gi, "")
+        .trim();
 }
 
 function renderHoverHtml(plugin: LSPPlugin, contents: LSP.Hover["contents"]): string {
     if (Array.isArray(contents)) {
-        return contents.map((item) => renderHoverItem(plugin, item)).join("");
+        return cleanupHoverHtml(
+            contents.map((item) => renderHoverItem(plugin, item)).filter(Boolean).join(""),
+        );
     }
-    return renderHoverItem(plugin, contents);
+    return cleanupHoverHtml(renderHoverItem(plugin, contents));
 }
 
 function playgroundHoverTooltips() {
