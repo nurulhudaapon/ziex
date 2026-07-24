@@ -2,8 +2,8 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     return (
         <main @allocator={allocator}>
             <Button @caching="10s:button" title="Custom Button" />
-            // <Button @caching={.{ .seconds = 10, .key = "button" }} title="Custom Button" />
-            // <Button @caching={.{ .seconds = 10 }} title="Custom Button" />
+            // <Button @caching={.{ .ttl = .fromSeconds(10), .key = "button" }} title="Custom Button" />
+            // <Button @caching={.{ .ttl = .fromSeconds(10) }} title="Custom Button" />
             <Button @caching="10s" title="Custom Button" />
         </main>
     );

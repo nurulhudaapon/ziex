@@ -34,11 +34,7 @@ pub const builtin = struct {
     pub const Caching = struct {
         pub const none = Caching{ .ttl = .zero };
 
-        // TODO: move to using ttl field instead of seconds field;
         ttl: std.Io.Duration,
-
-        /// The number of seconds to cache the page for
-        // seconds: u32,
         /// The key to cache the page for
         key: ?[]const u8 = null,
 

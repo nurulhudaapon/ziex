@@ -64,12 +64,6 @@ pub fn allocInit(allocator: std.mem.Allocator, comptime options: InitOptions) Co
     return .{ .allocator = allocator, .component_id = componentId(options) };
 }
 
-/// Create a lazy component from a function
-/// The function will be invoked during rendering to create the component
-pub fn lazy(allocator: Allocator, comptime func: anytype, props: anytype) Component {
-    return .{ .component_fn = Component.ComponentFn.init(func, allocator, props) };
-}
-
 /// Context for creating components with allocator support
 const Context = struct {
     allocator: ?std.mem.Allocator = null,
