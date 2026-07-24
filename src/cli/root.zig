@@ -1,3 +1,18 @@
+const std = @import("std");
+const builtin = @import("builtin");
+const cli = @import("cli");
+const Spinner = @import("../tui/main.zig").Spinner;
+const context = @import("shared/context.zig");
+const AppContext = context.AppContext;
+const CommandContext = context.CommandContext;
+
+const version = @import("version.zig");
+const transpile = @import("transpile.zig");
+const fmt = @import("fmt.zig");
+
+/// Host-only commands need process/thread APIs unavailable on WASI.
+const is_wasm = builtin.os.tag == .wasi or builtin.os.tag == .freestanding;
+
 pub const root_command: cli.Command = .{
     .name = .zx,
     .help =
@@ -5,18 +20,22 @@ pub const root_command: cli.Command = .{
     \\
     ,
     .help_short = "Ziex framework CLI",
-    .subcommands = &.{
+    .subcommands = if (is_wasm) &.{
         version.command,
-        init.command,
-        dev.command,
-        serve.command,
-        build_cmd.command,
         transpile.command,
         fmt.command,
-        @"export".command,
-        bundle.command,
-        update.command,
-        upgrade.command,
+    } else &.{
+        version.command,
+        @import("init.zig").command,
+        @import("dev.zig").command,
+        @import("serve.zig").command,
+        @import("build.zig").command,
+        transpile.command,
+        fmt.command,
+        @import("export.zig").command,
+        @import("bundle.zig").command,
+        @import("update.zig").command,
+        @import("upgrade.zig").command,
     },
 };
 
@@ -54,36 +73,25 @@ pub fn run(
         .app = app,
     };
 
-    switch (parsed.subcommand.?) {
-        .version => |sub| try version.run(ctx, sub.kind.args),
-        .init => |sub| try init.run(ctx, sub.kind.args),
-        .dev => |sub| try dev.run(ctx, sub.kind.args),
-        .serve => |sub| try serve.run(ctx, sub.kind.args),
-        .build => |sub| try build_cmd.run(ctx, sub.kind.args),
-        .transpile => |sub| try transpile.run(ctx, sub.kind.args),
-        .fmt => |sub| try fmt.run(ctx, sub.kind.args),
-        .@"export" => |sub| try @"export".run(ctx, sub.kind.args),
-        .bundle => |sub| try bundle.run(ctx, sub.kind.args),
-        .update => |sub| try update.run(ctx, sub.kind.args),
-        .upgrade => |sub| try upgrade.run(ctx, sub.kind.args),
+    if (comptime is_wasm) {
+        switch (parsed.subcommand.?) {
+            .version => |sub| try version.run(ctx, sub.kind.args),
+            .transpile => |sub| try transpile.run(ctx, sub.kind.args),
+            .fmt => |sub| try fmt.run(ctx, sub.kind.args),
+        }
+    } else {
+        switch (parsed.subcommand.?) {
+            .version => |sub| try version.run(ctx, sub.kind.args),
+            .init => |sub| try @import("init.zig").run(ctx, sub.kind.args),
+            .dev => |sub| try @import("dev.zig").run(ctx, sub.kind.args),
+            .serve => |sub| try @import("serve.zig").run(ctx, sub.kind.args),
+            .build => |sub| try @import("build.zig").run(ctx, sub.kind.args),
+            .transpile => |sub| try transpile.run(ctx, sub.kind.args),
+            .fmt => |sub| try fmt.run(ctx, sub.kind.args),
+            .@"export" => |sub| try @import("export.zig").run(ctx, sub.kind.args),
+            .bundle => |sub| try @import("bundle.zig").run(ctx, sub.kind.args),
+            .update => |sub| try @import("update.zig").run(ctx, sub.kind.args),
+            .upgrade => |sub| try @import("upgrade.zig").run(ctx, sub.kind.args),
+        }
     }
 }
-
-const version = @import("version.zig");
-const init = @import("init.zig");
-const dev = @import("dev.zig");
-const serve = @import("serve.zig");
-const build_cmd = @import("build.zig");
-const transpile = @import("transpile.zig");
-const fmt = @import("fmt.zig");
-const @"export" = @import("export.zig");
-const bundle = @import("bundle.zig");
-const update = @import("update.zig");
-const upgrade = @import("upgrade.zig");
-
-const std = @import("std");
-const cli = @import("cli");
-const Spinner = @import("../tui/main.zig").Spinner;
-const context = @import("shared/context.zig");
-const AppContext = context.AppContext;
-const CommandContext = context.CommandContext;

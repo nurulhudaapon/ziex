@@ -1,33 +1,42 @@
+const std = @import("std");
+const builtin = @import("builtin");
+const build_options = @import("build_options");
+
+const cli = @import("cli/root.zig");
+const context = @import("cli/shared/context.zig");
+const lsp = if (build_options.enable_lsp) @import("lsp/main.zig") else void;
+
+const AppContext = context.AppContext;
+
 pub fn main(init: std.process.Init) !void {
-    var dbg = std.heap.DebugAllocator(.{}).init;
+    var dbg: if (use_debug_allocator) std.heap.DebugAllocator(.{}) else void =
+        if (use_debug_allocator) .init else {};
+    defer if (comptime use_debug_allocator) std.debug.assert(dbg.deinit() == .ok);
 
-    const allocator = switch (builtin.os.tag) {
+    const allocator: std.mem.Allocator = if (comptime use_debug_allocator)
+        dbg.allocator()
+    else switch (builtin.os.tag) {
         .wasi, .freestanding => std.heap.wasm_allocator,
-        else => switch (builtin.mode) {
-            .Debug => dbg.allocator(),
-            .ReleaseFast, .ReleaseSafe, .ReleaseSmall => std.heap.smp_allocator,
-        },
+        else => std.heap.smp_allocator,
     };
-
-    defer if (builtin.mode == .Debug) std.debug.assert(dbg.deinit() == .ok);
 
     if (comptime build_options.enable_lsp) {
         var args = try init.minimal.args.iterateAllocator(allocator);
         defer args.deinit();
-
         _ = args.next();
         const subcmd = args.next();
         if (std.mem.eql(u8, subcmd orelse "", "lsp")) return try lsp.main(init);
     }
 
-    if (builtin.os.tag == .wasi) return try main_wasm(init);
-    if (builtin.os.tag == .windows) _ = SetConsoleOutputCP(65001);
+    if (comptime builtin.os.tag == .windows) {
+        _ = SetConsoleOutputCP(65001);
+    }
 
     var stdout_writer = std.Io.File.stdout().writerStreaming(init.io, &.{});
-    var stdout = &stdout_writer.interface;
+    const stdout = &stdout_writer.interface;
 
-    var buf: [4096]u8 = undefined;
-    var stdin_reader = std.Io.File.stdin().readerStreaming(init.io, &buf);
+    var stdin_buf: [4096]u8 = undefined;
+    var stdin_reader = std.Io.File.stdin().readerStreaming(init.io, &stdin_buf);
     const stdin = &stdin_reader.interface;
 
     var app_ctx: AppContext = .{
@@ -40,60 +49,15 @@ pub fn main(init: std.process.Init) !void {
     const args = try init.minimal.args.toSlice(arena_state.allocator());
 
     try cli.run(stdout, stdin, allocator, args, &app_ctx);
-
     try stdout.flush();
 }
 
+const use_debug_allocator = builtin.mode == .Debug and switch (builtin.os.tag) {
+    .wasi, .freestanding => false,
+    else => true,
+};
+
 extern "kernel32" fn SetConsoleOutputCP(wCodePageID: std.os.windows.UINT) callconv(.winapi) std.os.windows.BOOL;
-
-fn main_wasm(init: std.process.Init) !void {
-    var dbg = std.heap.DebugAllocator(.{}).init;
-    const allocator = dbg.allocator();
-    var args = try init.minimal.args.iterateAllocator(allocator);
-    defer args.deinit();
-
-    // --- Sub Command --- //
-    var is_transpile = false;
-    var is_fmt = false;
-    var is_lsp = false;
-
-    _ = args.next(); // Drop executable name
-
-    const sub_cmd = args.next() orelse return error.InvalidCommand;
-    if (std.mem.eql(u8, sub_cmd, "transpile")) is_transpile = true;
-    if (std.mem.eql(u8, sub_cmd, "fmt")) is_fmt = true;
-    if (std.mem.eql(u8, sub_cmd, "lsp")) is_lsp = true;
-    // if (is_lsp) return try lsp.main();
-
-    var files = std.ArrayList([]const u8).empty;
-
-    while (args.next()) |arg| {
-        try files.append(allocator, arg);
-    }
-
-    var cwd = try std.Io.Dir.openDirAbsolute(init.io, "/codes", .{});
-    defer cwd.close(init.io);
-
-    // Transpile/Fmt file_path.zx and write with file_path.zig
-    for (files.items) |file_path| {
-        const zx_source = try cwd.readFileAlloc(init.io, file_path, allocator, .unlimited);
-        const zx_sourcez = try allocator.dupeSentinel(u8, zx_source, 0);
-
-        const ast = try core_lang.Ast.parse(allocator, zx_sourcez, .{});
-        const output = if (is_transpile) ast.zig_source else ast.zx_source;
-        try std.Io.File.stdout().writeStreamingAll(init.io, output);
-    }
-}
-
-const std = @import("std");
-const builtin = @import("builtin");
-const build_options = @import("build_options");
-const core_lang = @import("core_lang");
-const zx_info = @import("zx_info");
-const cli = @import("cli/root.zig");
-const tui = @import("tui/main.zig");
-const AppContext = @import("cli/shared/context.zig").AppContext;
-const lsp = if (build_options.exclude_lsp) void else @import("lsp/main.zig");
 
 pub const std_options = std.Options{
     .log_scope_levels = &[_]std.log.ScopeLevel{

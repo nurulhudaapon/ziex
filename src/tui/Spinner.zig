@@ -1,6 +1,7 @@
 //! Spinner indicator for long running operations
 
 const std = @import("std");
+const builtin = @import("builtin");
 const Io = std.Io;
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
@@ -105,8 +106,6 @@ pub fn print(self: *Spinner, comptime format: []const u8, args: anytype) !void {
 }
 
 pub fn start(self: *Spinner, comptime format: []const u8, args: anytype) !void {
-    // if (self.is_spinning.load(.monotonic)) return; // already running
-
     const io = std.Io.Threaded.global_single_threaded.io();
     self.mutex.lockUncancelable(io);
     defer self.mutex.unlock(io);
@@ -118,6 +117,9 @@ pub fn start(self: *Spinner, comptime format: []const u8, args: anytype) !void {
     }
 
     self.message = try std.fmt.allocPrint(self.allocator, format, args);
+
+    // WASI / single-threaded builds cannot spawn spinner threads.
+    if (comptime builtin.single_threaded) return;
 
     self.thread = try Thread.spawn(.{}, spinLoop, .{self});
 }
