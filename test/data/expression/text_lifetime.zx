@@ -1,0 +1,69 @@
+const std = @import("std");
+const zx = @import("zx");
+
+/// Exercises text node memory lifetimes after `txt` stopped always-duping:
+/// static borrows, arena-owned slices, fmt-owned text, enum tags, struct
+/// stringify ownership, props, attributes, and `@escaping={.none}`.
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    // Static / literal slices — borrowed by txt/expr (must remain valid).
+    const literal = "literal & <chars>";
+    const static_slice: []const u8 = "static-slice";
+    const empty: []const u8 = "";
+    const unicode = "こんにちは 🎉";
+
+    // Arena-owned dynamic strings — borrowed, live as long as the request arena.
+    const arena_str = std.fmt.allocPrint(allocator, "arena-{d}", .{42}) catch unreachable;
+    const arena_prefix = arena_str[0..5]; // subslice into arena allocation
+    const duped = allocator.dupe(u8, "duped-into-arena") catch unreachable;
+
+    // Enum tags are static in the binary.
+    const status = Status.active;
+
+    // Struct stringify takes ownership via toOwnedSlice (includes escaping chars).
+    const person: Person = .{
+        .name = "Tom & Jerry",
+        .age = 10,
+    };
+
+    // Optionals: present borrows the payload; null renders nothing.
+    const maybe: ?[]const u8 = "optional-value";
+    const missing: ?[]const u8 = null;
+
+    // Trusted HTML for @escaping={.none} — must be arena-owned (not stack).
+    const trusted_html = std.fmt.allocPrint(allocator, "<em>trusted-{s}</em>", .{"ok"}) catch unreachable;
+
+    return (
+        <main @allocator={allocator}>
+            <p id="literal">{literal}</p>
+            <p id="static">{static_slice}</p>
+            <p id="empty">{empty}</p>
+            <p id="unicode">{unicode}</p>
+            <p id="arena">{arena_str}</p>
+            <p id="prefix">{arena_prefix}</p>
+            <p id="duped">{duped}</p>
+            <p id="enum">{status}</p>
+            <p id="struct">{person}</p>
+            <p id="optional">{maybe}</p>
+            <p id="missing">{missing}</p>
+            <p id="inline">{"inline-literal & x"}</p>
+            <div id="trusted" @escaping={.none}>{trusted_html}</div>
+            <p id="attr" title={literal} data-arena={arena_str}>attrs</p>
+            <Label text="prop-literal" />
+            <Label text={arena_str} />
+            <Label text={duped} />
+            <span>{"&<>\"'"}</span>
+        </main>
+    );
+}
+
+const Status = enum { idle, active, done };
+
+const Person = struct {
+    name: []const u8,
+    age: u32,
+};
+
+const LabelProps = struct { text: []const u8 };
+pub fn Label(allocator: zx.Allocator, props: LabelProps) zx.Component {
+    return (<label @allocator={allocator}>{props.text}</label>);
+}

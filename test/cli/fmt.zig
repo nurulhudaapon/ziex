@@ -166,6 +166,9 @@ test "if_while_if" {
 test "expression_text" {
     try test_fmt("expression/text");
 }
+test "expression_text_lifetime" {
+    try test_fmt("expression/text_lifetime");
+}
 test "expression_format" {
     try test_fmt("expression/format");
 }
