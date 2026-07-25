@@ -42,6 +42,7 @@ jobs:
       uses: mlugg/setup-zig@v2
       with:
         version: 0.17.0-dev.1398+cb5635714
+        cache-size-limit: 0
           
     - name: Build project
       # run: zig build -Dlsp=true
@@ -69,6 +70,7 @@ jobs:
       uses: mlugg/setup-zig@v2
       with:
         version: 0.17.0-dev.1398+cb5635714
+        cache-size-limit: 0
 
     - name: Run tests
       run: zig build test
