@@ -1,5 +1,5 @@
 //! Public ZX CLI argument surface (`@import("cli_args")`).
-//! Command metadata only — no run implementations / host-only deps.
+//! Command metadata only - no run implementations / host-only deps.
 
 const builtin = @import("builtin");
 const std_cli = @import("std_cli");

@@ -1,6 +1,6 @@
 import module from "../zig-out/bin/ziex_dev.wasm?module";
 import { Ziex } from "../zig-out/pkg/ziex";
-import { handle } from "../zig-out/pkg/ziex/vercel";
+import { handle } from "../zig-out/pkg/ziex/platforms/vercel";
 
 export const config = { runtime: "edge" };
 

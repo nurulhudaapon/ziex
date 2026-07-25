@@ -10,6 +10,14 @@ pub fn build(b: *std.Build) !void {
     const version = b.option([]const u8, "version", "npm package version to embed") orelse build_zon.version;
     const is_release = optimize != .Debug;
 
+    // Feature flags (match InitOptions / app_opts). Default true so the published
+    // npm package includes all bindings; `.build = .enabled` apps pass the app's flags.
+    const feat_kv_client = b.option(bool, "feature-kv-client", "Include browser KV client bindings") orelse true;
+    const feat_kv_server = b.option(bool, "feature-kv-server", "Include server/edge KV bindings") orelse true;
+    const feat_sqlite = b.option(bool, "feature-sqlite", "Include SQLite/D1 database bindings") orelse true;
+
+    const feature_defines = featureDefines(b, feat_kv_client, feat_kv_server, feat_sqlite);
+
     // --- JS bundles (esbuild) --- //
     const packages = esbuild.addBuild(b, .{
         .name = "ziex",
@@ -18,16 +26,18 @@ pub fn build(b: *std.Build) !void {
                 b.path("src/index.ts"),
                 b.path("src/jsx/index.ts"),
                 b.path("src/wasm/index.ts"),
-                b.path("src/cloudflare/index.ts"),
-                b.path("src/aws-lambda/index.ts"),
-                b.path("src/vercel/index.ts"),
+                b.path("src/runtime/kv.ts"),
+                b.path("src/runtime/db.ts"),
+                b.path("src/platforms/cloudflare/index.ts"),
+                b.path("src/platforms/aws-lambda/index.ts"),
+                b.path("src/platforms/vercel/index.ts"),
             },
             .format = .esm,
             .platform = .neutral,
             .minify = is_release,
-            .define = &.{
+            .define = try mergeDefines(b, &.{
                 .{ .key = "__DEV__", .value = if (is_release) "false" else "true" },
-            },
+            }, feature_defines),
         },
     });
 
@@ -38,9 +48,9 @@ pub fn build(b: *std.Build) !void {
             .format = .esm,
             .platform = .browser,
             .minify = true,
-            .define = &.{
+            .define = try mergeDefines(b, &.{
                 .{ .key = "__DEV__", .value = "false" },
-            },
+            }, feature_defines),
         },
     });
 
@@ -51,9 +61,9 @@ pub fn build(b: *std.Build) !void {
             .format = .esm,
             .platform = .browser,
             .minify = false,
-            .define = &.{
+            .define = try mergeDefines(b, &.{
                 .{ .key = "__DEV__", .value = "true" },
-            },
+            }, feature_defines),
         },
     });
 
@@ -94,6 +104,30 @@ pub fn build(b: *std.Build) !void {
         .install_dir = .prefix,
         .install_subdir = "",
     }).step);
+}
+
+fn featureDefines(
+    b: *std.Build,
+    feat_kv_client: bool,
+    feat_kv_server: bool,
+    feat_sqlite: bool,
+) []const esbuild.BuildConfig.Define {
+    return b.allocator.dupe(esbuild.BuildConfig.Define, &.{
+        .{ .key = "__FEAT_KV__", .value = if (feat_kv_client) "true" else "false" },
+        .{ .key = "__FEAT_KV_SERVER__", .value = if (feat_kv_server) "true" else "false" },
+        .{ .key = "__FEAT_DB__", .value = if (feat_sqlite) "true" else "false" },
+    }) catch @panic("OOM");
+}
+
+fn mergeDefines(
+    b: *std.Build,
+    base: []const esbuild.BuildConfig.Define,
+    extra: []const esbuild.BuildConfig.Define,
+) ![]const esbuild.BuildConfig.Define {
+    const out = try b.allocator.alloc(esbuild.BuildConfig.Define, base.len + extra.len);
+    @memcpy(out[0..base.len], base);
+    @memcpy(out[base.len..], extra);
+    return out;
 }
 
 fn makePublishBuildZig(b: *std.Build) std.Build.LazyPath {

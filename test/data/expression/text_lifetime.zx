@@ -5,13 +5,13 @@ const zx = @import("zx");
 /// static borrows, arena-owned slices, fmt-owned text, enum tags, struct
 /// stringify ownership, props, attributes, and `@escaping={.none}`.
 pub fn Page(allocator: zx.Allocator) zx.Component {
-    // Static / literal slices — borrowed by txt/expr (must remain valid).
+    // Static / literal slices - borrowed by txt/expr (must remain valid).
     const literal = "literal & <chars>";
     const static_slice: []const u8 = "static-slice";
     const empty: []const u8 = "";
     const unicode = "こんにちは 🎉";
 
-    // Arena-owned dynamic strings — borrowed, live as long as the request arena.
+    // Arena-owned dynamic strings - borrowed, live as long as the request arena.
     const arena_str = std.fmt.allocPrint(allocator, "arena-{d}", .{42}) catch unreachable;
     const arena_prefix = arena_str[0..5]; // subslice into arena allocation
     const duped = allocator.dupe(u8, "duped-into-arena") catch unreachable;
@@ -29,7 +29,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
     const maybe: ?[]const u8 = "optional-value";
     const missing: ?[]const u8 = null;
 
-    // Trusted HTML for @escaping={.none} — must be arena-owned (not stack).
+    // Trusted HTML for @escaping={.none} - must be arena-owned (not stack).
     const trusted_html = std.fmt.allocPrint(allocator, "<em>trusted-{s}</em>", .{"ok"}) catch unreachable;
 
     return (

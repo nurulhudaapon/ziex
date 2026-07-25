@@ -45,11 +45,15 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     const zx_full_exe = zx_full_dep.artifact("zx");
 
     const client = if (options.app) |app| app.client else InitOptions.ClientOptions.default;
-    const ziex_js_root: LazyPath = if (client.bindings.from_source) blk: {
+    const features = if (options.app) |app| app.features else InitOptions.AppOptions.FeatureOptions.default;
+    const ziex_js_root: LazyPath = if (client.bindings.build != null) blk: {
         const jsbindings_dep = zx_dep.builder.dependency("ziex_jsbindings", .{
             .optimize = optimize,
             .target = target,
             .@"type-decl" = false,
+            .@"feature-kv-client" = if (features.kv) |k| k.client != null else false,
+            .@"feature-kv-server" = if (features.kv) |k| k.server != null else false,
+            .@"feature-sqlite" = if (features.sqlite) |s| s.server != null else false,
         });
         break :blk jsbindings_dep.namedWriteFiles("ziex_js").getDirectory();
     } else zx_dep.builder.dependency("ziex_js", .{}).path(".");
@@ -102,7 +106,7 @@ const InitInnerOptions = struct {
     features: InitOptions.AppOptions.FeatureOptions = .default,
     client: InitOptions.ClientOptions,
     static_path: ?LazyPath,
-    /// Root of the JS bindings package (npm `ziex_js`, or esbuild output when `from_source`).
+    /// Root of the JS bindings package (npm `ziex_js`, or esbuild output when `bindings.build` is set).
     ziex_js_root: LazyPath,
     element_injections: []const AddElementOptions = &.{},
     version: ?[]const u8 = null,

@@ -13,12 +13,26 @@ pub fn build(b: *std.Build) !void {
 
     const jsbinding_name = b.fmt("app{s}.js", .{id});
 
+    const app_features: ziex.InitOptions.AppOptions.FeatureOptions = .{
+        .sqlite = .enabled,
+        // .postgres = .enabled,
+        .kv = .enabled,
+        .cache = .enabled,
+    };
+
     // --- Deps --- //
     const ziex_dep = b.dependency("ziex", .{ .optimize = optimize, .target = target });
     const tree_sitter_dep = ziex_dep.builder.dependency("tree_sitter", .{ .optimize = optimize, .target = target });
     const tree_sitter_zx_dep = ziex_dep.builder.dependency("tree_sitter_zx", .{ .optimize = optimize, .target = target, .@"build-shared" = false });
     // const tree_sitter_mdzx_dep = ziex_dep.builder.dependency("tree_sitter_mdzx", .{ .optimize = optimize, .target = target, .@"build-shared" = false });
-    const ziex_jsbindings_dep = b.dependency("ziex_jsbindings", .{ .optimize = optimize, .target = target, .@"type-decl" = false });
+    const ziex_jsbindings_dep = b.dependency("ziex_jsbindings", .{
+        .optimize = optimize,
+        .target = target,
+        .@"type-decl" = false,
+        .@"feature-kv-client" = if (app_features.kv) |k| k.client != null else false,
+        .@"feature-kv-server" = if (app_features.kv) |k| k.server != null else false,
+        .@"feature-sqlite" = if (app_features.sqlite) |s| s.server != null else false,
+    });
 
     const pg_step = b.step("pg", "Install playground assets");
     const zls_version = "0.16.0";
@@ -164,17 +178,12 @@ pub fn build(b: *std.Build) !void {
         .app = .{
             // .path = b.path("app"),
             // .base_path = "/test",
-            .features = .{
-                .sqlite = .enabled,
-                // .postgres = .enabled,
-                .kv = .enabled,
-                .cache = .enabled,
-            },
+            .features = app_features,
             .client = .{
                 .bindings = .{
                     .href = b.fmt("/assets/{s}", .{jsbinding_name}),
                     .install_subdir = "pkg/ziex",
-                    .from_source = true,
+                    .build = .enabled,
                 },
             },
         },

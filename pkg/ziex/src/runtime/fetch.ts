@@ -4,7 +4,7 @@
  */
 export function createFetchImports(
     getMemory: () => WebAssembly.Memory,
-): Record<string, unknown> {
+): WebAssembly.ModuleImports {
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
 

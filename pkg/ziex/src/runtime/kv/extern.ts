@@ -1,71 +1,11 @@
-import { type WasmAllocRef, writeBytesOut, writeJsonOut } from "./wasm/core";
+import { type WasmAllocRef, writeBytesOut, writeJsonOut } from "../../wasm/core";
+import type { KVNamespace, SyncKVNamespace } from "../kv";
 
 export type { WasmAllocRef };
-
-// Minimal type definition for a key-value namespace
-export interface KVNamespace {
-    get(key: string): Promise<string | null>;
-    put(key: string, value: string, options?: { expiration?: number; expirationTtl?: number }): Promise<void>;
-    delete(key: string): Promise<void>;
-    list(options?: { prefix?: string }): Promise<{ keys: { name: string }[] }>;
-}
-
-export interface SyncKVNamespace extends KVNamespace {
-    getSync(key: string): string | null;
-    putSync(key: string, value: string, options?: { expiration?: number; expirationTtl?: number }): void;
-    deleteSync(key: string): void;
-    listSync(options?: { prefix?: string }): { keys: { name: string }[] };
-}
-
-type MemoryEntry = { value: string; expiresAt?: number };
 
 function putOptions(ttlSeconds: number): { expirationTtl: number } | undefined {
     if (ttlSeconds < 60) return undefined;
     return { expirationTtl: ttlSeconds };
-}
-
-/**
- * In-memory KV namespace. Used as the default shim on platforms that don't
- * provide a real KV binding (e.g. Vercel). Data lives only for the lifetime
- * of the isolate instance.
- */
-export function createMemoryKV(): KVNamespace {
-    const store = new Map<string, MemoryEntry>();
-
-    function read(key: string): string | null {
-        const entry = store.get(key);
-        if (!entry) return null;
-        if (entry.expiresAt !== undefined && Date.now() >= entry.expiresAt) {
-            store.delete(key);
-            return null;
-        }
-        return entry.value;
-    }
-
-    function write(key: string, value: string, options?: { expiration?: number; expirationTtl?: number }): void {
-        let expiresAt: number | undefined;
-        if (options?.expiration !== undefined) {
-            expiresAt = options.expiration * 1000;
-        } else if (options?.expirationTtl !== undefined) {
-            expiresAt = Date.now() + options.expirationTtl * 1000;
-        }
-        store.set(key, { value, expiresAt });
-    }
-
-    return {
-        async get(key) { return read(key); },
-        async put(key, value, options) { write(key, value, options); },
-        async delete(key) { store.delete(key); },
-        async list(options) {
-            const keys = [...store.keys()]
-                .filter(k => {
-                    if (options?.prefix && !k.startsWith(options.prefix)) return false;
-                    return read(k) !== null;
-                })
-                .map(name => ({ name }));
-            return { keys };
-        },
-    };
 }
 
 function isSyncKVNamespace(binding: KVNamespace): binding is SyncKVNamespace {
@@ -79,15 +19,17 @@ function isSyncKVNamespace(binding: KVNamespace): binding is SyncKVNamespace {
 }
 
 /**
- * Create a `__zx_kv` import object for use with `run({ kv: ... })`.
- * Always returns a valid import object. When JSPI is unavailable it uses
- * synchronous bindings when available, otherwise falls back to stubbed no-ops.
+ * Build the `__zx_kv` host functions for key/value namespace bindings.
+ *
+ * ```ts
+ * if (__FEAT_KV__) importObject.__zx_kv = createKVImports(bindings, getMemory, allocRef);
+ * ```
  */
 export function createKVImports(
     bindings: Record<string, KVNamespace>,
     getMemory: () => WebAssembly.Memory,
     allocRef: WasmAllocRef,
-): Record<string, unknown> {
+): WebAssembly.ModuleImports {
     const encoder = new TextEncoder();
     const decoder = new TextDecoder();
 
@@ -100,7 +42,7 @@ export function createKVImports(
     }
 
     const Suspending = (WebAssembly as any).Suspending;
-    if (typeof Suspending !== 'function') {
+    if (typeof Suspending !== "function") {
         function syncBinding(ns: string): SyncKVNamespace | null {
             const candidate = binding(ns);
             return candidate && isSyncKVNamespace(candidate) ? candidate : null;

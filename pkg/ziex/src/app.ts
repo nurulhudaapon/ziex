@@ -1,8 +1,8 @@
 import { run } from "./runtime";
 import type { DurableObjectNamespace } from "./runtime";
-import type { KVNamespace } from "./kv";
-import type { D1Database } from "./db";
-import type { WASI } from "./wasi";
+import type { KVNamespace } from "./runtime/kv";
+import type { Database } from "./runtime/db";
+import type { WASI } from "./runtime/wasi";
 
 /**
  * Anything that can be resolved to a `WebAssembly.Module`:
@@ -59,7 +59,7 @@ type KVKey<Env> = { [K in keyof Env]: Env[K] extends KVNamespace ? K : never }[k
 
 /** Keys of `Env` whose value extends {@link DurableObjectNamespace}. */
 type DOKey<Env> = { [K in keyof Env]: Env[K] extends DurableObjectNamespace ? K : never }[keyof Env];
-type DBKey<Env> = { [K in keyof Env]: Env[K] extends D1Database ? K : never }[keyof Env];
+type DBKey<Env> = { [K in keyof Env]: Env[K] extends Database ? K : never }[keyof Env];
 
 type ZiexOptions<Env> = {
     /** WASM module - accepts any {@link WasmInput}. Resolved and cached on first request. */
@@ -67,7 +67,7 @@ type ZiexOptions<Env> = {
     /** Optional pre-configured WASI instance. */
     wasi?: WASI;
     /** Extra WASM import namespaces. */
-    imports?: (mem: () => WebAssembly.Memory) => Record<string, Record<string, unknown>>;
+    imports?: (mem: () => WebAssembly.Memory) => WebAssembly.Imports;
     /**
      * KV namespace bindings. Two forms are supported:
      *
@@ -85,7 +85,7 @@ type ZiexOptions<Env> = {
      */
     kv?: KVKey<Env> | Record<string, KVKey<Env>>;
     /**
-     * D1 database bindings. Same shape as `kv`:
+     * SQL database bindings (D1 / Postgres / etc. via the same interface). Same shape as `kv`:
      *
      * - `"DB"` maps `env.DB` to the `"default"` database binding.
      * - `{ default: "DB", analytics: "ANALYTICS_DB" }` maps multiple bindings.
@@ -167,17 +167,17 @@ export class Ziex<Env = Record<string, unknown>> {
         return { default: env[kv as keyof Env] as unknown as KVNamespace };
     }
 
-    private resolveDB(env: Env): Record<string, D1Database> | undefined {
+    private resolveDB(env: Env): Record<string, Database> | undefined {
         const { db } = this.options;
         if (db === undefined) return undefined;
         if (typeof db === "object" && db !== null) {
-            const result: Record<string, D1Database> = {};
+            const result: Record<string, Database> = {};
             for (const [name, key] of Object.entries(db)) {
-                result[name] = env[key as keyof Env] as unknown as D1Database;
+                result[name] = env[key as keyof Env] as unknown as Database;
             }
             return result;
         }
-        return { default: env[db as keyof Env] as unknown as D1Database };
+        return { default: env[db as keyof Env] as unknown as Database };
     }
 
     /**

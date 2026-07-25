@@ -501,23 +501,6 @@ export fn __zx_cb(callback_type: u8, callback_id: u64, data_ref: u64) void {
     _ = window.dispatchCallback(cb_type, callback_id, data_ref, alloc);
 }
 
-/// Allocate memory in WASM for JS to write into.
-export fn __zx_alloc(size: usize) ?[*]u8 {
-    if (comptime !is_wasm) return null;
-    const alloc = if (comptime is_wasm) std.heap.wasm_allocator else return null;
-    if (size == 0) return null;
-    const ptr = alloc.alloc(u8, size) catch return null;
-    return ptr.ptr;
-}
-
-/// Free memory in WASM that was allocated for JS interop.
-export fn __zx_free(ptr: [*]u8, size: usize) void {
-    if (comptime !is_wasm) return;
-    const alloc = if (comptime is_wasm) std.heap.wasm_allocator else return;
-    if (size == 0) return;
-    alloc.free(ptr[0..size]);
-}
-
 /// Custom log function for browser environment that outputs to console.
 /// Routes through the __zx._log extern so the same bridge handles both browser and edge.
 pub fn logFn(

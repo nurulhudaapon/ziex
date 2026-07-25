@@ -167,12 +167,12 @@ const Context = struct {
                     return self.fmt("{s}", .{@errorName(err)});
                 };
 
-                // Buffer is temporary — take ownership before Allocating is dropped.
+                // Buffer is temporary - take ownership before Allocating is dropped.
                 const owned = aw.toOwnedSlice() catch @panic("OOM");
                 return .{ .text = owned };
             },
             .array => |arr_info| {
-                // Handle arrays of Components — copy onto the allocator; `&val`
+                // Handle arrays of Components - copy onto the allocator; `&val`
                 // would dangle after this function returns.
                 if (arr_info.child == Component) {
                     const allocator = self.getAlloc();

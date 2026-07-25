@@ -157,8 +157,17 @@ pub const ClientOptions = struct {
         install_subdir: ?[]const u8 = null,
 
         /// Build bindings from TypeScript (`pkg/ziex` via esbuild) instead of
-        /// the published `ziex_js` npm package.
-        from_source: bool = false,
+        /// the published `ziex_js` npm package. When set, enabled
+        /// `AppOptions.features` are passed as esbuild defines so unused
+        /// binding code is excluded from the bundle.
+        ///
+        /// `null` (default) uses the published package; `.build = .enabled`
+        /// builds from source. Additional fields (e.g. optimize) may be added later.
+        build: ?BuildOptions = null,
+
+        pub const BuildOptions = struct {
+            pub const enabled: BuildOptions = .{};
+        };
     };
 
     pub const default: ClientOptions = .{};

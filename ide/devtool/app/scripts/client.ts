@@ -1,4 +1,4 @@
-import { createBrowserKVBindings } from "../../../../pkg/ziex/src/browser/kv";
+import { createBrowserKVBindings } from "../../../../pkg/ziex/src/runtime/kv";
 import { init } from "../../../../pkg/ziex/src/wasm";
 
 const HOST_STORAGE_KEY = "zx-devtool-host-v2";

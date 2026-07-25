@@ -4,6 +4,9 @@ const pltfm = @import("../../platform.zig");
 const platform = pltfm.platform;
 const Client = @import("../client/Client.zig");
 const Edge = @import("App/Wasm.zig");
+comptime {
+    _ = @import("../wasm/exports.zig");
+}
 
 pub const BuiltinAttribute = @import("../../attributes.zig").builtin;
 

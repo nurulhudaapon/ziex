@@ -1,12 +1,12 @@
-import { ZxWasiBridge } from "./wasm/wasi";
-import { createKVImports, createMemoryKV } from "./kv";
+import { ZxWasiBridge } from "../wasm/wasi";
 import { createFetchImports } from "./fetch";
-import { createD1Imports } from "./db";
-import { bindWasmAlloc, type WasmAllocRef } from "./wasm/core";
+import { createKVImports } from "./kv/extern";
+import { createDbImports } from "./db/extern";
+import { bindWasmAlloc, type WasmAllocRef } from "../wasm/core";
 import { createWasiImports, ProcExit, mergeUint8Arrays } from "./wasi";
 import type { WASI } from "./wasi";
-import type { KVNamespace } from "./kv";
-import type { D1Database } from "./db";
+import { createMemoryKV, type KVNamespace } from "./kv";
+import type { Database } from "./db";
 
 /** Minimal Durable Object namespace shape needed for WebSocket routing. */
 export type DurableObjectNamespace = {
@@ -35,7 +35,7 @@ export function buildWsImports(
     mem: () => WebAssembly.Memory,
     decoder: TextDecoder,
     ws: WsState,
-) {
+): WebAssembly.ModuleImports {
     const readStr = (ptr: number, len: number) =>
         decoder.decode(new Uint8Array(mem().buffer, ptr, len));
 
@@ -121,7 +121,7 @@ export function attachWebSocket(ws: WsState): { client: WebSocket } {
  * `sleep_ms` pauses WASM under JSPI so buffered stdout chunks reach the client
  * incrementally; falls back to a sync no-op when JSPI is unavailable.
  */
-function buildSysImports(jspi: boolean, Suspending: any) {
+function buildSysImports(jspi: boolean, Suspending: any): WebAssembly.ModuleImports {
     return {
         sleep_ms: jspi
             ? new Suspending(async (ms: number) => new Promise<void>(r => setTimeout(r, ms)))
@@ -222,9 +222,9 @@ export async function run({
     module: WebAssembly.Module;
     /** KV namespace bindings - `{ default: env.KV, otherName: env.OTHER_KV }` */
     kv?: Record<string, KVNamespace>;
-    /** D1 bindings - `{ default: env.DB, analytics: env.ANALYTICS_DB }` */
-    db?: Record<string, D1Database>;
-    imports?: (mem: () => WebAssembly.Memory) => Record<string, Record<string, unknown>>;
+    /** DB bindings - `{ default: env.DB, analytics: env.ANALYTICS_DB }` */
+    db?: Record<string, Database>;
+    imports?: (mem: () => WebAssembly.Memory) => WebAssembly.Imports;
     wasi?: WASI;
     /**
      * Durable Object namespace to use for WebSocket connections.
@@ -263,8 +263,8 @@ export async function run({
     let wasmMemory: WebAssembly.Memory = null!;
     const mem = () => wasmMemory;
 
-    const bridgeRef: { current: ZxWasiBridge | null } = { current: null };
-    const allocRef: WasmAllocRef = { current: null };
+    const bridgeRef: [ZxWasiBridge | null] = [null];
+    const allocRef: WasmAllocRef = [null];
 
     const Suspending = (WebAssembly as any).Suspending;
     const jspi = typeof Suspending === 'function';
@@ -277,20 +277,34 @@ export async function run({
         recvResolve: null,
     };
 
-    const instance = new WebAssembly.Instance(module, {
+    const importObject: WebAssembly.Imports = {
         wasi_snapshot_preview1: { ...wasi?.wasiImport, ...wasiImport },
         __zx_sys: buildSysImports(jspi, Suspending),
         __zx_ws: buildWsImports(jspi ? Suspending : null, mem, new TextDecoder(), wsState),
-        __zx_kv: createKVImports(kvBindings ?? { default: createMemoryKV() }, mem, allocRef),
-        __zx_db: createD1Imports(dbBindings ?? {}, mem, allocRef),
         __zx_net: createFetchImports(mem),
         ...(imports ? imports(mem) : {}),
         ...ZxWasiBridge.createImportObject(bridgeRef),
-    } as WebAssembly.Imports);
+    };
+    if (typeof __FEAT_KV_SERVER__ === "undefined" || __FEAT_KV_SERVER__) {
+        importObject.__zx_kv = createKVImports(
+            kvBindings ?? { default: createMemoryKV() },
+            mem,
+            allocRef,
+        );
+    }
+    if (typeof __FEAT_DB__ === "undefined" || __FEAT_DB__) {
+        importObject.__zx_db = createDbImports(
+            dbBindings ?? {},
+            mem,
+            allocRef,
+        );
+    }
+
+    const instance = new WebAssembly.Instance(module, importObject);
 
     wasmMemory = instance.exports.memory as WebAssembly.Memory;
     setMemory(wasmMemory);
-    bridgeRef.current = new ZxWasiBridge(instance.exports);
+    bridgeRef[0] = new ZxWasiBridge(instance.exports);
     bindWasmAlloc(allocRef, instance.exports);
 
     const wasmPromise = executeWasm(instance, jspi, Suspending, wsState);

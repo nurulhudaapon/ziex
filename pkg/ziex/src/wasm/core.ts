@@ -1,23 +1,29 @@
 import { ZigJS } from "../../../../vendor/jsz/js/src";
-import { createFetchImports } from "../fetch";
+import { createFetchImports } from "../runtime/fetch";
 
 /**
- * Core WASM bridge - environment-agnostic (browser + edge).
- * Contains no references to browser globals (document, window, WebSocket, HTMLFormElement).
+ * Callback type ids - must match Zig. Plain number consts so names minify.
  */
-export const CallbackType = {
-    Event: 0,
-    FetchSuccess: 1,
-    FetchError: 2,
-    Timeout: 3,
-    Interval: 4,
-    WebSocketOpen: 5,
-    WebSocketMessage: 6,
-    WebSocketError: 7,
-    WebSocketClose: 8,
-} as const;
+export const CallbackType_Event = 0;
+export const CallbackType_FetchSuccess = 1;
+export const CallbackType_FetchError = 2;
+export const CallbackType_Timeout = 3;
+export const CallbackType_Interval = 4;
+export const CallbackType_WebSocketOpen = 5;
+export const CallbackType_WebSocketMessage = 6;
+export const CallbackType_WebSocketError = 7;
+export const CallbackType_WebSocketClose = 8;
 
-export type CallbackTypeValue = typeof CallbackType[keyof typeof CallbackType];
+export type CallbackTypeValue =
+    | typeof CallbackType_Event
+    | typeof CallbackType_FetchSuccess
+    | typeof CallbackType_FetchError
+    | typeof CallbackType_Timeout
+    | typeof CallbackType_Interval
+    | typeof CallbackType_WebSocketOpen
+    | typeof CallbackType_WebSocketMessage
+    | typeof CallbackType_WebSocketError
+    | typeof CallbackType_WebSocketClose;
 export type CallbackHandler = (callbackType: number, id: bigint, dataRef: bigint) => void;
 export type FetchCompleteHandler = (fetchId: bigint, statusCode: number, bodyPtr: number, bodyLen: number, isError: number) => void;
 
@@ -27,6 +33,10 @@ export type WsOnMessageHandler = (wsId: bigint, dataPtr: number, dataLen: number
 export type WsOnErrorHandler = (wsId: bigint, msgPtr: number, msgLen: number) => void;
 export type WsOnCloseHandler = (wsId: bigint, code: number, reasonPtr: number, reasonLen: number, wasClean: number) => void;
 
+/**
+ * Core WASM bridge - environment-agnostic (browser + edge).
+ * No references to browser globals (document, window, WebSocket, HTMLFormElement).
+ */
 export const jsz = new ZigJS();
 
 // Temporary buffer for reading back references from storeValue
@@ -217,14 +227,14 @@ export class ZxBridgeCore {
     /** Set a timeout and callback when it fires */
     setTimeout(callbackId: bigint, delayMs: number): void {
         setTimeout(() => {
-            this.#invoke(CallbackType.Timeout, callbackId, null);
+            this.#invoke(3 /* Timeout */, callbackId, null);
         }, delayMs);
     }
 
     /** Set an interval and callback each time it fires */
     setInterval(callbackId: bigint, intervalMs: number): void {
         const handle = setInterval(() => {
-            this.#invoke(CallbackType.Interval, callbackId, null);
+            this.#invoke(4 /* Interval */, callbackId, null);
         }, intervalMs) as unknown as number;
         this.#intervals.set(callbackId, handle);
     }
@@ -245,17 +255,17 @@ export class ZxBridgeCore {
         this.#intervals.clear();
     }
 
-    /** Write a string to WASM memory, returning pointer and length */
-    protected _writeStringToWasm(str: string): { ptr: number; len: number } {
+    /** Write a string to WASM memory, returning `[ptr, len]`. */
+    protected _writeStringToWasm(str: string): [number, number] {
         return this.writeBytesToWasm(textEncoder.encode(str));
     }
 
-    writeBytesToWasm(data: Uint8Array): { ptr: number; len: number } {
-        if (data.length === 0) return { ptr: 0, len: 0 };
+    writeBytesToWasm(data: Uint8Array): [number, number] {
+        if (data.length === 0) return [0, 0];
         const ptr = this._alloc(data.length) >>> 0;
-        if (!ptr) return { ptr: 0, len: 0 };
+        if (!ptr) return [0, 0];
         writeBytes(ptr, data);
-        return { ptr, len: data.length };
+        return [ptr, data.length];
     }
 
     /** Log a message from WASM at the given level (0=error, 1=warn, 2=info, 3=debug) */
@@ -279,7 +289,7 @@ export class ZxBridgeCore {
      * Use ZxBridge.createImportObject (from wasm/index.ts) in browser contexts
      * to additionally include DOM and WebSocket bindings.
      */
-    static createImportObject(bridgeRef: { current: ZxBridgeCore | null }): WebAssembly.Imports {
+    static createImportObject(bridgeRef: [ZxBridgeCore | null]): WebAssembly.Imports {
         return {
             ...jsz.importObject(),
             __zx_net: createFetchImports(() => {
@@ -300,7 +310,7 @@ export class ZxBridgeCore {
                     timeoutMs: number,
                     fetchId: bigint
                 ) => {
-                    bridgeRef.current?.fetchAsync(
+                    bridgeRef[0]?.fetchAsync(
                         urlPtr, urlLen,
                         methodPtr, methodLen,
                         headersPtr, headersLen,
@@ -310,20 +320,22 @@ export class ZxBridgeCore {
                     );
                 },
                 _setTimeout: (callbackId: bigint, delayMs: number) => {
-                    bridgeRef.current?.setTimeout(callbackId, delayMs);
+                    bridgeRef[0]?.setTimeout(callbackId, delayMs);
                 },
                 _setInterval: (callbackId: bigint, intervalMs: number) => {
-                    bridgeRef.current?.setInterval(callbackId, intervalMs);
+                    bridgeRef[0]?.setInterval(callbackId, intervalMs);
                 },
                 _clearInterval: (callbackId: bigint) => {
-                    bridgeRef.current?.clearInterval(callbackId);
+                    bridgeRef[0]?.clearInterval(callbackId);
                 },
             },
         };
     }
 }
 
-export type WasmAllocRef = { current: ((size: number) => number) | null };
+/** Mutable slot for `__zx_alloc` - array so the slot name itself can minify. */
+export type WasmAllocRef = [((size: number) => number) | null];
+
 export function writeBytesOut(
     getMemory: () => WebAssembly.Memory,
     allocRef: WasmAllocRef,
@@ -334,7 +346,7 @@ export function writeBytesOut(
         new DataView(getMemory().buffer).setUint32(outPtrAddr, 0, true);
         return 0;
     }
-    const alloc = allocRef.current;
+    const alloc = allocRef[0];
     if (!alloc) return -1;
     const ptr = alloc(data.length) >>> 0;
     if (!ptr) return -1;
@@ -355,5 +367,5 @@ export function writeJsonOut(
 }
 
 export function bindWasmAlloc(allocRef: WasmAllocRef, exports: WebAssembly.Exports): void {
-    allocRef.current = exports.__zx_alloc as (size: number) => number;
+    allocRef[0] = exports.__zx_alloc as (size: number) => number;
 }

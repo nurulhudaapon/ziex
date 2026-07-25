@@ -13,9 +13,11 @@
     "./jsx": "./jsx/index.js",
     "./wasm": "./wasm/index.js",
     "./wasm/init": "./wasm/init.js",
-    "./cloudflare": "./cloudflare/index.js",
-    "./aws-lambda": "./aws-lambda/index.js",
-    "./vercel": "./vercel/index.js"
+    "./cloudflare": "./platforms/cloudflare/index.js",
+    "./aws-lambda": "./platforms/aws-lambda/index.js",
+    "./vercel": "./platforms/vercel/index.js",
+    "./kv": "./runtime/kv.js",
+    "./db": "./runtime/db.js"
   },
   "homepage": "https://ziex.dev",
   "repository": {

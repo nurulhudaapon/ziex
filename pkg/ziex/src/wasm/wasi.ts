@@ -139,11 +139,11 @@ export class ZxWasiBridge {
      * Returns only the `__zx` namespace (log, fetch, timers).
      * Does NOT include jsz.importObject() - the server binary does not use jsz.
      */
-    static createImportObject(bridgeRef: { current: ZxWasiBridge | null }): { __zx: Record<string, unknown> } {
+    static createImportObject(bridgeRef: [ZxWasiBridge | null]): WebAssembly.Imports {
         return {
             __zx: {
                 _log: (level: number, ptr: number, len: number) => {
-                    bridgeRef.current?.log(level, ptr, len);
+                    bridgeRef[0]?.log(level, ptr, len);
                 },
                 _fetchAsync: (
                     urlPtr: number, urlLen: number,
@@ -153,20 +153,20 @@ export class ZxWasiBridge {
                     timeoutMs: number,
                     fetchId: bigint
                 ) => {
-                    bridgeRef.current?.fetchAsync(
+                    bridgeRef[0]?.fetchAsync(
                         urlPtr, urlLen, methodPtr, methodLen,
                         headersPtr, headersLen, bodyPtr, bodyLen,
                         timeoutMs, fetchId
                     );
                 },
                 _setTimeout: (callbackId: bigint, delayMs: number) => {
-                    bridgeRef.current?.setTimeout(callbackId, delayMs);
+                    bridgeRef[0]?.setTimeout(callbackId, delayMs);
                 },
                 _setInterval: (callbackId: bigint, intervalMs: number) => {
-                    bridgeRef.current?.setInterval(callbackId, intervalMs);
+                    bridgeRef[0]?.setInterval(callbackId, intervalMs);
                 },
                 _clearInterval: (callbackId: bigint) => {
-                    bridgeRef.current?.clearInterval(callbackId);
+                    bridgeRef[0]?.clearInterval(callbackId);
                 },
             },
         };

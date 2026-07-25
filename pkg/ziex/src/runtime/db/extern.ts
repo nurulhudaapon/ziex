@@ -1,8 +1,8 @@
-import { type WasmAllocRef, writeJsonOut } from "./wasm/core";
+import { type WasmAllocRef, writeJsonOut } from "../../wasm/core";
 
 export type { WasmAllocRef };
 
-export type D1Value =
+export type DbValue =
     | null
     | string
     | number
@@ -10,23 +10,30 @@ export type D1Value =
     | ArrayBuffer
     | ArrayBufferView;
 
-export interface D1ExecResult {
+/** Result of a mutating statement (`INSERT`/`UPDATE`/`DELETE`). */
+export interface ExecResult {
     meta?: {
         changes?: number;
         last_row_id?: number;
     };
 }
 
-export interface D1PreparedStatement {
-    bind(...values: D1Value[]): D1PreparedStatement;
+/** Prepared statement - Cloudflare D1–shaped; Postgres/SQLite adapters implement the same. */
+export interface PreparedStatement {
+    bind(...values: DbValue[]): PreparedStatement;
     first<T = Record<string, unknown>>(): Promise<T | null>;
     all<T = Record<string, unknown>>(): Promise<{ results?: T[] }>;
     raw(options?: { columnNames?: boolean }): Promise<unknown[][]>;
-    run(): Promise<D1ExecResult>;
+    run(): Promise<ExecResult>;
 }
 
-export interface D1Database {
-    prepare(query: string): D1PreparedStatement;
+/**
+ * SQL database binding for `__zx_db`.
+ * Shape matches Cloudflare D1 so Workers bindings work as-is; Postgres and other
+ * drivers adapt to this interface.
+ */
+export interface Database {
+    prepare(query: string): PreparedStatement;
 }
 
 type JsonBinding =
@@ -60,7 +67,7 @@ function decodeBlob(base64: string): Uint8Array {
     return bytes;
 }
 
-function toD1Value(value: JsonValue): D1Value {
+function toDbValue(value: JsonValue): DbValue {
     switch (value.kind) {
         case "null": return null;
         case "integer": return value.integer;
@@ -71,14 +78,14 @@ function toD1Value(value: JsonValue): D1Value {
     }
 }
 
-function toPositionalBindings(json: JsonBinding): D1Value[] {
+function toPositionalBindings(json: JsonBinding): DbValue[] {
     switch (json.kind) {
         case "none":
             return [];
         case "positional":
-            return json.values.map(toD1Value);
+            return json.values.map(toDbValue);
         case "named":
-            throw new Error("Cloudflare D1 adapter does not support named bindings yet");
+            throw new Error("named SQL bindings are not supported yet");
     }
 }
 
@@ -119,18 +126,25 @@ function valuesToWireRows(rows: unknown[][]): WireValue[][] {
     return rows.map((row) => row.map((value) => toWireValue(value)));
 }
 
-export function createD1Imports(
-    bindings: Record<string, D1Database>,
+/**
+ * Build the `__zx_db` host functions for SQL database bindings.
+ *
+ * ```ts
+ * if (__FEAT_DB__) importObject.__zx_db = createDbImports(bindings, getMemory, allocRef);
+ * ```
+ */
+export function createDbImports(
+    bindings: Record<string, Database>,
     getMemory: () => WebAssembly.Memory,
     allocRef: WasmAllocRef,
-): Record<string, unknown> {
+): WebAssembly.ModuleImports {
     const decoder = new TextDecoder();
 
     function readStr(ptr: number, len: number): string {
         return decoder.decode(new Uint8Array(getMemory().buffer, ptr, len));
     }
 
-    function binding(ns: string): D1Database | null {
+    function binding(ns: string): Database | null {
         return bindings[ns] ?? bindings["default"] ?? null;
     }
 
@@ -141,7 +155,7 @@ export function createD1Imports(
         sql_len: number,
         bindings_ptr: number,
         bindings_len: number,
-    ): Promise<D1PreparedStatement | null> {
+    ): Promise<PreparedStatement | null> {
         const database = binding(readStr(ns_ptr, ns_len));
         if (!database) return null;
 

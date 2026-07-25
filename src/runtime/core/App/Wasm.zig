@@ -397,14 +397,3 @@ pub fn logFn(
     defer std.heap.wasm_allocator.free(msg);
     ext._log(level, msg.ptr, msg.len);
 }
-
-export fn __zx_alloc(size: usize) ?[*]u8 {
-    if (size == 0) return null;
-    const ptr = std.heap.wasm_allocator.alloc(u8, size) catch return null;
-    return ptr.ptr;
-}
-
-export fn __zx_free(ptr: [*]u8, size: usize) void {
-    if (size == 0) return;
-    std.heap.wasm_allocator.free(ptr[0..size]);
-}
