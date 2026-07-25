@@ -1,12 +1,11 @@
 const std = @import("std");
-const cli = @import("cli");
 const build_options = @import("build_options");
-const CommandContext = @import("shared/context.zig").CommandContext;
 
-pub const command: cli.Command = .{
-    .name = .lsp,
-    .help_short = "Start the Ziex language server",
-};
+const context = @import("shared/context.zig");
+const cli_args = @import("root.zig");
+
+const CommandContext = context.CommandContext;
+pub const command = cli_args.lsp;
 
 pub fn run(ctx: CommandContext, args: anytype) !void {
     _ = args;

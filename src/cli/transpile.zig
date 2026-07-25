@@ -1,63 +1,14 @@
 const std = @import("std");
-const cli = @import("cli");
 const core_lang = @import("core_lang");
 
-const flags = @import("shared/flag.zig");
 const util = @import("shared/util.zig");
 const Manifest = @import("../build/Manifest.zig");
-const CommandContext = @import("shared/context.zig").CommandContext;
+const context = @import("shared/context.zig");
+const cli_args = @import("root.zig");
 
+const CommandContext = context.CommandContext;
 const base64 = std.base64.standard;
-
-pub const command: cli.Command = .{
-    .name = .transpile,
-    .help_short = "Transpile a .zx file or directory to zig source code.",
-    .named_args = &.{
-        cli.Argument.init(.outdir, []const u8, .{
-            .default_value = ".zx",
-            .short = 'o',
-            .help = "Output directory",
-        }),
-        cli.Argument.init(.@"copy-only", bool, .{
-            .default_value = false,
-            .help = "Copy only the files to the output directory",
-        }),
-        flags.verbose,
-        cli.Argument.init(.map, []const u8, .{
-            .default_value = "none",
-            .help = "Generate source map",
-        }),
-        cli.Argument.init(.@"dep-file", []const u8, .{
-            .default_value = "",
-            .help = "Write a Make-format dependency file listing all transpiled input files",
-        }),
-        cli.Argument.init(.@"cache-dir", []const u8, .{
-            .default_value = "",
-            .help = "Persistent directory for content-hash-keyed transpile cache (survives zig-cache invalidation)",
-        }),
-        cli.Argument.init(.@"base-path", []const u8, .{
-            .default_value = "",
-            .help = "Base path for the application (e.g., /test)",
-        }),
-        cli.Argument.init(.manifest, []const u8, .{
-            .default_value = "",
-            .help = "Centralized app manifest path (zig-out/manifest/app.zon)",
-        }),
-        cli.Argument.init(.@"build-injections", []const u8, .{
-            .default_value = "",
-            .help = "Build-managed injections to merge into the app manifest",
-        }),
-        cli.Argument.init(.@"exe-path", []const u8, .{
-            .default_value = "",
-            .help = "Path to the executable",
-        }),
-    },
-    .positional_args = &.{
-        cli.Argument.init(.path, []const u8, .{
-            .help = "Path to .zx file or directory",
-        }),
-    },
-};
+pub const command = cli_args.transpile;
 
 pub fn run(ctx: CommandContext, args: anytype) !void {
     const app = ctx.app;

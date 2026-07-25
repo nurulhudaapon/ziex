@@ -1,11 +1,16 @@
-pub const command: cli.Command = .{
-    .name = .build,
-    .help_short = "Build the app (equivalent to `zig build`)",
-    .named_args = &.{
-        flags.build_args,
-        flags.zig_path,
-    },
-};
+const std = @import("std");
+
+const util = @import("shared/util.zig");
+const context = @import("shared/context.zig");
+const Builder = @import("dev/Builder.zig");
+const Diagnostics = @import("dev/Diagnostics.zig");
+const tui = @import("../tui/main.zig");
+const cli_args = @import("root.zig");
+
+const CommandContext = context.CommandContext;
+const Colors = tui.Colors;
+const log = std.log.scoped(.cli);
+pub const command = cli_args.build;
 
 pub fn run(ctx: CommandContext, args: anytype) !void {
     const app = ctx.app;
@@ -124,14 +129,3 @@ fn formatBuildErrors(
 
     return try Diagnostics.formatOxlint(allocator, deduped);
 }
-
-const std = @import("std");
-const cli = @import("cli");
-const flags = @import("shared/flag.zig");
-const util = @import("shared/util.zig");
-const CommandContext = @import("shared/context.zig").CommandContext;
-const Builder = @import("dev/Builder.zig");
-const Diagnostics = @import("dev/Diagnostics.zig");
-const tui = @import("../tui/main.zig");
-const Colors = tui.Colors;
-const log = std.log.scoped(.cli);

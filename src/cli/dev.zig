@@ -1,49 +1,20 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const cli = @import("cli");
+
 const util = @import("shared/util.zig");
-const flag = @import("shared/flag.zig");
-const CommandContext = @import("shared/context.zig").CommandContext;
+const context = @import("shared/context.zig");
 const Builder = @import("dev/Builder.zig");
 const tui = @import("../tui/main.zig");
 const Diagnostics = @import("dev/Diagnostics.zig");
 const DevServer = @import("dev/DevServer.zig");
 const Highlight = @import("dev/Highlight.zig");
 const sig = @import("../util/sig.zig");
+const cli_args = @import("root.zig");
 
+const CommandContext = context.CommandContext;
 const Colors = tui.Colors;
 const log = std.log.scoped(.cli);
-
-pub const command: cli.Command = .{
-    .name = .dev,
-    .help_short = "Start the app in development mode with rebuild on change",
-    .named_args = &.{
-        flag.binpath,
-        flag.build_args,
-        flag.zig_path,
-        flag.install_prefix,
-        cli.Argument.init(.port, u32, .{
-            .default_value = 0,
-            .help = "Port to run the server on (0 means default or configured port)",
-        }),
-        cli.Argument.init(.@"tui-progress", bool, .{
-            .default_value = true,
-            .help = "Show full build progress output from zig build",
-        }),
-        cli.Argument.init(.@"tui-underline", bool, .{
-            .default_value = true,
-            .help = "Show underlined status messages",
-        }),
-        cli.Argument.init(.@"tui-spinner", bool, .{
-            .default_value = false,
-            .help = "Show spinner for status messages",
-        }),
-        cli.Argument.init(.@"tui-clear", bool, .{
-            .default_value = false,
-            .help = "Clear the terminal before every restart",
-        }),
-    },
-};
+pub const command = cli_args.dev;
 
 var runner: ?std.process.Child = null;
 var builder: ?std.process.Child = null;

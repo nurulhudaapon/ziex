@@ -80,31 +80,36 @@ pub fn build(b: *std.Build) !void {
 
     // --- ZX CLI (Transpiler, Exporter, Dev Server) --- //
     // Vendored from https://codeberg.org/ziglang/zig/pulls/31620 until it is merged.
-    const cli_mod = b.createModule(.{
+    const std_cli_mod = b.createModule(.{
         .root_source_file = b.path("vendor/std/cli.zig"),
         .target = target,
         .optimize = optimize,
     });
-    const exe_rootmod_opts: std.Build.Module.CreateOptions = .{
-        .root_source_file = b.path("src/main.zig"),
+    const cli_args_mod = b.addModule("cli_args", .{
+        .root_source_file = b.path("src/cli/root.zig"),
         .target = target,
         .optimize = optimize,
-        .imports = &.{
-            .{ .name = "core_lang", .module = zx_core_lang_mod },
-            .{ .name = "zx_info", .module = options.createModule() },
-            .{ .name = "cli", .module = cli_mod },
-            .{ .name = "tree_sitter", .module = tree_sitter_dep.module("tree_sitter") },
-            .{ .name = "tree_sitter_zx", .module = tree_sitter_zx_dep.module("tree_sitter_zx") },
-        },
-    };
+    });
+    cli_args_mod.addImport("std_cli", std_cli_mod);
 
     const exe_build_options = b.addOptions();
     exe_build_options.addOption(bool, "enable_lsp", enable_lsp);
     exe_build_options.addOption(u2, "log_level", @intFromEnum(log_level));
 
-    const exe = b.addExecutable(.{ .name = "zx", .root_module = b.createModule(exe_rootmod_opts) });
-    exe.root_module.addOptions("build_options", exe_build_options);
-    exe.root_module.addAnonymousImport("app_template", .{ .root_source_file = b.path("templates/Template.zig") });
+    const cli_mod = b.addModule("cli", .{
+        .root_source_file = b.path("src/cli.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    cli_mod.addImport("std_cli", std_cli_mod);
+    cli_mod.addImport("core_lang", zx_core_lang_mod);
+    cli_mod.addImport("zx_info", options.createModule());
+    cli_mod.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
+    cli_mod.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
+    cli_mod.addOptions("build_options", exe_build_options);
+    cli_mod.addAnonymousImport("app_template", .{ .root_source_file = b.path("templates/Template.zig") });
+
+    const exe = b.addExecutable(.{ .name = "zx", .root_module = cli_mod });
     if (enable_lsp) {
         // const zls_dep = b.lazyDependency("zls", .{ .target = target, .optimize = optimize });
         // if (zls_dep) |zls| exe.root_module.addImport("zls", zls.module("zls"));

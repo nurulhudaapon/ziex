@@ -41,6 +41,8 @@ pub fn build(b: *std.Build) !void {
             "--exclude",
             "src/cli",
             "--exclude",
+            "src/cli.zig",
+            "--exclude",
             "src/lsp",
             "--exclude",
             "src/tui",
@@ -178,6 +180,7 @@ pub fn build(b: *std.Build) !void {
         },
         .cli = .{ .optimize = optimize, .log_level = log_level, .zig_path = "zig" },
     });
+    zx.addImport("cli_args", ziex_dep.module("cli_args"));
 
     // --- ZX Components --- //
     if (true) {

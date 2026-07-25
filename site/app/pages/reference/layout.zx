@@ -131,19 +131,7 @@ const categories = [_]SidebarProps.Category{
             .{
                 .title = "CLI",
                 .href = "/reference#cli",
-                .items = &[_]SidebarProps.Link{
-                    .{ .href = "/reference#cli-installation", .text = "Installation" },
-                    .{ .href = "/reference#cli-init", .text = "init" },
-                    .{ .href = "/reference#cli-dev", .text = "dev" },
-                    .{ .href = "/reference#cli-serve", .text = "serve" },
-                    .{ .href = "/reference#cli-transpile", .text = "transpile" },
-                    .{ .href = "/reference#cli-fmt", .text = "fmt" },
-                    .{ .href = "/reference#cli-export", .text = "export" },
-                    .{ .href = "/reference#cli-bundle", .text = "bundle" },
-                    .{ .href = "/reference#cli-update", .text = "update" },
-                    .{ .href = "/reference#cli-upgrade", .text = "upgrade" },
-                    .{ .href = "/reference#cli-version", .text = "version" },
-                },
+                .items = cli_sidebar_items,
             },
         },
     },
@@ -170,5 +158,19 @@ const toc_links = [_]SidebarProps.Link{
 
 const Sidebar = @import("../components/sidebar.zx").Sidebar;
 const SidebarProps = @import("../components/sidebar.zx").SidebarProps;
+const cli_docs = @import("cli_docs.zig");
+
+const cli_sidebar_items = blk: {
+    var list: [1 + cli_docs.docs.len]SidebarProps.Link = undefined;
+    list[0] = .{ .href = "/reference#cli-installation", .text = "Installation" };
+    for (cli_docs.docs, 0..) |cmd, i| {
+        list[i + 1] = .{
+            .href = "/reference#" ++ cmd.id,
+            .text = cmd.name,
+        };
+    }
+    const frozen = list;
+    break :blk &frozen;
+};
 
 const zx = @import("zx");

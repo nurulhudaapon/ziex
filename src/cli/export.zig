@@ -1,20 +1,18 @@
-pub const command: cli.Command = .{
-    .name = .@"export",
-    .help_short = "Export the site to a static HTML directory",
-    .named_args = &.{
-        cli.Argument.init(.outdir, []const u8, .{
-            .default_value = "dist",
-            .short = 'o',
-            .help = "Output directory",
-        }),
-        flag.binpath,
-        flag.zig_path,
-        cli.Argument.init(.@"build-args", []const u8, .{
-            .default_value = "--release=small",
-            .help = "Additional arguments to pass to zig build (e.g., -Doptimize=ReleaseFast)",
-        }),
-    },
-};
+const std = @import("std");
+const builtin = @import("builtin");
+
+const util = @import("shared/util.zig");
+const context = @import("shared/context.zig");
+const Server = @import("../runtime/server/Server.zig");
+const options_mod = @import("../runtime/core/options.zig");
+const DevServer = @import("dev/DevServer.zig");
+const tui = @import("../tui/main.zig");
+const ManifestApp = @import("../build/Manifest.zig").App;
+const cli_args = @import("root.zig");
+
+const CommandContext = context.CommandContext;
+const log = std.log.scoped(.cli);
+pub const command = cli_args.@"export";
 
 pub fn run(ctx: CommandContext, args: anytype) !void {
     const app = ctx.app;
@@ -582,16 +580,3 @@ fn findStaticParamValue(params: []const options_mod.StaticParam, key: []const u8
     }
     return null;
 }
-
-const std = @import("std");
-const cli = @import("cli");
-const util = @import("shared/util.zig");
-const flag = @import("shared/flag.zig");
-const CommandContext = @import("shared/context.zig").CommandContext;
-const Server = @import("../runtime/server/Server.zig");
-const options_mod = @import("../runtime/core/options.zig");
-const DevServer = @import("dev/DevServer.zig");
-const tui = @import("../tui/main.zig");
-const ManifestApp = @import("../build/Manifest.zig").App;
-const log = std.log.scoped(.cli);
-const builtin = @import("builtin");

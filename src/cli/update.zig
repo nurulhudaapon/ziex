@@ -1,19 +1,12 @@
-pub const command: cli.Command = .{
-    .name = .update,
-    .help_short = "Update the version of ZX dependency",
-    .named_args = &.{
-        cli.Argument.init(.version, []const u8, .{
-            .default_value = "latest",
-            .short = 'v',
-            .help = "Version to update to",
-        }),
-        cli.Argument.init(.dev, bool, .{
-            .default_value = false,
-            .help = "Update to the latest commit on the main branch instead of the latest release",
-        }),
-        flag.zig_path,
-    },
-};
+const std = @import("std");
+const zx_info = @import("zx_info");
+
+const util = @import("shared/util.zig");
+const context = @import("shared/context.zig");
+const cli_args = @import("root.zig");
+
+const CommandContext = context.CommandContext;
+pub const command = cli_args.update;
 
 pub fn run(ctx: CommandContext, args: anytype) !void {
     const app = ctx.app;
@@ -97,10 +90,3 @@ fn fetchLatestReleaseTag(
 
     return allocator.dupe(u8, parsed.value.tag_name);
 }
-
-const std = @import("std");
-const cli = @import("cli");
-const CommandContext = @import("shared/context.zig").CommandContext;
-const util = @import("shared/util.zig");
-const flag = @import("shared/flag.zig");
-const zx_info = @import("zx_info");

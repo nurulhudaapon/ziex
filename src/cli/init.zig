@@ -1,28 +1,16 @@
-pub const command: cli.Command = .{
-    .name = .init,
-    .help_short = "Initialize a new ZX project in the current directory",
-    .named_args = &.{
-        cli.Argument.init(.template, []const u8, .{
-            .default_value = "default",
-            .short = 't',
-            .help = "Template to use: a builtin (default, docker) or any github:ziex-dev/template-<name> (e.g. cloudflare, vercel)",
-        }),
-        cli.Argument.init(.force, bool, .{
-            .default_value = false,
-            .short = 'f',
-            .help = "Force initialization even if the directory is not empty",
-        }),
-        cli.Argument.init(.existing, bool, .{
-            .default_value = false,
-            .help = "Initialize ZX in an existing project",
-        }),
-    },
-    .positional_args = &.{
-        cli.Argument.init(.path, ?[]const u8, .{
-            .help = "Path to initialize the project in (default: current directory)",
-        }),
-    },
-};
+const std = @import("std");
+const app_template = @import("app_template");
+
+const remote = @import("init/remote.zig");
+const tui = @import("../tui/main.zig");
+const context = @import("shared/context.zig");
+const cli_args = @import("root.zig");
+
+const CommandContext = context.CommandContext;
+const colors = tui.Colors;
+const TemplateFile = app_template.TemplateFile;
+const templates = app_template.files;
+pub const command = cli_args.init;
 
 pub fn run(ctx: CommandContext, args: anytype) !void {
     const app = ctx.app;
@@ -219,15 +207,3 @@ pub fn isDirEmpty(io: std.Io, path: []const u8) !bool {
     var iter = dir.iterate();
     return try iter.next(io) == null;
 }
-
-const TemplateFile = app_template.TemplateFile;
-
-const templates = app_template.files;
-
-const std = @import("std");
-const app_template = @import("app_template");
-const remote = @import("init/remote.zig");
-const cli = @import("cli");
-const tui = @import("../tui/main.zig");
-const CommandContext = @import("shared/context.zig").CommandContext;
-const colors = tui.Colors;

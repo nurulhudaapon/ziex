@@ -1,21 +1,12 @@
-pub const command: cli.Command = .{
-    .name = .serve,
-    .help_short = "Run the server",
-    .named_args = &.{
-        cli.Argument.init(.port, u32, .{
-            .default_value = 0,
-            .short = 'p',
-            .help = "Port to run the server on (0 means default or configured port)",
-        }),
-        flags.binpath,
-        flags.zig_path,
-        cli.Argument.init(.@"build-args", []const u8, .{
-            .default_value = "-Doptimize=ReleaseFast",
-            .short = 'a',
-            .help = "Additional build arguments to pass to zig build",
-        }),
-    },
-};
+const std = @import("std");
+
+const util = @import("shared/util.zig");
+const context = @import("shared/context.zig");
+const cli_args = @import("root.zig");
+
+const CommandContext = context.CommandContext;
+const log = std.log.scoped(.cli);
+pub const command = cli_args.serve;
 
 const DEFAULT_INSTALL_PREFIX = "zig-out";
 
@@ -77,10 +68,3 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
     const term = try app_child.wait(io);
     _ = term;
 }
-
-const std = @import("std");
-const cli = @import("cli");
-const util = @import("shared/util.zig");
-const flags = @import("shared/flag.zig");
-const CommandContext = @import("shared/context.zig").CommandContext;
-const log = std.log.scoped(.cli);

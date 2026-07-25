@@ -1,14 +1,12 @@
-pub const command: cli.Command = .{
-    .name = .upgrade,
-    .help_short = "Upgrade the version of ZX CLI",
-    .named_args = &.{
-        cli.Argument.init(.version, []const u8, .{
-            .default_value = "latest",
-            .short = 'v',
-            .help = "Version to update to",
-        }),
-    },
-};
+const std = @import("std");
+const builtin = @import("builtin");
+const zx_info = @import("zx_info");
+
+const context = @import("shared/context.zig");
+const cli_args = @import("root.zig");
+
+const CommandContext = context.CommandContext;
+pub const command = cli_args.upgrade;
 
 pub fn run(ctx: CommandContext, args: anytype) !void {
     const app = ctx.app;
@@ -48,9 +46,3 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
     // try zx_version.spawn();
     // _ = try zx_version.wait();
 }
-
-const std = @import("std");
-const cli = @import("cli");
-const CommandContext = @import("shared/context.zig").CommandContext;
-const zx_info = @import("zx_info");
-const builtin = @import("builtin");

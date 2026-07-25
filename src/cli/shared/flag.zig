@@ -1,4 +1,4 @@
-const cli = @import("cli");
+const cli = @import("std_cli");
 
 pub const binpath = cli.Argument.init(.binpath, []const u8, .{
     .default_value = "",

@@ -1,16 +1,13 @@
-pub const command: cli.Command = .{
-    .name = .bundle,
-    .help_short = "Bundle the site into deployable directory",
-    .named_args = &.{
-        cli.Argument.init(.outdir, []const u8, .{
-            .default_value = "bundle",
-            .short = 'o',
-            .help = "Output directory",
-        }),
-        flag.binpath,
-        flag.install_prefix,
-    },
-};
+const std = @import("std");
+
+const util = @import("shared/util.zig");
+const context = @import("shared/context.zig");
+const tui = @import("../tui/main.zig");
+const cli_args = @import("root.zig");
+
+const CommandContext = context.CommandContext;
+const log = std.log.scoped(.cli);
+pub const command = cli_args.bundle;
 
 pub fn run(ctx: CommandContext, args: anytype) !void {
     const app = ctx.app;
@@ -63,11 +60,3 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
 
     printer.footer("Now run {s}\n\n{s}(cd {s} && ./{s}){s}", .{ tui.Printer.emoji("→"), tui.Colors.cyan, outdir, bin_name, tui.Colors.reset });
 }
-
-const std = @import("std");
-const cli = @import("cli");
-const util = @import("shared/util.zig");
-const flag = @import("shared/flag.zig");
-const CommandContext = @import("shared/context.zig").CommandContext;
-const tui = @import("../tui/main.zig");
-const log = std.log.scoped(.cli);

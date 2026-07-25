@@ -597,145 +597,10 @@ fn CachingSection(allocator: zx.Allocator) zx.Component {
     );
 }
 
-const CLIArg = struct {
-    name: []const u8,
-    description: []const u8,
-};
-
-const CLIFlag = struct {
-    name: []const u8,
-    description: []const u8,
-};
-
-const CLICommandInfo = struct {
-    name: []const u8,
-    id: []const u8,
-    description: []const u8,
-    usage: []const u8,
-    badge: ?[]const u8 = null,
-    arguments: ?[]const CLIArg = null,
-    flags: ?[]const CLIFlag = null,
-    note: ?[]const u8 = null,
-};
-
-const cli_commands = [_]CLICommandInfo{
-    .{
-        .name = "init",
-        .id = "cli-init",
-        .description = "Initialize a new ZX project. Creates all the necessary files and directory structure to get started with ZX.",
-        .usage = "zx init [path] [flags]",
-        .arguments = &[_]CLIArg{
-            .{ .name = "[path]", .description = "Path to initialize the project in (default: current directory)" },
-        },
-        .flags = &[_]CLIFlag{
-            .{ .name = "--template, -t <name>", .description = "Template to use (default: \"default\"). Options: default, react, wasm, react_wasm" },
-            .{ .name = "--force, -f", .description = "Force initialization even if the directory is not empty" },
-            .{ .name = "--existing", .description = "Initialize ZX in an existing project (only adds files that don't exist)" },
-        },
-        .note = "The command will warn if the directory is not empty. Use --force to override, or --existing to only add missing files.",
-    },
-    .{
-        .name = "dev",
-        .id = "cli-dev",
-        .description = "Start the app in development mode with hot reloading. Watches for file changes and automatically rebuilds.",
-        .usage = "zx dev [flags]",
-        .flags = &[_]CLIFlag{
-            .{ .name = "--binpath, -b <path>", .description = "Binpath of the app (default: auto-detected)" },
-            .{ .name = "--build-args <args>", .description = "Additional arguments to pass to zig build" },
-        },
-    },
-    .{
-        .name = "serve",
-        .id = "cli-serve",
-        .description = "Serve the project for production. Builds and runs the executable.",
-        .usage = "zx serve [flags]",
-        .flags = &[_]CLIFlag{
-            .{ .name = "--port, -p <number>", .description = "Port to run the server on (default: 3000)" },
-        },
-    },
-    .{
-        .name = "build",
-        .id = "cli-build",
-        .description = "Build the project (equivalent to zig build). Any compilation errors are pretty-printed in the same format as dev mode and zx fmt --error, with locations mapped back to the original .zx source.",
-        .usage = "zx build [flags]",
-        .flags = &[_]CLIFlag{
-            .{ .name = "--build-args, -a <args>", .description = "Additional arguments to pass to zig build (e.g. -Doptimize=ReleaseFast)" },
-        },
-    },
-    .{
-        .name = "transpile",
-        .id = "cli-transpile",
-        .description = "Transpile .zx files to Zig source code. Useful for debugging or inspecting generated code.",
-        .usage = "zx transpile <path> [flags]",
-        .arguments = &[_]CLIArg{
-            .{ .name = "<path>", .description = "Path to .zx file or directory (required)" },
-        },
-        .flags = &[_]CLIFlag{
-            .{ .name = "--outdir, -o <directory>", .description = "Output directory (default: \".zx\")" },
-        },
-    },
-    .{
-        .name = "fmt",
-        .id = "cli-fmt",
-        .description = "Format ZX source code files according to ZX's formatting rules.",
-        .usage = "zx fmt [path] [flags]",
-        .arguments = &[_]CLIArg{
-            .{ .name = "[path]", .description = "Path to .zx file or directory (optional, formats current directory if not specified)" },
-        },
-        .flags = &[_]CLIFlag{
-            .{ .name = "--stdio", .description = "Read from stdin and write to stdout" },
-            .{ .name = "--stdout", .description = "Write formatted output to stdout instead of modifying files" },
-        },
-    },
-    .{
-        .name = "export",
-        .id = "cli-export",
-        .description = "Generate static site assets. Builds your project and exports it for static hosting.",
-        .usage = "zx export [flags]",
-        .flags = &[_]CLIFlag{
-            .{ .name = "--outdir, -o <directory>", .description = "Output directory (default: \"dist\")" },
-            .{ .name = "--binpath, -b <path>", .description = "Binpath of the app executable (default: auto-detected)" },
-        },
-        .note = "Run zig build first to build the ZX executable before exporting.",
-    },
-    .{
-        .name = "bundle",
-        .id = "cli-bundle",
-        .description = "Bundle the site into a deployable directory with the executable and assets.",
-        .usage = "zx bundle [flags]",
-        .flags = &[_]CLIFlag{
-            .{ .name = "--outdir, -o <directory>", .description = "Output directory (default: \"bundle\")" },
-            .{ .name = "--binpath, -b <path>", .description = "Binpath of the app executable (default: auto-detected)" },
-        },
-        .note = "Run zig build first to build the ZX executable before bundling.",
-    },
-    .{
-        .name = "update",
-        .id = "cli-update",
-        .description = "Update the ZX dependency version in your project's build.zig.zon file.",
-        .usage = "zx update [flags]",
-        .flags = &[_]CLIFlag{
-            .{ .name = "--version, -v <version>", .description = "Version to update to (default: \"latest\")" },
-        },
-    },
-    .{
-        .name = "upgrade",
-        .id = "cli-upgrade",
-        .description = "Upgrade the ZX CLI tool itself. Downloads and installs a new version of the CLI binary.",
-        .usage = "zx upgrade [flags]",
-        .flags = &[_]CLIFlag{
-            .{ .name = "--version, -v <version>", .description = "Version to upgrade to (default: \"latest\")" },
-        },
-    },
-    .{
-        .name = "version",
-        .id = "cli-version",
-        .description = "Show the current version of the ZX CLI tool.",
-        .usage = "zx version",
-    },
-};
+const CLICommandInfo = @import("cli_docs.zig").DocCommand;
 
 fn CLISection(allocator: zx.Allocator) zx.Component {
+    const cli_commands = @import("cli_docs.zig").docs;
     return (
         <section id="cli" class="section" @allocator={allocator}>
             <h2>Command Line Interface</h2>
@@ -771,9 +636,6 @@ fn CLICommand(allocator: zx.Allocator, props: struct { command: CLICommandInfo }
         <div @allocator={allocator}>
             <h3 id={command.id}>
                 {command.name}
-                {if (command.badge) |badge| (
-                    <span class="badge">{badge}</span>
-                )}
             </h3>
             <p>{command.description}</p>
 
@@ -790,31 +652,25 @@ fn CLICommand(allocator: zx.Allocator, props: struct { command: CLICommandInfo }
                 </div>
             </div>
 
-            {if (command.arguments) |args| (
+            {if (command.arguments.len > 0) (
                 <div>
                     <h4>Arguments</h4>
                     <ul>
-                        {for (args) |arg| (
+                        {for (command.arguments) |arg| (
                             <li><code>{arg.name}</code> - {arg.description}</li>
                         )}
                     </ul>
                 </div>
             )}
 
-            {if (command.flags) |flags| (
+            {if (command.flags.len > 0) (
                 <div>
                     <h4>Flags</h4>
                     <ul>
-                        {for (flags) |flag| (
+                        {for (command.flags) |flag| (
                             <li><code>{flag.name}</code> - {flag.description}</li>
                         )}
                     </ul>
-                </div>
-            )}
-
-            {if (command.note) |note| (
-                <div class="callout">
-                    <strong>Note: </strong> {note}
                 </div>
             )}
         </div>

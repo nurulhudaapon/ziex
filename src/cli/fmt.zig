@@ -1,38 +1,16 @@
 const std = @import("std");
-const cli = @import("cli");
-const CommandContext = @import("shared/context.zig").CommandContext;
-const log = std.log.scoped(.cli);
 const core_lang = @import("core_lang");
+
+const context = @import("shared/context.zig");
 const tui = @import("../tui/main.zig");
-const colors = tui.Colors;
 const Builder = @import("dev/Builder.zig");
 const Diagnostics = @import("dev/Diagnostics.zig");
+const cli_args = @import("root.zig");
 
-pub const command: cli.Command = .{
-    .name = .fmt,
-    .help_short = "Format .zx files or directories.",
-    .named_args = &.{
-        cli.Argument.init(.stdio, bool, .{
-            .default_value = false,
-            .help = "Read from stdin and write formatted output to stdout",
-        }),
-        cli.Argument.init(.stdout, bool, .{
-            .default_value = false,
-            .help = "Write formatted output to stdout instead of disk",
-        }),
-        cli.Argument.init(.@"error", bool, .{
-            .default_value = false,
-            .help = "Read zig build error output from stdin and pretty-print it (e.g. zig build 2>&1 | zx fmt --error)",
-        }),
-    },
-    .positional_args = &.{
-        cli.Argument.init(.paths, []const []const u8, .{
-            .count = .unlimited,
-            .default_value = &.{},
-            .help = "Paths to .zx files or directories",
-        }),
-    },
-};
+const CommandContext = context.CommandContext;
+const colors = tui.Colors;
+const log = std.log.scoped(.cli);
+pub const command = cli_args.fmt;
 
 pub fn run(ctx: CommandContext, args: anytype) !void {
     const app = ctx.app;
