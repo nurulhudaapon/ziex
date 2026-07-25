@@ -1,3 +1,4 @@
+const std = @import("std");
 const cli_args = @import("cli_args");
 
 pub const DocArg = struct {
@@ -42,12 +43,51 @@ fn anchorId(comptime cmd: cli_args.Command) [:0]const u8 {
     return "cli-" ++ @tagName(cmd.name);
 }
 
+fn formatOneDefault(comptime T: type, comptime value: T) [:0]const u8 {
+    return switch (@typeInfo(T)) {
+        .bool => if (value) "true" else "false",
+        .int, .float => std.fmt.comptimePrint("{d}", .{value}),
+        .pointer => |pointer| switch (pointer.size) {
+            .slice, .c, .many => if (pointer.child == u8)
+                "\"" ++ value ++ "\""
+            else
+                comptime unreachable,
+            else => comptime unreachable,
+        },
+        .@"enum" => @tagName(value),
+        .optional => "null",
+        else => comptime unreachable,
+    };
+}
+
+fn defaultSuffix(comptime arg: cli_args.Argument) [:0]const u8 {
+    const default_value = arg.attrs.defaultValue(arg.type) orelse return "";
+    // Optional args always default to null; skip that noise in docs.
+    if (@typeInfo(arg.type) == .optional) return "";
+    return switch (arg.count) {
+        .one => " (default: " ++ formatOneDefault(@TypeOf(default_value), default_value) ++ ")",
+        .unlimited => if (default_value.len == 0)
+            " (default: <empty>)"
+        else blk: {
+            comptime var result: [:0]const u8 = " (default:";
+            inline for (default_value) |v| {
+                result = result ++ " " ++ formatOneDefault(@TypeOf(v), v);
+            }
+            break :blk result ++ ")";
+        },
+    };
+}
+
+fn argDescription(comptime arg: cli_args.Argument) [:0]const u8 {
+    return arg.help ++ defaultSuffix(arg);
+}
+
 fn positionalDocs(comptime cmd: cli_args.Command) []const DocArg {
     var list: [cmd.positional_args.len]DocArg = undefined;
     for (cmd.positional_args, 0..) |arg, i| {
         list[i] = .{
             .name = positionalArgLabel(arg),
-            .description = arg.help,
+            .description = argDescription(arg),
         };
     }
     const frozen = list;
@@ -59,7 +99,7 @@ fn namedDocs(comptime cmd: cli_args.Command) []const DocArg {
     for (cmd.named_args, 0..) |arg, i| {
         list[i] = .{
             .name = namedArgLabel(arg),
-            .description = arg.help,
+            .description = argDescription(arg),
         };
     }
     const frozen = list;
