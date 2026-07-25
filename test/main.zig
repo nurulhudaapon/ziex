@@ -11,6 +11,7 @@ test {
     _ = @import("core/html.zig");
     _ = @import("core/routing.zig");
     _ = @import("core/vdom.zig");
+    _ = @import("core/csr.zig");
     _ = @import("core/dx.zig");
     _ = @import("core/db.zig");
     _ = @import("core/cache.zig");

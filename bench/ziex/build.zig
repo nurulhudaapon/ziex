@@ -21,6 +21,11 @@ pub fn build(b: *std.Build) !void {
             .features = .{
                 // .sqlite = .enabled,
             },
+            .client = .{
+                .bindings = .{
+                    .build = .enabled,
+                },
+            },
         },
     });
     zx_builder = zx_builder;
