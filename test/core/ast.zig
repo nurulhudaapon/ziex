@@ -460,7 +460,7 @@ fn test_transpile_inner(comptime file_path: []const u8, comptime no_expect: bool
     defer allocator.free(source_z);
 
     // Parse and transpile with file path for Client support
-    var result = try zx.Ast.parse(allocator, source_z, .{ .path = full_file_path });
+    var result = try lang.Ast.parse(allocator, source_z, .{ .path = full_file_path });
     defer result.deinit(allocator);
 
     // Check for SS=1 environment variable
@@ -659,3 +659,4 @@ const TestFileCache = test_util.TestFileCache;
 const std = @import("std");
 const testing = std.testing;
 const zx = @import("zx");
+const lang = @import("lang");

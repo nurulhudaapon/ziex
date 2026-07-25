@@ -1,8 +1,8 @@
 const std = @import("std");
-const core_lang = @import("core_lang");
+const lang = @import("lang");
 const docs = @import("html_docs.zig");
 
-const Parse = core_lang.Parse;
+const Parse = lang.Parse;
 const NodeKind = Parse.NodeKind;
 
 /// A located hover target: the documentation Markdown plus the byte span of the
@@ -125,5 +125,3 @@ fn nodeText(node: anytype, source: []const u8) []const u8 {
     if (start < end and end <= source.len) return source[start..end];
     return "";
 }
-
-

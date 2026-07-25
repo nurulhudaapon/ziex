@@ -16,7 +16,6 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     const zx_dep = b.dependencyFromBuildZig(build_zig, .{
         .optimize = optimize,
         .target = target,
-        .@"exclude-core-lang" = true, // Users don't need parser/transpiler
         .@"feature-sqlite" = if (options.app != null and options.app.?.features.sqlite != null) true else null,
         .@"feature-postgres" = if (options.app != null and options.app.?.features.postgres != null) true else null,
     });
@@ -37,7 +36,6 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     const zx_wasm_dep = b.dependencyFromBuildZig(build_zig, .{
         .optimize = optimize,
         .target = wasm_target,
-        .@"exclude-core-lang" = true, // Users don't need parser/transpiler
         .@"is-client" = true,
     });
 
@@ -54,8 +52,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
             .@"type-decl" = false,
         });
         break :blk jsbindings_dep.namedWriteFiles("ziex_js").getDirectory();
-    } else
-        zx_dep.builder.dependency("ziex_js", .{}).path(".");
+    } else zx_dep.builder.dependency("ziex_js", .{}).path(".");
 
     var opts: InitInnerOptions = .{
         .base_path = null,

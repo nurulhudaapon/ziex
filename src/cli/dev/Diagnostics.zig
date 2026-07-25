@@ -1,12 +1,12 @@
 const std = @import("std");
-const core_lang = @import("core_lang");
+const lang = @import("lang");
 
 const Builder = @import("Builder.zig");
 const tui = @import("../../tui/main.zig");
 
 const Colors = tui.Colors;
 const log = std.log.scoped(.diagnostics);
-const sourcemap = core_lang.sourcemap;
+const sourcemap = lang.sourcemap;
 const base64 = std.base64.standard;
 const SOURCEMAP_PREFIX = "//# sourceMappingURL=data:application/json;base64,";
 

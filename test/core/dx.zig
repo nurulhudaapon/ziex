@@ -1,7 +1,8 @@
 const std = @import("std");
 const testing = std.testing;
 const zx = @import("zx");
-const sourcemap = zx.sourcemap;
+const lang = @import("lang");
+const sourcemap = lang.sourcemap;
 
 test "sm > VLQ encode/decode roundtrip" {
     const allocator = testing.allocator;
@@ -258,7 +259,7 @@ test "sm > e2e error position maps back to correct zx token" {
     const source_z = try allocator.dupeSentinel(u8, source, 0);
     defer allocator.free(source_z);
 
-    var result = try zx.Ast.parse(allocator, source_z, .{ .map = .inlined });
+    var result = try lang.Ast.parse(allocator, source_z, .{ .map = .inlined });
     defer result.deinit(allocator);
 
     var decoded = try (result.sourcemap orelse return error.NoSourceMap).decode(allocator);
@@ -314,7 +315,7 @@ test "sm > e2e simple element transpilation" {
     const source_z = try allocator.dupeSentinel(u8, source, 0);
     defer allocator.free(source_z);
 
-    var result = try zx.Ast.parse(allocator, source_z, .{ .map = .inlined });
+    var result = try lang.Ast.parse(allocator, source_z, .{ .map = .inlined });
     defer result.deinit(allocator);
 
     // Sourcemap should be present
@@ -362,7 +363,7 @@ test "sm > e2e generatedToSource roundtrip for zig code" {
     const source_z = try allocator.dupeSentinel(u8, source, 0);
     defer allocator.free(source_z);
 
-    var result = try zx.Ast.parse(allocator, source_z, .{ .map = .inlined });
+    var result = try lang.Ast.parse(allocator, source_z, .{ .map = .inlined });
     defer result.deinit(allocator);
 
     try testing.expect(result.sourcemap != null);
@@ -399,7 +400,7 @@ test "sm > e2e expression in element" {
     const source_z = try allocator.dupeSentinel(u8, source, 0);
     defer allocator.free(source_z);
 
-    var result = try zx.Ast.parse(allocator, source_z, .{ .map = .inlined });
+    var result = try lang.Ast.parse(allocator, source_z, .{ .map = .inlined });
     defer result.deinit(allocator);
 
     try testing.expect(result.sourcemap != null);
@@ -437,7 +438,7 @@ test "sm > all test files produce valid sourcemaps" {
         const source_z = try allocator.dupeSentinel(u8, source, 0);
         defer allocator.free(source_z);
 
-        var result = zx.Ast.parse(allocator, source_z, .{ .map = .inlined, .path = tf.zx_path }) catch continue;
+        var result = lang.Ast.parse(allocator, source_z, .{ .map = .inlined, .path = tf.zx_path }) catch continue;
         defer result.deinit(allocator);
 
         // Sourcemap must be present
@@ -483,7 +484,7 @@ test "sm > golden file mappings" {
         const source_z = try allocator.dupeSentinel(u8, source, 0);
         defer allocator.free(source_z);
 
-        var result = zx.Ast.parse(allocator, source_z, .{ .map = .inlined, .path = tf.zx_path }) catch |err| {
+        var result = lang.Ast.parse(allocator, source_z, .{ .map = .inlined, .path = tf.zx_path }) catch |err| {
             std.debug.print("SKIP: {s}: parse error: {}\n", .{ tf.zx_path, err });
             continue;
         };
@@ -550,7 +551,7 @@ test "sm > generate sourcemap debug files" {
         const source_z = try allocator.dupeSentinel(u8, source, 0);
         defer allocator.free(source_z);
 
-        var result = zx.Ast.parse(allocator, source_z, .{ .map = .inlined, .path = tf.zx_path }) catch continue;
+        var result = lang.Ast.parse(allocator, source_z, .{ .map = .inlined, .path = tf.zx_path }) catch continue;
         defer result.deinit(allocator);
 
         const sm = result.sourcemap orelse continue;

@@ -1,5 +1,5 @@
 const std = @import("std");
-const core_lang = @import("core_lang");
+const lang = @import("lang");
 
 const util = @import("shared/util.zig");
 const Manifest = @import("../build/Manifest.zig");
@@ -65,7 +65,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
 }
 
 /// Parse the `--map` flag value into a `MapMode`.
-fn parseMapMode(sourcemap_str: []const u8) core_lang.Ast.ParseOptions.MapMode {
+fn parseMapMode(sourcemap_str: []const u8) lang.Ast.ParseOptions.MapMode {
     if (std.mem.eql(u8, sourcemap_str, "inline")) return .inlined;
     if (sourcemap_str.len == 0 or std.mem.eql(u8, sourcemap_str, "none")) return .none;
     return .{ .file = sourcemap_str };
@@ -73,7 +73,7 @@ fn parseMapMode(sourcemap_str: []const u8) core_lang.Ast.ParseOptions.MapMode {
 
 /// Transpile a single .zx/.mdzx file and write the result to stdout, emitting
 /// the configured sourcemap alongside it.
-fn transpileToStdout(ctx: CommandContext, io: std.Io, path: []const u8, map: core_lang.Ast.ParseOptions.MapMode) !void {
+fn transpileToStdout(ctx: CommandContext, io: std.Io, path: []const u8, map: lang.Ast.ParseOptions.MapMode) !void {
     const allocator = ctx.allocator;
 
     const source = try readFile(io, allocator, path);
@@ -82,7 +82,7 @@ fn transpileToStdout(ctx: CommandContext, io: std.Io, path: []const u8, map: cor
     const source_z = try allocator.dupeSentinel(u8, source, 0);
     defer allocator.free(source_z);
 
-    var result = try core_lang.Ast.parse(allocator, source_z, .{ .path = path, .map = map });
+    var result = try lang.Ast.parse(allocator, source_z, .{ .path = path, .map = map });
     defer result.deinit(allocator);
 
     try ctx.writer.writeAll(result.zig_source);
@@ -430,7 +430,7 @@ fn copyCompanionRecursive(
     try collectAndCopyCompanions(io, allocator, input_files, companions_visited, &ast, source_dir, out_dir, verbose);
 }
 
-/// Walk the transpiled Zig AST (`ast`, already produced by `core_lang.Ast.parse`)
+/// Walk the transpiled Zig AST (`ast`, already produced by `lang.Ast.parse`)
 /// and append each `@import("...")` target that resolves to an existing
 /// `.zx`/`.mdzx` source (relative to `source_dir`) to `out`.
 fn collectZxImports(
@@ -822,7 +822,7 @@ fn copyDirectory(
 }
 
 const ClientComponentSerializable = struct {
-    type: core_lang.Ast.ClientComponentMetadata.Type,
+    type: lang.Ast.ClientComponentMetadata.Type,
     id: []const u8,
     name: []const u8,
     path: []const u8,
@@ -1194,7 +1194,7 @@ fn transpileFile(
     }
     defer if (rel_path_allocated) allocator.free(relative_source_path);
 
-    var result = try core_lang.Ast.parse(allocator, source_z, .{
+    var result = try lang.Ast.parse(allocator, source_z, .{
         .path = relative_source_path,
         .map = opts.map,
         .lang = if (std.mem.endsWith(u8, source_path, ".mdzx")) .mdzx else .zx,
@@ -1436,7 +1436,7 @@ const TranspileOptions = struct {
     path: []const u8,
     outdir: []const u8,
     verbose: bool,
-    map: core_lang.Ast.ParseOptions.MapMode = .none,
+    map: lang.Ast.ParseOptions.MapMode = .none,
     dep_file: ?[]const u8 = null,
     cache_dir: ?[]const u8 = null,
     base_path: ?[]const u8 = null,

@@ -218,10 +218,6 @@ fn handleRunClick(ctx: zx.client.Event) void {
     
     const inner_text: []const u8 = editor_container.ref.getAlloc(zx.client.js.String, zx.allocator, "innerText") catch "NA";
     std.log.info("Run clicked {s}", .{inner_text});
-
-    // const zx_sourcez = zx.allocator.dupeSentinel(u8, inner_text, 0) catch return;
-    // const ast =  zx.Ast.parse(zx.allocator, zx_sourcez, .{}) catch return;
-    // c.log(.{zx.client.js.String(ast.zig_source)});
 }
 
 const builtin = @import("builtin");

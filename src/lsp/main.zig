@@ -6,7 +6,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const zls = @import("zls");
 const lsp = zls.lsp;
-const core_lang = @import("core_lang");
+const lang = @import("lang");
 const zx_info = @import("zx_info");
 const html_hover = @import("html_hover.zig");
 const CommandContext = @import("../cli/shared/context.zig").CommandContext;
@@ -228,7 +228,7 @@ pub const Handler = struct {
         const source_z = handler.allocator.dupeSentinel(u8, content, 0) catch return;
         defer handler.allocator.free(source_z);
 
-        var parse_result = core_lang.Ast.parse(handler.allocator, source_z, .{}) catch null;
+        var parse_result = lang.Ast.parse(handler.allocator, source_z, .{}) catch null;
         defer if (parse_result) |*r| r.deinit(handler.allocator);
 
         const zls_text: []const u8 = if (parse_result) |r| r.zig_source else content;
@@ -250,7 +250,7 @@ pub const Handler = struct {
         const source_z = handler.allocator.dupeSentinel(u8, source, 0) catch return;
         defer handler.allocator.free(source_z);
 
-        var result = core_lang.Ast.parse(handler.allocator, source_z, .{}) catch return;
+        var result = lang.Ast.parse(handler.allocator, source_z, .{}) catch return;
         defer result.deinit(handler.allocator);
 
         handler.publishZxDiagnostics(uri, result.diagnostics) catch {};
@@ -289,7 +289,7 @@ pub const Handler = struct {
     }
 
     fn collectZxBlockRanges(handler: *Handler, source: []const u8) ![]const ByteRange {
-        var parse = try core_lang.Parse.parse(handler.allocator, source, .zx);
+        var parse = try lang.Parse.parse(handler.allocator, source, .zx);
         defer parse.deinit(handler.allocator);
 
         var ranges = std.ArrayList(ByteRange).empty;
@@ -300,7 +300,7 @@ pub const Handler = struct {
     }
 
     fn collectZxBlockRangesNode(node: anytype, ranges: *std.ArrayList(ByteRange), allocator: std.mem.Allocator) !void {
-        if (core_lang.Parse.NodeKind.fromNode(node) == .zx_block) {
+        if (lang.Parse.NodeKind.fromNode(node) == .zx_block) {
             try ranges.append(allocator, .{
                 .start = node.startByte(),
                 .end = node.endByte(),
@@ -347,7 +347,7 @@ pub const Handler = struct {
         return try filtered.toOwnedSlice(arena);
     }
 
-    fn publishZxDiagnostics(handler: *Handler, uri: []const u8, diag_list: core_lang.Ast.check.DiagnosticList) !void {
+    fn publishZxDiagnostics(handler: *Handler, uri: []const u8, diag_list: lang.Ast.check.DiagnosticList) !void {
         var aa = std.heap.ArenaAllocator.init(handler.allocator);
         defer aa.deinit();
         const arena = aa.allocator();
@@ -882,8 +882,8 @@ pub const Handler = struct {
                 const source_z = try handler.allocator.dupeSentinel(u8, state.source, 0);
                 defer handler.allocator.free(source_z);
 
-                var format_result = core_lang.Ast.fmt(handler.allocator, source_z) catch |err| {
-                    std.log.err("core_lang.Ast.fmt failed for {s}: {s}", .{ params.textDocument.uri, @errorName(err) });
+                var format_result = lang.Ast.fmt(handler.allocator, source_z) catch |err| {
+                    std.log.err("lang.Ast.fmt failed for {s}: {s}", .{ params.textDocument.uri, @errorName(err) });
                     return null;
                 };
                 defer format_result.deinit(handler.allocator);

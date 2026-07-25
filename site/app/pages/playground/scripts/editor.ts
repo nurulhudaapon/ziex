@@ -15,10 +15,6 @@ import {
     templatesForMode,
 } from "./templates.ts";
 // @ts-ignore
-import stubZxOptsServer from './template/stubs/zx_module_options_server.zig' with { type: "text" };
-// @ts-ignore
-import stubZxOptsClient from './template/stubs/zx_module_options_client.zig' with { type: "text" };
-// @ts-ignore
 import stubZxInfo from './template/stubs/zx_info.zig' with { type: "text" };
 // @ts-ignore
 import stubAppOpts from './template/stubs/app_opts.zig' with { type: "text" };
@@ -860,8 +856,6 @@ const buildCache = new Map<string, CacheEntry<PlaygroundBuildArtifacts>>();
 
 function stubFiles(): { [name: string]: string } {
     return {
-        "stubs/zx_module_options_server.zig": stubZxOptsServer,
-        "stubs/zx_module_options_client.zig": stubZxOptsClient,
         "stubs/zx_info.zig": stubZxInfo,
         "stubs/app_opts.zig": stubAppOpts,
         "stubs/manifest.zon": stubManifest,

@@ -4,7 +4,6 @@ const zx = @This();
 
 const std = @import("std");
 const builtin = @import("builtin");
-const module_options = @import("zx_module_options");
 
 const element = @import("element.zig");
 const plfm = @import("platform.zig");
@@ -18,11 +17,6 @@ const app_mod = @import("runtime/core/App.zig");
 
 // -- Build System --- //
 pub const Build = @import("Build.zig");
-
-// -- Core Language --//
-pub const Ast = if (!module_options.exclude_core_lang) @import("zx_core_lang").Ast else @compileError("core_lang is excluded. Set exclude-core-lang=false to enable.");
-pub const Parse = if (!module_options.exclude_core_lang) @import("zx_core_lang").Parse else @compileError("core_lang is excluded. Set exclude-core-lang=false to enable.");
-pub const sourcemap = if (!module_options.exclude_core_lang) @import("zx_core_lang").sourcemap else @compileError("core_lang is excluded. Set exclude-core-lang=false to enable.");
 
 // -- Core -- //
 pub const ElementTag = element.Tag;

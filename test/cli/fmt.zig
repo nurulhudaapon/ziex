@@ -375,7 +375,7 @@ fn test_fmt_inner(comptime file_path: []const u8, comptime has_diff_expected: bo
     defer allocator.free(source_z);
 
     // Parse and transpile
-    var result = try zx.Ast.fmt(allocator, source_z);
+    var result = try lang.Ast.fmt(allocator, source_z);
     defer result.deinit(allocator);
 
     if (!no_expect) {
@@ -405,3 +405,4 @@ const shouldRunSlowTest = test_util.shouldRunSlowTest;
 const std = @import("std");
 const testing = std.testing;
 const zx = @import("zx");
+const lang = @import("lang");

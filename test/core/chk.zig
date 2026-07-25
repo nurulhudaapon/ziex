@@ -169,7 +169,7 @@ test "Ast.parse valid" {
         \\const zx = @import("zx");
     ;
 
-    var result = try zx.Ast.parse(allocator, source, .{});
+    var result = try lang.Ast.parse(allocator, source, .{});
     defer result.deinit(allocator);
 
     try testing.expect(!result.diagnostics.hasErrors());
@@ -183,7 +183,7 @@ test "Ast.parse invalid" {
         \\(<div>)
     ;
 
-    var result = try zx.Ast.parse(allocator, source, .{});
+    var result = try lang.Ast.parse(allocator, source, .{});
     defer result.deinit(allocator);
 
     try testing.expect(result.diagnostics.hasErrors());
@@ -200,7 +200,7 @@ test "Ast.fmt valid" {
         \\const zx = @import("zx");
     ;
 
-    var result = try zx.Ast.fmt(allocator, source);
+    var result = try lang.Ast.fmt(allocator, source);
     defer result.deinit(allocator);
 
     try testing.expect(!result.diagnostics.hasErrors());
@@ -214,7 +214,7 @@ test "Ast.fmt invalid" {
         \\(<div>)
     ;
 
-    var result = try zx.Ast.fmt(allocator, source);
+    var result = try lang.Ast.fmt(allocator, source);
     defer result.deinit(allocator);
 
     try testing.expect(result.source == null);
@@ -436,5 +436,6 @@ test "semantic: skipped when syntax errors present" {
 const std = @import("std");
 const testing = std.testing;
 const zx = @import("zx");
-const Parser = zx.Parse;
-const check = zx.Ast.check;
+const lang = @import("lang");
+const Parser = lang.Parse;
+const check = lang.Ast.check;

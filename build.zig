@@ -19,7 +19,6 @@ pub fn build(b: *std.Build) !void {
     const enable_lsp = b.option(bool, "lsp", "Enabled zx lsp") orelse false;
     const enable_sqlite = b.option(bool, "feature-sqlite", "Enabled sqlite support") orelse false;
     const enable_postgres = b.option(bool, "feature-postgres", "Enabled postgres support") orelse false;
-    const exclude_core_lang = b.option(bool, "exclude-core-lang", "Exclude core language tools (Ast/Parse/sourcemap) - only needed by CLI") orelse false;
     const log_level = b.option(std.log.Level, "cli-log-level", "Log level for the CLI") orelse .info;
     const version = util.getVersion(b);
 
@@ -40,18 +39,13 @@ pub fn build(b: *std.Build) !void {
     const tree_sitter_mdzx_dep = b.dependency("tree_sitter_mdzx", .{ .target = target, .optimize = optimize, .@"build-shared" = false });
 
     // --- Features Module --- //
-    const zx_core_lang_mod = b.addModule("zx_core_lang", .{ .root_source_file = b.path("src/core/root.zig"), .target = target, .optimize = optimize });
-    zx_core_lang_mod.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
-    zx_core_lang_mod.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
-    zx_core_lang_mod.addImport("tree_sitter_mdzx", tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
+    const lang_mod = b.addModule("lang", .{ .root_source_file = b.path("src/lang.zig"), .target = target, .optimize = optimize });
+    lang_mod.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
+    lang_mod.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
+    lang_mod.addImport("tree_sitter_mdzx", tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
 
     // --- Main ZX Module --- //
     const mod = b.addModule("zx", .{ .root_source_file = b.path("src/root.zig"), .target = target, .optimize = optimize });
-
-    // Module feature flags (controls what gets compiled)
-    const zx_module_options = b.addOptions();
-    zx_module_options.addOption(bool, "exclude_core_lang", exclude_core_lang);
-    zx_module_options.addOption(bool, "is_client", is_client);
 
     // Imports (zx)
     {
@@ -73,9 +67,7 @@ pub fn build(b: *std.Build) !void {
             mod.addImport("js", jsz_dep.module("zig-js"));
         }
 
-        if (!exclude_core_lang) mod.addImport("zx_core_lang", zx_core_lang_mod);
         mod.addOptions("zx_info", options);
-        mod.addOptions("zx_module_options", zx_module_options);
     }
 
     // --- ZX CLI (Transpiler, Exporter, Dev Server) --- //
@@ -102,7 +94,7 @@ pub fn build(b: *std.Build) !void {
         .optimize = optimize,
     });
     cli_mod.addImport("std_cli", std_cli_mod);
-    cli_mod.addImport("core_lang", zx_core_lang_mod);
+    cli_mod.addImport("lang", lang_mod);
     cli_mod.addImport("zx_info", options.createModule());
     cli_mod.addImport("tree_sitter", tree_sitter_dep.module("tree_sitter"));
     cli_mod.addImport("tree_sitter_zx", tree_sitter_zx_dep.module("tree_sitter_zx"));
@@ -130,8 +122,7 @@ pub fn build(b: *std.Build) !void {
         const mode_test = b.createModule(.{ .root_source_file = b.path("src/root.zig") });
         if (b.lazyDependency("db_sqlite", .{})) |ad| mode_test.addImport("zqlite", ad.module("zqlite"));
         mode_test.addOptions("zx_info", options);
-        mode_test.addOptions("zx_module_options", zx_module_options);
-        mode_test.addImport("zx_core_lang", zx_core_lang_mod);
+        mode_test.addImport("lang", lang_mod);
 
         const testing_mod = b.createModule(.{
             .root_source_file = b.path("test/main.zig"),
@@ -139,10 +130,11 @@ pub fn build(b: *std.Build) !void {
             .optimize = optimize,
             .imports = &.{
                 .{ .name = "zx", .module = mode_test },
+                .{ .name = "lang", .module = lang_mod },
                 .{ .name = "html_hover", .module = b.createModule(.{
                     .root_source_file = b.path("src/lsp/html_hover.zig"),
                     .imports = &.{
-                        .{ .name = "core_lang", .module = zx_core_lang_mod },
+                        .{ .name = "lang", .module = lang_mod },
                     },
                 }) },
                 .{ .name = "builder", .module = b.createModule(.{

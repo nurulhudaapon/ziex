@@ -40,9 +40,6 @@ function buildPlaygroundArgs(): string[] {
 function buildAppArgs(kind: CompileKind): string[] {
     const name = kind === "ssr" ? "ziex_ssr" : "ziex_client";
     const target = kind === "ssr" ? "wasm32-wasi" : "wasm32-freestanding";
-    const optsMod = kind === "ssr"
-        ? "stubs/zx_module_options_server.zig"
-        : "stubs/zx_module_options_client.zig";
 
     const args = [
         "zig.wasm",
@@ -54,8 +51,6 @@ function buildAppArgs(kind: CompileKind): string[] {
         "--dep",
         "zx",
         "-Mroot=app/main.zig",
-        "--dep",
-        "zx_module_options",
         "--dep",
         "zx_info",
         "--dep",
@@ -70,7 +65,6 @@ function buildAppArgs(kind: CompileKind): string[] {
 
     args.push(
         "-Mzx=zx/src/root.zig",
-        `-Mzx_module_options=${optsMod}`,
         "-Mzx_info=stubs/zx_info.zig",
         "--dep",
         "zx",
