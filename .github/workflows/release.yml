@@ -106,28 +106,28 @@ jobs:
       matrix:
         target:
           - name: linux-x64
+            triple: x86_64-linux
             os: linux
-            arch: x86_64
             ext: ""
           - name: linux-aarch64
+            triple: aarch64-linux
             os: linux
-            arch: aarch64
             ext: ""
           - name: macos-x64
+            triple: x86_64-macos
             os: macos
-            arch: x86_64
             ext: ""
           - name: macos-aarch64
+            triple: aarch64-macos
             os: macos
-            arch: aarch64
             ext: ""
           - name: windows-x64
+            triple: x86_64-windows
             os: windows
-            arch: x86_64
             ext: ".exe"
           - name: windows-aarch64
+            triple: aarch64-windows
             os: windows
-            arch: aarch64
             ext: ".exe"
 
     steps:
@@ -160,7 +160,9 @@ jobs:
         run: |
           BIN_VERSION=$(bash tools/version --resolve --with-sha "${{ needs.resolve-version.outputs.version }}")
           echo "Embedding binary version: $BIN_VERSION"
-          zig build release-${{ matrix.target.name }} -Dversion="$BIN_VERSION" -Dlsp=true
+          zig build -Dtarget=${{ matrix.target.triple }} -Doptimize=ReleaseSafe -Dversion="$BIN_VERSION" -Dlsp=true
+          mkdir -p zig-out/bin/release
+          cp "zig-out/bin/zx${{ matrix.target.ext }}" "zig-out/bin/release/zx-${{ matrix.target.name }}${{ matrix.target.ext }}"
 
       - name: Prepare artifact
         shell: bash

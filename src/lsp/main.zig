@@ -9,25 +9,17 @@ const lsp = zls.lsp;
 const core_lang = @import("core_lang");
 const zx_info = @import("zx_info");
 const html_hover = @import("html_hover.zig");
+const CommandContext = @import("../cli/shared/context.zig").CommandContext;
 
 const ByteRange = struct {
     start: usize,
     end: usize,
 };
 
-var debug_allocator: std.heap.DebugAllocator(.{}) = .init;
-
-pub fn main(init: std.process.Init) !void {
-    const gpa, const is_debug = switch (builtin.os.tag) {
-        .wasi, .freestanding => .{ std.heap.wasm_allocator, false },
-        else => switch (builtin.mode) {
-            .Debug, .ReleaseSafe => .{ debug_allocator.allocator(), true },
-            .ReleaseFast, .ReleaseSmall => .{ std.heap.smp_allocator, false },
-        },
-    };
-    defer if (is_debug) {
-        _ = debug_allocator.deinit();
-    };
+pub fn run(ctx: CommandContext) !void {
+    const gpa = ctx.allocator;
+    const io = ctx.app.io;
+    const environ_map = ctx.app.environ_map;
 
     @setEvalBranchQuota(100_000);
 
@@ -36,31 +28,30 @@ pub fn main(init: std.process.Init) !void {
     const transport: *lsp.Transport = &stdio_transport.transport;
 
     const global_cache_path: ?[]const u8 = blk: {
-        const home = init.minimal.environ.getAlloc(gpa, "HOME") catch break :blk null;
-        defer gpa.free(home);
+        const home = environ_map.get("HOME") orelse break :blk null;
         const cache_suffix = if (builtin.os.tag == .macos) "Library/Caches/zls" else ".cache/zls";
         break :blk std.fs.path.join(gpa, &.{ home, cache_suffix }) catch null;
     };
     defer if (global_cache_path) |p| gpa.free(p);
 
-    var cm = zls.configuration.Manager.init(init.io, gpa, init.environ_map) catch unreachable;
+    var cm = zls.configuration.Manager.init(io, gpa, environ_map) catch unreachable;
 
     try cm.setConfiguration(.frontend, &.{
         .global_cache_path = global_cache_path,
     });
 
     const zls_server = try zls.Server.create(.{
-        .io = init.io,
+        .io = io,
         .allocator = gpa,
         .transport = transport,
         .config_manager = &cm,
     });
 
-    var handler: Handler = .init(gpa, zls_server, transport, init.io);
+    var handler: Handler = .init(gpa, zls_server, transport, io);
     defer handler.deinit();
 
     lsp.basic_server.run(
-        init.io,
+        io,
         gpa,
         transport,
         &handler,

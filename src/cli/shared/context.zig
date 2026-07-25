@@ -1,5 +1,7 @@
 const std = @import("std");
-const Spinner = @import("../../tui/main.zig").Spinner;
+const builtin = @import("builtin");
+
+const tui = @import("../../tui/main.zig");
 
 /// Shared per-process context threaded through CLI commands.
 /// Carries the working `Io` and `Environ.Map` provided by
@@ -19,6 +21,6 @@ pub const CommandContext = struct {
     allocator: std.mem.Allocator,
     writer: *std.Io.Writer,
     reader: *std.Io.Reader,
-    spinner: *Spinner,
+    spinner: if (builtin.cpu.arch.isWasm()) void else *tui.Spinner,
     app: *AppContext,
 };

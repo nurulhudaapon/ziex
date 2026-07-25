@@ -1,17 +1,31 @@
 const std = @import("std");
-const builtin = @import("builtin");
 const cli = @import("cli");
-const Spinner = @import("../tui/main.zig").Spinner;
+const builtin = @import("builtin");
+
 const context = @import("shared/context.zig");
-const AppContext = context.AppContext;
-const CommandContext = context.CommandContext;
+const tui = @import("../tui/main.zig");
 
 const version = @import("version.zig");
+const init = @import("init.zig");
+const dev = @import("dev.zig");
+const serve = @import("serve.zig");
+const build_cmd = @import("build.zig");
 const transpile = @import("transpile.zig");
 const fmt = @import("fmt.zig");
+const lsp = @import("lsp.zig");
+const export_cmd = @import("export.zig");
+const bundle = @import("bundle.zig");
+const update = @import("update.zig");
+const upgrade = @import("upgrade.zig");
 
-/// Host-only commands need process/thread APIs unavailable on WASI.
-const is_wasm = builtin.os.tag == .wasi or builtin.os.tag == .freestanding;
+const AppContext = context.AppContext;
+const CommandContext = context.CommandContext;
+const Spinner = tui.Spinner;
+
+const commands = switch (builtin.os.tag) {
+    .wasi, .freestanding => .{ version, transpile, fmt },
+    else => .{ version, init, dev, serve, build_cmd, transpile, fmt, lsp, export_cmd, bundle, update, upgrade },
+};
 
 pub const root_command: cli.Command = .{
     .name = .zx,
@@ -20,22 +34,11 @@ pub const root_command: cli.Command = .{
     \\
     ,
     .help_short = "Ziex framework CLI",
-    .subcommands = if (is_wasm) &.{
-        version.command,
-        transpile.command,
-        fmt.command,
-    } else &.{
-        version.command,
-        @import("init.zig").command,
-        @import("dev.zig").command,
-        @import("serve.zig").command,
-        @import("build.zig").command,
-        transpile.command,
-        fmt.command,
-        @import("export.zig").command,
-        @import("bundle.zig").command,
-        @import("update.zig").command,
-        @import("upgrade.zig").command,
+    .subcommands = blk: {
+        var list: [commands.len]cli.Command = undefined;
+        for (commands, 0..) |mod, i| list[i] = mod.command;
+        const frozen = list;
+        break :blk &frozen;
     },
 };
 
@@ -62,36 +65,23 @@ pub fn run(
         return;
     }
 
-    var spinner = Spinner.init(writer, reader, allocator, .{});
-    defer spinner.deinit();
+    const is_wasm = builtin.cpu.arch.isWasm();
+    var spinner: if (is_wasm) void else Spinner = if (is_wasm) {} else .init(writer, reader, allocator, .{});
+    defer if (!is_wasm) spinner.deinit();
 
     const ctx: CommandContext = .{
         .allocator = allocator,
         .writer = writer,
         .reader = reader,
-        .spinner = &spinner,
+        .spinner = if (is_wasm) {} else &spinner,
         .app = app,
     };
 
-    if (comptime is_wasm) {
-        switch (parsed.subcommand.?) {
-            .version => |sub| try version.run(ctx, sub.kind.args),
-            .transpile => |sub| try transpile.run(ctx, sub.kind.args),
-            .fmt => |sub| try fmt.run(ctx, sub.kind.args),
-        }
-    } else {
-        switch (parsed.subcommand.?) {
-            .version => |sub| try version.run(ctx, sub.kind.args),
-            .init => |sub| try @import("init.zig").run(ctx, sub.kind.args),
-            .dev => |sub| try @import("dev.zig").run(ctx, sub.kind.args),
-            .serve => |sub| try @import("serve.zig").run(ctx, sub.kind.args),
-            .build => |sub| try @import("build.zig").run(ctx, sub.kind.args),
-            .transpile => |sub| try transpile.run(ctx, sub.kind.args),
-            .fmt => |sub| try fmt.run(ctx, sub.kind.args),
-            .@"export" => |sub| try @import("export.zig").run(ctx, sub.kind.args),
-            .bundle => |sub| try @import("bundle.zig").run(ctx, sub.kind.args),
-            .update => |sub| try @import("update.zig").run(ctx, sub.kind.args),
-            .upgrade => |sub| try @import("upgrade.zig").run(ctx, sub.kind.args),
-        }
+    switch (parsed.subcommand.?) {
+        inline else => |s, tag| inline for (commands) |mod| {
+            if (comptime std.mem.eql(u8, @tagName(mod.command.name), @tagName(tag))) {
+                return mod.run(ctx, s.kind.args);
+            }
+        },
     }
 }

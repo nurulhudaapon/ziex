@@ -4,9 +4,12 @@ const build_options = @import("build_options");
 
 const cli = @import("cli/root.zig");
 const context = @import("cli/shared/context.zig");
-const lsp = if (build_options.enable_lsp) @import("lsp/main.zig") else void;
-
 const AppContext = context.AppContext;
+
+const use_debug_allocator = builtin.mode == .Debug and switch (builtin.os.tag) {
+    .wasi, .freestanding => false,
+    else => true,
+};
 
 pub fn main(init: std.process.Init) !void {
     var dbg: if (use_debug_allocator) std.heap.DebugAllocator(.{}) else void =
@@ -19,14 +22,6 @@ pub fn main(init: std.process.Init) !void {
         .wasi, .freestanding => std.heap.wasm_allocator,
         else => std.heap.smp_allocator,
     };
-
-    if (comptime build_options.enable_lsp) {
-        var args = try init.minimal.args.iterateAllocator(allocator);
-        defer args.deinit();
-        _ = args.next();
-        const subcmd = args.next();
-        if (std.mem.eql(u8, subcmd orelse "", "lsp")) return try lsp.main(init);
-    }
 
     if (comptime builtin.os.tag == .windows) {
         _ = SetConsoleOutputCP(65001);
@@ -51,11 +46,6 @@ pub fn main(init: std.process.Init) !void {
     try cli.run(stdout, stdin, allocator, args, &app_ctx);
     try stdout.flush();
 }
-
-const use_debug_allocator = builtin.mode == .Debug and switch (builtin.os.tag) {
-    .wasi, .freestanding => false,
-    else => true,
-};
 
 extern "kernel32" fn SetConsoleOutputCP(wCodePageID: std.os.windows.UINT) callconv(.winapi) std.os.windows.BOOL;
 

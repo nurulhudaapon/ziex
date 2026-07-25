@@ -79,7 +79,7 @@ pub fn build(b: *std.Build) !void {
     }
 
     // --- ZX CLI (Transpiler, Exporter, Dev Server) --- //
-    // Vendored from Zig PR #31620 until std.cli lands in the toolchain.
+    // Vendored from https://codeberg.org/ziglang/zig/pulls/31620 until it is merged.
     const cli_mod = b.createModule(.{
         .root_source_file = b.path("vendor/std/cli.zig"),
         .target = target,
@@ -279,81 +279,6 @@ pub fn build(b: *std.Build) !void {
         const syncbench_run = b.addRunArtifact(syncbench_exe);
         syncbench_step.dependOn(&syncbench_run.step);
         syncbench_run.addPassthruArgs();
-    }
-
-    // --- ZX Releases (Cross-compilation targets for all platforms) --- //
-    {
-        const release_targets = [_]struct {
-            name: []const u8,
-            target: std.Target.Query,
-        }{
-            .{ .name = "linux-x64", .target = .{ .cpu_arch = .x86_64, .os_tag = .linux } },
-            .{ .name = "linux-aarch64", .target = .{ .cpu_arch = .aarch64, .os_tag = .linux } },
-            .{ .name = "macos-x64", .target = .{ .cpu_arch = .x86_64, .os_tag = .macos } },
-            .{ .name = "macos-aarch64", .target = .{ .cpu_arch = .aarch64, .os_tag = .macos } },
-            .{ .name = "windows-x64", .target = .{ .cpu_arch = .x86_64, .os_tag = .windows } },
-            .{ .name = "windows-aarch64", .target = .{ .cpu_arch = .aarch64, .os_tag = .windows } },
-        };
-
-        const release_step = b.step("release", "Build release binaries for all targets");
-
-        for (release_targets) |release_target| {
-            const resolved_target = b.resolveTargetQuery(release_target.target);
-
-            const release_tree_sitter_dep = b.dependency("tree_sitter", .{ .target = resolved_target, .optimize = .ReleaseSafe });
-            const release_tree_sitter_zx_dep = b.dependency("tree_sitter_zx", .{ .target = resolved_target, .optimize = .ReleaseSafe, .@"build-shared" = false });
-            const release_tree_sitter_mdzx_dep = b.dependency("tree_sitter_mdzx", .{ .target = resolved_target, .optimize = .ReleaseSafe, .@"build-shared" = false });
-
-            // Sub-modules for release
-            const release_core_lang_mod = b.createModule(.{ .root_source_file = b.path("src/core/root.zig"), .target = resolved_target, .optimize = .ReleaseSafe });
-            release_core_lang_mod.addImport("tree_sitter", release_tree_sitter_dep.module("tree_sitter"));
-            release_core_lang_mod.addImport("tree_sitter_zx", release_tree_sitter_zx_dep.module("tree_sitter_zx"));
-            release_core_lang_mod.addImport("tree_sitter_mdzx", release_tree_sitter_mdzx_dep.module("tree_sitter_mdzx"));
-
-            const release_exe = b.addExecutable(.{
-                .name = "zx",
-                .root_module = b.createModule(.{
-                    .root_source_file = b.path("src/main.zig"),
-                    .target = resolved_target,
-                    .optimize = .ReleaseSafe,
-                    .imports = &.{
-                        .{ .name = "core_lang", .module = release_core_lang_mod },
-                        .{ .name = "zx_info", .module = options.createModule() },
-                        .{ .name = "cli", .module = b.createModule(.{
-                            .root_source_file = b.path("vendor/std/cli.zig"),
-                            .target = resolved_target,
-                            .optimize = .ReleaseSafe,
-                        }) },
-                        .{ .name = "tree_sitter", .module = release_tree_sitter_dep.module("tree_sitter") },
-                        .{ .name = "tree_sitter_zx", .module = release_tree_sitter_zx_dep.module("tree_sitter_zx") },
-                    },
-                }),
-            });
-            const release_enable_lsp = false; // TODO: enable lsp when zls is updated to latest zig 0.17
-            const release_exe_build_options = b.addOptions();
-            release_exe_build_options.addOption(bool, "enable_lsp", release_enable_lsp);
-            release_exe_build_options.addOption(u2, "log_level", @intFromEnum(log_level));
-
-            release_exe.root_module.addOptions("build_options", release_exe_build_options);
-            release_exe.root_module.addAnonymousImport("app_template", .{ .root_source_file = b.path("templates/Template.zig") });
-
-            if (release_enable_lsp) {
-                // const zls_dep = b.lazyDependency("zls", .{ .target = target, .optimize = .ReleaseSafe });
-                // if (zls_dep) |zls| release_exe.root_module.addImport("zls", zls.module("zls"));
-            }
-
-            const exe_ext = if (resolved_target.result.os.tag == .windows) ".exe" else "";
-            const install_release = b.addInstallArtifact(release_exe, .{
-                .dest_sub_path = b.fmt("release/zx-{s}{s}", .{ release_target.name, exe_ext }),
-            });
-
-            const target_step = b.step(
-                b.fmt("release-{s}", .{release_target.name}),
-                b.fmt("Build release binary for {s}", .{release_target.name}),
-            );
-            target_step.dependOn(&install_release.step);
-            release_step.dependOn(&install_release.step);
-        }
     }
 }
 
