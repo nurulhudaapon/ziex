@@ -144,22 +144,70 @@ pub fn deinit(ds: *DevServer) void {
     }
 }
 
+/// Max times to try the next port when the preferred one is busy.
+pub const max_port_retries: u8 = 50;
+
 pub fn start(ds: *DevServer) error{AlreadyReported}!void {
     assert(ds.tcp_server == null);
     assert(ds.serve_thread == null);
 
     log.debug("devserver start", .{});
 
-    ds.tcp_server = ds.address.listen(ds.io, .{ .reuse_address = true }) catch |err| {
-        log.err("failed to listen on {f}: {s}", .{ ds.address, @errorName(err) });
-        return error.AlreadyReported;
-    };
+    const preferred = ds.address.getPort();
+    var port = preferred;
+    var attempts: u8 = 0;
+
+    while (true) {
+        ds.address.setPort(port);
+        // Do not set reuse_address: Zig maps that to SO_REUSEADDR|SO_REUSEPORT,
+        // which lets multiple processes bind the same port (only one gets traffic).
+        ds.tcp_server = ds.address.listen(ds.io, .{}) catch |err| {
+            switch (err) {
+                error.AddressInUse => {
+                    if (attempts >= max_port_retries) {
+                        log.err("failed to find an available port after {d} retries (started at {d})", .{ max_port_retries, preferred });
+                        std.debug.print("Port {d} is in use\n", .{preferred});
+                        std.debug.print("To free it, run:\n  kill -9 $(lsof -t -i:{d})\n\n", .{preferred});
+                        return error.AlreadyReported;
+                    }
+                    const next = port +% 1;
+                    if (next == 0) {
+                        log.err("port overflow while searching for a free port", .{});
+                        return error.AlreadyReported;
+                    }
+                    log.debug("port {d} in use, trying {d}", .{ port, next });
+                    port = next;
+                    attempts += 1;
+                    continue;
+                },
+                else => {
+                    log.err("failed to listen on {f}: {s}", .{ ds.address, @errorName(err) });
+                    return error.AlreadyReported;
+                },
+            }
+        };
+        break;
+    }
+
+    if (port != preferred) {
+        std.debug.print("Port {d} is in use, using {d}\n", .{ preferred, port });
+    }
+
     ds.serve_thread = std.Thread.spawn(.{}, serve, .{ds}) catch |err| {
         log.err("unable to spawn dev server thread: {s}", .{@errorName(err)});
         ds.tcp_server.?.deinit(ds.io);
         ds.tcp_server = null;
         return error.AlreadyReported;
     };
+}
+
+/// Resolve the preferred user-facing port: CLI `--port`/`-p`, else `PORT` env, else `default`.
+pub fn resolvePreferredPort(cli_port: u32, env_map: *const std.process.Environ.Map, default: u16) u16 {
+    if (cli_port != 0) return @intCast(cli_port);
+    if (env_map.get("PORT")) |s| {
+        return std.fmt.parseInt(u16, s, 10) catch default;
+    }
+    return default;
 }
 
 /// Push a serialized notification onto the queue and wake WS threads.

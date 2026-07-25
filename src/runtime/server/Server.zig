@@ -21,7 +21,6 @@ pub fn Server(comptime H: type) type {
         .void => void,
         else => @compileError("Server app context must be a struct, pointer to struct, or void, got: " ++ @tagName(@typeInfo(H))),
     };
-    const is_dev = cli_cmd == .dev;
 
     return struct {
         const Self = @This();
@@ -174,34 +173,13 @@ pub fn Server(comptime H: type) type {
 
                 switch (err) {
                     error.AddressInUse => {
+                        // Dev port fallback lives in DevServer (outer proxy).
+                        // The app binary must stay on ZIEX_INNER_PORT when proxied.
                         const port = serverPort(&self.server.config).?;
-                        var max_retries: u8 = 10;
-
-                        if (is_dev) while (max_retries > 0) : (max_retries -= 1) {
-                            const new_port = port + 1;
-                            self.infoWithCrossedOutPort(port);
-                            std.debug.print("{s}Port {d} is already in use, {s}trying with port {d}...{s}\n\n", .{ colors.yellow, port, colors.reset_all, new_port, colors.reset_all });
-                            std.debug.print("To kill the port, run:\n  {s}kill -9 $(lsof -t -i:{d}){s}\n\n", .{ colors.dim, port, colors.reset_all });
-                            setServerAddress(&self.server.config, "127.0.0.1", new_port);
-
-                            var retry_config = self.config;
-                            retry_config.server.port = new_port;
-                            self.server.deinit();
-                            var retry_server = try init(self.io, self.allocator, retry_config, self.app_ctx);
-                            defer retry_server.deinit();
-
-                            retry_server.info();
-                            return retry_server.start();
-                        } else {
-                            std.debug.print("{s}Failed to find available port after {d} retries{s}\n", .{ colors.bold, max_retries, colors.reset_all });
-                        };
-
-                        if (!is_dev) {
-                            self.infoWithCrossedOutPort(port);
-                            std.debug.print("{s}Port {d} is already in use{s}\n", .{ colors.red, port, colors.reset_all });
-                        }
-
+                        self.infoWithCrossedOutPort(port);
+                        std.debug.print("{s}Port {d} is already in use{s}\n", .{ colors.red, port, colors.reset_all });
                         std.debug.print("\nTo kill the port, run:\n  {s}kill -9 $(lsof -t -i:{d}){s}\n\n", .{ colors.dim, port, colors.reset_all });
+                        return err;
                     },
                     else => return err,
                 }

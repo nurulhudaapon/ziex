@@ -10,6 +10,7 @@ const DevServer = @import("dev/DevServer.zig");
 const Highlight = @import("dev/Highlight.zig");
 const sig = @import("../util/sig.zig");
 const cli_args = @import("root.zig");
+const Constant = @import("../constant.zig");
 
 const CommandContext = context.CommandContext;
 const Colors = tui.Colors;
@@ -42,9 +43,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
     const allocator = ctx.allocator;
     const binpath = args.binpath;
     const install_prefix = args.@"install-prefix";
-    const port = args.port;
-    const port_str = try std.fmt.allocPrint(allocator, "{d}", .{port});
-    defer allocator.free(port_str);
+    const preferred_port = DevServer.resolvePreferredPort(args.port, env_map, Constant.default_port);
     const build_args_str = args.@"build-args";
     const use_spinner = args.@"tui-spinner";
     const clear_on_restart = args.@"tui-clear";
@@ -89,9 +88,30 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
         },
     }
 
-    // Spin up the dev proxy: it owns the user-facing port for the entire session
-    const outer_port: u16 = if (port != 0) @intCast(port) else 3000;
-    const inner_port = DevServer.findFreePort(io) catch outer_port + 1;
+    // Spin up the dev proxy first so it owns the user-facing port (and can
+    // fall back to the next free port). Then pick an ephemeral inner port.
+    log.debug("starting devserver preferred outer: {d}", .{preferred_port});
+    var dev_server = DevServer.init(.{
+        .gpa = allocator,
+        .env_map = env_map,
+        .address = try std.Io.net.IpAddress.parse("0.0.0.0", preferred_port),
+        .inner_port = 0,
+        .io = io,
+    });
+    defer dev_server.deinit();
+    dev_server.start() catch |err| {
+        try ctx.writer.print("Failed to start dev proxy: {any}\n", .{err});
+        return;
+    };
+
+    const outer_port = dev_server.address.getPort();
+    const inner_port = DevServer.findFreePort(io) catch outer_port +% 1;
+    if (inner_port == 0 or inner_port == outer_port) {
+        try ctx.writer.print("Failed to allocate an inner port for the app binary\n", .{});
+        return;
+    }
+    dev_server.inner_port = inner_port;
+
     const inner_port_str = try std.fmt.allocPrint(allocator, "{d}", .{inner_port});
     defer allocator.free(inner_port_str);
     const outer_port_str = try std.fmt.allocPrint(allocator, "{d}", .{outer_port});
@@ -102,19 +122,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
 
     if (env_map.get("ZIEX_ROOT_DIR") == null) try env_map.put("ZIEX_ROOT_DIR", install_prefix);
 
-    log.debug("starting devserver, inner: {d}: outer: {d}", .{ inner_port, outer_port });
-    var dev_server = DevServer.init(.{
-        .gpa = allocator,
-        .env_map = env_map,
-        .address = try std.Io.net.IpAddress.parse("0.0.0.0", outer_port),
-        .inner_port = inner_port,
-        .io = io,
-    });
-    defer dev_server.deinit();
-    dev_server.start() catch |err| {
-        try ctx.writer.print("Failed to start dev proxy: {any}\n", .{err});
-        return;
-    };
+    log.debug("devserver ready, inner: {d} outer: {d}", .{ inner_port, outer_port });
 
     builder = try util.spawnZig(io, .{
         .argv = build_args_array.items,

@@ -49,7 +49,8 @@ pub const dev: Command = .{
         flags.install_prefix,
         Argument.init(.port, u32, .{
             .default_value = 0,
-            .help = "Port to run the server on (0 means default or configured port)",
+            .short = 'p',
+            .help = "Port to listen on (default: PORT env, or 3000). Uses the next free port if busy",
         }),
         Argument.init(.@"tui-progress", bool, .{
             .default_value = true,
@@ -77,7 +78,7 @@ pub const serve: Command = .{
         Argument.init(.port, u32, .{
             .default_value = 0,
             .short = 'p',
-            .help = "Port to run the server on (0 means default or configured port)",
+            .help = "Port to listen on (sets PORT; default: PORT env, or 3000)",
         }),
         flags.binpath,
         flags.zig_path,
