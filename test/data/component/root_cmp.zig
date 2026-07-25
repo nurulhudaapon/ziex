@@ -14,9 +14,9 @@ pub fn Button(allocator: zx.Allocator) zx.Component {
         .button,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.txt("Button"),
-            },
+            }),
         },
     );
 }

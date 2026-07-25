@@ -15,7 +15,7 @@ pub fn _zx_md(ctx: *@import("zx").ComponentCtx(struct { children: @import("zx").
         .div,
         .{
             .allocator = ctx.allocator,
-            .children = &.{
+            .children = _zx1.chs(.{
                 _zx1.cmp(
                     Lightning,
                     .{ .src = @src() },
@@ -25,60 +25,60 @@ pub fn _zx_md(ctx: *@import("zx").ComponentCtx(struct { children: @import("zx").
                 _zx1.ele(
                     .h1,
                     .{
-                        .children = &.{
+                        .children = _zx1.chs(.{
                             _zx1.txt("1. Headers & Formatting"),
-                        },
+                        }),
                     },
                 ),
                 _zx1.ele(
                     .h1,
                     .{
-                        .children = &.{
+                        .children = _zx1.chs(.{
                             _zx1.txt("H1 Header"),
-                        },
+                        }),
                     },
                 ),
                 _zx1.ele(
                     .h2,
                     .{
-                        .children = &.{
+                        .children = _zx1.chs(.{
                             _zx1.txt("H2 Header"),
-                        },
+                        }),
                     },
                 ),
                 _zx1.ele(
                     .h3,
                     .{
-                        .children = &.{
+                        .children = _zx1.chs(.{
                             _zx1.txt("H3 Header"),
-                        },
+                        }),
                     },
                 ),
                 _zx1.ele(
                     .h4,
                     .{
-                        .children = &.{
+                        .children = _zx1.chs(.{
                             _zx1.txt("H4 Header"),
-                        },
+                        }),
                     },
                 ),
                 _zx1.ele(
                     .h5,
                     .{
-                        .children = &.{
+                        .children = _zx1.chs(.{
                             _zx1.txt("H5 Header"),
-                        },
+                        }),
                     },
                 ),
                 _zx1.ele(
                     .h6,
                     .{
-                        .children = &.{
+                        .children = _zx1.chs(.{
                             _zx1.txt("H6 Header"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

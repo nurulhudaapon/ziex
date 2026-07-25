@@ -6,50 +6,50 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 switch (user_type) {
                     .admin => switch (status) {
                         .active => _zx.ele(
                             .p,
                             .{
-                                .children = &.{
+                                .children = _zx.chs(.{
                                     _zx.txt("Active Admin"),
-                                },
+                                }),
                             },
                         ),
                         .inactive => switch (status) {
                             .active => _zx.ele(
                                 .p,
                                 .{
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.txt("Active Admin"),
-                                    },
+                                    }),
                                 },
                             ),
                             .inactive => switch (status) {
                                 .active => _zx.ele(
                                     .p,
                                     .{
-                                        .children = &.{
+                                        .children = _zx.chs(.{
                                             _zx.txt("Active Admin"),
-                                        },
+                                        }),
                                     },
                                 ),
                                 .inactive => switch (status) {
                                     .active => _zx.ele(
                                         .p,
                                         .{
-                                            .children = &.{
+                                            .children = _zx.chs(.{
                                                 _zx.txt("Active Admin"),
-                                            },
+                                            }),
                                         },
                                     ),
                                     .inactive => _zx.ele(
                                         .p,
                                         .{
-                                            .children = &.{
+                                            .children = _zx.chs(.{
                                                 _zx.txt("Inactive Admin"),
-                                            },
+                                            }),
                                         },
                                     ),
                                 },
@@ -62,26 +62,26 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                 .active => _zx.ele(
                                     .p,
                                     .{
-                                        .children = &.{
+                                        .children = _zx.chs(.{
                                             _zx.txt("Active Admin"),
-                                        },
+                                        }),
                                     },
                                 ),
                                 .inactive => _zx.ele(
                                     .p,
                                     .{
-                                        .children = &.{
+                                        .children = _zx.chs(.{
                                             _zx.txt("Inactive Admin"),
-                                        },
+                                        }),
                                     },
                                 ),
                             },
                             .inactive => _zx.ele(
                                 .p,
                                 .{
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.txt("Inactive Admin"),
-                                    },
+                                    }),
                                 },
                             ),
                         },
@@ -89,23 +89,23 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             .active => _zx.ele(
                                 .p,
                                 .{
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.txt("Active Admin"),
-                                    },
+                                    }),
                                 },
                             ),
                             .inactive => _zx.ele(
                                 .p,
                                 .{
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.txt("Inactive Admin"),
-                                    },
+                                    }),
                                 },
                             ),
                         },
                     },
                 },
-            },
+            }),
         },
     );
 }

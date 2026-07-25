@@ -4,38 +4,38 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.cmp(
                     Wrapper,
                     .{ .src = @src() },
                     .{ .name = "Wrapper" },
-                    .{ .children = _zx.ele(.fragment, .{ .children = &.{
+                    .{ .children = _zx.ele(.fragment, .{ .children = _zx.chs(.{
                         _zx.ele(
                             .p,
                             .{
-                                .children = &.{
+                                .children = _zx.chs(.{
                                     _zx.txt("Wrapped content"),
-                                },
+                                }),
                             },
                         ),
-                    } }) },
+                    }) }) },
                 ),
                 _zx.cmp(
                     Card,
                     .{ .src = @src() },
                     .{ .name = "Card" },
-                    .{ .children = _zx.ele(.fragment, .{ .children = &.{
+                    .{ .children = _zx.ele(.fragment, .{ .children = _zx.chs(.{
                         _zx.ele(
                             .span,
                             .{
-                                .children = &.{
+                                .children = _zx.chs(.{
                                     _zx.txt("Card content"),
-                                },
+                                }),
                             },
                         ),
-                    } }) },
+                    }) }) },
                 ),
-            },
+            }),
         },
     );
 }
@@ -50,9 +50,9 @@ pub fn Wrapper(ctx: *zx.ComponentContext) zx.Component {
             .attributes = _zx.attrs(.{
                 _zx.attr(@src(), "class", "wrapper"),
             }),
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.expr(ctx.children),
-            },
+            }),
         },
     );
 }
@@ -67,9 +67,9 @@ fn Card(ctx: *zx.ComponentContext) zx.Component {
             .attributes = _zx.attrs(.{
                 _zx.attr(@src(), "class", "card"),
             }),
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.expr(ctx.children),
-            },
+            }),
         },
     );
 }

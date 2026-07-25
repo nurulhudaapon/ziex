@@ -7,14 +7,14 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 switch (mode) {
                     .single => _zx.ele(
                         .p,
                         .{
-                            .children = &.{
+                            .children = _zx.chs(.{
                                 _zx.txt("Single"),
-                            },
+                            }),
                         },
                     ),
                     .repeat => _zx_whl_blk_0: {
@@ -23,16 +23,16 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             __zx_list_0.append(_zx.getAlloc(), _zx.ele(
                                 .p,
                                 .{
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.expr(i),
-                                    },
+                                    }),
                                 },
                             )) catch unreachable;
                         }
                         break :_zx_whl_blk_0 _zx.ele(.fragment, .{ .children = __zx_list_0.items });
                     },
                 },
-            },
+            }),
         },
     );
 }

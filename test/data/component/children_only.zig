@@ -4,46 +4,46 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.cmp(
                     Wrapper,
                     .{ .src = @src() },
                     .{ .name = "Wrapper" },
-                    .{ .children = _zx.ele(.fragment, .{ .children = &.{
+                    .{ .children = _zx.ele(.fragment, .{ .children = _zx.chs(.{
                         _zx.ele(
                             .p,
                             .{
-                                .children = &.{
+                                .children = _zx.chs(.{
                                     _zx.txt("Wrapped content"),
-                                },
+                                }),
                             },
                         ),
-                    } }) },
+                    }) }) },
                 ),
                 _zx.cmp(
                     Container,
                     .{ .src = @src() },
                     .{ .name = "Container" },
-                    .{ .children = _zx.ele(.fragment, .{ .children = &.{
+                    .{ .children = _zx.ele(.fragment, .{ .children = _zx.chs(.{
                         _zx.ele(
                             .span,
                             .{
-                                .children = &.{
+                                .children = _zx.chs(.{
                                     _zx.txt("First"),
-                                },
+                                }),
                             },
                         ),
                         _zx.ele(
                             .span,
                             .{
-                                .children = &.{
+                                .children = _zx.chs(.{
                                     _zx.txt("Second"),
-                                },
+                                }),
                             },
                         ),
-                    } }) },
+                    }) }) },
                 ),
-            },
+            }),
         },
     );
 }
@@ -58,9 +58,9 @@ fn Wrapper(allocator: zx.Allocator, props: WrapperProps) zx.Component {
             .attributes = _zx.attrs(.{
                 _zx.attr(@src(), "class", "wrapper"),
             }),
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.expr(props.children),
-            },
+            }),
         },
     );
 }
@@ -75,9 +75,9 @@ fn Container(allocator: zx.Allocator, props: ContainerProps) zx.Component {
             .attributes = _zx.attrs(.{
                 _zx.attr(@src(), "class", "container"),
             }),
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.expr(props.children),
-            },
+            }),
         },
     );
 }

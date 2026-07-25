@@ -7,23 +7,23 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Name: "),
                             _zx.expr(user.name),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Age: "),
                             _zx.expr(user.age),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -32,28 +32,28 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "class", "product"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.ele(
                                 .h2,
                                 .{
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.expr(product.title),
-                                    },
+                                    }),
                                 },
                             ),
                             _zx.ele(
                                 .span,
                                 .{
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.txt("Price: $"),
                                         _zx.expr(product.price),
-                                    },
+                                    }),
                                 },
                             ),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

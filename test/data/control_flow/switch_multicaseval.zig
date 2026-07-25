@@ -6,13 +6,13 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 switch (u) {
                     .admin => _zx.txt("Admin"),
                     .member, .member2, .member3 => _zx.txt("Member"),
                     else => _zx.txt("Guest"),
                 },
-            },
+            }),
         },
     );
 }

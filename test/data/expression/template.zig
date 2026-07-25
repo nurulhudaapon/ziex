@@ -20,14 +20,14 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                 _zx.attr(@src(), "data-text", "{text}"),
                 _zx.attr(@src(), "data-t", "`{text}`"),
             }),
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("My name is "),
                             _zx.expr(name),
-                        },
+                        }),
                     },
                 ),
                 _zx.cmp(
@@ -36,7 +36,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     .{ .name = "Component" },
                     .{ .text = _zx.propf("hello {s}", .{_zx.propv(count)}), .name = _zx.propf("test {s} {s} more-text", .{ _zx.propv(name), _zx.propv(getThemeClass(.dark)) }) },
                 ),
-            },
+            }),
         },
     );
 }
@@ -50,24 +50,24 @@ fn Component(ctx: *zx.ComponentCtx(struct {
         .div,
         .{
             .allocator = ctx.allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(ctx.props.text),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(ctx.props.name),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

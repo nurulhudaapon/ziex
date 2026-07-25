@@ -23,20 +23,31 @@ pub fn inject(allocator: Allocator, page: *Component, pathname: []const u8) void
 
     if (joinMatching(allocator, pieces.head_starting, pathname)) |html| {
         if (tree.getElementByName(page, allocator, .head)) |el|
-            tree.prependChild(el, allocator, .{ .text = html }) catch {};
+            tree.prependChild(el, allocator, unescapedHtml(allocator, html)) catch {};
     }
     if (joinMatching(allocator, pieces.head_ending, pathname)) |html| {
         if (tree.getElementByName(page, allocator, .head)) |el|
-            tree.appendChild(el, allocator, .{ .text = html }) catch {};
+            tree.appendChild(el, allocator, unescapedHtml(allocator, html)) catch {};
     }
     if (joinMatching(allocator, pieces.body_starting, pathname)) |html| {
         if (tree.getElementByName(page, allocator, .body)) |el|
-            tree.prependChild(el, allocator, .{ .text = html }) catch {};
+            tree.prependChild(el, allocator, unescapedHtml(allocator, html)) catch {};
     }
     if (joinMatching(allocator, pieces.body_ending, pathname)) |html| {
         if (tree.getElementByName(page, allocator, .body)) |el|
-            tree.appendChild(el, allocator, .{ .text = html }) catch {};
+            tree.appendChild(el, allocator, unescapedHtml(allocator, html)) catch {};
     }
+}
+
+/// Wrap pre-rendered HTML so it is written verbatim (`@escaping={.none}`).
+fn unescapedHtml(allocator: Allocator, html: []const u8) Component {
+    const children = allocator.alloc(Component, 1) catch return .{ .text = html };
+    children[0] = .{ .text = html };
+    return .{ .element = .{
+        .tag = .fragment,
+        .escaping = .none,
+        .children = children,
+    } };
 }
 
 fn collectSlot(comptime parent: Build.AddElementOptions.Parent, comptime position: Build.AddElementOptions.Position) []const SlotPiece {

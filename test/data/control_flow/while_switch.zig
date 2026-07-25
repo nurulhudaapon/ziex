@@ -6,47 +6,47 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx_whl_blk_0: {
                     var __zx_list_0 = @import("std").ArrayList(@import("zx").Component).empty;
                     while (i < 3) : (i += 1) {
                         __zx_list_0.append(_zx.getAlloc(), _zx.ele(
                             .div,
                             .{
-                                .children = &.{
+                                .children = _zx.chs(.{
                                     switch (i) {
                                         0 => _zx.ele(
                                             .span,
                                             .{
-                                                .children = &.{
+                                                .children = _zx.chs(.{
                                                     _zx.txt("Zero"),
-                                                },
+                                                }),
                                             },
                                         ),
                                         1 => _zx.ele(
                                             .span,
                                             .{
-                                                .children = &.{
+                                                .children = _zx.chs(.{
                                                     _zx.txt("One"),
-                                                },
+                                                }),
                                             },
                                         ),
                                         else => _zx.ele(
                                             .span,
                                             .{
-                                                .children = &.{
+                                                .children = _zx.chs(.{
                                                     _zx.txt("Other"),
-                                                },
+                                                }),
                                             },
                                         ),
                                     },
-                                },
+                                }),
                             },
                         )) catch unreachable;
                     }
                     break :_zx_whl_blk_0 _zx.ele(.fragment, .{ .children = __zx_list_0.items });
                 },
-            },
+            }),
         },
     );
 }

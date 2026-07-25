@@ -6,32 +6,32 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx_whl_blk_0: {
                     var __zx_list_0 = @import("std").ArrayList(@import("zx").Component).empty;
                     while (iter.next()) |item| {
                         __zx_list_0.append(_zx.getAlloc(), _zx.ele(
                             .p,
                             .{
-                                .children = &.{
+                                .children = _zx.chs(.{
                                     _zx.expr(item),
-                                },
+                                }),
                             },
                         )) catch unreachable;
                     } else |err| {
                         __zx_list_0.append(_zx.getAlloc(), _zx.ele(
                             .p,
                             .{
-                                .children = &.{
+                                .children = _zx.chs(.{
                                     _zx.txt("Error: "),
                                     _zx.expr(@errorName(err)),
-                                },
+                                }),
                             },
                         )) catch unreachable;
                     }
                     break :_zx_whl_blk_0 _zx.ele(.fragment, .{ .children = __zx_list_0.items });
                 },
-            },
+            }),
         },
     );
 }

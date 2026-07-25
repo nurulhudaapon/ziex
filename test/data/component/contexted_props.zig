@@ -4,7 +4,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.cmp(
                     Button,
                     .{ .src = @src() },
@@ -21,18 +21,18 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     Panel,
                     .{ .src = @src() },
                     .{ .name = "Panel" },
-                    .{ .title = "Panel Title", .children = _zx.ele(.fragment, .{ .children = &.{
+                    .{ .title = "Panel Title", .children = _zx.ele(.fragment, .{ .children = _zx.chs(.{
                         _zx.ele(
                             .p,
                             .{
-                                .children = &.{
+                                .children = _zx.chs(.{
                                     _zx.txt("Panel content here"),
-                                },
+                                }),
                             },
                         ),
-                    } }) },
+                    }) }) },
                 ),
-            },
+            }),
         },
     );
 }
@@ -48,9 +48,9 @@ pub fn Button(ctx: *zx.ComponentCtx(ButtonProps)) zx.Component {
             .attributes = _zx.attrs(.{
                 _zx.attr(@src(), "class", "btn"),
             }),
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.expr(ctx.props.title),
-            },
+            }),
         },
     );
 }
@@ -67,9 +67,9 @@ fn Alert(ctx: *zx.ComponentCtx(AlertProps)) zx.Component {
                 _zx.attr(@src(), "class", "alert"),
                 _zx.attr(@src(), "data-level", ctx.props.level),
             }),
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.expr(ctx.props.message),
-            },
+            }),
         },
     );
 }
@@ -85,13 +85,13 @@ fn Panel(ctx: *zx.ComponentCtx(PanelProps)) zx.Component {
             .attributes = _zx.attrs(.{
                 _zx.attr(@src(), "class", "panel"),
             }),
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .h2,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(ctx.props.title),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -100,12 +100,12 @@ fn Panel(ctx: *zx.ComponentCtx(PanelProps)) zx.Component {
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "class", "panel-content"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(ctx.children),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

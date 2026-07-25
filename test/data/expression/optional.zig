@@ -7,26 +7,26 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Name: "),
                             _zx.expr(maybe_name orelse "Guest"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Default: "),
                             _zx.expr(no_name orelse "Anonymous"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

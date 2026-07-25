@@ -5,9 +5,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .div,
             .{
                 .allocator = allocator,
-                .children = &.{
+                .children = _zx.chs(.{
                     _zx.txt("Hello!"),
-                },
+                }),
             },
         );
     };
@@ -16,7 +16,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .section,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.cmp(
                     ChildComponent,
                     .{ .src = @src() },
@@ -30,13 +30,13 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     .{ .children = _zx.ele(
                         .div,
                         .{
-                            .children = &.{
+                            .children = _zx.chs(.{
                                 _zx.txt("Hello!"),
-                            },
+                            }),
                         },
                     ) },
                 ),
-            },
+            }),
         },
     );
 }
@@ -48,9 +48,9 @@ const hello_child_outside = _zx_ele_blk_1: {
     break :_zx_ele_blk_1 _zx.ele(
         .div,
         .{
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.txt("Hello!"),
-            },
+            }),
         },
     );
 };
@@ -62,9 +62,9 @@ pub fn ChildComponent(allocator: zx.Allocator, props: Props) zx.Component {
         .div,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.expr(props.children),
-            },
+            }),
         },
     );
 }

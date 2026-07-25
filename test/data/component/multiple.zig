@@ -4,7 +4,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.cmp(
                     Button,
                     .{ .src = @src() },
@@ -35,7 +35,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     .{ .name = "AsyncScore" },
                     .{ .index = 3, .label = "Rating" },
                 ),
-            },
+            }),
         },
     );
 }
@@ -47,9 +47,9 @@ fn Button(allocator: zx.Allocator, props: ButtonProps) zx.Component {
         .button,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.expr(props.title),
-            },
+            }),
         },
     );
 }
@@ -61,11 +61,11 @@ fn AsyncScore(allocator: zx.Allocator, props: AsyncScoreProps) zx.Component {
         .span,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.expr(props.label),
                 _zx.txt("#"),
                 _zx.expr(props.index),
-            },
+            }),
         },
     );
 }

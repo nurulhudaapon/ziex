@@ -7,16 +7,16 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 if (user_name) |un| _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(un),
-                        },
+                        }),
                     },
                 ) else _zx.ele(.fragment, .{}),
-            },
+            }),
         },
     );
 }

@@ -731,7 +731,8 @@ fn transpileFragment(self: *Transpile, node: ts.Node, is_root: bool) !void {
     // Write children
     if (children.items.len > 0) {
         try self.writeIndent();
-        try self.write(".children = &.{\n");
+        try self.write(".children = ");
+        try self.print("{s}.chs(.{{\n", .{self.zx_name});
         self.indent_level += 1;
 
         for (children.items, 0..) |child, idx| {
@@ -749,7 +750,7 @@ fn transpileFragment(self: *Transpile, node: ts.Node, is_root: bool) !void {
 
         self.indent_level -= 1;
         try self.writeIndent();
-        try self.write("},\n");
+        try self.write("}),\n");
     }
 
     self.indent_level -= 1;
@@ -1267,7 +1268,7 @@ fn writeChildrenValue(self: *Transpile, children: []const ts.Node) !void {
     if (children.len == 1) {
         _ = try self.transpileChild(children[0], false, true);
     } else {
-        try self.print("{s}.ele(.fragment, .{{ .children = &.{{", .{self.zx_name});
+        try self.print("{s}.ele(.fragment, .{{ .children = {s}.chs(.{{", .{ self.zx_name, self.zx_name });
         for (children, 0..) |child, idx| {
             const saved_len = self.output.items.len;
             const had_output = try self.transpileChild(child, false, idx == children.len - 1);
@@ -1277,7 +1278,7 @@ fn writeChildrenValue(self: *Transpile, children: []const ts.Node) !void {
                 self.output.shrinkRetainingCapacity(saved_len);
             }
         }
-        try self.write("} })");
+        try self.write("}) })");
     }
 }
 
@@ -1314,7 +1315,8 @@ fn writeHtmlElement(self: *Transpile, node: ts.Node, tag: []const u8, tag_name_b
     // Write children
     if (children.len > 0) {
         try self.writeIndent();
-        try self.write(".children = &.{\n");
+        try self.write(".children = ");
+        try self.print("{s}.chs(.{{\n", .{self.zx_name});
         self.indent_level += 1;
 
         for (children, 0..) |child, idx| {
@@ -1332,7 +1334,7 @@ fn writeHtmlElement(self: *Transpile, node: ts.Node, tag: []const u8, tag_name_b
 
         self.indent_level -= 1;
         try self.writeIndent();
-        try self.write("},\n");
+        try self.write("}),\n");
     }
 
     self.indent_level -= 1;
@@ -1579,9 +1581,9 @@ fn transpileBranch(self: *Transpile, node: ts.Node) error{OutOfMemory}!void {
         .zx_block => try self.transpileBlock(node),
         .if_expression => try self.transpileIf(node), // Handle else-if chains
         .parenthesized_expression => {
-            try self.print("{s}.ele(.fragment, .{{ .children = &.{{\n", .{self.zx_name});
+            try self.print("{s}.ele(.fragment, .{{ .children = {s}.chs(.{{\n", .{ self.zx_name, self.zx_name });
             try self.transpileExprBlock(node);
-            try self.write(",},},)");
+            try self.write(",}),},)");
         },
         else => {
             try self.print("{s}.txt(", .{self.zx_name});

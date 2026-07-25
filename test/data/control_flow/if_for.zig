@@ -6,36 +6,36 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 if (show_users) _zx.ele(
                     .fragment,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             (_zx_for_blk_0: {
                                 const __zx_children_0 = _zx.getAlloc().alloc(@import("zx").Component, user_names.len) catch unreachable;
                                 for (user_names, 0..) |name, _zx_i_0| {
                                     __zx_children_0[_zx_i_0] = _zx.ele(
                                         .p,
                                         .{
-                                            .children = &.{
+                                            .children = _zx.chs(.{
                                                 _zx.expr(name),
-                                            },
+                                            }),
                                         },
                                     );
                                 }
                                 break :_zx_for_blk_0 _zx.ele(.fragment, .{ .children = __zx_children_0 });
                             }),
-                        },
+                        }),
                     },
                 ) else _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Users hidden"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

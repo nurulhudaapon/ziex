@@ -3,88 +3,88 @@ pub fn FmtWhitespace(allocator: zx.Allocator) zx.Component {
     return _zx.ele(
         .div,
         .{
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .span,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("| "),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .span,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt(" |"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .span,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt(" | "),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .span,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("| "),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .span,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt(" |"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .span,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt(" | "),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .span,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("|"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .span,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt(" | "),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("hello"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt(" hello "),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

@@ -4,7 +4,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.cmp(
                     CounterComponent,
                     .{ .src = @src() },
@@ -23,7 +23,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     .{ .name = "Button", .client = .{ .name = "Button", .id = "cd02624" } },
                     .{ .title = "Custom Button" },
                 ),
-            },
+            }),
         },
     );
 }
@@ -34,9 +34,9 @@ pub fn CounterComponent(allocator: zx.Allocator) zx.Component {
         .button,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.txt("Counter"),
-            },
+            }),
         },
     );
 }

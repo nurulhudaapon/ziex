@@ -77,9 +77,9 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
         },
         .text => |text| {
             if (options.escaping == .none) {
-                try zx.util.html.unescape(writer, text);
+                try writer.writeAll(text);
             } else {
-                try writer.print("{s}", .{text});
+                try html_util.escapeText(writer, text);
             }
         },
         .component_fn => |func| {
@@ -148,28 +148,46 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
                 // React component: use JSON format
                 if (component_csr.writeProps) |writeProps| {
                     if (component_csr.props_ptr) |props_ptr| {
-                        try writer.print("<!--${s} {s} ", .{ component_csr.id, component_csr.name });
+                        try writer.writeAll("<!--$");
+                        try writer.writeAll(component_csr.id);
+                        try writer.writeAll(" ");
+                        try writer.writeAll(component_csr.name);
+                        try writer.writeAll(" ");
                         try writeProps(writer, props_ptr);
-                        try writer.print("-->", .{});
+                        try writer.writeAll("-->");
                     } else {
-                        try writer.print("<!--${s} {s}-->", .{ component_csr.id, component_csr.name });
+                        try writer.writeAll("<!--$");
+                        try writer.writeAll(component_csr.id);
+                        try writer.writeAll(" ");
+                        try writer.writeAll(component_csr.name);
+                        try writer.writeAll("-->");
                     }
                 } else {
-                    try writer.print("<!--${s} {s}-->", .{ component_csr.id, component_csr.name });
+                    try writer.writeAll("<!--$");
+                    try writer.writeAll(component_csr.id);
+                    try writer.writeAll(" ");
+                    try writer.writeAll(component_csr.name);
+                    try writer.writeAll("-->");
                 }
             } else {
                 // Zig component: use JSON format (same as React)
                 if (component_csr.writeProps) |writeProps| {
                     if (component_csr.props_ptr) |props_ptr| {
-                        try writer.print("<!--${s} ", .{component_csr.id});
+                        try writer.writeAll("<!--$");
+                        try writer.writeAll(component_csr.id);
+                        try writer.writeAll(" ");
                         try writeProps(writer, props_ptr);
-                        try writer.print("-->", .{});
+                        try writer.writeAll("-->");
                     } else {
-                        try writer.print("<!--${s}-->", .{component_csr.id});
+                        try writer.writeAll("<!--$");
+                        try writer.writeAll(component_csr.id);
+                        try writer.writeAll("-->");
                     }
                 } else {
                     // No props - just marker
-                    try writer.print("<!--${s}-->", .{component_csr.id});
+                    try writer.writeAll("<!--$");
+                    try writer.writeAll(component_csr.id);
+                    try writer.writeAll("-->");
                 }
             }
 
@@ -179,7 +197,9 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
             }
 
             // End comment marker: <!--/$id-->
-            try writer.print("<!--/${s}-->", .{component_csr.id});
+            try writer.writeAll("<!--/$");
+            try writer.writeAll(component_csr.id);
+            try writer.writeAll("-->");
         },
         .element => |elem| {
             // Check if this element is async and we're collecting async components
@@ -188,7 +208,9 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
                 options.async_counter.?.* += 1;
 
                 // Write placeholder div with fallback content
-                try writer.print("<div id=\"__ZX_S-{d}\">", .{async_id});
+                try writer.writeAll("<div id=\"__ZX_S-");
+                try writer.print("{d}", .{async_id});
+                try writer.writeAll("\">");
 
                 // Render fallback content if provided
                 if (elem.fallback) |fallback| {
@@ -211,8 +233,15 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
             // <><div>...</div></> => <div>...</div>
             if (elem.tag == .fragment) {
                 if (elem.children) |children| {
+                    const child_options = RenderOptions{
+                        .escaping = elem.escaping orelse options.escaping,
+                        .rendering = elem.rendering orelse options.rendering,
+                        .async_components = options.async_components,
+                        .async_counter = options.async_counter,
+                        .base_path = options.base_path,
+                    };
                     for (children) |child| {
-                        try render(child, writer, options);
+                        try render(child, writer, child_options);
                     }
                 }
                 return;
@@ -220,7 +249,8 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
 
             // Otherwise, render normally
             // Opening tag
-            try writer.print("<{s}", .{@tagName(elem.tag)});
+            try writer.writeAll("<");
+            try writer.writeAll(@tagName(elem.tag));
 
             const is_self_closing = elem.tag.isSelf();
             const is_no_closing = elem.tag.isVoid();
@@ -228,6 +258,10 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
             // Handle attributes
             var has_action_handler = false;
             var action_id: u32 = 1;
+            const base_path_normalized = if (options.base_path) |bp|
+                html_util.normalizeBasePathForPrefixing(bp)
+            else
+                null;
             if (elem.attributes) |attributes| {
                 var has_method = false;
 
@@ -252,21 +286,19 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
                         }
                         // defaultValue is a DOM property; the HTML attribute equivalent is "value"
                         const attr_name = if (std.mem.eql(u8, attribute.name, "defaultValue")) "value" else attribute.name;
-                        try writer.print(" {s}", .{attr_name});
+                        try writer.writeAll(" ");
+                        try writer.writeAll(attr_name);
                     }
                     if (attribute.value) |value| {
                         try writer.writeAll("=\"");
                         // Prefix href/src/action attributes with base_path when applicable
-                        if (options.base_path) |bp| {
-                            const normalized = html_util.normalizeBasePathForPrefixing(bp);
-                            if (normalized) |nb| {
-                                const name = attribute.name;
-                                const is_prefixable = std.mem.eql(u8, name, "href") or
-                                    std.mem.eql(u8, name, "src") or
-                                    std.mem.eql(u8, name, "action");
-                                if (is_prefixable and html_util.shouldPrefixPathWithBasePath(nb, value)) {
-                                    try writer.writeAll(nb);
-                                }
+                        if (base_path_normalized) |nb| {
+                            const name = attribute.name;
+                            const is_prefixable = std.mem.eql(u8, name, "href") or
+                                std.mem.eql(u8, name, "src") or
+                                std.mem.eql(u8, name, "action");
+                            if (is_prefixable and html_util.shouldPrefixPathWithBasePath(nb, value)) {
+                                try writer.writeAll(nb);
                             }
                         }
                         try html_util.escapeAttr(writer, value);
@@ -283,14 +315,16 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
 
             // Closing bracket
             if (!is_self_closing or is_no_closing) {
-                try writer.print(">", .{});
+                try writer.writeAll(">");
             } else {
-                try writer.print(" />", .{});
+                try writer.writeAll(" />");
             }
 
             // Inject hidden field so no-JS form submissions can be identified as action requests
             if (elem.tag == .form and has_action_handler) {
-                try writer.print("<input type=\"hidden\" name=\"__$action\" value=\"{d}\">", .{action_id});
+                try writer.writeAll("<input type=\"hidden\" name=\"__$action\" value=\"");
+                try writer.print("{d}", .{action_id});
+                try writer.writeAll("\">");
             }
 
             // Render children (recursively collect slots if needed)
@@ -310,7 +344,9 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
 
             // Closing tag
             if (!is_self_closing and !is_no_closing) {
-                try writer.print("</{s}>", .{@tagName(elem.tag)});
+                try writer.writeAll("</");
+                try writer.writeAll(@tagName(elem.tag));
+                try writer.writeAll(">");
             }
         },
     }

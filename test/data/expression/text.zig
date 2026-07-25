@@ -8,43 +8,43 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .section,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.ele(
                                 .p,
                                 .{
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.txt("User: "),
                                         _zx.expr(user_name),
-                                    },
+                                    }),
                                 },
                             ),
                             _zx.ele(
                                 .p,
                                 .{
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.txt("Safe HTML: "),
                                         _zx.expr(html_content),
-                                    },
+                                    }),
                                 },
                             ),
                             _zx.ele(
                                 .p,
                                 .{
                                     .escaping = .html,
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.txt("Unsafe HTML: "),
                                         _zx.expr(unsafe_html),
-                                    },
+                                    }),
                                 },
                             ),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

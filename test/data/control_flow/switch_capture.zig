@@ -7,7 +7,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 switch (member_user) {
                     .admin => _zx.txt("Admin"),
                     .member => _zx.txt("Member"),
@@ -16,23 +16,23 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     .admin => |admin| _zx.ele(
                         .p,
                         .{
-                            .children = &.{
+                            .children = _zx.chs(.{
                                 _zx.txt("Powerful - Level "),
                                 _zx.expr(admin.level),
-                            },
+                            }),
                         },
                     ),
                     .member => |member| _zx.ele(
                         .p,
                         .{
-                            .children = &.{
+                            .children = _zx.chs(.{
                                 _zx.txt("Powerless - Points "),
                                 _zx.expr(member.points),
-                            },
+                            }),
                         },
                     ),
                 },
-            },
+            }),
         },
     );
 }

@@ -4,21 +4,21 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.cmp(
                     Card,
                     .{ .src = @src() },
                     .{ .name = "Card" },
-                    .{ .title = "Welcome", .children = _zx.ele(.fragment, .{ .children = &.{
+                    .{ .title = "Welcome", .children = _zx.ele(.fragment, .{ .children = _zx.chs(.{
                         _zx.cmp(
                             Button,
                             .{ .src = @src() },
                             .{ .name = "Button" },
                             .{ .label = "Click me" },
                         ),
-                    } }) },
+                    }) }) },
                 ),
-            },
+            }),
         },
     );
 }
@@ -33,16 +33,16 @@ fn Card(allocator: zx.Allocator, props: CardProps) zx.Component {
             .attributes = _zx.attrs(.{
                 _zx.attr(@src(), "class", "card"),
             }),
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .h2,
                     .{
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "class", "card-header"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(props.title),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -51,12 +51,12 @@ fn Card(allocator: zx.Allocator, props: CardProps) zx.Component {
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "class", "card-body"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(props.children),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }
@@ -71,9 +71,9 @@ fn Button(allocator: zx.Allocator, props: ButtonProps) zx.Component {
             .attributes = _zx.attrs(.{
                 _zx.attr(@src(), "class", "btn"),
             }),
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.expr(props.label),
-            },
+            }),
         },
     );
 }

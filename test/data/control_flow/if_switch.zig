@@ -6,40 +6,40 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 if (show_user_type) _zx.ele(
                     .fragment,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             (switch (user_type) {
                                 .admin => _zx.ele(
                                     .p,
                                     .{
-                                        .children = &.{
+                                        .children = _zx.chs(.{
                                             _zx.txt("Admin"),
-                                        },
+                                        }),
                                     },
                                 ),
                                 .member => _zx.ele(
                                     .p,
                                     .{
-                                        .children = &.{
+                                        .children = _zx.chs(.{
                                             _zx.txt("Member"),
-                                        },
+                                        }),
                                     },
                                 ),
                             }),
-                        },
+                        }),
                     },
                 ) else _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("User type hidden"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

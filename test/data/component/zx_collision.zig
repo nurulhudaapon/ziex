@@ -6,16 +6,16 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx1.chs(.{
                 _zx1.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx1.chs(.{
                             _zx1.expr(_zx),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }
@@ -29,16 +29,16 @@ pub fn WithPrefix(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx1.chs(.{
                 _zx1.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx1.chs(.{
                             _zx1.txt("ok"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }
@@ -49,9 +49,9 @@ pub fn ParameterCollision(allocator: zx.Allocator, _zx: []const u8) zx.Component
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx1.chs(.{
                 _zx1.expr(_zx),
-            },
+            }),
         },
     );
 }
@@ -63,22 +63,22 @@ pub fn CaptureCollision(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx1.chs(.{
                 _zx1_for_blk_0: {
                     const __zx1_children_0 = _zx1.getAlloc().alloc(@import("zx").Component, values.len) catch unreachable;
                     for (values, 0..) |_zx, _zx1_i_0| {
                         __zx1_children_0[_zx1_i_0] = _zx1.ele(
                             .span,
                             .{
-                                .children = &.{
+                                .children = _zx1.chs(.{
                                     _zx1.expr(_zx),
-                                },
+                                }),
                             },
                         );
                     }
                     break :_zx1_for_blk_0 _zx1.ele(.fragment, .{ .children = __zx1_children_0 });
                 },
-            },
+            }),
         },
     );
 }
@@ -94,9 +94,9 @@ const module_component = _zx1_ele_blk_1: {
     break :_zx1_ele_blk_1 _zx1.ele(
         .aside,
         .{
-            .children = &.{
+            .children = _zx1.chs(.{
                 _zx1.txt("module"),
-            },
+            }),
         },
     );
 };
@@ -111,14 +111,14 @@ pub fn NestedCollision(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx4.chs(.{
                 _zx4.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx4.chs(.{
                             _zx4.expr(_zx),
                             _zx4.expr(_zx1),
-                        },
+                        }),
                     },
                 ),
                 _zx4_for_blk_2: {
@@ -127,15 +127,15 @@ pub fn NestedCollision(allocator: zx.Allocator) zx.Component {
                         __zx4_children_2[_zx4_i_2] = _zx4.ele(
                             .span,
                             .{
-                                .children = &.{
+                                .children = _zx4.chs(.{
                                     _zx4.expr(item),
-                                },
+                                }),
                             },
                         );
                     }
                     break :_zx4_for_blk_2 _zx4.ele(.fragment, .{ .children = __zx4_children_2 });
                 },
-            },
+            }),
         },
     );
 }
@@ -153,9 +153,9 @@ pub fn ElementBlockCollision(allocator: zx.Allocator) zx.Component {
             .section,
             .{
                 .allocator = allocator,
-                .children = &.{
+                .children = _zx4.chs(.{
                     _zx4.txt("inline"),
-                },
+                }),
             },
         );
     };
@@ -174,22 +174,22 @@ pub fn ForHelperCollision(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx4.chs(.{
                 _zx4_for_blk_4: {
                     const __zx4_children_4 = _zx4.getAlloc().alloc(@import("zx").Component, items.len) catch unreachable;
                     for (items, 0..) |item, _zx4_i_4| {
                         __zx4_children_4[_zx4_i_4] = _zx4.ele(
                             .span,
                             .{
-                                .children = &.{
+                                .children = _zx4.chs(.{
                                     _zx4.expr(item),
-                                },
+                                }),
                             },
                         );
                     }
                     break :_zx4_for_blk_4 _zx4.ele(.fragment, .{ .children = __zx4_children_4 });
                 },
-            },
+            }),
         },
     );
 }
@@ -205,22 +205,22 @@ pub fn WhileHelperCollision(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx4.chs(.{
                 _zx4_whl_blk_5: {
                     var __zx4_list_5 = @import("std").ArrayList(@import("zx").Component).empty;
                     while (i < 2) : (i += 1) {
                         __zx4_list_5.append(_zx4.getAlloc(), _zx4.ele(
                             .span,
                             .{
-                                .children = &.{
+                                .children = _zx4.chs(.{
                                     _zx4.expr(i),
-                                },
+                                }),
                             },
                         )) catch unreachable;
                     }
                     break :_zx4_whl_blk_5 _zx4.ele(.fragment, .{ .children = __zx4_list_5.items });
                 },
-            },
+            }),
         },
     );
 }

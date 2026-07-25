@@ -4,97 +4,97 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .div,
                     .{
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "class", "container"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.ele(
                                 .header,
                                 .{
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.ele(
                                             .nav,
                                             .{
-                                                .children = &.{
+                                                .children = _zx.chs(.{
                                                     _zx.ele(
                                                         .ul,
                                                         .{
-                                                            .children = &.{
+                                                            .children = _zx.chs(.{
                                                                 _zx.ele(
                                                                     .li,
                                                                     .{
-                                                                        .children = &.{
+                                                                        .children = _zx.chs(.{
                                                                             _zx.ele(
                                                                                 .a,
                                                                                 .{
                                                                                     .attributes = _zx.attrs(.{
                                                                                         _zx.attr(@src(), "href", "/"),
                                                                                     }),
-                                                                                    .children = &.{
+                                                                                    .children = _zx.chs(.{
                                                                                         _zx.txt("Home"),
-                                                                                    },
+                                                                                    }),
                                                                                 },
                                                                             ),
-                                                                        },
+                                                                        }),
                                                                     },
                                                                 ),
                                                                 _zx.ele(
                                                                     .li,
                                                                     .{
-                                                                        .children = &.{
+                                                                        .children = _zx.chs(.{
                                                                             _zx.ele(
                                                                                 .a,
                                                                                 .{
                                                                                     .attributes = _zx.attrs(.{
                                                                                         _zx.attr(@src(), "href", "/about"),
                                                                                     }),
-                                                                                    .children = &.{
+                                                                                    .children = _zx.chs(.{
                                                                                         _zx.txt("About"),
-                                                                                    },
+                                                                                    }),
                                                                                 },
                                                                             ),
-                                                                        },
+                                                                        }),
                                                                     },
                                                                 ),
-                                                            },
+                                                            }),
                                                         },
                                                     ),
-                                                },
+                                                }),
                                             },
                                         ),
-                                    },
+                                    }),
                                 },
                             ),
                             _zx.ele(
                                 .article,
                                 .{
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.ele(
                                             .section,
                                             .{
-                                                .children = &.{
+                                                .children = _zx.chs(.{
                                                     _zx.ele(
                                                         .p,
                                                         .{
-                                                            .children = &.{
+                                                            .children = _zx.chs(.{
                                                                 _zx.txt("Deeply nested content"),
-                                                            },
+                                                            }),
                                                         },
                                                     ),
-                                                },
+                                                }),
                                             },
                                         ),
-                                    },
+                                    }),
                                 },
                             ),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

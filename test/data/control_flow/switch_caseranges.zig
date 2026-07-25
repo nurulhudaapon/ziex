@@ -7,7 +7,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 switch (char) {
                     0, 1, 2, 3 => _zx.txt("0 or 1 or 2 or 3"),
                     4...5, 8, 11...13, 15 => _zx.txt("4 to 5 or 8 or 11 to 13 or 15"),
@@ -16,7 +16,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     'd'...'f' => _zx.txt("d to f"),
                     else => _zx.txt("other"),
                 },
-            },
+            }),
         },
     );
 }

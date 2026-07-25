@@ -8,7 +8,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .div,
                     .{
@@ -16,22 +16,22 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             _zx.attr(@src(), "class", class_name),
                             _zx.attr(@src(), "id", id),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.ele(
                                 .button,
                                 .{
                                     .attributes = _zx.attrs(.{
                                         _zx.attr(@src(), "class", if (is_active) "active" else "inactive"),
                                     }),
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.txt("Click me"),
-                                    },
+                                    }),
                                 },
                             ),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

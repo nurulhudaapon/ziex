@@ -4,11 +4,11 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .section,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .style,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(
                                 \\div {
                                 \\    background-color: red;
@@ -30,33 +30,33 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                 \\    letter-spacing: 1px;
                                 \\}
                             ),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .script,
                     .{
                         .escaping = .none,
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(
                                 \\ import { data } from "./data.js";
                                 \\const data = { name: "test" };
                                 \\console.log(data);
                             ),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .pre,
                     .{
                         .escaping = .none,
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("                \n"),
                             _zx.expr(
                                 \\<h1>name</h1>
                             ),
                             _zx.txt("            "),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -67,16 +67,16 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             _zx.attr(@src(), "class", "bold"),
                             _zx.attr(@src(), "class", "italic"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("                \n"),
                             _zx.expr(
                                 \\<h1>name</h1>
                             ),
                             _zx.txt("            "),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

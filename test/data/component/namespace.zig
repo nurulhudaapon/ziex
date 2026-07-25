@@ -4,14 +4,14 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.cmp(
                     components.Button,
                     .{ .src = @src() },
                     .{ .name = "Button" },
                     .{ .title = "Custom Button" },
                 ),
-            },
+            }),
         },
     );
 }
@@ -24,9 +24,9 @@ const components = struct {
             .button,
             .{
                 .allocator = allocator,
-                .children = &.{
+                .children = _zx.chs(.{
                     _zx.expr(props.title),
-                },
+                }),
             },
         );
     }

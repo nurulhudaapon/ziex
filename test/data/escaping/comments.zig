@@ -7,7 +7,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .attributes = _zx.attrs(.{
                 _zx.attr(@src(), "data-src", @src().file),
             }),
-            .children = &.{},
+            .children = _zx.chs(.{}),
         },
     );
 }
@@ -17,14 +17,14 @@ pub fn Comments(_: zx.ComponentContext) zx.Component {
     return _zx.ele(
         .div,
         .{
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .section,
                     .{
-                        .children = &.{},
+                        .children = _zx.chs(.{}),
                     },
                 ),
-            },
+            }),
         },
     );
 }
@@ -34,16 +34,16 @@ pub fn EmptyComments(_: zx.ComponentContext) zx.Element {
     return _zx.ele(
         .div,
         .{
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Content after empty comments"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }
@@ -53,16 +53,16 @@ pub fn CommentsWithSpecialChars(_: zx.ComponentContext) zx.Element {
     return _zx.ele(
         .div,
         .{
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("After special char comments"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }
@@ -73,19 +73,19 @@ pub fn CommentsWithExpressions(_: zx.ComponentContext) zx.Element {
     return _zx.ele(
         .div,
         .{
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .p,
                     .{
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "data-value", value),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Actual content"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }
@@ -95,30 +95,30 @@ pub fn NestedComments(_: zx.ComponentContext) zx.Element {
     return _zx.ele(
         .div,
         .{
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .section,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.ele(
                                 .article,
                                 .{
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.ele(
                                             .p,
                                             .{
-                                                .children = &.{
+                                                .children = _zx.chs(.{
                                                     _zx.txt("Deep content"),
-                                                },
+                                                }),
                                             },
                                         ),
-                                    },
+                                    }),
                                 },
                             ),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }
@@ -128,16 +128,16 @@ pub fn CommentsWithAttributes(_: zx.ComponentContext) zx.Element {
     return _zx.ele(
         .div,
         .{
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("After attribute comments"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }
@@ -147,32 +147,32 @@ pub fn MixedCommentsAndContent(_: zx.ComponentContext) zx.Element {
     return _zx.ele(
         .ul,
         .{
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .li,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Visible item 1"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .li,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Visible item 2"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .li,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Visible item 3"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }
@@ -182,16 +182,16 @@ pub fn CommentsWithZigCode(_: zx.ComponentContext) zx.Element {
     return _zx.ele(
         .div,
         .{
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("After zig code comments"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }
@@ -201,7 +201,7 @@ pub fn CommentsOnlyComponent(_: zx.ComponentContext) zx.Element {
     return _zx.ele(
         .div,
         .{
-            .children = &.{},
+            .children = _zx.chs(.{}),
         },
     );
 }
@@ -211,32 +211,32 @@ pub fn CommentsBetweenSiblings(_: zx.ComponentContext) zx.Element {
     return _zx.ele(
         .div,
         .{
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .header,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Header"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .main,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Main content"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .footer,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Footer"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

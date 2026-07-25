@@ -4,22 +4,22 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx_for_blk_0: {
                     const __zx_children_0 = _zx.getAlloc().alloc(@import("zx").Component, 10 - 0) catch unreachable;
                     for (0..10, 0..) |n, _zx_i_0| {
                         __zx_children_0[_zx_i_0] = _zx.ele(
                             .span,
                             .{
-                                .children = &.{
+                                .children = _zx.chs(.{
                                     _zx.expr(n),
-                                },
+                                }),
                             },
                         );
                     }
                     break :_zx_for_blk_0 _zx.ele(.fragment, .{ .children = __zx_children_0 });
                 },
-            },
+            }),
         },
     );
 }

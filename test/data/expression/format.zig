@@ -20,91 +20,91 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .section,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Count: "),
                             _zx.expr(count),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Hex: 0x"),
                             _zx.expr(hex_value),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Percentage: "),
                             _zx.expr(percentage),
                             _zx.txt("%"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Count: "),
                             _zx.expr(count),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Hex: 0x"),
                             _zx.expr(hex_value),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Percentage: "),
                             _zx.expr(percentage),
                             _zx.txt("%"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Float: "),
                             _zx.expr(float_value),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Bool: "),
                             _zx.expr(bool_value),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Person: "),
                             _zx.expr(person),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

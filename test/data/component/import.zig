@@ -4,14 +4,14 @@ pub fn Page(allocator: z.Allocator) z.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.cmp(
                     Button,
                     .{ .src = @src() },
                     .{ .name = "Button" },
                     .{ .title = "Custom Button" },
                 ),
-            },
+            }),
         },
     );
 }

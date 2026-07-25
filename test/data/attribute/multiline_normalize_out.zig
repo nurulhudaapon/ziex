@@ -6,7 +6,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .div,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .section,
                     .{
@@ -15,16 +15,16 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             _zx.attr(@src(), "id", "main"),
                             _zx.attr(@src(), "data-active", "true"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.ele(
                                 .p,
                                 .{
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.txt("Messy indentation"),
-                                    },
+                                    }),
                                 },
                             ),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -37,7 +37,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

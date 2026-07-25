@@ -14,7 +14,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .form,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .input,
                     .{
@@ -86,7 +86,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

@@ -4,121 +4,121 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .div,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .span,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("| "),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .span,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt(" |"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .span,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt(" | "),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .span,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("  |  "),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .span,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("|"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .span,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("| "),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .span,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("|"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("hello world"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt(" hello "),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("hello world"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .a,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("left"),
-                        },
+                        }),
                     },
                 ),
                 _zx.txt(" "),
                 _zx.ele(
                     .a,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("right"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .b,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("no"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .b,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("space"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

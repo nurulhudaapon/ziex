@@ -7,44 +7,44 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 if (try_get_user(user)) |u| _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Welcome, "),
                             _zx.expr(u),
                             _zx.txt("!"),
-                        },
+                        }),
                     },
                 ) else |err| _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Error: "),
                             _zx.expr(@errorName(err)),
-                        },
+                        }),
                     },
                 ),
                 if (try_get_user(user_empty)) |u| _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Welcome, "),
                             _zx.expr(u),
                             _zx.txt("!"),
-                        },
+                        }),
                     },
                 ) else |err| _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Error: "),
                             _zx.expr(@errorName(err)),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

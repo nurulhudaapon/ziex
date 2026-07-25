@@ -4,7 +4,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.cmp(
                     None,
                     .{ .src = @src() },
@@ -17,7 +17,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     .{ .name = "Null" },
                     .{},
                 ),
-            },
+            }),
         },
     );
 }

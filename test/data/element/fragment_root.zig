@@ -4,14 +4,14 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .fragment,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.cmp(
                     FragmentComponent,
                     .{ .src = @src() },
                     .{ .name = "FragmentComponent" },
                     .{},
                 ),
-            },
+            }),
         },
     );
 }
@@ -22,24 +22,24 @@ fn FragmentComponent(allocator: zx.Allocator) zx.Component {
         .fragment,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("First"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Second"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

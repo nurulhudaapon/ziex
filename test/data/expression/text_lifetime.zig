@@ -37,16 +37,16 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .p,
                     .{
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "id", "literal"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(literal),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -55,9 +55,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "id", "static"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(static_slice),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -66,9 +66,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "id", "empty"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(empty),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -77,9 +77,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "id", "unicode"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(unicode),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -88,9 +88,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "id", "arena"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(arena_str),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -99,9 +99,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "id", "prefix"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(arena_prefix),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -110,9 +110,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "id", "duped"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(duped),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -121,9 +121,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "id", "enum"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(status),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -132,9 +132,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "id", "struct"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(person),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -143,9 +143,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "id", "optional"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(maybe),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -154,9 +154,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "id", "missing"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(missing),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -165,9 +165,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "id", "inline"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr("inline-literal & x"),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -177,9 +177,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "id", "trusted"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(trusted_html),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -190,9 +190,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             _zx.attr(@src(), "title", literal),
                             _zx.attr(@src(), "data-arena", arena_str),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("attrs"),
-                        },
+                        }),
                     },
                 ),
                 _zx.cmp(
@@ -216,12 +216,12 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                 _zx.ele(
                     .span,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr("&<>\"'"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }
@@ -240,9 +240,9 @@ pub fn Label(allocator: zx.Allocator, props: LabelProps) zx.Component {
         .label,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.expr(props.text),
-            },
+            }),
         },
     );
 }

@@ -4,19 +4,19 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .fragment,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .button,
                     .{
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "onclick", handleClick),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Click me"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

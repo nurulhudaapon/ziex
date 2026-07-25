@@ -17,7 +17,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .attributes = _zx.attrsM(.{
                 _zx.attrSpr(form_attrs),
             }),
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.cmp(
                     Input,
                     .{ .src = @src() },
@@ -30,7 +30,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     .{ .name = "Input" },
                     _zx.propsM(input_props, .{ .extra = "override" }),
                 ),
-            },
+            }),
         },
     );
 }
@@ -42,13 +42,13 @@ fn Input(ctx: *zx.ComponentCtx(InputProps)) zx.Component {
         .div,
         .{
             .allocator = ctx.allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .label,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(ctx.props.name),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -79,7 +79,7 @@ fn Input(ctx: *zx.ComponentCtx(InputProps)) zx.Component {
                         }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

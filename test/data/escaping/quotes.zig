@@ -4,25 +4,25 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .div,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.txt("quote should be escaped"),
                 _zx.ele(
                     .code,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("\"quote\""),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .pre,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("\"quote\""),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

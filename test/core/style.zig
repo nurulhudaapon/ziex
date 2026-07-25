@@ -38,13 +38,13 @@ test "in Component" {
     };
 
     const comp = ctx.ele(.div, .{
-        .attributes = &[_]zx.Element.Attribute{
+        .attributes = ctx.attrs(.{
             ctx.attr(@src(), "style", style).?,
             ctx.attr(@src(), "class", "my-div").?,
-        },
-        .children = &[_]zx.Component{
+        }),
+        .children = ctx.chs(.{
             ctx.txt("Hello with style"),
-        },
+        }),
     });
     defer comp.deinit(arena_allocator);
 

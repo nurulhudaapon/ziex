@@ -1,31 +1,69 @@
 const std = @import("std");
 
+fn needsAttrEscape(value: []const u8) bool {
+    for (value) |c| {
+        switch (c) {
+            '&', '<', '>', '"', '\'' => return true,
+            else => {},
+        }
+    }
+    return false;
+}
+
+fn needsTextEscape(value: []const u8) bool {
+    for (value) |c| {
+        switch (c) {
+            '&', '<', '>' => return true,
+            else => {},
+        }
+    }
+    return false;
+}
+
 /// Escape a string for use inside an HTML attribute value.
 /// Escapes: `& < > " '`
 pub fn escapeAttr(writer: *std.Io.Writer, value: []const u8) !void {
-    for (value) |c| {
-        switch (c) {
-            '&' => try writer.writeAll("&amp;"),
-            '<' => try writer.writeAll("&lt;"),
-            '>' => try writer.writeAll("&gt;"),
-            '"' => try writer.writeAll("&quot;"),
-            '\'' => try writer.writeAll("&#x27;"),
-            else => try writer.writeByte(c),
-        }
+    if (!needsAttrEscape(value)) {
+        try writer.writeAll(value);
+        return;
     }
+    try escapeWithEntities(writer, value, true);
 }
 
 /// Escape a string for use inside an HTML text node.
 /// Escapes: `& < >`
 pub fn escapeText(writer: *std.Io.Writer, value: []const u8) !void {
-    for (value) |c| {
-        switch (c) {
-            '&' => try writer.writeAll("&amp;"),
-            '<' => try writer.writeAll("&lt;"),
-            '>' => try writer.writeAll("&gt;"),
-            else => try writer.writeByte(c),
+    if (!needsTextEscape(value)) {
+        try writer.writeAll(value);
+        return;
+    }
+    try escapeWithEntities(writer, value, false);
+}
+
+/// Write `value` escaping specials, emitting contiguous safe runs as one writeAll.
+fn escapeWithEntities(writer: *std.Io.Writer, value: []const u8, comptime attr: bool) !void {
+    var start: usize = 0;
+    for (value, 0..) |c, i| {
+        const entity: ?[]const u8 = if (comptime attr) switch (c) {
+            '&' => "&amp;",
+            '<' => "&lt;",
+            '>' => "&gt;",
+            '"' => "&quot;",
+            '\'' => "&#x27;",
+            else => null,
+        } else switch (c) {
+            '&' => "&amp;",
+            '<' => "&lt;",
+            '>' => "&gt;",
+            else => null,
+        };
+        if (entity) |e| {
+            if (i > start) try writer.writeAll(value[start..i]);
+            try writer.writeAll(e);
+            start = i + 1;
         }
     }
+    if (start < value.len) try writer.writeAll(value[start..]);
 }
 
 /// Unescape HTML entities (`&amp;`, `&lt;`, `&gt;`, `&quot;`, `&#x27;`) back

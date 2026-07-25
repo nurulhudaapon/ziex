@@ -4,11 +4,11 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .section,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .pre,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("                \n"),
                             _zx.expr(
                                 \\const data = 
@@ -21,10 +21,10 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                                 \\
                             ),
                             _zx.txt("            "),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

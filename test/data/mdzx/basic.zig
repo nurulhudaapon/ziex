@@ -4,9 +4,9 @@ pub fn _zx_md(ctx: *@import("zx").ComponentCtx(struct { children: @import("zx").
         .h1,
         .{
             .allocator = ctx.allocator,
-            .children = &.{
+            .children = _zx1.chs(.{
                 _zx1.txt("hi"),
-            },
+            }),
         },
     );
 }

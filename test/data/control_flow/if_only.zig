@@ -5,24 +5,24 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 if (is_logged_in) _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Welcome, User!"),
-                        },
+                        }),
                     },
                 ) else _zx.ele(.fragment, .{}),
                 _zx.ele(
                     .div,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             if (is_logged_in) _zx.txt("Welcome, User!") else _zx.ele(.fragment, .{}),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

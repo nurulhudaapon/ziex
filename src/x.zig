@@ -10,10 +10,6 @@ const BuiltinAttribute = zx.BuiltinAttribute;
 const Component = zx.Component;
 const ElementAttribute = zx.Element.Attribute;
 const reactivity = zx.client.reactivity;
-const platform = zx.platform;
-//TODO: Do not escape ahead of time, remove escaping from this place
-const escapHtmlTextNode = zx.util.html.escapeText;
-
 pub const ClientComponentOptions = struct {
     name: []const u8,
     path: []const u8,
@@ -53,10 +49,10 @@ fn componentId(comptime options: InitOptions) Id {
     return if (options.src) |src| Id.extendId(null, src, 0) else .undef;
 }
 
-/// Initialize a Context without an allocator
-/// The allocator must be provided via @allocator attribute on the parent element
+/// Initialize a Context without an allocator.
+/// The allocator must be provided via `@allocator` on a parent element.
 pub fn init(comptime options: InitOptions) Context {
-    return .{ .allocator = .failing, .component_id = componentId(options) };
+    return .{ .allocator = null, .component_id = componentId(options) };
 }
 
 /// Initialize a Context with an allocator (for backward compatibility with direct API usage)
@@ -70,22 +66,15 @@ const Context = struct {
     component_id: Id = .undef,
 
     pub fn getAlloc(self: *Context) std.mem.Allocator {
-        return self.allocator orelse @panic("Allocator not set. Please provide @allocator attribute to the parent element.");
-    }
-
-    fn escapeHtml(self: *Context, text: []const u8) []const u8 {
-        // On browser, DOM APIs (textContent) handle escaping automatically
-        // We only need to escape when generating HTML strings on the server
-        // TODO: we would want to move the escaping logic at the time of rendering the element, and simply not use escapeHtml for client side rendering
-        if (platform.role == .client) return text;
-
-        const allocator = self.getAlloc();
-        // Use a buffer writer to leverage the shared escaping logic
-        // For text content, we only escape & < > (not quotes)
-        var aw = std.Io.Writer.Allocating.init(allocator);
-        defer aw.deinit();
-        escapHtmlTextNode(&aw.writer, text) catch @panic("OOM");
-        return allocator.dupe(u8, aw.written()) catch @panic("OOM");
+        return self.allocator orelse {
+            std.log.err(
+                \\No allocator set for ZX element construction.
+                \\Pass an allocator with `@allocator={{...}}` (or shorthand `@{{allocator}}`) on this element or a parent.
+            ,
+                .{},
+            );
+            @panic("Allocator not set. Provide @allocator on the parent element.");
+        };
     }
 
     pub fn ele(self: *Context, tag: ElementTag, options: Options) Component {
@@ -93,27 +82,11 @@ const Context = struct {
         if (options.allocator) |allocator| {
             self.allocator = allocator;
         }
-
-        const allocator = self.getAlloc();
-
-        // Allocate and copy children if provided
-        const children_copy = if (options.children) |children| blk: {
-            const copy = allocator.alloc(Component, children.len) catch @panic("OOM");
-            @memcpy(copy, children);
-            break :blk copy;
-        } else null;
-
-        // Allocate and copy attributes if provided
-        const attributes_copy = if (options.attributes) |attributes| blk: {
-            const copy = allocator.alloc(Element.Attribute, attributes.len) catch @panic("OOM");
-            @memcpy(copy, attributes);
-            break :blk copy;
-        } else null;
-
+        _ = self.getAlloc();
         return .{ .element = .{
             .tag = tag,
-            .children = children_copy,
-            .attributes = attributes_copy,
+            .children = options.children,
+            .attributes = options.attributes,
             .escaping = options.escaping,
             .rendering = options.rendering,
             .async = options.async,
@@ -121,9 +94,13 @@ const Context = struct {
         } };
     }
 
-    pub fn txt(self: *Context, text: []const u8) Component {
-        const escaped = self.escapeHtml(text);
-        return .{ .text = escaped };
+    /// Create a text node by borrowing `text` (no copy).
+    ///
+    /// Escaping happens at render time into the output writer.
+    ///
+    /// Lifetime: `text` must outlive the component tree
+    pub fn txt(_: *Context, text: anytype) Component {
+        return .{ .text = textSlice(text) };
     }
 
     pub fn expr(self: *Context, val: anytype) Component {
@@ -162,7 +139,7 @@ const Context = struct {
                     if (ptr_info.child == u8) {
                         // This is a []const u8, or some similar Zig string.
                         if (std.unicode.utf8ValidateSlice(slice)) {
-                            return txt(self, slice);
+                            return self.txt(slice);
                         }
                     }
 
@@ -181,22 +158,29 @@ const Context = struct {
             },
             .@"struct" => |struct_info| {
                 var aw = std.Io.Writer.Allocating.init(self.getAlloc());
-                defer aw.deinit();
+                errdefer aw.deinit();
 
                 // aw.writer.print("{s} ", .{@tagName(struct_info)}) catch @panic("OOM");
                 _ = struct_info;
                 std.zon.stringify.serializeMaxDepth(val, .{ .whitespace = true }, &aw.writer, 100) catch |err| {
+                    aw.deinit();
                     return self.fmt("{s}", .{@errorName(err)});
                 };
 
-                return self.txt(aw.written());
+                // Buffer is temporary — take ownership before Allocating is dropped.
+                const owned = aw.toOwnedSlice() catch @panic("OOM");
+                return .{ .text = owned };
             },
             .array => |arr_info| {
-                // Handle arrays of Components
+                // Handle arrays of Components — copy onto the allocator; `&val`
+                // would dangle after this function returns.
                 if (arr_info.child == Component) {
+                    const allocator = self.getAlloc();
+                    const copy = allocator.alloc(Component, val.len) catch @panic("OOM");
+                    @memcpy(copy, &val);
                     return .{ .element = .{
                         .tag = .fragment,
-                        .children = &val,
+                        .children = copy,
                     } };
                 }
                 @compileError("Unable to render array of type '" ++ @typeName(arr_info.child) ++ "', only Component arrays are supported");
@@ -361,8 +345,7 @@ const Context = struct {
                 }
             }
 
-            if (count == 0) return &.{};
-
+            // Always allocator-owned (including len 0) so Component.deinit can free.
             const result = allocator.alloc(Element.Attribute, count) catch @panic("OOM");
             var idx: usize = 0;
             inline for (inputs) |input| {
@@ -383,6 +366,27 @@ const Context = struct {
         @compileError("attrs() expects a tuple of attributes");
     }
 
+    /// Allocate an owned children slice from a tuple of `Component`s.
+    /// Prefer this over `&.{...}` so `ele` can store the pointer without copying
+    /// (anonymous `&.{}` arrays are temporaries and would dangle after return).
+    pub fn chs(self: *Context, inputs: anytype) []const Component {
+        const allocator = self.getAlloc();
+        const InputType = @TypeOf(inputs);
+        const input_info = @typeInfo(InputType);
+
+        if (input_info == .@"struct" and input_info.@"struct".is_tuple) {
+            const count = input_info.@"struct".field_names.len;
+            // Always allocator-owned (including len 0) so Component.deinit can free.
+            const result = allocator.alloc(Component, count) catch @panic("OOM");
+            inline for (inputs, 0..) |input, i| {
+                result[i] = input;
+            }
+            return result;
+        }
+
+        @compileError("chs() expects a tuple of Components");
+    }
+
     /// Spread a struct's fields as attributes
     /// Takes a struct and returns a slice of attributes for each field
     pub fn attrSpr(self: *Context, props: anytype) []const ?Element.Attribute {
@@ -395,8 +399,6 @@ const Context = struct {
         }
 
         const field_names = type_info.@"struct".field_names;
-        if (field_names.len == 0) return &.{};
-
         const result = allocator.alloc(?Element.Attribute, field_names.len) catch @panic("OOM");
 
         inline for (field_names, 0..) |field_name, i| {
@@ -649,6 +651,35 @@ const Context = struct {
         };
     }
 };
+
+fn textSlice(text: anytype) []const u8 {
+    const T = @TypeOf(text);
+    return switch (@typeInfo(T)) {
+        .pointer => |ptr| switch (ptr.size) {
+            .slice => if (ptr.child == u8)
+                text
+            else
+                @compileError("txt expects a string slice, found " ++ @typeName(T)),
+            .one => switch (@typeInfo(ptr.child)) {
+                .array => |arr| if (arr.child == u8)
+                    @as([]const u8, text)
+                else
+                    @compileError("txt expects a string, found " ++ @typeName(T)),
+                else => @compileError("txt expects a string, found " ++ @typeName(T)),
+            },
+            .many => if (ptr.child == u8 and ptr.sentinel() != null)
+                std.mem.span(text)
+            else
+                @compileError("txt expects a sentinel-terminated string, found " ++ @typeName(T)),
+            .c => @compileError("txt does not accept C pointers"),
+        },
+        .array => |arr| if (arr.child == u8)
+            &text
+        else
+            @compileError("txt expects a string, found " ++ @typeName(T)),
+        else => @compileError("txt expects a string, found " ++ @typeName(T)),
+    };
+}
 
 fn isStatePointer(comptime PT: type) bool {
     const type_info = @typeInfo(PT);

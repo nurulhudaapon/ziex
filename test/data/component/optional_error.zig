@@ -5,7 +5,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.cmp(
                     MaybeContent,
                     .{ .src = @src() },
@@ -18,7 +18,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     .{ .name = "MaybeContent" },
                     .{ .show = false },
                 ),
-            },
+            }),
         },
     );
 }
@@ -32,9 +32,9 @@ pub fn MaybeContent(ctx: *zx.ComponentCtx(MaybeProps)) !?zx.Component {
         .div,
         .{
             .allocator = ctx.allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.txt("Shown Content"),
-            },
+            }),
         },
     );
 }

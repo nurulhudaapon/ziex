@@ -7,7 +7,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 switch (user_type) {
                     .admin => _zx_for_blk_0: {
                         const __zx_children_0 = _zx.getAlloc().alloc(@import("zx").Component, admin_users.len) catch unreachable;
@@ -15,24 +15,24 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             __zx_children_0[_zx_i_0] = _zx.ele(
                                 .p,
                                 .{
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.ele(
                                             .p,
                                             .{
-                                                .children = &.{
+                                                .children = _zx.chs(.{
                                                     _zx.ele(
                                                         .div,
                                                         .{
-                                                            .children = &.{
+                                                            .children = _zx.chs(.{
                                                                 _zx.expr(name),
-                                                            },
+                                                            }),
                                                         },
                                                     ),
-                                                },
+                                                }),
                                             },
                                         ),
                                         _zx.txt(" "),
-                                    },
+                                    }),
                                 },
                             );
                         }
@@ -44,24 +44,24 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             __zx_children_1[_zx_i_1] = _zx.ele(
                                 .p,
                                 .{
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.ele(
                                             .div,
                                             .{
-                                                .children = &.{
+                                                .children = _zx.chs(.{
                                                     _zx.expr(name),
-                                                },
+                                                }),
                                             },
                                         ),
                                         _zx.expr(name),
-                                    },
+                                    }),
                                 },
                             );
                         }
                         break :_zx_for_blk_1 _zx.ele(.fragment, .{ .children = __zx_children_1 });
                     },
                 },
-            },
+            }),
         },
     );
 }

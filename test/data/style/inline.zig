@@ -7,9 +7,9 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
             .attributes = _zx.attrs(.{
                 _zx.attr(@src(), "style", .{ .display = .flex, .padding_top = .px(10), .width = .px(100) }),
             }),
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.txt("Hello"),
-            },
+            }),
         },
     );
 }

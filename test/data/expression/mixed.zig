@@ -8,11 +8,11 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Hello "),
                             _zx.expr(name),
                             _zx.txt(", you have "),
@@ -20,34 +20,34 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             _zx.txt(" "),
                             _zx.expr(item),
                             _zx.txt("s in your cart."),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Welcome back, "),
                             _zx.expr(name),
                             _zx.txt("! Your order #"),
                             _zx.expr(count),
                             _zx.txt(" is ready."),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .span,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Item: "),
                             _zx.expr(item),
                             _zx.txt(" (qty: "),
                             _zx.expr(count),
                             _zx.txt(")"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

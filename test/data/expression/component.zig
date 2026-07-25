@@ -6,25 +6,25 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .section,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .p,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Greeting: "),
                             _zx.expr(greeting),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
                     .div,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(greeting),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

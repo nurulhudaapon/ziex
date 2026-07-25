@@ -5,7 +5,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.cmp(
                     Fallible,
                     .{ .src = @src() },
@@ -18,7 +18,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     .{ .name = "FallibleCtx" },
                     .{ .success = true },
                 ),
-            },
+            }),
         },
     );
 }
@@ -32,9 +32,9 @@ pub fn Fallible(allocator: zx.Allocator, props: FallibleProps) !zx.Component {
         .div,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.txt("Success"),
-            },
+            }),
         },
     );
 }
@@ -47,9 +47,9 @@ pub fn FallibleCtx(ctx: *zx.ComponentCtx(FallibleProps)) !zx.Component {
         .div,
         .{
             .allocator = ctx.allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.txt("Ctx Success"),
-            },
+            }),
         },
     );
 }

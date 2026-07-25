@@ -7,7 +7,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .div,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .section,
                     .{
@@ -16,16 +16,16 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             _zx.attr(@src(), "id", "main"),
                             _zx.attr(@src(), "data-active", is_active),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.ele(
                                 .p,
                                 .{
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.txt("Multiline attributes"),
-                                    },
+                                    }),
                                 },
                             ),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -45,12 +45,12 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                             _zx.attr(@src(), "class", "btn"),
                             _zx.attr(@src(), "id", "submit"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("Submit"),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

@@ -5,7 +5,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .main,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.cmp(
                     Counter,
                     .{ .src = @src() },
@@ -24,7 +24,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     .{ .name = "Counter", .client = .{ .name = "Counter", .id = "c9e599a" } },
                     .{ .initial = 0 },
                 ),
-            },
+            }),
         },
     );
 }
@@ -39,16 +39,16 @@ pub fn Counter(ctx: *zx.ComponentCtx(CounterProps)) zx.Component {
             .attributes = _zx.attrs(.{
                 _zx.attr(@src(), "class", "counter"),
             }),
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.ele(
                     .span,
                     .{
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "class", "label"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(ctx.props.label),
-                        },
+                        }),
                     },
                 ),
                 _zx.ele(
@@ -57,12 +57,12 @@ pub fn Counter(ctx: *zx.ComponentCtx(CounterProps)) zx.Component {
                         .attributes = _zx.attrs(.{
                             _zx.attr(@src(), "class", "value"),
                         }),
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(ctx.props.initial),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

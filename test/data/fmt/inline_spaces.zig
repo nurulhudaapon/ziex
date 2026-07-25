@@ -5,11 +5,11 @@ pub fn Collection(allocator: zx.Allocator, props: anytype) zx.Component {
         .div,
         .{
             .allocator = allocator,
-            .children = &.{
+            .children = _zx.chs(.{
                 if (cards.len == 0) _zx.ele(
                     .fragment,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.txt("No cards found with '"),
                             _zx.expr(props.name),
                             _zx.txt("' in their name"),
@@ -24,17 +24,17 @@ pub fn Collection(allocator: zx.Allocator, props: anytype) zx.Component {
                                     .attributes = _zx.attrs(.{
                                         _zx.attr(@src(), "href", "/fetch/{props.name}"),
                                     }),
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.txt("fetching them"),
-                                    },
+                                    }),
                                 },
                             ),
-                        },
+                        }),
                     },
                 ) else _zx.ele(
                     .fragment,
                     .{
-                        .children = &.{
+                        .children = _zx.chs(.{
                             _zx.expr(props.name),
                             _zx.expr(' '),
                             _zx.txt("in their name"),
@@ -49,15 +49,15 @@ pub fn Collection(allocator: zx.Allocator, props: anytype) zx.Component {
                                     .attributes = _zx.attrs(.{
                                         _zx.attr(@src(), "href", "/fetch/{props.name}"),
                                     }),
-                                    .children = &.{
+                                    .children = _zx.chs(.{
                                         _zx.txt("fetching them"),
-                                    },
+                                    }),
                                 },
                             ),
-                        },
+                        }),
                     },
                 ),
-            },
+            }),
         },
     );
 }

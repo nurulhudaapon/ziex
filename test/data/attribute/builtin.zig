@@ -5,7 +5,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
         .section,
         .{
             .allocator = a,
-            .children = &.{
+            .children = _zx.chs(.{
                 _zx.cmp(
                     ArgToBuiltin,
                     .{ .src = @src() },
@@ -18,7 +18,7 @@ pub fn Page(allocator: zx.Allocator) zx.Component {
                     .{ .name = "StructToBuiltin" },
                     .{},
                 ),
-            },
+            }),
         },
     );
 }
