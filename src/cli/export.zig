@@ -211,19 +211,15 @@ fn waitForServerRetry(
     kind: []const u8,
     app_child: *std.process.Child,
 ) !void {
+    if (tryReapChild(app_child)) |term| {
+        logChildTermination(term);
+        return error.ExportServerExited;
+    }
+
     retries.* += 1;
     const n = retries.*;
     if (n <= 5 or n % 100 == 0) {
         log.debug("Connection refused for {s} ({s}), retry {d}", .{ route_path, kind, n });
-    }
-
-    if (!isChildAlive(app_child)) {
-        if (app_child.wait(io)) |term| {
-            logChildTermination(term);
-        } else |err| {
-            log.err("Export server process exited before becoming reachable ({any})", .{err});
-        }
-        return error.ExportServerExited;
     }
 
     if (n >= MAX_CONNECTION_RETRIES) {
@@ -236,22 +232,41 @@ fn waitForServerRetry(
     std.Io.sleep(io, .fromMilliseconds(10), .awake) catch {};
 }
 
-fn isChildAlive(child: *std.process.Child) bool {
-    // On non-POSIX targets we keep retry behavior unchanged.
-    if (builtin.os.tag == .windows) return true;
-    const pid = child.id orelse return true;
-    std.posix.kill(pid, @enumFromInt(0)) catch |err| switch (err) {
-        error.ProcessNotFound => return false,
-        else => return true,
-    };
-    return true;
+fn tryReapChild(child: *std.process.Child) ?std.process.Child.Term {
+    if (builtin.os.tag == .windows) return null;
+    const pid = child.id orelse return null;
+
+    var status: if (builtin.link_libc) c_int else i32 = undefined;
+    while (true) {
+        const rc = std.posix.system.waitpid(pid, &status, std.posix.W.NOHANG);
+        switch (std.posix.errno(rc)) {
+            .SUCCESS => {
+                if (rc == 0) return null; // still running
+                child.id = null;
+                return termFromWaitStatus(@bitCast(status));
+            },
+            .INTR => continue,
+            .CHILD => {
+                child.id = null;
+                return .{ .unknown = 0 };
+            },
+            else => return null,
+        }
+    }
+}
+
+fn termFromWaitStatus(status: u32) std.process.Child.Term {
+    if (std.posix.W.IFEXITED(status)) return .{ .exited = std.posix.W.EXITSTATUS(status) };
+    if (std.posix.W.IFSIGNALED(status)) return .{ .signal = std.posix.W.TERMSIG(status) };
+    if (std.posix.W.IFSTOPPED(status)) return .{ .stopped = std.posix.W.STOPSIG(status) };
+    return .{ .unknown = status };
 }
 
 fn logChildTermination(term: std.process.Child.Term) void {
     switch (term) {
-        .exited => |code| log.err("Export server exited before startup (exit {d})", .{code}),
-        .signal => |sig| log.err("Export server terminated by signal {d} before startup", .{@intFromEnum(sig)}),
-        else => |v| log.err("Export server terminated before startup: {any}", .{v}),
+        .exited => |code| log.err("Export server exited unexpectedly (exit {d})", .{code}),
+        .signal => |sig| log.err("Export server terminated by signal {d} (likely panic/abort)", .{@intFromEnum(sig)}),
+        else => |v| log.err("Export server terminated unexpectedly: {any}", .{v}),
     }
 }
 
