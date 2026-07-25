@@ -1,6 +1,8 @@
 pub const Client = @This();
 
+const app_opts = @import("app_opts");
 const window = @import("window.zig");
+
 const is_wasm = window.is_wasm;
 
 /// The component ID that is currently being rendered.
@@ -161,6 +163,8 @@ id_to_velement: std.AutoHashMap(u64, *vtree_mod.VElement),
 /// Registry mapping (velement_id, event_type) to event handlers
 /// This is the React-style handler registry - handlers are stored here, not as strings
 handler_registry: std.AutoHashMap(HandlerKey, zx.EventHandler),
+/// Bitset of registered EventType values per vnode
+handler_bits: std.AutoHashMap(u64, u32),
 
 const InitOptions = struct {
     // components: []const ComponentMeta,
@@ -173,6 +177,7 @@ pub fn init(allocator: std.mem.Allocator, _: InitOptions) Client {
         .vtrees = std.StringHashMap(VDOMTree).init(allocator),
         .id_to_velement = std.AutoHashMap(u64, *vtree_mod.VElement).init(allocator),
         .handler_registry = std.AutoHashMap(HandlerKey, zx.EventHandler).init(allocator),
+        .handler_bits = std.AutoHashMap(u64, u32).init(allocator),
     };
 }
 
@@ -184,15 +189,18 @@ pub fn deinit(self: *Client) void {
     self.vtrees.deinit();
     self.id_to_velement.deinit();
     self.handler_registry.deinit();
+    self.handler_bits.deinit();
 }
 
-var kv_wasm = zx.Kv.Wasm{};
+var kv_wasm: if (app_opts.feat_kv_client) zx.Kv.Wasm else void = if (app_opts.feat_kv_client) .{} else {};
 var clnt = init(zx.allocator, .{});
 
 fn mainClient() callconv(.c) void {
     if (zx.platform.role != .client) return;
 
-    zx.kv = kv_wasm.kv();
+    if (comptime app_opts.feat_kv_client) {
+        zx.kv = kv_wasm.kv();
+    }
     clnt.info();
     clnt.renderAll();
 }
@@ -239,6 +247,9 @@ pub fn registerVElement(self: *Client, velement: *vtree_mod.VElement) void {
 pub fn registerHandler(self: *Client, velement_id: u64, event_type: EventType, handler: zx.EventHandler) void {
     const key = HandlerKey{ .velement_id = velement_id, .event_type = event_type };
     self.handler_registry.put(key, handler) catch {};
+    const bit = @as(u32, 1) << @as(u5, @intCast(@intFromEnum(event_type)));
+    const cur = self.handler_bits.get(velement_id) orelse 0;
+    self.handler_bits.put(velement_id, cur | bit) catch {};
     if (zx.platform.role == .client) {
         window.ext._setEventHandlerMode(velement_id, @intFromEnum(event_type), if (handler.may_suspend) 1 else 0);
     }
@@ -250,16 +261,30 @@ pub fn getHandler(self: *Client, velement_id: u64, event_type: EventType) ?zx.Ev
     return self.handler_registry.get(key);
 }
 
-/// Unregister a VElement and all its children from the registry
-pub fn unregisterVElement(self: *Client, velement: *vtree_mod.VElement) void {
+/// Unregister a VElement and all its children from the registry.
+/// When `clear_js_modes` is false, JS handler/dom maps were already cleaned by `_rc`/`_rpc`
+pub fn unregisterVElement(self: *Client, velement: *vtree_mod.VElement, clear_js_modes: bool) void {
     _ = self.id_to_velement.remove(velement.id);
-    if (zx.platform.role == .client) {
+
+    if (self.handler_bits.fetchRemove(velement.id)) |entry| {
+        const bits = entry.value;
+        inline for (@typeInfo(EventType).@"enum".field_names, 0..) |name, i| {
+            if (bits & (@as(u32, 1) << @intCast(i)) != 0) {
+                const key = HandlerKey{
+                    .velement_id = velement.id,
+                    .event_type = @field(EventType, name),
+                };
+                _ = self.handler_registry.remove(key);
+            }
+        }
+    }
+
+    if (clear_js_modes and zx.platform.role == .client) {
         window.ext._clearEventHandlerModes(velement.id);
     }
 
-    // Recursively unregister children
     for (velement.children.items) |child| {
-        self.unregisterVElement(child);
+        self.unregisterVElement(child, clear_js_modes);
     }
 }
 
@@ -340,9 +365,9 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
         const vtree_ptr = self.vtrees.getPtr(cmp.id).?;
 
         // Map the VDOM to platform-specific nodes (DOM)
-        const dom_node = try vtree_mod.createPlatformNodes(allocator, vtree_ptr.vtree, self, .{ .marker = marker });
-        if (dom_node) |node| {
-            try marker.replaceContent(node);
+        const root_id = try vtree_mod.createPlatformNodes(allocator, vtree_ptr.vtree, self, .{ .marker = marker });
+        if (root_id) |id| {
+            marker.replaceContentById(id);
         }
 
         // registerVElement is already called recursively inside createPlatformNodes
@@ -360,9 +385,9 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
             try self.vtrees.put(cmp.id, new_vtree);
             const vtree_ptr = self.vtrees.getPtr(cmp.id).?;
 
-            const dom_node = try vtree_mod.createPlatformNodes(allocator, vtree_ptr.vtree, self, .{ .marker = marker });
-            if (dom_node) |node| {
-                try marker.replaceContent(node);
+            const root_id = try vtree_mod.createPlatformNodes(allocator, vtree_ptr.vtree, self, .{ .marker = marker });
+            if (root_id) |id| {
+                marker.replaceContentById(id);
             }
             return;
         }
@@ -421,14 +446,6 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
         }
 
         try vtree_mod.applyPatches(allocator, self, patches, .{});
-
-        // Re-register VElements to pick up any new elements created by PLACEMENT patches
-        // This ensures event handlers are registered for newly created elements
-        self.registerVElement(old_vtree.vtree);
-
-        // Update the VElement tree's components to match the new component
-        // This ensures that on the next render, the diff will compare against the updated state
-        // old_vtree.updateComponents(Component);
     }
 }
 

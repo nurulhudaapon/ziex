@@ -241,15 +241,10 @@ pub fn createElement(self: Document, tag: []const u8) HTMLElement {
 
 /// Create an element by tag enum id. vnode_id is registered in the JS domNodes
 /// registry and used as the __zx_ref property value on the element.
-pub fn createElementId(self: Document, id: usize, vnode_id: u64) HTMLElement {
-    if (!is_wasm) return HTMLElement.init(self.allocator, {});
-    const ref_id = ext._ce(id, vnode_id);
-
-    const real_js = @import("js");
-    const val: real_js.Value = @enumFromInt(ref_id);
-    const obj = real_js.Object{ .value = val };
-
-    return HTMLElement.init(self.allocator, obj);
+pub fn createElementId(self: Document, id: usize, vnode_id: u64) void {
+    _ = self;
+    if (!is_wasm) return;
+    ext._ce(id, vnode_id);
 }
 
 pub fn createTextNode(self: Document, data: []const u8) HTMLText {
@@ -294,6 +289,18 @@ pub const CommentMarker = struct {
     allocator: std.mem.Allocator,
     /// Props ZON extracted from the start comment (e.g., ".{ .name = ..., .props = ... }")
     props_zon: ?[]const u8,
+
+    /// Insert a vnode (from JS `domNodes`) before the end comment.
+    pub fn insertVNode(self: CommentMarker, vnode_id: u64) void {
+        if (!is_wasm) return;
+        ext._ih(vnode_id, @intFromEnum(self.end_comment.value));
+    }
+
+    /// Clear SSR content between markers, then insert the vnode root.
+    pub fn replaceContentById(self: CommentMarker, vnode_id: u64) void {
+        self.clearContent();
+        self.insertVNode(vnode_id);
+    }
 
     /// Insert a new DOM node after the start comment (before existing content)
     pub fn insertContent(self: CommentMarker, node: HTMLNode) !void {

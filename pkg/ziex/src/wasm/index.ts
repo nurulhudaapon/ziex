@@ -11,6 +11,7 @@ export {
     jsz,
     storeValueGetRef,
     loadValueFromRef,
+    releaseValueRef,
     textDecoder,
     textEncoder,
     getMemoryView,
@@ -28,6 +29,7 @@ import {
     jsz,
     storeValueGetRef,
     loadValueFromRef,
+    releaseValueRef,
     wrapPromisingExport,
     invokeWasmExport,
     readString,
@@ -75,20 +77,33 @@ export class ZxBridge extends ZxBridgeCore {
         );
     }
 
-    eventMaySuspend(velementId: bigint, eventTypeId: number): boolean {
-        return !!((eventHandlerModes.get(velementId) ?? 0) & (1 << eventTypeId));
+    hasEventHandler(velementId: number, eventTypeId: number): boolean {
+        return !!((eventHandlersPresent.get(velementId) ?? 0) & (1 << eventTypeId));
     }
 
-    setEventHandlerMode(velementId: bigint, eventTypeId: number, maySuspend: boolean): void {
+    eventMaySuspend(velementId: number, eventTypeId: number): boolean {
+        return !!((eventHandlersSuspend.get(velementId) ?? 0) & (1 << eventTypeId));
+    }
+
+    setEventHandlerMode(velementId: number, eventTypeId: number, maySuspend: boolean): void {
         const bit = 1 << eventTypeId;
-        const current = eventHandlerModes.get(velementId) ?? 0;
-        const next = maySuspend ? (current | bit) : (current & ~bit);
-        if (next === 0) eventHandlerModes.delete(velementId);
-        else eventHandlerModes.set(velementId, next);
+        const present = (eventHandlersPresent.get(velementId) ?? 0) | bit;
+        eventHandlersPresent.set(velementId, present);
+        const suspendBits = eventHandlersSuspend.get(velementId) ?? 0;
+        const nextSuspend = maySuspend ? (suspendBits | bit) : (suspendBits & ~bit);
+        if (nextSuspend === 0) eventHandlersSuspend.delete(velementId);
+        else eventHandlersSuspend.set(velementId, nextSuspend);
+        ensureDelegatedListener(eventTypeId);
     }
 
-    clearEventHandlerModes(velementId: bigint): void {
-        eventHandlerModes.delete(velementId);
+    clearEventHandlerModes(velementId: number): void {
+        const present = eventHandlersPresent.get(velementId) ?? 0;
+        eventHandlersPresent.delete(velementId);
+        eventHandlersSuspend.delete(velementId);
+        // Drop high-freq listeners when no vnode still needs them.
+        for (const eventTypeId of HIGH_FREQ_EVENT_IDS) {
+            if (present & (1 << eventTypeId)) maybeRemoveHighFreqListener(eventTypeId);
+        }
     }
 
     /** Submit a form action with bound-state round-trip. */
@@ -209,7 +224,8 @@ export class ZxBridge extends ZxBridgeCore {
 
     override dispose(): void {
         super.dispose();
-        eventHandlerModes.clear();
+        eventHandlersPresent.clear();
+        eventHandlersSuspend.clear();
         for (const ws of this.#websockets.values()) {
             try {
                 ws.close();
@@ -220,14 +236,16 @@ export class ZxBridge extends ZxBridgeCore {
         this.#websockets.clear();
     }
 
-    /** Handle a DOM event (called by event delegation) */
-    eventbridge(velementId: bigint, eventTypeId: number, event: Event): void {
-        const eventRef = storeValueGetRef(event);
+    /**
+     * Dispatch to WASM for one vnode. Caller owns `eventRef` lifetime
+     * (store once per bubble, release after sync/async work completes).
+     */
+    eventbridge(velementId: number, eventTypeId: number, eventRef: bigint): void | Promise<void> {
+        const id = BigInt(velementId >>> 0);
         if (this.eventMaySuspend(velementId, eventTypeId)) {
-            invokeWasmExport(this.#eventbridgeAsync, velementId, eventTypeId, eventRef);
-            return;
+            return invokeWasmExport(this.#eventbridgeAsync, id, eventTypeId, eventRef) as void | Promise<void>;
         }
-        invokeWasmExport(this.#eventbridge, velementId, eventTypeId, eventRef);
+        invokeWasmExport(this.#eventbridge, id, eventTypeId, eventRef);
     }
 
     /** Create the full browser import object for WASM instantiation (includes DOM + WebSocket). */
@@ -241,10 +259,10 @@ export class ZxBridge extends ZxBridgeCore {
             __zx: {
                 _log: (level: number, ptr: number, len: number) => ZxBridgeCore.log(level, ptr, len),
                 _setEventHandlerMode: (vnodeId: bigint, eventTypeId: number, maySuspend: number) => {
-                    bridgeRef[0]?.setEventHandlerMode(vnodeId, eventTypeId, maySuspend !== 0);
+                    bridgeRef[0]?.setEventHandlerMode(Number(vnodeId), eventTypeId, maySuspend !== 0);
                 },
                 _clearEventHandlerModes: (vnodeId: bigint) => {
-                    bridgeRef[0]?.clearEventHandlerModes(vnodeId);
+                    bridgeRef[0]?.clearEventHandlerModes(Number(vnodeId));
                 },
                 _fetchAsync: (
                     urlPtr: number,
@@ -292,28 +310,34 @@ export class ZxBridge extends ZxBridgeCore {
                 _wsClose: (wsId: bigint, code: number, reasonPtr: number, reasonLen: number) => {
                     bridgeRef[0]?.wsClose(wsId, code, reasonPtr, reasonLen);
                 },
-                _ce: (id: number, vnodeId: bigint): bigint => {
+                _ce: (id: number, vnodeId: bigint): void => {
+                    const nid = Number(vnodeId);
                     const tagName = TAG_NAMES[id] as string;
                     const el = id >= SVG_TAG_START_INDEX
                         ? document.createElementNS('http://www.w3.org/2000/svg', tagName)
                         : document.createElement(tagName);
-                    (el as any).__zx_ref = Number(vnodeId);
-                    domNodes.set(vnodeId, el);
-                    return storeValueGetRef(el);
+                    (el as any).__zx_ref = nid;
+                    domNodes.set(nid, el);
                 },
-                _ct: (ptr: number, len: number, vnodeId: bigint): bigint => {
-                    const text = readString(ptr, len);
-                    const node = document.createTextNode(text);
-                    (node as any).__zx_ref = Number(vnodeId);
-                    domNodes.set(vnodeId, node);
-                    return storeValueGetRef(node);
+                _ct: (ptr: number, len: number, vnodeId: bigint): void => {
+                    const nid = Number(vnodeId);
+                    const node = document.createTextNode(readString(ptr, len));
+                    (node as any).__zx_ref = nid;
+                    domNodes.set(nid, node);
+                },
+                /** Insert vnode before a jsz-held end comment (hydration). */
+                _ih: (vnodeId: bigint, endCommentRef: bigint): void => {
+                    const child = domNodes.get(Number(vnodeId));
+                    const end = loadValueFromRef(endCommentRef) as ChildNode | null | undefined;
+                    if (!child || !end?.parentNode) return;
+                    end.parentNode.insertBefore(child, end);
                 },
                 _sa: (vnodeId: bigint, namePtr: number, nameLen: number, valPtr: number, valLen: number) => {
-                    (domNodes.get(vnodeId) as Element | undefined)
+                    (domNodes.get(Number(vnodeId)) as Element | undefined)
                         ?.setAttribute(readString(namePtr, nameLen), readString(valPtr, valLen));
                 },
                 _sp: (vnodeId: bigint, namePtr: number, nameLen: number, valPtr: number, valLen: number) => {
-                    const el = domNodes.get(vnodeId) as any;
+                    const el = domNodes.get(Number(vnodeId)) as any;
                     if (el) {
                         const name = readString(namePtr, nameLen);
                         const val = readString(valPtr, valLen);
@@ -325,40 +349,40 @@ export class ZxBridge extends ZxBridgeCore {
                     }
                 },
                 _ra: (vnodeId: bigint, namePtr: number, nameLen: number) => {
-                    (domNodes.get(vnodeId) as Element | undefined)
+                    (domNodes.get(Number(vnodeId)) as Element | undefined)
                         ?.removeAttribute(readString(namePtr, nameLen));
                 },
                 _snv: (vnodeId: bigint, ptr: number, len: number) => {
-                    const node = domNodes.get(vnodeId);
+                    const node = domNodes.get(Number(vnodeId));
                     if (node) node.nodeValue = readString(ptr, len);
                 },
                 _srh: (vnodeId: bigint, ptr: number, len: number) => {
-                    const el = domNodes.get(vnodeId) as Element | undefined;
+                    const el = domNodes.get(Number(vnodeId)) as Element | undefined;
                     if (el) el.innerHTML = readString(ptr, len);
                 },
                 _ac: (parentId: bigint, childId: bigint) => {
-                    const parent = domNodes.get(parentId);
-                    const child = domNodes.get(childId);
+                    const parent = domNodes.get(Number(parentId));
+                    const child = domNodes.get(Number(childId));
                     if (parent && child) parent.appendChild(child);
                 },
                 _ib: (parentId: bigint, childId: bigint, refId: bigint) => {
-                    const parent = domNodes.get(parentId);
-                    const child = domNodes.get(childId);
-                    const ref = domNodes.get(refId) ?? null;
+                    const parent = domNodes.get(Number(parentId));
+                    const child = domNodes.get(Number(childId));
+                    const ref = domNodes.get(Number(refId)) ?? null;
                     if (parent && child) parent.insertBefore(child, ref);
                 },
                 _rc: (parentId: bigint, childId: bigint) => {
-                    const parent = domNodes.get(parentId);
-                    const child = domNodes.get(childId);
+                    const parent = domNodes.get(Number(parentId));
+                    const child = domNodes.get(Number(childId));
                     if (parent && child) {
                         parent.removeChild(child);
                         cleanupDomNodes(child);
                     }
                 },
                 _rpc: (parentId: bigint, newId: bigint, oldId: bigint) => {
-                    const parent = domNodes.get(parentId);
-                    const newChild = domNodes.get(newId);
-                    const oldChild = domNodes.get(oldId);
+                    const parent = domNodes.get(Number(parentId));
+                    const newChild = domNodes.get(Number(newId));
+                    const oldChild = domNodes.get(Number(oldId));
                     if (parent && newChild && oldChild) {
                         parent.replaceChild(newChild, oldChild);
                         cleanupDomNodes(oldChild);
@@ -389,7 +413,7 @@ export class ZxBridge extends ZxBridgeCore {
                     return len;
                 },
                 _submitFormAction: (vnodeId: bigint, actionId: number): void => {
-                    const form = domNodes.get(vnodeId) as HTMLFormElement | undefined;
+                    const form = domNodes.get(Number(vnodeId)) as HTMLFormElement | undefined;
                     if (!form || !(form instanceof HTMLFormElement)) return;
                     const formData = new FormData(form);
                     fetch(window.location.href, {
@@ -400,7 +424,7 @@ export class ZxBridge extends ZxBridgeCore {
                     }).catch(() => {});
                 },
                 _submitFormActionAsync: (vnodeId: bigint, actionId: number, statesPtr: number, statesLen: number, fetchId: bigint): void => {
-                    const form = domNodes.get(vnodeId) as HTMLFormElement | undefined;
+                    const form = domNodes.get(Number(vnodeId)) as HTMLFormElement | undefined;
                     if (!form || !(form instanceof HTMLFormElement)) return;
                     const statesJson = statesLen > 0 ? readString(statesPtr, statesLen) : '[]';
                     bridgeRef[0]?.submitFormActionAsync(form, actionId, statesJson, fetchId);
@@ -410,15 +434,36 @@ export class ZxBridge extends ZxBridgeCore {
     }
 }
 
-/** JS-side DOM node registry: vnode_id → Node. Mirrors the live DOM tree. */
-const domNodes = new Map<bigint, Node>();
+/** JS-side DOM node registry: vnode_id → Node. Number keys avoid BigInt allocs. */
+const domNodes = new Map<number, Node>();
 
-/** Recursively remove a node subtree from domNodes. */
+/** Bitset: which event types have a handler for each vnode. */
+const eventHandlersPresent = new Map<number, number>();
+/** Bitset: which handlers may suspend (JSPI). */
+const eventHandlersSuspend = new Map<number, number>();
+
+/** Remove a detached DOM subtree from domNodes + handler bitsets */
 function cleanupDomNodes(node: Node): void {
-    const ref = (node as any).__zx_ref;
-    if (ref !== undefined) domNodes.delete(BigInt(ref));
-    const children = node.childNodes;
-    for (let i = 0; i < children.length; i++) cleanupDomNodes(children[i]!);
+    const stack: Node[] = [node];
+    let highFreqBits = 0;
+    while (stack.length > 0) {
+        const n = stack.pop()!;
+        const ref = (n as any).__zx_ref;
+        if (typeof ref === "number") {
+            const present = eventHandlersPresent.get(ref);
+            if (present !== undefined) {
+                highFreqBits |= present;
+                eventHandlersPresent.delete(ref);
+                eventHandlersSuspend.delete(ref);
+            }
+            domNodes.delete(ref);
+        }
+        const children = n.childNodes;
+        for (let i = 0; i < children.length; i++) stack.push(children[i]!);
+    }
+    for (const eventTypeId of HIGH_FREQ_EVENT_IDS) {
+        if (highFreqBits & (1 << eventTypeId)) maybeRemoveHighFreqListener(eventTypeId);
+    }
 }
 
 // Index where SVG tags start in TAG_NAMES array
@@ -655,38 +700,104 @@ const DELEGATED_EVENTS = [
     'pointercancel',
 ] as const;
 
-const eventHandlerModes = new Map<bigint, number>();
+/** High-frequency events - only attach when a handler of that type exists. */
+const HIGH_FREQ_EVENT_IDS = new Set<number>([
+    DELEGATED_EVENTS.indexOf('mousemove'),
+    DELEGATED_EVENTS.indexOf('pointermove'),
+    DELEGATED_EVENTS.indexOf('wheel'),
+    DELEGATED_EVENTS.indexOf('scroll'),
+    DELEGATED_EVENTS.indexOf('touchmove'),
+].filter((id) => id >= 0));
+
+type DelegatedListenerState = {
+    root: Element;
+    bridge: ZxBridge;
+    attached: Map<number, { listener: EventListener; options: AddEventListenerOptions }>;
+};
+
+let delegationState: DelegatedListenerState | null = null;
+
+function makeDelegatedListener(bridge: ZxBridge, eventTypeId: number): EventListener {
+    return (event: Event) => {
+        let eventRef: bigint | undefined;
+        const pending: Promise<unknown>[] = [];
+        let target = event.target as HTMLElement | null;
+        while (target && target !== document.body) {
+            const zxRef = (target as any).__zx_ref;
+            if (typeof zxRef === "number" && bridge.hasEventHandler(zxRef, eventTypeId)) {
+                if (eventRef === undefined) eventRef = storeValueGetRef(event);
+                const result = bridge.eventbridge(zxRef, eventTypeId, eventRef);
+                if (result && typeof (result as Promise<unknown>).then === "function") {
+                    pending.push(result as Promise<unknown>);
+                }
+                if (event.cancelBubble) break;
+            }
+            target = target.parentElement;
+        }
+        if (eventRef !== undefined) {
+            const ref = eventRef;
+            if (pending.length > 0) {
+                Promise.all(pending).finally(() => releaseValueRef(ref));
+            } else {
+                releaseValueRef(ref);
+            }
+        }
+    };
+}
+
+function ensureDelegatedListener(eventTypeId: number): void {
+    const state = delegationState;
+    if (!state || state.attached.has(eventTypeId)) return;
+    const domType = DELEGATED_EVENTS[eventTypeId];
+    if (!domType) return;
+    const passive = domType.startsWith('touch') || domType === 'scroll';
+    const options: AddEventListenerOptions = { passive };
+    const listener = makeDelegatedListener(state.bridge, eventTypeId);
+    state.root.addEventListener(domType, listener, options);
+    state.attached.set(eventTypeId, { listener, options });
+}
+
+function anyHandlerForType(eventTypeId: number): boolean {
+    const bit = 1 << eventTypeId;
+    for (const mask of eventHandlersPresent.values()) {
+        if (mask & bit) return true;
+    }
+    return false;
+}
+
+function maybeRemoveHighFreqListener(eventTypeId: number): void {
+    if (!HIGH_FREQ_EVENT_IDS.has(eventTypeId)) return;
+    if (anyHandlerForType(eventTypeId)) return;
+    const state = delegationState;
+    if (!state) return;
+    const entry = state.attached.get(eventTypeId);
+    if (!entry) return;
+    const domType = DELEGATED_EVENTS[eventTypeId]!;
+    state.root.removeEventListener(domType, entry.listener, entry.options);
+    state.attached.delete(eventTypeId);
+}
 
 /** Initialize event delegation */
 export function initEventDelegation(bridge: ZxBridge, rootSelector: string = 'body'): () => void {
     const root = document.querySelector(rootSelector);
     if (!root) return () => {};
 
-    const removers: Array<() => void> = [];
+    delegationState = { root, bridge, attached: new Map() };
 
+    // Always-on bubbling events (cheap). High-freq attach lazily via ensureDelegatedListener.
     for (let eventTypeId = 0; eventTypeId < DELEGATED_EVENTS.length; eventTypeId++) {
-        const domType = DELEGATED_EVENTS[eventTypeId]!;
-        const listener = (event: Event) => {
-            let target = event.target as HTMLElement | null;
-            while (target && target !== document.body) {
-                const zxRef = (target as any).__zx_ref;
-                if (zxRef !== undefined) {
-                    bridge.eventbridge(BigInt(zxRef), eventTypeId, event);
-                    if (event.cancelBubble) break;
-                }
-                target = target.parentElement;
-            }
-        };
-
-        const passive = domType.startsWith('touch') || domType === 'scroll';
-        const options = { passive };
-        root.addEventListener(domType, listener, options);
-        // @ts-ignore
-        removers.push(() => root.removeEventListener(domType, listener, options));
+        if (HIGH_FREQ_EVENT_IDS.has(eventTypeId)) continue;
+        ensureDelegatedListener(eventTypeId);
     }
 
     return () => {
-        for (const remove of removers) remove();
+        if (!delegationState) return;
+        for (const [eventTypeId, entry] of delegationState.attached) {
+            const domType = DELEGATED_EVENTS[eventTypeId]!;
+            delegationState.root.removeEventListener(domType, entry.listener, entry.options);
+        }
+        delegationState.attached.clear();
+        delegationState = null;
     };
 }
 

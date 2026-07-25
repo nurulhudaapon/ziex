@@ -86,14 +86,15 @@ pub fn applyPatches(
             },
             .DELETION => {
                 const data = patch.data.DELETION;
+                const is_fragment = vnodeIsFragment(client, data.vnode_id);
 
-                if (!vnodeIsFragment(client, data.vnode_id)) {
+                if (!is_fragment) {
                     const dom_parent_id = resolveDomParentId(client, data.parent_id);
                     ext._rc(dom_parent_id, data.vnode_id);
                 }
 
                 if (client.getVElementById(data.vnode_id)) |vnode| {
-                    client.unregisterVElement(vnode);
+                    client.unregisterVElement(vnode, is_fragment);
                 }
 
                 if (client.getVElementById(data.parent_id)) |parent_vnode| {
@@ -109,10 +110,11 @@ pub fn applyPatches(
             .REPLACE => {
                 const data = &patch.data.REPLACE;
                 const dom_parent_id = resolveDomParentId(client, data.parent_id);
+                const old_is_fragment = vnodeIsFragment(client, data.old_vnode_id);
 
                 _ = try createPlatformNodes(allocator, data.new_vnode, client, options);
 
-                if (vnodeIsFragment(client, data.old_vnode_id)) {
+                if (old_is_fragment) {
                     const ref_id = findFragmentInsertReference(client, data.old_vnode_id, 0);
                     if (ref_id) |reference_id| {
                         ext._ib(dom_parent_id, data.new_vnode.id, reference_id);
@@ -126,7 +128,7 @@ pub fn applyPatches(
                 }
 
                 if (client.getVElementById(data.old_vnode_id)) |old_vnode| {
-                    client.unregisterVElement(old_vnode);
+                    client.unregisterVElement(old_vnode, old_is_fragment);
                 }
 
                 if (client.getVElementById(data.parent_id)) |parent_vnode| {
@@ -238,24 +240,22 @@ fn formActionCallback(ctx: *anyopaque, event: zx.client.Event) void {
 }
 
 /// Build DOM nodes for a VNode subtree and register every node in the JS registry.
-/// Returns null for fragment roots (children are mounted individually).
-pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anytype, options: RenderOptions) anyerror!?Document.HTMLNode {
-    if (!is_wasm) return .{ .text = Document.HTMLText.init(allocator, {}) };
+/// Returns the root vnode id, or null for fragment roots (children mounted individually).
+pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anytype, options: RenderOptions) anyerror!?u64 {
+    if (!is_wasm) return vnode.id;
 
     const resolved_component = try vdom.resolveComponent(allocator, vnode.component, vnode.owner_component_id, 0);
 
-    const node: ?Document.HTMLNode = switch (resolved_component) {
+    const root_id: ?u64 = switch (resolved_component) {
         .none => blk: {
-            const ref_id = ext._ct("".ptr, 0, vnode.id);
-            const n: Document.HTMLNode = .{ .text = htmlTextFromRef(allocator, ref_id) };
-            try attachCreatedNodeIfNeeded(n, vnode.id, options);
-            break :blk n;
+            ext._ct("".ptr, 0, vnode.id);
+            try attachCreatedNodeIfNeeded(vnode.id, options);
+            break :blk vnode.id;
         },
         .text => |t| blk: {
-            const ref_id = ext._ct(t.ptr, t.len, vnode.id);
-            const n: Document.HTMLNode = .{ .text = htmlTextFromRef(allocator, ref_id) };
-            try attachCreatedNodeIfNeeded(n, vnode.id, options);
-            break :blk n;
+            ext._ct(t.ptr, t.len, vnode.id);
+            try attachCreatedNodeIfNeeded(vnode.id, options);
+            break :blk vnode.id;
         },
         .element => |elem| blk: {
             if (elem.tag == .fragment) {
@@ -271,8 +271,7 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                 break :blk null;
             }
 
-            const ref_id = ext._ce(@intFromEnum(elem.tag), vnode.id);
-
+            ext._ce(@intFromEnum(elem.tag), vnode.id);
             if (elem.attributes) |attrs| {
                 var has_action_handler = false;
                 var has_method = false;
@@ -365,9 +364,8 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                 }
                 const raw = aw.written();
                 ext._srh(vnode.id, raw.ptr, raw.len);
-                const n: Document.HTMLNode = .{ .element = htmlElementFromRef(allocator, ref_id) };
-                try attachCreatedNodeIfNeeded(n, vnode.id, options);
-                break :blk n;
+                try attachCreatedNodeIfNeeded(vnode.id, options);
+                break :blk vnode.id;
             }
 
             for (vnode.children.items) |child| {
@@ -390,34 +388,21 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                 }
             }
 
-            const n: Document.HTMLNode = .{ .element = htmlElementFromRef(allocator, ref_id) };
-            try attachCreatedNodeIfNeeded(n, vnode.id, options);
-            break :blk n;
+            try attachCreatedNodeIfNeeded(vnode.id, options);
+            break :blk vnode.id;
         },
         .component_csr => |csr| blk: {
             // CSR islands: plain <div id="..." data-name="..."> placeholder.
-            const ref_id = ext._ce(@intFromEnum(zx.ElementTag.div), vnode.id);
+            ext._ce(@intFromEnum(zx.ElementTag.div), vnode.id);
             ext._sa(vnode.id, "id".ptr, "id".len, csr.id.ptr, csr.id.len);
             ext._sa(vnode.id, "data-name".ptr, "data-name".len, csr.name.ptr, csr.name.len);
-            break :blk .{ .element = htmlElementFromRef(allocator, ref_id) };
+            break :blk vnode.id;
         },
         .component_fn => unreachable,
     };
 
-    if (node) |_| client.registerVElement(vnode);
-    return node;
-}
-
-inline fn htmlElementFromRef(allocator: zx.Allocator, ref_id: u64) Document.HTMLElement {
-    const js = @import("js");
-    const val: js.Value = @enumFromInt(ref_id);
-    return Document.HTMLElement.init(allocator, js.Object{ .value = val });
-}
-
-inline fn htmlTextFromRef(allocator: zx.Allocator, ref_id: u64) Document.HTMLText {
-    const js = @import("js");
-    const val: js.Value = @enumFromInt(ref_id);
-    return Document.HTMLText.init(allocator, js.Object{ .value = val });
+    if (root_id) |_| client.registerVElement(vnode);
+    return root_id;
 }
 
 const is_wasm = @import("window.zig").is_wasm;
@@ -445,17 +430,9 @@ fn setAttrOrProp(vnode_id: u64, name: []const u8, val: []const u8) void {
     }
 }
 
-fn attachCreatedNodeIfNeeded(node: Document.HTMLNode, vnode_id: u64, options: RenderOptions) !void {
-    if (options.dom_parent_id != null or options.marker != null) {
-        try attachCreatedNode(node, vnode_id, options);
-    }
-}
-
-fn attachCreatedNode(node: Document.HTMLNode, vnode_id: u64, options: RenderOptions) !void {
+fn attachCreatedNodeIfNeeded(vnode_id: u64, options: RenderOptions) !void {
     if (options.dom_parent_id) |parent_id| {
         ext._ac(parent_id, vnode_id);
-    } else if (options.marker) |marker| {
-        try marker.insertContent(node);
     }
 }
 

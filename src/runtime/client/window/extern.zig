@@ -1,9 +1,12 @@
 // DOM
-/// Create element
-pub extern "__zx" fn _ce(id: usize, vnode_id: u64) u64;
+/// Create element into the JS `domNodes` registry (keyed by vnode_id).
+pub extern "__zx" fn _ce(id: usize, vnode_id: u64) void;
 
-/// Create text
-pub extern "__zx" fn _ct(ptr: [*]const u8, len: usize, vnode_id: u64) u64;
+/// Create text node into the JS `domNodes` registry (keyed by vnode_id).
+pub extern "__zx" fn _ct(ptr: [*]const u8, len: usize, vnode_id: u64) void;
+
+/// Insert vnode before a jsz-held end comment (hydration).
+pub extern "__zx" fn _ih(vnode_id: u64, end_comment_ref: u64) void;
 
 /// setAttribute on the element identified by vnode_id.
 pub extern "__zx" fn _sa(vnode_id: u64, name_ptr: [*]const u8, name_len: usize, val_ptr: [*]const u8, val_len: usize) void;

@@ -62,6 +62,14 @@ export function loadValueFromRef(ref: bigint): any {
     return val;
 }
 
+/** Release a NaN-boxed jsz ref (no-op for numbers / predefined ids). */
+export function releaseValueRef(ref: bigint): void {
+    tempRefView.setBigUint64(0, ref, true);
+    if (!Number.isNaN(tempRefView.getFloat64(0, true))) return;
+    const id = tempRefView.getUint32(0, true);
+    if (id > 6) jsz.deleteValue(id);
+}
+
 /** Shared encoder/decoder - avoids allocating new instances on every call. */
 export const textDecoder = new TextDecoder();
 export const textEncoder = new TextEncoder();
