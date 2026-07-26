@@ -53,8 +53,40 @@ pub var current_path: []const u8 = "/";
 /// copy without ever calling free() on a literal.
 var host_owned: ?[]const u8 = null;
 
-fn settingsKV() zx.Kv {
-    return zx.kv.scoped(.settings_namespace);
+const js = zx.client.js;
+
+// Devtool settings are persisted with direct, *synchronous* localStorage via the
+// JS bridge — NOT through zx.kv. zx.kv's wasm bindings become async (JSPI
+// `Suspending`) when the browser supports it, and an async KV write issued from
+// a wasm event handler does not reliably land (the value silently fails to
+// persist — e.g. the "Show Native Elements" toggle resetting on refresh). DOM
+// calls like localStorage.get/setItem go through the bridge synchronously and
+// work from any call site. Values are stored as plain strings ("1"/"0" for
+// bools) so they interoperate with the theme write in settings/page.zx and with
+// client.ts (which writes host/path the same way).
+
+fn lsSet(key: []const u8, value: []const u8) void {
+    if (zx.platform.role != .client) return;
+    const ls = js.global.get(js.Object, "localStorage") catch return;
+    defer ls.deinit();
+    ls.call(void, "setItem", .{ js.string(key), js.string(value) }) catch {};
+}
+
+/// Returns a heap-owned copy (caller frees) or null when absent/not on client.
+fn lsGet(allocator: std.mem.Allocator, key: []const u8) ?[]const u8 {
+    if (zx.platform.role != .client) return null;
+    const ls = js.global.get(js.Object, "localStorage") catch return null;
+    defer ls.deinit();
+    // Use `js.String` (jsz's string type; resolves to an allocated []u8), same
+    // as Event.value. getItem returning JS null (absent key) surfaces as an
+    // error, caught here as null.
+    return ls.callAlloc(js.String, allocator, "getItem", .{js.string(key)}) catch null;
+}
+
+fn lsGetBool(key: []const u8, default_val: bool) bool {
+    const v = lsGet(zx.allocator, key) orelse return default_val;
+    defer zx.allocator.free(v);
+    return std.mem.eql(u8, v, "1");
 }
 
 /// Store `new` into `slot`, freeing whatever heap allocation the slot
@@ -89,31 +121,33 @@ pub fn setHost(new: []const u8) void {
 
 pub fn loadSettings() bool {
     if (_show_native_elements_loaded) return true;
-    show_native_elements = settingsKV().as(zx.allocator, storage_key, bool) catch null orelse true;
-    tree_collapsed = settingsKV().as(zx.allocator, tree_collapsed_key, bool) catch null orelse false;
-    if (settingsKV().get(zx.allocator, host_storage_key) catch null) |loaded| {
+    show_native_elements = lsGetBool(storage_key, true);
+    tree_collapsed = lsGetBool(tree_collapsed_key, false);
+    if (lsGet(zx.allocator, host_storage_key)) |loaded| {
         // Record ownership so the first `setHost` frees this copy rather than
         // leaking it.
         host = loaded;
         host_owned = loaded;
     }
-    current_path = settingsKV().get(zx.allocator, path_storage_key) catch null orelse current_path;
+    if (lsGet(zx.allocator, path_storage_key)) |loaded| {
+        current_path = loaded;
+    }
     _show_native_elements_loaded = true;
     return _show_native_elements_loaded;
 }
 
 pub fn saveSettings() void {
-    settingsKV().putAs(storage_key, show_native_elements, .{}) catch {};
-    settingsKV().putAs(tree_collapsed_key, tree_collapsed, .{}) catch {};
-    settingsKV().put(host_storage_key, host, .{}) catch {};
+    lsSet(storage_key, if (show_native_elements) "1" else "0");
+    lsSet(tree_collapsed_key, if (tree_collapsed) "1" else "0");
+    lsSet(host_storage_key, host);
 }
 
 pub fn loadThemeIsDark() bool {
-    return settingsKV().as(zx.allocator, theme_storage_key, bool) catch null orelse true;
+    return lsGetBool(theme_storage_key, true);
 }
 
 pub fn saveThemeIsDark(dark: bool) void {
-    settingsKV().putAs(theme_storage_key, dark, .{}) catch {};
+    lsSet(theme_storage_key, if (dark) "1" else "0");
 }
 
 pub const components = [_]Component{
