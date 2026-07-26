@@ -21,7 +21,6 @@ pub fn setNodePath(path: std.Build.LazyPath) void {
     node_path = path;
 }
 
-// Compatibility alias for older callers that still configure Bun explicitly.
 pub fn setBunPath(path: std.Build.LazyPath) void {
     node_path = path;
 }
@@ -49,18 +48,14 @@ fn innerInitSingle(b: *std.Build, build_item: Build) !Output {
 
     const run = b.addRunArtifact(plugin_exe);
 
-    const step_name = b.fmt("build {s} {s}{s}{s}", .{ deriveName(b, build_item, &run.step), plugin_system.colors.dim, "tailwindcss", plugin_system.colors.reset });
+    const step_name = b.fmt("build {s} {s}", .{ deriveName(b, build_item, &run.step), "tailwindcss" });
     run.setName(step_name);
     run.setStdIn(.{ .bytes = json_buf });
 
     run.addArg("--name");
     run.addArg(build_item.name orelse "tailwindcss");
-
-    // Zig-managed output file (enables build caching)
     run.addArg("--output");
     const output = run.addOutputFileArg("output.css");
-
-    // Dep file for transitive dependency tracking (enables --watch for imports)
     run.addArg("--dep-file");
     _ = run.addDepFileOutputArg("output.d");
 
