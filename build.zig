@@ -16,13 +16,13 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const enable_lsp = b.option(bool, "lsp", "Enabled zx lsp") orelse false;
+    // TODO: ZLS doesn't support latest Zig 0.17.0 yet, so always disabling LSP for now.
+    const enable_lsp = if (b.option(bool, "lsp", "Enabled zx lsp")) |_| false else false;
     const enable_sqlite = b.option(bool, "feature-sqlite", "Enabled sqlite support") orelse false;
     const enable_postgres = b.option(bool, "feature-postgres", "Enabled postgres support") orelse false;
     const log_level = b.option(std.log.Level, "cli-log-level", "Log level for the CLI") orelse .info;
-    const version = util.getVersion(b);
-
     const is_client = b.option(bool, "is-client", "Building for the browser (client)") orelse false;
+    const version = util.getVersion(b);
 
     // Options
     const options = b.addOptions();
@@ -103,8 +103,8 @@ pub fn build(b: *std.Build) !void {
 
     const exe = b.addExecutable(.{ .name = "zx", .root_module = cli_mod });
     if (enable_lsp) {
-        // const zls_dep = b.lazyDependency("zls", .{ .target = target, .optimize = optimize });
-        // if (zls_dep) |zls| exe.root_module.addImport("zls", zls.module("zls"));
+        const zls_dep = b.lazyDependency("zls", .{ .target = target, .optimize = optimize });
+        if (zls_dep) |zls| exe.root_module.addImport("zls", zls.module("zls"));
     }
     b.installArtifact(exe);
 
