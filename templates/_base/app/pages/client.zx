@@ -29,7 +29,8 @@ fn reset(_: zx.client.Event) void {
 }
 
 fn fetch(url: []const u8) void {
-    _ = zx.fetch(.noop, zx.allocator, url, .{}) catch {};
+    if (zx.platform.isClient())
+        _ = zx.fetch(.noop, zx.allocator, url, .{}) catch {};
 }
 
 const zx = @import("zx");

@@ -99,6 +99,63 @@ pub const build: Command = .{
     },
 };
 
+pub const @"app.asset": Command = .{
+    .name = .asset,
+    .help_short = "Install a static client asset (optionally upsert its manifest injection)",
+    .named_args = &.{
+        Argument.init(.outdir, []const u8, .{
+            .default_value = "",
+            .short = 'o',
+            .help = "Directory to write the installed asset into",
+        }),
+        Argument.init(.@"href-stem", []const u8, .{
+            .default_value = "",
+            .help = "Public URL stem (required when updating a manifest)",
+        }),
+        Argument.init(.manifest, []const u8, .{
+            .default_value = "",
+            .help = "Input app manifest path (omit for copy-only install)",
+        }),
+        Argument.init(.@"manifest-out", []const u8, .{
+            .default_value = "",
+            .help = "Output app manifest path (required with --manifest)",
+        }),
+        Argument.init(.@"file-stem", []const u8, .{
+            .default_value = "app",
+            .help = "Installed filename stem (default: app)",
+        }),
+        Argument.init(.ext, []const u8, .{
+            .default_value = ".wasm",
+            .help = "Installed filename extension (default: .wasm)",
+        }),
+        Argument.init(.kind, []const u8, .{
+            .default_value = "wasmlink",
+            .help = "Manifest injection kind: wasmlink or script",
+        }),
+        Argument.init(.clean, bool, .{
+            .default_value = false,
+            .help = "Delete the output directory before installing",
+        }),
+        Argument.init(.@"no-hash", bool, .{
+            .default_value = false,
+            .help = "Skip content hashing (stable filenames for dev rebuilds)",
+        }),
+    },
+    .positional_args = &.{
+        Argument.init(.src, []const u8, .{
+            .help = "Source asset path (.wasm / .js)",
+        }),
+    },
+};
+
+pub const app: Command = .{
+    .name = .app,
+    .help_short = "App build helpers",
+    .subcommands = &.{
+        @"app.asset",
+    },
+};
+
 pub const transpile: Command = .{
     .name = .transpile,
     .help_short = "Transpile a .zx file or directory to zig source code.",
@@ -245,6 +302,7 @@ pub const upgrade: Command = .{
 pub const commands: []const Command = &.{
     version,
     init,
+    app,
     dev,
     serve,
     build,

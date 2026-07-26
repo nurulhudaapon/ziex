@@ -11,6 +11,7 @@ const dev = @import("dev.zig");
 const serve = @import("serve.zig");
 const build_cmd = @import("build.zig");
 const transpile = @import("transpile.zig");
+const app_cmd = @import("app.zig");
 const fmt = @import("fmt.zig");
 const lsp = @import("lsp.zig");
 const export_cmd = @import("export.zig");
@@ -33,7 +34,7 @@ const use_debug_allocator = builtin.mode == .debug and switch (builtin.os.tag) {
 
 const os_modules = switch (builtin.os.tag) {
     .wasi, .freestanding => .{ version, transpile, fmt },
-    else => .{ version, init, dev, serve, build_cmd, transpile, fmt, lsp, export_cmd, bundle, update, upgrade },
+    else => .{ version, init, app_cmd, dev, serve, build_cmd, transpile, fmt, lsp, export_cmd, bundle, update, upgrade },
 };
 
 pub fn main(init_process: std.process.Init) !void {
@@ -110,7 +111,15 @@ pub fn run(
     switch (parsed.subcommand.?) {
         inline else => |s, tag| inline for (os_modules) |mod| {
             if (comptime std.mem.eql(u8, @tagName(mod.command.name), @tagName(tag))) {
-                return mod.run(ctx, s.kind.args);
+                if (comptime mod.command.subcommands.len > 0) {
+                    return mod.run(ctx, s);
+                } else switch (s.kind) {
+                    .help => {
+                        try std_cli.writeHelpGenerated(mod.command, args[0], s, writer);
+                        return;
+                    },
+                    .args => |cmd_args| return mod.run(ctx, cmd_args),
+                }
             }
         },
     }

@@ -293,29 +293,21 @@ pub fn initInner(
     }
     // Always generate inlined sourcemaps so dev mode can remap errors to .zx files
     transpile_cmd.addArgs(&.{ "--map", "inline" });
-    // TODO: Instead of using named zx_transpile path, figoure out a way to use persistant outputDirectoryArg
+    // Persistent transpile cache (mtime + Transpile.shape); survives zig-cache invalidation.
+    // TODO: Instead of using named zx_transpile path, figure out a way to use persistent outputDirectoryArg
     transpile_cmd.addArgs(&.{"--cache-dir"});
     transpile_cmd.addDirectoryArg(b.graph.path(.local_cache, "ziex").path(b, "tnsn"));
     transpile_cmd.expectExitCode(0);
 
-    const asset_installer_exe = b.addExecutable(.{
-        .name = "asset_installer",
-        .root_module = b.createModule(.{
-            .root_source_file = zx_module.owner.path("src/build/init/asset_installer.zig"),
-            .target = zx_exe.root_module.resolved_target,
-            .optimize = optimize,
-            .imports = &.{
-                .{
-                    .name = "Build",
-                    .module = b.createModule(.{ .root_source_file = zx_module.owner.path("src/Build.zig") }),
-                },
-            },
-        }),
-    });
-
     const app_wasm_href_stem = html_util.prefixPathWithBasePath(b.allocator, opts.base_path, "/assets/_/app");
-    const prod_zxjs_href_stem = html_util.prefixPathWithBasePath(b.allocator, opts.base_path, "/assets/_/app");
-    const dev_zxjs_href_stem = html_util.prefixPathWithBasePath(b.allocator, opts.base_path, "/assets/_/app.dev");
+    const uses_local_bindings = opts.client.bindings.href == null;
+    const use_stable_assets = is_dev_build or optimize == .debug;
+    const zxjs_href_stem = html_util.prefixPathWithBasePath(
+        b.allocator,
+        opts.base_path,
+        if (is_dev_build) "/assets/_/app.dev" else "/assets/_/app",
+    );
+    const zxjs_file_stem = if (is_dev_build) "app.dev" else "app";
     // --- Static Directory Setup --- //
     {
         // Install public directory into static (only if the directory exists)
@@ -378,6 +370,37 @@ pub fn initInner(
                 .attributes = &.{
                     .{ .name = "defer" },
                     .{ .name = "src", .value = b.fmt("{s}", .{href}) },
+                },
+            },
+        });
+    } else if (use_stable_assets) {
+        injections.add(b, .{
+            .parent = .head,
+            .position = .ending,
+            .id = AddElementOptions.Id.jsglue,
+            .element = .{
+                .tag = .script,
+                .attributes = &.{
+                    .{ .name = "defer" },
+                    .{ .name = "src", .value = b.fmt("{s}.js", .{zxjs_href_stem}) },
+                },
+            },
+        });
+    }
+
+    if (use_stable_assets) {
+        injections.add(b, .{
+            .parent = .head,
+            .position = .ending,
+            .id = AddElementOptions.Id.wasmlink,
+            .element = .{
+                .tag = .link,
+                .attributes = &.{
+                    .{ .name = "id", .value = "__$wasmlink" },
+                    .{ .name = "rel", .value = "preload" },
+                    .{ .name = "as", .value = "fetch" },
+                    .{ .name = "href", .value = b.fmt("{s}.wasm", .{app_wasm_href_stem}) },
+                    .{ .name = "crossorigin" },
                 },
             },
         });
@@ -500,48 +523,59 @@ pub fn initInner(
 
     const wasm_binpath = wasm_exe.getEmittedBin();
     const zxjs_path = opts.ziex_js_root.path(b, if (is_dev_build) "wasm/init.dev.js" else "wasm/init.js");
-    const zxjs_href_stem = if (is_dev_build) dev_zxjs_href_stem else prod_zxjs_href_stem;
-    const zxjs_file_stem = if (is_dev_build) "app.dev" else "app";
-    const uses_local_bindings = opts.client.bindings.href == null;
 
-    var wasm_manifest_in = base_manifest_path;
-    var js_run: ?*std.Build.Step.Run = null;
-    if (uses_local_bindings) {
-        const js_asset = addStaticAssetRun(b, asset_installer_exe, &transpile_cmd.step, base_manifest_path, zxjs_path, zxjs_href_stem, zxjs_file_stem, ".js", "script", true);
-        js_asset.run.setName(b.fmt("install client bindings", .{}));
-        js_asset.run.step.dependOn(&transpile_cmd.step);
-        b.getInstallStep().dependOn(&js_asset.run.step);
-        js_run = js_asset.run;
-        wasm_manifest_in = js_asset.manifest_out;
-    }
+    const manifest_path: LazyPath = if (use_stable_assets) blk: {
+        if (uses_local_bindings) {
+            const js_asset = addStaticAssetCopy(b, zx_exe, opts, zxjs_path, zxjs_file_stem, ".js", true, true, "script");
+            js_asset.setName("install client bindings");
+            b.getInstallStep().dependOn(&js_asset.step);
+        }
 
-    const wasm_asset_run = addStaticAssetRun(
-        b,
-        asset_installer_exe,
-        &transpile_cmd.step,
-        wasm_manifest_in,
-        wasm_binpath,
-        app_wasm_href_stem,
-        "app",
-        ".wasm",
-        "wasmlink",
-        !uses_local_bindings,
-    );
-    const manifest_path = wasm_asset_run.manifest_out;
+        const wasm_asset = addStaticAssetCopy(b, zx_exe, opts, wasm_binpath, "app", ".wasm", !uses_local_bindings, true, "wasmlink");
+        wasm_asset.setName("install client wasm");
+        wasm_asset.step.dependOn(&wasm_exe.step);
+        b.getInstallStep().dependOn(&wasm_asset.step);
+
+        break :blk base_manifest_path;
+    } else blk: {
+        var wasm_manifest_in = base_manifest_path;
+        var js_run: ?*std.Build.Step.Run = null;
+        if (uses_local_bindings) {
+            const js_asset = addStaticAssetRun(b, zx_exe, opts, base_manifest_path, zxjs_path, zxjs_href_stem, zxjs_file_stem, ".js", "script", true, false);
+            js_asset.run.setName("install client bindings");
+            b.getInstallStep().dependOn(&js_asset.run.step);
+            js_run = js_asset.run;
+            wasm_manifest_in = js_asset.manifest_out;
+        }
+
+        const wasm_asset_run = addStaticAssetRun(
+            b,
+            zx_exe,
+            opts,
+            wasm_manifest_in,
+            wasm_binpath,
+            app_wasm_href_stem,
+            "app",
+            ".wasm",
+            "wasmlink",
+            !uses_local_bindings,
+            false,
+        );
+        wasm_asset_run.run.setName("install client wasm");
+        wasm_asset_run.run.step.dependOn(&wasm_exe.step);
+        if (js_run) |js| wasm_asset_run.run.step.dependOn(&js.step);
+        b.getInstallStep().dependOn(&wasm_asset_run.run.step);
+        exe.step.dependOn(&wasm_asset_run.run.step);
+
+        break :blk wasm_asset_run.manifest_out;
+    };
+
     const manifest_mod = b.createModule(.{ .root_source_file = manifest_path });
     zx_module.addImport("manifest", manifest_mod);
 
     const install_manifest = b.addInstallFileWithDir(manifest_path, .prefix, "manifest/app.zon");
     install_manifest.step.name = "install app manifest";
     b.default_step.dependOn(&install_manifest.step);
-    install_manifest.step.dependOn(&wasm_asset_run.run.step);
-
-    wasm_asset_run.run.setName(b.fmt("install client wasm", .{}));
-    wasm_asset_run.run.step.dependOn(&transpile_cmd.step);
-    wasm_asset_run.run.step.dependOn(&wasm_exe.step);
-    if (js_run) |js| wasm_asset_run.run.step.dependOn(&js.step);
-    b.getInstallStep().dependOn(&wasm_asset_run.run.step);
-    exe.step.dependOn(&wasm_asset_run.run.step);
 
     // --- Steps: ZX (Root of ZX CLI) --- //
     {
@@ -609,10 +643,48 @@ pub fn initInner(
     };
 }
 
+fn addStaticAssetCopy(
+    b: *std.Build,
+    zx_exe: *std.Build.Step.Compile,
+    opts: InitInnerOptions,
+    src: LazyPath,
+    file_stem: []const u8,
+    file_ext: []const u8,
+    clean_dest: bool,
+    no_hash: bool,
+    injection_kind: []const u8,
+) *std.Build.Step.Run {
+    const run = getZxRun(b, zx_exe, opts);
+    run.addArgs(&.{ "app", "asset" });
+    run.addFileArg(src);
+    run.addArg("--outdir");
+    const asset_output_dir = run.addOutputDirectoryArg("asset");
+    run.addArgs(&.{ "--file-stem", file_stem, "--ext", file_ext });
+    if (clean_dest) run.addArg("--clean");
+    if (no_hash) run.addArg("--no-hash");
+    run.expectExitCode(0);
+
+    const install_static_assets = b.addInstallDirectory(.{
+        .source_dir = asset_output_dir,
+        .install_dir = .{ .custom = "static/assets/" },
+        .install_subdir = "_",
+    });
+    install_static_assets.step.name = if (std.mem.eql(u8, injection_kind, "wasmlink"))
+        "install client wasm assets"
+    else if (std.mem.eql(u8, injection_kind, "script"))
+        "install client js assets"
+    else
+        b.fmt("install client {s} assets", .{injection_kind});
+    install_static_assets.step.dependOn(&run.step);
+    b.getInstallStep().dependOn(&install_static_assets.step);
+
+    return run;
+}
+
 fn addStaticAssetRun(
     b: *std.Build,
-    asset_exe: *std.Build.Step.Compile,
-    transpile_step: *std.Build.Step,
+    zx_exe: *std.Build.Step.Compile,
+    opts: InitInnerOptions,
     manifest_in: LazyPath,
     src: LazyPath,
     href_stem: []const u8,
@@ -620,24 +692,26 @@ fn addStaticAssetRun(
     file_ext: []const u8,
     injection_kind: []const u8,
     clean_dest: bool,
+    no_hash: bool,
 ) struct {
     run: *std.Build.Step.Run,
     manifest_out: LazyPath,
 } {
-    const run = b.addRunArtifact(asset_exe);
+    const run = getZxRun(b, zx_exe, opts);
+    run.addArgs(&.{ "app", "asset" });
     run.addFileArg(src);
-    const asset_output_dir = run.addOutputFileArg("asset");
-
+    run.addArg("--outdir");
+    const asset_output_dir = run.addOutputDirectoryArg("asset");
+    run.addArg("--href-stem");
     run.addArg(href_stem);
+    run.addArg("--manifest");
     run.addFileArg(manifest_in);
     run.addArg("--manifest-out");
     const manifest_out = run.addOutputFileArg("app.zon");
-    run.addArg(file_stem);
-    run.addArg(file_ext);
-    run.addArg(injection_kind);
-    run.addArg(if (clean_dest) "clean" else "");
+    run.addArgs(&.{ "--file-stem", file_stem, "--ext", file_ext, "--kind", injection_kind });
+    if (clean_dest) run.addArg("--clean");
+    if (no_hash) run.addArg("--no-hash");
     run.expectExitCode(0);
-    _ = transpile_step;
 
     // Install the static assets directory
     const install_static_assets = b.addInstallDirectory(.{
