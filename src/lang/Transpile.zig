@@ -9,6 +9,10 @@ const Parse = @import("Parse.zig");
 const Ast = Parse.Parse;
 const NodeKind = Parse.NodeKind;
 
+/// The shape of the transpiled output,
+/// changes when the transpiler output format changes.
+pub const shape: []const u8 = "0.1.0";
+
 ast: *Ast,
 output: std.array_list.Managed(u8),
 sourcemap_builder: sourcemap.Builder,

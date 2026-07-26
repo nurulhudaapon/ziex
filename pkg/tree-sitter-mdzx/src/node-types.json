@@ -1994,21 +1994,6 @@
     }
   },
   {
-    "type": "link_label",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": true,
-      "required": false,
-      "types": [
-        {
-          "type": "backslash_escape",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
     "type": "link_reference_definition",
     "named": true,
     "fields": {},
@@ -3850,6 +3835,10 @@
   },
   {
     "type": "language",
+    "named": true
+  },
+  {
+    "type": "link_label",
     "named": true
   },
   {

@@ -73,14 +73,14 @@ Escaped: \*not emphasis\*
 Multiple languages closing fences must not leak into the code element.
 
 ```js
-console.log("fenced code without no trailing backticks");
+console.log("fenced code without trailing backticks");
 const answer = 42;
 ```
 
 ```zig
 const std = @import("std");
 pub fn main() void {
-    std.debug.print("hello from zig fence\n", .{});
+    std.debug.print("hello from Zig fence\n", .{});
 }
 ```
 

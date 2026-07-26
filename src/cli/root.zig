@@ -123,7 +123,7 @@ pub const transpile: Command = .{
         }),
         Argument.init(.@"cache-dir", []const u8, .{
             .default_value = "",
-            .help = "Persistent directory for content-hash-keyed transpile cache (survives zig-cache invalidation)",
+            .help = "Persistent transpile cache directory (mtime + Transpile.shape; survives zig-cache invalidation)",
         }),
         Argument.init(.@"base-path", []const u8, .{
             .default_value = "",

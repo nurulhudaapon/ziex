@@ -209,17 +209,16 @@ module.exports = grammar(zx, {
     // ==========================================
     // Link Reference Definition
     // ==========================================
+    // Require `]:` as one token so `[label](url)` inline links are not
+    // partially matched as link-reference definitions (which need a colon).
     link_reference_definition: $ => prec(5, seq(
       optional($._whitespace),
-      $.link_label,
-      ':',
+      alias(token(prec(5, /\[[^\]\n]+\]:/)), $.link_label),
       optional($._whitespace),
       $.link_destination,
       optional(seq($._whitespace, $.link_title)),
       $._newline,
     )),
-
-    link_label: $ => seq('[', repeat1(choice($._text_inline_no_link, $.backslash_escape)), ']'),
 
     link_destination: $ => choice(
       seq('<', alias(/[^<>\n]+/, $.uri), '>'),

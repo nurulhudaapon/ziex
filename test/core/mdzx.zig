@@ -375,6 +375,13 @@ test "mdzx: block quote keeps nested lines without leaking markers" {
     try testing.expect(std.mem.indexOf(u8, out, "> second") == null);
 }
 
+test "mdzx: inline link at line start is not a link-ref definition" {
+    const out = try transpile("[Back to MDZX example](/examples/md)\n");
+    defer testing.allocator.free(out);
+    try testing.expect(std.mem.indexOf(u8, out, "<a href=\"/examples/md\">") != null);
+    try testing.expect(std.mem.indexOf(u8, out, "Back to MDZX example") != null);
+}
+
 test "mdzx: task list markers become checkboxes" {
     const out = try transpile(
         \\- [x] Task done

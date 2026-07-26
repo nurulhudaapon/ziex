@@ -549,13 +549,22 @@ fn transpileFileRecursive(
 
 // ---- Component Cache (per-file incremental) ---- //
 
+const ComponentCacheFile = struct {
+    shape: []const u8,
+    components: []const ClientComponentSerializable,
+};
+
 fn writeComponentCache(
     io: std.Io,
     allocator: std.mem.Allocator,
     cache_path: []const u8,
     components: []const ClientComponentSerializable,
 ) !void {
-    const json = try std.json.Stringify.valueAlloc(allocator, components, .{});
+    const payload = ComponentCacheFile{
+        .shape = lang.Transpile.shape,
+        .components = components,
+    };
+    const json = try std.json.Stringify.valueAlloc(allocator, payload, .{});
     defer allocator.free(json);
     try writeFile(io, cache_path, json);
 }
@@ -569,13 +578,14 @@ fn readComponentCache(
     const json = try std.Io.Dir.cwd().readFileAlloc(io, cache_path, allocator, std.Io.Limit.limited(4 * 1024 * 1024));
     defer allocator.free(json);
     const parsed = try std.json.parseFromSlice(
-        []const ClientComponentSerializable,
+        ComponentCacheFile,
         allocator,
         json,
-        .{},
+        .{ .allocate = .alloc_always },
     );
     defer parsed.deinit();
-    for (parsed.value) |component| {
+    if (!std.mem.eql(u8, parsed.value.shape, lang.Transpile.shape)) return error.TranspileShapeMismatch;
+    for (parsed.value.components) |component| {
         try global_components.append(.{
             .type = component.type,
             .id = try allocator.dupe(u8, component.id),
@@ -1384,18 +1394,18 @@ fn transpileDirectory(
             const cache_path = try std.mem.concat(allocator, u8, &.{ cache_out_path, ".zxcache" });
             defer allocator.free(cache_path);
 
-            // Check if output is up-to-date (mtime comparison + cache file existence)
+            // Check if output is up-to-date (mtime + matching Transpile.shape in .zxcache)
             const should_skip = blk: {
                 const input_stat = std.Io.Dir.cwd().statFile(io, input_path, .{}) catch break :blk false;
                 const cache_stat = std.Io.Dir.cwd().statFile(io, cache_out_path, .{}) catch break :blk false;
                 std.Io.Dir.cwd().access(io, cache_path, .{}) catch break :blk false;
-                break :blk cache_stat.mtime.nanoseconds >= input_stat.mtime.nanoseconds;
+                if (cache_stat.mtime.nanoseconds < input_stat.mtime.nanoseconds) break :blk false;
+                // Shape mismatch / legacy `.zxcache` (bare component array) → retranspile
+                readComponentCache(io, allocator, cache_path, global_components) catch break :blk false;
+                break :blk true;
             };
 
             if (should_skip) {
-                readComponentCache(io, allocator, cache_path, global_components) catch |err| {
-                    std.debug.print("Warning: Failed to read component cache for {s}: {}\n", .{ input_path, err });
-                };
                 if (opts.cache_dir) |_| {
                     if (std.fs.path.dirname(output_path)) |parent_dir| {
                         std.Io.Dir.cwd().createDirPath(io, parent_dir) catch {};

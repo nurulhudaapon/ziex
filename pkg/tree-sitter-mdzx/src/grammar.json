@@ -8206,12 +8206,20 @@
             ]
           },
           {
-            "type": "SYMBOL",
-            "name": "link_label"
-          },
-          {
-            "type": "STRING",
-            "value": ":"
+            "type": "ALIAS",
+            "content": {
+              "type": "TOKEN",
+              "content": {
+                "type": "PREC",
+                "value": 5,
+                "content": {
+                  "type": "PATTERN",
+                  "value": "\\[[^\\]\\n]+\\]:"
+                }
+              }
+            },
+            "named": true,
+            "value": "link_label"
           },
           {
             "type": "CHOICE",
@@ -8256,35 +8264,6 @@
           }
         ]
       }
-    },
-    "link_label": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "["
-        },
-        {
-          "type": "REPEAT1",
-          "content": {
-            "type": "CHOICE",
-            "members": [
-              {
-                "type": "SYMBOL",
-                "name": "_text_inline_no_link"
-              },
-              {
-                "type": "SYMBOL",
-                "name": "backslash_escape"
-              }
-            ]
-          }
-        },
-        {
-          "type": "STRING",
-          "value": "]"
-        }
-      ]
     },
     "link_destination": {
       "type": "CHOICE",

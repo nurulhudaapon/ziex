@@ -13,8 +13,8 @@ pub fn init(app: *jetzig.App) !void {
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = if (builtin.mode == .Debug) gpa.allocator() else std.heap.c_allocator;
-    defer if (builtin.mode == .Debug) std.debug.assert(gpa.deinit() == .ok);
+    const allocator = if (builtin.mode == .debug) gpa.allocator() else std.heap.c_allocator;
+    defer if (builtin.mode == .debug) std.debug.assert(gpa.deinit() == .ok);
 
     var app = try jetzig.init(allocator);
     defer app.deinit();
