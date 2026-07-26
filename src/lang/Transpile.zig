@@ -431,14 +431,22 @@ fn transpileBuiltin(self: *Transpile, node: ts.Node) !bool {
     if (builtin_identifier) |ident| {
         if (std.mem.eql(u8, ident, "@import")) {
             if (import_string) |import_path| {
-                // Check if it ends with .zx
-                if (std.mem.endsWith(u8, import_path, ".zx")) {
+                // Check if it ends with .zx / .mdzx / .md
+                if (std.mem.endsWith(u8, import_path, ".zx") or
+                    std.mem.endsWith(u8, import_path, ".mdzx") or
+                    (std.mem.endsWith(u8, import_path, ".md") and !std.mem.endsWith(u8, import_path, ".mdzx")))
+                {
                     // Write @import with transformed path
                     try self.writeM("@import", node.startByte());
                     try self.write("(\"");
 
-                    // Write path with .zig instead of .zx
-                    const base_path = import_path[0 .. import_path.len - 3]; // Remove ".zx"
+                    const ext_len: usize = if (std.mem.endsWith(u8, import_path, ".mdzx"))
+                        ".mdzx".len
+                    else if (std.mem.endsWith(u8, import_path, ".md"))
+                        ".md".len
+                    else
+                        ".zx".len;
+                    const base_path = import_path[0 .. import_path.len - ext_len];
                     try self.write(base_path);
                     try self.write(".zig\")");
 

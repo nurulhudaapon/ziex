@@ -131,6 +131,8 @@ pub fn build(b: *std.Build) !void {
             .imports = &.{
                 .{ .name = "zx", .module = mode_test },
                 .{ .name = "lang", .module = lang_mod },
+                .{ .name = "tree_sitter", .module = tree_sitter_dep.module("tree_sitter") },
+                .{ .name = "tree_sitter_mdzx", .module = tree_sitter_mdzx_dep.module("tree_sitter_mdzx") },
                 .{ .name = "html_hover", .module = b.createModule(.{
                     .root_source_file = b.path("src/lsp/html_hover.zig"),
                     .imports = &.{

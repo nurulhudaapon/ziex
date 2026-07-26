@@ -3,20 +3,32 @@
   "grammars": [
     {
       "name": "mdzx",
-      "camelcase": "mdzx",
-      "title": "mdzx",
-      "scope": "source.zx",
-      "file-types": [
-        "mdzx"
-      ],
-      "injection-regex": "^zx$",
-      "class-name": "TreeSitterZx"
+      "camelcase": "Mdzx",
+      "title": "MDZX",
+      "scope": "text.mdzx",
+      "path": ".",
+      "file-types": ["mdzx", "md"],
+      "highlights": "queries/highlights.scm",
+      "injections": "queries/injections.scm",
+      "injection-regex": "^(mdzx|md)$",
+      "class-name": "TreeSitterMdzx"
+    },
+    {
+      "name": "mdzx_inline",
+      "camelcase": "MdzxInline",
+      "title": "MDZX Inline",
+      "scope": "text.mdzx_inline",
+      "path": "tree-sitter-mdzx-inline",
+      "file-types": null,
+      "highlights": "tree-sitter-mdzx-inline/queries/highlights.scm",
+      "injections": "tree-sitter-mdzx-inline/queries/injections.scm",
+      "class-name": "TreeSitterMdzxInline"
     }
   ],
   "metadata": {
     "version": "0.1.0-dev",
     "license": "MIT",
-    "description": "ZX is a framework for building web applications with Zig.",
+    "description": "MDZX: Markdown + ZX.",
     "authors": [
       {
         "name": "Nurul Huda (Apon)",

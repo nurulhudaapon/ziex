@@ -713,8 +713,7 @@ pub const ServerApp = struct {
     /// Comptime function to wrap a page module's Page function.
     /// The app context and state are read from type-erased pointers in ctx and cast to the appropriate types.
     pub fn page(comptime T: type) PageHandler {
-        const is_md = @hasDecl(T, "_zx_md");
-        const pageFn = if (is_md) T._zx_md else T.Page;
+        const pageFn = T.Page;
 
         const FnType = @TypeOf(pageFn);
         const fn_info = @typeInfo(FnType).@"fn";
@@ -723,17 +722,6 @@ pub const ServerApp = struct {
 
         return struct {
             fn wrapper(ctx: zx.PageContext, app_ptr: ?*const anyopaque, state_ptr: ?*const anyopaque) anyerror!Component {
-                if (is_md) {
-                    // TODO: figure out a better design for page.mdzx file, we need a better way to use PageContext in md file without magic
-                    const CtxType = fn_info.param_types[0].?;
-                    const CCtxType = @typeInfo(CtxType).pointer.child;
-                    const allocator = ctx.arena;
-                    const cctx = (allocator.create(CCtxType) catch @panic("OOM"));
-                    cctx.allocator = allocator;
-                    if (@hasDecl(T, "page_ctx")) T.page_ctx = ctx;
-                    return pageFn(cctx);
-                }
-
                 if (n_params == 1) {
                     if (R == Component) return pageFn(ctx) else return try pageFn(ctx);
                 }

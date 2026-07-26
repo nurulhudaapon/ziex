@@ -13,4 +13,4 @@ Subpackages that are published separately or consumed by the root Ziex project.
 | `plugin-bun` | NPM/JavaScript | Bun plugin for the Zig build system |
 | `plugin-tailwind` | Zig | Tailwind CSS plugin for the Zig build system |
 | `tree-sitter-zx` | Tree-Sitter (C) | Tree-Sitter parser for .zx files |
-| `tree-sitter-mdx` | Tree-Sitter (C) | Tree-Sitter parser for .mdzx files |
+| `tree-sitter-mdzx` | Tree-Sitter (C) | Tree-Sitter parser for .mdzx / .md files |

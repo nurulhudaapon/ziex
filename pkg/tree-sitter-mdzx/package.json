@@ -39,7 +39,7 @@
     "@tree-sitter-grammars/tree-sitter-markdown": "^0.3.2"
   },
   "scripts": {
-    "generate": "tree-sitter generate",
+    "generate": "tree-sitter generate grammar.js -o src && tree-sitter generate tree-sitter-mdzx-inline/grammar.js -o tree-sitter-mdzx-inline/src",
     "build": "tree-sitter build",
     "ts": "tree-sitter",
     "install": "node-gyp-build",

@@ -1,0 +1,15 @@
+---
+const zx = @import("zx");
+
+pub const Props = struct {
+    name: []const u8,
+};
+
+var props: Props = undefined;
+---
+
+### Hello
+
+{props.name}
+
+This card is a **pure MDZX component** (`greeting.mdzx`) with `Props`.

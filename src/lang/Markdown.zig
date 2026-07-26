@@ -1,26 +1,292 @@
-// TODO: this is a prototype implementation
+//! MDZX / MD → ZX transpile.
+//!
+//! Uses the official tree-sitter-markdown dual-grammar model:
+//! 1. Parse blocks with `mdzx` (opaque `inline` leaves)
+//! 2. Re-parse each `inline` range with `mdzx_inline` via included ranges
+//!
+//! Always emits `pub fn render(...)`. Authors must not declare `render`.
+//! Pages may declare `Page` (or get a default). Components may declare `Props`
+//! (+ optional `var props`) for a `ComponentCtx` signature.
 const Markdown = @This();
 
 const Writer = std.array_list.Managed(u8);
+const mdzx = @import("tree_sitter_mdzx");
 
-const fn_header = "pub fn _zx_md(ctx: *@import(\"zx\").ComponentCtx(struct { children: @import(\"zx\").Component })) @import(\"zx\").Component {\n";
-const pg_header = "pub fn Page(ctx: *@import(\"zx\").PageContext) @import(\"zx\").Component {\n";
+/// Tree-sitter node kinds used by the MDZX block + inline grammars.
+pub const NodeKind = enum {
+    // Document / frontmatter
+    source_file,
+    frontmatter,
+    frontmatter_delimiter,
+    frontmatter_body,
 
-pub fn transpile(allocator: std.mem.Allocator, source: []const u8) ![]const u8 {
-    const effective_source = if (source.len == 0 or source[source.len - 1] != '\n') blk: {
+    // Blocks
+    atx_heading,
+    paragraph,
+    thematic_break,
+    fenced_code_block,
+    indented_code_block,
+    block_quote,
+    list,
+    list_item,
+    link_reference_definition,
+    mdzx_component,
+    zx_expression_block,
+    @"inline",
+
+    // Heading markers
+    atx_h1_marker,
+    atx_h2_marker,
+    atx_h3_marker,
+    atx_h4_marker,
+    atx_h5_marker,
+    atx_h6_marker,
+
+    // Code fence
+    info_string,
+    language,
+    code_fence_content,
+
+    // Quotes / lists
+    block_quote_marker,
+    list_marker_dot,
+    list_marker_parenthesis,
+    list_marker_plus,
+    list_marker_minus,
+    list_marker_star,
+    task_list_marker_checked,
+    task_list_marker_unchecked,
+
+    // Inline
+    code_span,
+    code_span_delimiter,
+    code_span_content,
+    emphasis,
+    emphasis_content,
+    strong_emphasis,
+    strong_emphasis_content,
+    bold_italic,
+    bold_italic_content,
+    strikethrough,
+    strikethrough_content,
+    inline_link,
+    full_reference_link,
+    image,
+    autolink,
+    backslash_escape,
+    link_text,
+    link_destination,
+    uri,
+    text,
+    whitespace,
+    soft_line_break,
+
+    /// Anonymous / unrecognized node kind
+    anon,
+
+    fn fromString(s: []const u8) NodeKind {
+        return std.meta.stringToEnum(NodeKind, s) orelse .anon;
+    }
+
+    pub fn fromNode(node: ?ts.Node) NodeKind {
+        if (node == null) return .anon;
+        return fromString(node.?.kind());
+    }
+
+    fn isBlock(self: NodeKind) bool {
+        return switch (self) {
+            .atx_heading,
+            .paragraph,
+            .thematic_break,
+            .fenced_code_block,
+            .indented_code_block,
+            .block_quote,
+            .list,
+            .mdzx_component,
+            .zx_expression_block,
+            .link_reference_definition,
+            => true,
+            else => false,
+        };
+    }
+
+    fn isZxEmbed(self: NodeKind) bool {
+        return self == .mdzx_component or self == .zx_expression_block;
+    }
+
+    fn isListMarker(self: NodeKind) bool {
+        return switch (self) {
+            .list_marker_dot,
+            .list_marker_parenthesis,
+            .list_marker_plus,
+            .list_marker_minus,
+            .list_marker_star,
+            => true,
+            else => false,
+        };
+    }
+
+    fn isOrderedListMarker(self: NodeKind) bool {
+        return self == .list_marker_dot or self == .list_marker_parenthesis;
+    }
+
+    fn headingLevel(self: NodeKind) ?u8 {
+        return switch (self) {
+            .atx_h1_marker => 1,
+            .atx_h2_marker => 2,
+            .atx_h3_marker => 3,
+            .atx_h4_marker => 4,
+            .atx_h5_marker => 5,
+            .atx_h6_marker => 6,
+            else => null,
+        };
+    }
+};
+
+pub const TranspileOptions = struct {
+    /// Emit a default `Page` unless the author already declared one.
+    /// CLI sets this for `page.mdzx` / `page.md` only.
+    emit_default_page: bool = true,
+    /// Pure markdown (`.md`): ZX embeds are forbidden.
+    pure_md: bool = false,
+};
+
+pub const TranspileError = error{
+    UserDeclaredRender,
+    PureMdEmbed,
+    LoadingLang,
+    ParseError,
+    OutOfMemory,
+};
+
+const default_page =
+    \\pub fn Page(c: @import("zx").PageContext) @import("zx").Component {
+    \\    return @import("zx").mdzx.page(@This(), c);
+    \\}
+    \\
+;
+
+/// Combined MDZX parse: block tree + per-`inline` trees.
+const Parsed = struct {
+    allocator: std.mem.Allocator,
+    block: *ts.Tree,
+    inline_trees: std.ArrayList(*ts.Tree),
+    inline_by_id: std.AutoHashMap(usize, usize),
+
+    fn deinit(self: *Parsed) void {
+        for (self.inline_trees.items) |t| t.destroy();
+        self.inline_trees.deinit(self.allocator);
+        self.inline_by_id.deinit();
+        self.block.destroy();
+    }
+
+    fn inlineRoot(self: *const Parsed, block_inline: ts.Node) ?ts.Node {
+        const idx = self.inline_by_id.get(@intFromPtr(block_inline.id)) orelse return null;
+        return self.inline_trees.items[idx].rootNode();
+    }
+};
+
+fn parseMdzx(allocator: std.mem.Allocator, source: []const u8) !Parsed {
+    const block_parser = ts.Parser.create();
+    defer block_parser.destroy();
+    block_parser.setLanguage(ts.Language.fromRaw(mdzx.language())) catch return error.LoadingLang;
+    const block = block_parser.parseString(source, null) orelse return error.ParseError;
+
+    var parsed: Parsed = .{
+        .allocator = allocator,
+        .block = block,
+        .inline_trees = .empty,
+        .inline_by_id = .init(allocator),
+    };
+    errdefer parsed.deinit();
+
+    const inline_parser = ts.Parser.create();
+    defer inline_parser.destroy();
+    inline_parser.setLanguage(ts.Language.fromRaw(mdzx.inlineLanguage())) catch return error.LoadingLang;
+
+    var cursor = block.walk();
+    defer cursor.destroy();
+
+    outer: while (true) {
+        const node = while (true) {
+            const kind = NodeKind.fromNode(cursor.node());
+            if (kind == .@"inline" or !cursor.gotoFirstChild()) {
+                while (!cursor.gotoNextSibling()) {
+                    if (!cursor.gotoParent()) break :outer;
+                }
+            }
+            if (NodeKind.fromNode(cursor.node()) == .@"inline") break cursor.node();
+        };
+
+        var range = node.range();
+        var ranges = std.ArrayList(ts.Range).empty;
+        defer ranges.deinit(allocator);
+
+        if (cursor.gotoFirstChild()) {
+            while (true) {
+                const child = cursor.node();
+                if (child.isNamed()) {
+                    const child_range = child.range();
+                    try ranges.append(allocator, .{
+                        .start_byte = range.start_byte,
+                        .start_point = range.start_point,
+                        .end_byte = child_range.start_byte,
+                        .end_point = child_range.start_point,
+                    });
+                    range.start_byte = child_range.end_byte;
+                    range.start_point = child_range.end_point;
+                }
+                if (!cursor.gotoNextSibling()) break;
+            }
+            _ = cursor.gotoParent();
+        }
+        try ranges.append(allocator, range);
+
+        var filtered = std.ArrayList(ts.Range).empty;
+        defer filtered.deinit(allocator);
+        for (ranges.items) |r| {
+            if (r.start_byte < r.end_byte) try filtered.append(allocator, r);
+        }
+
+        if (filtered.items.len > 0) {
+            try inline_parser.setIncludedRanges(filtered.items);
+            const inline_tree = inline_parser.parseString(source, null) orelse return error.ParseError;
+            const idx = parsed.inline_trees.items.len;
+            try parsed.inline_trees.append(allocator, inline_tree);
+            try parsed.inline_by_id.put(@intFromPtr(node.id), idx);
+        }
+
+        while (!cursor.gotoNextSibling()) {
+            if (!cursor.gotoParent()) break :outer;
+        }
+    }
+
+    try inline_parser.setIncludedRanges(null);
+    return parsed;
+}
+
+pub fn transpile(allocator: std.mem.Allocator, source: []const u8) anyerror![]const u8 {
+    return transpileWithOptions(allocator, source, .{});
+}
+
+pub fn transpileWithOptions(
+    allocator: std.mem.Allocator,
+    source: []const u8,
+    options: TranspileOptions,
+) anyerror![]const u8 {
+    const owned_source: ?[]u8 = if (source.len == 0 or source[source.len - 1] != '\n') blk: {
         const buf = try allocator.alloc(u8, source.len + 1);
         @memcpy(buf[0..source.len], source);
         buf[source.len] = '\n';
         break :blk buf;
-    } else source;
+    } else null;
+    defer if (owned_source) |buf| allocator.free(buf);
+    const effective_source = owned_source orelse source;
 
-    const parser = ts.Parser.create();
-    defer parser.destroy();
-    parser.setLanguage(ts.Language.fromRaw(@import("tree_sitter_mdzx").language())) catch return error.LoadingLang;
-    const tree = parser.parseString(effective_source, null) orelse return error.ParseError;
-    defer tree.destroy();
+    var parsed = try parseMdzx(allocator, effective_source);
+    defer parsed.deinit();
 
-    const root = tree.rootNode();
+    const root = parsed.block.rootNode();
     var out = Writer.init(allocator);
     errdefer out.deinit();
 
@@ -30,101 +296,143 @@ pub fn transpile(allocator: std.mem.Allocator, source: []const u8) ![]const u8 {
         blocks.deinit(allocator);
     }
 
+    var has_author_page = false;
+    var has_props = false;
+    var has_props_var = false;
+
     const child_count = root.childCount();
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = root.child(i) orelse continue;
-        const kind = child.kind();
+        const kind = NodeKind.fromNode(child);
 
-        if (eql(kind, "frontmatter")) {
-            try writeFrontmatter(&out, effective_source, child);
-        } else if (eql(kind, "atx_heading") or
-            eql(kind, "paragraph") or
-            eql(kind, "thematic_break") or
-            eql(kind, "fenced_code_block") or
-            eql(kind, "indented_code_block") or
-            eql(kind, "block_quote") or
-            eql(kind, "list") or
-            eql(kind, "mdzx_component") or
-            eql(kind, "zx_expression_block") or
-            eql(kind, "link_reference_definition"))
-        {
-            var buf = Writer.init(allocator);
-            errdefer buf.deinit();
-            try writeBlock(&buf, effective_source, child);
-            if (buf.items.len > 0) {
-                try blocks.append(allocator, try buf.toOwnedSlice());
-            } else {
-                buf.deinit();
-            }
+        switch (kind) {
+            .frontmatter => {
+                const fm_text = frontmatterSource(effective_source, child);
+                if (frontmatterDeclaresRender(fm_text)) return error.UserDeclaredRender;
+                if (std.mem.indexOf(u8, fm_text, "pub fn Page") != null) has_author_page = true;
+                has_props = frontmatterHasProps(fm_text);
+                has_props_var = frontmatterHasPropsVar(fm_text);
+                try writeFrontmatter(&out, fm_text);
+            },
+            else => {
+                if (!kind.isBlock()) continue;
+                if (options.pure_md and kind.isZxEmbed()) return error.PureMdEmbed;
+                var buf = Writer.init(allocator);
+                errdefer buf.deinit();
+                try writeBlock(&buf, effective_source, child, &parsed);
+                if (buf.items.len > 0) {
+                    try blocks.append(allocator, try buf.toOwnedSlice());
+                } else {
+                    buf.deinit();
+                }
+            },
         }
     }
 
     if (blocks.items.len > 0) {
-        try out.appendSlice(fn_header);
-        if (blocks.items.len == 1) {
-            const block = blocks.items[0];
-            try out.appendSlice("    return (");
-            try appendWithAllocator(&out, block);
-            try out.appendSlice(");\n");
-        } else {
-            // Multiple elements: wrap in <div @allocator={ctx.allocator}>
-            try out.appendSlice("    return (<div @allocator={ctx.allocator}>\n");
-            for (blocks.items) |block| {
-                try out.appendSlice("        ");
-                try out.appendSlice(block);
-                try out.append('\n');
-            }
-            try out.appendSlice("    </div>);\n");
-        }
-        try out.appendSlice("}\n");
+        try writeRenderFn(&out, blocks.items, has_props, has_props_var);
+    }
+
+    const should_emit_page = options.emit_default_page and !has_author_page and !has_props;
+    if (should_emit_page) {
+        try out.appendSlice(default_page);
     }
 
     return try out.toOwnedSlice();
 }
 
-fn writeFrontmatter(out: *Writer, source: []const u8, node: ts.Node) !void {
-    const child_count = node.childCount();
-    var i: u32 = 0;
-    while (i < child_count) : (i += 1) {
-        const child = node.child(i) orelse continue;
-        const kind = child.kind();
-        if (eql(kind, "zig_declaration") or
-            eql(kind, "pub_const_declaration") or
-            eql(kind, "const_declaration"))
-        {
-            try out.appendSlice(textOf(source, child));
+fn writeRenderFn(
+    out: *Writer,
+    blocks: []const []const u8,
+    has_props: bool,
+    has_props_var: bool,
+) !void {
+    if (has_props) {
+        try out.appendSlice(
+            \\pub fn render(ctx: *@import("zx").ComponentCtx(Props)) @import("zx").Component {
+            \\
+        );
+        if (has_props_var) {
+            try out.appendSlice("    props = ctx.props;\n");
+        }
+        try out.appendSlice("    const allocator = ctx.allocator;\n");
+    } else {
+        try out.appendSlice(
+            \\pub fn render(allocator: @import("zx").Allocator) @import("zx").Component {
+            \\
+        );
+    }
+
+    if (blocks.len == 1) {
+        try out.appendSlice("    return (");
+        try appendWithAllocator(out, blocks[0]);
+        try out.appendSlice(");\n");
+    } else {
+        try out.appendSlice("    return (<div @allocator={allocator}>\n");
+        for (blocks) |block| {
+            try out.appendSlice("        ");
+            try out.appendSlice(block);
             try out.append('\n');
         }
+        try out.appendSlice("    </div>);\n");
     }
-    try out.append('\n');
+    try out.appendSlice("}\n");
 }
 
-fn writeBlock(buf: *Writer, source: []const u8, node: ts.Node) !void {
-    const kind = node.kind();
+pub fn shouldEmitDefaultPage(path: ?[]const u8) bool {
+    const p = path orelse return true;
+    const base = std.fs.path.basename(p);
+    return std.mem.eql(u8, base, "page.mdzx") or std.mem.eql(u8, base, "page.md");
+}
 
-    if (eql(kind, "atx_heading")) {
-        try writeHeading(buf, source, node);
-    } else if (eql(kind, "paragraph")) {
-        try writeParagraph(buf, source, node);
-    } else if (eql(kind, "thematic_break")) {
-        try buf.appendSlice("<hr />");
-    } else if (eql(kind, "fenced_code_block")) {
-        try writeFencedCodeBlock(buf, source, node);
-    } else if (eql(kind, "indented_code_block")) {
-        try writeIndentedCodeBlock(buf, source, node);
-    } else if (eql(kind, "block_quote")) {
-        try writeBlockQuote(buf, source, node);
-    } else if (eql(kind, "list")) {
-        try writeList(buf, source, node);
-    } else if (eql(kind, "mdzx_component") or eql(kind, "zx_expression_block")) {
-        try buf.appendSlice(std.mem.trim(u8, textOf(source, node), "\n \t"));
-    } else if (eql(kind, "link_reference_definition")) {
-        // Skip
+fn frontmatterDeclaresRender(fm: []const u8) bool {
+    return std.mem.indexOf(u8, fm, "fn render(") != null;
+}
+
+fn frontmatterHasProps(fm: []const u8) bool {
+    if (std.mem.indexOf(u8, fm, "pub const Props") != null) return true;
+    if (std.mem.indexOf(u8, fm, "const Props") != null) return true;
+    return false;
+}
+
+fn frontmatterHasPropsVar(fm: []const u8) bool {
+    return std.mem.indexOf(u8, fm, "var props") != null;
+}
+
+fn frontmatterSource(source: []const u8, node: ts.Node) []const u8 {
+    if (node.childByFieldName("content")) |content| {
+        return textOf(source, content);
+    }
+    return "";
+}
+
+fn writeFrontmatter(out: *Writer, content: []const u8) !void {
+    const trimmed = std.mem.trim(u8, content, " \t\r\n");
+    if (trimmed.len > 0) {
+        try out.appendSlice(trimmed);
+        try out.appendSlice("\n\n");
     }
 }
 
-fn writeHeading(buf: *Writer, source: []const u8, node: ts.Node) !void {
+fn writeBlock(buf: *Writer, source: []const u8, node: ts.Node, parsed: *const Parsed) !void {
+    switch (NodeKind.fromNode(node)) {
+        .atx_heading => try writeHeading(buf, source, node, parsed),
+        .paragraph => try writeParagraph(buf, source, node, parsed),
+        .thematic_break => try buf.appendSlice("<hr />"),
+        .fenced_code_block => try writeFencedCodeBlock(buf, source, node),
+        .indented_code_block => try writeIndentedCodeBlock(buf, source, node),
+        .block_quote => try writeBlockQuote(buf, source, node, parsed),
+        .list => try writeList(buf, source, node, parsed),
+        .mdzx_component, .zx_expression_block => {
+            try buf.appendSlice(std.mem.trim(u8, textOf(source, node), "\n \t"));
+        },
+        .link_reference_definition => {},
+        else => {},
+    }
+}
+
+fn writeHeading(buf: *Writer, source: []const u8, node: ts.Node, parsed: *const Parsed) !void {
     const level = getHeadingLevel(node);
     const tag = switch (level) {
         1 => "h1",
@@ -140,9 +448,8 @@ fn writeHeading(buf: *Writer, source: []const u8, node: ts.Node) !void {
     try buf.appendSlice(tag);
     try buf.append('>');
 
-    const content = node.childByFieldName("heading_content");
-    if (content) |inline_node| {
-        try writeInline(buf, source, inline_node);
+    if (node.childByFieldName("heading_content")) |inline_node| {
+        try writeInline(buf, source, inline_node, parsed);
     }
 
     try buf.appendSlice("</");
@@ -155,25 +462,19 @@ fn getHeadingLevel(node: ts.Node) u8 {
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const kind = child.kind();
-        if (eql(kind, "atx_h1_marker")) return 1;
-        if (eql(kind, "atx_h2_marker")) return 2;
-        if (eql(kind, "atx_h3_marker")) return 3;
-        if (eql(kind, "atx_h4_marker")) return 4;
-        if (eql(kind, "atx_h5_marker")) return 5;
-        if (eql(kind, "atx_h6_marker")) return 6;
+        if (NodeKind.fromNode(child).headingLevel()) |level| return level;
     }
     return 1;
 }
 
-fn writeParagraph(buf: *Writer, source: []const u8, node: ts.Node) !void {
+fn writeParagraph(buf: *Writer, source: []const u8, node: ts.Node, parsed: *const Parsed) !void {
     try buf.appendSlice("<p>");
     const child_count = node.childCount();
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        if (eql(child.kind(), "inline")) {
-            try writeInline(buf, source, child);
+        if (NodeKind.fromNode(child) == .@"inline") {
+            try writeInline(buf, source, child, parsed);
         }
     }
     try buf.appendSlice("</p>");
@@ -187,38 +488,36 @@ fn writeFencedCodeBlock(buf: *Writer, source: []const u8, node: ts.Node) !void {
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const kind = child.kind();
-        if (eql(kind, "info_string")) {
-            const info_children = child.childCount();
-            var j: u32 = 0;
-            while (j < info_children) : (j += 1) {
-                const info_child = child.child(j) orelse continue;
-                if (eql(info_child.kind(), "language")) {
-                    lang = std.mem.trim(u8, textOf(source, info_child), " \t\n");
-                    break;
+        switch (NodeKind.fromNode(child)) {
+            .info_string, .language => {
+                if (lang == null) {
+                    lang = std.mem.trim(u8, textOf(source, child), " \t\n");
                 }
-            }
-        } else if (eql(kind, "code_fence_content")) {
-            content = textOf(source, child);
+            },
+            .code_fence_content => content = textOf(source, child),
+            else => {},
         }
     }
 
     try buf.appendSlice("<pre><code");
     if (lang) |l| {
-        try buf.appendSlice(" class=\"language-");
-        try buf.appendSlice(l);
-        try buf.append('"');
+        if (l.len > 0) {
+            try buf.appendSlice(" class=\"language-");
+            try buf.appendSlice(l);
+            try buf.append('"');
+        }
     }
     try buf.append('>');
     if (content) |c| {
-        const trimmed = std.mem.trimEnd(u8, c, "\n");
-        try appendEscaped(buf, trimmed);
+        try appendText(buf, std.mem.trimEnd(u8, c, "\n"));
     }
     try buf.appendSlice("</code></pre>");
 }
 
 fn writeIndentedCodeBlock(buf: *Writer, source: []const u8, node: ts.Node) !void {
     try buf.appendSlice("<pre><code>");
+    var content = Writer.init(buf.allocator);
+    defer content.deinit();
     const child_count = node.childCount();
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
@@ -228,30 +527,30 @@ fn writeIndentedCodeBlock(buf: *Writer, source: []const u8, node: ts.Node) !void
             line[4..]
         else
             line;
-        try appendEscaped(buf, std.mem.trimEnd(u8, stripped, "\n"));
-        if (i + 1 < child_count) try buf.append('\n');
+        try content.appendSlice(std.mem.trimEnd(u8, stripped, "\n"));
+        if (i + 1 < child_count) try content.append('\n');
     }
+    try appendText(buf, content.items);
     try buf.appendSlice("</code></pre>");
 }
 
-fn writeBlockQuote(buf: *Writer, source: []const u8, node: ts.Node) !void {
+fn writeBlockQuote(buf: *Writer, source: []const u8, node: ts.Node, parsed: *const Parsed) !void {
     try buf.appendSlice("<blockquote>");
+    var first = true;
     const child_count = node.childCount();
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const kind = child.kind();
-        if (!eql(kind, "block_quote_marker")) {
-            const text = std.mem.trim(u8, textOf(source, child), " \t\n");
-            if (text.len > 0) {
-                try buf.appendSlice(text);
-            }
-        }
+        if (NodeKind.fromNode(child) != .@"inline") continue;
+        if (std.mem.trim(u8, textOf(source, child), " \t\n").len == 0) continue;
+        if (!first) try buf.appendSlice("<br />");
+        first = false;
+        try writeInline(buf, source, child, parsed);
     }
     try buf.appendSlice("</blockquote>");
 }
 
-fn writeList(buf: *Writer, source: []const u8, node: ts.Node) !void {
+fn writeList(buf: *Writer, source: []const u8, node: ts.Node, parsed: *const Parsed) !void {
     const is_ordered = isOrderedList(node);
     const tag = if (is_ordered) "ol" else "ul";
 
@@ -263,8 +562,8 @@ fn writeList(buf: *Writer, source: []const u8, node: ts.Node) !void {
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        if (eql(child.kind(), "list_item")) {
-            try writeListItem(buf, source, child);
+        if (NodeKind.fromNode(child) == .list_item) {
+            try writeListItem(buf, source, child, parsed);
         }
     }
 
@@ -278,49 +577,40 @@ fn isOrderedList(node: ts.Node) bool {
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        if (eql(child.kind(), "list_item")) {
-            const item_children = child.childCount();
-            var j: u32 = 0;
-            while (j < item_children) : (j += 1) {
-                const item_child = child.child(j) orelse continue;
-                const kind = item_child.kind();
-                if (eql(kind, "list_marker_dot") or eql(kind, "list_marker_parenthesis")) return true;
-                if (eql(kind, "list_marker_plus") or eql(kind, "list_marker_minus") or eql(kind, "list_marker_star")) return false;
-            }
+        if (NodeKind.fromNode(child) != .list_item) continue;
+        const item_children = child.childCount();
+        var j: u32 = 0;
+        while (j < item_children) : (j += 1) {
+            const item_child = child.child(j) orelse continue;
+            const kind = NodeKind.fromNode(item_child);
+            if (kind.isOrderedListMarker()) return true;
+            if (kind.isListMarker()) return false;
         }
     }
     return false;
 }
 
-fn writeListItem(buf: *Writer, source: []const u8, node: ts.Node) !void {
+fn writeListItem(buf: *Writer, source: []const u8, node: ts.Node, parsed: *const Parsed) !void {
     try buf.appendSlice("<li>");
     const child_count = node.childCount();
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const kind = child.kind();
-        if (std.mem.startsWith(u8, kind, "list_marker_")) continue;
-        if (eql(kind, "task_list_marker_checked")) {
-            try buf.appendSlice("<input type=\"checkbox\" checked=\"\" disabled=\"\" /> ");
-            continue;
-        }
-        if (eql(kind, "task_list_marker_unchecked")) {
-            try buf.appendSlice("<input type=\"checkbox\" disabled=\"\" /> ");
-            continue;
-        }
-        const text = std.mem.trim(u8, textOf(source, child), " \t\n");
-        if (text.len > 0) {
-            try buf.appendSlice(text);
+        switch (NodeKind.fromNode(child)) {
+            .task_list_marker_checked => try buf.appendSlice("<input type=\"checkbox\" checked=\"\" disabled=\"\" /> "),
+            .task_list_marker_unchecked => try buf.appendSlice("<input type=\"checkbox\" disabled=\"\" /> "),
+            .@"inline" => try writeInline(buf, source, child, parsed),
+            else => {},
         }
     }
     try buf.appendSlice("</li>");
 }
 
-fn writeInline(buf: *Writer, source: []const u8, node: ts.Node) !void {
+fn writeInline(buf: *Writer, source: []const u8, block_inline: ts.Node, parsed: *const Parsed) !void {
+    const node = parsed.inlineRoot(block_inline) orelse block_inline;
     const child_count = node.childCount();
     if (child_count == 0) {
-        // Leaf inline node (e.g., plain text with no special markdown)
-        try buf.appendSlice(textOf(source, node));
+        try appendText(buf, textOf(source, block_inline));
         return;
     }
     var i: u32 = 0;
@@ -331,34 +621,22 @@ fn writeInline(buf: *Writer, source: []const u8, node: ts.Node) !void {
 }
 
 fn writeInlineElement(buf: *Writer, source: []const u8, node: ts.Node) !void {
-    const kind = node.kind();
-
-    if (eql(kind, "code_span")) {
-        try writeCodeSpan(buf, source, node);
-    } else if (eql(kind, "emphasis")) {
-        try writeEmphasis(buf, source, node);
-    } else if (eql(kind, "strong_emphasis")) {
-        try writeStrongEmphasis(buf, source, node);
-    } else if (eql(kind, "bold_italic")) {
-        try writeBoldItalic(buf, source, node);
-    } else if (eql(kind, "strikethrough")) {
-        try writeStrikethrough(buf, source, node);
-    } else if (eql(kind, "inline_link")) {
-        try writeInlineLink(buf, source, node);
-    } else if (eql(kind, "full_reference_link")) {
-        try writeReferenceLink(buf, source, node);
-    } else if (eql(kind, "image")) {
-        try writeImage(buf, source, node);
-    } else if (eql(kind, "autolink")) {
-        try writeAutolink(buf, source, node);
-    } else if (eql(kind, "backslash_escape")) {
-        const text = textOf(source, node);
-        if (text.len >= 2) {
-            try buf.append(text[1]);
-        }
-    } else {
-        // Anonymous nodes (raw text, whitespace) or unrecognized named nodes
-        try buf.appendSlice(textOf(source, node));
+    switch (NodeKind.fromNode(node)) {
+        .code_span => try writeCodeSpan(buf, source, node),
+        .emphasis => try writeTaggedContent(buf, source, node, .emphasis_content, "<em>", "</em>"),
+        .strong_emphasis => try writeTaggedContent(buf, source, node, .strong_emphasis_content, "<strong>", "</strong>"),
+        .bold_italic => try writeTaggedContent(buf, source, node, .bold_italic_content, "<strong><em>", "</em></strong>"),
+        .strikethrough => try writeTaggedContent(buf, source, node, .strikethrough_content, "<s>", "</s>"),
+        .inline_link => try writeInlineLink(buf, source, node),
+        .full_reference_link => try writeReferenceLink(buf, source, node),
+        .image => try writeImage(buf, source, node),
+        .autolink => try writeAutolink(buf, source, node),
+        .backslash_escape => {
+            const text = textOf(source, node);
+            try appendText(buf, if (text.len >= 2) text[1..2] else text);
+        },
+        .soft_line_break => try buf.append(' '),
+        else => try appendText(buf, textOf(source, node)),
     }
 }
 
@@ -368,64 +646,29 @@ fn writeCodeSpan(buf: *Writer, source: []const u8, node: ts.Node) !void {
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        if (eql(child.kind(), "code_span_delimiter")) continue;
-        if (eql(child.kind(), "code_span_content")) {
-            try appendEscaped(buf, textOf(source, child));
+        if (NodeKind.fromNode(child) == .code_span_content) {
+            try appendText(buf, textOf(source, child));
         }
     }
     try buf.appendSlice("</code>");
 }
 
-fn writeEmphasis(buf: *Writer, source: []const u8, node: ts.Node) !void {
-    try buf.appendSlice("<em>");
+fn writeTaggedContent(
+    buf: *Writer,
+    source: []const u8,
+    node: ts.Node,
+    content_kind: NodeKind,
+    open: []const u8,
+    close: []const u8,
+) !void {
+    try buf.appendSlice(open);
     const child_count = node.childCount();
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        if (eql(child.kind(), "emphasis_content")) {
-            try buf.appendSlice(textOf(source, child));
-        }
+        if (NodeKind.fromNode(child) == content_kind) try appendText(buf, textOf(source, child));
     }
-    try buf.appendSlice("</em>");
-}
-
-fn writeStrongEmphasis(buf: *Writer, source: []const u8, node: ts.Node) !void {
-    try buf.appendSlice("<strong>");
-    const child_count = node.childCount();
-    var i: u32 = 0;
-    while (i < child_count) : (i += 1) {
-        const child = node.child(i) orelse continue;
-        if (eql(child.kind(), "strong_emphasis_content")) {
-            try buf.appendSlice(textOf(source, child));
-        }
-    }
-    try buf.appendSlice("</strong>");
-}
-
-fn writeBoldItalic(buf: *Writer, source: []const u8, node: ts.Node) !void {
-    try buf.appendSlice("<strong><em>");
-    const child_count = node.childCount();
-    var i: u32 = 0;
-    while (i < child_count) : (i += 1) {
-        const child = node.child(i) orelse continue;
-        if (eql(child.kind(), "bold_italic_content")) {
-            try buf.appendSlice(textOf(source, child));
-        }
-    }
-    try buf.appendSlice("</em></strong>");
-}
-
-fn writeStrikethrough(buf: *Writer, source: []const u8, node: ts.Node) !void {
-    try buf.appendSlice("<s>");
-    const child_count = node.childCount();
-    var i: u32 = 0;
-    while (i < child_count) : (i += 1) {
-        const child = node.child(i) orelse continue;
-        if (eql(child.kind(), "strikethrough_content")) {
-            try buf.appendSlice(textOf(source, child));
-        }
-    }
-    try buf.appendSlice("</s>");
+    try buf.appendSlice(close);
 }
 
 fn writeInlineLink(buf: *Writer, source: []const u8, node: ts.Node) !void {
@@ -436,11 +679,10 @@ fn writeInlineLink(buf: *Writer, source: []const u8, node: ts.Node) !void {
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const kind = child.kind();
-        if (eql(kind, "link_text")) {
-            link_text_node = child;
-        } else if (eql(kind, "link_destination")) {
-            href = textOf(source, child);
+        switch (NodeKind.fromNode(child)) {
+            .link_text => link_text_node = child,
+            .link_destination, .uri => href = textOf(source, child),
+            else => {},
         }
     }
 
@@ -451,9 +693,7 @@ fn writeInlineLink(buf: *Writer, source: []const u8, node: ts.Node) !void {
         try buf.append('"');
     }
     try buf.append('>');
-    if (link_text_node) |lt| {
-        try writeLinkTextContent(buf, source, lt);
-    }
+    if (link_text_node) |lt| try writeLinkText(buf, source, lt, .body);
     try buf.appendSlice("</a>");
 }
 
@@ -463,30 +703,54 @@ fn writeReferenceLink(buf: *Writer, source: []const u8, node: ts.Node) !void {
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        if (eql(child.kind(), "link_text")) {
-            link_text_node = child;
-        }
+        if (NodeKind.fromNode(child) == .link_text) link_text_node = child;
     }
 
     try buf.appendSlice("<a>");
-    if (link_text_node) |lt| {
-        try writeLinkTextContent(buf, source, lt);
-    }
+    if (link_text_node) |lt| try writeLinkText(buf, source, lt, .body);
     try buf.appendSlice("</a>");
 }
 
-fn writeLinkTextContent(buf: *Writer, source: []const u8, node: ts.Node) !void {
+const LinkTextMode = enum { body, attr };
+
+fn writeLinkText(buf: *Writer, source: []const u8, node: ts.Node, mode: LinkTextMode) !void {
     const child_count = node.childCount();
+    if (child_count == 0) {
+        const raw = textOf(source, node);
+        const inner = if (raw.len >= 2 and raw[0] == '[' and raw[raw.len - 1] == ']')
+            raw[1 .. raw.len - 1]
+        else
+            raw;
+        try emitLinkText(buf, inner, mode);
+        return;
+    }
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
         if (!child.isNamed()) {
             const text = textOf(source, child);
-            if (eql(text, "[") or eql(text, "]")) continue;
-            try buf.appendSlice(text);
+            if (std.mem.eql(u8, text, "[") or std.mem.eql(u8, text, "]")) continue;
+            try emitLinkText(buf, text, mode);
+        } else if (NodeKind.fromNode(child) == .backslash_escape) {
+            const text = textOf(source, child);
+            try emitLinkText(buf, if (text.len >= 2) text[1..2] else text, mode);
         } else {
-            try buf.appendSlice(textOf(source, child));
+            try emitLinkText(buf, textOf(source, child), mode);
         }
+    }
+}
+
+fn emitLinkText(buf: *Writer, text: []const u8, mode: LinkTextMode) !void {
+    switch (mode) {
+        .body => try appendText(buf, text),
+        .attr => {
+            for (text) |c| {
+                switch (c) {
+                    '"' => try buf.appendSlice("&quot;"),
+                    else => try buf.append(c),
+                }
+            }
+        },
     }
 }
 
@@ -498,11 +762,10 @@ fn writeImage(buf: *Writer, source: []const u8, node: ts.Node) !void {
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        const kind = child.kind();
-        if (eql(kind, "link_text")) {
-            alt_node = child;
-        } else if (eql(kind, "link_destination")) {
-            src = textOf(source, child);
+        switch (NodeKind.fromNode(child)) {
+            .link_text => alt_node = child,
+            .link_destination, .uri => src = textOf(source, child),
+            else => {},
         }
     }
 
@@ -514,7 +777,7 @@ fn writeImage(buf: *Writer, source: []const u8, node: ts.Node) !void {
     }
     if (alt_node) |alt| {
         try buf.appendSlice(" alt=\"");
-        try writeLinkTextContent(buf, source, alt);
+        try writeLinkText(buf, source, alt, .attr);
         try buf.append('"');
     }
     try buf.appendSlice(" />");
@@ -525,30 +788,29 @@ fn writeAutolink(buf: *Writer, source: []const u8, node: ts.Node) !void {
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        if (eql(child.kind(), "uri")) {
+        if (NodeKind.fromNode(child) == .uri) {
             const uri = textOf(source, child);
             try buf.appendSlice("<a href=\"");
             try buf.appendSlice(uri);
             try buf.appendSlice("\">");
-            try buf.appendSlice(uri);
+            try appendText(buf, uri);
             try buf.appendSlice("</a>");
             return;
         }
     }
 }
 
-/// Inject `@allocator={ctx.allocator}` into the first tag of a ZX string.
 fn appendWithAllocator(out: *Writer, zx_str: []const u8) !void {
     for (zx_str, 0..) |c, idx| {
         if (c == '/' and idx + 1 < zx_str.len and zx_str[idx + 1] == '>') {
             try out.appendSlice(zx_str[0..idx]);
-            try out.appendSlice(" @allocator={ctx.allocator}");
+            try out.appendSlice(" @allocator={allocator}");
             try out.appendSlice(zx_str[idx..]);
             return;
         }
         if (c == '>') {
             try out.appendSlice(zx_str[0..idx]);
-            try out.appendSlice(" @allocator={ctx.allocator}");
+            try out.appendSlice(" @allocator={allocator}");
             try out.appendSlice(zx_str[idx..]);
             return;
         }
@@ -559,25 +821,23 @@ fn appendWithAllocator(out: *Writer, zx_str: []const u8) !void {
 fn textOf(source: []const u8, node: ts.Node) []const u8 {
     const start = node.startByte();
     const end = node.endByte();
-    if (start < end and end <= source.len) {
-        return source[start..end];
-    }
+    if (start < end and end <= source.len) return source[start..end];
     return "";
 }
 
-fn appendEscaped(buf: *Writer, text: []const u8) !void {
+fn appendText(buf: *Writer, text: []const u8) !void {
+    try buf.appendSlice("{\"");
     for (text) |c| {
         switch (c) {
-            '&' => try buf.appendSlice("&amp;"),
-            '<' => try buf.appendSlice("&lt;"),
-            '>' => try buf.appendSlice("&gt;"),
+            '"' => try buf.appendSlice("\\\""),
+            '\\' => try buf.appendSlice("\\\\"),
+            '\n' => try buf.appendSlice("\\n"),
+            '\r' => try buf.appendSlice("\\r"),
+            '\t' => try buf.appendSlice("\\t"),
             else => try buf.append(c),
         }
     }
-}
-
-fn eql(a: []const u8, b: []const u8) bool {
-    return std.mem.eql(u8, a, b);
+    try buf.appendSlice("\"}");
 }
 
 const std = @import("std");

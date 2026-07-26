@@ -101,20 +101,30 @@ lang: Language,
 source: []const u8,
 allocator: std.mem.Allocator,
 
+pub const ParseLangOptions = struct {
+    lang: Language = .zx,
+    /// Source path used to decide default `Page` emission for MDZX/MD.
+    path: ?[]const u8 = null,
+};
+
 pub fn parse(allocator: std.mem.Allocator, source: []const u8, lang: Language) !Parse {
+    return parseWithOptions(allocator, source, .{ .lang = lang });
+}
+
+pub fn parseWithOptions(allocator: std.mem.Allocator, source: []const u8, opts: ParseLangOptions) !Parse {
     const parser = ts.Parser.create();
     parser.setLanguage(ts.Language.fromRaw(@import("tree_sitter_zx").language())) catch return error.LoadingLang;
 
-    const effective_source = switch (lang) {
+    const effective_source = switch (opts.lang) {
         .zx => source,
-        .mdzx, .md => try mdzxTozx(source),
+        .mdzx, .md => try mdzxTozx(allocator, source, opts),
     };
     const tree = parser.parseString(effective_source, null) orelse return error.ParseError;
 
     return Parse{
         .tree = tree,
         .source = effective_source,
-        .lang = lang,
+        .lang = opts.lang,
         .allocator = allocator,
     };
 }
@@ -144,7 +154,7 @@ pub const RenderResult = struct {
 };
 
 pub const RenderOptions = struct {
-    pub const RenderMode = enum { zx, zig, mdzx };
+    pub const RenderMode = enum { zx, zig };
     mode: RenderMode,
     sourcemap: bool,
     path: ?[]const u8,
@@ -162,7 +172,6 @@ pub fn renderAlloc(
             try Render.renderNode(self, root, &aw.writer);
             return RenderResult{ .source = try aw.toOwnedSlice(), .client_components = &.{} };
         },
-        .mdzx => @panic("MDZX rendering not implemented yet"),
         .zig => {
             var transpiler = Transpile.init(self, allocator, .{ .sourcemap = options.sourcemap, .path = options.path });
             defer transpiler.deinit();
@@ -178,9 +187,24 @@ pub fn renderAlloc(
 }
 
 fn mdzxTozx(
+    allocator: std.mem.Allocator,
     source: []const u8,
+    opts: ParseLangOptions,
 ) ![]const u8 {
-    return Markdown.transpile(std.heap.page_allocator, source);
+    return Markdown.transpileWithOptions(allocator, source, .{
+        .emit_default_page = Markdown.shouldEmitDefaultPage(opts.path),
+        .pure_md = opts.lang == .md,
+    }) catch |err| switch (err) {
+        error.UserDeclaredRender => {
+            std.log.err("MDZX/MD modules must not declare `render`; it is generated automatically", .{});
+            return error.UserDeclaredRender;
+        },
+        error.PureMdEmbed => {
+            std.log.err("Pure `.md` files cannot embed ZX components or `{{...}}` expressions; use `.mdzx` instead", .{});
+            return error.PureMdEmbed;
+        },
+        else => |e| return e,
+    };
 }
 
 pub fn getNodeText(self: *Parse, node: ts.Node) ![]const u8 {

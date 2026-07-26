@@ -82,7 +82,11 @@ fn transpileToStdout(ctx: CommandContext, io: std.Io, path: []const u8, map: lan
     const source_z = try allocator.dupeSentinel(u8, source, 0);
     defer allocator.free(source_z);
 
-    var result = try lang.Ast.parse(allocator, source_z, .{ .path = path, .map = map });
+    var result = try lang.Ast.parse(allocator, source_z, .{
+        .path = path,
+        .map = map,
+        .lang = sourceLang(path),
+    });
     defer result.deinit(allocator);
 
     try ctx.writer.writeAll(result.zig_source);
@@ -135,11 +139,18 @@ fn readFile(io: std.Io, allocator: std.mem.Allocator, path: []const u8) ![]u8 {
     return std.Io.Dir.cwd().readFileAlloc(io, path, allocator, .unlimited);
 }
 
-/// Length of a `.zx`/`.mdzx` suffix, or `null` if the path is neither.
+/// Length of a `.zx` / `.mdzx` / `.md` suffix, or `null` if the path is none of those.
 fn zxExtLen(path: []const u8) ?usize {
     if (std.mem.endsWith(u8, path, ".mdzx")) return ".mdzx".len;
+    if (std.mem.endsWith(u8, path, ".md")) return ".md".len;
     if (std.mem.endsWith(u8, path, ".zx")) return ".zx".len;
     return null;
+}
+
+fn sourceLang(path: []const u8) lang.Parse.Language {
+    if (std.mem.endsWith(u8, path, ".mdzx")) return .mdzx;
+    if (std.mem.endsWith(u8, path, ".md")) return .md;
+    return .zx;
 }
 
 /// Filesystem-routing Zig roots that may exist as hand-written `.zig`
@@ -159,13 +170,13 @@ fn isFsRouteZigRoot(basename: []const u8) bool {
     return false;
 }
 
-/// True when `zig_path` (…/foo.zig) has a sibling `foo.zx` / `foo.mdzx` that
-/// owns the output - do not copy the `.zig` from source in that case.
+/// True when `zig_path` (…/foo.zig) has a sibling `foo.zx` / `foo.mdzx` / `foo.md`
+/// that owns the output - do not copy the `.zig` from source in that case.
 fn hasZxTwin(io: std.Io, zig_path: []const u8) bool {
     if (!std.mem.endsWith(u8, zig_path, ".zig")) return false;
     const stem = zig_path[0 .. zig_path.len - ".zig".len];
     var buf: [std.fs.max_path_bytes]u8 = undefined;
-    for ([_][]const u8{ ".zx", ".mdzx" }) |ext| {
+    for ([_][]const u8{ ".zx", ".mdzx", ".md" }) |ext| {
         const twin = std.fmt.bufPrint(&buf, "{s}{s}", .{ stem, ext }) catch continue;
         if (std.Io.Dir.cwd().access(io, twin, .{})) |_| return true else |_| {}
     }
@@ -465,10 +476,12 @@ fn collectZxImports(
             import_path[0 .. import_path.len - ".zx".len]
         else if (std.mem.endsWith(u8, import_path, ".mdzx"))
             import_path[0 .. import_path.len - ".mdzx".len]
+        else if (std.mem.endsWith(u8, import_path, ".md"))
+            import_path[0 .. import_path.len - ".md".len]
         else
             continue;
 
-        for ([_][]const u8{ ".zx", ".mdzx" }) |ext| {
+        for ([_][]const u8{ ".zx", ".mdzx", ".md" }) |ext| {
             const cand = std.fmt.allocPrint(allocator, "{s}{s}", .{ stem, ext }) catch continue;
             const resolved = std.fs.path.join(allocator, &.{ source_dir, cand }) catch {
                 allocator.free(cand);
@@ -523,7 +536,7 @@ fn transpileFileRecursive(
         const dep_source = try std.fs.path.join(allocator, &.{ source_dir, rel });
         defer allocator.free(dep_source);
 
-        const ext_len: usize = if (std.mem.endsWith(u8, rel, ".mdzx")) ".mdzx".len else ".zx".len;
+        const ext_len = zxExtLen(rel) orelse continue;
         const out_rel = try std.mem.concat(allocator, u8, &.{ rel[0 .. rel.len - ext_len], ".zig" });
         defer allocator.free(out_rel);
 
@@ -1197,7 +1210,7 @@ fn transpileFile(
     var result = try lang.Ast.parse(allocator, source_z, .{
         .path = relative_source_path,
         .map = opts.map,
-        .lang = if (std.mem.endsWith(u8, source_path, ".mdzx")) .mdzx else .zx,
+        .lang = sourceLang(source_path),
     });
     defer result.deinit(allocator);
 
@@ -1341,13 +1354,15 @@ fn transpileDirectory(
 
         const is_zx = std.mem.endsWith(u8, entry.path, ".zx");
         const is_mdzx = std.mem.endsWith(u8, entry.path, ".mdzx");
+        const is_md = std.mem.endsWith(u8, entry.path, ".md") and !is_mdzx;
 
         const input_path = try std.fs.path.join(allocator, &.{ opts.path, entry.path });
         defer allocator.free(input_path);
 
-        if (is_zx or is_mdzx) {
+        if (is_zx or is_mdzx or is_md) {
+            const ext_len = zxExtLen(entry.path).?;
             const output_rel_path = try std.mem.concat(allocator, u8, &.{
-                entry.path[0 .. entry.path.len - (if (is_zx) @as([]const u8, ".zx") else @as([]const u8, ".mdzx")).len],
+                entry.path[0 .. entry.path.len - ext_len],
                 ".zig",
             });
             defer allocator.free(output_rel_path);
@@ -1521,9 +1536,10 @@ fn transpileCommand(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOpt
         .file => {
             const is_zx = std.mem.endsWith(u8, opts.path, ".zx");
             const is_mdzx = std.mem.endsWith(u8, opts.path, ".mdzx");
+            const is_md = std.mem.endsWith(u8, opts.path, ".md") and !is_mdzx;
 
-            if (!is_zx and !is_mdzx) {
-                std.debug.print("Error: File must have .zx or .mdzx extension, got '{s}'\n", .{opts.path});
+            if (!is_zx and !is_mdzx and !is_md) {
+                std.debug.print("Error: File must have .zx, .mdzx, or .md extension, got '{s}'\n", .{opts.path});
                 return error.InvalidFileExtension;
             }
 
@@ -1531,7 +1547,7 @@ fn transpileCommand(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOpt
             defer task.end();
 
             const basename = getBasename(opts.path);
-            const ext_len = if (is_mdzx) ".mdzx".len else ".zx".len;
+            const ext_len = zxExtLen(opts.path).?;
             const output_rel_path = try std.mem.concat(allocator, u8, &.{ basename[0 .. basename.len - ext_len], ".zig" });
             defer allocator.free(output_rel_path);
             const outpath = try std.fs.path.join(allocator, &.{ opts.outdir, output_rel_path });

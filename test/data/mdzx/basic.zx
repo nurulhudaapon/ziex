@@ -1,3 +1,6 @@
-pub fn _zx_md(ctx: *@import("zx").ComponentCtx(struct { children: @import("zx").Component })) @import("zx").Component {
-    return (<h1 @allocator={ctx.allocator}>hi</h1>);
+pub fn render(allocator: @import("zx").Allocator) @import("zx").Component {
+    return (<h1 @allocator={allocator}>hi</h1>);
+}
+pub fn Page(c: @import("zx").PageContext) @import("zx").Component {
+    return @import("zx").mdzx.page(@This(), c);
 }

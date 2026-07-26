@@ -9,7 +9,7 @@ out_basename: []const u8,
 mod_opts: std.Build.Module.CreateOptions,
 
 pub const Options = struct {
-    /// The `.zx` / `.mdzx` source file to transpile.
+    /// The `.zx` / `.mdzx` / `.md` source file to transpile.
     root_source_file: std.Build.LazyPath,
     target: ?std.Build.ResolvedTarget = null,
     optimize: ?std.builtin.OptimizeMode = null,

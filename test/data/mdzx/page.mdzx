@@ -1,26 +1,20 @@
 ---
 const zx = @import("zx");
-const std = @import("std");
-
-const Lightning = @import("site/pages/components/icons.zx").Lightning;
 
 pub const meta = .{
-    .title = "The Ultimate MDZX Test Suite",
-    .version = "0.1.0",
-    .tags = .{"test", "markdown", "zig"},
-    .draft = false,
+    .title = "MDZX Fixture",
 };
 
-pub const options: zx.PageOptions = .{
-};
+pub const options: zx.PageOptions = .{};
+
+var ctx: zx.PageContext = undefined;
+
+pub fn Page(c: zx.PageContext) zx.Component {
+    ctx = c;
+    return zx.mdzx.page(@This(), c);
+}
 ---
 
-<Lightning class="w-6 h-6 text-yellow-500" />
+# Headers
 
-# 1. Headers & Formatting
-# H1 Header
-## H2 Header
-### H3 Header
-#### H4 Header
-##### H5 Header
-###### H6 Header
+Fixture page for MDZX.

@@ -42,6 +42,7 @@ pub const AppConfig = app_mod.Config;
 pub const client = @import("runtime/client.zig");
 pub const server = @import("runtime/server.zig");
 pub const util = @import("util.zig");
+pub const mdzx = @import("runtime/mdzx.zig");
 
 // --- Reactivity --- //
 pub const EventHandler = @import("runtime/core/EventHandler.zig");

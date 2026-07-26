@@ -1,5 +1,8 @@
 ; MDZX Injections
-; Aligned with tree-sitter-markdown naming conventions
+; Aligned with tree-sitter-markdown: inject inline grammar into opaque `inline` nodes
+
+((inline) @injection.content
+  (#set! injection.language "mdzx_inline"))
 
 ; Inject language for fenced code blocks based on language info string
 ((fenced_code_block

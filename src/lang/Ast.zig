@@ -56,7 +56,10 @@ pub fn parse(gpa: std.mem.Allocator, zx_source: [:0]const u8, options: ParseOpti
     defer aa.deinit();
     const arena = aa.allocator();
 
-    var parse_result = try Parser.parse(arena, zx_source, options.lang);
+    var parse_result = try Parser.parseWithOptions(arena, zx_source, .{
+        .lang = options.lang,
+        .path = options.path,
+    });
     defer parse_result.deinit(arena);
 
     var diagnostics = try check.validate(gpa, &parse_result);

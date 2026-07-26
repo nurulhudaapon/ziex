@@ -1,34 +1,20 @@
 const zx = require('../tree-sitter-zx/grammar');
 
 /**
- * @file MDZX is a MDX-like format for Zig - combining Markdown with ZX components.
- * @author Nurul Huda (Apon) <me@nurulhudaapon.com>
- * @license MIT
- * 
- * MDZX file structure:
- * 1. Frontmatter with Zig declarations (--- pub const / const statements ---)
- * 2. Markdown content with embedded ZX components
- * 
- * Grammar structure aligned with tree-sitter-markdown for maximum compatibility.
- * Node names match tree-sitter-markdown exactly where possible.
- * Inherits all zx_* rules from tree-sitter-zx grammar.
+ * MDZX block grammar: Markdown blocks + ZX components.
  */
 
 /// <reference types="tree-sitter-cli/dsl" />
 // @ts-check
 
 const PUNCTUATION_CHARACTERS_REGEX = '!-/:-@\\[-`\\{-~';
-const PUNCTUATION_CHARACTERS_ARRAY = [
-    '!', '"', '#', '$', '%', '&', "'", '(', ')', '*', '+', ',', '-', '.', '/', ':', ';', '<',
-    '=', '>', '?', '@', '[', '\\', ']', '^', '_', '`', '{', '|', '}', '~'
-];
 
 module.exports = grammar(zx, {
   name: "mdzx",
 
   rules: {
     // ==========================================
-    // MDZX Document Structure (like markdown's document)
+    // MDZX Document Structure
     // ==========================================
     source_file: $ => seq(
       optional($.frontmatter),
@@ -36,46 +22,27 @@ module.exports = grammar(zx, {
     ),
 
     // ==========================================
-    // Frontmatter: --- zig declarations --- (MDZX-specific)
+    // Frontmatter: --- raw Zig --- (MDZX-specific)
+    // Raw body so authors can declare Page, var ctx, imports, etc.
     // ==========================================
     frontmatter: $ => seq(
       $.frontmatter_delimiter,
-      repeat($.zig_declaration),
+      optional(field('content', $.frontmatter_body)),
       $.frontmatter_delimiter,
     ),
 
     frontmatter_delimiter: _$ => token(prec(10, /---\n?/)),
 
-    zig_declaration: $ => choice(
-      $.pub_const_declaration,
-      $.const_declaration,
-    ),
-
-    pub_const_declaration: $ => seq(
-      'pub',
-      'const',
-      field('name', $.identifier),
-      optional(seq(':', field('type', $.type_expression))),
-      '=',
-      field('value', $.expression),
-      ';',
-    ),
-
-    const_declaration: $ => seq(
-      'const',
-      field('name', $.identifier),
-      optional(seq(':', field('type', $.type_expression))),
-      '=',
-      field('value', $.expression),
-      ';',
-    ),
+    // Everything up to (but not including) the closing --- delimiter line.
+    // Tree-sitter regex has no lookaround; match lines that are not exactly `---`.
+    frontmatter_body: _$ => token(prec(1, /(?:(?:[^-\n][^\n]*|-|-[^-\n][^\n]*|--|--+[^-\n][^\n]*)?\n)+/)),
 
     // ==========================================
     // Block Structure (matches tree-sitter-markdown)
     // ==========================================
     _block: $ => choice(
-      $.mdzx_component,           // MDZX-specific
-      $.zx_expression_block,      // MDZX-specific
+      $.mdzx_component,
+      $.zx_expression_block,
       $.atx_heading,
       $.thematic_break,
       $.indented_code_block,
@@ -87,7 +54,6 @@ module.exports = grammar(zx, {
     ),
 
     // MDZX-specific: ZX components in markdown
-    // Must consume trailing newline like other block elements (headings, paragraphs, etc.)
     mdzx_component: $ => prec(3, seq(
       choice(
         $.zx_element,
@@ -96,8 +62,7 @@ module.exports = grammar(zx, {
       $._newline,
     )),
 
-    // Override ZX element rules to give '>' and '/>' higher precedence than
-    // block_quote '>' marker (prec 2) in markdown context
+    // Override ZX element rules so '>' / '/>' beat blockquote '>'
     zx_self_closing_element: $ => seq(
       '<',
       field('name', $.zx_tag_name),
@@ -117,7 +82,7 @@ module.exports = grammar(zx, {
     ),
 
     // ==========================================
-    // ATX Headings (exactly like tree-sitter-markdown)
+    // ATX Headings
     // https://github.github.com/gfm/#atx-headings
     // ==========================================
     atx_heading: $ => choice(
@@ -128,12 +93,17 @@ module.exports = grammar(zx, {
       $._atx_heading5,
       $._atx_heading6,
     ),
-    _atx_heading1: $ => prec(1, seq($.atx_h1_marker, optional(field('heading_content', $.inline)), $._newline)),
-    _atx_heading2: $ => prec(1, seq($.atx_h2_marker, optional(field('heading_content', $.inline)), $._newline)),
-    _atx_heading3: $ => prec(1, seq($.atx_h3_marker, optional(field('heading_content', $.inline)), $._newline)),
-    _atx_heading4: $ => prec(1, seq($.atx_h4_marker, optional(field('heading_content', $.inline)), $._newline)),
-    _atx_heading5: $ => prec(1, seq($.atx_h5_marker, optional(field('heading_content', $.inline)), $._newline)),
-    _atx_heading6: $ => prec(1, seq($.atx_h6_marker, optional(field('heading_content', $.inline)), $._newline)),
+    _atx_heading1: $ => prec(1, seq($.atx_h1_marker, optional($._atx_heading_content), $._newline)),
+    _atx_heading2: $ => prec(1, seq($.atx_h2_marker, optional($._atx_heading_content), $._newline)),
+    _atx_heading3: $ => prec(1, seq($.atx_h3_marker, optional($._atx_heading_content), $._newline)),
+    _atx_heading4: $ => prec(1, seq($.atx_h4_marker, optional($._atx_heading_content), $._newline)),
+    _atx_heading5: $ => prec(1, seq($.atx_h5_marker, optional($._atx_heading_content), $._newline)),
+    _atx_heading6: $ => prec(1, seq($.atx_h6_marker, optional($._atx_heading_content), $._newline)),
+
+    _atx_heading_content: $ => prec(1, seq(
+      optional($._whitespace),
+      field('heading_content', alias($._line, $.inline)),
+    )),
 
     atx_h1_marker: _$ => token(prec(2, /# /)),
     atx_h2_marker: _$ => token(prec(2, /## /)),
@@ -143,24 +113,19 @@ module.exports = grammar(zx, {
     atx_h6_marker: _$ => token(prec(2, /###### /)),
 
     // ==========================================
-    // Thematic Break (exactly like tree-sitter-markdown)
-    // https://github.github.com/gfm/#thematic-breaks
-    // A thematic break is a line containing only the marker characters (and spaces)
-    // It must not have any other content on the same line
+    // Thematic Break
     // ==========================================
     thematic_break: $ => $._thematic_break,
     _thematic_break: _$ => token(prec(1, /(\*[ \t]*\*[ \t]*\*[\* \t]*|_[ \t]*_[ \t]*_[_ \t]*|-[ \t]*-[ \t]*-[- \t]*)\n/)),
 
     // ==========================================
-    // Indented Code Block (exactly like tree-sitter-markdown)
-    // https://github.github.com/gfm/#indented-code-blocks
+    // Indented Code Block
     // ==========================================
     indented_code_block: $ => prec.right(repeat1($._indented_chunk)),
     _indented_chunk: _$ => token(prec(1, /    [^\n]*\n/)),
 
     // ==========================================
-    // Fenced Code Block (exactly like tree-sitter-markdown)
-    // https://github.github.com/gfm/#fenced-code-blocks
+    // Fenced Code Block
     // ==========================================
     fenced_code_block: $ => prec.right(choice(
       seq(
@@ -180,43 +145,31 @@ module.exports = grammar(zx, {
         optional(seq(alias($._fenced_code_block_end_tilde, $.fenced_code_block_delimiter), optional($._newline))),
       ),
     )),
-    // Code fence content: raw text lines, with optional mdzx_component embedded
-    // Each line is captured as raw text until we hit the closing fence
-    code_fence_content: $ => prec.right(repeat1(choice(
-      $.mdzx_component,
-      alias($._code_fence_line, $.raw_line),
-    ))),
-    // Raw code line - captures entire line including any special chars
-    // Must not match closing fence (3+ backticks or tildes at start of line)
-    _code_fence_line: _$ => token(prec(5, /[^\n`~][^\n]*\n|[`~]{1,2}[^\n]*\n|\n/)),
-    info_string: $ => choice(
-      seq($.language, optional($._line)),
-      seq(repeat1(choice('{', '}')), optional(choice(
-        seq($.language, optional($._line)),
-        seq($._whitespace, optional($._line)),
-      )))
-    ),
-    language: $ => prec.right(repeat1(choice($._word, $.backslash_escape))),
+    // Whole-line tokens beat ZX `{...}`; end-fence tokens are prec(10) so they win over content.
+    code_fence_content: $ => prec.right(repeat1(alias($._code_fence_line, $.raw_line))),
+    _code_fence_line: _$ => token(prec(6, /[^\n]*\n/)),
+    info_string: $ => $.language,
+    language: _$ => token(/[A-Za-z0-9_+\#-]+/),
 
     _fenced_code_block_start_backtick: _$ => token(prec(3, /`{3,}/)),
-    _fenced_code_block_end_backtick: _$ => token(prec(3, /`{3,}/)),
+    _fenced_code_block_end_backtick: _$ => token(prec(10, /`{3,}[ \t]*\n?/)),
     _fenced_code_block_start_tilde: _$ => token(prec(3, /~{3,}/)),
-    _fenced_code_block_end_tilde: _$ => token(prec(3, /~{3,}/)),
+    _fenced_code_block_end_tilde: _$ => token(prec(10, /~{3,}[ \t]*\n?/)),
 
     // ==========================================
-    // Block Quote (exactly like tree-sitter-markdown)
-    // https://github.github.com/gfm/#block-quotes
+    // Block Quote
     // ==========================================
-    block_quote: $ => seq(
+    block_quote: $ => prec.right(repeat1($._block_quote_line)),
+    _block_quote_line: $ => seq(
       alias($._block_quote_start, $.block_quote_marker),
-      optional($._line),
+      // `+` not `*`: blank `>` lines omit content so the next `>` starts a new line
+      optional(field('content', alias(/[^\n]+/, $.inline))),
       $._newline,
     ),
     _block_quote_start: _$ => token(prec(2, />[ \t]?/)),
 
     // ==========================================
-    // Lists (exactly like tree-sitter-markdown)
-    // https://github.github.com/gfm/#lists
+    // Lists
     // ==========================================
     list: $ => prec.right(choice(
       $._list_plus,
@@ -239,7 +192,7 @@ module.exports = grammar(zx, {
 
     _list_item_content: $ => seq(
       optional(choice($.task_list_marker_checked, $.task_list_marker_unchecked)),
-      optional($._line),
+      optional(field('content', alias(/[^\n]*/, $.inline))),
       $._newline,
     ),
 
@@ -249,13 +202,12 @@ module.exports = grammar(zx, {
     list_marker_dot: _$ => token(prec(2, /[ \t]*[0-9]+\.[ \t]+/)),
     list_marker_parenthesis: _$ => token(prec(2, /[ \t]*[0-9]+\)[ \t]+/)),
 
-    // Task list markers (GFM extension)
-    task_list_marker_checked: _$ => prec(1, /\[[xX]\][ \t]/),
-    task_list_marker_unchecked: _$ => prec(1, /\[[ \t]\][ \t]/),
+    // Must outrank the list-item content `/[^\n]*/` token.
+    task_list_marker_checked: _$ => token(prec(3, /\[[xX]\][ \t]+/)),
+    task_list_marker_unchecked: _$ => token(prec(3, /\[[ \t]\][ \t]+/)),
 
     // ==========================================
-    // Link Reference Definition (like tree-sitter-markdown)
-    // https://github.github.com/gfm/#link-reference-definitions
+    // Link Reference Definition
     // ==========================================
     link_reference_definition: $ => prec(5, seq(
       optional($._whitespace),
@@ -269,11 +221,8 @@ module.exports = grammar(zx, {
 
     link_label: $ => seq('[', repeat1(choice($._text_inline_no_link, $.backslash_escape)), ']'),
 
-    // Link destination handles full URLs including protocol (https://), dots, etc.
     link_destination: $ => choice(
-      // Angle bracket URLs: <url>
       seq('<', alias(/[^<>\n]+/, $.uri), '>'),
-      // Bare URLs: must handle https://example.com/path properly
       alias(/[^\s\(\)\[\]"']+/, $.uri),
     ),
 
@@ -283,130 +232,31 @@ module.exports = grammar(zx, {
     ),
 
     // ==========================================
-    // Paragraph (exactly like tree-sitter-markdown)
-    // https://github.github.com/gfm/#paragraphs
+    // Paragraph
+    // Soft-wrapped continuations only (soft_break + line pairs), so a blank
+    // line ends the paragraph.
     // ==========================================
     paragraph: $ => prec(-1, seq(
-      $.inline,
-      $._newline
+      alias(seq($._line, repeat(seq($._soft_line_break, $._line))), $.inline),
+      $._newline,
     )),
 
     // ==========================================
-    // Inline Elements (aligned with tree-sitter-markdown-inline)
+    // Helpers (block-level only; no inline markup)
     // ==========================================
-    inline: $ => prec.right(repeat1($._inline_element)),
-    
-    _inline_element: $ => choice(
-      $.code_span,
-      $.bold_italic,      // Must come before strong_emphasis
-      $.strong_emphasis,  // Must come before emphasis
-      $.emphasis,
-      $.strikethrough,
-      $.inline_link,
-      $.full_reference_link,
-      $.image,
-      $.autolink,
-      $.backslash_escape,
-      $._inline_text,
-      $._whitespace,
-      $._soft_line_break,
-    ),
-
-    // Inline text: match any characters except inline delimiters and newlines
-    // This is more permissive to capture URLs and other content
-    _inline_text: _$ => token(prec(-1, /[^\n`\*_~\[\]!<\\]+/)),
-    _text_inline_no_link: _$ => /[^\n\[\]\\]+/,
-
-    // Code span (like tree-sitter-markdown-inline)
-    code_span: $ => prec(2, seq(
-      alias(/`+/, $.code_span_delimiter),
-      optional(alias(/[^`\n]+/, $.code_span_content)),
-      alias(/`+/, $.code_span_delimiter),
-    )),
-
-    // Emphasis (like tree-sitter-markdown-inline) - *text* or _text_
-    emphasis: $ => prec.dynamic(1, choice(
-      seq('*', alias(/[^*\n]+/, $.emphasis_content), '*'),
-      seq('_', alias(/[^_\n]+/, $.emphasis_content), '_'),
-    )),
-
-    // Strong emphasis (like tree-sitter-markdown-inline) - **text** or __text__
-    strong_emphasis: $ => prec.dynamic(2, choice(
-      seq('**', alias(/[^*\n]+/, $.strong_emphasis_content), '**'),
-      seq('__', alias(/[^_\n]+/, $.strong_emphasis_content), '__'),
-    )),
-
-    // Bold + Italic (***text*** or ___text___)
-    bold_italic: $ => prec.dynamic(5, choice(
-      seq('***', alias(/[^*\n]+/, $.bold_italic_content), '***'),
-      seq('___', alias(/[^_\n]+/, $.bold_italic_content), '___'),
-    )),
-
-    // Strikethrough (GFM extension) - ~~text~~
-    strikethrough: $ => prec.dynamic(2, seq(
-      '~~',
-      alias(/[^~\n]+/, $.strikethrough_content),
-      '~~',
-    )),
-
-    // Inline link (like tree-sitter-markdown-inline)
-    inline_link: $ => prec(3, seq(
-      $.link_text,
-      '(',
-      optional($._whitespace),
-      optional(alias(/[^\s\)"']+/, $.link_destination)),
-      optional(seq($._whitespace, $.link_title)),
-      optional($._whitespace),
-      ')',
-    )),
-    link_text: $ => seq('[', repeat(choice($._text_inline_no_link, $.backslash_escape)), ']'),
-
-    // Full reference link: [text][label]
-    full_reference_link: $ => prec(2, seq(
-      $.link_text,
-      '[',
-      optional(alias(/[^\]]+/, $.link_label)),
-      ']',
-    )),
-
-    // Image (like tree-sitter-markdown-inline)
-    image: $ => prec(3, seq(
-      '!',
-      $.link_text,
-      '(',
-      optional($._whitespace),
-      optional(alias(/[^\s\)"']+/, $.link_destination)),
-      optional(seq($._whitespace, $.link_title)),
-      optional($._whitespace),
-      ')',
-    )),
-
-    // Autolink (like tree-sitter-markdown-inline)
-    autolink: $ => prec(2, seq(
-      '<',
-      alias(/[a-zA-Z][a-zA-Z0-9+.-]*:[^\s<>]*/, $.uri),
-      '>'
-    )),
-
-    // Backslash escape (exactly like tree-sitter-markdown)
     backslash_escape: $ => $._backslash_escape,
     _backslash_escape: _$ => new RegExp('\\\\[' + PUNCTUATION_CHARACTERS_REGEX + ']'),
 
-    // ==========================================
-    // Helper Rules (exactly like tree-sitter-markdown)
-    // ==========================================
     _newline: _$ => /\n|\r\n?/,
     _soft_line_break: _$ => /\n/,
     _line: $ => prec.right(repeat1(choice($._word, $._whitespace, $._punctuation))),
     _word: _$ => new RegExp('[^' + PUNCTUATION_CHARACTERS_REGEX + ' \\t\\n\\r]+'),
     _whitespace: _$ => /[ \t]+/,
     _punctuation: _$ => new RegExp('[' + PUNCTUATION_CHARACTERS_REGEX + ']'),
+    _text_inline_no_link: _$ => /[^\n\[\]\\]+/,
     _blank_line: _$ => token(prec(1, /[ \t]*\n/)),
-    
-    // Override Zig comment to have very low precedence in markdown context
-    // so that // in URLs is not mistaken for comments
-    comment: _$ => token(prec(-10, seq('//', /.*/))),
 
-    // All zx_* rules inherited from tree-sitter-zx grammar
+    // Keep // in URLs from being treated as Zig comments
+    comment: _$ => token(prec(-10, seq('//', /.*/))),
   },
 });

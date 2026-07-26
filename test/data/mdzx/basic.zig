@@ -1,12 +1,6 @@
-pub fn _zx_md(ctx: *@import("zx").ComponentCtx(struct { children: @import("zx").Component })) @import("zx").Component {
-    var _zx1 = @import("zx").x.allocInit(ctx.allocator, .{ .src = @src() });
-    return _zx1.ele(
-        .h1,
-        .{
-            .allocator = ctx.allocator,
-            .children = _zx1.chs(.{
-                _zx1.txt("hi"),
-            }),
-        },
-    );
+pub fn render(allocator: @import("zx").Allocator) @import("zx").Component {
+    return (<h1 @allocator={allocator}>hi</h1>);
+}
+pub fn Page(c: @import("zx").PageContext) @import("zx").Component {
+    return @import("zx").mdzx.page(@This(), c);
 }

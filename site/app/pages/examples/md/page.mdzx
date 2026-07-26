@@ -1,24 +1,101 @@
 ---
 const zx = @import("zx");
-const std = @import("std");
+const QuickExample = @import("../overview.zx").QuickExample;
+const Greeting = @import("./greeting.mdzx").render;
 
 pub const meta = .{
-    .title = "The Ultimate MDZX Test Suite",
-    .version = "0.1.0",
-    .tags = .{"test", "markdown", "zig"},
-    .draft = false,
+    .title = "MDZX",
+    .description = "Markdown + ZX components, full scenario tour",
 };
-const QuickExample = @import("./../overview.zx").QuickExample;
 
-pub var page_ctx: zx.PageContext = undefined;
+pub const options: zx.PageOptions = .{};
 
-pub const options: zx.PageOptions = .{
-};
+/// Request context for expressions in the markdown body.
+var ctx: zx.PageContext = undefined;
+
+pub fn Page(c: zx.PageContext) zx.Component {
+    ctx = c;
+    return zx.mdzx.page(@This(), c);
+}
 ---
 
-<QuickExample/>
+# MDZX
 
-# 1. Headers & Formatting
+Markdown pages with embedded ZX, and an explicit `PageContext` when you need it.
+
+You are on:
+
+{ctx.request.pathname}
+
+Also see the pure markdown sibling: [Pure Markdown](/examples/markdown).
+
+<QuickExample />
+
+## Component with props
+
+MDZX components declare `Props` (and usually `var props`); `render` is generated for you.
+
+<Greeting name="Ziex" />
+
+## Formatting
+
+Use **bold**, *italic*, ***bold italic***, ~~strike~~, and `inline code`.
+
+Escaped: \*not emphasis\*
+
+[Home](/) · [Examples](/examples) · <https://ziex.dev>
+
+![ZX logo alt](/favicon.ico)
+
+## Lists
+
+- Unordered item one
+- Unordered item two
+- Unordered item three
+
+1. First ordered
+2. Second ordered
+3. Third ordered
+
+- [x] Task done
+- [ ] Task open
+
+## Quote & break
+
+> MDZX keeps markdown readable and ZX components first-class.
+>
+> Nested ideas stay in the quote.
+
+***
+
+## Code fences
+
+Multiple languages closing fences must not leak into the code element.
+
+```js
+console.log("fenced code without no trailing backticks");
+const answer = 42;
+```
+
+```zig
+const std = @import("std");
+pub fn main() void {
+    std.debug.print("hello from zig fence\n", .{});
+}
+```
+
+```ts
+type Point = { x: number; y: number };
+export const origin: Point = { x: 0, y: 0 };
+```
+
+```
+plain fence without a language tag
+line two
+```
+
+## More headings
+
 # H1 Header
 ## H2 Header
 ### H3 Header
@@ -26,15 +103,8 @@ pub const options: zx.PageOptions = .{
 ##### H5 Header
 ###### H6 Header
 
+## Paragraphs & links
 
-How does that work?
+A second paragraph after a blank line. Reference-style later if needed.
 
-- Does list work? 
-
-```js
-I'm a code blcok
-```
-
-
-
-
+Go [home](/) again, or open [Examples](/examples "Examples index").

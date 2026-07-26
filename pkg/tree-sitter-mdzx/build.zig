@@ -31,6 +31,17 @@ pub fn build(b: *std.Build) !void {
         });
     }
 
+    lib.root_module.addCSourceFile(.{
+        .file = b.path("tree-sitter-mdzx-inline/src/parser.c"),
+        .flags = &.{"-std=c11"},
+    });
+    if (fileExists(b, "tree-sitter-mdzx-inline/src/scanner.c")) {
+        lib.root_module.addCSourceFile(.{
+            .file = b.path("tree-sitter-mdzx-inline/src/scanner.c"),
+            .flags = &.{"-std=c11"},
+        });
+    }
+
     if (reuse_alloc) {
         lib.root_module.addCMacro("TREE_SITTER_REUSE_ALLOCATOR", "");
     }
@@ -39,9 +50,13 @@ pub fn build(b: *std.Build) !void {
     }
 
     lib.root_module.addIncludePath(b.path("src"));
+    lib.root_module.addIncludePath(b.path("tree-sitter-mdzx-inline/src"));
 
     b.installArtifact(lib);
     b.installFile("src/node-types.json", "node-types.json");
+    if (fileExists(b, "tree-sitter-mdzx-inline/src/node-types.json")) {
+        b.installFile("tree-sitter-mdzx-inline/src/node-types.json", "node-types-inline.json");
+    }
 
     if (fileExists(b, "queries")) {
         b.installDirectory(.{
@@ -68,7 +83,6 @@ pub fn build(b: *std.Build) !void {
     });
     tests.root_module.addImport(library_name, module);
 
-    // Fetch tree-sitter lazily when available so tests work across build API versions.
     if (b.lazyDependency("tree_sitter", .{})) |ts_dep| {
         tests.root_module.addImport("tree_sitter", ts_dep.module("tree_sitter"));
     }
