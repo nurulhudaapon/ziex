@@ -311,7 +311,7 @@ pub fn dispatchEventByName(self: *Client, velement_id: u64, event_type_name: []c
 }
 
 pub fn info(self: *Client) void {
-    if (builtin.mode != .Debug) return;
+    if (builtin.mode != .debug) return;
 
     const console = Console.init();
     defer console.deinit();
@@ -396,7 +396,7 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
         var patches = try old_vtree.diffWithComponent(allocator, Component);
 
         // Debug Info
-        // if (builtin.mode == .Debug) {
+        // if (builtin.mode == .debug) {
         //     var aw = std.io.Writer.Allocating.init(allocator);
         //     defer aw.deinit();
         //     // Component.render(&aw.writer) catch @panic("OOM");

@@ -31,7 +31,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.17.0-dev.1398+cb5635714
+          version: 0.17.0-dev.1465+8b2d0ce21
           cache-size-limit: 0
 
       - name: Setup Pages
@@ -169,7 +169,7 @@ jobs:
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
         with:
-          version: 0.17.0-dev.1398+cb5635714
+          version: 0.17.0-dev.1465+8b2d0ce21
           cache-size-limit: 0
 
       - name: Install Node Dependencies

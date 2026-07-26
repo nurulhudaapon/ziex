@@ -286,7 +286,7 @@ pub fn build(b: *std.Build) !void {
     }
 
     if (true) {
-        const is_release = optimize != .Debug;
+        const is_release = optimize != .debug;
         const site_scripts = esbuild.addBuild(b, .{
             .name = "site_scripts",
             .config = .{
@@ -334,7 +334,7 @@ pub fn build(b: *std.Build) !void {
                 .format = .esm,
                 .splitting = false,
                 .platform = .browser,
-                .minify = optimize != .Debug,
+                .minify = optimize != .debug,
                 .define = &.{
                     .{
                         .key = "VERSION",
@@ -375,7 +375,7 @@ pub fn build(b: *std.Build) !void {
 }
 
 fn assetId(_: *std.Build, optimize: std.builtin.OptimizeMode) []const u8 {
-    if (optimize == .Debug) return ".dev";
+    if (optimize == .debug) return ".dev";
     return "";
 
     // TODO: use ziex_builder.addStaticInstallFile(.{src: lazypath, dest_name: "assets/app.{hash}.js"}) once this is implemented

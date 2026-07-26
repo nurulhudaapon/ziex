@@ -8,7 +8,7 @@ pub fn build(b: *std.Build) !void {
     _ = target;
     const type_decl = b.option(bool, "type-decl", "Generate type declarations") orelse true;
     const version = b.option([]const u8, "version", "npm package version to embed") orelse build_zon.version;
-    const is_release = optimize != .Debug;
+    const is_release = optimize != .debug;
 
     // Feature flags (match InitOptions / app_opts). Default true so the published
     // npm package includes all bindings; `.build = .enabled` apps pass the app's flags.

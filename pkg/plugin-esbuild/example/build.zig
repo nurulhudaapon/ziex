@@ -10,8 +10,8 @@ pub fn build(b: *std.Build) !void {
             .config = .{
                 .entrypoints = &.{b.path("index.ts")},
                 .platform = .browser,
-                .minify = optimize != .Debug,
-                .sourcemap = if (optimize == .Debug) .@"inline" else .none,
+                .minify = optimize != .debug,
+                .sourcemap = if (optimize == .debug) .@"inline" else .none,
             },
         };
     }

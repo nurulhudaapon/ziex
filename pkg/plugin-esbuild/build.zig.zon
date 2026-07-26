@@ -2,7 +2,6 @@
     .name = .esbuild,
     .version = "0.28.1",
     .fingerprint = 0xb2d6c695e5c2d8ca,
-    .minimum_zig_version = "0.17.0-dev.1398+cb5635714",
     .dependencies = .{
         .plugin_system = .{ .path = "../plugin-system" },
         .esbuild = .{

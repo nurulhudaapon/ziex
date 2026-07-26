@@ -22,7 +22,7 @@ pub fn build(b: *std.Build) !void {
                 .bin = b.path("node_modules/.bin/tailwindcss"),
                 .input = b.path("app/assets/styles.css"),
                 .output = b.path("{outdir}/assets/styles.css"),
-                .minify = optimize != .Debug,
+                .minify = optimize != .debug,
             }),
         },
     });

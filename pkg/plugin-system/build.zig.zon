@@ -2,7 +2,6 @@
     .name = .plugin_system,
     .version = "0.0.0",
     .fingerprint = 0xbc2556375a0d784b,
-    .minimum_zig_version = "0.17.0-dev.1398+cb5635714",
     .dependencies = .{},
     .paths = .{
         "build.zig",

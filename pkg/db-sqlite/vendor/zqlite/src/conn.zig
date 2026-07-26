@@ -71,7 +71,7 @@ pub const Conn = struct {
             return errorFromCode(rc);
         }
 
-        if (@import("builtin").mode == .Debug) {
+        if (@import("builtin").mode == .debug) {
             if (pz_tail[0] != 0) {
                 // SQlite just returns a pointer to the string we passed in,
                 // which may not be null terminated, so compute the

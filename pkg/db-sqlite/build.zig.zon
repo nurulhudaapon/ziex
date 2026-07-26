@@ -2,7 +2,6 @@
     .name = .db_sqlite,
     .version = "0.1.0",
     .fingerprint = 0xa9acddbf8d97456d,
-    .minimum_zig_version = "0.16.0",
     .dependencies = .{},
     .paths = .{
         "build.zig",

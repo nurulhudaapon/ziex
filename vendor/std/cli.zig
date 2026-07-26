@@ -1,5 +1,4 @@
 // NOTE: This has been taken from https://codeberg.org/ziglang/zig/pulls/31620/files, once this is merged to std, we should just use std.cli instead
-
 /// Command-line argument parser.
 ///
 /// The grammar of a command-line is represented as a directed acyclic graph of commands and subcommands.
@@ -172,6 +171,11 @@ pub fn Parsed(comptime command: Command) type {
     };
 
     const SubcommandTaggedUnion = blk: {
+        if (command.subcommands.len <= 0) {
+            const E = @Enum(noreturn, .exhaustive, &.{}, &.{});
+            break :blk @Union(.auto, E, &.{}, &.{}, &.{});
+        }
+
         var field_types: [command.subcommands.len]type = undefined;
         var field_names: [command.subcommands.len][]const u8 = undefined;
         inline for (&field_types, &field_names, command.subcommands) |*field_type, *field_name, subcommand| {
@@ -243,13 +247,13 @@ pub const ParseError = error{
 pub fn parse(
     comptime command: Command,
     /// See std.process.Args.toSlice
-    /// Index 0 must be populated.
+    /// Index 0 is skipped (typically the program name). No args is a usage error.
     args: []const [:0]const u8,
     options: ParseOptions,
 ) ParseAllocError!Parsed(command) {
     comptime if (parseRequiresAlloc(command)) @compileError("Parsing requires allocation. See parseAlloc.");
     var iter: Iterator = .init(args);
-    const argv0 = iter.next() orelse unreachable;
+    const argv0 = iter.next() orelse return usageErrorExit(options, "missing first argument (typically program name)", .{});
     const parsed = try parseRecursive(command, null, &iter, options);
     helpExit(command, argv0, parsed, options);
     return parsed;
@@ -265,12 +269,12 @@ pub fn parseAlloc(
     comptime command: Command,
     arena: std.mem.Allocator,
     /// See std.process.Args.toSlice
-    /// Index 0 must be populated.
+    /// Index 0 is skipped (typically the program name). No args is a usage error.
     args: []const [:0]const u8,
     options: ParseOptions,
 ) ParseAllocError!Parsed(command) {
     var iter: Iterator = .init(args);
-    const argv0 = iter.next() orelse unreachable;
+    const argv0 = iter.next() orelse return usageErrorExit(options, "missing first argument (typically program name)", .{});
     const parsed = try parseRecursive(command, arena, &iter, options);
     helpExit(command, argv0, parsed, options);
     return parsed;

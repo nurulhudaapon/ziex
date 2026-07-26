@@ -44,7 +44,7 @@ pub fn build(b: *std.Build) !void {
     });
     ziex_b = ziex_b;
 
-    const is_release = optimize != .Debug;
+    const is_release = optimize != .debug;
     const client_scripts = esbuild.addBuild(b, .{
         .name = "devtool_scripts",
         .config = .{

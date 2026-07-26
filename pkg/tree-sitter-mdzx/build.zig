@@ -34,7 +34,7 @@ pub fn build(b: *std.Build) !void {
     if (reuse_alloc) {
         lib.root_module.addCMacro("TREE_SITTER_REUSE_ALLOCATOR", "");
     }
-    if (optimize == .Debug) {
+    if (optimize == .debug) {
         lib.root_module.addCMacro("TREE_SITTER_DEBUG", "");
     }
 

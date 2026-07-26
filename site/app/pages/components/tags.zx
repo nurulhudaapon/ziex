@@ -1,5 +1,5 @@
 pub fn GtmHead(allocator: zx.Allocator) ?zx.Component {
-    if (builtin.mode == .Debug)  return null;
+    if (builtin.mode == .debug)  return null;
     
     return (
         <script @allocator={allocator} @escaping={.none}>
@@ -15,7 +15,7 @@ pub fn GtmHead(allocator: zx.Allocator) ?zx.Component {
 }
 
 pub fn GtmBody(allocator: zx.Allocator) ?zx.Component {
-    if (builtin.mode == .Debug)  return null;
+    if (builtin.mode == .debug)  return null;
 
     return (
         <noscript @allocator={allocator}>
