@@ -28,8 +28,9 @@ import { css } from "@codemirror/lang-css";
 import { javascript } from "@codemirror/lang-javascript";
 import { createPlaygroundShareUrl, decodeFilesFromQuery } from "../../../scripts/playground_share";
 
-// TODO: zls is not available for Zig 0.17 yet.
-let client = createZlsClient(workerTransport(new Worker('/assets/playground/workers/zls.js')));
+declare const VERSION: string;  
+
+let client = createZlsClient(workerTransport(new Worker(`/assets/playground/workers/zls.js?v=${VERSION}`)));
 const PLAYGROUND_NOTICE_STORAGE_KEY = "playground_feature_notice_dismissed_v1";
 const MODE_STORAGE_KEY = "playground_mode_v1";
 const TEMPLATE_STORAGE_KEY = "playground_template_v1";
@@ -789,8 +790,8 @@ new ResizeObserver(updateTabsScrollShadow).observe(tabsEl);
 new MutationObserver(updateTabsScrollShadow).observe(tabsEl, { childList: true });
 
 
-let zigWorker = new Worker(`/assets/playground/workers/zig.js?v=${Date.now()}`);
-let zxWorker = new Worker(`/assets/playground/workers/zx.js?v=${Date.now()}`);
+let zigWorker = new Worker(`/assets/playground/workers/zig.js?v=${VERSION}`);
+let zxWorker = new Worker(`/assets/playground/workers/zx.js?v=${VERSION}`);
 
 function setRunButtonLoading(loading: boolean) {
     const btn = document.getElementById("pg-run-btn")!;

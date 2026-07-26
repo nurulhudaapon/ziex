@@ -114,7 +114,7 @@ pub fn dispatchAction(
             ._internal = .{ .inputs = action_states },
         };
         af(&action_ctx);
-        const body = if (action_ctx._internal.state_ctx) |sc| try serializeStateOutputs(sc, allocator) else null;
+        const body = if (action_ctx._internal.state_ctx) |sc| try serializeStateOutputs(sc, arena) else null;
         return if (is_progressive) .{ .ok = .{ .body = body } } else .ok_native;
     } else return .not_found;
 }

@@ -683,3 +683,13 @@ pub fn formatBinarySize(mb: f64) []const u8 {
     if (mb == 0) return "N/A";
     return std.fmt.comptimePrint("{d:.1} MB", .{mb});
 }
+
+pub fn randInt(io: std.Io, comptime T: type) T {
+    var x: T = undefined;
+    io.random(@ptrCast(&x));
+    return x;
+}
+
+pub fn buildId(io: std.Io, allocator: std.mem.Allocator) []const u8 {
+    return allocator.print("{x}", .{randInt(io, u32)}) catch @panic("failed to print build id");
+}

@@ -4,6 +4,7 @@ const app_opts = @import("app_opts");
 const window = @import("window.zig");
 
 const is_wasm = window.is_wasm;
+const is_dev = std.mem.eql(u8, app_opts.cli_command, "dev");
 
 /// The component ID that is currently being rendered.
 /// Set by Client.render() so that ComponentCtx and ifpl can register subscriptions.
@@ -201,7 +202,7 @@ fn mainClient() callconv(.c) void {
     if (comptime app_opts.feat_kv_client) {
         zx.kv = kv_wasm.kv();
     }
-    clnt.info();
+    if (is_dev) clnt.info();
     clnt.renderAll();
 }
 
@@ -311,8 +312,6 @@ pub fn dispatchEventByName(self: *Client, velement_id: u64, event_type_name: []c
 }
 
 pub fn info(self: *Client) void {
-    if (builtin.mode != .debug) return;
-
     const console = Console.init();
     defer console.deinit();
 

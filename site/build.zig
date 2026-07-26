@@ -374,10 +374,8 @@ pub fn build(b: *std.Build) !void {
     }
 }
 
-fn assetId(_: *std.Build, optimize: std.builtin.OptimizeMode) []const u8 {
-    if (optimize == .debug) return ".dev";
-    return "";
-
+fn assetId(_: *std.Build, _: std.builtin.OptimizeMode) []const u8 {
+    return "0"; // Increment this when site js changes
     // TODO: use ziex_builder.addStaticInstallFile(.{src: lazypath, dest_name: "assets/app.{hash}.js"}) once this is implemented
 }
 

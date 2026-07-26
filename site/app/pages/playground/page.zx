@@ -21,7 +21,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
             <script @escaping={.none}>
                 {@embedFile("scripts/split.js")}
             </script>
-            <script type="module" src="/assets/playground/editor.js"/>
+            <script type="module" src=`/assets/playground/editor.js?v={util.buildId(ctx.io, ctx.arena)}`/>
         </div>
     );
 }
@@ -225,6 +225,7 @@ const std = @import("std");
 const zx = @import("zx");
 const AllFileIcons = @import("../components/icons.zx").AllFileIcons;
 const CheckIcon = @import("../components/icons.zx").CheckIcon;
+const util = @import("../reference/util.zig");
 
 // Importing to have syntax AST Checked
 const main = @import("scripts/template/main.zig");

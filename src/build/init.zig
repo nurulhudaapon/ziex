@@ -299,15 +299,14 @@ pub fn initInner(
     transpile_cmd.addDirectoryArg(b.graph.path(.local_cache, "ziex").path(b, "tnsn"));
     transpile_cmd.expectExitCode(0);
 
-    const app_wasm_href_stem = html_util.prefixPathWithBasePath(b.allocator, opts.base_path, "/assets/_/app");
     const uses_local_bindings = opts.client.bindings.href == null;
     const use_stable_assets = is_dev_build or optimize == .debug;
-    const zxjs_href_stem = html_util.prefixPathWithBasePath(
+    const client_asset_stem = if (is_dev_build) "app.dev" else "app";
+    const client_asset_href_stem = html_util.prefixPathWithBasePath(
         b.allocator,
         opts.base_path,
         if (is_dev_build) "/assets/_/app.dev" else "/assets/_/app",
     );
-    const zxjs_file_stem = if (is_dev_build) "app.dev" else "app";
     // --- Static Directory Setup --- //
     {
         // Install public directory into static (only if the directory exists)
@@ -382,7 +381,7 @@ pub fn initInner(
                 .tag = .script,
                 .attributes = &.{
                     .{ .name = "defer" },
-                    .{ .name = "src", .value = b.fmt("{s}.js", .{zxjs_href_stem}) },
+                    .{ .name = "src", .value = b.fmt("{s}.js", .{client_asset_href_stem}) },
                 },
             },
         });
@@ -399,7 +398,7 @@ pub fn initInner(
                     .{ .name = "id", .value = "__$wasmlink" },
                     .{ .name = "rel", .value = "preload" },
                     .{ .name = "as", .value = "fetch" },
-                    .{ .name = "href", .value = b.fmt("{s}.wasm", .{app_wasm_href_stem}) },
+                    .{ .name = "href", .value = b.fmt("{s}.wasm", .{client_asset_href_stem}) },
                     .{ .name = "crossorigin" },
                 },
             },
@@ -526,12 +525,12 @@ pub fn initInner(
 
     const manifest_path: LazyPath = if (use_stable_assets) blk: {
         if (uses_local_bindings) {
-            const js_asset = addStaticAssetCopy(b, zx_exe, opts, zxjs_path, zxjs_file_stem, ".js", true, true, "script");
+            const js_asset = addStaticAssetCopy(b, zx_exe, opts, zxjs_path, client_asset_stem, ".js", true, true, "script");
             js_asset.setName("install client bindings");
             b.getInstallStep().dependOn(&js_asset.step);
         }
 
-        const wasm_asset = addStaticAssetCopy(b, zx_exe, opts, wasm_binpath, "app", ".wasm", !uses_local_bindings, true, "wasmlink");
+        const wasm_asset = addStaticAssetCopy(b, zx_exe, opts, wasm_binpath, client_asset_stem, ".wasm", !uses_local_bindings, true, "wasmlink");
         wasm_asset.setName("install client wasm");
         wasm_asset.step.dependOn(&wasm_exe.step);
         b.getInstallStep().dependOn(&wasm_asset.step);
@@ -541,7 +540,7 @@ pub fn initInner(
         var wasm_manifest_in = base_manifest_path;
         var js_run: ?*std.Build.Step.Run = null;
         if (uses_local_bindings) {
-            const js_asset = addStaticAssetRun(b, zx_exe, opts, base_manifest_path, zxjs_path, zxjs_href_stem, zxjs_file_stem, ".js", "script", true, false);
+            const js_asset = addStaticAssetRun(b, zx_exe, opts, base_manifest_path, zxjs_path, client_asset_href_stem, client_asset_stem, ".js", "script", true, false);
             js_asset.run.setName("install client bindings");
             b.getInstallStep().dependOn(&js_asset.run.step);
             js_run = js_asset.run;
@@ -554,8 +553,8 @@ pub fn initInner(
             opts,
             wasm_manifest_in,
             wasm_binpath,
-            app_wasm_href_stem,
-            "app",
+            client_asset_href_stem,
+            client_asset_stem,
             ".wasm",
             "wasmlink",
             !uses_local_bindings,
