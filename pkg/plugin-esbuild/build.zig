@@ -45,7 +45,7 @@ fn innerInitSingle(b: *std.Build, build_item: Build) !Output {
 
     const run = b.addRunArtifact(plugin_exe);
 
-    const step_name = b.fmt("build {s} {s}{s}{s}", .{ deriveName(b, build_item, &run.step), plugin_system.colors.dim, "esbuild", plugin_system.colors.reset });
+    const step_name = b.fmt("build {s} {s}", .{ deriveName(b, build_item, &run.step), "esbuild" });
     run.setName(step_name);
     run.setStdIn(.{ .bytes = json_buf });
 
