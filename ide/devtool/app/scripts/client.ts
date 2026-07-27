@@ -1,19 +1,26 @@
-import { createBrowserKVBindings } from "../../../../pkg/ziex/src/runtime/kv";
+import { createLocalStorageKV } from "../../../../pkg/ziex/src/runtime/kv";
 import { init } from "../../../../pkg/ziex/src/wasm";
 
 const HOST_STORAGE_KEY = "zx-devtool-host-v2";
 const PATH_STORAGE_KEY = "zx-devtool-path-v1";
 
-const kvBindings = createBrowserKVBindings();
+// Use the *synchronous* localStorage backend, not createBrowserKVBindings()
+// (which picks async IndexedDB under JSPI). The devtool reads/writes settings
+// from synchronous wasm contexts — including onclick handlers that are not
+// `promising`-wrapped — where a suspending KV import would trap and silently
+// drop the write (e.g. the "Show Native Elements" toggle not persisting).
+const kvBindings = { default: createLocalStorageKV() };
 const defaultKV = kvBindings.default;
 
-async function persistLocation(origin: string, pathname: string): Promise<boolean> {
-    if (!defaultKV || !origin) return false;
+function persistLocation(origin: string, pathname: string): boolean {
+    if (!origin) return false;
     try {
-        await Promise.all([
-            defaultKV.put(HOST_STORAGE_KEY, origin),
-            defaultKV.put(PATH_STORAGE_KEY, pathname || "/"),
-        ]);
+        // Write plain, un-namespaced keys via synchronous localStorage so the
+        // wasm side (data.zig `lsGet`) reads them back under the same keys.
+        // Must NOT go through zx.kv: its keys are namespaced and its wasm reads
+        // are async (JSPI), which the devtool's settings persistence avoids.
+        localStorage.setItem(HOST_STORAGE_KEY, origin);
+        localStorage.setItem(PATH_STORAGE_KEY, pathname || "/");
         return true;
     } catch {
         return false;
@@ -113,9 +120,11 @@ function inspectedHighlightScript(selector: string | null, occurrence: number): 
             overlay.style.position = 'fixed';
             overlay.style.zIndex = '2147483647';
             overlay.style.pointerEvents = 'none';
-            overlay.style.border = '2px solid #41b883';
+            // Use outline (drawn OUTSIDE the box) not border, so the highlight
+            // wraps the element's exact bounds instead of sitting 2px inside it.
+            // No border-radius: square elements must align at the corners.
+            overlay.style.outline = '2px solid #41b883';
             overlay.style.background = 'rgba(65, 184, 131, 0.18)';
-            overlay.style.borderRadius = '4px';
             overlay.style.boxSizing = 'border-box';
             overlay.style.display = 'none';
             document.documentElement.appendChild(overlay);
@@ -183,9 +192,11 @@ function inspectedFocusScript(selector: string, occurrence: number): string {
             overlay.style.position = 'fixed';
             overlay.style.zIndex = '2147483647';
             overlay.style.pointerEvents = 'none';
-            overlay.style.border = '2px solid #41b883';
+            // Use outline (drawn OUTSIDE the box) not border, so the highlight
+            // wraps the element's exact bounds instead of sitting 2px inside it.
+            // No border-radius: square elements must align at the corners.
+            overlay.style.outline = '2px solid #41b883';
             overlay.style.background = 'rgba(65, 184, 131, 0.18)';
-            overlay.style.borderRadius = '4px';
             overlay.style.boxSizing = 'border-box';
             overlay.style.display = 'none';
             document.documentElement.appendChild(overlay);
@@ -226,12 +237,34 @@ function inspectedFocusScript(selector: string, occurrence: number): string {
 
         if (!fullyVisible) {
             el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
-            // Keep the overlay pinned to the element while the smooth scroll runs.
+            // Keep the overlay pinned to the element until the smooth scroll
+            // actually settles. A fixed timer often ends mid-animation, leaving
+            // the overlay at a stale position; instead track the element until
+            // its rect stops moving for a few frames (or a safety cap is hit).
             const start = Date.now();
-            const timer = setInterval(() => {
+            let lastTop = null;
+            let lastLeft = null;
+            let stableFrames = 0;
+            const tick = () => {
                 place();
-                if (Date.now() - start > 600) clearInterval(timer);
-            }, 16);
+                const r = el.getBoundingClientRect();
+                if (lastTop !== null &&
+                    Math.abs(r.top - lastTop) < 0.5 &&
+                    Math.abs(r.left - lastLeft) < 0.5) {
+                    stableFrames++;
+                } else {
+                    stableFrames = 0;
+                }
+                lastTop = r.top;
+                lastLeft = r.left;
+                // ~5 still frames means the scroll finished; 2s is a hard cap.
+                if (stableFrames >= 5 || Date.now() - start > 2000) {
+                    place();
+                    return;
+                }
+                requestAnimationFrame(tick);
+            };
+            requestAnimationFrame(tick);
         }
         return true;
     })()`;
@@ -278,9 +311,11 @@ function inspectedPickerScript(enable: boolean): string {
             overlay.style.position = 'fixed';
             overlay.style.zIndex = '2147483647';
             overlay.style.pointerEvents = 'none';
-            overlay.style.border = '2px solid #41b883';
+            // Use outline (drawn OUTSIDE the box) not border, so the highlight
+            // wraps the element's exact bounds instead of sitting 2px inside it.
+            // No border-radius: square elements must align at the corners.
+            overlay.style.outline = '2px solid #41b883';
             overlay.style.background = 'rgba(65, 184, 131, 0.18)';
-            overlay.style.borderRadius = '4px';
             overlay.style.boxSizing = 'border-box';
             overlay.style.display = 'none';
             document.documentElement.appendChild(overlay);
