@@ -1,18 +1,28 @@
 import { ZigJS } from "../../../../vendor/jsz/js/src";
 import { createFetchImports } from "../runtime/fetch";
+import {
+    CallbackType_Event,
+    CallbackType_FetchSuccess,
+    CallbackType_FetchError,
+    CallbackType_Timeout,
+    CallbackType_Interval,
+    CallbackType_WebSocketOpen,
+    CallbackType_WebSocketMessage,
+    CallbackType_WebSocketError,
+    CallbackType_WebSocketClose,
+} from "./constants";
 
-/**
- * Callback type ids - must match Zig. Plain number consts so names minify.
- */
-export const CallbackType_Event = 0;
-export const CallbackType_FetchSuccess = 1;
-export const CallbackType_FetchError = 2;
-export const CallbackType_Timeout = 3;
-export const CallbackType_Interval = 4;
-export const CallbackType_WebSocketOpen = 5;
-export const CallbackType_WebSocketMessage = 6;
-export const CallbackType_WebSocketError = 7;
-export const CallbackType_WebSocketClose = 8;
+export {
+    CallbackType_Event,
+    CallbackType_FetchSuccess,
+    CallbackType_FetchError,
+    CallbackType_Timeout,
+    CallbackType_Interval,
+    CallbackType_WebSocketOpen,
+    CallbackType_WebSocketMessage,
+    CallbackType_WebSocketError,
+    CallbackType_WebSocketClose,
+} from "./constants";
 
 export type CallbackTypeValue =
     | typeof CallbackType_Event
@@ -24,14 +34,8 @@ export type CallbackTypeValue =
     | typeof CallbackType_WebSocketMessage
     | typeof CallbackType_WebSocketError
     | typeof CallbackType_WebSocketClose;
-export type CallbackHandler = (callbackType: number, id: bigint, dataRef: bigint) => void;
-export type FetchCompleteHandler = (fetchId: bigint, statusCode: number, bodyPtr: number, bodyLen: number, isError: number) => void;
-
-// WebSocket callback handler types (used by both core and browser subclass)
-export type WsOnOpenHandler = (wsId: bigint, protocolPtr: number, protocolLen: number) => void;
-export type WsOnMessageHandler = (wsId: bigint, dataPtr: number, dataLen: number, isBinary: number) => void;
-export type WsOnErrorHandler = (wsId: bigint, msgPtr: number, msgLen: number) => void;
-export type WsOnCloseHandler = (wsId: bigint, code: number, reasonPtr: number, reasonLen: number, wasClean: number) => void;
+/** Unified host→guest callback: (type, id, a, b, c). Extra args are msg-specific. */
+export type CallbackHandler = (callbackType: number, id: bigint, a: bigint, b: bigint, c: bigint) => void;
 
 /**
  * Core WASM bridge - environment-agnostic (browser + edge).
@@ -136,33 +140,29 @@ export class ZxBridgeCore {
 
     protected readonly _alloc: (size: number) => number;
     readonly #handler: CallbackHandler | undefined;
-    readonly #fetchCompleteHandler: FetchCompleteHandler;
 
     constructor(exports: WebAssembly.Exports) {
         this._alloc = exports.__zx_alloc as (size: number) => number;
         this.#handler = wrapPromisingExport(exports.__zx_cb as CallbackHandler | undefined);
-        const fetchCompleteHandler = wrapPromisingExport(exports.__zx_fetch_complete as FetchCompleteHandler | undefined);
-        if (!fetchCompleteHandler) {
-            throw new Error("__zx_fetch_complete not exported from WASM");
+        if (!this.#handler) {
+            console.warn("__zx_cb not exported from WASM");
         }
-        this.#fetchCompleteHandler = fetchCompleteHandler;
         if (exports.memory) jsz.memory = exports.memory as WebAssembly.Memory;
     }
 
     /** Invoke the unified callback handler */
-    #invoke(type: CallbackTypeValue, id: bigint, data: any): void {
+    protected _invoke(type: CallbackTypeValue, id: bigint, a: bigint = 0n, b: bigint = 0n, c: bigint = 0n): void {
         const handler = this.#handler;
         if (!handler) {
-            console.warn('__zx_cb not exported from WASM');
+            console.warn("__zx_cb not exported from WASM");
             return;
         }
-        const dataRef = storeValueGetRef(data);
-        invokeWasmExport(handler, type, id, dataRef);
+        invokeWasmExport(handler, type, id, a, b, c);
     }
 
     /**
      * Async fetch with full options support.
-     * Calls __zx_fetch_complete when done.
+     * Completes via `__zx_cb(fetch_success|fetch_error, ...)`.
      */
     fetchAsync(
         urlPtr: number,
@@ -224,25 +224,25 @@ export class ZxBridgeCore {
         body: string | Uint8Array,
         isError: boolean,
     ): void {
-        const handler = this.#fetchCompleteHandler;
         const encoded = typeof body === 'string' ? textEncoder.encode(body) : body;
         const ptr = this._alloc(encoded.length) >>> 0;
         if (!ptr && encoded.length > 0) return;
         writeBytes(ptr, encoded);
-        invokeWasmExport(handler, fetchId, statusCode, ptr, encoded.length, isError ? 1 : 0);
+        const type = isError ? CallbackType_FetchError : CallbackType_FetchSuccess;
+        this._invoke(type, fetchId, BigInt(statusCode), BigInt(ptr), BigInt(encoded.length));
     }
 
     /** Set a timeout and callback when it fires */
     setTimeout(callbackId: bigint, delayMs: number): void {
         setTimeout(() => {
-            this.#invoke(3 /* Timeout */, callbackId, null);
+            this._invoke(CallbackType_Timeout, callbackId);
         }, delayMs);
     }
 
     /** Set an interval and callback each time it fires */
     setInterval(callbackId: bigint, intervalMs: number): void {
         const handle = setInterval(() => {
-            this.#invoke(4 /* Interval */, callbackId, null);
+            this._invoke(CallbackType_Interval, callbackId);
         }, intervalMs) as unknown as number;
         this.#intervals.set(callbackId, handle);
     }

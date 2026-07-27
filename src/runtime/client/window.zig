@@ -12,6 +12,7 @@ pub const is_wasm = zx.platform.role == .client;
 /// JS bindings - only available in WASM builds
 pub const js = if (is_wasm) @import("js") else struct {
     pub const Object = void;
+    pub const Value = void;
     pub const String = []const u8;
     pub const global = struct {
         pub fn get(_: type, _: []const u8) !void {}
@@ -21,38 +22,32 @@ pub const js = if (is_wasm) @import("js") else struct {
 };
 
 pub const Console = struct {
-    ref: if (is_wasm) @import("js").Object else void,
+    ref: js.Object,
 
     pub fn init() Console {
-        if (!is_wasm) return .{ .ref = {} };
         return .{
-            .ref = @import("js").global.get(@import("js").Object, "console") catch @panic("Console not found"),
+            .ref = js.global.get(js.Object, "console") catch @panic("JS_ERR"),
         };
     }
 
     pub fn deinit(self: Console) void {
-        if (!is_wasm) return;
         self.ref.deinit();
     }
 
     pub fn log(self: Console, args: anytype) void {
-        if (!is_wasm) return;
-        self.ref.call(void, "log", args) catch @panic("Failed to call console.log");
+        self.ref.call(void, "log", args) catch @panic("JS");
     }
 
     pub fn str(self: Console, data: []const u8) void {
-        if (!is_wasm) return;
-        self.ref.call(void, "log", .{@import("js").string(data)}) catch @panic("Failed to call console.log");
+        self.ref.call(void, "log", .{js.string(data)}) catch @panic("JS_ERR");
     }
 
     pub fn strLevel(self: Console, message_level: std.log.Level, data: []const u8) void {
-        if (!is_wasm) return;
-        const j = @import("js");
         switch (message_level) {
-            .debug => self.ref.call(void, "debug", .{j.string(data)}) catch @panic("Failed to call console.debug"),
-            .info => self.ref.call(void, "info", .{j.string(data)}) catch @panic("Failed to call console.info"),
-            .warn => self.ref.call(void, "warn", .{j.string(data)}) catch @panic("Failed to call console.warn"),
-            .err => self.ref.call(void, "error", .{j.string(data)}) catch @panic("Failed to call console.error"),
+            .debug => self.ref.call(void, "debug", .{js.string(data)}) catch @panic("JS_ERR"),
+            .info => self.ref.call(void, "info", .{js.string(data)}) catch @panic("JS_ERR"),
+            .warn => self.ref.call(void, "warn", .{js.string(data)}) catch @panic("JS_ERR"),
+            .err => self.ref.call(void, "error", .{js.string(data)}) catch @panic("JS_ERR"),
         }
     }
 };
@@ -63,19 +58,15 @@ pub const Event = struct {
     };
 
     /// The js.Object reference to the event
-    ref: if (is_wasm) @import("js").Object else void,
+    ref: js.Object,
 
     target: ?EventTarget = null,
     data: ?[]const u8 = null,
 
     /// Create an Event from a u64 NaN-boxed reference (passed from JS via jsz)
     pub fn fromRef(event_ref: u64) Event {
-        if (!is_wasm) return .{ .ref = {}, .target = null, .data = null };
-        const real_js = @import("js");
-
-        // Convert the u64 reference to a js.Value, then wrap in js.Object
-        const event_value: real_js.Value = @enumFromInt(event_ref);
-        const event_obj = real_js.Object{ .value = event_value };
+        const event_value: js.Value = @enumFromInt(event_ref);
+        const event_obj = js.Object{ .value = event_value };
 
         return .{
             .ref = event_obj,
@@ -84,50 +75,34 @@ pub const Event = struct {
         };
     }
 
-    /// Call preventDefault on the event
     pub fn preventDefault(self: Event) void {
-        if (!is_wasm) return;
-        self.ref.call(void, "preventDefault", .{}) catch @panic("Failed to call preventDefault");
+        self.ref.call(void, "preventDefault", .{}) catch @panic("JS_ERR");
     }
 
-    /// Call stopPropagation on the event
     pub fn stopPropagation(self: Event) void {
-        if (!is_wasm) return;
-        self.ref.call(void, "stopPropagation", .{}) catch @panic("Failed to call stopPropagation");
+        self.ref.call(void, "stopPropagation", .{}) catch @panic("JS_ERR");
     }
 
-    /// Call stopImmediatePropagation on the event
     pub fn stopImmediatePropagation(self: Event) void {
-        if (!is_wasm) return;
-        self.ref.call(void, "stopImmediatePropagation", .{}) catch @panic("Failed to call stopImmediatePropagation");
+        self.ref.call(void, "stopImmediatePropagation", .{}) catch @panic("JS_ERR");
     }
 
-    /// Get the event type as a string
     pub fn getType(self: Event, allocator: std.mem.Allocator) ?[]const u8 {
-        if (!is_wasm) return null;
-        const real_js = @import("js");
-        return self.ref.getAlloc(real_js.String, allocator, "type") catch null;
+        return self.ref.getAlloc(js.String, allocator, "type") catch null;
     }
 
-    /// Get the target element (returns js.Object in WASM, void otherwise)
-    pub fn getTarget(self: Event) if (is_wasm) ?@import("js").Object else ?void {
-        if (!is_wasm) return null;
-        const real_js = @import("js");
-        return self.ref.get(real_js.Object, "target") catch null;
+    pub fn getTarget(self: Event) ?js.Object {
+        return self.ref.get(js.Object, "target") catch null;
     }
 
-    /// Deinit the event (releases the JS reference)
     pub fn deinit(self: Event) void {
-        if (!is_wasm) return;
         self.ref.deinit();
     }
 };
 
 pub fn eval(T: type, code: []const u8) !T {
     _ = @as([]const u8, code);
-    if (!is_wasm) return error.NotInBrowser;
-    const real_js = @import("js");
-    return try real_js.global.call(T, "eval", .{real_js.string(code)});
+    return try js.global.call(T, "eval", .{js.string(code)});
 }
 
 /// Callback types for async operations (must match bridge.ts CallbackType)
@@ -137,6 +112,10 @@ pub const CallbackType = enum(u8) {
     fetch_error = 2,
     timeout = 3,
     interval = 4,
+    ws_open = 5,
+    ws_message = 6,
+    ws_error = 7,
+    ws_close = 8,
 };
 
 /// Callback function types
@@ -145,6 +124,38 @@ pub const IntervalCallback = *const fn () void;
 
 /// Maximum number of concurrent callbacks
 const MAX_CALLBACKS = 64;
+
+const TimerApi = struct {
+    pub fn setTimeout(callback: TimeoutCallback, delay_ms: u32) ?u64 {
+        const id = registerCallback(.{
+            .callback_type = .timeout,
+            .timeout_fn = callback,
+            .active = true,
+        }) orelse return null;
+
+        ext._setTimeout(id, delay_ms);
+        return id;
+    }
+
+    pub fn setInterval(callback: IntervalCallback, interval_ms: u32) ?u64 {
+        const id = registerCallback(.{
+            .callback_type = .interval,
+            .interval_fn = callback,
+            .active = true,
+        }) orelse return null;
+
+        ext._setInterval(id, interval_ms);
+        return id;
+    }
+
+    pub fn clearInterval(callback_id: u64) void {
+        const index: usize = @intCast(callback_id % MAX_CALLBACKS);
+        if (callbacks[index].active and callbacks[index].callback_type == .interval) {
+            callbacks[index].active = false;
+            ext._clearInterval(callback_id);
+        }
+    }
+};
 
 /// Callback registry entry
 const CallbackEntry = struct {
@@ -188,40 +199,19 @@ fn registerCallback(entry: CallbackEntry) ?u64 {
 /// Set a timeout that calls the callback after delay_ms milliseconds
 pub fn setTimeout(callback: TimeoutCallback, delay_ms: u32) ?u64 {
     if (!is_wasm) return null;
-
-    const id = registerCallback(.{
-        .callback_type = .timeout,
-        .timeout_fn = callback,
-        .active = true,
-    }) orelse return null;
-
-    ext._setTimeout(id, delay_ms);
-    return id;
+    return TimerApi.setTimeout(callback, delay_ms);
 }
 
 /// Set an interval that calls the callback every interval_ms milliseconds
 pub fn setInterval(callback: IntervalCallback, interval_ms: u32) ?u64 {
     if (!is_wasm) return null;
-
-    const id = registerCallback(.{
-        .callback_type = .interval,
-        .interval_fn = callback,
-        .active = true,
-    }) orelse return null;
-
-    ext._setInterval(id, interval_ms);
-    return id;
+    return TimerApi.setInterval(callback, interval_ms);
 }
 
 /// Clear an interval by its ID
 pub fn clearInterval(callback_id: u64) void {
     if (!is_wasm) return;
-
-    const index: usize = @intCast(callback_id % MAX_CALLBACKS);
-    if (callbacks[index].active and callbacks[index].callback_type == .interval) {
-        callbacks[index].active = false;
-        ext._clearInterval(callback_id);
-    }
+    TimerApi.clearInterval(callback_id);
 }
 
 /// Dispatch a callback from JS (called by __zx_cb export)
@@ -250,7 +240,7 @@ pub fn dispatchCallback(callback_type: CallbackType, callback_id: u64, data_ref:
                 return true;
             }
         },
-        .fetch_success, .fetch_error, .event => return false,
+        .fetch_success, .fetch_error, .event, .ws_open, .ws_message, .ws_error, .ws_close => return false,
     }
 
     return false;

@@ -19,7 +19,6 @@ pub const ProxyContext = struct {
     response: Response,
     allocator: Allocator,
     arena: Allocator,
-    /// Process I/O passed to `App.init` by the user.
     io: std.Io,
 
     _aborted: bool = false,
@@ -116,41 +115,100 @@ pub fn ComponentCtx(comptime PropsType: type) type {
             };
             const params = @typeInfo(FnType).@"fn".param_types;
 
-            return switch (FnType) {
-                // Client
-                fn (*ClientEvent) void => zx.EventHandler.client(handler),
-                fn (*ClientEvent.Stateful) void => zx.EventHandler.clientS(handler, alloc, self._internal.component_id),
+            return switch (zx.platform.role) {
+                .server => switch (FnType) {
+                    // Server events
+                    fn (*ServerEvent.Stateful) void => zx.EventHandler.serverS(handler, alloc, self._internal.component_id, self._internal.state_idx),
+                    fn (*ServerEvent) void => zx.EventHandler.server(handler, alloc),
 
-                // Client Actions
-                fn (*ClientActionContext.Stateful) void => zx.EventHandler.actionClientStateful(handler, alloc, self._internal.component_id),
-                fn (*ClientActionContext) void => zx.EventHandler.actionClient(handler),
-                fn (ClientActionContext) void => zx.EventHandler.actionClient(handler),
+                    // Server actions
+                    fn (*ActionContext.Stateful) void => zx.EventHandler.actionStateful(handler, alloc, self._internal.component_id, self._internal.state_idx),
+                    fn (ActionContext, *StateContext) void => actionBind(handler, alloc, self),
+                    fn (*ActionContext) void => actionBind(handler, alloc, self),
 
-                // Server
-                fn (*ServerEvent.Stateful) void => zx.EventHandler.serverS(handler, alloc, self._internal.component_id, self._internal.state_idx),
-                fn (*ServerEvent) void => zx.EventHandler.server(handler, alloc),
+                    // Client stubs
+                    fn (*ClientEvent) void => zx.EventHandler.clientStub(true),
+                    fn (*ClientEvent.Stateful) void => zx.EventHandler.clientStub(true),
+                    fn (*ClientActionContext.Stateful) void => zx.EventHandler.clientStub(true),
+                    fn (*ClientActionContext) void => zx.EventHandler.clientStub(true),
+                    fn (ClientActionContext) void => zx.EventHandler.clientStub(true),
+                    else => bindServerFallback(handler, alloc, self, HandlerType, params),
+                },
+                .client => switch (FnType) {
+                    // Client events
+                    fn (*ClientEvent) void => zx.EventHandler.client(handler),
+                    fn (*ClientEvent.Stateful) void => zx.EventHandler.clientS(handler, alloc, self._internal.component_id),
 
-                // Server Actions
-                fn (*ActionContext.Stateful) void => zx.EventHandler.actionStateful(handler, alloc, self._internal.component_id, self._internal.state_idx),
-                fn (ActionContext, *StateContext) void => actionBind(handler, alloc, self),
-                fn (*ActionContext) void => actionBind(handler, alloc, self),
+                    // Client actions
+                    fn (*ClientActionContext.Stateful) void => zx.EventHandler.actionClientStateful(handler, alloc, self._internal.component_id),
+                    fn (*ClientActionContext) void => zx.EventHandler.actionClient(handler),
+                    fn (ClientActionContext) void => zx.EventHandler.actionClient(handler),
 
-                else => blk: {
-                    if (comptime params.len == 1 and params[0] == *ServerEvent) {
-                        break :blk zx.EventHandler.server(handler, alloc);
-                    }
-                    if (comptime params.len == 2 and
-                        @typeInfo(params[0].?) == .@"struct" and
-                        params[0] != ActionContext and
-                        params[1] == *StateContext)
-                    {
-                        break :blk actionBind(handler, alloc, self);
-                    }
-                    @compileError(BindSignMsg ++ @typeName(HandlerType));
+                    // Server action/event dispatchers
+                    fn (*ServerEvent.Stateful) void => zx.EventHandler.serverEventStub(alloc, collectBoundStates(alloc, self)),
+                    fn (*ServerEvent) void => zx.EventHandler.serverEventStub(alloc, &.{}),
+                    fn (*ActionContext.Stateful) void => zx.EventHandler.serverActionStub(alloc, collectBoundStates(alloc, self)),
+                    fn (ActionContext, *StateContext) void => zx.EventHandler.serverActionStub(alloc, collectBoundStates(alloc, self)),
+                    fn (*ActionContext) void => zx.EventHandler.serverActionStub(alloc, &.{}),
+                    else => bindClientFallback(handler, alloc, self, HandlerType, params),
                 },
             };
         }
     };
+}
+
+fn bindServerFallback(comptime handler: anytype, alloc: Allocator, ctx: anytype, comptime HandlerType: type, comptime params: []const ?type) zx.EventHandler {
+    if (comptime isClientOnlyHandler(params)) {
+        return zx.EventHandler.clientStub(true);
+    }
+
+    if (comptime isServerEventHandler(params)) {
+        return zx.EventHandler.server(handler, alloc);
+    }
+
+    if (comptime isStructuredServerActionHandler(params)) {
+        return actionBind(handler, alloc, ctx);
+    }
+
+    @compileError(BindSignMsg ++ @typeName(HandlerType));
+}
+
+fn bindClientFallback(comptime _: anytype, alloc: Allocator, ctx: anytype, comptime HandlerType: type, comptime params: []const ?type) zx.EventHandler {
+    if (comptime isServerEventHandler(params)) {
+        return zx.EventHandler.serverEventStub(alloc, &.{});
+    }
+
+    if (comptime isStructuredServerActionHandler(params)) {
+        return zx.EventHandler.serverActionStub(alloc, collectBoundStates(alloc, ctx));
+    }
+
+    @compileError(BindSignMsg ++ @typeName(HandlerType));
+}
+
+fn isServerEventHandler(comptime params: []const ?type) bool {
+    return comptime params.len == 1 and params[0] == *ServerEvent;
+}
+
+fn isStructuredServerActionHandler(comptime params: []const ?type) bool {
+    return comptime params.len == 2 and
+        params[0] != null and
+        @typeInfo(params[0].?) == .@"struct" and
+        params[0] != ActionContext and
+        params[1] == *StateContext;
+}
+
+fn isClientOnlyHandler(comptime params: []const ?type) bool {
+    if (comptime params.len != 1 or params[0] == null) return false;
+
+    const arg0 = params[0].?;
+    if (comptime arg0 == *ClientEvent or arg0 == *ClientEvent.Stateful) return true;
+    if (comptime arg0 == *ClientActionContext or arg0 == ClientActionContext or arg0 == *ClientActionContext.Stateful) return true;
+
+    return false;
+}
+
+fn collectBoundStates(alloc: Allocator, ctx: anytype) []const zx.EventHandler.Bound {
+    return reactivity.collectStateBoundEntries(alloc, ctx._internal.component_id, ctx._internal.state_idx);
 }
 
 fn actionBind(comptime handler: anytype, alloc: Allocator, ctx: anytype) zx.EventHandler {
@@ -172,7 +230,7 @@ fn actionBind(comptime handler: anytype, alloc: Allocator, ctx: anytype) zx.Even
                 }
             }
         };
-        const bound = reactivity.collectStateBoundEntries(alloc, ctx._internal.component_id, ctx._internal.state_idx);
+        const bound = collectBoundStates(alloc, ctx);
         const ec = alloc.create(zx.EventHandler.Context) catch @panic("OOM");
         // handler_id is stamped later in `x.Context.attr` from the attribute @src().
         ec.* = .{ .handler_id = 0, .bound_states = bound };

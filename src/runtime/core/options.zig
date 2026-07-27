@@ -71,7 +71,6 @@ pub const StaticParams = struct {
 /// ```
 pub const StaticContext = struct {
     arena: std.mem.Allocator,
-    /// Process I/O passed to `App.init` by the user.
     io: std.Io,
     params: StaticParams,
 

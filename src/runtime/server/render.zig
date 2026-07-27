@@ -250,7 +250,7 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
             // Otherwise, render normally
             // Opening tag
             try writer.writeAll("<");
-            try writer.writeAll(@tagName(elem.tag));
+            try writer.writeAll(elem.htmlTagName());
 
             const is_self_closing = elem.tag.isSelf();
             const is_no_closing = elem.tag.isVoid();
@@ -345,7 +345,7 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
             // Closing tag
             if (!is_self_closing and !is_no_closing) {
                 try writer.writeAll("</");
-                try writer.writeAll(@tagName(elem.tag));
+                try writer.writeAll(elem.htmlTagName());
                 try writer.writeAll(">");
             }
         },

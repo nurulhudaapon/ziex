@@ -12,6 +12,7 @@ const ResponseCallback = Fetch.ResponseCallback;
 const ResponseCallbackCtx = Fetch.ResponseCallbackCtx;
 
 pub const is_wasm = window.is_wasm;
+const is_wasm_arch = builtin.cpu.arch == .wasm32 or builtin.cpu.arch == .wasm64;
 var next_fetch_id: u64 = 1;
 
 /// Perform an async HTTP fetch request with callback.
@@ -139,7 +140,7 @@ fn findSlotByFetchId(fetch_id: u64) ?usize {
 
 /// Allocate a pending fetch slot and register a ctx callback without firing _fetchAsync.
 /// Returns the fetch_id to pass to a custom extern (e.g. _submitFormActionAsync).
-/// The callback will be invoked when __zx_fetch_complete arrives for that id.
+/// The callback will be invoked when `__zx_cb(fetch_*)` arrives for that id.
 pub fn allocFetchId(
     allocator: std.mem.Allocator,
     ctx: *anyopaque,
@@ -163,8 +164,8 @@ pub fn allocFetchId(
     return fetch_id;
 }
 
-/// Called by JS when async fetch completes
-export fn __zx_fetch_complete(
+/// Called via `__zx_cb` when async fetch completes.
+pub fn onFetchComplete(
     fetch_id: u64,
     status_code: u16,
     body_ptr: [*]const u8,
@@ -202,7 +203,7 @@ export fn __zx_fetch_complete(
     // Copy body data
     const body_data = if (body_len > 0)
         allocator.dupe(u8, body_ptr[0..body_len]) catch {
-            if (comptime is_wasm) {
+            if (comptime is_wasm_arch) {
                 std.heap.wasm_allocator.free(body_ptr[0..body_len]);
             }
             dispatchErr(plain_cb, ctx_cb, ctx_ptr, error.OutOfMemory);
@@ -212,7 +213,7 @@ export fn __zx_fetch_complete(
         @as([]const u8, "");
 
     if (body_len > 0) {
-        if (comptime is_wasm) {
+        if (comptime is_wasm_arch) {
             std.heap.wasm_allocator.free(body_ptr[0..body_len]);
         }
     }

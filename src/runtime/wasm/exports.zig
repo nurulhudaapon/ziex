@@ -18,3 +18,7 @@ comptime {
         @export(&free, .{ .name = "__zx_free" });
     }
 }
+
+comptime {
+    _ = @import("host.zig");
+}

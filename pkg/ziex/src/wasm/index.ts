@@ -8,6 +8,8 @@ export {
     CallbackType_WebSocketMessage,
     CallbackType_WebSocketError,
     CallbackType_WebSocketClose,
+} from "./constants";
+export {
     jsz,
     storeValueGetRef,
     loadValueFromRef,
@@ -39,15 +41,18 @@ import {
     getMemoryView,
 } from "./core";
 import { bindWasmAlloc, type WasmAllocRef } from "./core";
+import {
+    CallbackType_WebSocketOpen,
+    CallbackType_WebSocketMessage,
+    CallbackType_WebSocketError,
+    CallbackType_WebSocketClose,
+} from "./constants";
+import { flushDomCmds } from "./dom_cmd";
 import { createFetchImports } from "../runtime/fetch";
 import { createKVImports } from "../runtime/kv/extern";
 import { createBrowserKVBindings, type KVNamespace } from "../runtime/kv";
-import type {
-    WsOnOpenHandler,
-    WsOnMessageHandler,
-    WsOnErrorHandler,
-    WsOnCloseHandler,
-} from "./core";
+import { DELEGATED_EVENTS } from "./generated/events";
+import { HIGH_FREQ_EVENT_BITS } from "./generated/event_bits";
 
 /**
  * Browser ZX Bridge - extends ZxBridgeCore with DOM, WebSocket, and form-action support.
@@ -57,19 +62,11 @@ import type {
 export class ZxBridge extends ZxBridgeCore {
     #websockets: Map<bigint, WebSocket> = new Map();
 
-    readonly #wsOnOpenHandler: WsOnOpenHandler | undefined;
-    readonly #wsOnMessageHandler: WsOnMessageHandler | undefined;
-    readonly #wsOnErrorHandler: WsOnErrorHandler | undefined;
-    readonly #wsOnCloseHandler: WsOnCloseHandler | undefined;
     readonly #eventbridge: ((velementId: bigint, eventTypeId: number, eventRef: bigint) => void) | undefined;
     readonly #eventbridgeAsync: ((velementId: bigint, eventTypeId: number, eventRef: bigint) => void) | undefined;
 
     constructor(exports: WebAssembly.Exports) {
         super(exports);
-        this.#wsOnOpenHandler = wrapPromisingExport(exports.__zx_ws_onopen as WsOnOpenHandler | undefined);
-        this.#wsOnMessageHandler = wrapPromisingExport(exports.__zx_ws_onmessage as WsOnMessageHandler | undefined);
-        this.#wsOnErrorHandler = wrapPromisingExport(exports.__zx_ws_onerror as WsOnErrorHandler | undefined);
-        this.#wsOnCloseHandler = wrapPromisingExport(exports.__zx_ws_onclose as WsOnCloseHandler | undefined);
         this.#eventbridge = exports.__zx_eventbridge as ((velementId: bigint, eventTypeId: number, eventRef: bigint) => void) | undefined;
         this.#eventbridgeAsync = wrapPromisingExport(
             (exports.__zx_eventbridge_async ?? exports.__zx_eventbridge) as
@@ -101,8 +98,9 @@ export class ZxBridge extends ZxBridgeCore {
         eventHandlersPresent.delete(velementId);
         eventHandlersSuspend.delete(velementId);
         // Drop high-freq listeners when no vnode still needs them.
-        for (const eventTypeId of HIGH_FREQ_EVENT_IDS) {
-            if (present & (1 << eventTypeId)) maybeRemoveHighFreqListener(eventTypeId);
+        // Drop high-freq listeners when no vnode still needs them.
+        for (let bits = present & HIGH_FREQ_EVENT_BITS; bits !== 0; bits &= bits - 1) {
+            maybeRemoveHighFreqListener(31 - Math.clz32(bits));
         }
     }
 
@@ -128,7 +126,7 @@ export class ZxBridge extends ZxBridgeCore {
 
     /**
      * Create and connect a WebSocket.
-     * Calls __zx_ws_onopen, __zx_ws_onmessage, __zx_ws_onerror, __zx_ws_onclose.
+     * Completes via `__zx_cb(ws_open|ws_message|ws_error|ws_close, ...)`.
      */
     wsConnect(
         wsId: bigint,
@@ -149,48 +147,38 @@ export class ZxBridge extends ZxBridgeCore {
             ws.binaryType = 'arraybuffer';
 
             ws.onopen = () => {
-                const handler = this.#wsOnOpenHandler;
-                if (!handler) return;
                 const protocol = ws.protocol || '';
                 const [ptr, len] = this._writeStringToWasm(protocol);
-                invokeWasmExport(handler, wsId, ptr, len);
+                this._invoke(CallbackType_WebSocketOpen, wsId, BigInt(ptr), BigInt(len));
             };
 
             ws.onmessage = (event: MessageEvent) => {
-                const handler = this.#wsOnMessageHandler;
-                if (!handler) return;
                 const isBinary = event.data instanceof ArrayBuffer;
                 const data: Uint8Array = isBinary
                     ? new Uint8Array(event.data as ArrayBuffer)
                     : textEncoder.encode(event.data as string);
                 const [ptr, len] = this.writeBytesToWasm(data);
-                invokeWasmExport(handler, wsId, ptr, len, isBinary ? 1 : 0);
+                this._invoke(CallbackType_WebSocketMessage, wsId, BigInt(ptr), BigInt(len), BigInt(isBinary ? 1 : 0));
             };
 
             ws.onerror = (_event: Event) => {
-                const handler = this.#wsOnErrorHandler;
-                if (!handler) return;
                 const [ptr, len] = this._writeStringToWasm('WebSocket error');
-                invokeWasmExport(handler, wsId, ptr, len);
+                this._invoke(CallbackType_WebSocketError, wsId, BigInt(ptr), BigInt(len));
             };
 
             ws.onclose = (event: CloseEvent) => {
-                const handler = this.#wsOnCloseHandler;
-                if (!handler) return;
                 const reason = event.reason || '';
                 const [ptr, len] = this._writeStringToWasm(reason);
-                invokeWasmExport(handler, wsId, event.code, ptr, len, event.wasClean ? 1 : 0);
+                const c = BigInt(len) | (BigInt(event.wasClean ? 1 : 0) << 32n);
+                this._invoke(CallbackType_WebSocketClose, wsId, BigInt(event.code), BigInt(ptr), c);
                 this.#websockets.delete(wsId);
             };
 
             this.#websockets.set(wsId, ws);
         } catch (error) {
-            const handler = this.#wsOnErrorHandler;
-            if (handler) {
-                const msg = error instanceof Error ? error.message : 'WebSocket connection failed';
-                const [ptr, len] = this._writeStringToWasm(msg);
-                invokeWasmExport(handler, wsId, ptr, len);
-            }
+            const msg = error instanceof Error ? error.message : 'WebSocket connection failed';
+            const [ptr, len] = this._writeStringToWasm(msg);
+            this._invoke(CallbackType_WebSocketError, wsId, BigInt(ptr), BigInt(len));
         }
     }
 
@@ -310,83 +298,11 @@ export class ZxBridge extends ZxBridgeCore {
                 _wsClose: (wsId: bigint, code: number, reasonPtr: number, reasonLen: number) => {
                     bridgeRef[0]?.wsClose(wsId, code, reasonPtr, reasonLen);
                 },
-                _ce: (id: number, vnodeId: bigint): void => {
-                    const nid = Number(vnodeId);
-                    const tagName = TAG_NAMES[id] as string;
-                    const el = id >= SVG_TAG_START_INDEX
-                        ? document.createElementNS('http://www.w3.org/2000/svg', tagName)
-                        : document.createElement(tagName);
-                    (el as any).__zx_ref = nid;
-                    domNodes.set(nid, el);
-                },
-                _ct: (ptr: number, len: number, vnodeId: bigint): void => {
-                    const nid = Number(vnodeId);
-                    const node = document.createTextNode(readString(ptr, len));
-                    (node as any).__zx_ref = nid;
-                    domNodes.set(nid, node);
-                },
-                /** Insert vnode before a jsz-held end comment (hydration). */
-                _ih: (vnodeId: bigint, endCommentRef: bigint): void => {
-                    const child = domNodes.get(Number(vnodeId));
-                    const end = loadValueFromRef(endCommentRef) as ChildNode | null | undefined;
-                    if (!child || !end?.parentNode) return;
-                    end.parentNode.insertBefore(child, end);
-                },
-                _sa: (vnodeId: bigint, namePtr: number, nameLen: number, valPtr: number, valLen: number) => {
-                    (domNodes.get(Number(vnodeId)) as Element | undefined)
-                        ?.setAttribute(readString(namePtr, nameLen), readString(valPtr, valLen));
-                },
-                _sp: (vnodeId: bigint, namePtr: number, nameLen: number, valPtr: number, valLen: number) => {
-                    const el = domNodes.get(Number(vnodeId)) as any;
-                    if (el) {
-                        const name = readString(namePtr, nameLen);
-                        const val = readString(valPtr, valLen);
-                        if (name === "checked" || name === "selected" || name === "muted") {
-                            el[name] = val !== "false";
-                        } else {
-                            el[name] = val;
-                        }
-                    }
-                },
-                _ra: (vnodeId: bigint, namePtr: number, nameLen: number) => {
-                    (domNodes.get(Number(vnodeId)) as Element | undefined)
-                        ?.removeAttribute(readString(namePtr, nameLen));
-                },
-                _snv: (vnodeId: bigint, ptr: number, len: number) => {
-                    const node = domNodes.get(Number(vnodeId));
-                    if (node) node.nodeValue = readString(ptr, len);
-                },
-                _srh: (vnodeId: bigint, ptr: number, len: number) => {
-                    const el = domNodes.get(Number(vnodeId)) as Element | undefined;
-                    if (el) el.innerHTML = readString(ptr, len);
-                },
-                _ac: (parentId: bigint, childId: bigint) => {
-                    const parent = domNodes.get(Number(parentId));
-                    const child = domNodes.get(Number(childId));
-                    if (parent && child) parent.appendChild(child);
-                },
-                _ib: (parentId: bigint, childId: bigint, refId: bigint) => {
-                    const parent = domNodes.get(Number(parentId));
-                    const child = domNodes.get(Number(childId));
-                    const ref = domNodes.get(Number(refId)) ?? null;
-                    if (parent && child) parent.insertBefore(child, ref);
-                },
-                _rc: (parentId: bigint, childId: bigint) => {
-                    const parent = domNodes.get(Number(parentId));
-                    const child = domNodes.get(Number(childId));
-                    if (parent && child) {
-                        parent.removeChild(child);
-                        cleanupDomNodes(child);
-                    }
-                },
-                _rpc: (parentId: bigint, newId: bigint, oldId: bigint) => {
-                    const parent = domNodes.get(Number(parentId));
-                    const newChild = domNodes.get(Number(newId));
-                    const oldChild = domNodes.get(Number(oldId));
-                    if (parent && newChild && oldChild) {
-                        parent.replaceChild(newChild, oldChild);
-                        cleanupDomNodes(oldChild);
-                    }
+                _flush: (ptr: number, len: number): void => {
+                    flushDomCmds(ptr, len, {
+                        domNodes,
+                        cleanupDomNodes,
+                    });
                 },
                 _getLocationHref: (bufPtr: number, bufLen: number): number => {
                     const bytes = textEncoder.encode(window.location.href);
@@ -461,253 +377,10 @@ function cleanupDomNodes(node: Node): void {
         const children = n.childNodes;
         for (let i = 0; i < children.length; i++) stack.push(children[i]!);
     }
-    for (const eventTypeId of HIGH_FREQ_EVENT_IDS) {
-        if (highFreqBits & (1 << eventTypeId)) maybeRemoveHighFreqListener(eventTypeId);
+    for (let bits = highFreqBits & HIGH_FREQ_EVENT_BITS; bits !== 0; bits &= bits - 1) {
+        maybeRemoveHighFreqListener(31 - Math.clz32(bits));
     }
 }
-
-// Index where SVG tags start in TAG_NAMES array
-const SVG_TAG_START_INDEX = 140;
-
-const TAG_NAMES = [
-    'aside',
-    'fragment',
-    'iframe',
-    'slot',
-    'img',
-    'html',
-    'base',
-    'head',
-    'link',
-    'meta',
-    'script',
-    'style',
-    'title',
-    'address',
-    'article',
-    'body',
-    'h1',
-    'h6',
-    'footer',
-    'header',
-    'h2',
-    'h3',
-    'h4',
-    'h5',
-    'hgroup',
-    'nav',
-    'section',
-    'dd',
-    'dl',
-    'dt',
-    'div',
-    'figcaption',
-    'figure',
-    'hr',
-    'li',
-    'ol',
-    'ul',
-    'menu',
-    'main',
-    'p',
-    'picture',
-    'pre',
-    'a',
-    'abbr',
-    'b',
-    'bdi',
-    'bdo',
-    'br',
-    'cite',
-    'code',
-    'data',
-    'time',
-    'dfn',
-    'em',
-    'i',
-    'kbd',
-    'mark',
-    'q',
-    'blockquote',
-    'rp',
-    'ruby',
-    'rt',
-    'rtc',
-    'rb',
-    's',
-    'del',
-    'ins',
-    'samp',
-    'small',
-    'span',
-    'strong',
-    'sub',
-    'sup',
-    'u',
-    'var',
-    'wbr',
-    'area',
-    'map',
-    'audio',
-    'source',
-    'track',
-    'video',
-    'embed',
-    'object',
-    'param',
-    'canvas',
-    'noscript',
-    'caption',
-    'table',
-    'col',
-    'colgroup',
-    'tbody',
-    'tr',
-    'thead',
-    'tfoot',
-    'td',
-    'th',
-    'button',
-    'datalist',
-    'option',
-    'fieldset',
-    'label',
-    'form',
-    'input',
-    'keygen',
-    'legend',
-    'meter',
-    'optgroup',
-    'select',
-    'output',
-    'progress',
-    'textarea',
-    'details',
-    'dialog',
-    'menuitem',
-    'summary',
-    'content',
-    'element',
-    'shadow',
-    'template',
-    'acronym',
-    'applet',
-    'basefont',
-    'font',
-    'big',
-    'blink',
-    'center',
-    'command',
-    'dir',
-    'frame',
-    'frameset',
-    'isindex',
-    'listing',
-    'marquee',
-    'noembed',
-    'plaintext',
-    'spacer',
-    'strike',
-    'tt',
-    'xmp',
-    // SVG Tags
-    'animate',
-    'animateMotion',
-    'animateTransform',
-    'circle',
-    'clipPath',
-    'defs',
-    'desc',
-    'ellipse',
-    'feBlend',
-    'feColorMatrix',
-    'feComponentTransfer',
-    'feComposite',
-    'feConvolveMatrix',
-    'feDiffuseLighting',
-    'feDisplacementMap',
-    'feDistantLight',
-    'feDropShadow',
-    'feFlood',
-    'feFuncA',
-    'feFuncB',
-    'feFuncG',
-    'feFuncR',
-    'feGaussianBlur',
-    'feImage',
-    'feMerge',
-    'feMergeNode',
-    'feMorphology',
-    'feOffset',
-    'fePointLight',
-    'feSpecularLighting',
-    'feSpotLight',
-    'feTile',
-    'feTurbulence',
-    'filter',
-    'foreignObject',
-    'g',
-    'image',
-    'line',
-    'linearGradient',
-    'marker',
-    'mask',
-    'metadata',
-    'mpath',
-    'path',
-    'pattern',
-    'polygon',
-    'polyline',
-    'radialGradient',
-    'rect',
-    'set',
-    'stop',
-    'svg',
-    'switch',
-    'symbol',
-    'text',
-    'textPath',
-    'tspan',
-    'use',
-    'view',
-] as const;
-
-const DELEGATED_EVENTS = [
-    'click',
-    'dblclick',
-    'input',
-    'change',
-    'submit',
-    // focus/blur do not bubble - listen to focusin/focusout instead.
-    'focusin',
-    'focusout',
-    'keydown',
-    'keyup',
-    'keypress',
-    'mouseenter',
-    'mouseleave',
-    'mousedown',
-    'mouseup',
-    'mousemove',
-    'touchstart',
-    'touchend',
-    'touchmove',
-    'scroll',
-    'wheel',
-    'pointerdown',
-    'pointermove',
-    'pointerup',
-    'pointercancel',
-] as const;
-
-/** High-frequency events - only attach when a handler of that type exists. */
-const HIGH_FREQ_EVENT_IDS = new Set<number>([
-    DELEGATED_EVENTS.indexOf('mousemove'),
-    DELEGATED_EVENTS.indexOf('pointermove'),
-    DELEGATED_EVENTS.indexOf('wheel'),
-    DELEGATED_EVENTS.indexOf('scroll'),
-    DELEGATED_EVENTS.indexOf('touchmove'),
-].filter((id) => id >= 0));
 
 type DelegatedListenerState = {
     root: Element;
@@ -766,7 +439,7 @@ function anyHandlerForType(eventTypeId: number): boolean {
 }
 
 function maybeRemoveHighFreqListener(eventTypeId: number): void {
-    if (!HIGH_FREQ_EVENT_IDS.has(eventTypeId)) return;
+    if ((HIGH_FREQ_EVENT_BITS & (1 << eventTypeId)) === 0) return;
     if (anyHandlerForType(eventTypeId)) return;
     const state = delegationState;
     if (!state) return;
@@ -786,7 +459,7 @@ export function initEventDelegation(bridge: ZxBridge, rootSelector: string = 'bo
 
     // Always-on bubbling events (cheap). High-freq attach lazily via ensureDelegatedListener.
     for (let eventTypeId = 0; eventTypeId < DELEGATED_EVENTS.length; eventTypeId++) {
-        if (HIGH_FREQ_EVENT_IDS.has(eventTypeId)) continue;
+        if ((HIGH_FREQ_EVENT_BITS & (1 << eventTypeId)) !== 0) continue;
         ensureDelegatedListener(eventTypeId);
     }
 

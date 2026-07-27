@@ -60,6 +60,40 @@ id: zx.x.Id = .undef,
 
 const Self = @This();
 
+fn noopClientCallback(_: *anyopaque, _: zx.client.Event) void {}
+fn noopServerAction(_: *zx.server.Action) void {}
+fn noopServerEvent(_: *zx.server.Event) void {}
+
+pub fn clientStub(may_suspend: bool) Self {
+    return .{
+        .callback = &noopClientCallback,
+        .context = @as(*anyopaque, @ptrFromInt(1)),
+        .may_suspend = may_suspend,
+    };
+}
+
+pub fn serverEventStub(alloc: Allocator, bound_states: []const Bound) Self {
+    const ctx = alloc.create(Context) catch @panic("OOM");
+    ctx.* = .{ .handler_id = 0, .bound_states = bound_states };
+    return .{
+        .callback = &eventHandler,
+        .context = @ptrCast(ctx),
+        .server_event_fn = &noopServerEvent,
+        .bound_states = bound_states,
+    };
+}
+
+pub fn serverActionStub(alloc: Allocator, bound_states: []const Bound) Self {
+    const ctx = alloc.create(Context) catch @panic("OOM");
+    ctx.* = .{ .handler_id = 0, .bound_states = bound_states };
+    return .{
+        .callback = &actionHandler,
+        .context = @ptrCast(ctx),
+        .action_fn = &noopServerAction,
+        .bound_states = bound_states,
+    };
+}
+
 /// Helper to create an EventHandler from a plain function pointer (no context).
 pub fn wrap(comptime func: anytype) Self {
     const FnType = @TypeOf(func);

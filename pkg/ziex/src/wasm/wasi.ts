@@ -7,16 +7,22 @@
  * does not use jsz value-passing.
  */
 
-type FetchCompleteHandler = (fetchId: bigint, statusCode: number, bodyPtr: number, bodyLen: number, isError: number) => void;
+import {
+    CallbackType_FetchSuccess,
+    CallbackType_FetchError,
+    CallbackType_Timeout,
+    CallbackType_Interval,
+} from "./constants";
+
+type CallbackHandler = (type: number, id: bigint, a: bigint, b: bigint, c: bigint) => void;
 
 const decoder = new TextDecoder();
 const encoder = new TextEncoder();
 
 export class ZxWasiBridge {
     readonly #alloc: (size: number) => number;
-    readonly #fetchCompleteHandler: FetchCompleteHandler;
     readonly #memory: WebAssembly.Memory;
-    readonly #cb: ((type: number, id: bigint, data: bigint) => void) | undefined;
+    readonly #cb: CallbackHandler | undefined;
     readonly #intervals: Map<bigint, ReturnType<typeof setInterval>> = new Map();
 
     // Cached memory view - invalidated when the WASM buffer grows.
@@ -26,8 +32,7 @@ export class ZxWasiBridge {
     constructor(exports: WebAssembly.Exports) {
         this.#memory = exports.memory as WebAssembly.Memory;
         this.#alloc = exports.__zx_alloc as (size: number) => number;
-        this.#fetchCompleteHandler = exports.__zx_fetch_complete as FetchCompleteHandler;
-        this.#cb = exports.__zx_cb as ((type: number, id: bigint, data: bigint) => void) | undefined;
+        this.#cb = exports.__zx_cb as CallbackHandler | undefined;
     }
 
     #view(): Uint8Array {
@@ -53,6 +58,10 @@ export class ZxWasiBridge {
         const view = this.#view();
         if (start + data.length > view.byteLength) return;
         view.set(data, start);
+    }
+
+    #invoke(type: number, id: bigint, a: bigint = 0n, b: bigint = 0n, c: bigint = 0n): void {
+        this.#cb?.(type, id, a, b, c);
     }
 
     log(level: number, ptr: number, len: number): void {
@@ -113,15 +122,16 @@ export class ZxWasiBridge {
         const encoded = typeof body === 'string' ? encoder.encode(body) : body;
         const ptr = this.#alloc(encoded.length);
         this.#writeBytes(ptr, encoded);
-        this.#fetchCompleteHandler(fetchId, status, ptr, encoded.length, isError ? 1 : 0);
+        const type = isError ? CallbackType_FetchError : CallbackType_FetchSuccess;
+        this.#invoke(type, fetchId, BigInt(status), BigInt(ptr), BigInt(encoded.length));
     }
 
     setTimeout(callbackId: bigint, delayMs: number): void {
-        setTimeout(() => this.#cb?.(3 /* Timeout */, callbackId, 0n), delayMs);
+        setTimeout(() => this.#invoke(CallbackType_Timeout, callbackId), delayMs);
     }
 
     setInterval(callbackId: bigint, intervalMs: number): void {
-        const handle = setInterval(() => this.#cb?.(4 /* Interval */, callbackId, 0n), intervalMs);
+        const handle = setInterval(() => this.#invoke(CallbackType_Interval, callbackId), intervalMs);
         this.#intervals.set(callbackId, handle);
     }
 

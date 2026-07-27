@@ -780,6 +780,11 @@ fn isCustomComponent(tag: []const u8) bool {
     return tag.len > 0 and std.ascii.isUpper(tag[0]);
 }
 
+/// Hyphenated tags are web components (not ZX components / HTML enum tags).
+fn isWebComponent(tag: []const u8) bool {
+    return tag.len > 0 and !isCustomComponent(tag) and std.mem.indexOfScalar(u8, tag, '-') != null;
+}
+
 /// Extract the component display name from a tag (part after the last dot, or the full tag)
 fn componentDisplayName(tag: []const u8) []const u8 {
     if (std.mem.lastIndexOfScalar(u8, tag, '.')) |dot_pos| {
@@ -872,7 +877,7 @@ fn transpileSelfClosing(self: *Transpile, node: ts.Node, is_root: bool) !void {
     if (isCustomComponent(tag)) {
         try self.writeCustomComponent(node, tag, node.startByte(), node.endByte(), node.endByte(), attributes.items, &.{});
     } else {
-        try self.writeHtmlElement(node, tag, node.startByte(), node.endByte(), node.endByte(), attributes.items, &.{}, false);
+        try self.writeHtmlElement(node, tag, node.startByte(), node.endByte(), node.endByte(), attributes.items, &.{}, false, isWebComponent(tag));
     }
 }
 
@@ -939,8 +944,8 @@ fn transpileFullElement(self: *Transpile, node: ts.Node, is_root: bool, parent_p
     // Also inherit preserve_whitespace from parent (e.g., nested elements inside <pre>)
     const preserve_whitespace = parent_preserve_whitespace or isPreElement(tag);
 
-    // Regular HTML element (with optional whitespace preservation for <pre>)
-    try self.writeHtmlElement(node, tag, node.startByte(), end_tag_start_byte, end_tag_end_byte, attributes.items, children.items, preserve_whitespace);
+    // Regular HTML element or web component (with optional whitespace preservation for <pre>)
+    try self.writeHtmlElement(node, tag, node.startByte(), end_tag_start_byte, end_tag_end_byte, attributes.items, children.items, preserve_whitespace, isWebComponent(tag));
 }
 
 /// Write a custom component with optional client rendering metadata.
@@ -1295,8 +1300,9 @@ fn writeChildrenValue(self: *Transpile, children: []const ts.Node) !void {
 }
 
 /// Write a regular HTML element: _zx.ele(.tag, .{ ... })
+/// Web components: _zx.ele(.custom, .{ .custom_tag = "my-button", ... })
 /// When preserve_whitespace is true (e.g. for <pre>), text nodes won't be trimmed
-fn writeHtmlElement(self: *Transpile, node: ts.Node, tag: []const u8, tag_name_byte: u32, end_tag_start_byte: u32, end_tag_end_byte: u32, attributes: []const ZxAttribute, children: []const ts.Node, preserve_whitespace: bool) !void {
+fn writeHtmlElement(self: *Transpile, node: ts.Node, tag: []const u8, tag_name_byte: u32, end_tag_start_byte: u32, end_tag_end_byte: u32, attributes: []const ZxAttribute, children: []const ts.Node, preserve_whitespace: bool, is_web_component: bool) !void {
     const in_function = isInFunction(node);
     // _zx.ele( is synthesized - no source mapping
     try self.print("{s}.ele", .{self.zx_name});
@@ -1314,13 +1320,24 @@ fn writeHtmlElement(self: *Transpile, node: ts.Node, tag: []const u8, tag_name_b
     try self.addMapping(end_tag_start_byte);
     try self.writeM(".", tag_name_byte);
     try self.addMapping(end_tag_start_byte);
-    try self.writeM(tag, tag_name_byte);
+    if (is_web_component) {
+        try self.writeM("custom", tag_name_byte);
+    } else {
+        try self.writeM(tag, tag_name_byte);
+    }
     try self.writeM(",\n", end_tag_start_byte);
 
     // Write options struct
     try self.writeIndent();
     try self.write(".{\n");
     self.indent_level += 1;
+
+    if (is_web_component) {
+        try self.writeIndent();
+        try self.write(".custom_tag = \"");
+        try self.escapeZigString(tag);
+        try self.write("\",\n");
+    }
 
     try self.writeAttributes(attributes, in_function);
 

@@ -31,14 +31,20 @@ pub fn getEvent(self: Event) client.Event {
 }
 
 pub fn preventDefault(self: Event) void {
+    if (platform_role != .client) return;
+
     self.getEvent().preventDefault();
 }
 
 pub fn stopPropagation(self: Event) void {
+    if (platform_role != .client) return;
+
     self.getEvent().stopPropagation();
 }
 
 pub fn stopImmediatePropagation(self: Event) void {
+    if (platform_role != .client) return;
+
     self.getEvent().stopImmediatePropagation();
 }
 

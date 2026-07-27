@@ -1,5 +1,6 @@
 const html_util = @import("../../util/html.zig");
 const vdom = @import("../core/vdom.zig");
+const dom_cmd = @import("dom_cmd.zig");
 
 pub const RenderOptions = struct {
     base_path: ?[]const u8 = base_path,
@@ -34,22 +35,21 @@ pub fn applyPatches(
                     setAttrOrProp(data.vnode_id, name, val);
                 }
                 for (data.removed_attributes.items) |name| {
-                    ext._ra(data.vnode_id, name.ptr, name.len);
+                    dom_cmd.removeAttr(data.vnode_id, name);
                     // For DOM properties, also reset the property to ensure
                     // the live state is updated (e.g. unchecking a checkbox).
                     if (isDomProperty(name)) {
-                        const false_val = "false";
-                        ext._sp(data.vnode_id, name.ptr, name.len, false_val.ptr, false_val.len);
+                        dom_cmd.setProp(data.vnode_id, name, "false");
                     }
                 }
             },
             .TEXT => {
                 const data = patch.data.TEXT;
-                ext._snv(data.vnode_id, data.new_text.ptr, data.new_text.len);
+                dom_cmd.setNodeValue(data.vnode_id, data.new_text);
             },
             .RAW_HTML => {
                 const data = patch.data.RAW_HTML;
-                ext._srh(data.vnode_id, data.html.ptr, data.html.len);
+                dom_cmd.setInnerHtml(data.vnode_id, data.html);
             },
             .PLACEMENT => {
                 const data = &patch.data.PLACEMENT;
@@ -73,9 +73,9 @@ pub fn applyPatches(
                         break :blk findChildInsertReference(client, data.parent_id, data.index);
                     };
                     if (ref_id) |reference_id| {
-                        ext._ib(dom_parent_id, data.vnode.id, reference_id);
+                        dom_cmd.insertBefore(dom_parent_id, data.vnode.id, reference_id);
                     } else {
-                        ext._ac(dom_parent_id, data.vnode.id);
+                        dom_cmd.appendChild(dom_parent_id, data.vnode.id);
                     }
                 }
 
@@ -90,7 +90,7 @@ pub fn applyPatches(
 
                 if (!is_fragment) {
                     const dom_parent_id = resolveDomParentId(client, data.parent_id);
-                    ext._rc(dom_parent_id, data.vnode_id);
+                    dom_cmd.removeChild(dom_parent_id, data.vnode_id);
                 }
 
                 if (client.getVElementById(data.vnode_id)) |vnode| {
@@ -117,14 +117,14 @@ pub fn applyPatches(
                 if (old_is_fragment) {
                     const ref_id = findFragmentInsertReference(client, data.old_vnode_id, 0);
                     if (ref_id) |reference_id| {
-                        ext._ib(dom_parent_id, data.new_vnode.id, reference_id);
+                        dom_cmd.insertBefore(dom_parent_id, data.new_vnode.id, reference_id);
                     } else {
-                        ext._ac(dom_parent_id, data.new_vnode.id);
+                        dom_cmd.appendChild(dom_parent_id, data.new_vnode.id);
                     }
                 } else if (vnodeIsFragment(client, data.new_vnode.id)) {
-                    ext._rc(dom_parent_id, data.old_vnode_id);
+                    dom_cmd.removeChild(dom_parent_id, data.old_vnode_id);
                 } else {
-                    ext._rpc(dom_parent_id, data.new_vnode.id, data.old_vnode_id);
+                    dom_cmd.replaceChild(dom_parent_id, data.new_vnode.id, data.old_vnode_id);
                 }
 
                 if (client.getVElementById(data.old_vnode_id)) |old_vnode| {
@@ -148,9 +148,9 @@ pub fn applyPatches(
 
                 const ref_id = data.reference_id orelse findFragmentInsertReference(client, data.parent_id, data.new_index);
                 if (ref_id) |reference_id| {
-                    ext._ib(dom_parent_id, data.vnode_id, reference_id);
+                    dom_cmd.insertBefore(dom_parent_id, data.vnode_id, reference_id);
                 } else {
-                    ext._ac(dom_parent_id, data.vnode_id);
+                    dom_cmd.appendChild(dom_parent_id, data.vnode_id);
                 }
 
                 if (client.getVElementById(data.parent_id)) |parent_vnode| {
@@ -248,12 +248,12 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
 
     const root_id: ?u64 = switch (resolved_component) {
         .none => blk: {
-            ext._ct("".ptr, 0, vnode.id);
+            dom_cmd.createText("", vnode.id);
             try attachCreatedNodeIfNeeded(vnode.id, options);
             break :blk vnode.id;
         },
         .text => |t| blk: {
-            ext._ct(t.ptr, t.len, vnode.id);
+            dom_cmd.createText(t, vnode.id);
             try attachCreatedNodeIfNeeded(vnode.id, options);
             break :blk vnode.id;
         },
@@ -271,7 +271,15 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                 break :blk null;
             }
 
-            ext._ce(@intFromEnum(elem.tag), vnode.id);
+            if (elem.tag == .custom) {
+                if (elem.custom_tag) |name| {
+                    dom_cmd.createElementNamed(@intFromEnum(elem.tag), name, vnode.id);
+                } else {
+                    dom_cmd.createElement(@intFromEnum(zx.ElementTag.div), vnode.id);
+                }
+            } else {
+                dom_cmd.createElement(@intFromEnum(elem.tag), vnode.id);
+            }
             if (elem.attributes) |attrs| {
                 var has_action_handler = false;
                 var has_method = false;
@@ -298,7 +306,6 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
 
                     // Prefix href/src/action attributes with base_path when applicable
                     var final_val = val;
-                    var prefixed_val: ?[]const u8 = null;
                     if (options.base_path) |bp| {
                         const normalized = html_util.normalizeBasePathForPrefixing(bp);
                         if (normalized) |nb| {
@@ -306,12 +313,12 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                                 std.mem.eql(u8, attr_name, "src") or
                                 std.mem.eql(u8, attr_name, "action");
                             if (is_prefixable and html_util.shouldPrefixPathWithBasePath(nb, val)) {
-                                prefixed_val = try std.mem.concat(allocator, u8, &.{ nb, val });
-                                final_val = prefixed_val.?;
+                                // Owned by DomCmdBuffer until flush.
+                                const prefixed = try std.mem.concat(allocator, u8, &.{ nb, val });
+                                final_val = dom_cmd.takeOwnedActive(prefixed);
                             }
                         }
                     }
-                    defer if (prefixed_val) |pv| allocator.free(pv);
 
                     setAttrOrProp(vnode.id, attr_name, final_val);
                 }
@@ -319,12 +326,8 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                 // Mimic Next.js: auto-inject method="post" enctype="multipart/form-data"
                 // on form elements with a server action handler
                 if (elem.tag == .form and has_action_handler and !has_method) {
-                    const method = "method";
-                    const post = "post";
-                    ext._sa(vnode.id, method.ptr, method.len, post.ptr, post.len);
-                    const enctype_key = "enctype";
-                    const enctype_val = "multipart/form-data";
-                    ext._sa(vnode.id, enctype_key.ptr, enctype_key.len, enctype_val.ptr, enctype_val.len);
+                    dom_cmd.setAttr(vnode.id, "method", "post");
+                    dom_cmd.setAttr(vnode.id, "enctype", "multipart/form-data");
                 }
 
                 // Register onsubmit: server actions POST; client actions run handler.callback locally
@@ -363,7 +366,9 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                     }
                 }
                 const raw = aw.written();
-                ext._srh(vnode.id, raw.ptr, raw.len);
+                // Copy so the slice survives `aw.deinit` until DomCmd flush.
+                const kept = try dom_cmd.dupeActive(allocator, raw);
+                dom_cmd.setInnerHtml(vnode.id, kept);
                 try attachCreatedNodeIfNeeded(vnode.id, options);
                 break :blk vnode.id;
             }
@@ -384,7 +389,7 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                     _ = try createPlatformNodes(allocator, child, client, frag_options);
                 } else {
                     _ = try createPlatformNodes(allocator, child, client, child_options);
-                    ext._ac(vnode.id, child.id);
+                    dom_cmd.appendChild(vnode.id, child.id);
                 }
             }
 
@@ -393,9 +398,9 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
         },
         .component_csr => |csr| blk: {
             // CSR islands: plain <div id="..." data-name="..."> placeholder.
-            ext._ce(@intFromEnum(zx.ElementTag.div), vnode.id);
-            ext._sa(vnode.id, "id".ptr, "id".len, csr.id.ptr, csr.id.len);
-            ext._sa(vnode.id, "data-name".ptr, "data-name".len, csr.name.ptr, csr.name.len);
+            dom_cmd.createElement(@intFromEnum(zx.ElementTag.div), vnode.id);
+            dom_cmd.setAttr(vnode.id, "id", csr.id);
+            dom_cmd.setAttr(vnode.id, "data-name", csr.name);
             break :blk vnode.id;
         },
         .component_fn => unreachable,
@@ -424,15 +429,15 @@ fn isDomProperty(name: []const u8) bool {
 
 fn setAttrOrProp(vnode_id: u64, name: []const u8, val: []const u8) void {
     if (isDomProperty(name)) {
-        ext._sp(vnode_id, name.ptr, name.len, val.ptr, val.len);
+        dom_cmd.setProp(vnode_id, name, val);
     } else {
-        ext._sa(vnode_id, name.ptr, name.len, val.ptr, val.len);
+        dom_cmd.setAttr(vnode_id, name, val);
     }
 }
 
 fn attachCreatedNodeIfNeeded(vnode_id: u64, options: RenderOptions) !void {
     if (options.dom_parent_id) |parent_id| {
-        ext._ac(parent_id, vnode_id);
+        dom_cmd.appendChild(parent_id, vnode_id);
     }
 }
 

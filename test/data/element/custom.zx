@@ -1,0 +1,12 @@
+pub fn Page(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <my-widget class="hero">
+                <span>Hello CE</span>
+            </my-widget>
+            <x-button label="Go" />
+        </main>
+    );
+}
+
+const zx = @import("zx");

@@ -280,6 +280,8 @@ pub const Element = struct {
     };
 
     tag: ElementTag,
+    /// Set when `tag == .custom` (hyphenated web component name).
+    custom_tag: ?[]const u8 = null,
     children: ?[]const Component = null,
     attributes: ?[]const Element.Attribute = null,
 
@@ -287,4 +289,10 @@ pub const Element = struct {
     rendering: ?BuiltinAttribute.Rendering = .server,
     async: ?BuiltinAttribute.Async = .sync,
     fallback: ?*const Component = null,
+
+    /// HTML/DOM tag name used for createElement / SSR.
+    pub fn htmlTagName(self: Element) []const u8 {
+        if (self.tag == .custom) return self.custom_tag orelse "div";
+        return @tagName(self.tag);
+    }
 };

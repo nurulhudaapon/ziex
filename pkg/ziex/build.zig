@@ -18,6 +18,14 @@ pub fn build(b: *std.Build) !void {
 
     const feature_defines = featureDefines(b, feat_kv_client, feat_kv_server, feat_sqlite);
 
+    // --- Codegen (manual only; committed outputs live under src/wasm/generated/) --- //
+    const tags_gen = addTagsCodegen(b);
+    const events_gen = addEventsCodegen(b);
+    const tagsgen_step = b.step("tagsgen", "Regenerate src/wasm/generated/tags.ts from ElementTag");
+    tagsgen_step.dependOn(&tags_gen.step);
+    const eventsgen_step = b.step("delegatedeventsgen", "Regenerate src/wasm/generated/events.ts from EventType");
+    eventsgen_step.dependOn(&events_gen.step);
+
     // --- JS bundles (esbuild) --- //
     const packages = esbuild.addBuild(b, .{
         .name = "ziex",
@@ -66,7 +74,6 @@ pub fn build(b: *std.Build) !void {
             }, feature_defines),
         },
     });
-
     const dist_files = b.addNamedWriteFiles("ziex_js");
 
     // --- App init files --- //
@@ -117,6 +124,56 @@ fn featureDefines(
         .{ .key = "__FEAT_KV_SERVER__", .value = if (feat_kv_server) "true" else "false" },
         .{ .key = "__FEAT_DB__", .value = if (feat_sqlite) "true" else "false" },
     }) catch @panic("OOM");
+}
+
+/// Regenerate `src/wasm/generated/tags.ts` from `src/element.zig` `Tag` enum.
+fn addTagsCodegen(b: *std.Build) *std.Build.Step.Run {
+    const host = b.graph.host;
+    const gen_exe = b.addExecutable(.{
+        .name = "gen_tags",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/gen_tags.zig"),
+            .target = host,
+            .optimize = .Debug,
+            .imports = &.{
+                .{ .name = "element", .module = b.createModule(.{
+                    .root_source_file = b.path("../../src/element.zig"),
+                    .target = host,
+                    .optimize = .Debug,
+                }) },
+            },
+        }),
+    });
+    const run = b.addRunArtifact(gen_exe);
+    run.setCwd(b.path("."));
+    run.addArg("src/wasm/generated/tags.ts");
+    run.addArg("src/wasm/generated/tag_indices.ts");
+    return run;
+}
+
+/// Regenerate `src/wasm/generated/events.ts` from `EventType`.
+fn addEventsCodegen(b: *std.Build) *std.Build.Step.Run {
+    const host = b.graph.host;
+    const gen_exe = b.addExecutable(.{
+        .name = "gen_delegated_events",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tools/gen_delegated_events.zig"),
+            .target = host,
+            .optimize = .Debug,
+            .imports = &.{
+                .{ .name = "event_type", .module = b.createModule(.{
+                    .root_source_file = b.path("../../src/runtime/client/event_type.zig"),
+                    .target = host,
+                    .optimize = .Debug,
+                }) },
+            },
+        }),
+    });
+    const run = b.addRunArtifact(gen_exe);
+    run.setCwd(b.path("."));
+    run.addArg("src/wasm/generated/events.ts");
+    run.addArg("src/wasm/generated/event_bits.ts");
+    return run;
 }
 
 fn mergeDefines(

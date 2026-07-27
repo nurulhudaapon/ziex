@@ -334,7 +334,15 @@ pub fn areComponentsSameType(old: zx.Component, new: zx.Component) bool {
     switch (old) {
         .none => return new == .none,
         .element => |old_elem| switch (new) {
-            .element => |new_elem| return old_elem.tag == new_elem.tag,
+            .element => |new_elem| {
+                if (old_elem.tag != new_elem.tag) return false;
+                if (old_elem.tag == .custom) {
+                    const a = old_elem.custom_tag orelse "";
+                    const b = new_elem.custom_tag orelse "";
+                    return std.mem.eql(u8, a, b);
+                }
+                return true;
+            },
             else => return false,
         },
         .text => switch (new) {

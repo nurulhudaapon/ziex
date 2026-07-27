@@ -11,6 +11,9 @@ pub const Tag = enum {
         return std.mem.indexOfScalar(Tag, NO_CHILDREN_ONLY, tag) != null;
     }
 
+    /// First SVG tag in enum order; JS DomCmd uses this as `SVG_TAG_START_INDEX`.
+    pub const svg_start: Tag = .animate;
+
     aside,
     fragment,
     iframe,
@@ -211,4 +214,7 @@ pub const Tag = enum {
     tspan,
     use,
     view,
+
+    /// Custom element / web component. Real tag name is `Element.custom_tag`.
+    custom,
 };

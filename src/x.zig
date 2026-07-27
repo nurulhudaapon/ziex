@@ -31,6 +31,8 @@ const Options = struct {
     fallback: ?*const Component = null,
     caching: ?BuiltinAttribute.Caching = null,
     client: ?ComponentClientOptions = null,
+    /// Real tag name when `tag == .custom` (web components).
+    custom_tag: ?[]const u8 = null,
     /// The component's display name (e.g. "FeatureCard"), emitted by the
     /// transpiler. This is authoritative: `@src().fn_name` cannot be used here
     /// because it resolves to the enclosing function, not the component.
@@ -85,6 +87,7 @@ const Context = struct {
         _ = self.getAlloc();
         return .{ .element = .{
             .tag = tag,
+            .custom_tag = options.custom_tag,
             .children = options.children,
             .attributes = options.attributes,
             .escaping = options.escaping,

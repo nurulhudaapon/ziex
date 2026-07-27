@@ -10,6 +10,7 @@ const app_opts = @import("app_opts");
 
 const window = @import("window.zig");
 const vtree_mod = @import("render.zig");
+const dom_cmd = @import("dom_cmd.zig");
 const core_vdom = @import("../core/vdom.zig");
 const reactivity = @import("reactivity.zig");
 
@@ -21,6 +22,8 @@ const Document = window.Document;
 const Console = window.Console;
 const areComponentsSameType = vtree_mod.areComponentsSameType;
 const js = window.js;
+
+pub const EventType = @import("event_type.zig").EventType;
 
 pub const ComponentMeta = struct {
     type: zx.BuiltinAttribute.Rendering,
@@ -113,42 +116,6 @@ pub const ComponentMeta = struct {
     }
 };
 
-pub const EventType = enum(u8) {
-    click,
-    dblclick,
-    input,
-    change,
-    submit,
-    focus,
-    blur,
-    keydown,
-    keyup,
-    keypress,
-    mouseenter,
-    mouseleave,
-    mousedown,
-    mouseup,
-    mousemove,
-    touchstart,
-    touchend,
-    touchmove,
-    scroll,
-    wheel,
-    pointerdown,
-    pointermove,
-    pointerup,
-    pointercancel,
-    pointerenter,
-    pointerleave,
-    lostpointercapture,
-
-    /// `"onclick"` → `.click`
-    pub fn fromAttributeName(name: []const u8) ?EventType {
-        if (name.len < 3 or !std.mem.startsWith(u8, name, "on")) return null;
-        return std.meta.stringToEnum(EventType, name[2..]);
-    }
-};
-
 const HandlerKey = struct {
     velement_id: u64,
     event_type: EventType,
@@ -162,6 +129,8 @@ vtrees: std.StringHashMap(VDOMTree),
 id_to_velement: std.AutoHashMap(u64, *vtree_mod.VElement),
 handler_registry: std.AutoHashMap(HandlerKey, zx.EventHandler),
 handler_bits: std.AutoHashMap(u64, u32),
+/// Reused across renders to retain DomCmd capacity.
+dom_cmds: dom_cmd.DomCmdBuffer,
 
 /// Active component during `render` (for ComponentCtx / ifpl subscriptions).
 var current_render_id: []const u8 = "";
@@ -180,6 +149,7 @@ pub fn init(allocator: std.mem.Allocator, _: InitOptions) Client {
         .id_to_velement = std.AutoHashMap(u64, *vtree_mod.VElement).init(allocator),
         .handler_registry = std.AutoHashMap(HandlerKey, zx.EventHandler).init(allocator),
         .handler_bits = std.AutoHashMap(u64, u32).init(allocator),
+        .dom_cmds = dom_cmd.DomCmdBuffer.init(allocator),
     };
 }
 
@@ -192,6 +162,7 @@ pub fn deinit(self: *Client) void {
     self.id_to_velement.deinit();
     self.handler_registry.deinit();
     self.handler_bits.deinit();
+    self.dom_cmds.deinit();
 }
 
 pub fn run() !void {
@@ -244,6 +215,13 @@ pub fn render(self: *Client, cmp: ComponentMeta) !void {
     core_vdom.current_component_owner = cmp.id;
     const Component = cmp.import(allocator, cmp.name, marker.props_zon);
     reactivity.active_component_id = null;
+
+    // Batch all DOM mutations for this render into one `__zx._flush`.
+    const prev_cmds = dom_cmd.activate(&self.dom_cmds);
+    defer {
+        self.dom_cmds.flush();
+        dom_cmd.deactivate(prev_cmds);
+    }
 
     const existing_vtree = self.vtrees.getPtr(cmp.id);
 
@@ -393,15 +371,6 @@ export fn __zx_eventbridge(velement_id: u64, event_type_id: u8, event_ref: u64) 
 
 export fn __zx_eventbridge_async(velement_id: u64, event_type_id: u8, event_ref: u64) void {
     __zx_eventbridge(velement_id, event_type_id, event_ref);
-}
-
-/// JS bridge for setTimeout / setInterval / fetch callbacks.
-export fn __zx_cb(callback_type: u8, callback_id: u64, data_ref: u64) void {
-    if (comptime !is_wasm) return;
-    const alloc = if (comptime is_wasm) std.heap.wasm_allocator else @as(std.mem.Allocator, undefined);
-
-    const cb_type: window.CallbackType = @enumFromInt(callback_type);
-    _ = window.dispatchCallback(cb_type, callback_id, data_ref, alloc);
 }
 
 /// Browser `std.log` sink via `__zx._log`.

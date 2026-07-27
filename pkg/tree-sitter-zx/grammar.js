@@ -89,7 +89,8 @@ module.exports = grammar(zig, {
     ),
 
     // HTML tag name (e.g., div, main, button, CustomComponent, icons.GitHub)
-    zx_tag_name: _$ => /[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)*/,
+    // HTML tags, ZX components (Uppercase / ns.Name), and web components (my-widget).
+    zx_tag_name: _$ => /[a-zA-Z_][a-zA-Z0-9_-]*(\.[a-zA-Z_][a-zA-Z0-9_-]*)*/,
 
     // HTML/ZX attributes
     zx_attribute: $ => choice(
@@ -151,14 +152,10 @@ module.exports = grammar(zig, {
       $.zx_template_string,
     ),
 
-    // Zig expression inside braces: {expr, expr}
+    // Zig expression inside braces: {expr}
     zx_expression_block: $ => seq(
       '{',
-      optional(seq(
-        $.expression,
-        repeat(seq(',', $.expression)),
-        optional(','),
-      )),
+      field('expression', $.expression),
       '}',
     ),
 

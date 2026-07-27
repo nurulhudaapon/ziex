@@ -1,39 +1,5 @@
-// DOM
-/// Create element into the JS `domNodes` registry (keyed by vnode_id).
-pub extern "__zx" fn _ce(id: usize, vnode_id: u64) void;
-
-/// Create text node into the JS `domNodes` registry (keyed by vnode_id).
-pub extern "__zx" fn _ct(ptr: [*]const u8, len: usize, vnode_id: u64) void;
-
-/// Insert vnode before a jsz-held end comment (hydration).
-pub extern "__zx" fn _ih(vnode_id: u64, end_comment_ref: u64) void;
-
-/// setAttribute on the element identified by vnode_id.
-pub extern "__zx" fn _sa(vnode_id: u64, name_ptr: [*]const u8, name_len: usize, val_ptr: [*]const u8, val_len: usize) void;
-
-/// Set property
-pub extern "__zx" fn _sp(vnode_id: u64, name_ptr: [*]const u8, name_len: usize, val_ptr: [*]const u8, val_len: usize) void;
-
-/// removeAttribute on the element identified by vnode_id.
-pub extern "__zx" fn _ra(vnode_id: u64, name_ptr: [*]const u8, name_len: usize) void;
-
-/// Set nodeValue on the text node identified by vnode_id.
-pub extern "__zx" fn _snv(vnode_id: u64, ptr: [*]const u8, len: usize) void;
-
-/// Set innerHTML
-pub extern "__zx" fn _srh(vnode_id: u64, ptr: [*]const u8, len: usize) void;
-
-/// parent.appendChild(child)
-pub extern "__zx" fn _ac(parent_id: u64, child_id: u64) void;
-
-/// parent.insertBefore(child, ref)
-pub extern "__zx" fn _ib(parent_id: u64, child_id: u64, ref_id: u64) void;
-
-/// parent.removeChild(child)
-pub extern "__zx" fn _rc(parent_id: u64, child_id: u64) void;
-
-/// parent.replaceChild(new_child, old_child)
-pub extern "__zx" fn _rpc(parent_id: u64, new_id: u64, old_id: u64) void;
+/// Apply a packed DomCmd buffer written in WASM linear memory.
+pub extern "__zx" fn _flush(ptr: [*]const u8, len: usize) void;
 
 // Async / timer
 pub extern "__zx" fn _setTimeout(callback_id: u64, delay_ms: u32) void;

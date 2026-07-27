@@ -657,7 +657,6 @@ pub const HandleOptions = struct {
     method: zx.server.Request.Method,
     allocator: std.mem.Allocator,
     arena: std.mem.Allocator,
-    /// Process I/O passed to `App.init` by the user.
     io: std.Io,
     base_path: ?[]const u8 = null,
     /// App context pointer (native server). WASI passes null.

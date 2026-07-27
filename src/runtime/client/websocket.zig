@@ -129,8 +129,8 @@ fn getWsId(ws: *WebSocket) ?u64 {
     return null;
 }
 
-/// Called by JS when WebSocket connection opens
-export fn __zx_ws_onopen(ws_id: u64, protocol_ptr: [*]const u8, protocol_len: usize) void {
+/// Called via `__zx_cb` when WebSocket connection opens
+pub fn onOpen(ws_id: u64, protocol_ptr: [*]const u8, protocol_len: usize) void {
     const ws = getWebSocketById(ws_id) orelse {
         if (comptime is_wasm) {
             if (protocol_len > 0) std.heap.wasm_allocator.free(protocol_ptr[0..protocol_len]);
@@ -148,8 +148,8 @@ export fn __zx_ws_onopen(ws_id: u64, protocol_ptr: [*]const u8, protocol_len: us
     ws._handleOpen();
 }
 
-/// Called by JS when a text message is received
-export fn __zx_ws_onmessage(ws_id: u64, data_ptr: [*]const u8, data_len: usize, is_binary: u8) void {
+/// Called via `__zx_cb` when a text/binary message is received
+pub fn onMessage(ws_id: u64, data_ptr: [*]const u8, data_len: usize, is_binary: u8) void {
     const ws = getWebSocketById(ws_id) orelse {
         if (comptime is_wasm) {
             if (data_len > 0) std.heap.wasm_allocator.free(data_ptr[0..data_len]);
@@ -169,8 +169,8 @@ export fn __zx_ws_onmessage(ws_id: u64, data_ptr: [*]const u8, data_len: usize, 
     }
 }
 
-/// Called by JS when an error occurs
-export fn __zx_ws_onerror(ws_id: u64, msg_ptr: [*]const u8, msg_len: usize) void {
+/// Called via `__zx_cb` when an error occurs
+pub fn onError(ws_id: u64, msg_ptr: [*]const u8, msg_len: usize) void {
     const ws = getWebSocketById(ws_id) orelse {
         if (comptime is_wasm) {
             if (msg_len > 0) std.heap.wasm_allocator.free(msg_ptr[0..msg_len]);
@@ -184,8 +184,8 @@ export fn __zx_ws_onerror(ws_id: u64, msg_ptr: [*]const u8, msg_len: usize) void
     ws._handleError(.{ .message = msg_ptr[0..msg_len] });
 }
 
-/// Called by JS when connection closes
-export fn __zx_ws_onclose(ws_id: u64, code: u16, reason_ptr: [*]const u8, reason_len: usize, was_clean: u8) void {
+/// Called via `__zx_cb` when connection closes
+pub fn onClose(ws_id: u64, code: u16, reason_ptr: [*]const u8, reason_len: usize, was_clean: u8) void {
     const ws = getWebSocketById(ws_id) orelse {
         if (comptime is_wasm) {
             if (reason_len > 0) std.heap.wasm_allocator.free(reason_ptr[0..reason_len]);

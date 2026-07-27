@@ -241,6 +241,17 @@ pub fn build(b: *std.Build) !void {
         events_gen_step.dependOn(&events_gen_run.step);
     }
 
+    // --- Steps: Tags / delegated events TS Generator (pkg/ziex) --- //
+    {
+        const tags_gen_step = b.step("tagsgen", "Regenerate pkg/ziex TAG_NAMES + DELEGATED_EVENTS");
+        const tags_cmd = b.addSystemCommand(&.{ b.graph.zig_exe, "build", "tagsgen" });
+        tags_cmd.setCwd(b.path("pkg/ziex"));
+        tags_gen_step.dependOn(&tags_cmd.step);
+        const events_cmd = b.addSystemCommand(&.{ b.graph.zig_exe, "build", "delegatedeventsgen" });
+        events_cmd.setCwd(b.path("pkg/ziex"));
+        tags_gen_step.dependOn(&events_cmd.step);
+    }
+
     // --- Steps: HTML Docs Generator --- //
     {
         const html_docs_gen_step = b.step("htmldocsgen", "Generate HTML element/attribute docs from webref");
