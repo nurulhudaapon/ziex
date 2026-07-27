@@ -26,6 +26,7 @@ import { createLocalStorageKV } from "./kv/localstorage";
 
 export type BrowserKVOptions = IndexedDbKVOptions & {
     storagePrefix?: string;
+    forceLocalStorage?: boolean;
 };
 
 export function hasJSPI(): boolean {
@@ -38,7 +39,8 @@ export function hasJSPI(): boolean {
 /** Prefer IndexedDB when JSPI is available, otherwise localStorage. */
 export function createBrowserKVBindings(options: BrowserKVOptions = {}): Record<string, KVNamespace> {
     const namespace = options.namespace ?? "default";
+    const isIndexedDb = hasJSPI() && !options.forceLocalStorage;
     return {
-        [namespace]: hasJSPI() ? createIndexedDbKV(options) : createLocalStorageKV(options),
+        [namespace]: isIndexedDb ? createIndexedDbKV(options) : createLocalStorageKV(options),
     };
 }
