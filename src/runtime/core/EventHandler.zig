@@ -373,7 +373,7 @@ pub fn actionStateful(
 ) Self {
     const ActionWrap = struct {
         fn wrap(ctx: *zx.server.Action) void {
-            const sc = zx.StateContext.init(ctx.allocator, ctx.arena, ctx._internal.inputs orelse &.{}) orelse return;
+            const sc = zx.StateContext.init(ctx.arena, ctx._internal.inputs orelse &.{}) orelse return;
             ctx._internal.state_ctx = sc;
             var sf = zx.server.Action.Stateful{ .inner = ctx };
             handler(&sf);
@@ -453,7 +453,7 @@ fn makeServerWrap(
 ) fn (*zx.server.Event) void {
     return struct {
         fn wrap(ctx: *zx.server.Event) void {
-            const sc = zx.StateContext.init(ctx.allocator, ctx.arena, ctx._internal.payload.states) orelse return;
+            const sc = zx.StateContext.init(ctx.arena, ctx._internal.payload.states) orelse return;
             ctx._internal.state_ctx = sc;
             call(ctx, sc, handler);
         }

@@ -21,8 +21,12 @@ pub const ProxyContext = struct {
     arena: Allocator,
     io: std.Io,
 
-    _aborted: bool = false,
-    _state_ptr: ?*const anyopaque = null,
+    _internal: Internal = .{},
+
+    pub const Internal = struct {
+        aborted: bool = false,
+        state_ptr: ?*const anyopaque = null,
+    };
 
     pub fn init(request: Request, response: Response, allocator: Allocator, arena: Allocator, io: std.Io) ProxyContext {
         return .{ .request = request, .response = response, .allocator = allocator, .arena = arena, .io = io };
@@ -32,11 +36,11 @@ pub const ProxyContext = struct {
         const T = @TypeOf(value);
         const ptr = self.arena.create(T) catch return;
         ptr.* = value;
-        self._state_ptr = @ptrCast(ptr);
+        self._internal.state_ptr = @ptrCast(ptr);
     }
 
     pub fn abort(self: *ProxyContext) void {
-        self._aborted = true;
+        self._internal.aborted = true;
     }
 
     pub fn next(self: *ProxyContext) void {
@@ -44,7 +48,7 @@ pub const ProxyContext = struct {
     }
 
     pub fn isAborted(self: *const ProxyContext) bool {
-        return self._aborted;
+        return self._internal.aborted;
     }
 };
 
@@ -221,7 +225,7 @@ fn actionBind(comptime handler: anytype, alloc: Allocator, ctx: anytype) zx.Even
         const FormActionWrapper = struct {
             fn wrap(action_ctx_ptr: *ActionContext) void {
                 const inputs = action_ctx_ptr._internal.inputs orelse &.{};
-                const sc = StateContext.init(action_ctx_ptr.arena, action_ctx_ptr.arena, inputs) orelse return;
+                const sc = StateContext.init(action_ctx_ptr.arena, inputs) orelse return;
                 action_ctx_ptr._internal.state_ctx = sc;
                 if (comptime arg0 == ActionContext) {
                     handler(action_ctx_ptr.*, sc);

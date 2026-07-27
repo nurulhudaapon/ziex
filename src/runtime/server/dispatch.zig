@@ -46,7 +46,7 @@ fn parseActionId(request: zx.server.Request) !u32 {
 
 fn serializeStateOutputs(sc: anytype, allocator: std.mem.Allocator) !?[]u8 {
     var aw = std.Io.Writer.Allocating.init(allocator);
-    try zx.util.zxon.serialize(sc._outputs, &aw.writer, .{});
+    try zx.util.zxon.serialize(sc._internal.outputs, &aw.writer, .{});
     return aw.written();
 }
 
@@ -153,7 +153,7 @@ pub fn dispatchServerEvent(
             ._internal = .{ .payload = payload },
         };
         ef(&event_ctx);
-        const body = if (event_ctx._internal.state_ctx) |sc| try serializeStateOutputs(sc, allocator) else null;
+        const body = if (event_ctx._internal.state_ctx) |sc| try serializeStateOutputs(sc, arena) else null;
         return .{ .ok = .{ .body = body } };
     } else return .not_found;
 }

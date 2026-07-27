@@ -111,20 +111,20 @@ pub fn executeProxyChain(
     for (proxies[0..count]) |proxy_fn| {
         proxy_fn(&proxy_ctx) catch {};
         if (proxy_ctx.isAborted()) {
-            return .{ .aborted = true, .state_ptr = proxy_ctx._state_ptr };
+            return .{ .aborted = true, .state_ptr = proxy_ctx._internal.state_ptr };
         }
     }
 
     // Execute local proxy (page_proxy or route_proxy). Returns updated ProxyResult.
     if (local_proxy) |proxy_fn| {
-        proxy_ctx._state_ptr = proxy_ctx._state_ptr;
+        proxy_ctx._internal.state_ptr = proxy_ctx._internal.state_ptr;
         proxy_fn(&proxy_ctx) catch {};
         if (proxy_ctx.isAborted()) {
-            return .{ .aborted = true, .state_ptr = proxy_ctx._state_ptr };
+            return .{ .aborted = true, .state_ptr = proxy_ctx._internal.state_ptr };
         }
     }
 
-    return .{ .aborted = false, .state_ptr = proxy_ctx._state_ptr };
+    return .{ .aborted = false, .state_ptr = proxy_ctx._internal.state_ptr };
 }
 
 /// Registry for server actions and events (for streaming and event dispatch)
@@ -392,11 +392,11 @@ pub fn executeCascadingProxies(
     for (proxies[0..count]) |proxy_fn| {
         proxy_fn(&proxy_ctx) catch {};
         if (proxy_ctx.isAborted()) {
-            return .{ .aborted = true, .state_ptr = proxy_ctx._state_ptr };
+            return .{ .aborted = true, .state_ptr = proxy_ctx._internal.state_ptr };
         }
     }
 
-    return .{ .aborted = false, .state_ptr = proxy_ctx._state_ptr };
+    return .{ .aborted = false, .state_ptr = proxy_ctx._internal.state_ptr };
 }
 
 /// Execute a single local proxy (page_proxy or route_proxy). Returns updated ProxyResult.
@@ -409,12 +409,12 @@ pub fn executeLocalProxy(
     io: std.Io,
 ) ProxyResult {
     var proxy_ctx = zx.ProxyContext.init(req, res, arena, arena, io);
-    proxy_ctx._state_ptr = parent_result.state_ptr;
+    proxy_ctx._internal.state_ptr = parent_result.state_ptr;
     proxy_fn(&proxy_ctx) catch {};
     if (proxy_ctx.isAborted()) {
-        return .{ .aborted = true, .state_ptr = proxy_ctx._state_ptr };
+        return .{ .aborted = true, .state_ptr = proxy_ctx._internal.state_ptr };
     }
-    return .{ .aborted = false, .state_ptr = proxy_ctx._state_ptr };
+    return .{ .aborted = false, .state_ptr = proxy_ctx._internal.state_ptr };
 }
 
 /// Apply layout hierarchy for a matched route.

@@ -45,8 +45,12 @@ test.describe('Ziex Playground', () => {
 
   test('Add New File', async ({ page }) => {
     await page.goto('/playground');
-    page.once('dialog', async dialog => {
-      await dialog.accept('test.zx');
+    // Static HTML includes the add-file button before editor.js attaches its handler.
+    // Wait until Run is enabled so the module init (and addFile listener) has finished.
+    await expect(page.getByRole('button', { name: 'Run' })).toBeEnabled({ timeout: 60_000 });
+    // Handler must be registered before click; prompt() blocks click until accept/dismiss.
+    page.once('dialog', dialog => {
+      void dialog.accept('test.zx');
     });
     await page.getByRole('button', { name: /Add new file/ }).click();
     await expect(page.getByRole('button', { name: /test\.zx/ })).toBeVisible();
