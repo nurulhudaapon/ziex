@@ -1,4 +1,4 @@
-import { createLocalStorageKV } from "../../../../pkg/ziex/src/runtime/kv";
+import { get, put, del, list } from "../../../../pkg/ziex/src/runtime/kv/localstorage";
 import { init } from "../../../../pkg/ziex/src/wasm";
 
 const HOST_STORAGE_KEY = "zx-devtool-host-v2";
@@ -9,7 +9,7 @@ const PATH_STORAGE_KEY = "zx-devtool-path-v1";
 // from synchronous wasm contexts — including onclick handlers that are not
 // `promising`-wrapped — where a suspending KV import would trap and silently
 // drop the write (e.g. the "Show Native Elements" toggle not persisting).
-const kvBindings = { default: createLocalStorageKV() };
+const kvBindings = { default: { get, put, del, list } };
 const defaultKV = kvBindings.default;
 
 function persistLocation(origin: string, pathname: string): boolean {

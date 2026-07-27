@@ -6,7 +6,8 @@ import { bindWasmAlloc, type WasmAllocRef } from "../../wasm/core";
 import { createWasiImports } from "../../runtime/wasi";
 import { buildWsImports, attachWebSocket } from "../../runtime";
 import type { WsState } from "../../runtime";
-import { createMemoryKV, type KVNamespace } from "../../runtime/kv";
+import type { KVNamespace } from "../../runtime/kv";
+import { get, put, del, list } from "../../runtime/kv/memory";
 import type { Database } from "../../runtime/db";
 
 type ConnState = WsState & { topics: Set<string> };
@@ -135,7 +136,7 @@ export function createWebSocketDO(
             };
             if (typeof __FEAT_KV_SERVER__ === "undefined" || __FEAT_KV_SERVER__) {
                 importObject.__zx_kv = createKVImports(
-                    kvBindings ?? { default: createMemoryKV() },
+                    kvBindings ?? { default: { get, put, del, list } },
                     mem,
                     allocRef,
                 );

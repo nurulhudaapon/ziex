@@ -1,4 +1,5 @@
 export function isRemoteStaticDeploy(): boolean {
+  return false;
   const base = process.env.BASE_URL;
   if (!base) return false;
   try {

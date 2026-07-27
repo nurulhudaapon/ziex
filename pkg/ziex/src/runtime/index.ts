@@ -5,7 +5,8 @@ import { createDbImports } from "./db/extern";
 import { bindWasmAlloc, type WasmAllocRef } from "../wasm/core";
 import { createWasiImports, ProcExit, mergeUint8Arrays } from "./wasi";
 import type { WASI } from "./wasi";
-import { createMemoryKV, type KVNamespace } from "./kv";
+import type { KVNamespace } from "./kv";
+import { get, put, del, list } from "./kv/memory";
 import type { Database } from "./db";
 
 /** Minimal Durable Object namespace shape needed for WebSocket routing. */
@@ -287,7 +288,7 @@ export async function run({
     };
     if (typeof __FEAT_KV_SERVER__ === "undefined" || __FEAT_KV_SERVER__) {
         importObject.__zx_kv = createKVImports(
-            kvBindings ?? { default: createMemoryKV() },
+            kvBindings ?? { default: { get, put, del, list } },
             mem,
             allocRef,
         );

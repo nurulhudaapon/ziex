@@ -1,5 +1,7 @@
 /**
- * Cloudflare KV implements the generic {@link KVNamespace} binding.
+ * Cloudflare KV can be used as a {@link KVNamespace} binding
+ * (`delete` is accepted as `del` by the host imports).
  */
-export { createMemoryKV, createKVImports } from "../../runtime/kv";
+export { createKVImports } from "../../runtime/kv";
 export type { KVNamespace } from "../../runtime/kv";
+export { get, put, del, list } from "../../runtime/kv/memory";
