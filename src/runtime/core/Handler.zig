@@ -57,6 +57,29 @@ pub fn executeNotFoundProxy(pathname: []const u8, request: Request, response: Re
     return Router.executeProxyChain(pathname, null, request, response, arena, io);
 }
 
+fn pageMethodAllowed(route: *const Route, method: Request.Method) bool {
+    const methods = if (route.page_opts) |opts| opts.methods else &[_]zx.PageOptions.Method{.GET};
+    for (methods) |m| {
+        if (pageMethodEquals(m, method)) return true;
+    }
+    return false;
+}
+
+fn pageMethodEquals(page_method: zx.PageOptions.Method, method: Request.Method) bool {
+    return switch (page_method) {
+        .GET => method == .GET,
+        .POST => method == .POST,
+        .PUT => method == .PUT,
+        .DELETE => method == .DELETE,
+        .PATCH => method == .PATCH,
+        .OPTIONS => method == .OPTIONS,
+        .HEAD => method == .HEAD,
+        .CONNECT => method == .CONNECT,
+        .TRACE => method == .TRACE,
+        .ALL => true,
+    };
+}
+
 /// Handle a page request.
 ///
 /// Performs action/event dispatch, renders the page component, applies
@@ -101,6 +124,8 @@ pub fn handlePage(
         .not_found => return .event_not_found,
         .page_error => |err| return .{ .page_error = err },
     }
+
+    if (!pageMethodAllowed(route, request.method)) return .not_found;
 
     // -- Render page --
     render.current_route_path = route.path;

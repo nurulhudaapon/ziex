@@ -52,7 +52,7 @@ fn formatImageSrc(ctx: zx.PageContext) ?[]const u8 {
 }
 
 pub const options = zx.PageOptions{
-    .methods = &.{.POST},
+    .methods = &.{.GET, .POST},
 };
 
 const max_file_bytes: usize = 1_048_576 - (1024 * 10);
