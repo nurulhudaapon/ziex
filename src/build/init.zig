@@ -62,7 +62,6 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         .base_path = null,
         .site_path = b.path("app"),
         .cli_path = null,
-        .site_outdir = null,
         .steps = .default,
         .client = client,
         .static_path = options.static_path,
@@ -101,7 +100,6 @@ const InitInnerOptions = struct {
     site_path: LazyPath,
     base_path: ?[]const u8,
     cli_path: ?LazyPath,
-    site_outdir: ?LazyPath,
     steps: InitOptions.CliOptions.Steps,
     features: InitOptions.AppOptions.FeatureOptions = .default,
     client: InitOptions.ClientOptions,
@@ -122,17 +120,6 @@ pub fn getZxRun(b: *std.Build, zx_exe: *std.Build.Step.Compile, opts: InitInnerO
     }
 
     return b.addRunArtifact(zx_exe);
-}
-
-fn getTranspileOutdir(transpile_cmd: *std.Build.Step.Run, opts: InitInnerOptions) std.Build.LazyPath {
-    if (opts.site_outdir) |site_outdir| {
-        transpile_cmd.addDirectoryArg(site_outdir);
-        return site_outdir;
-    }
-
-    // if user didn't provide a path, they don't want to keep transpiled output
-    // this will put the transpiled output in .zig-cache/o/{HASH}/app
-    return transpile_cmd.addOutputDirectoryArg("app");
 }
 
 fn moduleRequiresLibCRec(module: *std.Build.Module, visited: *std.AutoHashMap(*std.Build.Module, void)) !bool {
@@ -279,13 +266,14 @@ pub fn initInner(
     const assetsdir = static_lazypath.path(b, "assets");
 
     // --- ZX Transpilation ---
+    const transpile_store = b.graph.path(.local_cache, "ziex").path(b, "tnsn");
     const transpile_cmd = getZxRun(b, zx_exe, opts);
     transpile_cmd.setName("translate-zx");
     transpile_cmd.addArg("transpile");
     transpile_cmd.addDirectoryArg(opts.site_path);
     // transpile_cmd.addArg("--verbose");
     transpile_cmd.addArg("--outdir");
-    const transpile_outdir = getTranspileOutdir(transpile_cmd, opts);
+    transpile_cmd.addDirectoryArg(transpile_store);
     transpile_cmd.addArg("--dep-file");
     _ = transpile_cmd.addDepFileOutputArg("transpile.d");
     if (opts.base_path) |bp| {
@@ -294,9 +282,8 @@ pub fn initInner(
     // Always generate inlined sourcemaps so dev mode can remap errors to .zx files
     transpile_cmd.addArgs(&.{ "--map", "inline" });
     // Persistent transpile cache (mtime + Transpile.shape); survives zig-cache invalidation.
-    // TODO: Instead of using named zx_transpile path, figure out a way to use persistent outputDirectoryArg
     transpile_cmd.addArgs(&.{"--cache-dir"});
-    transpile_cmd.addDirectoryArg(b.graph.path(.local_cache, "ziex").path(b, "tnsn"));
+    transpile_cmd.addDirectoryArg(transpile_store);
     transpile_cmd.expectExitCode(0);
 
     const uses_local_bindings = opts.client.bindings.href == null;
@@ -444,7 +431,7 @@ pub fn initInner(
 
     // Inject the real generated app module into zx and directly into the user's root module
     const app_module = b.createModule(.{
-        .root_source_file = transpile_outdir.path(b, "app.zig"),
+        .root_source_file = transpile_store.path(b, "app.zig"),
         .imports = meta_imports.items,
     });
     app_module.addImport("app", app_module);
@@ -513,7 +500,7 @@ pub fn initInner(
     try wasm_app_imports.append(.{ .name = "zx", .module = wasm_app_module });
 
     wasm_app_module.addAnonymousImport("app", .{
-        .root_source_file = transpile_outdir.path(b, "app.zig"),
+        .root_source_file = transpile_store.path(b, "app.zig"),
         .imports = wasm_app_imports.items,
     });
     wasm_app_module.addOptions("app_opts", app_opts);
@@ -633,7 +620,7 @@ pub fn initInner(
         .cmd = .{
             .transpile = transpile_cmd,
         },
-        .outdir = transpile_outdir,
+        .outdir = transpile_store,
         .assetsdir = assetsdir,
         .cli = .{
             .exe = zx_exe,

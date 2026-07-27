@@ -1,19 +1,28 @@
+const Render = @This();
+
 const std = @import("std");
 const ts = @import("tree_sitter");
+
 const Parse = @import("Parse.zig");
-const log = std.log.scoped(.@"zx/render");
+
 const Ast = Parse.Parse;
 const NodeKind = Parse.NodeKind;
 
-pub const FormatContext = struct {
-    indent_level: u32 = 0,
-    in_block: bool = false,
-    suppress_leading_space: bool = false,
+ast: *Ast,
+allocator: std.mem.Allocator,
+indent_level: u32 = 0,
+in_block: bool = false,
+suppress_leading_space: bool = false,
 
-    fn writeIndent(self: *FormatContext, w: *std.Io.Writer) !void {
-        for (0..self.indent_level * 4) |_| try w.writeAll(" ");
-    }
-};
+pub fn init(ast: *Ast, allocator: std.mem.Allocator) Render {
+    return .{ .ast = ast, .allocator = allocator };
+}
+
+pub fn deinit(_: *Render) void {}
+
+fn writeIndent(self: *Render, w: *std.Io.Writer) !void {
+    for (0..self.indent_level * 4) |_| try w.writeAll(" ");
+}
 
 pub const ExtractBlockResult = struct {
     zx_blocks: []const []const u8,
@@ -163,9 +172,9 @@ pub fn patchInBlocks(allocator: std.mem.Allocator, extract_result: ExtractBlockR
                 var block_writer = std.Io.Writer.Allocating.init(allocator);
                 defer block_writer.deinit();
                 const root = block_ast.tree.rootNode();
-                var ctx = FormatContext{};
-                ctx.indent_level = base_indent;
-                try renderNodeWithContext(&block_ast, root, &block_writer.writer, &ctx);
+                var block_renderer = Render.init(&block_ast, allocator);
+                block_renderer.indent_level = base_indent;
+                try block_renderer.renderNode(root, &block_writer.writer);
                 const formatted_block = block_writer.written();
 
                 try result.appendSlice(allocator, formatted_block);
@@ -207,101 +216,82 @@ fn getIndentationLevel(source: []const u8, pos: usize) u32 {
     return spaces / 4;
 }
 
-pub fn renderNode(self: *Ast, node: ts.Node, w: *std.Io.Writer) !void {
-    // Check if this is the root node - if so, do extraction/Zig formatting/patching
-    const root = self.tree.rootNode();
-    const is_root = node.startByte() == root.startByte() and
-        node.endByte() == root.endByte();
+pub fn run(self: *Render, w: *std.Io.Writer) !void {
+    const node = self.ast.tree.rootNode();
 
-    if (is_root) {
-        const allocator = self.allocator;
+    var extract_result = try extractBlocks(self.allocator, self.ast);
+    defer extract_result.deinit(self.allocator);
 
-        // First extract zx_blocks and replace with placeholders
-        var extract_result = try extractBlocks(allocator, self);
-        defer extract_result.deinit(allocator);
+    var zig_ast = try std.zig.Ast.parse(self.allocator, extract_result.zig_source, .{ .mode = .zig });
+    defer zig_ast.deinit(self.allocator);
 
-        // Format the Zig code with placeholders
-        var zig_ast = try std.zig.Ast.parse(allocator, extract_result.zig_source, .{ .mode = .zig });
-        defer zig_ast.deinit(allocator);
-
-        if (zig_ast.errors.len > 0) {
-            // If Zig parsing fails, fall back to direct rendering
-            var ctx = FormatContext{};
-            try renderNodeWithContext(self, node, w, &ctx);
-            return;
-        }
-
-        const formatted_zig = try zig_ast.renderAlloc(allocator);
-        defer allocator.free(formatted_zig);
-
-        // Free old zig_source and replace with formatted
-        allocator.free(extract_result.zig_source);
-        extract_result.zig_source = try allocator.dupeSentinel(u8, formatted_zig, 0);
-
-        // Patch in formatted zx_blocks
-        const final_result = try patchInBlocks(allocator, extract_result);
-        defer allocator.free(final_result);
-
-        try w.writeAll(final_result);
+    if (zig_ast.errors.len > 0) {
+        try self.renderNode(node, w);
         return;
     }
 
-    // For non-root nodes, render directly
-    var ctx = FormatContext{};
-    try renderNodeWithContext(self, node, w, &ctx);
+    const formatted_zig = try zig_ast.renderAlloc(self.allocator);
+    defer self.allocator.free(formatted_zig);
+
+    self.allocator.free(extract_result.zig_source);
+    extract_result.zig_source = try self.allocator.dupeSentinel(u8, formatted_zig, 0);
+
+    const final_result = try patchInBlocks(self.allocator, extract_result);
+    defer self.allocator.free(final_result);
+
+    try w.writeAll(final_result);
 }
 
-pub fn renderNodeWithContext(
-    self: *Ast,
+fn renderNode(
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) anyerror!void {
     const node_kind = NodeKind.fromNode(node);
 
     // Track if we're entering a zx_block
-    const was_in_zx_block = ctx.in_block;
+    const was_in_zx_block = self.in_block;
     if (node_kind == .zx_block) {
-        ctx.in_block = true;
+        self.in_block = true;
     }
     defer if (node_kind == .zx_block) {
-        ctx.in_block = was_in_zx_block;
+        self.in_block = was_in_zx_block;
     };
 
     // If not in zx_block, render Zig code as-is
-    if (!ctx.in_block) {
-        try renderSourceWithChildren(self, node, w, ctx);
+    if (!self.in_block) {
+        try renderSourceWithChildren(self, node, w);
         return;
     }
 
     // We're in zx_block - apply formatting
     switch (node_kind) {
         .zx_block => {
-            try renderBlock(self, node, w, ctx);
+            try renderBlock(self, node, w);
         },
         .zx_element => {
-            try renderElement(self, node, w, ctx);
+            try renderElement(self, node, w);
         },
         .zx_self_closing_element => {
-            try renderSelfClosingElement(self, node, w, ctx);
+            try renderSelfClosingElement(self, node, w);
         },
         .zx_fragment => {
-            try renderFragment(self, node, w, ctx);
+            try renderFragment(self, node, w);
         },
         .zx_start_tag => {
-            try renderStartTag(self, node, w, ctx);
+            try renderStartTag(self, node, w);
         },
         .zx_end_tag => {
             try renderEndTag(self, node, w);
         },
         .zx_text => {
-            try renderText(self, node, w, ctx);
+            try renderText(self, node, w);
         },
         .zx_child => {
-            try renderChild(self, node, w, ctx);
+            try renderChild(self, node, w);
         },
         .zx_expression_block => {
-            try renderExpressionBlock(self, node, w, ctx);
+            try renderExpressionBlock(self, node, w);
         },
         .zx_template_string => {
             // Template strings are rendered as-is from source
@@ -313,25 +303,24 @@ pub fn renderNodeWithContext(
             try renderComment(self, node, w);
         },
         else => {
-            try renderSourceWithChildren(self, node, w, ctx);
+            try renderSourceWithChildren(self, node, w);
         },
     }
 }
 
 /// Render the source text with recursive child handling
 fn renderSourceWithChildren(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) !void {
     const start_byte = node.startByte();
     const end_byte = node.endByte();
     const child_count = node.childCount();
 
     if (child_count == 0) {
-        if (start_byte < end_byte and end_byte <= self.source.len) {
-            try w.writeAll(self.source[start_byte..end_byte]);
+        if (start_byte < end_byte and end_byte <= self.ast.source.len) {
+            try w.writeAll(self.ast.source[start_byte..end_byte]);
         }
         return;
     }
@@ -343,50 +332,25 @@ fn renderSourceWithChildren(
         const child_start = child.startByte();
         const child_end = child.endByte();
 
-        if (current_pos < child_start and child_start <= self.source.len) {
-            try w.writeAll(self.source[current_pos..child_start]);
+        if (current_pos < child_start and child_start <= self.ast.source.len) {
+            try w.writeAll(self.ast.source[current_pos..child_start]);
         }
 
-        try renderNodeWithContext(self, child, w, ctx);
+        try self.renderNode(child, w);
         current_pos = child_end;
     }
 
-    if (current_pos < end_byte and end_byte <= self.source.len) {
-        try w.writeAll(self.source[current_pos..end_byte]);
+    if (current_pos < end_byte and end_byte <= self.ast.source.len) {
+        try w.writeAll(self.ast.source[current_pos..end_byte]);
     }
 }
 
-/// Calculate source indentation level at a given byte offset
-fn getSourceIndentLevel(source: []const u8, byte_offset: usize) u32 {
-    // Find the start of the line containing this offset
-    var line_start = byte_offset;
-    while (line_start > 0 and source[line_start - 1] != '\n') {
-        line_start -= 1;
-    }
-
-    // Count leading spaces
-    var spaces: u32 = 0;
-    var pos = line_start;
-    while (pos < byte_offset and pos < source.len) {
-        if (source[pos] == ' ') {
-            spaces += 1;
-        } else if (source[pos] == '\t') {
-            spaces += 4;
-        } else {
-            break;
-        }
-        pos += 1;
-    }
-
-    return spaces / 4;
-}
 
 /// Render zx_block: ( <element> )
 fn renderBlock(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) !void {
     const child_count = node.childCount();
     var element_node: ?ts.Node = null;
@@ -406,7 +370,7 @@ fn renderBlock(
     }
 
     // Use the context's indent level as the base (set by patchInZxBlocks)
-    const base_indent = ctx.indent_level;
+    const base_indent = self.indent_level;
 
     try w.writeAll("(");
 
@@ -414,23 +378,23 @@ fn renderBlock(
         // Check if element is multiline (has newlines in source)
         const elem_start = elem.startByte();
         const elem_end = elem.endByte();
-        const is_multiline = if (elem_start < elem_end and elem_end <= self.source.len)
-            std.mem.indexOf(u8, self.source[elem_start..elem_end], "\n") != null
+        const is_multiline = if (elem_start < elem_end and elem_end <= self.ast.source.len)
+            std.mem.indexOf(u8, self.ast.source[elem_start..elem_end], "\n") != null
         else
             false;
 
         if (is_multiline) {
             try w.writeAll("\n");
             // Set indent to base + 1 for the element
-            ctx.indent_level = base_indent + 1;
-            try ctx.writeIndent(w);
-            try renderNodeWithContext(self, elem, w, ctx);
+            self.indent_level = base_indent + 1;
+            try self.writeIndent(w);
+            try self.renderNode(elem, w);
             // Closing paren at base indent level
-            ctx.indent_level = base_indent;
+            self.indent_level = base_indent;
             try w.writeAll("\n");
-            try ctx.writeIndent(w);
+            try self.writeIndent(w);
         } else {
-            try renderNodeWithContext(self, elem, w, ctx);
+            try self.renderNode(elem, w);
         }
     }
 
@@ -439,10 +403,9 @@ fn renderBlock(
 
 /// Render zx_fragment: <>...</>
 fn renderFragment(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) !void {
     const child_count = node.childCount();
     var content_nodes = std.ArrayList(ts.Node).empty;
@@ -460,7 +423,7 @@ fn renderFragment(
     }
 
     try w.writeAll("<>");
-    ctx.suppress_leading_space = false;
+    self.suppress_leading_space = false;
 
     // Check if we have meaningful content
     const has_meaningful_content = blk: {
@@ -479,8 +442,8 @@ fn renderFragment(
         // Check for newlines in the fragment
         const elem_start = node.startByte();
         const elem_end = node.endByte();
-        if (elem_start < elem_end and elem_end <= self.source.len) {
-            if (std.mem.indexOf(u8, self.source[elem_start..elem_end], "\n") != null) {
+        if (elem_start < elem_end and elem_end <= self.ast.source.len) {
+            if (std.mem.indexOf(u8, self.ast.source[elem_start..elem_end], "\n") != null) {
                 break :blk true;
             }
         }
@@ -488,7 +451,7 @@ fn renderFragment(
     };
 
     if (is_vertical) {
-        ctx.indent_level += 1;
+        self.indent_level += 1;
     }
 
     // Render content
@@ -496,7 +459,7 @@ fn renderFragment(
     var last_content_end: usize = node.startByte() + 2; // After "<>"
     for (content_nodes.items) |child| {
         // Calculate newline count between last content and this child
-        const newline_count = countNewlines(self.source, last_content_end, child.startByte());
+        const newline_count = countNewlines(self.ast.source, last_content_end, child.startByte());
 
         // Check if child has meaningful content
         // In inline mode (or if on same line in vertical mode), also consider spaces-only as meaningful
@@ -510,22 +473,22 @@ fn renderFragment(
             if (newline_count > 1 and rendered_any) {
                 try w.writeAll("\n");
             }
-            try ctx.writeIndent(w);
-            ctx.suppress_leading_space = true;
+            try self.writeIndent(w);
+            self.suppress_leading_space = true;
         }
 
-        try renderChildInner(self, child, w, ctx, !is_vertical or newline_count == 0);
-        ctx.suppress_leading_space = false;
+        try renderChildInner(self, child, w, !is_vertical or newline_count == 0);
+        self.suppress_leading_space = false;
         last_content_end = child.endByte();
         rendered_any = true;
     }
 
     if (is_vertical and rendered_any) {
-        ctx.indent_level -= 1;
+        self.indent_level -= 1;
         try w.writeAll("\n");
-        try ctx.writeIndent(w);
+        try self.writeIndent(w);
     } else if (is_vertical) {
-        ctx.indent_level -= 1;
+        self.indent_level -= 1;
     }
 
     try w.writeAll("</>");
@@ -533,10 +496,9 @@ fn renderFragment(
 
 /// Render zx_element: <tag>content</tag>
 fn renderElement(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) !void {
     const child_count = node.childCount();
     var start_tag_node: ?ts.Node = null;
@@ -560,8 +522,8 @@ fn renderElement(
 
     // Render start tag
     if (start_tag_node) |st| {
-        try renderStartTag(self, st, w, ctx);
-        ctx.suppress_leading_space = false;
+        try renderStartTag(self, st, w);
+        self.suppress_leading_space = false;
     }
 
     // - If there's whitespace/newline between start tag and first content -> vertical
@@ -581,7 +543,7 @@ fn renderElement(
                     const gc = child.child(j) orelse continue;
                     const gck = NodeKind.fromNode(gc);
                     if (gck == .zx_text) {
-                        const text = self.source[gc.startByte()..gc.endByte()];
+                        const text = self.ast.source[gc.startByte()..gc.endByte()];
                         if (std.mem.trim(u8, text, &std.ascii.whitespace).len > 0) {
                             break :blk true;
                         }
@@ -601,8 +563,8 @@ fn renderElement(
         // This is similar to how fragments check for multiline content
         const start_tag_end = if (start_tag_node) |st| st.endByte() else node.startByte();
         const end_tag_start = if (end_tag_node) |et| et.startByte() else node.endByte();
-        if (start_tag_end < end_tag_start and end_tag_start <= self.source.len) {
-            if (std.mem.indexOf(u8, self.source[start_tag_end..end_tag_start], "\n") != null) {
+        if (start_tag_end < end_tag_start and end_tag_start <= self.ast.source.len) {
+            if (std.mem.indexOf(u8, self.ast.source[start_tag_end..end_tag_start], "\n") != null) {
                 break :blk true;
             }
         }
@@ -610,7 +572,7 @@ fn renderElement(
     };
 
     if (is_vertical) {
-        ctx.indent_level += 1;
+        self.indent_level += 1;
     }
 
     // Render content - skip whitespace-only children
@@ -620,7 +582,7 @@ fn renderElement(
         const child_kind = NodeKind.fromNode(child);
         if (child_kind == .zx_child) {
             // Calculate newline count between last content and this child
-            const newline_count = countNewlines(self.source, last_content_end, child.startByte());
+            const newline_count = countNewlines(self.ast.source, last_content_end, child.startByte());
 
             // Check if child has meaningful content
             // In inline mode (or if on same line in vertical mode), also consider spaces-only as meaningful
@@ -635,16 +597,16 @@ fn renderElement(
                 if (newline_count > 1 and rendered_any) {
                     try w.writeAll("\n");
                 }
-                try ctx.writeIndent(w);
-                ctx.suppress_leading_space = true;
+                try self.writeIndent(w);
+                self.suppress_leading_space = true;
             }
-            try renderChildInner(self, child, w, ctx, !is_vertical or newline_count == 0);
-            ctx.suppress_leading_space = false; // Reset just in case
+            try renderChildInner(self, child, w, !is_vertical or newline_count == 0);
+            self.suppress_leading_space = false; // Reset just in case
             last_content_end = child.endByte();
             rendered_any = true;
         } else if (child_kind == .comment) {
             // Comments need proper newline handling like zx_child
-            const newline_count = countNewlines(self.source, last_content_end, child.startByte());
+            const newline_count = countNewlines(self.ast.source, last_content_end, child.startByte());
 
             // Comments should always be on their own line in vertical mode
             if (is_vertical and (!rendered_any or newline_count > 0)) {
@@ -653,25 +615,25 @@ fn renderElement(
                 if (newline_count > 1 and rendered_any) {
                     try w.writeAll("\n");
                 }
-                try ctx.writeIndent(w);
+                try self.writeIndent(w);
             }
-            try renderNodeWithContext(self, child, w, ctx);
+            try self.renderNode(child, w);
             last_content_end = child.endByte();
             rendered_any = true;
         } else {
-            try renderNodeWithContext(self, child, w, ctx);
+            try self.renderNode(child, w);
             last_content_end = child.endByte();
             rendered_any = true;
         }
     }
 
     if (is_vertical and rendered_any) {
-        ctx.indent_level -= 1;
+        self.indent_level -= 1;
         try w.writeAll("\n");
-        try ctx.writeIndent(w);
-        ctx.suppress_leading_space = true; // End tag starts on new line
+        try self.writeIndent(w);
+        self.suppress_leading_space = true; // End tag starts on new line
     } else if (is_vertical) {
-        ctx.indent_level -= 1;
+        self.indent_level -= 1;
     }
 
     // Render end tag
@@ -682,27 +644,26 @@ fn renderElement(
 
 /// Render self-closing element: <Tag attr="value" />
 fn renderSelfClosingElement(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) !void {
     try w.writeAll("<");
 
     // Tag name
     const tag_name_node = node.childByFieldName("name");
     if (tag_name_node) |name_node| {
-        const tag_name_text = try self.getNodeText(name_node);
+        const tag_name_text = try self.ast.getNodeText(name_node);
         try w.writeAll(tag_name_text);
     }
 
     // Attributes
     var multiline_close = false;
-    try renderAttributesFromNode(self, node, w, ctx, &multiline_close);
+    try renderAttributesFromNode(self, node, w, &multiline_close);
 
     if (multiline_close) {
         try w.writeAll("\n");
-        try ctx.writeIndent(w);
+        try self.writeIndent(w);
         try w.writeAll("/>");
     } else {
         try w.writeAll(" />");
@@ -711,27 +672,26 @@ fn renderSelfClosingElement(
 
 /// Render start tag: <tag attrs>
 fn renderStartTag(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) !void {
     try w.writeAll("<");
 
     // Tag name
     const tag_name_node = node.childByFieldName("name");
     if (tag_name_node) |name_node| {
-        const tag_name_text = try self.getNodeText(name_node);
+        const tag_name_text = try self.ast.getNodeText(name_node);
         try w.writeAll(tag_name_text);
     }
 
     // Attributes
     var multiline_close = false;
-    try renderAttributesFromNode(self, node, w, ctx, &multiline_close);
+    try renderAttributesFromNode(self, node, w, &multiline_close);
 
     if (multiline_close) {
         try w.writeAll("\n");
-        try ctx.writeIndent(w);
+        try self.writeIndent(w);
         try w.writeAll(">");
     } else {
         try w.writeAll(">");
@@ -740,7 +700,7 @@ fn renderStartTag(
 
 /// Render end tag: </tag>
 fn renderEndTag(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
 ) !void {
@@ -752,7 +712,7 @@ fn renderEndTag(
         const child = node.child(i) orelse continue;
         const child_kind = NodeKind.fromNode(child);
         if (child_kind == .zx_tag_name) {
-            const tag_name = try self.getNodeText(child);
+            const tag_name = try self.ast.getNodeText(child);
             try w.writeAll(tag_name);
             break;
         }
@@ -765,24 +725,23 @@ fn renderEndTag(
 /// Collapses multiple consecutive whitespace to a single space while
 /// preserving leading/trailing single spaces (for inline text with expressions)
 fn renderText(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) !void {
     const start_byte = node.startByte();
     const end_byte = node.endByte();
-    if (start_byte >= end_byte or end_byte > self.source.len) return;
+    if (start_byte >= end_byte or end_byte > self.ast.source.len) return;
 
-    const text = self.source[start_byte..end_byte];
+    const text = self.ast.source[start_byte..end_byte];
     const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
 
     if (trimmed.len == 0) {
         // If text is only spaces (no newlines/tabs), collapse to single space
         // If it contains newlines or tabs, skip it (layout whitespace)
         const has_newline_or_tab = std.mem.indexOfAny(u8, text, "\n\r\t") != null;
-        if (!has_newline_or_tab and text.len > 0 and !ctx.suppress_leading_space) try w.writeAll(" ");
-        ctx.suppress_leading_space = false;
+        if (!has_newline_or_tab and text.len > 0 and !self.suppress_leading_space) try w.writeAll(" ");
+        self.suppress_leading_space = false;
         return;
     }
 
@@ -794,7 +753,7 @@ fn renderText(
     // Determine if we should print a space
     var should_print_space = false;
     if (has_leading_ws) {
-        if (ctx.suppress_leading_space) {
+        if (self.suppress_leading_space) {
             // If we are at the start of a line, check if the whitespace is just indentation
             // or if it contains explicit spaces beyond the expected indentation.
 
@@ -808,7 +767,7 @@ fn renderText(
                 spaces_after_nl = leading_ws.len;
             }
 
-            const expected_indent = ctx.indent_level * 4;
+            const expected_indent = self.indent_level * 4;
 
             // If we have more spaces than expected indentation, preserve one space
             if (spaces_after_nl > expected_indent) {
@@ -828,7 +787,7 @@ fn renderText(
     if (should_print_space) {
         try w.writeAll(" ");
     }
-    ctx.suppress_leading_space = false;
+    self.suppress_leading_space = false;
 
     // Write the trimmed content (no internal whitespace normalization for now)
     try w.writeAll(trimmed);
@@ -855,30 +814,30 @@ fn renderText(
 /// Render template string: `text {expr} more text`
 /// Template strings are rendered as-is from source, preserving their format
 fn renderTemplateString(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
 ) !void {
     const start_byte = node.startByte();
     const end_byte = node.endByte();
-    if (start_byte >= end_byte or end_byte > self.source.len) return;
+    if (start_byte >= end_byte or end_byte > self.ast.source.len) return;
 
     // Write the template string exactly as it appears in source
-    try w.writeAll(self.source[start_byte..end_byte]);
+    try w.writeAll(self.ast.source[start_byte..end_byte]);
 }
 
 /// Render comment: // ...
 /// Comments are rendered trimmed of leading whitespace since indentation is handled by the caller
 fn renderComment(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
 ) !void {
     const start_byte = node.startByte();
     const end_byte = node.endByte();
-    if (start_byte >= end_byte or end_byte > self.source.len) return;
+    if (start_byte >= end_byte or end_byte > self.ast.source.len) return;
 
-    const comment_text = self.source[start_byte..end_byte];
+    const comment_text = self.ast.source[start_byte..end_byte];
     // Trim leading whitespace (indentation is handled separately)
     const trimmed = std.mem.trimStart(u8, comment_text, &std.ascii.whitespace);
     try w.writeAll(trimmed);
@@ -898,7 +857,7 @@ fn countNewlines(source: []const u8, start: usize, end: usize) usize {
 }
 
 /// Check if a child node has meaningful (non-whitespace) content
-fn hasMeaningfulContent(self: *Ast, node: ts.Node) bool {
+fn hasMeaningfulContent(self: *Render, node: ts.Node) bool {
     const child_count = node.childCount();
     if (child_count == 0) return false;
 
@@ -907,7 +866,7 @@ fn hasMeaningfulContent(self: *Ast, node: ts.Node) bool {
         const child = node.child(i) orelse continue;
         const child_kind = NodeKind.fromNode(child);
         if (child_kind == .zx_text) {
-            const text = self.getNodeText(child) catch continue;
+            const text = self.ast.getNodeText(child) catch continue;
             const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
 
             if (trimmed.len > 0) {
@@ -923,8 +882,8 @@ fn hasMeaningfulContent(self: *Ast, node: ts.Node) bool {
 }
 
 /// Check if a text node contains only inline spaces (no newlines or tabs)
-fn hasInlineSpacesOnly(self: *Ast, node: ts.Node) bool {
-    const text = self.getNodeText(node) catch return false;
+fn hasInlineSpacesOnly(self: *Render, node: ts.Node) bool {
+    const text = self.ast.getNodeText(node) catch return false;
     const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
     if (trimmed.len > 0) return false; // Has content, not spaces-only
 
@@ -935,20 +894,18 @@ fn hasInlineSpacesOnly(self: *Ast, node: ts.Node) bool {
 
 /// Render zx_child node
 fn renderChild(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) !void {
-    try renderChildInner(self, node, w, ctx, false);
+    try renderChildInner(self, node, w, false);
 }
 
 /// Render zx_child node with option to preserve inline spaces
 fn renderChildInner(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
     preserve_inline_spaces: bool,
 ) !void {
     const child_count = node.childCount();
@@ -963,16 +920,15 @@ fn renderChildInner(
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
         const child = node.child(i) orelse continue;
-        try renderNodeWithContext(self, child, w, ctx);
+        try self.renderNode(child, w);
     }
 }
 
 /// Render expression block: {expr} or control flow
 fn renderExpressionBlock(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) anyerror!void {
     const child_count = node.childCount();
 
@@ -984,19 +940,19 @@ fn renderExpressionBlock(
 
         switch (child_kind) {
             .if_expression => {
-                try renderIfExpression(self, child, w, ctx);
+                try renderIfExpression(self, child, w);
                 return;
             },
             .for_expression => {
-                try renderForExpression(self, child, w, ctx);
+                try renderForExpression(self, child, w);
                 return;
             },
             .while_expression => {
-                try renderWhileExpression(self, child, w, ctx);
+                try renderWhileExpression(self, child, w);
                 return;
             },
             .switch_expression => {
-                try renderSwitchExpression(self, child, w, ctx);
+                try renderSwitchExpression(self, child, w);
                 return;
             },
             else => {},
@@ -1006,8 +962,8 @@ fn renderExpressionBlock(
     // Simple expression - render source as-is (keeps original braces and format)
     const start_byte = node.startByte();
     const end_byte = node.endByte();
-    if (start_byte < end_byte and end_byte <= self.source.len) {
-        const text = self.source[start_byte..end_byte];
+    if (start_byte < end_byte and end_byte <= self.ast.source.len) {
+        const text = self.ast.source[start_byte..end_byte];
         // Normalize whitespace in simple expressions
         const trimmed = std.mem.trim(u8, text, &std.ascii.whitespace);
         try w.writeAll(trimmed);
@@ -1017,10 +973,9 @@ fn renderExpressionBlock(
 /// Render if expression: {if (cond) |payload| (<then>) else |else_payload| (<else>)}
 /// Supports payload captures and else-if chains
 fn renderIfExpression(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) anyerror!void {
     var condition_node: ?ts.Node = null;
     var payload_node: ?ts.Node = null;
@@ -1073,8 +1028,8 @@ fn renderIfExpression(
             // Check for newline between last token before then and the then branch
             const prev_end = if (last_token_before_then) |t| t.endByte() else node.startByte();
             const then_start = then_b.startByte();
-            if (prev_end < then_start and then_start <= self.source.len) {
-                const between = self.source[prev_end..then_start];
+            if (prev_end < then_start and then_start <= self.ast.source.len) {
+                const between = self.ast.source[prev_end..then_start];
                 if (std.mem.indexOf(u8, between, "\n") != null) {
                     break :blk true;
                 }
@@ -1087,7 +1042,7 @@ fn renderIfExpression(
 
     // Condition
     if (condition_node) |cond| {
-        const cond_text = try self.getNodeText(cond);
+        const cond_text = try self.ast.getNodeText(cond);
         const trimmed = std.mem.trim(u8, cond_text, &std.ascii.whitespace);
         if (trimmed.len > 0 and trimmed[0] != '(') {
             try w.writeAll("(");
@@ -1102,93 +1057,89 @@ fn renderIfExpression(
 
     // Payload (e.g., |un|)
     if (payload_node) |payload| {
-        const payload_text = try self.getNodeText(payload);
+        const payload_text = try self.ast.getNodeText(payload);
         try w.writeAll(payload_text);
         try w.writeAll(" ");
     }
 
-    ctx.indent_level -= 1;
+    self.indent_level -= 1;
     // Then branch
     if (then_node) |then_b| {
-        try renderBranchWithMultiline(self, then_b, w, ctx, is_multiline);
+        try renderBranchWithMultiline(self, then_b, w, is_multiline);
     }
 
     // Else branch
     if (else_node) |else_b| {
         if (is_multiline) {
             try w.writeAll("\n");
-            try ctx.writeIndent(w);
+            try self.writeIndent(w);
             try w.writeAll("else ");
         } else {
             try w.writeAll(" else ");
         }
         // Else payload (e.g., |err|)
         if (else_payload_node) |else_payload| {
-            const else_payload_text = try self.getNodeText(else_payload);
+            const else_payload_text = try self.ast.getNodeText(else_payload);
             try w.writeAll(else_payload_text);
             try w.writeAll(" ");
         }
-        try renderBranchWithMultiline(self, else_b, w, ctx, is_multiline);
+        try renderBranchWithMultiline(self, else_b, w, is_multiline);
     }
 
     try w.writeAll("}");
-    ctx.indent_level += 1;
+    self.indent_level += 1;
 }
 
 /// Helper to render if/else branches consistently
 /// Handles else-if chains by recursively calling renderIfExpression
 fn renderBranch(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) anyerror!void {
-    try renderBranchWithMultiline(self, node, w, ctx, false);
+    try renderBranchWithMultiline(self, node, w, false);
 }
 
 /// Helper to render if/else branches with explicit multiline control
 /// When force_multiline is true, branches will be formatted on separate lines
 fn renderBranchWithMultiline(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
     force_multiline: bool,
 ) anyerror!void {
     const node_kind = NodeKind.fromNode(node);
     switch (node_kind) {
         .zx_block => {
-            try renderBlockInlineWithMultiline(self, node, w, ctx, force_multiline);
+            try renderBlockInlineWithMultiline(self, node, w, force_multiline);
         },
         .if_expression => {
             // Handle else-if chains - render without outer braces
-            try renderIfExpressionInnerWithMultiline(self, node, w, ctx, force_multiline);
+            try renderIfExpressionInnerWithMultiline(self, node, w, force_multiline);
         },
         .parenthesized_expression => {
-            try w.writeAll(try self.getNodeText(node));
+            try w.writeAll(try self.ast.getNodeText(node));
         },
         else => {
-            try w.writeAll(try self.getNodeText(node));
+            try w.writeAll(try self.ast.getNodeText(node));
         },
     }
 }
 
 /// Render if expression without outer braces (for else-if chains)
 fn renderIfExpressionInner(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) anyerror!void {
-    try renderIfExpressionInnerWithMultiline(self, node, w, ctx, false);
+    try renderIfExpressionInnerWithMultiline(self, node, w, false);
 }
 
 /// Render if expression without outer braces with explicit multiline control
 fn renderIfExpressionInnerWithMultiline(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
     force_multiline: bool,
 ) anyerror!void {
     var condition_node: ?ts.Node = null;
@@ -1236,7 +1187,7 @@ fn renderIfExpressionInnerWithMultiline(
 
     // Condition
     if (condition_node) |cond| {
-        const cond_text = try self.getNodeText(cond);
+        const cond_text = try self.ast.getNodeText(cond);
         const trimmed = std.mem.trim(u8, cond_text, &std.ascii.whitespace);
         if (trimmed.len > 0 and trimmed[0] != '(') {
             try w.writeAll("(");
@@ -1251,41 +1202,40 @@ fn renderIfExpressionInnerWithMultiline(
 
     // Payload
     if (payload_node) |payload| {
-        const payload_text = try self.getNodeText(payload);
+        const payload_text = try self.ast.getNodeText(payload);
         try w.writeAll(payload_text);
         try w.writeAll(" ");
     }
 
     // Then branch
     if (then_node) |then_b| {
-        try renderBranchWithMultiline(self, then_b, w, ctx, force_multiline);
+        try renderBranchWithMultiline(self, then_b, w, force_multiline);
     }
 
     // Else branch
     if (else_node) |else_b| {
         if (force_multiline) {
             try w.writeAll("\n");
-            try ctx.writeIndent(w);
+            try self.writeIndent(w);
             try w.writeAll("else ");
         } else {
             try w.writeAll(" else ");
         }
         // Else payload (e.g., |err|)
         if (else_payload_node) |else_payload| {
-            const else_payload_text = try self.getNodeText(else_payload);
+            const else_payload_text = try self.ast.getNodeText(else_payload);
             try w.writeAll(else_payload_text);
             try w.writeAll(" ");
         }
-        try renderBranchWithMultiline(self, else_b, w, ctx, force_multiline);
+        try renderBranchWithMultiline(self, else_b, w, force_multiline);
     }
 }
 
 /// Render for expression: {for (items) |item| (<body>)}
 fn renderForExpression(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) !void {
     var iterables = std.ArrayList(ts.Node).empty;
     defer iterables.deinit(self.allocator);
@@ -1341,43 +1291,43 @@ fn renderForExpression(
     try w.writeAll("{for (");
     for (iterables.items, 0..) |it, it_idx| {
         if (it_idx > 0) try w.writeAll(", ");
-        try w.writeAll(try self.getNodeText(it));
+        try w.writeAll(try self.ast.getNodeText(it));
     }
     try w.writeAll(") ");
 
     if (payload_node) |pay| {
-        try w.writeAll(try self.getNodeText(pay));
+        try w.writeAll(try self.ast.getNodeText(pay));
     }
 
     try w.writeAll(" ");
 
     if (body_node) |body| {
         const body_kind = NodeKind.fromNode(body);
-        ctx.indent_level -= 1;
+        self.indent_level -= 1;
         switch (body_kind) {
             .zx_block => {
-                try renderBlockInline(self, body, w, ctx);
+                try renderBlockInline(self, body, w);
             },
             .parenthesized_expression => {
                 // Render parenthesized expression as (content) - check for control flow inside
-                try renderParenthesizedBody(self, body, w, ctx);
+                try renderParenthesizedBody(self, body, w);
             },
             .if_expression => {
                 // If the body is a direct if_expression, render it without extra braces
-                try renderIfExpressionInner(self, body, w, ctx);
+                try renderIfExpressionInner(self, body, w);
             },
             .for_expression => {
-                try renderForExpressionInner(self, body, w, ctx);
+                try renderForExpressionInner(self, body, w);
             },
             .while_expression => {
-                try renderWhileExpressionInner(self, body, w, ctx);
+                try renderWhileExpressionInner(self, body, w);
             },
             .switch_expression => {
-                try renderSwitchExpressionInner(self, body, w, ctx);
+                try renderSwitchExpressionInner(self, body, w);
             },
             else => {},
         }
-        ctx.indent_level += 1;
+        self.indent_level += 1;
     }
 
     try w.writeAll("}");
@@ -1385,10 +1335,9 @@ fn renderForExpression(
 
 /// Render a parenthesized expression body as (...) - handles control flow inside
 fn renderParenthesizedBody(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) anyerror!void {
     const child_count = node.childCount();
     var content_node: ?ts.Node = null;
@@ -1429,13 +1378,13 @@ fn renderParenthesizedBody(
     const block_start = node.startByte();
     const block_end = node.endByte();
 
-    const has_preceding_newline = if (block_start < content_start and content_start <= self.source.len)
-        std.mem.indexOf(u8, self.source[block_start..content_start], "\n") != null
+    const has_preceding_newline = if (block_start < content_start and content_start <= self.ast.source.len)
+        std.mem.indexOf(u8, self.ast.source[block_start..content_start], "\n") != null
     else
         false;
 
-    const has_trailing_newline = if (content_end < block_end and block_end <= self.source.len)
-        std.mem.indexOf(u8, self.source[content_end..block_end], "\n") != null
+    const has_trailing_newline = if (content_end < block_end and block_end <= self.ast.source.len)
+        std.mem.indexOf(u8, self.ast.source[content_end..block_end], "\n") != null
     else
         false;
 
@@ -1448,37 +1397,37 @@ fn renderParenthesizedBody(
 
         if (is_multiline) {
             try w.writeAll("\n");
-            ctx.indent_level += 2;
-            try ctx.writeIndent(w);
+            self.indent_level += 2;
+            try self.writeIndent(w);
         }
 
         // For control flow expressions, we need to adjust indent before calling
         // because their branch renderers expect a pre-decremented level
         if (is_control_flow) {
-            ctx.indent_level -= 1;
+            self.indent_level -= 1;
         }
 
         switch (content_kind) {
-            .if_expression => try renderIfExpressionInner(self, content, w, ctx),
-            .for_expression => try renderForExpressionInner(self, content, w, ctx),
-            .while_expression => try renderWhileExpressionInner(self, content, w, ctx),
-            .switch_expression => try renderSwitchExpressionInner(self, content, w, ctx),
-            .zx_element => try renderElement(self, content, w, ctx),
-            .zx_self_closing_element => try renderSelfClosingElement(self, content, w, ctx),
-            .zx_fragment => try renderFragment(self, content, w, ctx),
-            else => try renderNodeWithContext(self, content, w, ctx),
+            .if_expression => try renderIfExpressionInner(self, content, w),
+            .for_expression => try renderForExpressionInner(self, content, w),
+            .while_expression => try renderWhileExpressionInner(self, content, w),
+            .switch_expression => try renderSwitchExpressionInner(self, content, w),
+            .zx_element => try renderElement(self, content, w),
+            .zx_self_closing_element => try renderSelfClosingElement(self, content, w),
+            .zx_fragment => try renderFragment(self, content, w),
+            else => try self.renderNode(content, w),
         }
 
         if (is_control_flow) {
-            ctx.indent_level += 1;
+            self.indent_level += 1;
         }
 
         if (is_multiline) {
-            ctx.indent_level -= 2;
+            self.indent_level -= 2;
             try w.writeAll("\n");
-            ctx.indent_level += 1;
-            try ctx.writeIndent(w);
-            ctx.indent_level -= 1;
+            self.indent_level += 1;
+            try self.writeIndent(w);
+            self.indent_level -= 1;
         }
     }
 
@@ -1487,10 +1436,9 @@ fn renderParenthesizedBody(
 
 /// Render while expression: {while (cond) |payload| : (continue_expr) (<body>) else |err| (<else_body>)}
 fn renderWhileExpression(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) !void {
     var condition_node: ?ts.Node = null;
     var payload_node: ?ts.Node = null;
@@ -1540,7 +1488,7 @@ fn renderWhileExpression(
 
     // Condition
     if (condition_node) |cond| {
-        const cond_text = try self.getNodeText(cond);
+        const cond_text = try self.ast.getNodeText(cond);
         try w.writeAll(std.mem.trim(u8, cond_text, &std.ascii.whitespace));
     }
 
@@ -1549,14 +1497,14 @@ fn renderWhileExpression(
     // Payload (e.g., |value|)
     if (payload_node) |payload| {
         try w.writeAll(" ");
-        const payload_text = try self.getNodeText(payload);
+        const payload_text = try self.ast.getNodeText(payload);
         try w.writeAll(payload_text);
     }
 
     // Continue expression (optional)
     if (continue_node) |cont| {
         try w.writeAll(" : (");
-        const cont_text = try self.getNodeText(cont);
+        const cont_text = try self.ast.getNodeText(cont);
         try w.writeAll(std.mem.trim(u8, cont_text, &std.ascii.whitespace));
         try w.writeAll(")");
     }
@@ -1565,9 +1513,9 @@ fn renderWhileExpression(
 
     // Body
     if (body_node) |body| {
-        ctx.indent_level -= 1;
-        try renderBlockInline(self, body, w, ctx);
-        ctx.indent_level += 1;
+        self.indent_level -= 1;
+        try renderBlockInline(self, body, w);
+        self.indent_level += 1;
     }
 
     // Else branch
@@ -1575,13 +1523,13 @@ fn renderWhileExpression(
         try w.writeAll(" else ");
         // Else payload (e.g., |err|)
         if (else_payload_node) |else_payload| {
-            const else_payload_text = try self.getNodeText(else_payload);
+            const else_payload_text = try self.ast.getNodeText(else_payload);
             try w.writeAll(else_payload_text);
             try w.writeAll(" ");
         }
-        ctx.indent_level -= 1;
-        try renderBlockInline(self, else_b, w, ctx);
-        ctx.indent_level += 1;
+        self.indent_level -= 1;
+        try renderBlockInline(self, else_b, w);
+        self.indent_level += 1;
     }
 
     try w.writeAll("}");
@@ -1589,10 +1537,9 @@ fn renderWhileExpression(
 
 /// Render switch expression: {switch (val) { .case => (<body>), ... }}
 fn renderSwitchExpression(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) !void {
     var switch_expr_node: ?ts.Node = null;
     var cases = std.ArrayList(struct { pattern: []const u8, payload: ?[]const u8, value: ts.Node }).empty;
@@ -1656,8 +1603,8 @@ fn renderSwitchExpression(
             if (first_pattern != null and last_pattern != null) {
                 const start = first_pattern.?.startByte();
                 const end = last_pattern.?.endByte();
-                const pattern_text = self.source[start..end];
-                const payload_text = if (payload_node) |pl| try self.getNodeText(pl) else null;
+                const pattern_text = self.ast.source[start..end];
+                const payload_text = if (payload_node) |pl| try self.ast.getNodeText(pl) else null;
                 if (value_node) |v| {
                     try cases.append(self.allocator, .{
                         .pattern = pattern_text,
@@ -1672,7 +1619,7 @@ fn renderSwitchExpression(
     try w.writeAll("{switch (");
 
     if (switch_expr_node) |expr| {
-        const expr_text = try self.getNodeText(expr);
+        const expr_text = try self.ast.getNodeText(expr);
         try w.writeAll(expr_text);
     }
 
@@ -1680,9 +1627,9 @@ fn renderSwitchExpression(
 
     for (cases.items) |case| {
         try w.writeAll("\n");
-        ctx.indent_level += 1;
-        try ctx.writeIndent(w);
-        ctx.indent_level -= 1;
+        self.indent_level += 1;
+        try self.writeIndent(w);
+        self.indent_level -= 1;
         try w.writeAll(std.mem.trim(u8, case.pattern, &std.ascii.whitespace));
         try w.writeAll(" => ");
         if (case.payload) |payload| {
@@ -1692,62 +1639,61 @@ fn renderSwitchExpression(
         const is_nested_switch = NodeKind.fromNode(case.value) == .switch_expression;
 
         // For nested switches, keep indent level elevated
-        if (is_nested_switch) ctx.indent_level += 1;
-        try renderCaseValue(self, case.value, w, ctx);
-        if (is_nested_switch) ctx.indent_level -= 1;
+        if (is_nested_switch) self.indent_level += 1;
+        try renderCaseValue(self, case.value, w);
+        if (is_nested_switch) self.indent_level -= 1;
 
         try w.writeAll(",");
     }
 
     try w.writeAll("\n");
-    try ctx.writeIndent(w);
+    try self.writeIndent(w);
     try w.writeAll("}}");
 }
 
 /// Render switch case value, handling parenthesized expressions with nested control flow/zx
 fn renderCaseValue(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) anyerror!void {
     const kind = NodeKind.fromNode(node);
 
     switch (kind) {
         .zx_block => {
-            try renderBlockInline(self, node, w, ctx);
+            try renderBlockInline(self, node, w);
         },
         .if_expression => {
             // Detect if branches should be multiline based on preceding newline
             const is_multiline = detectIfMultiline(self, node);
-            try renderIfExpressionInnerWithMultiline(self, node, w, ctx, is_multiline);
+            try renderIfExpressionInnerWithMultiline(self, node, w, is_multiline);
         },
         .for_expression => {
-            try renderForExpressionInner(self, node, w, ctx);
+            try renderForExpressionInner(self, node, w);
         },
         .while_expression => {
-            try renderWhileExpressionInner(self, node, w, ctx);
+            try renderWhileExpressionInner(self, node, w);
         },
         .switch_expression => {
-            try renderSwitchExpressionInner(self, node, w, ctx);
+            try renderSwitchExpressionInner(self, node, w);
         },
         .parenthesized_expression => {
             // Check if contains control flow or zx_block
             if (findSpecialChild(node)) |child| {
-                try renderCaseValue(self, child, w, ctx);
+                try renderCaseValue(self, child, w);
             } else {
                 // Simple parenthesized expression like ("Admin")
-                try w.writeAll(try self.getNodeText(node));
+                try w.writeAll(try self.ast.getNodeText(node));
             }
         },
         else => {
-            try w.writeAll(try self.getNodeText(node));
+            try w.writeAll(try self.ast.getNodeText(node));
         },
     }
 }
 
 /// Detect if an if expression should be rendered multiline based on preceding newline before first branch
-fn detectIfMultiline(self: *Ast, node: ts.Node) bool {
+fn detectIfMultiline(self: *Render, node: ts.Node) bool {
     var last_token_before_then: ?ts.Node = null;
     var then_node: ?ts.Node = null;
 
@@ -1786,8 +1732,8 @@ fn detectIfMultiline(self: *Ast, node: ts.Node) bool {
     if (then_node) |then_b| {
         const prev_end = if (last_token_before_then) |t| t.endByte() else node.startByte();
         const then_start = then_b.startByte();
-        if (prev_end < then_start and then_start <= self.source.len) {
-            const between = self.source[prev_end..then_start];
+        if (prev_end < then_start and then_start <= self.ast.source.len) {
+            const between = self.ast.source[prev_end..then_start];
             if (std.mem.indexOf(u8, between, "\n") != null) {
                 return true;
             }
@@ -1815,10 +1761,9 @@ fn findSpecialChild(node: ts.Node) ?ts.Node {
 
 /// Render for expression without outer braces (for use in case values)
 fn renderForExpressionInner(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) anyerror!void {
     var iterables = std.ArrayList(ts.Node).empty;
     defer iterables.deinit(self.allocator);
@@ -1874,27 +1819,26 @@ fn renderForExpressionInner(
     try w.writeAll("for (");
     for (iterables.items, 0..) |it, it_idx| {
         if (it_idx > 0) try w.writeAll(", ");
-        try w.writeAll(try self.getNodeText(it));
+        try w.writeAll(try self.ast.getNodeText(it));
     }
     try w.writeAll(") ");
 
     if (payload_node) |pay| {
-        try w.writeAll(try self.getNodeText(pay));
+        try w.writeAll(try self.ast.getNodeText(pay));
     }
 
     try w.writeAll(" ");
 
     if (body_node) |body| {
-        try renderBranch(self, body, w, ctx);
+        try renderBranch(self, body, w);
     }
 }
 
 /// Render while expression without outer braces (for use in case values)
 fn renderWhileExpressionInner(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) anyerror!void {
     var condition_node: ?ts.Node = null;
     var payload_node: ?ts.Node = null;
@@ -1943,7 +1887,7 @@ fn renderWhileExpressionInner(
     try w.writeAll("while (");
 
     if (condition_node) |cond| {
-        const cond_text = try self.getNodeText(cond);
+        const cond_text = try self.ast.getNodeText(cond);
         try w.writeAll(std.mem.trim(u8, cond_text, &std.ascii.whitespace));
     }
 
@@ -1952,13 +1896,13 @@ fn renderWhileExpressionInner(
     // Payload (e.g., |value|)
     if (payload_node) |payload| {
         try w.writeAll(" ");
-        const payload_text = try self.getNodeText(payload);
+        const payload_text = try self.ast.getNodeText(payload);
         try w.writeAll(payload_text);
     }
 
     if (continue_node) |cont| {
         try w.writeAll(" : (");
-        const cont_text = try self.getNodeText(cont);
+        const cont_text = try self.ast.getNodeText(cont);
         try w.writeAll(std.mem.trim(u8, cont_text, &std.ascii.whitespace));
         try w.writeAll(")");
     }
@@ -1966,7 +1910,7 @@ fn renderWhileExpressionInner(
     try w.writeAll(" ");
 
     if (body_node) |body| {
-        try renderBlockInline(self, body, w, ctx);
+        try renderBlockInline(self, body, w);
     }
 
     // Else branch
@@ -1974,20 +1918,19 @@ fn renderWhileExpressionInner(
         try w.writeAll(" else ");
         // Else payload (e.g., |err|)
         if (else_payload_node) |else_payload| {
-            const else_payload_text = try self.getNodeText(else_payload);
+            const else_payload_text = try self.ast.getNodeText(else_payload);
             try w.writeAll(else_payload_text);
             try w.writeAll(" ");
         }
-        try renderBlockInline(self, else_b, w, ctx);
+        try renderBlockInline(self, else_b, w);
     }
 }
 
 /// Render switch expression without outer braces (for use in case values)
 fn renderSwitchExpressionInner(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) anyerror!void {
     var switch_expr_node: ?ts.Node = null;
     var cases = std.ArrayList(struct { pattern: []const u8, payload: ?[]const u8, value: ts.Node }).empty;
@@ -2050,8 +1993,8 @@ fn renderSwitchExpressionInner(
             if (first_pattern != null and last_pattern != null) {
                 const start = first_pattern.?.startByte();
                 const end = last_pattern.?.endByte();
-                const pattern_text = self.source[start..end];
-                const payload_text = if (payload_node) |pl| try self.getNodeText(pl) else null;
+                const pattern_text = self.ast.source[start..end];
+                const payload_text = if (payload_node) |pl| try self.ast.getNodeText(pl) else null;
                 if (value_node) |v| {
                     try cases.append(self.allocator, .{
                         .pattern = pattern_text,
@@ -2066,7 +2009,7 @@ fn renderSwitchExpressionInner(
     try w.writeAll("switch (");
 
     if (switch_expr_node) |expr| {
-        const expr_text = try self.getNodeText(expr);
+        const expr_text = try self.ast.getNodeText(expr);
         try w.writeAll(expr_text);
     }
 
@@ -2074,9 +2017,9 @@ fn renderSwitchExpressionInner(
 
     for (cases.items) |case| {
         try w.writeAll("\n");
-        ctx.indent_level += 1;
-        try ctx.writeIndent(w);
-        ctx.indent_level -= 1;
+        self.indent_level += 1;
+        try self.writeIndent(w);
+        self.indent_level -= 1;
         try w.writeAll(std.mem.trim(u8, case.pattern, &std.ascii.whitespace));
         try w.writeAll(" => ");
         if (case.payload) |payload| {
@@ -2086,35 +2029,33 @@ fn renderSwitchExpressionInner(
         const is_nested_switch = NodeKind.fromNode(case.value) == .switch_expression;
 
         // For nested switches, keep indent level elevated
-        if (is_nested_switch) ctx.indent_level += 1;
-        try renderCaseValue(self, case.value, w, ctx);
-        if (is_nested_switch) ctx.indent_level -= 1;
+        if (is_nested_switch) self.indent_level += 1;
+        try renderCaseValue(self, case.value, w);
+        if (is_nested_switch) self.indent_level -= 1;
 
         try w.writeAll(",");
     }
 
     try w.writeAll("\n");
-    try ctx.writeIndent(w);
+    try self.writeIndent(w);
     try w.writeAll("}");
 }
 
 /// Render zx_block inline (for use in control flow expressions)
 fn renderBlockInline(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
 ) !void {
-    try renderBlockInlineWithMultiline(self, node, w, ctx, false);
+    try renderBlockInlineWithMultiline(self, node, w, false);
 }
 
 /// Render zx_block inline with explicit multiline control
 /// When force_multiline is true, the block will be rendered on multiple lines
 fn renderBlockInlineWithMultiline(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
     force_multiline: bool,
 ) anyerror!void {
     const child_count = node.childCount();
@@ -2156,18 +2097,18 @@ fn renderBlockInlineWithMultiline(
         const block_start = node.startByte();
         const block_end = node.endByte();
 
-        const content_is_multiline = if (content_start < content_end and content_end <= self.source.len)
-            std.mem.indexOf(u8, self.source[content_start..content_end], "\n") != null
+        const content_is_multiline = if (content_start < content_end and content_end <= self.ast.source.len)
+            std.mem.indexOf(u8, self.ast.source[content_start..content_end], "\n") != null
         else
             false;
 
-        const has_preceding_newline = if (block_start < content_start and content_start <= self.source.len)
-            std.mem.indexOf(u8, self.source[block_start..content_start], "\n") != null
+        const has_preceding_newline = if (block_start < content_start and content_start <= self.ast.source.len)
+            std.mem.indexOf(u8, self.ast.source[block_start..content_start], "\n") != null
         else
             false;
 
-        const has_trailing_newline = if (content_end < block_end and block_end <= self.source.len)
-            std.mem.indexOf(u8, self.source[content_end..block_end], "\n") != null
+        const has_trailing_newline = if (content_end < block_end and block_end <= self.ast.source.len)
+            std.mem.indexOf(u8, self.ast.source[content_end..block_end], "\n") != null
         else
             false;
 
@@ -2175,45 +2116,45 @@ fn renderBlockInlineWithMultiline(
 
         if (is_multiline) {
             try w.writeAll("\n");
-            ctx.indent_level += 2;
-            try ctx.writeIndent(w);
+            self.indent_level += 2;
+            try self.writeIndent(w);
 
             switch (content_type) {
                 .element => switch (content_kind) {
-                    .zx_element => try renderElement(self, content, w, ctx),
-                    .zx_self_closing_element => try renderSelfClosingElement(self, content, w, ctx),
-                    .zx_fragment => try renderFragment(self, content, w, ctx),
-                    else => try renderNodeWithContext(self, content, w, ctx),
+                    .zx_element => try renderElement(self, content, w),
+                    .zx_self_closing_element => try renderSelfClosingElement(self, content, w),
+                    .zx_fragment => try renderFragment(self, content, w),
+                    else => try self.renderNode(content, w),
                 },
                 .control_flow => switch (content_kind) {
-                    .if_expression => try renderIfExpressionInner(self, content, w, ctx),
-                    .for_expression => try renderForExpressionInner(self, content, w, ctx),
-                    .while_expression => try renderWhileExpressionInner(self, content, w, ctx),
-                    .switch_expression => try renderSwitchExpressionInner(self, content, w, ctx),
-                    else => try renderNodeWithContext(self, content, w, ctx),
+                    .if_expression => try renderIfExpressionInner(self, content, w),
+                    .for_expression => try renderForExpressionInner(self, content, w),
+                    .while_expression => try renderWhileExpressionInner(self, content, w),
+                    .switch_expression => try renderSwitchExpressionInner(self, content, w),
+                    else => try self.renderNode(content, w),
                 },
             }
 
-            ctx.indent_level -= 2;
+            self.indent_level -= 2;
             try w.writeAll("\n");
-            ctx.indent_level += 1;
-            try ctx.writeIndent(w);
+            self.indent_level += 1;
+            try self.writeIndent(w);
             try w.writeAll(")");
-            ctx.indent_level -= 1;
+            self.indent_level -= 1;
         } else {
             switch (content_type) {
                 .element => switch (content_kind) {
-                    .zx_element => try renderElement(self, content, w, ctx),
-                    .zx_self_closing_element => try renderSelfClosingElement(self, content, w, ctx),
-                    .zx_fragment => try renderFragment(self, content, w, ctx),
-                    else => try renderNodeWithContext(self, content, w, ctx),
+                    .zx_element => try renderElement(self, content, w),
+                    .zx_self_closing_element => try renderSelfClosingElement(self, content, w),
+                    .zx_fragment => try renderFragment(self, content, w),
+                    else => try self.renderNode(content, w),
                 },
                 .control_flow => switch (content_kind) {
-                    .if_expression => try renderIfExpressionInner(self, content, w, ctx),
-                    .for_expression => try renderForExpressionInner(self, content, w, ctx),
-                    .while_expression => try renderWhileExpressionInner(self, content, w, ctx),
-                    .switch_expression => try renderSwitchExpressionInner(self, content, w, ctx),
-                    else => try renderNodeWithContext(self, content, w, ctx),
+                    .if_expression => try renderIfExpressionInner(self, content, w),
+                    .for_expression => try renderForExpressionInner(self, content, w),
+                    .while_expression => try renderWhileExpressionInner(self, content, w),
+                    .switch_expression => try renderSwitchExpressionInner(self, content, w),
+                    else => try self.renderNode(content, w),
                 },
             }
             try w.writeAll(")");
@@ -2227,10 +2168,9 @@ fn renderBlockInlineWithMultiline(
 /// If the first attribute in the source starts on a different line than the tag name,
 /// all attributes are formatted one-per-line with proper indentation.
 fn renderAttributesFromNode(
-    self: *Ast,
+    self: *Render,
     node: ts.Node,
     w: *std.Io.Writer,
-    ctx: *FormatContext,
     multiline_close: *bool,
 ) !void {
     const child_count = node.childCount();
@@ -2261,7 +2201,7 @@ fn renderAttributesFromNode(
             if (is_multiline) {
                 try w.writeAll("\n");
                 // Indent one level deeper than the tag
-                for (0..(ctx.indent_level + 1) * 4) |_| try w.writeAll(" ");
+                for (0..(self.indent_level + 1) * 4) |_| try w.writeAll(" ");
             } else {
                 try w.writeAll(" ");
             }
@@ -2275,7 +2215,7 @@ fn renderAttributesFromNode(
                     // Name
                     const name_node = attr_child.childByFieldName("name");
                     if (name_node) |n| {
-                        const name_text = try self.getNodeText(n);
+                        const name_text = try self.ast.getNodeText(n);
                         try w.writeAll(name_text);
                     }
 
@@ -2286,8 +2226,8 @@ fn renderAttributesFromNode(
                         // Write the value as-is from source
                         const v_start = v.startByte();
                         const v_end = v.endByte();
-                        if (v_start < v_end and v_end <= self.source.len) {
-                            try w.writeAll(self.source[v_start..v_end]);
+                        if (v_start < v_end and v_end <= self.ast.source.len) {
+                            try w.writeAll(self.ast.source[v_start..v_end]);
                         }
                     }
                 },
@@ -2295,32 +2235,32 @@ fn renderAttributesFromNode(
                     // Shorthand: {name} renders as {name} (preserving shorthand form)
                     const c_start = attr_child.startByte();
                     const c_end = attr_child.endByte();
-                    if (c_start < c_end and c_end <= self.source.len) {
-                        try w.writeAll(self.source[c_start..c_end]);
+                    if (c_start < c_end and c_end <= self.ast.source.len) {
+                        try w.writeAll(self.ast.source[c_start..c_end]);
                     }
                 },
                 .zx_builtin_shorthand_attribute => {
                     // Builtin shorthand: @{name} renders as @{name} (preserving shorthand form)
                     const c_start = attr_child.startByte();
                     const c_end = attr_child.endByte();
-                    if (c_start < c_end and c_end <= self.source.len) {
-                        try w.writeAll(self.source[c_start..c_end]);
+                    if (c_start < c_end and c_end <= self.ast.source.len) {
+                        try w.writeAll(self.ast.source[c_start..c_end]);
                     }
                 },
                 .zx_spread_attribute => {
                     // Spread: {..expr} renders as {..expr} (preserving spread form)
                     const c_start = attr_child.startByte();
                     const c_end = attr_child.endByte();
-                    if (c_start < c_end and c_end <= self.source.len) {
-                        try w.writeAll(self.source[c_start..c_end]);
+                    if (c_start < c_end and c_end <= self.ast.source.len) {
+                        try w.writeAll(self.ast.source[c_start..c_end]);
                     }
                 },
                 else => {
                     // Fallback - render source
                     const c_start = child.startByte();
                     const c_end = child.endByte();
-                    if (c_start < c_end and c_end <= self.source.len) {
-                        try w.writeAll(self.source[c_start..c_end]);
+                    if (c_start < c_end and c_end <= self.ast.source.len) {
+                        try w.writeAll(self.ast.source[c_start..c_end]);
                     }
                 },
             }

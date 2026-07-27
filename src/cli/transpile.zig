@@ -183,6 +183,92 @@ fn hasZxTwin(io: std.Io, zig_path: []const u8) bool {
     return false;
 }
 
+/// Whether `outdir_rel` still has a corresponding source under `source_root`.
+fn sourceExistsForOutRel(io: std.Io, source_root: []const u8, outdir_rel: []const u8) bool {
+    var buf: [std.fs.max_path_bytes]u8 = undefined;
+
+    const direct = std.fmt.bufPrint(&buf, "{s}{s}{s}", .{ source_root, std.fs.path.sep_str, outdir_rel }) catch return false;
+    if (fileExists(io, direct)) return true;
+
+    if (std.mem.endsWith(u8, outdir_rel, ".zig")) {
+        const stem_rel = outdir_rel[0 .. outdir_rel.len - ".zig".len];
+        for ([_][]const u8{ ".zx", ".mdzx", ".md" }) |ext| {
+            const twin = std.fmt.bufPrint(&buf, "{s}{s}{s}{s}", .{ source_root, std.fs.path.sep_str, stem_rel, ext }) catch continue;
+            if (fileExists(io, twin)) return true;
+        }
+    }
+    return false;
+}
+
+/// Drop outputs in a persistent outdir that no longer exist in the source tree.
+fn pruneStaleOutdir(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    source_root: []const u8,
+    outdir: []const u8,
+    verbose: bool,
+) !void {
+    var out = std.Io.Dir.cwd().openDir(io, outdir, .{ .iterate = true }) catch |err| switch (err) {
+        error.FileNotFound => return,
+        else => return err,
+    };
+    defer out.close(io);
+
+    var walker = try out.walk(allocator);
+    defer walker.deinit();
+
+    var stale_files = std.array_list.Managed([]const u8).init(allocator);
+    defer {
+        for (stale_files.items) |p| allocator.free(p);
+        stale_files.deinit();
+    }
+    var stale_dirs = std.array_list.Managed([]const u8).init(allocator);
+    defer {
+        for (stale_dirs.items) |p| allocator.free(p);
+        stale_dirs.deinit();
+    }
+
+    while (try walker.next(io)) |entry| {
+        switch (entry.kind) {
+            .file => {
+                if (std.mem.eql(u8, entry.path, "app.zig")) continue;
+
+                if (std.mem.endsWith(u8, entry.path, ".zxcache")) {
+                    const zig_rel = entry.path[0 .. entry.path.len - ".zxcache".len];
+                    if (sourceExistsForOutRel(io, source_root, zig_rel)) continue;
+                } else if (sourceExistsForOutRel(io, source_root, entry.path)) {
+                    continue;
+                }
+
+                const full = try std.fs.path.join(allocator, &.{ outdir, entry.path });
+                try stale_files.append(full);
+            },
+            .directory => {
+                const full = try std.fs.path.join(allocator, &.{ outdir, entry.path });
+                try stale_dirs.append(full);
+            },
+            else => {},
+        }
+    }
+
+    for (stale_files.items) |path| {
+        std.Io.Dir.cwd().deleteFile(io, path) catch |err| switch (err) {
+            error.FileNotFound => {},
+            else => if (verbose) std.debug.print("Warning: Failed to prune {s}: {}\n", .{ path, err }),
+        };
+        if (verbose) std.debug.print("Pruned stale output: {s}\n", .{path});
+    }
+
+    std.mem.sort([]const u8, stale_dirs.items, {}, struct {
+        fn less(_: void, a: []const u8, b: []const u8) bool {
+            return a.len > b.len;
+        }
+    }.less);
+    for (stale_dirs.items) |path| {
+        std.Io.Dir.cwd().deleteDir(io, path) catch {};
+    }
+}
+
 /// Convert filesystem route segments into URL patterns:
 /// - `[param]` → `:param`
 /// - `[..]` → `*`
@@ -1576,6 +1662,13 @@ fn transpileCommand(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOpt
             std.debug.print("Error: Path must be a file or directory\n", .{});
             return error.InvalidPath;
         },
+    }
+
+    // Persistent outdirs retain deleted pages unless pruned before route generation.
+    if (stat.kind == .directory and opts.cache_dir != null) {
+        pruneStaleOutdir(io, allocator, opts.path, opts.outdir, opts.verbose) catch |err| {
+            std.debug.print("Warning: Failed to prune stale transpile outputs: {}\n", .{err});
+        };
     }
 
     // Write dep file (Make format) so zig build can track .zx inputs for caching

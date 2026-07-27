@@ -1,16 +1,19 @@
-//! MDZX / MD → ZX transpile.
-//!
-//! Uses the official tree-sitter-markdown dual-grammar model:
-//! 1. Parse blocks with `mdzx` (opaque `inline` leaves)
-//! 2. Re-parse each `inline` range with `mdzx_inline` via included ranges
-//!
-//! Always emits `pub fn render(...)`. Authors must not declare `render`.
-//! Pages may declare `Page` (or get a default). Components may declare `Props`
-//! (+ optional `var props`) for a `ComponentCtx` signature.
+/// MDZX / MD → ZX transpile.
+///
+/// Uses the official tree-sitter-markdown dual-grammar model:
+/// 1. Parse blocks with `mdzx` (opaque `inline` leaves)
+/// 2. Re-parse each `inline` range with `mdzx_inline` via included ranges
+///
+/// Always emits `pub fn render(...)`. Authors must not declare `render`.
+/// Pages may declare `Page` (or get a default). Components may declare `Props`
+/// (+ optional `var props`) for a `ComponentCtx` signature.
 const Markdown = @This();
 
-const Writer = std.array_list.Managed(u8);
+const std = @import("std");
+const ts = @import("tree_sitter");
 const mdzx = @import("tree_sitter_mdzx");
+
+const Writer = std.array_list.Managed(u8);
 
 /// Tree-sitter node kinds used by the MDZX block + inline grammars.
 pub const NodeKind = enum {
@@ -839,6 +842,3 @@ fn appendText(buf: *Writer, text: []const u8) !void {
     }
     try buf.appendSlice("\"}");
 }
-
-const std = @import("std");
-const ts = @import("tree_sitter");

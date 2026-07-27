@@ -168,8 +168,9 @@ pub fn renderAlloc(
     switch (options.mode) {
         .zx => {
             var aw = std.Io.Writer.Allocating.init(allocator);
-            const root = self.tree.rootNode();
-            try Render.renderNode(self, root, &aw.writer);
+            var renderer = Render.init(self, allocator);
+            defer renderer.deinit();
+            try renderer.run(&aw.writer);
             return RenderResult{ .source = try aw.toOwnedSlice(), .client_components = &.{} };
         },
         .zig => {
