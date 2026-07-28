@@ -331,17 +331,15 @@ pub fn initInner(
     const link_client_bindings = opts.client.bindings.link;
 
     // --- JS Bindings Package Install --- //
-    if (build_client_wasm) {
-        if (opts.client.bindings.install_subdir) |subdir| {
-            const install_pkg = b.addInstallDirectory(.{
-                .source_dir = opts.ziex_js_root,
-                .install_dir = .prefix,
-                .include_extensions = &.{ ".js", ".ts" },
-                .install_subdir = subdir,
-            });
-            install_pkg.step.name = "install js bindings package";
-            b.getInstallStep().dependOn(&install_pkg.step);
-        }
+    if (opts.client.bindings.install_subdir) |subdir| {
+        const install_pkg = b.addInstallDirectory(.{
+            .source_dir = opts.ziex_js_root,
+            .install_dir = .prefix,
+            .include_extensions = &.{ ".js", ".ts" },
+            .install_subdir = subdir,
+        });
+        install_pkg.step.name = "install js bindings package";
+        b.getInstallStep().dependOn(&install_pkg.step);
     }
 
     // --- ZX Injections --- //
