@@ -15,8 +15,9 @@ pub fn build(b: *std.Build) !void {
     const feat_kv_client = b.option(bool, "feature-kv-client", "Include browser KV client bindings") orelse true;
     const feat_kv_server = b.option(bool, "feature-kv-server", "Include server/edge KV bindings") orelse true;
     const feat_sqlite = b.option(bool, "feature-sqlite", "Include SQLite/D1 database bindings") orelse true;
+    const feat_wasm_client = b.option(bool, "feature-wasm-client", "Include browser wasm init bindings") orelse true;
 
-    const feature_defines = featureDefines(b, feat_kv_client, feat_kv_server, feat_sqlite);
+    const feature_defines = featureDefines(b, feat_kv_client, feat_kv_server, feat_sqlite, feat_wasm_client);
 
     // --- Codegen (manual only; committed outputs live under src/wasm/generated/) --- //
     const tags_gen = addTagsCodegen(b);
@@ -118,11 +119,13 @@ fn featureDefines(
     feat_kv_client: bool,
     feat_kv_server: bool,
     feat_sqlite: bool,
+    feat_wasm_client: bool,
 ) []const esbuild.BuildConfig.Define {
     return b.allocator.dupe(esbuild.BuildConfig.Define, &.{
         .{ .key = "__FEAT_KV__", .value = if (feat_kv_client) "true" else "false" },
         .{ .key = "__FEAT_KV_SERVER__", .value = if (feat_kv_server) "true" else "false" },
         .{ .key = "__FEAT_DB__", .value = if (feat_sqlite) "true" else "false" },
+        .{ .key = "__FEAT_WASM__", .value = if (feat_wasm_client) "true" else "false" },
     }) catch @panic("OOM");
 }
 

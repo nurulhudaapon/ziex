@@ -139,9 +139,18 @@ pub const AppOptions = struct {
 };
 
 pub const ClientOptions = struct {
+    pub const WasmOptions = struct {
+        pub const default: WasmOptions = .{ .link = true };
+        pub const disabled: WasmOptions = .{ .link = false };
+
+        link: bool,
+    };
     /// Client-side JS bindings (`ziex` / wasm init script).
     pub const BindingsOptions = struct {
         pub const default: BindingsOptions = .{};
+        pub const disabled: BindingsOptions = .{ .link = false };
+
+        link: bool = true,
 
         /// URL for the client JS bindings script.
         ///
@@ -171,8 +180,10 @@ pub const ClientOptions = struct {
     };
 
     pub const default: ClientOptions = .{};
+    pub const disabled: ClientOptions = .{ .bindings = .disabled, .wasm = .disabled };
 
     bindings: BindingsOptions = .default,
+    wasm: WasmOptions = .default,
 };
 
 /// Experimental features that may change in future versions.

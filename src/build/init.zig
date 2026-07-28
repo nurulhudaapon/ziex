@@ -33,19 +33,21 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         .@"cli-log-level" = options.cli.log_level,
     });
 
-    const zx_wasm_dep = b.dependencyFromBuildZig(build_zig, .{
-        .optimize = optimize,
-        .target = wasm_target,
-        .@"is-client" = true,
-    });
-
     const zx_module = zx_dep.module("zx");
-    const zx_wasm_module = zx_wasm_dep.module("zx");
     const zx_exe = zx_host_dep.artifact("zx");
     const zx_full_exe = zx_full_dep.artifact("zx");
 
     const client = if (options.app) |app| app.client else InitOptions.ClientOptions.default;
     const features = if (options.app) |app| app.features else InitOptions.AppOptions.FeatureOptions.default;
+    const build_client_wasm = client.wasm.link;
+    const zx_wasm_module: ?*std.Build.Module = if (build_client_wasm) blk: {
+        const zx_wasm_dep = b.dependencyFromBuildZig(build_zig, .{
+            .optimize = optimize,
+            .target = wasm_target,
+            .@"is-client" = true,
+        });
+        break :blk zx_wasm_dep.module("zx");
+    } else null;
     const ziex_js_root: LazyPath = if (client.bindings.build != null) blk: {
         const jsbindings_dep = zx_dep.builder.dependency("ziex_jsbindings", .{
             .optimize = optimize,
@@ -54,6 +56,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
             .@"feature-kv-client" = if (features.kv) |k| k.client != null else false,
             .@"feature-kv-server" = if (features.kv) |k| k.server != null else false,
             .@"feature-sqlite" = if (features.sqlite) |s| s.server != null else false,
+            .@"feature-wasm-client" = build_client_wasm,
         });
         break :blk jsbindings_dep.namedWriteFiles("ziex_js").getDirectory();
     } else zx_dep.builder.dependency("ziex_js", .{}).path(".");
@@ -235,7 +238,7 @@ pub fn initInner(
     zx_exe: *std.Build.Step.Compile,
     zx_full_exe: *std.Build.Step.Compile,
     zx_module: *std.Build.Module,
-    zx_wasm_module: *std.Build.Module,
+    zx_wasm_module: ?*std.Build.Module,
     opts: InitInnerOptions,
 ) !Build {
     // const target = exe.root_module.resolved_target;
@@ -324,16 +327,21 @@ pub fn initInner(
         } else |_| {}
     }
 
+    const build_client_wasm = opts.client.wasm.link;
+    const link_client_bindings = opts.client.bindings.link;
+
     // --- JS Bindings Package Install --- //
-    if (opts.client.bindings.install_subdir) |subdir| {
-        const install_pkg = b.addInstallDirectory(.{
-            .source_dir = opts.ziex_js_root,
-            .install_dir = .prefix,
-            .include_extensions = &.{ ".js", ".ts" },
-            .install_subdir = subdir,
-        });
-        install_pkg.step.name = "install js bindings package";
-        b.getInstallStep().dependOn(&install_pkg.step);
+    if (build_client_wasm) {
+        if (opts.client.bindings.install_subdir) |subdir| {
+            const install_pkg = b.addInstallDirectory(.{
+                .source_dir = opts.ziex_js_root,
+                .install_dir = .prefix,
+                .include_extensions = &.{ ".js", ".ts" },
+                .install_subdir = subdir,
+            });
+            install_pkg.step.name = "install js bindings package";
+            b.getInstallStep().dependOn(&install_pkg.step);
+        }
     }
 
     // --- ZX Injections --- //
@@ -342,39 +350,41 @@ pub fn initInner(
     for (opts.element_injections) |inj| {
         injections.add(b, inj);
     }
-    if (opts.client.bindings.href) |bindings_href| {
-        const href = if (std.mem.startsWith(u8, bindings_href, "http://") or std.mem.startsWith(u8, bindings_href, "https://"))
-            bindings_href
-        else
-            html_util.prefixPathWithBasePath(b.allocator, opts.base_path, bindings_href);
-        injections.add(b, .{
-            .parent = .head,
-            .position = .ending,
-            .id = AddElementOptions.Id.jsglue,
-            .element = .{
-                .tag = .script,
-                .attributes = &.{
-                    .{ .name = "defer" },
-                    .{ .name = "src", .value = b.fmt("{s}", .{href}) },
+    if (link_client_bindings) {
+        if (opts.client.bindings.href) |bindings_href| {
+            const href = if (std.mem.startsWith(u8, bindings_href, "http://") or std.mem.startsWith(u8, bindings_href, "https://"))
+                bindings_href
+            else
+                html_util.prefixPathWithBasePath(b.allocator, opts.base_path, bindings_href);
+            injections.add(b, .{
+                .parent = .head,
+                .position = .ending,
+                .id = AddElementOptions.Id.jsglue,
+                .element = .{
+                    .tag = .script,
+                    .attributes = &.{
+                        .{ .name = "defer" },
+                        .{ .name = "src", .value = b.fmt("{s}", .{href}) },
+                    },
                 },
-            },
-        });
-    } else if (use_stable_assets) {
-        injections.add(b, .{
-            .parent = .head,
-            .position = .ending,
-            .id = AddElementOptions.Id.jsglue,
-            .element = .{
-                .tag = .script,
-                .attributes = &.{
-                    .{ .name = "defer" },
-                    .{ .name = "src", .value = b.fmt("{s}.js", .{client_asset_href_stem}) },
+            });
+        } else if (use_stable_assets and build_client_wasm) {
+            injections.add(b, .{
+                .parent = .head,
+                .position = .ending,
+                .id = AddElementOptions.Id.jsglue,
+                .element = .{
+                    .tag = .script,
+                    .attributes = &.{
+                        .{ .name = "defer" },
+                        .{ .name = "src", .value = b.fmt("{s}.js", .{client_asset_href_stem}) },
+                    },
                 },
-            },
-        });
+            });
+        }
     }
 
-    if (use_stable_assets) {
+    if (build_client_wasm and use_stable_assets) {
         injections.add(b, .{
             .parent = .head,
             .position = .ending,
@@ -450,83 +460,85 @@ pub fn initInner(
     b.installArtifact(exe);
 
     // --- ZX WASM Main Executable --- //
-    const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding, .abi = .none });
-    const wasm_exe = b.addExecutable(.{
-        .name = b.fmt("main", .{}),
-        .root_module = b.createModule(.{
-            .root_source_file = exe.root_module.root_source_file,
-            .target = wasm_target,
-            .optimize = optimize,
-        }),
-    });
+    const manifest_path: LazyPath = if (build_client_wasm) blk: {
+        const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding, .abi = .none });
+        const wasm_exe = b.addExecutable(.{
+            .name = b.fmt("main", .{}),
+            .root_module = b.createModule(.{
+                .root_source_file = exe.root_module.root_source_file,
+                .target = wasm_target,
+                .optimize = optimize,
+            }),
+        });
 
-    wasm_exe.entry = .disabled;
-    wasm_exe.export_memory = true;
-    wasm_exe.rdynamic = true;
-    wasm_exe.root_module.strip = !is_dev_build;
+        wasm_exe.entry = .disabled;
+        wasm_exe.export_memory = true;
+        wasm_exe.rdynamic = true;
+        wasm_exe.root_module.strip = !is_dev_build;
 
-    // Create a site-specific wasm module (same approach as server module)
-    var wasm_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
-    for (user_imports.items) |import| {
-        if (std.mem.eql(u8, import.name, "zx")) continue;
+        // Create a site-specific wasm module (same approach as server module)
+        var wasm_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
+        for (user_imports.items) |import| {
+            if (std.mem.eql(u8, import.name, "zx")) continue;
 
-        const requires_libc = try moduleRequiresLibC(b.allocator, import.module);
-        const wasm_module = if (requires_libc)
-            makeServerOnlyStubModule(b, import.name, opts.server_only_stub_mode)
-        else
-            import.module;
+            const requires_libc = try moduleRequiresLibC(b.allocator, import.module);
+            const wasm_module = if (requires_libc)
+                makeServerOnlyStubModule(b, import.name, opts.server_only_stub_mode)
+            else
+                import.module;
 
-        try wasm_imports.append(.{ .name = import.name, .module = wasm_module });
-        wasm_exe.root_module.addImport(import.name, wasm_module);
-    }
-
-    var wasm_import_it = zx_wasm_module.import_table.iterator();
-    while (wasm_import_it.next()) |entry| {
-        try wasm_imports.append(.{ .name = entry.key_ptr.*, .module = entry.value_ptr.* });
-    }
-
-    const wasm_app_module = b.createModule(.{
-        .root_source_file = zx_wasm_module.root_source_file,
-        .target = wasm_target,
-        .optimize = zx_wasm_module.optimize,
-        .imports = wasm_imports.items,
-    });
-
-    // Build imports for wasm app
-    var wasm_app_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
-    for (wasm_imports.items) |import| {
-        try wasm_app_imports.append(import);
-    }
-    try wasm_app_imports.append(.{ .name = "zx", .module = wasm_app_module });
-
-    wasm_app_module.addAnonymousImport("app", .{
-        .root_source_file = transpile_store.path(b, "app.zig"),
-        .imports = wasm_app_imports.items,
-    });
-    wasm_app_module.addOptions("app_opts", app_opts);
-    wasm_exe.root_module.addImport("zx", wasm_app_module);
-    wasm_exe.step.dependOn(&transpile_cmd.step);
-
-    const wasm_binpath = wasm_exe.getEmittedBin();
-    const zxjs_path = opts.ziex_js_root.path(b, if (is_dev_build) "wasm/init.dev.js" else "wasm/init.js");
-
-    const manifest_path: LazyPath = if (use_stable_assets) blk: {
-        if (uses_local_bindings) {
-            const js_asset = addStaticAssetCopy(b, zx_exe, opts, zxjs_path, client_asset_stem, ".js", true, true, "script");
-            js_asset.setName("install client bindings");
-            b.getInstallStep().dependOn(&js_asset.step);
+            try wasm_imports.append(.{ .name = import.name, .module = wasm_module });
+            wasm_exe.root_module.addImport(import.name, wasm_module);
         }
 
-        const wasm_asset = addStaticAssetCopy(b, zx_exe, opts, wasm_binpath, client_asset_stem, ".wasm", !uses_local_bindings, true, "wasmlink");
-        wasm_asset.setName("install client wasm");
-        wasm_asset.step.dependOn(&wasm_exe.step);
-        b.getInstallStep().dependOn(&wasm_asset.step);
+        var wasm_import_it = zx_wasm_module.?.import_table.iterator();
+        while (wasm_import_it.next()) |entry| {
+            try wasm_imports.append(.{ .name = entry.key_ptr.*, .module = entry.value_ptr.* });
+        }
 
-        break :blk base_manifest_path;
-    } else blk: {
+        const wasm_app_module = b.createModule(.{
+            .root_source_file = zx_wasm_module.?.root_source_file,
+            .target = wasm_target,
+            .optimize = zx_wasm_module.?.optimize,
+            .imports = wasm_imports.items,
+        });
+
+        // Build imports for wasm app
+        var wasm_app_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);
+        for (wasm_imports.items) |import| {
+            try wasm_app_imports.append(import);
+        }
+        try wasm_app_imports.append(.{ .name = "zx", .module = wasm_app_module });
+
+        wasm_app_module.addAnonymousImport("app", .{
+            .root_source_file = transpile_store.path(b, "app.zig"),
+            .imports = wasm_app_imports.items,
+        });
+        wasm_app_module.addOptions("app_opts", app_opts);
+        wasm_exe.root_module.addImport("zx", wasm_app_module);
+        wasm_exe.step.dependOn(&transpile_cmd.step);
+
+        const wasm_binpath = wasm_exe.getEmittedBin();
+        const zxjs_path = opts.ziex_js_root.path(b, if (is_dev_build) "wasm/init.dev.js" else "wasm/init.js");
+
+        if (use_stable_assets) {
+            if (uses_local_bindings and link_client_bindings) {
+                const js_asset = addStaticAssetCopy(b, zx_exe, opts, zxjs_path, client_asset_stem, ".js", true, true, "script");
+                js_asset.setName("install client bindings");
+                b.getInstallStep().dependOn(&js_asset.step);
+            }
+
+            const wasm_asset = addStaticAssetCopy(b, zx_exe, opts, wasm_binpath, client_asset_stem, ".wasm", !uses_local_bindings, true, "wasmlink");
+            wasm_asset.setName("install client wasm");
+            wasm_asset.step.dependOn(&wasm_exe.step);
+            b.getInstallStep().dependOn(&wasm_asset.step);
+
+            break :blk base_manifest_path;
+        }
+
         var wasm_manifest_in = base_manifest_path;
         var js_run: ?*std.Build.Step.Run = null;
-        if (uses_local_bindings) {
+        if (uses_local_bindings and link_client_bindings) {
             const js_asset = addStaticAssetRun(b, zx_exe, opts, base_manifest_path, zxjs_path, client_asset_href_stem, client_asset_stem, ".js", "script", true, false);
             js_asset.run.setName("install client bindings");
             b.getInstallStep().dependOn(&js_asset.run.step);
@@ -554,7 +566,7 @@ pub fn initInner(
         exe.step.dependOn(&wasm_asset_run.run.step);
 
         break :blk wasm_asset_run.manifest_out;
-    };
+    } else base_manifest_path;
 
     const manifest_mod = b.createModule(.{ .root_source_file = manifest_path });
     zx_module.addImport("manifest", manifest_mod);

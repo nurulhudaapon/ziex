@@ -19,6 +19,13 @@ pub fn build(b: *std.Build) !void {
         .kv = .enabled,
         .cache = .enabled,
     };
+    const app_client: ziex.InitOptions.ClientOptions = .{
+        .bindings = .{
+            .href = b.fmt("/assets/{s}", .{jsbinding_name}),
+            .install_subdir = "pkg/ziex",
+            .build = .enabled,
+        },
+    };
 
     // --- Deps --- //
     const ziex_dep = b.dependency("ziex", .{ .optimize = optimize, .target = target });
@@ -32,6 +39,7 @@ pub fn build(b: *std.Build) !void {
         .@"feature-kv-client" = if (app_features.kv) |k| k.client != null else false,
         .@"feature-kv-server" = if (app_features.kv) |k| k.server != null else false,
         .@"feature-sqlite" = if (app_features.sqlite) |s| s.server != null else false,
+        .@"feature-wasm-client" = app_client.wasm.link,
     });
 
     const pg_step = b.step("pg", "Install playground assets");
@@ -179,13 +187,7 @@ pub fn build(b: *std.Build) !void {
             // .path = b.path("app"),
             // .base_path = "/test",
             .features = app_features,
-            .client = .{
-                .bindings = .{
-                    .href = b.fmt("/assets/{s}", .{jsbinding_name}),
-                    .install_subdir = "pkg/ziex",
-                    .build = .enabled,
-                },
-            },
+            .client = app_client,
         },
         .cli = .{ .optimize = optimize, .log_level = log_level, .zig_path = "zig" },
     });
@@ -287,6 +289,7 @@ pub fn build(b: *std.Build) !void {
 
     if (true) {
         const is_release = optimize != .debug;
+        const build_client_wasm = app_client.wasm.link;
         const site_scripts = esbuild.addBuild(b, .{
             .name = "site_scripts",
             .config = .{
@@ -306,16 +309,18 @@ pub fn build(b: *std.Build) !void {
         });
 
         // const install_main_js = b.addInstallFile(site_scripts.dir.path(b, "client.js"), b.fmt("static/assets/main{s}.js", .{id}));
-        const ziex_js_files = ziex_jsbindings_dep.namedWriteFiles("ziex_js");
-        const init_name = if (is_release) "init.js" else "init.dev.js";
-        const init_js = ziex_js_files.getDirectory().path(b, b.fmt("wasm/{s}", .{init_name}));
-        const install_main_js = b.addInstallFile(init_js, b.fmt("static/assets/{s}", .{jsbinding_name}));
-        install_main_js.step.name = "install app.js bindings";
+        if (build_client_wasm and app_client.bindings.link) {
+            const ziex_js_files = ziex_jsbindings_dep.namedWriteFiles("ziex_js");
+            const init_name = if (is_release) "init.js" else "init.dev.js";
+            const init_js = ziex_js_files.getDirectory().path(b, b.fmt("wasm/{s}", .{init_name}));
+            const install_main_js = b.addInstallFile(init_js, b.fmt("static/assets/{s}", .{jsbinding_name}));
+            install_main_js.step.name = "install app.js bindings";
+            b.default_step.dependOn(&install_main_js.step);
+        }
         const install_docs_js = b.addInstallFile(site_scripts.dir.path(b, "docs.js"), "static/assets/docs.js");
         install_docs_js.step.name = "install docs.js";
         const install_home_js = b.addInstallFile(site_scripts.dir.path(b, "home.js"), "static/assets/home.js");
         install_home_js.step.name = "install home.js";
-        b.default_step.dependOn(&install_main_js.step);
         b.default_step.dependOn(&install_docs_js.step);
         b.default_step.dependOn(&install_home_js.step);
     }
