@@ -1,4 +1,4 @@
-import { WASI, PreopenDirectory, Fd, File, OpenFile, Directory } from "@bjorn3/browser_wasi_shim";
+import { WASI, PreopenDirectory, Fd, File, OpenFile, Directory, Inode } from "@bjorn3/browser_wasi_shim";
 import { getLatestZigArchive, getZxArchive, stderrOutput, fetchWithCache } from "../utils";
 import { nestPaths } from "../csr";
 
@@ -6,6 +6,9 @@ declare const ZIG_VERSION: string;
 
 let currentlyRunning = false;
 let compiledModule: WebAssembly.Module | null = null;
+
+let cacheContents: Map<string, Inode> | null = null;
+let cachesReady: Promise<void> | null = null;
 
 type CompileMode = "playground" | "app";
 type CompileKind = "ssr" | "client";
@@ -19,6 +22,135 @@ function convertTree(node: Map<string, Map<string, unknown> | Uint8Array>): Dire
             return [key, convertTree(value as Map<string, Map<string, unknown> | Uint8Array>)];
         }),
     );
+}
+
+const IDB_NAME = `ziex-zig-cache-${ZIG_VERSION}`;
+const IDB_STORE = "files";
+
+function openCacheDb(): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(IDB_NAME, 1);
+        req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(IDB_STORE)) {
+                db.createObjectStore(IDB_STORE);
+            }
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error ?? new Error("indexedDB.open failed"));
+    });
+}
+
+function idbReq<T>(req: IDBRequest<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error ?? new Error("indexedDB request failed"));
+    });
+}
+
+/** Flatten Directory tree to path → bytes (skips tmp/). */
+function flattenCache(contents: Map<string, Inode>, prefix = ""): Array<[string, ArrayBuffer]> {
+    const out: Array<[string, ArrayBuffer]> = [];
+    for (const [name, inode] of contents.entries()) {
+        if (name === "tmp") continue;
+        const path = prefix ? `${prefix}/${name}` : name;
+        if (inode instanceof Directory) {
+            out.push(...flattenCache(inode.contents, path));
+        } else if (inode instanceof File) {
+            const bytes = inode.data;
+            const buf = new ArrayBuffer(bytes.byteLength);
+            new Uint8Array(buf).set(bytes);
+            out.push([path, buf]);
+        }
+    }
+    return out;
+}
+
+/** Rebuild Directory map from flat path -> bytes. */
+function unflattenCache(entries: Array<[string, ArrayBuffer]>): Map<string, Inode> {
+    const root = new Map<string, Inode>();
+    for (const [path, buf] of entries) {
+        const parts = path.split("/");
+        let cur = root;
+        for (let i = 0; i < parts.length - 1; i++) {
+            const seg = parts[i]!;
+            let next = cur.get(seg);
+            if (!(next instanceof Directory)) {
+                next = new Directory(new Map());
+                cur.set(seg, next);
+            }
+            cur = next.contents;
+        }
+        cur.set(parts[parts.length - 1]!, new File(new Uint8Array(buf)));
+    }
+    return root;
+}
+
+async function loadCacheMap(): Promise<Map<string, Inode>> {
+    try {
+        const db = await openCacheDb();
+        const tx = db.transaction(IDB_STORE, "readonly");
+        const store = tx.objectStore(IDB_STORE);
+        // Support both current keys and legacy `global/` / `local/` prefixes.
+        const [keys, values] = await Promise.all([
+            idbReq(store.getAllKeys()),
+            idbReq(store.getAll()),
+        ]);
+        db.close();
+
+        const entries: Array<[string, ArrayBuffer]> = [];
+        for (let i = 0; i < keys.length; i++) {
+            const key = keys[i];
+            const value = values[i];
+            if (typeof key !== "string" || !(value instanceof ArrayBuffer)) continue;
+            const path = key.startsWith("global/")
+                ? key.slice("global/".length)
+                : key.startsWith("local/")
+                  ? key.slice("local/".length)
+                  : key;
+            if (!path) continue;
+            entries.push([path, value]);
+        }
+        return unflattenCache(entries);
+    } catch {
+        return new Map();
+    }
+}
+
+async function saveCacheMap(contents: Map<string, Inode>): Promise<void> {
+    try {
+        const db = await openCacheDb();
+        const flat = flattenCache(contents);
+
+        const tx = db.transaction(IDB_STORE, "readwrite");
+        const store = tx.objectStore(IDB_STORE);
+        store.clear();
+        for (const [path, buf] of flat) {
+            store.put(buf, path);
+        }
+        await new Promise<void>((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error ?? new Error("idb write failed"));
+        });
+        db.close();
+    } catch {
+        // Persistence is best-effort; in-memory cache still works for the session.
+    }
+}
+
+async function ensureZigCache(): Promise<Map<string, Inode>> {
+    if (!cachesReady) {
+        cachesReady = (async () => {
+            cacheContents = await loadCacheMap();
+        })();
+    }
+    await cachesReady;
+    return cacheContents!;
+}
+
+async function persistZigCache(): Promise<void> {
+    if (!cacheContents) return;
+    await saveCacheMap(cacheContents);
 }
 
 function buildPlaygroundArgs(): string[] {
@@ -99,14 +231,30 @@ async function ensureZigModule(): Promise<WebAssembly.Module> {
     return compiledModule;
 }
 
+function zigFds(
+    cwdContents: Map<string, Inode>,
+    libDirectory: Directory,
+    cache: Map<string, Inode>,
+): Fd[] {
+    return [
+        new OpenFile(new File([])),
+        stderrOutput(),
+        stderrOutput(),
+        new PreopenDirectory(".", cwdContents),
+        new PreopenDirectory("/lib", libDirectory.contents),
+        new PreopenDirectory("/cache", cache),
+    ];
+}
+
 async function compilePlayground(
     files: { [filename: string]: string },
     zxDirectory: Directory,
     libDirectory: Directory,
     libCompilerRt: ArrayBuffer,
+    cache: Map<string, Inode>,
 ): Promise<Uint8Array> {
     const args = buildPlaygroundArgs();
-    const fileContents = new Map<string, File | Directory>();
+    const fileContents = new Map<string, Inode>();
     const enc = new TextEncoder();
     for (const [filename, content] of Object.entries(files)) {
         fileContents.set(filename, new File(enc.encode(content)));
@@ -114,14 +262,7 @@ async function compilePlayground(
     fileContents.set("libcompiler_rt.a", new File(new Uint8Array(libCompilerRt)));
     fileContents.set("zx", zxDirectory);
 
-    const wasi = new WASI(args, [], [
-        new OpenFile(new File([])),
-        stderrOutput(),
-        stderrOutput(),
-        new PreopenDirectory(".", fileContents),
-        new PreopenDirectory("/lib", libDirectory.contents),
-        new PreopenDirectory("/cache", new Map()),
-    ] satisfies Fd[], { debug: false });
+    const wasi = new WASI(args, [], zigFds(fileContents, libDirectory, cache), { debug: false });
 
     const instance = await WebAssembly.instantiate(await ensureZigModule(), {
         wasi_snapshot_preview1: wasi.wasiImport,
@@ -143,6 +284,7 @@ async function compileAppOne(
     libDirectory: Directory,
     libCompilerRt: ArrayBuffer,
     jsDirectory: Directory | null,
+    cache: Map<string, Inode>,
 ): Promise<Uint8Array> {
     const args = buildAppArgs(kind);
     const tree = nestPaths(files);
@@ -151,14 +293,7 @@ async function compileAppOne(
     cwdContents.set("zx", zxDirectory);
     if (jsDirectory) cwdContents.set("js", jsDirectory);
 
-    const wasi = new WASI(args, [], [
-        new OpenFile(new File([])),
-        stderrOutput(),
-        stderrOutput(),
-        new PreopenDirectory(".", cwdContents),
-        new PreopenDirectory("/lib", libDirectory.contents),
-        new PreopenDirectory("/cache", new Map()),
-    ] satisfies Fd[], { debug: false });
+    const wasi = new WASI(args, [], zigFds(cwdContents, libDirectory, cache), { debug: false });
 
     const instance = await WebAssembly.instantiate(await ensureZigModule(), {
         wasi_snapshot_preview1: wasi.wasiImport,
@@ -209,20 +344,27 @@ async function run(files: { [filename: string]: string }, mode: CompileMode) {
     currentlyRunning = true;
 
     try {
-        const zxDirectory = await getZxArchive();
-        const libDirectory = await getLatestZigArchive();
-        const libCompilerRt = await (await fetchWithCache(`/assets/playground/libcompiler_rt-${ZIG_VERSION}.a`)).arrayBuffer();
+        const [cache, zxDirectory, libDirectory, libCompilerRtRes] = await Promise.all([
+            ensureZigCache(),
+            getZxArchive(),
+            getLatestZigArchive(),
+            fetchWithCache(`/assets/playground/libcompiler_rt-${ZIG_VERSION}.a`),
+        ]);
+        const libCompilerRt = await libCompilerRtRes.arrayBuffer();
 
         if (mode === "playground") {
-            const wasm = await compilePlayground(files, zxDirectory, libDirectory, libCompilerRt);
+            const wasm = await compilePlayground(files, zxDirectory, libDirectory, libCompilerRt, cache);
             postMessage({ compiled: wasm });
         } else {
             const jsDirectory = await getJsArchive();
-            const ssrWasm = await compileAppOne("ssr", files, zxDirectory, libDirectory, libCompilerRt, null);
-            const clientWasm = await compileAppOne("client", files, zxDirectory, libDirectory, libCompilerRt, jsDirectory);
+            const ssrWasm = await compileAppOne("ssr", files, zxDirectory, libDirectory, libCompilerRt, null, cache);
+            const clientWasm = await compileAppOne("client", files, zxDirectory, libDirectory, libCompilerRt, jsDirectory, cache);
             postMessage({ compiled: { ssrWasm, clientWasm } });
         }
+
+        await persistZigCache().catch(() => {});
     } catch (err) {
+        await persistZigCache().catch(() => {});
         postMessage({ stderr: `${err}` });
         postMessage({ failed: true });
     }
@@ -231,6 +373,12 @@ async function run(files: { [filename: string]: string }, mode: CompileMode) {
 }
 
 onmessage = (event) => {
+    if (event.data?.clearCache) {
+        cacheContents = new Map();
+        cachesReady = Promise.resolve();
+        void saveCacheMap(cacheContents).then(() => postMessage({ cacheCleared: true }));
+        return;
+    }
     if (event.data.files) {
         const mode: CompileMode = event.data.mode === "app" ? "app" : "playground";
         run(event.data.files, mode);

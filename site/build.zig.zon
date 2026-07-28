@@ -10,8 +10,8 @@
         .ui = .{ .path = "../pkg/ui" },
         .ziex_jsbindings = .{ .path = "../pkg/ziex" },
         .zig = .{
-            .url = "git+https://github.com/ziex-dev/zig.git?ref=0.17.0.dev-1158#168beded93fae57203d15ac381177612c67a875b",
-            .hash = "zig-0.0.0-Fp4XJB26Fg4GqNb7sPQVsZBIX4d1HUWIDe2Jhew11q7L",
+            .url = "git+https://github.com/ziex-dev/zig.git#cc0e300d0b487f49ad9759e33aff29d8fb654085",
+            .hash = "zig-0.0.0-Fp4XJOZoIg44LbIsnTiwLCUJLP90KphID1UYPPBPbOFX",
             .lazy = true,
         },
         .branding = .{
@@ -24,8 +24,8 @@
             .hash = "lunasvg-0.0.0-9mEwLqAcAABMUDN1zRkpqiP0vtANX3cPTcomKCm-9X6w",
         },
         .assets = .{
-            .url = "git+https://github.com/ziex-dev/ziex.dev#261b2386eb95be7e3259bc8f790053fe094097f4",
-            .hash = "N-V-__8AAPreiQA2G8qeraUdcGI258fAuf8A01IyP6FppNAn",
+            .url = "git+https://github.com/ziex-dev/ziex.dev#91dc22d8c614d64e1520ec3e013f99f971b02c82",
+            .hash = "N-V-__8AAB-z_gBcvY0oY6WVsPWF6kU9Rn6Q2b9H9LCdEzk9",
             .lazy = true,
         },
     },

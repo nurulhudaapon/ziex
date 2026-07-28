@@ -2,6 +2,7 @@ const std = @import("std");
 const ziex = @import("ziex");
 
 const build_zon = @import("build.zig.zon");
+const ziex_version = 1; // Increment this when site js changes
 
 pub fn build(b: *std.Build) !void {
     // --- Target and Optimize from `zig build` arguments ---
@@ -11,7 +12,7 @@ pub fn build(b: *std.Build) !void {
     const log_level = b.option(std.log.Level, "log-level", "Log level: debug, info, warn, error") orelse .info;
     const build_zig = b.option(bool, "build-zig", "Build zig/zls/compiler_rt wasm from source") orelse false;
 
-    const jsbinding_name = b.fmt("app{s}.js", .{id});
+    const jsbinding_name = b.fmt("app.{s}.js", .{id});
 
     const app_features: ziex.InitOptions.AppOptions.FeatureOptions = .{
         .sqlite = .enabled,
@@ -44,7 +45,7 @@ pub fn build(b: *std.Build) !void {
 
     const pg_step = b.step("pg", "Install playground assets");
     const zls_version = "0.16.0";
-    const playground_zig_version = "0.17.0-dev.1158+1d1193aa7";
+    const playground_zig_version = "0.17.0-dev.1456";
 
     // --- Playground Assets --- //
     {
@@ -379,9 +380,8 @@ pub fn build(b: *std.Build) !void {
     }
 }
 
-fn assetId(_: *std.Build, _: std.builtin.OptimizeMode) []const u8 {
-    return "0"; // Increment this when site js changes
-    // TODO: use ziex_builder.addStaticInstallFile(.{src: lazypath, dest_name: "assets/app.{hash}.js"}) once this is implemented
+fn assetId(b: *std.Build, _: std.builtin.Optimize) []const u8 {
+    return b.allocator.print("{x}", .{99999999 + ziex_version}) catch "0";
 }
 
 const esbuild = @import("esbuild");

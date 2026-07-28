@@ -28,12 +28,22 @@ import { css } from "@codemirror/lang-css";
 import { javascript } from "@codemirror/lang-javascript";
 import { createPlaygroundShareUrl, decodeFilesFromQuery } from "../../../scripts/playground_share";
 
-declare const VERSION: string;  
+declare const VERSION: string;
+declare const ZIG_VERSION: string;
 
 let client = createZlsClient(workerTransport(new Worker(`/assets/playground/workers/zls.js?v=${VERSION}`)));
 const PLAYGROUND_NOTICE_STORAGE_KEY = "playground_feature_notice_dismissed_v1";
 const MODE_STORAGE_KEY = "playground_mode_v1";
 const TEMPLATE_STORAGE_KEY = "playground_template_v1";
+const PERSIST_FILES_KEY = "playground_persist_files_v1";
+const FILES_IDB_NAME = "ziex-playground-files-v1";
+const BUILDS_IDB_NAME = `ziex-playground-builds-${VERSION}`;
+const IDB_STORE = "data";
+
+let persistFilesEnabled = false;
+try {
+    persistFilesEnabled = localStorage.getItem(PERSIST_FILES_KEY) === "1";
+} catch { /* ignore */ }
 
 let playgroundMode: PlaygroundMode = "playground";
 let activeTemplateId = defaultTemplateId("playground");
@@ -100,6 +110,7 @@ function editorStatusPlugin(filename: string) {
             if (update.selectionSet || update.docChanged || update.focusChanged) {
                 updateEditorStatus(update.view, filename);
             }
+            if (update.docChanged) schedulePersistFiles();
         }
     });
 }
@@ -287,6 +298,7 @@ function addFile() {
     };
     files.push(newFile);
     switchFile(files.length - 1);
+    schedulePersistFiles();
 }
 
 function removeFile(index: number) {
@@ -313,6 +325,7 @@ function removeFile(index: number) {
         if (index < activeFileIndex) activeFileIndex--;
         updateTabs();
     }
+    schedulePersistFiles();
 }
 
 function renameFile(index: number) {
@@ -335,6 +348,7 @@ function renameFile(index: number) {
                 editorView.setState(file.state);
             }
             updateTabs();
+            schedulePersistFiles();
         } else {
             alert("Rename failed!");
         }
@@ -470,6 +484,7 @@ function loadTemplateFiles(templateId = activeTemplateId) {
     playgroundMode = template.mode;
     persistModeState();
     loadFilesFromMap(template.files);
+    schedulePersistFiles();
 }
 
 function ensureBaselinePlaygroundFiles(filesDecoded: { [filename: string]: string }): { [filename: string]: string } {
@@ -556,6 +571,7 @@ function setupFeatureNotice() {
 window.addEventListener("DOMContentLoaded", async () => {
     setupFeatureNotice();
     setupModeControls();
+    setupSettingsMenu();
     await Promise.race([
         client.initializing,
         new Promise<void>((resolve) => setTimeout(resolve, 2500)),
@@ -570,6 +586,21 @@ window.addEventListener("DOMContentLoaded", async () => {
             const filesWithDefaults = ensureBaselinePlaygroundFiles(filesDecoded);
             loadFilesFromMap(filesWithDefaults);
             clearSharedDataHashFromUrl();
+            syncModeUi();
+            enableChromeButtons();
+            return;
+        }
+    }
+    if (persistFilesEnabled) {
+        const saved = await loadPersistedFiles();
+        if (saved?.files && Object.keys(saved.files).length > 0) {
+            if (saved.mode === "app" || saved.mode === "playground") playgroundMode = saved.mode;
+            if (saved.templateId && getTemplate(saved.templateId)?.mode === playgroundMode) {
+                activeTemplateId = saved.templateId;
+            } else {
+                activeTemplateId = defaultTemplateId(playgroundMode);
+            }
+            loadFilesFromMap(ensureBaselinePlaygroundFiles(saved.files));
             syncModeUi();
             enableChromeButtons();
             return;
@@ -829,6 +860,217 @@ function updatePreviewStatus(emoji: string, label: string, stepId: string) {
         iconEl.dataset.step = stepId;
     }
     if (textEl) textEl.textContent = label;
+}
+
+function openIdb(name: string): Promise<IDBDatabase> {
+    return new Promise((resolve, reject) => {
+        const req = indexedDB.open(name, 1);
+        req.onupgradeneeded = () => {
+            const db = req.result;
+            if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error ?? new Error("indexedDB.open failed"));
+    });
+}
+
+function idbReq<T>(req: IDBRequest<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error ?? new Error("indexedDB request failed"));
+    });
+}
+
+async function idbGet<T>(dbName: string, key: string): Promise<T | undefined> {
+    try {
+        const db = await openIdb(dbName);
+        const tx = db.transaction(IDB_STORE, "readonly");
+        const value = await idbReq(tx.objectStore(IDB_STORE).get(key)) as T | undefined;
+        db.close();
+        return value;
+    } catch {
+        return undefined;
+    }
+}
+
+async function idbPut(dbName: string, key: string, value: unknown): Promise<void> {
+    try {
+        const db = await openIdb(dbName);
+        const tx = db.transaction(IDB_STORE, "readwrite");
+        tx.objectStore(IDB_STORE).put(value, key);
+        await new Promise<void>((resolve, reject) => {
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error ?? new Error("idb put failed"));
+        });
+        db.close();
+    } catch { /* ignore */ }
+}
+
+async function idbClearDb(dbName: string): Promise<void> {
+    try {
+        await new Promise<void>((resolve, reject) => {
+            const req = indexedDB.deleteDatabase(dbName);
+            req.onsuccess = () => resolve();
+            req.onerror = () => reject(req.error ?? new Error("idb delete failed"));
+            req.onblocked = () => resolve();
+        });
+    } catch { /* ignore */ }
+}
+
+type PersistedFilesPayload = {
+    mode: PlaygroundMode;
+    templateId: string;
+    files: { [filename: string]: string };
+};
+
+type StoredBuild =
+    | { mode: "playground"; wasm: ArrayBuffer; duration: number }
+    | { mode: "app"; ssrWasm: ArrayBuffer; clientWasm: ArrayBuffer; duration: number };
+
+function copyBuffer(bytes: Uint8Array): ArrayBuffer {
+    const buf = new ArrayBuffer(bytes.byteLength);
+    new Uint8Array(buf).set(bytes);
+    return buf;
+}
+
+function storeBuildArtifact(compiled: PlaygroundBuildArtifacts | Uint8Array, duration: number): StoredBuild {
+    if (compiled instanceof Uint8Array) {
+        return { mode: "playground", wasm: copyBuffer(compiled), duration };
+    }
+    return {
+        mode: "app",
+        ssrWasm: copyBuffer(compiled.ssrWasm),
+        clientWasm: copyBuffer(compiled.clientWasm),
+        duration,
+    };
+}
+
+function restoreBuildArtifact(stored: StoredBuild): PlaygroundBuildArtifacts | Uint8Array {
+    if (stored.mode === "playground") return new Uint8Array(stored.wasm);
+    return {
+        ssrWasm: new Uint8Array(stored.ssrWasm),
+        clientWasm: new Uint8Array(stored.clientWasm),
+    };
+}
+
+let persistFilesTimer: number | null = null;
+
+function schedulePersistFiles() {
+    if (!persistFilesEnabled) return;
+    if (persistFilesTimer != null) window.clearTimeout(persistFilesTimer);
+    persistFilesTimer = window.setTimeout(() => {
+        persistFilesTimer = null;
+        void savePersistedFiles();
+    }, 400);
+}
+
+async function savePersistedFiles() {
+    if (!persistFilesEnabled) return;
+    const filesMap = getCurrentFilesMap();
+    // Drop generated zig outputs from persistence; they are rebuilt on run.
+    const persisted: { [filename: string]: string } = {};
+    for (const [name, content] of Object.entries(filesMap)) {
+        if (isGeneratedPlaygroundPath(name)) continue;
+        if (playgroundMode !== "app" && name.endsWith(".zig") && name !== "main.zig") continue;
+        persisted[name] = content;
+    }
+    await idbPut(FILES_IDB_NAME, "snapshot", {
+        mode: playgroundMode,
+        templateId: activeTemplateId,
+        files: persisted,
+    } satisfies PersistedFilesPayload);
+}
+
+async function loadPersistedFiles(): Promise<PersistedFilesPayload | null> {
+    const snap = await idbGet<PersistedFilesPayload>(FILES_IDB_NAME, "snapshot");
+    if (!snap?.files || typeof snap.files !== "object") return null;
+    return snap;
+}
+
+async function clearAllPlaygroundCaches() {
+    transpileCache.clear();
+    buildCache.clear();
+    await Promise.all([
+        idbClearDb(BUILDS_IDB_NAME),
+        idbClearDb(`ziex-zig-cache-${ZIG_VERSION}`),
+        new Promise<void>((resolve) => {
+            const onMsg = (ev: MessageEvent) => {
+                if (ev.data?.cacheCleared) {
+                    zigWorker.removeEventListener("message", onMsg);
+                    resolve();
+                }
+            };
+            zigWorker.addEventListener("message", onMsg);
+            zigWorker.postMessage({ clearCache: true });
+            window.setTimeout(() => {
+                zigWorker.removeEventListener("message", onMsg);
+                resolve();
+            }, 1500);
+        }),
+    ]);
+}
+
+function setPersistFilesEnabled(enabled: boolean) {
+    persistFilesEnabled = enabled;
+    try {
+        localStorage.setItem(PERSIST_FILES_KEY, enabled ? "1" : "0");
+    } catch { /* ignore */ }
+    const checkbox = document.getElementById("pg-persist-files") as HTMLInputElement | null;
+    if (checkbox) checkbox.checked = enabled;
+    if (enabled) void savePersistedFiles();
+}
+
+function setupSettingsMenu() {
+    const root = document.getElementById("pg-settings");
+    const btn = document.getElementById("pg-settings-btn") as HTMLButtonElement | null;
+    const popover = document.getElementById("pg-settings-popover");
+    const persistCb = document.getElementById("pg-persist-files") as HTMLInputElement | null;
+    const resetBtn = document.getElementById("pg-reset-template");
+    const clearBtn = document.getElementById("pg-clear-cache");
+    if (!root || !btn || !popover) return;
+
+    if (persistCb) persistCb.checked = persistFilesEnabled;
+
+    const setOpen = (open: boolean) => {
+        popover.classList.toggle("is-hidden", !open);
+        btn.setAttribute("aria-expanded", open ? "true" : "false");
+    };
+
+    btn.addEventListener("click", (ev) => {
+        ev.stopPropagation();
+        setOpen(popover.classList.contains("is-hidden"));
+    });
+
+    persistCb?.addEventListener("change", () => {
+        setPersistFilesEnabled(!!persistCb.checked);
+    });
+
+    resetBtn?.addEventListener("click", () => {
+        loadTemplateFiles(activeTemplateId);
+        if (persistFilesEnabled) void savePersistedFiles();
+        setOpen(false);
+        appendTerminalLine("Template reset.", "pg-terminal-muted");
+    });
+
+    clearBtn?.addEventListener("click", () => {
+        void (async () => {
+            clearBtn.setAttribute("disabled", "true");
+            try {
+                await clearAllPlaygroundCaches();
+                appendTerminalLine("Build cache cleared.", "pg-terminal-muted");
+            } finally {
+                clearBtn.removeAttribute("disabled");
+                setOpen(false);
+            }
+        })();
+    });
+
+    document.addEventListener("click", (ev) => {
+        if (!root.contains(ev.target as Node)) setOpen(false);
+    });
+    document.addEventListener("keydown", (ev) => {
+        if (ev.key === "Escape") setOpen(false);
+    });
 }
 
 // Content hash (fast djb2 variant)
@@ -1423,6 +1665,18 @@ async function runTranspileAndBuild(visible: boolean): Promise<PlaygroundBuildAr
         return buildHit.value as PlaygroundBuildArtifacts | Uint8Array;
     }
 
+    const idbHit = await idbGet<StoredBuild>(BUILDS_IDB_NAME, buildKey);
+    if (idbHit && (idbHit.mode === "playground" || idbHit.mode === "app")) {
+        const restored = restoreBuildArtifact(idbHit);
+        cachePut(buildCache, buildKey, { value: restored, duration: idbHit.duration ?? 0, isPrefetch: false });
+        if (visible) {
+            appendStatusStep("build", "Building\u2026");
+            completeStatusStep("build", "cached");
+            updatePreviewStatus("", "Building\u2026 (cached)", "build");
+        }
+        return restored;
+    }
+
     if (visible) {
         appendStatusStep("build", "Building\u2026");
         updatePreviewStatus("", "Building\u2026", "build");
@@ -1432,6 +1686,7 @@ async function runTranspileAndBuild(visible: boolean): Promise<PlaygroundBuildAr
         const compiled = await buildFilesAsync(filesMap);
         const bDuration = performance.now() - bStart;
         cachePut(buildCache, buildKey, { value: compiled, duration: bDuration, isPrefetch: !visible });
+        void idbPut(BUILDS_IDB_NAME, buildKey, storeBuildArtifact(compiled, bDuration));
         if (visible) completeStatusStep("build", "done");
         return compiled;
     } catch (err: any) {
@@ -1483,9 +1738,8 @@ outputsRun.addEventListener('click', async () => {
     runCompiled(compiled);
 });
 
-// Background building on editor mouseleave
-document.getElementById('pg-editor')?.addEventListener('mouseleave', () => {
-    if (prefetchPromise) return; // already prefetching
+function maybePrefetchBuild() {
+    if (prefetchPromise) return;
 
     const snap = getCurrentFilesMap();
     const zxEntries = Object.entries(snap).filter(([n]) => n.endsWith('.zx'));
@@ -1496,4 +1750,21 @@ document.getElementById('pg-editor')?.addEventListener('mouseleave', () => {
     prefetchPromise = (async () => {
         try { await runTranspileAndBuild(false); } catch { /* silent */ }
     })().finally(() => { prefetchPromise = null; });
-});
+}
+
+// Prefetch when the pointer nears or hovers the Run button (not on every editor leave).
+const RUN_PREFETCH_PROXIMITY_PX = 72;
+outputsRun.addEventListener('mouseenter', maybePrefetchBuild);
+outputsRun.addEventListener('focus', maybePrefetchBuild);
+document.addEventListener('mousemove', (ev) => {
+    const rect = outputsRun.getBoundingClientRect();
+    const pad = RUN_PREFETCH_PROXIMITY_PX;
+    if (
+        ev.clientX >= rect.left - pad &&
+        ev.clientX <= rect.right + pad &&
+        ev.clientY >= rect.top - pad &&
+        ev.clientY <= rect.bottom + pad
+    ) {
+        maybePrefetchBuild();
+    }
+}, { passive: true });
