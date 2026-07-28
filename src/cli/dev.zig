@@ -37,8 +37,8 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
     const io = app.io;
     const env_map = app.environ_map;
 
-    if (comptime builtin.mode == .debug) sig.register(onDevShutdown);
-    defer if (comptime builtin.mode == .debug) sig.unregister();
+    if (comptime builtin.optimize == .debug) sig.register(onDevShutdown);
+    defer if (comptime builtin.optimize == .debug) sig.unregister();
 
     const allocator = ctx.allocator;
     const binpath = args.binpath;

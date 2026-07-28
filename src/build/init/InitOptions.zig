@@ -58,7 +58,7 @@ pub const CliOptions = struct {
     steps: ?Steps = .default,
 
     /// Optimize mode for the ZX CLI executable.
-    optimize: ?std.builtin.OptimizeMode = .ReleaseFast,
+    optimize: ?std.builtin.Optimize = .fast,
 
     /// Log level for the ZX CLI executable.
     log_level: ?std.log.Level = null,

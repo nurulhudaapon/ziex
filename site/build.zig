@@ -49,7 +49,7 @@ pub fn build(b: *std.Build) !void {
     // --- Playground Assets --- //
     {
         const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .wasi });
-        const wasm_optimize: std.builtin.OptimizeMode = .ReleaseSmall;
+        const wasm_optimize: std.builtin.Optimize = .small;
 
         const zx_wasm_dep = b.dependency("ziex", .{ .target = wasm_target, .optimize = wasm_optimize });
         const zx_exe = zx_wasm_dep.artifact("zx");

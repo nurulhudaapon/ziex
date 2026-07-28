@@ -75,7 +75,7 @@ pub fn as(self: Event, comptime T: type, allocator: Allocator) T {
     _ = allocator;
     if (platform_role != .client) return std.mem.zeroInit(T, .{});
     const event = self.getEvent();
-    if (comptime (builtin.mode == .debug)) assertType(T, event);
+    if (comptime (builtin.optimize == .debug)) assertType(T, event);
     return readStruct(T, scratchAllocator(), event.ref);
 }
 

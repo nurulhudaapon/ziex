@@ -6,14 +6,15 @@ const Http = @import("Http.zig");
 pub const BaseContext = struct {
     const Self = @This();
 
-    /// The HTTP request object (backend-agnostic)
+    /// The incoming request, use this to access request body, headers, queries, etc.
     request: Request,
-    /// The HTTP response object (backend-agnostic)
+    /// The outgoing response, use this to populate response body, status, headers, etc.
     response: Response,
     /// Global allocator passed from the app, only cleared when the app is deinitialized.
     allocator: std.mem.Allocator,
     /// Arena allocator cleared automatically after the request is processed.
     arena: std.mem.Allocator,
+    /// Io passed from App.init()
     io: std.Io,
 
     pub fn init(request: Request, response: Response, alloc: std.mem.Allocator, io: std.Io) Self {
@@ -69,14 +70,15 @@ pub const LayoutContext = BaseContext;
 pub const NotFoundContext = BaseContext;
 
 pub const ErrorContext = struct {
-    /// The HTTP request object (backend-agnostic)
+    /// The incoming request, use this to access request body, headers, queries, etc.
     request: Request,
-    /// The HTTP response object (backend-agnostic)
+    /// The outgoing response, use this to populate response body, status, headers, etc.
     response: Response,
     /// Global allocator
     allocator: std.mem.Allocator,
     /// Arena allocator for request-scoped allocations
     arena: std.mem.Allocator,
+    /// Io passed from App.init()
     io: std.Io,
     /// The error that occurred
     err: anyerror,
@@ -109,7 +111,6 @@ pub const Socket = struct {
 
     pub const Internal = struct {
         http: Http = .{},
-        /// Whether a real backend has been attached (i.e. the route can upgrade).
         attached: bool = false,
     };
 
@@ -283,6 +284,7 @@ pub fn SocketCtx(comptime DataType: type) type {
         allocator: std.mem.Allocator,
         /// Arena allocator for request-scoped allocations
         arena: std.mem.Allocator,
+        /// Io passed from App.init()
         io: std.Io,
 
         const Self = @This();
@@ -307,6 +309,7 @@ pub fn SocketOpenCtx(comptime DataType: type) type {
         allocator: std.mem.Allocator,
         /// Arena allocator for request-scoped allocations
         arena: std.mem.Allocator,
+        /// Io passed from App.init()
         io: std.Io,
 
         const Self = @This();
@@ -331,6 +334,7 @@ pub fn SocketCloseCtx(comptime DataType: type) type {
         allocator: std.mem.Allocator,
         /// Arena allocator for request-scoped allocations
         arena: std.mem.Allocator,
+        /// Io passed from App.init()
         io: std.Io,
 
         const Self = @This();

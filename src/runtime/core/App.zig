@@ -80,7 +80,7 @@ pub fn release(alloc: std.mem.Allocator) void {
 }
 
 pub fn assertNoLeaks() void {
-    if (builtin.mode == .debug)
+    if (builtin.optimize == .debug)
         std.debug.assert(debug_allocator.deinit() == .ok);
 }
 
@@ -97,9 +97,9 @@ fn onSignal() void {
 var debug_allocator: std.heap.DebugAllocator(.{ .stack_trace_frames = 100 }) = .{};
 pub const allocator = switch (builtin.os.tag) {
     .wasi, .freestanding => std.heap.wasm_allocator,
-    else => switch (builtin.mode) {
+    else => switch (builtin.optimize) {
         .debug => debug_allocator.allocator(),
-        .ReleaseFast, .ReleaseSafe, .ReleaseSmall => std.heap.smp_allocator,
+        .fast, .safe, .small => std.heap.smp_allocator,
     },
 };
 

@@ -1170,7 +1170,7 @@ fn CsrStateBind__increment(value: i32) i32 {
 
 // --- Imports ---
 pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
-    if (builtin.mode != .debug) return .none;
+    if (builtin.optimize != .debug) return .none;
 
     const allocator = ctx.arena;
 

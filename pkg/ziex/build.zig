@@ -137,12 +137,10 @@ fn addTagsCodegen(b: *std.Build) *std.Build.Step.Run {
         .root_module = b.createModule(.{
             .root_source_file = b.path("tools/gen_tags.zig"),
             .target = host,
-            .optimize = .Debug,
             .imports = &.{
                 .{ .name = "element", .module = b.createModule(.{
                     .root_source_file = b.path("../../src/element.zig"),
                     .target = host,
-                    .optimize = .Debug,
                 }) },
             },
         }),
@@ -162,12 +160,10 @@ fn addEventsCodegen(b: *std.Build) *std.Build.Step.Run {
         .root_module = b.createModule(.{
             .root_source_file = b.path("tools/gen_delegated_events.zig"),
             .target = host,
-            .optimize = .Debug,
             .imports = &.{
                 .{ .name = "event_type", .module = b.createModule(.{
                     .root_source_file = b.path("../../src/runtime/client/event_type.zig"),
                     .target = host,
-                    .optimize = .Debug,
                 }) },
             },
         }),

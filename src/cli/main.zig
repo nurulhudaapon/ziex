@@ -27,7 +27,7 @@ pub const commands = cli_args.commands;
 
 const Spinner = tui.Spinner;
 
-const use_debug_allocator = builtin.mode == .debug and switch (builtin.os.tag) {
+const use_debug_allocator = builtin.optimize == .debug and switch (builtin.os.tag) {
     .wasi, .freestanding => false,
     else => true,
 };

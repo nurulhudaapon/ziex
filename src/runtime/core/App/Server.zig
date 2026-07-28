@@ -21,7 +21,7 @@ pub fn app(comptime H: type, instance: *Server(H), alloc: std.mem.Allocator) !Ap
         fn vtStart(userdata: ?*anyopaque) anyerror!void {
             const self = from(userdata);
             // Only wire up graceful shutdown in debug builds.
-            if (comptime builtin.mode == .debug) {
+            if (comptime builtin.optimize == .debug) {
                 const stopFn = struct {
                     fn call(ctx: *anyopaque) void {
                         const s: *Server(H) = @ptrCast(@alignCast(ctx));
@@ -30,7 +30,7 @@ pub fn app(comptime H: type, instance: *Server(H), alloc: std.mem.Allocator) !Ap
                 }.call;
                 App.armSignal(self.instance, stopFn);
             }
-            defer if (comptime builtin.mode == .debug) App.disarmSignal();
+            defer if (comptime builtin.optimize == .debug) App.disarmSignal();
             try self.instance.start();
         }
 
