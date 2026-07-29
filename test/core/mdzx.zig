@@ -10,14 +10,14 @@ fn transpile(source: []const u8) ![]const u8 {
     return Markdown.transpile(testing.allocator, source);
 }
 
-test "mdzx: heading transpiles to h1" {
+test "heading transpiles to h1" {
     const out = try transpile("# Hello\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "<h1") != null);
     try testing.expect(std.mem.indexOf(u8, out, "Hello") != null);
 }
 
-test "mdzx: paragraph with emphasis" {
+test "paragraph with emphasis" {
     const out = try transpile("This is *italic* text.\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "<em>") != null);
@@ -25,35 +25,35 @@ test "mdzx: paragraph with emphasis" {
     try testing.expect(std.mem.indexOf(u8, out, "</em>") != null);
 }
 
-test "mdzx: strong emphasis" {
+test "strong emphasis" {
     const out = try transpile("Say **bold** please.\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "<strong>") != null);
     try testing.expect(std.mem.indexOf(u8, out, "bold") != null);
 }
 
-test "mdzx: strikethrough" {
+test "strikethrough" {
     const out = try transpile("Not ~~gone~~ yet.\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "<s>") != null);
     try testing.expect(std.mem.indexOf(u8, out, "gone") != null);
 }
 
-test "mdzx: inline code" {
+test "inline code" {
     const out = try transpile("Use `code` here.\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "<code>") != null);
     try testing.expect(std.mem.indexOf(u8, out, "code") != null);
 }
 
-test "mdzx: inline link" {
+test "inline link" {
     const out = try transpile("Go [home](https://example.com).\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "<a href=\"https://example.com\">") != null);
     try testing.expect(std.mem.indexOf(u8, out, "home") != null);
 }
 
-test "mdzx: image" {
+test "image" {
     const out = try transpile("![alt](https://example.com/a.png)\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "<img") != null);
@@ -61,13 +61,13 @@ test "mdzx: image" {
     try testing.expect(std.mem.indexOf(u8, out, "alt=\"alt\"") != null);
 }
 
-test "mdzx: thematic break" {
+test "thematic break" {
     const out = try transpile("***\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "<hr") != null);
 }
 
-test "mdzx: fenced code block" {
+test "fenced code block" {
     const out = try transpile(
         \\```zig
         \\const x = 1;
@@ -83,7 +83,7 @@ test "mdzx: fenced code block" {
     try testing.expect(std.mem.indexOf(u8, out, "1;\n```") == null);
 }
 
-test "mdzx: emits render and default Page" {
+test "emits render and default Page" {
     const out = try transpile("# Hi\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "pub fn render(allocator:") != null);
@@ -91,7 +91,7 @@ test "mdzx: emits render and default Page" {
     try testing.expect(std.mem.indexOf(u8, out, "pub fn Page(") != null);
 }
 
-test "mdzx: author Page suppresses default Page" {
+test "author Page suppresses default Page" {
     const out = try transpile(
         \\---
         \\const zx = @import("zx");
@@ -114,7 +114,7 @@ test "mdzx: author Page suppresses default Page" {
     try testing.expect(std.mem.indexOf(u8, out, "pub fn render(allocator:") != null);
 }
 
-test "mdzx: user-declared render is an error" {
+test "user-declared render is an error" {
     const result = transpile(
         \\---
         \\pub fn render(allocator: @import("zx").Allocator) @import("zx").Component {
@@ -129,7 +129,7 @@ test "mdzx: user-declared render is an error" {
     try testing.expectError(error.UserDeclaredRender, result);
 }
 
-test "mdzx: Props emits ComponentCtx render and skips default Page" {
+test "Props emits ComponentCtx render and skips default Page" {
     const out = try transpile(
         \\---
         \\pub const Props = struct { name: []const u8 };
@@ -147,7 +147,7 @@ test "mdzx: Props emits ComponentCtx render and skips default Page" {
     try testing.expect(std.mem.indexOf(u8, out, "pub fn Page(") == null);
 }
 
-test "mdzx: pure md rejects ZX embeds" {
+test "pure md rejects ZX embeds" {
     const result = Markdown.transpileWithOptions(testing.allocator,
         \\# Hi
         \\
@@ -157,7 +157,7 @@ test "mdzx: pure md rejects ZX embeds" {
     try testing.expectError(error.PureMdEmbed, result);
 }
 
-test "mdzx: pure md allows markdown-only" {
+test "pure md allows markdown-only" {
     const out = try Markdown.transpileWithOptions(testing.allocator, "# Pure\n", .{
         .pure_md = true,
         .emit_default_page = true,
@@ -167,7 +167,7 @@ test "mdzx: pure md allows markdown-only" {
     try testing.expect(std.mem.indexOf(u8, out, "pub fn Page(") != null);
 }
 
-test "mdzx: non-page path skips default Page" {
+test "non-page path skips default Page" {
     const out = try Markdown.transpileWithOptions(testing.allocator, "# Hi\n", .{
         .emit_default_page = false,
     });
@@ -176,7 +176,7 @@ test "mdzx: non-page path skips default Page" {
     try testing.expect(std.mem.indexOf(u8, out, "pub fn Page(") == null);
 }
 
-test "mdzx: unordered list" {
+test "unordered list" {
     const out = try transpile(
         \\- one
         \\- two
@@ -188,7 +188,7 @@ test "mdzx: unordered list" {
     try testing.expect(std.mem.indexOf(u8, out, "one") != null);
 }
 
-test "mdzx: ordered list" {
+test "ordered list" {
     const out = try transpile(
         \\1. first
         \\2. second
@@ -199,7 +199,7 @@ test "mdzx: ordered list" {
     try testing.expect(std.mem.indexOf(u8, out, "first") != null);
 }
 
-test "mdzx: block quote" {
+test "block quote" {
     const out = try transpile(
         \\> quoted
         \\
@@ -209,21 +209,21 @@ test "mdzx: block quote" {
     try testing.expect(std.mem.indexOf(u8, out, "quoted") != null);
 }
 
-test "mdzx: multiple headings" {
+test "multiple headings" {
     const out = try transpile("# A\n\n## B\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "<h1") != null);
     try testing.expect(std.mem.indexOf(u8, out, "<h2") != null);
 }
 
-test "mdzx: zx component block" {
+test "zx component block" {
     const out = try transpile("<Button label=\"Go\" />\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "<Button") != null);
     try testing.expect(std.mem.indexOf(u8, out, "label=\"Go\"") != null);
 }
 
-test "mdzx: frontmatter zig decls preserved" {
+test "frontmatter zig decls preserved" {
     const src =
         \\---
         \\pub const title = "Hi";
@@ -239,7 +239,7 @@ test "mdzx: frontmatter zig decls preserved" {
     try testing.expect(std.mem.indexOf(u8, out, "Body") != null);
 }
 
-test "mdzx: dual grammar, block leaves opaque inline, inline parses emphasis" {
+test "dual grammar, block leaves opaque inline, inline parses emphasis" {
     const source = "Hello *world*.\n";
     const parser = ts.Parser.create();
     defer parser.destroy();
@@ -292,7 +292,7 @@ test "mdzx: dual grammar, block leaves opaque inline, inline parses emphasis" {
     try testing.expect(saw_emphasis);
 }
 
-test "mdzx: fixture basic.mdzx" {
+test "fixture basic.mdzx" {
     const source = try std.Io.Dir.cwd().readFileAlloc(
         std.testing.io,
         "test/data/mdzx/basic.mdzx",
@@ -305,7 +305,7 @@ test "mdzx: fixture basic.mdzx" {
     try testing.expect(std.mem.indexOf(u8, out, "<h1") != null);
 }
 
-test "mdzx: braces in fenced code stay literal" {
+test "braces in fenced code stay literal" {
     const out = try transpile(
         \\```ts
         \\type Point = { x: number };
@@ -320,7 +320,7 @@ test "mdzx: braces in fenced code stay literal" {
     try testing.expect(std.mem.indexOf(u8, out, "{\"type Point") != null);
 }
 
-test "mdzx: braces in inline code are ZX-escaped" {
+test "braces in inline code are ZX-escaped" {
     const out = try transpile("Use `{expressions}` here.\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "<code>") != null);
@@ -330,7 +330,7 @@ test "mdzx: braces in inline code are ZX-escaped" {
     try testing.expect(std.mem.indexOf(u8, out, "<code>{expressions}</code>") == null);
 }
 
-test "mdzx: paragraph keeps plain text around markup" {
+test "paragraph keeps plain text around markup" {
     const out = try transpile("Use **bold**, *italic*, and `code`.\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "Use ") != null);
@@ -341,7 +341,7 @@ test "mdzx: paragraph keeps plain text around markup" {
     try testing.expect(std.mem.indexOf(u8, out, "<code>") != null);
 }
 
-test "mdzx: backslash escapes preserve surrounding text" {
+test "backslash escapes preserve surrounding text" {
     const out = try transpile("Escaped: \\*not emphasis\\*\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "Escaped: ") != null);
@@ -349,7 +349,7 @@ test "mdzx: backslash escapes preserve surrounding text" {
     try testing.expect(std.mem.indexOf(u8, out, "<em>") == null);
 }
 
-test "mdzx: ampersand in heading is not double-escaped" {
+test "ampersand in heading is not double-escaped" {
     const out = try transpile("## Quote & break\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "<h2") != null);
@@ -359,7 +359,7 @@ test "mdzx: ampersand in heading is not double-escaped" {
     try testing.expect(std.mem.indexOf(u8, out, "{\"Quote & break\"}") != null);
 }
 
-test "mdzx: block quote keeps nested lines without leaking markers" {
+test "block quote keeps nested lines without leaking markers" {
     const out = try transpile(
         \\> first line
         \\>
@@ -375,14 +375,14 @@ test "mdzx: block quote keeps nested lines without leaking markers" {
     try testing.expect(std.mem.indexOf(u8, out, "> second") == null);
 }
 
-test "mdzx: inline link at line start is not a link-ref definition" {
+test "inline link at line start is not a link-ref definition" {
     const out = try transpile("[Back to MDZX example](/examples/md)\n");
     defer testing.allocator.free(out);
     try testing.expect(std.mem.indexOf(u8, out, "<a href=\"/examples/md\">") != null);
     try testing.expect(std.mem.indexOf(u8, out, "Back to MDZX example") != null);
 }
 
-test "mdzx: task list markers become checkboxes" {
+test "task list markers become checkboxes" {
     const out = try transpile(
         \\- [x] Task done
         \\- [ ] Task open
@@ -396,7 +396,7 @@ test "mdzx: task list markers become checkboxes" {
     try testing.expect(std.mem.indexOf(u8, out, "[x] Task") == null);
 }
 
-test "mdzx: multiple fenced blocks" {
+test "multiple fenced blocks" {
     const out = try transpile(
         \\```js
         \\console.log(1);

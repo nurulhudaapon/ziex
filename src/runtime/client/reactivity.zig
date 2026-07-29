@@ -1,12 +1,10 @@
-//! Reactive primitives for client-side state management.
-
 const std = @import("std");
 const builtin = @import("builtin");
 
 const Client = @import("Client.zig");
 const zx = @import("../../root.zig");
-const js = zx.client.js;
 
+const js = zx.client.js;
 const is_wasm = zx.platform.role == .client;
 
 fn getGlobalAllocator() std.mem.Allocator {

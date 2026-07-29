@@ -10,12 +10,6 @@ const BuiltinAttribute = zx.BuiltinAttribute;
 const Component = zx.Component;
 const ElementAttribute = zx.Element.Attribute;
 const reactivity = zx.client.reactivity;
-pub const ClientComponentOptions = struct {
-    name: []const u8,
-    path: []const u8,
-    id: []const u8,
-};
-
 pub const ComponentClientOptions = struct {
     name: []const u8,
     id: []const u8,
@@ -414,10 +408,10 @@ const Context = struct {
 
     /// Merge two structs for component props spreading
     /// Later fields override earlier ones
-    pub fn propsM(_: *Context, base: anytype, overrides: anytype) prp.MergedPropsType(@TypeOf(base), @TypeOf(overrides)) {
+    pub fn propsM(_: *Context, base: anytype, overrides: anytype) prp.Merged(@TypeOf(base), @TypeOf(overrides)) {
         const BaseType = @TypeOf(base);
         const OverrideType = @TypeOf(overrides);
-        const ResultType = prp.MergedPropsType(BaseType, OverrideType);
+        const ResultType = prp.Merged(BaseType, OverrideType);
 
         var result: ResultType = undefined;
 
@@ -548,15 +542,13 @@ const Context = struct {
         // Context-based component or function with props parameter
         var comp_fn = if (first_is_ctx_ptr or param_count == 2) blk: {
             const PropsType = if (first_is_ctx_ptr) @TypeOf(props) else FuncInfo.@"fn".param_types[1].?;
-            const coerced_props = prp.coerceProps(PropsType, props);
+            const coerced_props = prp.coerce(PropsType, props);
             break :blk Component.ComponentFn.init(func, name, allocator, coerced_props);
         } else blk: {
             break :blk Component.ComponentFn.init(func, name, allocator, props);
         };
 
         // Apply builtin attributes from options
-        comp_fn.async_mode = options.async orelse .sync;
-        comp_fn.fallback = options.fallback;
         comp_fn.caching = options.caching;
 
         // Derive a stable, unique instance id entirely at comptime from this
@@ -568,7 +560,7 @@ const Context = struct {
 
         // If client option is set, return a client component (for @rendering={.client})
         // Render the component on the server for SSR, then hydrate on client.
-        // On Browser (already on the client), skip the CSR wrapper - just render
+        // On Browser (already on the client), skip the island wrapper - just render
         // the component directly as a component_fn.
         if (options.client != null and zx.platform.role == .client) {
             return .{ .component_fn = comp_fn };
@@ -584,38 +576,32 @@ const Context = struct {
             const children_ptr = allocator.create(Component) catch @panic("OOM");
             children_ptr.* = rendered;
 
-            // Get the full props type from the component function signature
-            // and coerce partial props to include defaults - this ensures all fields are serialized
-            const props_data = blk: {
+            // Serialize full props (with defaults) to ZXON for the hydration marker
+            const hydrate_props = blk: {
                 if (first_is_ctx_ptr) {
                     const CtxType = @typeInfo(FirstPropType).pointer.child;
                     if (@hasField(CtxType, "props")) {
                         const FullPropsType = @FieldType(CtxType, "props");
                         if (@typeInfo(FullPropsType) == .@"struct") {
-                            const full_props = prp.coerceProps(FullPropsType, props);
-                            break :blk prp.propsSerializer(FullPropsType, allocator, full_props);
+                            break :blk prp.zxon(allocator, prp.coerce(FullPropsType, props));
                         }
                     }
                 } else if (param_count == 2) {
                     const FullPropsType = FuncInfo.@"fn".param_types[1].?;
                     if (@typeInfo(FullPropsType) == .@"struct") {
-                        const full_props = prp.coerceProps(FullPropsType, props);
-                        break :blk prp.propsSerializer(FullPropsType, allocator, full_props);
+                        break :blk prp.zxon(allocator, prp.coerce(FullPropsType, props));
                     }
                 }
-                // Fallback: serialize the props as-is
-                break :blk prp.propsSerializer(@TypeOf(props), allocator, props);
+                break :blk prp.zxon(allocator, props);
             };
 
-            return .{
-                .component_csr = .{
-                    .name = name_copy,
-                    .id = id_copy,
-                    .props_ptr = props_data.ptr,
-                    .writeProps = props_data.writeFn,
-                    .children = children_ptr,
-                },
+            comp_fn.name = name_copy;
+            comp_fn.island = .{
+                .id = id_copy,
+                .props = hydrate_props,
+                .children = children_ptr,
             };
+            return .{ .component_fn = comp_fn };
         }
 
         return .{ .component_fn = comp_fn };
@@ -627,31 +613,6 @@ const Context = struct {
         const allocated = allocator.create(Component) catch @panic("OOM");
         allocated.* = component;
         return allocated;
-    }
-
-    /// Creates a React client-side rendered component.
-    /// Uses JSON serialization for props to match React's expected format.
-    pub fn client(self: *Context, options: ClientComponentOptions, props: anytype) Component {
-        const allocator = self.getAlloc();
-        const Props = @TypeOf(props);
-
-        const name_copy = allocator.alloc(u8, options.name.len) catch @panic("OOM");
-        @memcpy(name_copy, options.name);
-        const id_copy = allocator.alloc(u8, options.id.len) catch @panic("OOM");
-        @memcpy(id_copy, options.id);
-
-        // Use JSON serializer for React components
-        const props_data = prp.propsSerializerJson(Props, allocator, props);
-
-        return .{
-            .component_csr = .{
-                .name = name_copy,
-                .id = id_copy,
-                .props_ptr = props_data.ptr,
-                .writeProps = props_data.writeFn,
-                .is_react = true,
-            },
-        };
     }
 };
 

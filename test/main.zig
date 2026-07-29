@@ -9,6 +9,8 @@ test {
     _ = @import("core/net.zig");
     _ = @import("core/zxon.zig");
     _ = @import("core/html.zig");
+    _ = @import("core/props.zig");
+    _ = @import("core/component.zig");
     _ = @import("core/routing.zig");
     _ = @import("core/vdom.zig");
     _ = @import("core/csr.zig");

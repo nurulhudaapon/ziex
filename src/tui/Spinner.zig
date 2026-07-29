@@ -1,15 +1,15 @@
-//! Spinner indicator for long running operations
+const Spinner = @This();
 
 const std = @import("std");
 const builtin = @import("builtin");
+
+const spinner_styles = @import("spinner_styles.zig");
+
+const styles = spinner_styles.styles;
 const Io = std.Io;
 const ArrayList = std.ArrayList;
 const Allocator = std.mem.Allocator;
 const Thread = std.Thread;
-
-const styles = @import("spinner_styles.zig").styles;
-
-const Spinner = @This();
 
 pub const SpinnerStyles = union(enum) {
     pub const none = &.{""};

@@ -20,11 +20,12 @@ pub fn getElementByName(self: *Component, allocator: std.mem.Allocator, tag: Ele
             return null;
         },
         .component_fn => |*func| {
+            if (func.isIsland()) return null;
             const resolved = func.call() catch return null;
             self.* = resolved;
             return getElementByName(self, allocator, tag);
         },
-        .none, .text, .component_csr => return null,
+        .none, .text => return null,
     }
 }
 

@@ -1,13 +1,3 @@
-/**
- * DomCmd flush decoder — must match `src/runtime/client/dom_cmd.zig`.
- *
- * Buffer layout (little-endian):
- *   Header (8): u32 record_count, u32 flags (0 = absolute WASM ptr+len strings)
- *   Records (24 each): u8 op, u8 flags, u16 pad, u32 p0..p4
- *
- * String fields are absolute linear-memory pointers (same as the old per-op ABI).
- */
-
 import { getMemoryView, readString, loadValueFromRef } from "./core";
 import { TAG_NAMES } from "./generated/tags";
 import { SVG_TAG_START_INDEX, CUSTOM_TAG_INDEX } from "./generated/tag_indices";

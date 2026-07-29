@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const zx = @import("root.zig");
 const prp = @import("util/props.zig");
@@ -6,45 +7,47 @@ const prp = @import("util/props.zig");
 const ElementTag = zx.ElementTag;
 const Allocator = std.mem.Allocator;
 const BuiltinAttribute = zx.BuiltinAttribute;
-const devtool = zx.util.devtool;
+
+const is_debug = builtin.optimize == .debug;
 
 pub const Component = union(enum) {
-    pub const Serializable = devtool.ComponentSerializable;
-
     none,
     text: []const u8,
     element: Element,
     component_fn: ComponentFn,
-    component_csr: ComponentCsr,
-
-    pub const ComponentCsr = struct {
-        name: []const u8,
-        id: []const u8,
-        props_ptr: ?*const anyopaque = null,
-        writeProps: ?*const fn (*std.Io.Writer, *const anyopaque) anyerror!void = null,
-        getStateItems: ?*const anyopaque = null,
-        /// SSR-rendered content of the component (for hydration)
-        children: ?*const Component = null,
-        // TODO: get rid of react specific rendering flag, we will use server component with
-        // hydraton as is with kind in props to mean that this is js component
-        // which we then render with client side Zig
-        /// Whether this is a React component (uses JSON) or Zig component (uses ZON)
-        is_react: bool = false,
-    };
 
     pub const ComponentFn = struct {
-        propsPtr: ?*const anyopaque,
-        callFn: *const fn (propsPtr: ?*const anyopaque, allocator: Allocator) anyerror!Component,
-        setComponentIdFn: ?*const fn (propsPtr: ?*const anyopaque, component_id: []const u8) void = null,
-        getStateItems: ?*const anyopaque = null,
+        pub const Caller = *const fn (data: ?*const anyopaque, allocator: Allocator, owner_id: ?[]const u8) anyerror!Component;
+        pub const Destroyer = *const fn (data: ?*const anyopaque, allocator: Allocator) void;
+
+        pub const VTable = if (is_debug) struct {
+            call: Caller,
+            destroy: Destroyer,
+            dump_props: *const fn (allocator: Allocator, data: ?*const anyopaque) ?[]const u8,
+        } else struct {
+            call: Caller,
+            destroy: Destroyer,
+        };
+
+        /// Client-island hydration boundary (null = plain server/client component).
+        pub const Island = struct {
+            id: []const u8,
+            /// Pre-serialized ZXON props for the hydration marker.
+            props: ?[]const u8 = null,
+            /// SSR-rendered content for hydration.
+            children: *const Component,
+        };
+
+        vtable: *const VTable,
+        data: ?*const anyopaque,
+
+        id: zx.x.Id = .undef,
         allocator: Allocator,
-        deinitFn: ?*const fn (propsPtr: ?*const anyopaque, allocator: Allocator) void,
-        async_mode: BuiltinAttribute.Async = .sync,
-        fallback: ?*const Component = null,
+        island: ?Island = null,
         caching: ?BuiltinAttribute.Caching = null,
+
         name: []const u8,
         key: ?[]const u8 = null,
-        id: zx.x.Id = .undef,
 
         // TODO: get the name from inside the InitOptions @src() passed to x.init
         pub fn init(comptime func: anytype, name: []const u8, allocator: Allocator, props: anytype) ComponentFn {
@@ -52,7 +55,7 @@ pub const Component = union(enum) {
             const param_count = FuncInfo.@"fn".param_types.len;
             const fn_name = @typeName(@TypeOf(func));
 
-            const fn_signature = std.fmt.comptimePrint("fn {s} {s}", .{ "TODO: NAME", fn_name["fn ".len..] });
+            const fn_signature = std.fmt.comptimePrint("fn {s} {s}", .{ "", fn_name["fn ".len..] });
 
             // Validation of parameters
             if (param_count != 1 and param_count != 2)
@@ -79,9 +82,9 @@ pub const Component = union(enum) {
                 @compileError("Component " ++ fn_signature ++ " with *ComponentCtx must have exactly 1 parameter");
 
             // Allocate props on heap to persist
-            const props_copy = if (first_is_allocator and param_count == 2) blk: {
+            const data = if (first_is_allocator and param_count == 2) blk: {
                 const SecondPropType = FuncInfo.@"fn".param_types[1].?;
-                const coerced = prp.coerceProps(SecondPropType, props);
+                const coerced = prp.coerce(SecondPropType, props);
                 const p = allocator.create(SecondPropType) catch @panic("OOM");
                 p.* = coerced;
                 break :blk p;
@@ -97,19 +100,13 @@ pub const Component = union(enum) {
                 if (@hasField(CtxType, "props")) {
                     const PropsFieldType = @FieldType(CtxType, "props");
                     if (PropsFieldType != void) {
-                        ctx.props = prp.coerceProps(PropsFieldType, props);
+                        ctx.props = prp.coerce(PropsFieldType, props);
                     }
                 }
                 break :blk ctx;
             } else null;
 
             const Wrapper = struct {
-                // Check if the function returns an optional type
-                const ReturnType = FuncInfo.@"fn".return_type.?;
-                const returns_optional = @typeInfo(ReturnType) == .optional;
-                const returns_error_union = @typeInfo(ReturnType) == .error_union;
-                const inner_is_optional = returns_error_union and @typeInfo(@typeInfo(ReturnType).error_union.payload) == .optional;
-
                 /// Normalize any return type (Component, ?Component, !Component, !?Component) to anyerror!Component
                 fn normalize(result: anytype) anyerror!Component {
                     const T = @TypeOf(result);
@@ -132,13 +129,14 @@ pub const Component = union(enum) {
                     return result;
                 }
 
-                fn call(propsPtr: ?*const anyopaque, alloc: Allocator) anyerror!Component {
+                fn callImpl(erased: ?*const anyopaque, alloc: Allocator, owner_id: ?[]const u8) anyerror!Component {
                     if (first_is_ctx_ptr) {
                         const CtxType = @typeInfo(FirstPropType).pointer.child;
-                        const ctx_ptr: *CtxType = @ptrCast(@alignCast(@constCast(propsPtr orelse @panic("ctx is null"))));
+                        const ctx_ptr: *CtxType = @ptrCast(@alignCast(@constCast(erased orelse @panic("ctx is null"))));
                         // Reset slot counters on every call so hooks run in stable order.
                         if (@hasField(CtxType, "_internal")) {
                             ctx_ptr._internal.state_idx = 0;
+                            if (owner_id) |oid| ctx_ptr._internal.component_id = oid;
                         }
                         return normalize(func(ctx_ptr));
                     }
@@ -147,65 +145,85 @@ pub const Component = union(enum) {
                     }
                     if (first_is_allocator and param_count == 2) {
                         const SecondPropType = FuncInfo.@"fn".param_types[1].?;
-                        const p = propsPtr orelse @panic("propsPtr is null for function with props");
+                        const p = erased orelse @panic("props data is null for function with props");
                         const typed_p: *const SecondPropType = @ptrCast(@alignCast(p));
                         return normalize(func(alloc, typed_p.*));
                     }
                     unreachable;
                 }
 
-                fn setComponentId(propsPtr: ?*const anyopaque, component_id: []const u8) void {
-                    if (!first_is_ctx_ptr) return;
-                    const CtxType = @typeInfo(FirstPropType).pointer.child;
-                    const ctx_ptr: *CtxType = @ptrCast(@alignCast(@constCast(propsPtr orelse return)));
-                    if (@hasField(CtxType, "_internal")) {
-                        ctx_ptr._internal.component_id = component_id;
-                    }
-                }
-
-                fn deinit(propsPtr: ?*const anyopaque, alloc: Allocator) void {
+                fn destroyImpl(erased: ?*const anyopaque, alloc: Allocator) void {
                     if (first_is_ctx_ptr) {
                         const CtxType = @typeInfo(FirstPropType).pointer.child;
-                        const ctx_ptr: *CtxType = @ptrCast(@alignCast(@constCast(propsPtr orelse return)));
+                        const ctx_ptr: *CtxType = @ptrCast(@alignCast(@constCast(erased orelse return)));
                         alloc.destroy(ctx_ptr);
                         return;
                     }
                     if (first_is_allocator and param_count == 2) {
                         const SecondPropType = FuncInfo.@"fn".param_types[1].?;
-                        const p = propsPtr orelse @panic("propsPtr is null for function with props");
+                        const p = erased orelse @panic("props data is null for function with props");
                         const typed_p: *const SecondPropType = @ptrCast(@alignCast(p));
                         alloc.destroy(typed_p);
                     }
                 }
+
+                fn dumpPropsImpl(alloc: Allocator, erased: ?*const anyopaque) ?[]const u8 {
+                    const ptr = erased orelse return null;
+                    if (first_is_allocator and param_count == 2) {
+                        const SecondPropType = FuncInfo.@"fn".param_types[1].?;
+                        const typed_p: *const SecondPropType = @ptrCast(@alignCast(ptr));
+                        return prp.json(alloc, typed_p.*);
+                    }
+                    if (first_is_ctx_ptr) {
+                        const CtxType = @typeInfo(FirstPropType).pointer.child;
+                        const ctx_ptr: *const CtxType = @ptrCast(@alignCast(ptr));
+                        if (@hasField(CtxType, "props")) {
+                            const PropsT = @FieldType(CtxType, "props");
+                            if (PropsT != void) return prp.json(alloc, ctx_ptr.props);
+                        }
+                    }
+                    return null;
+                }
+
+                const vtable: VTable = if (is_debug) .{
+                    .call = callImpl,
+                    .destroy = destroyImpl,
+                    .dump_props = dumpPropsImpl,
+                } else .{
+                    .call = callImpl,
+                    .destroy = destroyImpl,
+                };
             };
 
             return .{
-                .propsPtr = props_copy,
-                .callFn = Wrapper.call,
-                .setComponentIdFn = if (first_is_ctx_ptr) Wrapper.setComponentId else null,
-                .getStateItems = @ptrCast(devtool.ComponentSerializable.createGetStateItemsFn(func)),
+                .data = data,
+                .vtable = &Wrapper.vtable,
                 .allocator = allocator,
-                .deinitFn = Wrapper.deinit,
                 .name = name,
                 .key = keyFromProps(allocator, props),
             };
         }
 
         pub fn call(self: ComponentFn) anyerror!Component {
-            return self.callFn(self.propsPtr, self.allocator);
+            return self.vtable.call(self.data, self.allocator, null);
+        }
+
+        pub fn callOwned(self: ComponentFn, owner_id: []const u8) anyerror!Component {
+            return self.vtable.call(self.data, self.allocator, owner_id);
+        }
+
+        pub fn isIsland(self: ComponentFn) bool {
+            return self.island != null;
         }
 
         pub fn deinit(self: ComponentFn) void {
+            if (self.island) |island| {
+                self.allocator.free(island.id);
+                self.allocator.free(self.name);
+                if (island.props) |hp| self.allocator.free(hp);
+            }
             if (self.key) |key| self.allocator.free(key);
-            if (self.deinitFn) |deinit_fn| {
-                deinit_fn(self.propsPtr, self.allocator);
-            }
-        }
-
-        pub fn setComponentId(self: ComponentFn, component_id: []const u8) void {
-            if (self.setComponentIdFn) |set_fn| {
-                set_fn(self.propsPtr, component_id);
-            }
+            self.vtable.destroy(self.data, self.allocator);
         }
     };
 
@@ -225,10 +243,6 @@ pub const Component = union(enum) {
             .component_fn => |func| {
                 func.deinit();
             },
-            .component_csr => |component_csr| {
-                allocator.free(component_csr.name);
-                allocator.free(component_csr.id);
-            },
             .none => {},
             .text => {},
         }
@@ -237,34 +251,6 @@ pub const Component = union(enum) {
     //TODO: Move these to runtime/server
     pub const render = @import("runtime/server/render.zig").render;
     pub const stream = @import("runtime/server/render.zig").stream;
-
-    /// Recursively search for an element by tag name
-    /// Returns a mutable pointer to the Component if found, null otherwise
-    pub const SerializeOptions = struct {
-        only_components: bool = true,
-        include_props: bool = true,
-        include_attributes: bool = true,
-    };
-
-    pub fn format(
-        self: *const Component,
-        w: *std.Io.Writer,
-    ) error{WriteFailed}!void {
-        self.formatWithOptions(w, .{}) catch return error.WriteFailed;
-    }
-
-    pub fn formatWithOptions(
-        self: *const Component,
-        w: *std.Io.Writer,
-        options: SerializeOptions,
-    ) anyerror!void {
-        var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
-        defer arena.deinit();
-        const allocator = arena.allocator();
-
-        var serializable = try devtool.ComponentSerializable.init(allocator, self.*, options);
-        try serializable.serialize(w);
-    }
 };
 
 fn keyFromProps(allocator: Allocator, props: anytype) ?[]const u8 {

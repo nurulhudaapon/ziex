@@ -87,14 +87,13 @@ pub const VNode = struct {
             .text => |text| {
                 _ = text;
             },
-            .component_fn => {
+            .component_fn => |comp_fn| {
+                // Client islands stay as leaves (SSR/hydration boundary).
+                if (comp_fn.isIsland()) return self;
                 const next_owner_component_id = componentOwnerId(allocator, component, owner_component_id, sibling_index);
                 const resolved = try resolveComponent(allocator, component, owner_component_id, sibling_index);
                 allocator.destroy(self);
                 return try createFromComponent(allocator, resolved, next_owner_component_id, 0);
-            },
-            .component_csr => |component_csr| {
-                _ = component_csr;
             },
         }
         return self;
@@ -164,7 +163,6 @@ pub const Patch = struct {
 };
 
 pub const DiffError = error{
-    CSRComponentNotSupported,
     OutOfMemory,
     CannotAppendToTextNode,
 };
@@ -186,7 +184,7 @@ pub fn diff(
     patches: *std.ArrayList(Patch),
 ) anyerror!void {
     if (old_vnode.component == .component_fn and new_component == .component_fn) {
-        if (old_vnode.component.component_fn.propsPtr == new_component.component_fn.propsPtr) {
+        if (old_vnode.component.component_fn.data == new_component.component_fn.data) {
             return;
         }
     }
@@ -353,10 +351,6 @@ pub fn areComponentsSameType(old: zx.Component, new: zx.Component) bool {
             .component_fn => return true,
             else => return false,
         },
-        .component_csr => switch (new) {
-            .component_csr => return true,
-            else => return false,
-        },
     }
 }
 
@@ -379,9 +373,10 @@ pub fn resolveComponent(allocator: zx.Allocator, component: zx.Component, owner_
     while (true) {
         switch (curr) {
             .component_fn => |comp_fn| {
+                // Client islands are hydration boundaries, do not call through.
+                if (comp_fn.isIsland()) return curr;
                 const component_id = componentOwnerId(allocator, curr, owner_component_id, sibling_index);
-                comp_fn.setComponentId(component_id);
-                curr = try comp_fn.call();
+                curr = try comp_fn.callOwned(component_id);
             },
             else => return curr,
         }

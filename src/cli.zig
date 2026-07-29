@@ -1,5 +1,3 @@
-//! Public ZX CLI module (`@import("cli")`).
-//! Full CLI entry + command dispatch for the `zx` binary and downstream embeddings.
 const impl = @import("cli/main.zig");
 
 pub const main = impl.main;

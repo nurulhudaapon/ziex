@@ -1,7 +1,17 @@
+const std = @import("std");
+const app_opts = @import("app_opts");
+
+const zx = @import("../../root.zig");
 const html_util = @import("../../util/html.zig");
 const vdom = @import("../core/vdom.zig");
 const dom_cmd = @import("dom_cmd.zig");
+const ext = @import("window/extern.zig");
+const window = @import("window.zig");
 
+const is_wasm = window.is_wasm;
+const Document = zx.client.Document;
+
+/// Base path for the application, read from build options at comptime.
 pub const RenderOptions = struct {
     base_path: ?[]const u8 = base_path,
     dom_parent_id: ?u64 = null,
@@ -16,6 +26,7 @@ pub const PatchData = vdom.PatchData;
 pub const Patch = vdom.Patch;
 pub const DiffError = vdom.DiffError;
 pub const areComponentsSameType = vdom.areComponentsSameType;
+pub const base_path: ?[]const u8 = app_opts.app_base_path;
 
 /// Apply a list of patches to the live DOM.
 pub fn applyPatches(
@@ -396,29 +407,19 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
             try attachCreatedNodeIfNeeded(vnode.id, options);
             break :blk vnode.id;
         },
-        .component_csr => |csr| blk: {
-            // CSR islands: plain <div id="..." data-name="..."> placeholder.
+        .component_fn => |comp_fn| blk: {
+            // Client islands: plain <div id="..." data-name="..."> placeholder.
+            const island = comp_fn.island orelse unreachable;
             dom_cmd.createElement(@intFromEnum(zx.ElementTag.div), vnode.id);
-            dom_cmd.setAttr(vnode.id, "id", csr.id);
-            dom_cmd.setAttr(vnode.id, "data-name", csr.name);
+            dom_cmd.setAttr(vnode.id, "id", island.id);
+            dom_cmd.setAttr(vnode.id, "data-name", comp_fn.name);
             break :blk vnode.id;
         },
-        .component_fn => unreachable,
     };
 
     if (root_id) |_| client.registerVElement(vnode);
     return root_id;
 }
-
-const is_wasm = @import("window.zig").is_wasm;
-const ext = @import("window/extern.zig");
-const zx = @import("../../root.zig");
-const std = @import("std");
-const Document = zx.client.Document;
-const app_opts = @import("app_opts");
-
-/// Base path for the application, read from build options at comptime.
-pub const base_path: ?[]const u8 = app_opts.app_base_path;
 
 fn isDomProperty(name: []const u8) bool {
     return std.mem.eql(u8, name, "checked") or

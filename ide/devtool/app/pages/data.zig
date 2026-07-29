@@ -31,7 +31,7 @@ pub const Route = struct {
     path: []const u8,
 };
 
-pub const StateItem = zx.Component.Serializable.StateItem;
+pub const StateItem = zx.util.devtool.ComponentSerializable.StateItem;
 
 const storage_key = "zx-devtool-show-native-elements";
 const tree_collapsed_key = "zx-devtool-tree-collapsed";
@@ -54,16 +54,6 @@ pub var current_path: []const u8 = "/";
 var host_owned: ?[]const u8 = null;
 
 const js = zx.client.js;
-
-// Devtool settings are persisted with direct, *synchronous* localStorage via the
-// JS bridge — NOT through zx.kv. zx.kv's wasm bindings become async (JSPI
-// `Suspending`) when the browser supports it, and an async KV write issued from
-// a wasm event handler does not reliably land (the value silently fails to
-// persist — e.g. the "Show Native Elements" toggle resetting on refresh). DOM
-// calls like localStorage.get/setItem go through the bridge synchronously and
-// work from any call site. Values are stored as plain strings ("1"/"0" for
-// bools) so they interoperate with the theme write in settings/page.zx and with
-// client.ts (which writes host/path the same way).
 
 fn lsSet(key: []const u8, value: []const u8) void {
     if (zx.platform.role != .client) return;
@@ -376,7 +366,7 @@ fn nextOccurrence(counters: *SelectorCounters, selector: []const u8) usize {
     return occ;
 }
 
-pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.Component.Serializable, path: []const u8, counters: *SelectorCounters) anyerror!Component {
+pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.util.devtool.ComponentSerializable, path: []const u8, counters: *SelectorCounters) anyerror!Component {
     var name: []const u8 = "unknown";
     var badge: []const u8 = "";
     var is_native: bool = true;
@@ -452,7 +442,7 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.Component.Serializab
     };
 }
 
-pub fn fromSerializableSlice(allocator: std.mem.Allocator, sc: []const zx.Component.Serializable) anyerror![]const Component {
+pub fn fromSerializableSlice(allocator: std.mem.Allocator, sc: []const zx.util.devtool.ComponentSerializable) anyerror![]const Component {
     var counters = SelectorCounters.init(allocator);
     defer counters.deinit();
 

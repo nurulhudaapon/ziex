@@ -897,7 +897,7 @@ test "flaky: performance > serialize" {
     const rate = test_util.Throughput.init(total_bytes, elapsed_ns);
 
     std.debug.print(
-        "\x1b[33m⏲\x1b[0m zxon serialize \x1b[90m>\x1b[0m {d:.2}ms | Avg: {d:.4}ms | {f} ({d} bytes)\n",
+        "\x1b[33m⏲\x1b[0m zxon \x1b[90m>\x1b[0m serialize {d:.2}ms | Avg: {d:.4}ms | {f} ({d} bytes)\n",
         .{ total_ms, avg_ms, rate, total_bytes },
     );
     try expectLessThan(MAX_MS, total_ms);
@@ -932,7 +932,7 @@ test "flaky: performance > parse" {
     const rate = test_util.Throughput.init(total_bytes, elapsed_ns);
 
     std.debug.print(
-        "\x1b[33m⏲\x1b[0m zxon parse \x1b[90m>\x1b[0m {d:.2}ms | Avg: {d:.4}ms | {f} ({d} bytes)\n",
+        "\x1b[33m⏲\x1b[0m zxon \x1b[90m>\x1b[0m parse {d:.2}ms | Avg: {d:.4}ms | {f} ({d} bytes)\n",
         .{ total_ms, avg_ms, rate, total_bytes },
     );
     try expectLessThan(MAX_MS, total_ms);

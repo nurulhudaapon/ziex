@@ -49,7 +49,7 @@ fn onFetchText(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
     if (res) |r| {
         defer r.deinit();
         if (r.text()) |p| {
-            const parsed = zx.util.zxon.parse(zx.Component.Serializable, zx.allocator, p, .{}) catch return;
+            const parsed = zx.util.zxon.parse(zx.util.devtool.ComponentSerializable, zx.allocator, p, .{}) catch return;
             if (parsed.children) |sc| {
                 const mapped = data.fromSerializableSlice(zx.allocator, sc) catch unreachable;
                 std.log.info("Fetched {d} components", .{mapped.len});

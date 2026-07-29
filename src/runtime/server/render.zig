@@ -83,6 +83,24 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
             }
         },
         .component_fn => |func| {
+            // Client island: emit hydration markers + SSR children
+            if (func.island) |island| {
+                try writer.writeAll("<!--$");
+                try writer.writeAll(island.id);
+                if (island.props) |hp| {
+                    try writer.writeAll(" ");
+                    try writer.writeAll(hp);
+                }
+                try writer.writeAll("-->");
+
+                try render(island.children.*, writer, options);
+
+                try writer.writeAll("<!--/$");
+                try writer.writeAll(island.id);
+                try writer.writeAll("-->");
+                return;
+            }
+
             // Check for component-level caching
             if (func.caching) |caching| {
                 const cmp_cache = zx.cache.scoped(.cmp);
@@ -92,20 +110,13 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
                     var key_buf: [128]u8 = undefined;
                     const generated_key = key_blk: {
                         if (caching.key) |custom_key| {
-                            // This generates unique keys per run
-                            // break :key_blk try std.fmt.bufPrint(&key_buf, "cmp:{s}:{x}:{x}", .{
-                            //     custom_key,
-                            //     @intFromPtr(func.callFn),
-                            //     @intFromPtr(func.propsPtr),
-                            // });
-
                             // TODO: figure out a better way generate unique stable component id
                             // for now we will just use the custom key directly as the cache key
                             break :key_blk try std.fmt.bufPrint(&key_buf, "cmp:{s}", .{custom_key});
                         } else {
                             break :key_blk try std.fmt.bufPrint(&key_buf, "cmp:{x}:{x}", .{
-                                @intFromPtr(func.callFn),
-                                @intFromPtr(func.propsPtr),
+                                @intFromPtr(func.vtable.call),
+                                @intFromPtr(func.data),
                             });
                         }
                     };
@@ -140,66 +151,6 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
             // No caching or cache miss - render directly
             const component = try func.call();
             try render(component, writer, options);
-        },
-        .component_csr => |component_csr| {
-            // Start comment marker format: <!--$id {"prop":"value"}--> (JSON)
-            // Both React and Zig components use JSON format
-            if (component_csr.is_react) {
-                // React component: use JSON format
-                if (component_csr.writeProps) |writeProps| {
-                    if (component_csr.props_ptr) |props_ptr| {
-                        try writer.writeAll("<!--$");
-                        try writer.writeAll(component_csr.id);
-                        try writer.writeAll(" ");
-                        try writer.writeAll(component_csr.name);
-                        try writer.writeAll(" ");
-                        try writeProps(writer, props_ptr);
-                        try writer.writeAll("-->");
-                    } else {
-                        try writer.writeAll("<!--$");
-                        try writer.writeAll(component_csr.id);
-                        try writer.writeAll(" ");
-                        try writer.writeAll(component_csr.name);
-                        try writer.writeAll("-->");
-                    }
-                } else {
-                    try writer.writeAll("<!--$");
-                    try writer.writeAll(component_csr.id);
-                    try writer.writeAll(" ");
-                    try writer.writeAll(component_csr.name);
-                    try writer.writeAll("-->");
-                }
-            } else {
-                // Zig component: use JSON format (same as React)
-                if (component_csr.writeProps) |writeProps| {
-                    if (component_csr.props_ptr) |props_ptr| {
-                        try writer.writeAll("<!--$");
-                        try writer.writeAll(component_csr.id);
-                        try writer.writeAll(" ");
-                        try writeProps(writer, props_ptr);
-                        try writer.writeAll("-->");
-                    } else {
-                        try writer.writeAll("<!--$");
-                        try writer.writeAll(component_csr.id);
-                        try writer.writeAll("-->");
-                    }
-                } else {
-                    // No props - just marker
-                    try writer.writeAll("<!--$");
-                    try writer.writeAll(component_csr.id);
-                    try writer.writeAll("-->");
-                }
-            }
-
-            // Render SSR content
-            if (component_csr.children) |children| {
-                try render(children.*, writer, options);
-            }
-
-            // End comment marker: <!--/$id-->
-            try writer.writeAll("<!--/$");
-            try writer.writeAll(component_csr.id);
-            try writer.writeAll("-->");
         },
         .element => |elem| {
             // Check if this element is async and we're collecting async components
@@ -306,7 +257,7 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
                     }
                 }
 
-                // Mimic Next.js: auto-inject method="post" enctype="multipart/form-data"
+                // Auto-inject method="post" enctype="multipart/form-data"
                 // on form elements with an action handler
                 if (elem.tag == .form and has_action_handler and !has_method) {
                     try writer.writeAll(" method=\"post\" enctype=\"multipart/form-data\"");
@@ -327,9 +278,8 @@ pub fn render(self: zx.Component, writer: *std.Io.Writer, options: RenderOptions
                 try writer.writeAll("\">");
             }
 
-            // Render children (recursively collect slots if needed)
+            // Render children
             if (elem.children) |children| {
-                // Use element's escaping setting if set, otherwise inherit from parent
                 const child_options = RenderOptions{
                     .escaping = elem.escaping orelse options.escaping,
                     .rendering = elem.rendering orelse options.rendering,

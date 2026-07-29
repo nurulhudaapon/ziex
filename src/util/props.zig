@@ -1,102 +1,76 @@
 const std = @import("std");
 
 const pltfm = @import("../platform.zig");
-const zxon = @import("zxon.zig");
+const zxon_mod = @import("zxon.zig");
 
 const platform = pltfm.platform;
 
-/// Coerce props to the target struct type, handling defaults
-pub fn coerceProps(comptime TargetType: type, props: anytype) TargetType {
-    const TargetInfo = @typeInfo(TargetType);
-    if (TargetInfo != .@"struct") {
+/// Fill in defaults / required fields for a component props struct.
+pub fn coerce(comptime T: type, props: anytype) T {
+    const info = @typeInfo(T);
+    if (info != .@"struct") {
         @compileError("Target type must be a struct");
     }
 
-    const target_struct = TargetInfo.@"struct";
-    var result: TargetType = undefined;
+    const s = info.@"struct";
+    var result: T = undefined;
 
-    inline for (target_struct.field_names, target_struct.field_types, target_struct.field_attrs) |field_name, field_type, field_attr| {
+    inline for (s.field_names, s.field_types, s.field_attrs) |field_name, field_type, field_attr| {
         if (@hasField(@TypeOf(props), field_name)) {
             @field(result, field_name) = @field(props, field_name);
         } else if (field_attr.defaultValue(field_type)) |default_value| {
             @field(result, field_name) = default_value;
         } else {
-            @compileError(std.fmt.comptimePrint("Missing required attribute `{s}` in Component `{s}`", .{ field_name, @typeName(TargetType) }));
+            @compileError(std.fmt.comptimePrint("Missing required attribute `{s}` in Component `{s}`", .{ field_name, @typeName(T) }));
         }
     }
 
     return result;
 }
 
-/// Returns props pointer and JSON serializer function for React components
-pub fn propsSerializerJson(comptime Props: type, allocator: std.mem.Allocator, props: Props) struct {
-    ptr: ?*const anyopaque,
-    writeFn: ?*const fn (*std.Io.Writer, *const anyopaque) anyerror!void,
-} {
-    const type_info = @typeInfo(Props);
+/// Serialize props to ZXON for client-island hydration markers.
+/// Returns null when empty, non-serializable, or on the client platform.
+pub fn zxon(allocator: std.mem.Allocator, props: anytype) ?[]const u8 {
+    if (platform.role == .client) return null;
+    const T = @TypeOf(props);
+    const info = @typeInfo(T);
 
-    if (type_info != .@"struct") return .{ .ptr = null, .writeFn = null };
-    if (type_info.@"struct".field_names.len == 0) return .{ .ptr = null, .writeFn = null };
-    if (!comptime isSerializable(Props)) return .{ .ptr = null, .writeFn = null };
+    if (info != .@"struct") return null;
+    if (info.@"struct".field_types.len == 0) return null;
+    if (!comptime serializable(T)) return null;
 
-    const props_copy = allocator.create(Props) catch return .{ .ptr = null, .writeFn = null };
-    props_copy.* = props;
-
-    return .{
-        .ptr = props_copy,
-        .writeFn = &struct {
-            fn write(writer: *std.Io.Writer, ptr: *const anyopaque) anyerror!void {
-                const typed_props: *const Props = @ptrCast(@alignCast(ptr));
-                try std.json.Stringify.value(typed_props.*, .{}, writer);
-            }
-        }.write,
+    var aw = std.Io.Writer.Allocating.init(allocator);
+    zxon_mod.serialize(props, &aw.writer, .{}) catch {
+        aw.deinit();
+        return null;
     };
+    return aw.toOwnedSlice() catch null;
 }
 
-/// Returns props pointer and serializer function for direct-to-writer serialization at render time.
-/// Uses ZXON positional format `[val1, val2, ...]` instead of JSON objects for smaller size.
-/// Field names are known at compile time on both server and client, so we only need values.
-pub fn propsSerializer(comptime Props: type, allocator: std.mem.Allocator, props: Props) struct {
-    ptr: ?*const anyopaque,
-    writeFn: ?*const fn (*std.Io.Writer, *const anyopaque) anyerror!void,
-} {
-    if (platform.role == .client) return .{ .ptr = null, .writeFn = null };
-    const type_info = @typeInfo(Props);
+/// Serialize props to a JSON object (named fields). Used by DevTools via
+pub fn json(allocator: std.mem.Allocator, props: anytype) ?[]const u8 {
+    const T = @TypeOf(props);
+    const info = @typeInfo(T);
 
-    if (type_info != .@"struct") return .{ .ptr = null, .writeFn = null };
-    if (type_info.@"struct".field_types.len == 0) return .{ .ptr = null, .writeFn = null };
-    if (!comptime isSerializable(Props)) {
-        return .{ .ptr = null, .writeFn = null };
-    }
+    if (info != .@"struct") return null;
+    if (info.@"struct".field_types.len == 0) return null;
+    if (!comptime serializable(T)) return null;
 
-    const props_copy = allocator.create(Props) catch return .{ .ptr = null, .writeFn = null };
-    props_copy.* = props;
-
-    return .{
-        .ptr = props_copy,
-        .writeFn = &struct {
-            fn write(writer: *std.Io.Writer, ptr: *const anyopaque) anyerror!void {
-                const typed_props: *const Props = @ptrCast(@alignCast(ptr));
-                try zxon.serialize(typed_props.*, writer, .{});
-            }
-        }.write,
-    };
+    return std.json.Stringify.valueAlloc(allocator, props, .{}) catch null;
 }
 
-/// Compute the merged type of two structs for props spreading.
-/// All fields from both structs are included in the result.
-pub fn MergedPropsType(comptime BaseType: type, comptime OverrideType: type) type {
-    const base_info = @typeInfo(BaseType);
-    const override_info = @typeInfo(OverrideType);
+/// Merged type of two props structs (for spreading). Override fields win.
+pub fn Merged(comptime Base: type, comptime Override: type) type {
+    const base_info = @typeInfo(Base);
+    const override_info = @typeInfo(Override);
 
     if (base_info != .@"struct" or override_info != .@"struct") {
-        @compileError("MergedPropsType expects struct types");
+        @compileError("Merged expects struct types");
     }
 
     const base = base_info.@"struct";
     const override = override_info.@"struct";
 
-    // Count unique fields (override fields replace base fields with same name)
     comptime var field_count = base.field_names.len;
     inline for (override.field_names) |of_name| {
         comptime var found = false;
@@ -114,7 +88,6 @@ pub fn MergedPropsType(comptime BaseType: type, comptime OverrideType: type) typ
     comptime var field_attrs: [field_count]std.builtin.Type.Struct.FieldAttributes = undefined;
     comptime var idx: usize = 0;
 
-    // Add base fields (using override's type/attrs when overridden)
     inline for (base.field_names, base.field_types, base.field_attrs) |bf_name, bf_type, bf_attr| {
         comptime var found = false;
         inline for (override.field_names, override.field_types, override.field_attrs) |of_name, of_type, of_attr| {
@@ -134,7 +107,6 @@ pub fn MergedPropsType(comptime BaseType: type, comptime OverrideType: type) typ
         idx += 1;
     }
 
-    // Add new fields from override
     inline for (override.field_names, override.field_types, override.field_attrs) |of_name, of_type, of_attr| {
         comptime var found = false;
         inline for (base.field_names) |bf_name| {
@@ -154,11 +126,11 @@ pub fn MergedPropsType(comptime BaseType: type, comptime OverrideType: type) typ
     return @Struct(.auto, null, &field_names, &field_types, &field_attrs);
 }
 
-fn isSerializable(comptime T: type) bool {
-    return isSerializableImpl(T, &.{});
+fn serializable(comptime T: type) bool {
+    return serializableImpl(T, &.{});
 }
 
-fn isSerializableImpl(comptime T: type, comptime visited: []const type) bool {
+fn serializableImpl(comptime T: type, comptime visited: []const type) bool {
     for (visited) |v| {
         if (v == T) return true;
     }
@@ -170,7 +142,7 @@ fn isSerializableImpl(comptime T: type, comptime visited: []const type) bool {
         .pointer => |ptr| blk: {
             if (ptr.size == .slice) {
                 if (ptr.child == u8) break :blk true;
-                if (isSerializableImpl(ptr.child, new_visited)) break :blk true;
+                if (serializableImpl(ptr.child, new_visited)) break :blk true;
             }
             if (ptr.size == .one) {
                 const child_info = @typeInfo(ptr.child);
@@ -178,11 +150,11 @@ fn isSerializableImpl(comptime T: type, comptime visited: []const type) bool {
             }
             break :blk false;
         },
-        .array => |arr| isSerializableImpl(arr.child, new_visited),
-        .optional => |opt| isSerializableImpl(opt.child, new_visited),
+        .array => |arr| serializableImpl(arr.child, new_visited),
+        .optional => |opt| serializableImpl(opt.child, new_visited),
         .@"struct" => |s| blk: {
             for (s.field_types) |field_type| {
-                if (!isSerializableImpl(field_type, new_visited)) break :blk false;
+                if (!serializableImpl(field_type, new_visited)) break :blk false;
             }
             break :blk true;
         },

@@ -7,7 +7,7 @@ fn offsetOf(src: []const u8, needle: []const u8, into: u32) u32 {
     return @intCast(idx + into);
 }
 
-test "hover: element tag name" {
+test "hover > element tag name" {
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -25,7 +25,7 @@ test "hover: element tag name" {
     try testing.expect(std.mem.indexOf(u8, md, "specification") != null);
 }
 
-test "hover: global attribute name" {
+test "hover > global attribute name" {
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -41,7 +41,7 @@ test "hover: global attribute name" {
     try testing.expect(std.mem.indexOf(u8, md, "CSS classes") != null);
 }
 
-test "hover: element-specific attribute name" {
+test "hover > element-specific attribute name" {
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -59,7 +59,7 @@ test "hover: element-specific attribute name" {
     try testing.expect(std.mem.indexOf(u8, md, "<a>") != null);
 }
 
-test "hover: unknown element returns null" {
+test "hover > unknown element returns null" {
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -73,7 +73,7 @@ test "hover: unknown element returns null" {
     try testing.expect((try html_hover.hoverMarkdown(arena, src, off)) == null);
 }
 
-test "hover: cursor outside tag returns null" {
+test "hover > cursor outside tag returns null" {
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();
@@ -87,7 +87,7 @@ test "hover: cursor outside tag returns null" {
     try testing.expect((try html_hover.hoverMarkdown(arena, src, off)) == null);
 }
 
-test "hover: void element self-closing tag" {
+test "hover > void element self-closing tag" {
     var arena_state = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena_state.deinit();
     const arena = arena_state.allocator();

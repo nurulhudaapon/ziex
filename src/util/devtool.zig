@@ -1,7 +1,27 @@
 const std = @import("std");
+const builtin = @import("builtin");
 const zx = @import("../root.zig");
 
 const Allocator = std.mem.Allocator;
+
+pub const SerializeOptions = struct {
+    only_components: bool = true,
+    include_attributes: bool = true,
+    include_props: bool = true,
+};
+
+pub fn format(component: zx.Component, w: *std.Io.Writer) error{WriteFailed}!void {
+    formatWithOptions(component, w, .{}) catch return error.WriteFailed;
+}
+
+pub fn formatWithOptions(component: zx.Component, w: *std.Io.Writer, options: SerializeOptions) anyerror!void {
+    var arena = std.heap.ArenaAllocator.init(std.heap.page_allocator);
+    defer arena.deinit();
+    const allocator = arena.allocator();
+
+    var serializable = try ComponentSerializable.init(allocator, component, options);
+    try serializable.serialize(w);
+}
 
 pub const ComponentSerializable = struct {
     pub const StateItem = struct {
@@ -50,39 +70,6 @@ pub const ComponentSerializable = struct {
             items[i] = try toStateItem(allocator, field_types[i], name, @field(value, name), 0);
         }
         return items;
-    }
-
-    pub fn createGetStateItemsFn(comptime func: anytype) *const fn (Allocator, *const anyopaque) anyerror![]const StateItem {
-        return struct {
-            fn getStateItems(alloc: Allocator, ptr: *const anyopaque) anyerror![]const StateItem {
-                const FuncInfo = @typeInfo(@TypeOf(func));
-                const param_count = FuncInfo.@"fn".param_types.len;
-                if (param_count == 0) return &[_]StateItem{};
-
-                const FirstPropType = FuncInfo.@"fn".param_types[0].?;
-                const first_is_allocator = FirstPropType == std.mem.Allocator;
-                const first_is_ctx_ptr = @typeInfo(FirstPropType) == .pointer and
-                    @hasField(@typeInfo(FirstPropType).pointer.child, "allocator") and
-                    @hasField(@typeInfo(FirstPropType).pointer.child, "children");
-
-                if (first_is_allocator and param_count == 2) {
-                    const SecondPropType = FuncInfo.@"fn".param_types[1].?;
-                    const typed_p: *const SecondPropType = @ptrCast(@alignCast(ptr));
-                    return toStateItems(alloc, SecondPropType, typed_p.*);
-                } else if (first_is_ctx_ptr) {
-                    const CtxType = @typeInfo(FirstPropType).pointer.child;
-                    const ctx_ptr: *const CtxType = @ptrCast(@alignCast(ptr));
-                    if (@hasField(CtxType, "props")) {
-                        const props_val = ctx_ptr.props;
-                        const PropsT = @TypeOf(props_val);
-                        if (PropsT != void) {
-                            return toStateItems(alloc, PropsT, props_val);
-                        }
-                    }
-                }
-                return &[_]StateItem{};
-            }
-        }.getStateItems;
     }
 
     pub fn toStateItem(allocator: Allocator, comptime T: type, key: []const u8, value: T, depth: usize) anyerror!StateItem {
@@ -199,15 +186,68 @@ pub const ComponentSerializable = struct {
         return serializable;
     }
 
-    fn serializeProps(allocator: Allocator, getStateItems: ?*const anyopaque, props_ptr: ?*const anyopaque) !?[]const StateItem {
-        const gsi_opaque = getStateItems orelse return null;
-        const pp = props_ptr orelse return null;
-
-        const gsi: *const fn (Allocator, *const anyopaque) anyerror![]const StateItem = @ptrCast(@alignCast(gsi_opaque));
-        return try gsi(allocator, pp);
+    fn serializeProps(allocator: Allocator, comp_fn: zx.Component.ComponentFn) !?[]const StateItem {
+        if (comptime builtin.optimize != .debug) return null;
+        const json = comp_fn.vtable.dump_props(allocator, comp_fn.data) orelse return null;
+        return try stateItemsFromJson(allocator, json);
     }
 
-    pub fn init(allocator: Allocator, component: zx.Component, options: zx.Component.SerializeOptions) anyerror!ComponentSerializable {
+    fn stateItemsFromJson(allocator: Allocator, json: []const u8) !?[]const StateItem {
+        const parsed = std.json.parseFromSlice(std.json.Value, allocator, json, .{}) catch return null;
+        // Arena-owned parse tree; caller arena frees it with the rest.
+        switch (parsed.value) {
+            .object => |obj| {
+                var items = try allocator.alloc(StateItem, obj.count());
+                var i: usize = 0;
+                var it = obj.iterator();
+                while (it.next()) |entry| {
+                    items[i] = try stateItemFromJsonValue(allocator, entry.key_ptr.*, entry.value_ptr.*);
+                    i += 1;
+                }
+                return items;
+            },
+            else => return null,
+        }
+    }
+
+    fn stateItemFromJsonValue(allocator: Allocator, key: []const u8, value: std.json.Value) !StateItem {
+        return switch (value) {
+            .object => |obj| blk: {
+                var children = try allocator.alloc(StateItem, obj.count());
+                var i: usize = 0;
+                var it = obj.iterator();
+                while (it.next()) |entry| {
+                    children[i] = try stateItemFromJsonValue(allocator, entry.key_ptr.*, entry.value_ptr.*);
+                    i += 1;
+                }
+                break :blk .{
+                    .key = key,
+                    .value = "Object",
+                    .children = children,
+                };
+            },
+            .array => |arr| blk: {
+                var children = try allocator.alloc(StateItem, arr.items.len);
+                for (arr.items, 0..) |v, i| {
+                    var buf: [32]u8 = undefined;
+                    const index_key = try std.fmt.bufPrint(&buf, "{d}", .{i});
+                    children[i] = try stateItemFromJsonValue(allocator, try allocator.dupe(u8, index_key), v);
+                }
+                break :blk .{
+                    .key = key,
+                    .value = "Array",
+                    .children = children,
+                };
+            },
+            .null => .{ .key = key, .value = "null" },
+            .bool, .integer, .float, .number_string, .string => .{
+                .key = key,
+                .value = try std.json.Stringify.valueAlloc(allocator, value, .{}),
+            },
+        };
+    }
+
+    pub fn init(allocator: Allocator, component: zx.Component, options: SerializeOptions) anyerror!ComponentSerializable {
         return switch (component) {
             .none => .{},
             .text => |text| .{ .text = text },
@@ -221,21 +261,18 @@ pub const ComponentSerializable = struct {
                     .children = children_serializable,
                 };
             },
-            .component_csr => |component_csr| blk: {
-                const children_serializable = if (component_csr.children) |children| blk2: {
-                    const serializable = try allocator.alloc(ComponentSerializable, 1);
-                    serializable[0] = try ComponentSerializable.init(allocator, children.*, options);
-                    break :blk2 serializable;
-                } else null;
-                break :blk .{
-                    .component = component_csr.name,
-                    .props = if (options.include_props) try serializeProps(allocator, component_csr.getStateItems, component_csr.props_ptr) else null,
-                    .children = children_serializable,
-                };
-            },
             .component_fn => |comp_fn| blk: {
+                const props_items = if (options.include_props) try serializeProps(allocator, comp_fn) else null;
+                if (comp_fn.isIsland()) {
+                    const children_slice = try allocator.alloc(ComponentSerializable, 1);
+                    children_slice[0] = try ComponentSerializable.init(allocator, comp_fn.island.?.children.*, options);
+                    break :blk .{
+                        .component = comp_fn.name,
+                        .props = props_items,
+                        .children = children_slice,
+                    };
+                }
                 // Resolve component_fn by calling it, then serialize the result
-                // This avoids serializing anyopaque fields
                 const resolved = try comp_fn.call();
 
                 const resolved_serializable = try ComponentSerializable.init(allocator, resolved, options);
@@ -243,14 +280,14 @@ pub const ComponentSerializable = struct {
                 children_slice[0] = resolved_serializable;
                 break :blk .{
                     .component = comp_fn.name,
-                    .props = if (options.include_props) try serializeProps(allocator, comp_fn.getStateItems, comp_fn.propsPtr) else null,
+                    .props = props_items,
                     .children = children_slice,
                 };
             },
         };
     }
 
-    pub fn initChildren(allocator: Allocator, children: []const zx.Component, options: zx.Component.SerializeOptions) anyerror![]ComponentSerializable {
+    pub fn initChildren(allocator: Allocator, children: []const zx.Component, options: SerializeOptions) anyerror![]ComponentSerializable {
         if (!options.only_components) {
             const children_serializable = try allocator.alloc(ComponentSerializable, children.len);
             for (children, 0..) |child, i| {
@@ -268,7 +305,7 @@ pub const ComponentSerializable = struct {
                         try list.appendSlice(allocator, sub);
                     }
                 },
-                .component_fn, .component_csr => {
+                .component_fn => {
                     try list.append(allocator, try ComponentSerializable.init(allocator, child, options));
                 },
                 else => {}, // Skip text, none, etc.

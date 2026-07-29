@@ -1,10 +1,11 @@
-//! ZXON - ZX Object Notation (Ziex Exchange Object Notation)
-//!
-//! A compact positional serialization format for Zig types. Structs are encoded
-//! as ordered value arrays `[field1, field2, ...]` - field names are known at
-//! comptime on both ends, so only values are transmitted.
-//!
-//! Compared to `std.json`, this pulls in ~78 KB less code in WASM builds.
+/// ZXON - ZX Object Notation (Ziex Exchange Object Notation)
+///
+/// A compact positional serialization format for Zig types. Structs are encoded
+/// as ordered value arrays `[field1, field2, ...]` - field names are known at
+/// comptime on both ends, so only values are transmitted.
+///
+/// Compared to `std.json`, this pulls in ~78 KB less code in WASM builds.
+const zxon = @This();
 
 const std = @import("std");
 

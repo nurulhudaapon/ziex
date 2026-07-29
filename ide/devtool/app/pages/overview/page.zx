@@ -39,14 +39,14 @@ fn onFetchComponentsCount(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) voi
     if (res) |r| {
         defer r.deinit();
         if (r.text()) |p| {
-            const parsed = zx.util.zxon.parse(zx.Component.Serializable, zx.allocator, p, .{}) catch return;
+            const parsed = zx.util.zxon.parse(zx.util.devtool.ComponentSerializable, zx.allocator, p, .{}) catch return;
             overview_component_count = countSerializable(parsed.children orelse &.{}, 0);
         } else |_| {}
     }
     zx.client.rerender();
 }
 
-fn countSerializable(nodes: []const zx.Component.Serializable, acc: usize) usize {
+fn countSerializable(nodes: []const zx.util.devtool.ComponentSerializable, acc: usize) usize {
     var total = acc;
     for (nodes) |n| {
         total += 1;

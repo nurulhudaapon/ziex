@@ -308,7 +308,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                             if (std.mem.eql(u8, mode, "components")) {
                                 const include_native = !std.mem.eql(u8, req.header("x-zx-devtool-include-native") orelse "1", "0");
                                 res.content_type = .JSON;
-                                try page_component.formatWithOptions(res.writer(), .{ .only_components = !include_native });
+                                try zx.util.devtool.formatWithOptions(page_component, res.writer(), .{ .only_components = !include_native });
                                 return;
                             }
                         }
