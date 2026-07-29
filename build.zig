@@ -16,8 +16,10 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // TODO: ZLS doesn't support latest Zig 0.17.0 yet, so always disabling LSP for now.
-    const enable_lsp = if (b.option(bool, "lsp", "Enabled zx lsp")) |_| false else false;
+    // LSP is enabled by default and uses lsp_kit directly. ZLS backing is optional
+    // until ZLS supports the current Zig version.
+    const enable_lsp = b.option(bool, "lsp", "Enable zx lsp") orelse true;
+    const enable_zls = b.option(bool, "zls", "Enable ZLS as backing LSP (requires zls dep)") orelse false;
     const enable_sqlite = b.option(bool, "feature-sqlite", "Enabled sqlite support") orelse false;
     const enable_postgres = b.option(bool, "feature-postgres", "Enabled postgres support") orelse false;
     const log_level = b.option(std.log.Level, "cli-log-level", "Log level for the CLI") orelse .info;
@@ -86,6 +88,7 @@ pub fn build(b: *std.Build) !void {
 
     const exe_build_options = b.addOptions();
     exe_build_options.addOption(bool, "enable_lsp", enable_lsp);
+    exe_build_options.addOption(bool, "enable_zls", enable_zls);
     exe_build_options.addOption(u2, "log_level", @intFromEnum(log_level));
 
     const cli_mod = b.addModule("cli", .{
@@ -101,10 +104,17 @@ pub fn build(b: *std.Build) !void {
     cli_mod.addOptions("build_options", exe_build_options);
     cli_mod.addAnonymousImport("app_template", .{ .root_source_file = b.path("templates/Template.zig") });
 
-    const exe = b.addExecutable(.{ .name = "zx", .root_module = cli_mod });
+    var lsp_kit_mod: ?*std.Build.Module = null;
     if (enable_lsp) {
+        const lsp_kit_dep = b.dependency("lsp_kit", .{ .target = target, .optimize = optimize });
+        lsp_kit_mod = lsp_kit_dep.module("lsp");
+        cli_mod.addImport("lsp", lsp_kit_mod.?);
+    }
+
+    const exe = b.addExecutable(.{ .name = "zx", .root_module = cli_mod });
+    if (enable_lsp and enable_zls) {
         const zls_dep = b.lazyDependency("zls", .{ .target = target, .optimize = optimize });
-        if (zls_dep) |zls| exe.root_module.addImport("zls", zls.module("zls"));
+        if (zls_dep) |zls| cli_mod.addImport("zls", zls.module("zls"));
     }
     b.installArtifact(exe);
 
@@ -254,7 +264,7 @@ pub fn build(b: *std.Build) !void {
 
     // --- Steps: HTML Docs Generator --- //
     {
-        const html_docs_gen_step = b.step("htmldocsgen", "Generate HTML element/attribute docs from webref");
+        const html_docs_gen_step = b.step("htmldocsgen", "Generate HTML element/attribute docs from VS Code browsers.html-data.json");
 
         const html_docs_gen_exe = b.addExecutable(.{
             .name = "htmldocsgen",
@@ -265,12 +275,6 @@ pub fn build(b: *std.Build) !void {
             }),
         });
         const html_docs_gen_run = b.addRunArtifact(html_docs_gen_exe);
-
-        if (b.root.root_dir.handle.access(b.graph.io, "vendor/webref", .{})) |_| {} else |_| {
-            const sync_cmd = b.addSystemCommand(&.{ "./tools/syncvendor", "webref" });
-            html_docs_gen_run.step.dependOn(&sync_cmd.step);
-        }
-
         html_docs_gen_step.dependOn(&html_docs_gen_run.step);
     }
 

@@ -65,10 +65,14 @@ pub fn parse(gpa: std.mem.Allocator, zx_source: [:0]const u8, options: ParseOpti
     var diagnostics = try check.validate(gpa, &parse_result);
     errdefer diagnostics.deinit();
 
-    const render_result = try parse_result.renderAlloc(arena, .{ .mode = .zig, .sourcemap = options.map.enabled(), .path = options.path });
+    const maps_enabled = options.map.enabled();
+    const render_result = try parse_result.renderAlloc(arena, .{ .mode = .zig, .sourcemap = maps_enabled, .path = options.path });
     const zx_sourcez = try gpa.dupeSentinel(u8, render_result.source, 0);
     var zig_ast = try std.zig.Ast.parse(gpa, zx_sourcez, .{ .mode = .zig });
-    const zig_sourcez = try arena.dupeSentinel(u8, if (zig_ast.errors.len == 0) try zig_ast.renderAlloc(arena) else render_result.source, 0);
+    const zig_sourcez = try arena.dupeSentinel(u8, if (!maps_enabled and zig_ast.errors.len == 0)
+        try zig_ast.renderAlloc(arena)
+    else
+        render_result.source, 0);
 
     var components = std.ArrayList(ClientComponentMetadata).empty;
     try components.ensureTotalCapacity(gpa, render_result.client_components.len);
@@ -82,9 +86,8 @@ pub fn parse(gpa: std.mem.Allocator, zx_source: [:0]const u8, options: ParseOpti
         });
     }
 
-    // Copy sourcemap if present
-    const result_sourcemap: ?sourcemap.SourceMap = if (render_result.sourcemap) |sm|
-        .{ .mappings = try gpa.dupe(u8, sm.mappings) }
+    const result_sourcemap: ?sourcemap.PositionMap = if (render_result.sourcemap) |sm|
+        try sm.dupe(gpa)
     else
         null;
 
@@ -103,7 +106,7 @@ pub const ParseResult = struct {
     zx_source: [:0]const u8,
     zig_source: [:0]const u8,
     client_components: std.ArrayList(ClientComponentMetadata),
-    sourcemap: ?sourcemap.SourceMap = null,
+    sourcemap: ?sourcemap.PositionMap = null,
     diagnostics: check.DiagnosticList,
 
     pub fn deinit(self: *ParseResult, allocator: std.mem.Allocator) void {
@@ -117,14 +120,15 @@ pub const ParseResult = struct {
         }
         self.client_components.deinit(allocator);
         if (self.sourcemap) |*sm| {
-            sm.deinit(allocator);
+            sm.deinit();
         }
         self.diagnostics.deinit();
     }
 };
 
 pub const ClientComponentMetadata = Parser.ClientComponentMetadata;
-pub const SourceMap = sourcemap.SourceMap;
+pub const SourceMap = sourcemap.PositionMap;
+pub const PositionMap = sourcemap.PositionMap;
 pub const check = @import("Ast/check.zig");
 
 const log = std.log.scoped(.ast);

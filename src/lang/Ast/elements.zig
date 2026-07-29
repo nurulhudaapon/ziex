@@ -48,6 +48,31 @@ pub const known_elements = Set.initComptime(.{
     .{ "video", {} },       .{ "wbr", {} },
 });
 
+/// SVG elements (mirrors `element.Tag` from `svg_start` through `view`).
+/// Lookups are ASCII case-insensitive, so `clipPath` / `clippath` both match.
+pub const svg_elements = Set.initComptime(.{
+    .{ "animate", {} },           .{ "animateMotion", {} },    .{ "animateTransform", {} },
+    .{ "circle", {} },            .{ "clipPath", {} },         .{ "defs", {} },
+    .{ "desc", {} },              .{ "ellipse", {} },          .{ "feBlend", {} },
+    .{ "feColorMatrix", {} },     .{ "feComponentTransfer", {} }, .{ "feComposite", {} },
+    .{ "feConvolveMatrix", {} },  .{ "feDiffuseLighting", {} }, .{ "feDisplacementMap", {} },
+    .{ "feDistantLight", {} },    .{ "feDropShadow", {} },     .{ "feFlood", {} },
+    .{ "feFuncA", {} },           .{ "feFuncB", {} },          .{ "feFuncG", {} },
+    .{ "feFuncR", {} },           .{ "feGaussianBlur", {} },   .{ "feImage", {} },
+    .{ "feMerge", {} },           .{ "feMergeNode", {} },      .{ "feMorphology", {} },
+    .{ "feOffset", {} },          .{ "fePointLight", {} },     .{ "feSpecularLighting", {} },
+    .{ "feSpotLight", {} },       .{ "feTile", {} },           .{ "feTurbulence", {} },
+    .{ "filter", {} },            .{ "foreignObject", {} },    .{ "g", {} },
+    .{ "image", {} },             .{ "line", {} },             .{ "linearGradient", {} },
+    .{ "marker", {} },            .{ "mask", {} },             .{ "metadata", {} },
+    .{ "mpath", {} },             .{ "path", {} },             .{ "pattern", {} },
+    .{ "polygon", {} },           .{ "polyline", {} },         .{ "radialGradient", {} },
+    .{ "rect", {} },              .{ "set", {} },              .{ "stop", {} },
+    .{ "svg", {} },               .{ "switch", {} },           .{ "symbol", {} },
+    .{ "text", {} },              .{ "textPath", {} },         .{ "tspan", {} },
+    .{ "use", {} },               .{ "view", {} },
+});
+
 /// Void elements: they have no content and no end tag. Ported from
 /// `Kind.isVoid` in `fmt/html/Ast.zig`.
 pub const void_elements = Set.initComptime(.{
@@ -72,7 +97,11 @@ pub const deprecated_elements = Set.initComptime(.{
 });
 
 pub fn isKnown(name: []const u8) bool {
-    return known_elements.has(name);
+    return known_elements.has(name) or svg_elements.has(name);
+}
+
+pub fn isSvg(name: []const u8) bool {
+    return svg_elements.has(name);
 }
 
 pub fn isVoid(name: []const u8) bool {

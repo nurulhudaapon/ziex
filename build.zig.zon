@@ -19,12 +19,14 @@
             .url = "git+https://github.com/ziex-dev/httpz.git?ref=dev#49684ddd1fb030f72594cce8370b076dfa922ff9",
             .hash = "httpz-0.0.0-PNVzrATcCADK2AQ3S7KDpH49xF3iMZ6Itih2-uBglAae",
         },
-        // Ziex Language Server utilities
+        // Ziex Language Server utilities (Zig IDE features via ZLS backing).
+        // Re-enable with `-Dzls=true` once ZLS supports the current Zig version.
         // .zls = .{
         //     .url = "git+https://github.com/ziex-dev/zls.git#8da87d4f3305a550e7b739bad764e34bf1e46a08",
         //     .hash = "zls-0.17.0-dev-rmm5fhsnJgACAm2dSuoMNDK6QziDk419sy5-ORvIiL0y",
         //     .lazy = true,
         // },
+        .lsp_kit = .{ .path = "../lsp-kit" },
         .db_sqlite = .{ .path = "pkg/db-sqlite", .lazy = true },
         .db_postgres = .{ .path = "pkg/db-postgres", .lazy = true },
         .zig_js = .{ .path = "vendor/jsz" },

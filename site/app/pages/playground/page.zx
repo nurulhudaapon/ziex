@@ -61,17 +61,17 @@ pub fn EditorPane(ctx: *zx.ComponentCtx(struct {})) zx.Component {
     return (
         <div @allocator={ctx.allocator}  class="pg-editor" id="pg-editor" style="flex: 1 1 55%;">
             <div class="pg-tabs" id="pg-tabs">
-                <button class="pg-tab pg-tab--active" data-file="Playground.zx" id="pg-tab-0">
-                    <span class="pg-tab-icon type-zx"><AllFileIcons /></span>
-                    Playground.zx
-                    <span class="pg-tab-close" aria-label="Close tab" style="opacity: 0.3; pointer-events: none;">×</span>
-                </button>
-                <button class="pg-tab" data-file="style.css" id="pg-tab-2">
-                    <span class="pg-tab-icon type-css"><AllFileIcons /></span>
-                    style.css
-                    <span class="pg-tab-close" aria-label="Close tab">×</span>
-                </button>
-                <button class="pg-tab-add" id="pg-add-file" aria-label="Add new file" title="New file">+</button>
+                // <button class="pg-tab pg-tab--active" data-file="Playground.zx" id="pg-tab-0">
+                //     <span class="pg-tab-icon type-zx"><AllFileIcons /></span>
+                //     Playground.zx
+                //     <span class="pg-tab-close" aria-label="Close tab" style="opacity: 0.3; pointer-events: none;">×</span>
+                // </button>
+                // <button class="pg-tab" data-file="style.css" id="pg-tab-2">
+                //     <span class="pg-tab-icon type-css"><AllFileIcons /></span>
+                //     style.css
+                //     <span class="pg-tab-close" aria-label="Close tab">×</span>
+                // </button>
+                // <button class="pg-tab-add" id="pg-add-file" aria-label="Add new file" title="New file">+</button>
             </div>
             <template id="pg-icons-template">
                 <AllFileIcons />

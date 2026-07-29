@@ -62,18 +62,14 @@ fn elementMarkdown(arena: std.mem.Allocator, name: []const u8) !?[]const u8 {
     var out: std.Io.Writer.Allocating = .init(arena);
     const w = &out.writer;
 
-    try w.print("**`<{s}>`**", .{doc.name});
-    if (doc.interface.len > 0) try w.print(" - {s}", .{doc.interface});
-    try w.writeAll("\n\n");
+    try w.print("**`<{s}>`**\n\n", .{doc.name});
 
     if (doc.description.len > 0) {
         try w.print("{s}\n", .{doc.description});
-    } else if (doc.title.len > 0) {
-        try w.print("{s}\n", .{doc.title});
     }
 
     if (doc.href.len > 0) {
-        try w.print("\n[HTML specification]({s})\n", .{doc.href});
+        try w.print("\n[MDN Reference]({s})\n", .{doc.href});
     }
     return out.written();
 }
@@ -95,7 +91,7 @@ fn attributeMarkdown(arena: std.mem.Allocator, tag: []const u8, attr: []const u8
         try w.print("{s}\n", .{doc.description});
     }
     if (doc.href.len > 0) {
-        try w.print("\n[HTML specification]({s})\n", .{doc.href});
+        try w.print("\n[MDN Reference]({s})\n", .{doc.href});
     }
     return out.written();
 }

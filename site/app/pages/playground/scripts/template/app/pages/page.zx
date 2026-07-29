@@ -1,7 +1,7 @@
 pub fn Page(ctx: zx.PageContext) !zx.Component {
     return (
         <main @allocator={ctx.arena}>
-            <p><a href="/about">About →</a></p>
+            <h2>Home</h2>
             <Counter @rendering={.client} initial={0} />
         </main>
     );

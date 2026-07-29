@@ -251,7 +251,7 @@ fn validateSelfClosing(
 
         // Real HTML elements can't self-close; only void elements, ZX
         // components and custom/SVG elements may use `<x />`.
-        if (html.isKnown(name) and !html.isVoid(name)) {
+        if (html.isKnown(name) and !html.isVoid(name) and !html.isSvg(name)) {
             try appendError(allocator, name_node, list, "HTML elements can't self-close", .{});
         }
     }

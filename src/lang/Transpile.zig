@@ -112,10 +112,12 @@ const SkipTokens = enum {
 };
 
 pub fn init(ast: *Ast, allocator: std.mem.Allocator, options: Options) Transpile {
+    var builder = sourcemap.Builder.init(allocator);
+    builder.source = options.path orelse "";
     return .{
         .ast = ast,
         .output = std.array_list.Managed(u8).init(allocator),
-        .sourcemap_builder = sourcemap.Builder.init(allocator),
+        .sourcemap_builder = builder,
         .track_mappings = options.sourcemap,
         .file_path = options.path,
         .client_components = std.ArrayList(ClientComponentMetadata).empty,
@@ -198,6 +200,26 @@ fn writeIndent(self: *Transpile) !void {
     while (i < spaces) : (i += 1) {
         try self.write(" ");
     }
+}
+
+const Cursor = struct {
+    line: i32,
+    column: i32,
+    len: usize,
+};
+
+fn saveCursor(self: *const Transpile) Cursor {
+    return .{
+        .line = self.current_line,
+        .column = self.current_column,
+        .len = self.output.items.len,
+    };
+}
+
+fn restoreCursor(self: *Transpile, cursor: Cursor) void {
+    self.output.shrinkRetainingCapacity(cursor.len);
+    self.current_line = cursor.line;
+    self.current_column = cursor.column;
 }
 
 pub fn finalizeSourceMap(self: *Transpile) !sourcemap.SourceMap {
@@ -501,13 +523,14 @@ fn transpileReturn(self: *Transpile, node: ts.Node) !void {
 
                     try self.resolveZxNameFor(child);
 
-                    // Synthesized builder init - no source mapping (it's boilerplate)
+                    // Synthesized builder init - no source mapping for boilerplate,
+                    // but map the allocator expression so Zig errors on it remap to .zx.
                     try self.print("var {s} = @import(\"zx\").x.", .{self.zx_name});
                     // `@src()` is only valid inside a function scope. Module-scope
                     // block level component (e.g. `const x = zx { ... }`) can't use @src so skipping.
                     if (allocator_value) |alloc| {
                         try self.write("allocInit(");
-                        try self.write(alloc);
+                        try self.writeM(alloc.value, alloc.byte_offset);
                         if (isInFunction(child)) {
                             try self.write(", .{ .src = @src() })");
                         } else {
@@ -597,7 +620,7 @@ fn transpileBlock(self: *Transpile, node: ts.Node) !void {
                 try self.print("var {s} = @import(\"zx\").x.", .{self.zx_name});
                 if (allocator_value) |alloc| {
                     try self.write("allocInit(");
-                    try self.write(alloc);
+                    try self.writeM(alloc.value, alloc.byte_offset);
                     if (isInFunction(child)) {
                         try self.write(", .{ .src = @src() })");
                     } else {
@@ -629,8 +652,15 @@ fn transpileBlock(self: *Transpile, node: ts.Node) !void {
     }
 }
 
-/// Returns the allocator attribute value text if found, null otherwise
-fn getAllocatorAttribute(self: *Transpile, node: ts.Node) !?[]const u8 {
+/// Allocator expression taken from `@allocator={...}` / `@{allocator}`.
+const AllocatorExpr = struct {
+    value: []const u8,
+    /// Byte offset in .zx source of the expression (for position maps).
+    byte_offset: u32,
+};
+
+/// Returns the allocator attribute value if found, null otherwise.
+fn getAllocatorAttribute(self: *Transpile, node: ts.Node) !?AllocatorExpr {
     const child_count = node.childCount();
     var i: u32 = 0;
     while (i < child_count) : (i += 1) {
@@ -655,7 +685,7 @@ fn getAllocatorAttribute(self: *Transpile, node: ts.Node) !?[]const u8 {
     return null;
 }
 
-fn checkAllocatorAttr(self: *Transpile, attr: ts.Node) !?[]const u8 {
+fn checkAllocatorAttr(self: *Transpile, attr: ts.Node) !?AllocatorExpr {
     const attr_kind = NodeKind.fromNode(attr);
     if (attr_kind != .zx_attribute and attr_kind != .zx_builtin_attribute and attr_kind != .zx_shorthand_attribute and attr_kind != .zx_builtin_shorthand_attribute) return null;
 
@@ -670,7 +700,7 @@ fn checkAllocatorAttr(self: *Transpile, attr: ts.Node) !?[]const u8 {
         const name_node = actual_attr.childByFieldName("name") orelse return null;
         const name = try self.ast.getNodeText(name_node);
         if (std.mem.eql(u8, name, "allocator")) {
-            return name; // The variable name is "allocator"
+            return .{ .value = name, .byte_offset = name_node.startByte() };
         }
         return null;
     }
@@ -679,8 +709,11 @@ fn checkAllocatorAttr(self: *Transpile, attr: ts.Node) !?[]const u8 {
     const name = try self.ast.getNodeText(name_node);
 
     if (std.mem.eql(u8, name, "@allocator")) {
-        const value_node = actual_attr.childByFieldName("value") orelse return "allocator"; // TODO: need to catch and add to errors list in case of no value
-        return try self.getAttributeValue(value_node);
+        const value_node = actual_attr.childByFieldName("value") orelse {
+            // TODO: need to catch and add to errors list in case of no value
+            return .{ .value = "allocator", .byte_offset = name_node.startByte() };
+        };
+        return try self.getAttributeValueExpr(value_node);
     }
     return null;
 }
@@ -748,7 +781,7 @@ fn transpileFragment(self: *Transpile, node: ts.Node, is_root: bool) !void {
         self.indent_level += 1;
 
         for (children.items, 0..) |child, idx| {
-            const saved_len = self.output.items.len;
+            const saved = self.saveCursor();
             try self.writeIndent();
             const is_last_child = idx == children.items.len - 1;
             const had_output = try self.transpileChild(child, false, is_last_child);
@@ -756,7 +789,7 @@ fn transpileFragment(self: *Transpile, node: ts.Node, is_root: bool) !void {
             if (had_output) {
                 try self.write(",\n");
             } else {
-                self.output.shrinkRetainingCapacity(saved_len);
+                self.restoreCursor(saved);
             }
         }
 
@@ -1287,12 +1320,12 @@ fn writeChildrenValue(self: *Transpile, children: []const ts.Node) !void {
     } else {
         try self.print("{s}.ele(.fragment, .{{ .children = {s}.chs(.{{", .{ self.zx_name, self.zx_name });
         for (children, 0..) |child, idx| {
-            const saved_len = self.output.items.len;
+            const saved = self.saveCursor();
             const had_output = try self.transpileChild(child, false, idx == children.len - 1);
             if (had_output) {
                 try self.write(", ");
             } else {
-                self.output.shrinkRetainingCapacity(saved_len);
+                self.restoreCursor(saved);
             }
         }
         try self.write("}) })");
@@ -1349,7 +1382,7 @@ fn writeHtmlElement(self: *Transpile, node: ts.Node, tag: []const u8, tag_name_b
         self.indent_level += 1;
 
         for (children, 0..) |child, idx| {
-            const saved_len = self.output.items.len;
+            const saved = self.saveCursor();
             try self.writeIndent();
             const is_last_child = idx == children.len - 1;
             const had_output = try self.transpileChild(child, preserve_whitespace, is_last_child);
@@ -1357,7 +1390,7 @@ fn writeHtmlElement(self: *Transpile, node: ts.Node, tag: []const u8, tag_name_b
             if (had_output) {
                 try self.write(",\n");
             } else {
-                self.output.shrinkRetainingCapacity(saved_len);
+                self.restoreCursor(saved);
             }
         }
 
@@ -1522,9 +1555,9 @@ fn transpileMultilineString(self: *Transpile, node: ts.Node) !void {
 
 fn transpileIf(self: *Transpile, node: ts.Node) !void {
     // if_expression: 'if' '(' condition ')' [payload] then_expr ['else' [else_payload] else_expr]
-    var condition_text: ?[]const u8 = null;
-    var payload_text: ?[]const u8 = null;
-    var else_payload_text: ?[]const u8 = null;
+    var condition_node: ?ts.Node = null;
+    var payload_node: ?ts.Node = null;
+    var else_payload_node: ?ts.Node = null;
     var then_node: ?ts.Node = null;
     var else_node: ?ts.Node = null;
 
@@ -1549,41 +1582,40 @@ fn transpileIf(self: *Transpile, node: ts.Node) !void {
         } else if (std.mem.eql(u8, child_type, "else")) {
             in_then = false;
             in_else = true;
-        } else if (in_condition and condition_text == null) {
-            condition_text = try self.ast.getNodeText(child);
+        } else if (in_condition and condition_node == null) {
+            condition_node = child;
         } else if (in_then and child_kind == .payload) {
-            // Capture payload like |un|
-            payload_text = try self.ast.getNodeText(child);
+            payload_node = child;
         } else if (in_then and then_node == null) {
             then_node = child;
         } else if (in_else and child_kind == .payload) {
-            // Capture else payload like |err|
-            else_payload_text = try self.ast.getNodeText(child);
+            else_payload_node = child;
         } else if (in_else and else_node == null) {
             else_node = child;
         }
     }
 
-    const cond = condition_text orelse return;
+    const cond_n = condition_node orelse return;
     const then_n = then_node orelse return;
+    const cond = try self.ast.getNodeText(cond_n);
 
     try self.writeM("if", node.startByte());
     try self.write(" ");
 
-    // Write condition - ensure wrapped in parens
+    // Write condition - ensure wrapped in parens; map to the condition span.
     const cond_trimmed = std.mem.trim(u8, cond, &std.ascii.whitespace);
     if (cond_trimmed.len > 0 and cond_trimmed[0] == '(' and cond_trimmed[cond_trimmed.len - 1] == ')') {
-        try self.write(cond_trimmed);
+        try self.writeM(cond_trimmed, cond_n.startByte());
     } else {
         try self.write("(");
-        try self.write(cond_trimmed);
+        try self.writeM(cond_trimmed, cond_n.startByte());
         try self.write(")");
     }
     try self.write(" ");
 
     // Write payload if present (e.g., |un|)
-    if (payload_text) |payload| {
-        try self.write(payload);
+    if (payload_node) |payload_n| {
+        try self.writeM(try self.ast.getNodeText(payload_n), payload_n.startByte());
         try self.write(" ");
     }
 
@@ -1593,9 +1625,8 @@ fn transpileIf(self: *Transpile, node: ts.Node) !void {
     // Handle else branch
     if (else_node) |else_n| {
         try self.write(" else ");
-        // Write else payload if present (e.g., |err|)
-        if (else_payload_text) |else_payload| {
-            try self.write(else_payload);
+        if (else_payload_node) |else_payload_n| {
+            try self.writeM(try self.ast.getNodeText(else_payload_n), else_payload_n.startByte());
             try self.write(" ");
         }
         try self.transpileBranch(else_n);
@@ -1627,7 +1658,7 @@ fn transpileFor(self: *Transpile, node: ts.Node) !void {
     var iterables = std.ArrayList(ts.Node).empty;
     defer iterables.deinit(self.allocator);
     var first_iterable_node: ?ts.Node = null;
-    var payload_text: ?[]const u8 = null;
+    var payload_node: ?ts.Node = null;
     var body_node: ?ts.Node = null;
 
     const child_count = node.childCount();
@@ -1650,7 +1681,7 @@ fn transpileFor(self: *Transpile, node: ts.Node) !void {
 
         if (seen_for and !seen_payload) {
             if (child_kind == .payload) {
-                payload_text = try self.ast.getNodeText(child);
+                payload_node = child;
                 seen_payload = true;
                 continue;
             }
@@ -1670,7 +1701,7 @@ fn transpileFor(self: *Transpile, node: ts.Node) !void {
         }
     }
 
-    if (first_iterable_node != null and payload_text != null and body_node != null) {
+    if (first_iterable_node != null and payload_node != null and body_node != null) {
         // Get unique index for this block to avoid conflicts with nested loops
         const block_idx = self.nextBlockIndex();
         var idx_buf: [16]u8 = undefined;
@@ -1699,18 +1730,18 @@ fn transpileFor(self: *Transpile, node: ts.Node) !void {
         try self.write("for (");
         for (iterables.items, 0..) |it, it_idx| {
             if (it_idx > 0) try self.write(", ");
-            try self.write(try self.ast.getNodeText(it));
+            try self.writeM(try self.ast.getNodeText(it), it.startByte());
         }
         try self.write(", 0..) |");
 
         // Extract just the variable name from payload (remove pipes)
-        const payload = payload_text.?;
+        const payload = try self.ast.getNodeText(payload_node.?);
         const payload_clean = if (std.mem.startsWith(u8, payload, "|") and std.mem.endsWith(u8, payload, "|"))
             payload[1 .. payload.len - 1]
         else
             payload;
 
-        try self.write(payload_clean);
+        try self.writeM(payload_clean, payload_node.?.startByte());
         try self.print(", {s}_i_", .{self.zx_name});
         try self.write(idx_str);
         try self.write("| {\n");
@@ -1744,11 +1775,11 @@ fn transpileFor(self: *Transpile, node: ts.Node) !void {
 
 fn transpileWhile(self: *Transpile, node: ts.Node) !void {
     // while_expression: 'while' '(' condition ')' [payload] ':' '(' continue_expr ')' body ['else' [else_payload] else_body]
-    var condition_text: ?[]const u8 = null;
-    var payload_text: ?[]const u8 = null;
-    var continue_text: ?[]const u8 = null;
+    var condition_node: ?ts.Node = null;
+    var payload_node: ?ts.Node = null;
+    var continue_node: ?ts.Node = null;
     var body_node: ?ts.Node = null;
-    var else_payload_text: ?[]const u8 = null;
+    var else_payload_node: ?ts.Node = null;
     var else_node: ?ts.Node = null;
 
     const child_count = node.childCount();
@@ -1764,7 +1795,7 @@ fn transpileWhile(self: *Transpile, node: ts.Node) !void {
         // Check for condition field
         if (field_name) |name| {
             if (std.mem.eql(u8, name, "condition")) {
-                condition_text = try self.ast.getNodeText(child);
+                condition_node = child;
                 i += 1;
                 continue;
             }
@@ -1780,16 +1811,14 @@ fn transpileWhile(self: *Transpile, node: ts.Node) !void {
         switch (child_kind) {
             .payload => {
                 if (in_else) {
-                    // Else payload like |err|
-                    else_payload_text = try self.ast.getNodeText(child);
+                    else_payload_node = child;
                 } else if (body_node == null) {
-                    // Condition payload like |value|
-                    payload_text = try self.ast.getNodeText(child);
+                    payload_node = child;
                     in_body = true;
                 }
             },
             .assignment_expression => {
-                continue_text = try self.ast.getNodeText(child);
+                continue_node = child;
             },
             .zx_block => {
                 if (in_else) {
@@ -1803,7 +1832,7 @@ fn transpileWhile(self: *Transpile, node: ts.Node) !void {
         }
     }
 
-    if (condition_text != null and body_node != null) {
+    if (condition_node != null and body_node != null) {
         // Get unique index for this block to avoid conflicts with nested loops
         const block_idx = self.nextBlockIndex();
         var idx_buf: [16]u8 = undefined;
@@ -1823,18 +1852,18 @@ fn transpileWhile(self: *Transpile, node: ts.Node) !void {
         try self.writeIndent();
         try self.writeM("while", node.startByte());
         try self.write(" (");
-        try self.write(condition_text.?);
+        try self.writeM(try self.ast.getNodeText(condition_node.?), condition_node.?.startByte());
         try self.write(")");
 
         // Write payload if present (e.g., |value|)
-        if (payload_text) |payload| {
+        if (payload_node) |payload_n| {
             try self.write(" ");
-            try self.write(payload);
+            try self.writeM(try self.ast.getNodeText(payload_n), payload_n.startByte());
         }
 
-        if (continue_text) |cont| {
+        if (continue_node) |cont_n| {
             try self.write(" : (");
-            try self.write(std.mem.trim(u8, cont, &std.ascii.whitespace));
+            try self.writeM(std.mem.trim(u8, try self.ast.getNodeText(cont_n), &std.ascii.whitespace), cont_n.startByte());
             try self.write(")");
         }
 
@@ -1855,9 +1884,8 @@ fn transpileWhile(self: *Transpile, node: ts.Node) !void {
         // Handle else branch - append to list instead of breaking
         if (else_node) |else_n| {
             try self.write(" else ");
-            // Write else payload if present (e.g., |err|)
-            if (else_payload_text) |else_payload| {
-                try self.write(else_payload);
+            if (else_payload_node) |else_payload_n| {
+                try self.writeM(try self.ast.getNodeText(else_payload_n), else_payload_n.startByte());
                 try self.write(" ");
             }
             try self.write("{\n");
@@ -1890,7 +1918,7 @@ fn transpileWhile(self: *Transpile, node: ts.Node) !void {
 
 fn transpileSwitch(self: *Transpile, node: ts.Node) error{OutOfMemory}!void {
     // switch_expression: 'switch' '(' expr ')' '{' switch_case... '}'
-    var switch_expr: ?[]const u8 = null;
+    var switch_expr_node: ?ts.Node = null;
 
     const child_count = node.childCount();
     var i: u32 = 0;
@@ -1909,17 +1937,17 @@ fn transpileSwitch(self: *Transpile, node: ts.Node) error{OutOfMemory}!void {
         // Skip delimiters
         if (SkipTokens.from(child_type) != .other) continue;
 
-        if (found_switch and switch_expr == null) {
-            switch_expr = try self.ast.getNodeText(child);
+        if (found_switch and switch_expr_node == null) {
+            switch_expr_node = child;
             break;
         }
     }
 
-    const expr = switch_expr orelse return;
+    const expr_n = switch_expr_node orelse return;
 
     try self.writeM("switch", node.startByte());
     try self.write(" (");
-    try self.write(expr);
+    try self.writeM(try self.ast.getNodeText(expr_n), expr_n.startByte());
     try self.write(") {\n");
 
     self.indent_level += 1;
@@ -2506,12 +2534,24 @@ fn findTemplateStringInValue(node: ts.Node) ?ts.Node {
 }
 
 fn getAttributeValue(self: *Transpile, node: ts.Node) ![]const u8 {
+    return (try self.getAttributeValueExpr(node)).value;
+}
+
+fn getAttributeValueExpr(self: *Transpile, node: ts.Node) !AllocatorExpr {
     const node_kind = NodeKind.fromNode(node);
 
     // For expression blocks, extract the inner expression using field name
     if (node_kind == .zx_expression_block) {
-        const expr_node = node.childByFieldName("expression") orelse return try self.ast.getNodeText(node);
-        return try self.ast.getNodeText(expr_node);
+        const expr_node = node.childByFieldName("expression") orelse {
+            return .{
+                .value = try self.ast.getNodeText(node),
+                .byte_offset = node.startByte(),
+            };
+        };
+        return .{
+            .value = try self.ast.getNodeText(expr_node),
+            .byte_offset = expr_node.startByte(),
+        };
     }
 
     // For attribute values containing expression blocks, recurse
@@ -2521,16 +2561,22 @@ fn getAttributeValue(self: *Transpile, node: ts.Node) ![]const u8 {
         while (i < child_count) : (i += 1) {
             const child = node.child(i) orelse continue;
             if (NodeKind.fromNode(child) == .zx_expression_block) {
-                return try self.getAttributeValue(child);
+                return try self.getAttributeValueExpr(child);
             }
             // Skip braces, return first non-brace content
             if (SkipTokens.from(child.kind()) == .other) {
-                return try self.ast.getNodeText(child);
+                return .{
+                    .value = try self.ast.getNodeText(child),
+                    .byte_offset = child.startByte(),
+                };
             }
         }
     }
 
-    return try self.ast.getNodeText(node);
+    return .{
+        .value = try self.ast.getNodeText(node),
+        .byte_offset = node.startByte(),
+    };
 }
 
 fn isInFunction(node: ts.Node) bool {

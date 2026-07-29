@@ -7,8 +7,6 @@ const tui = @import("../../tui/main.zig");
 const Colors = tui.Colors;
 const log = std.log.scoped(.diagnostics);
 const sourcemap = lang.sourcemap;
-const base64 = std.base64.standard;
-const SOURCEMAP_PREFIX = "//# sourceMappingURL=data:application/json;base64,";
 
 pub fn dedupe(allocator: std.mem.Allocator, diagnostics: []Builder.Diagnostic) []Builder.Diagnostic {
     var write: usize = 0;
@@ -59,11 +57,11 @@ pub fn dedupe(allocator: std.mem.Allocator, diagnostics: []Builder.Diagnostic) [
 }
 
 /// Remap diagnostics from generated .zig files back to original .zx source files
-/// using inlined sourcemaps. Modifies diagnostics in-place (replaces file/line/col).
+/// using inlined position maps. Modifies diagnostics in-place (replaces file/line/col).
 pub fn remap(allocator: std.mem.Allocator, diagnostics: []Builder.Diagnostic) void {
     for (diagnostics) |*d| {
         remapSingle(allocator, d) catch |err| {
-            log.debug("sourcemap remap failed for {s}: {s}", .{ d.file, @errorName(err) });
+            log.debug("position map remap failed for {s}: {s}", .{ d.file, @errorName(err) });
         };
 
         // Normalize path if it's a generated file in the zig-cache
@@ -87,39 +85,20 @@ fn normalizePath(allocator: std.mem.Allocator, d: *Builder.Diagnostic) !void {
 }
 
 fn remapSingle(allocator: std.mem.Allocator, d: *Builder.Diagnostic) !void {
-    // Read the generated file and look for inlined sourcemap
     const io = std.Io.Threaded.global_single_threaded.io();
     const file_content = std.Io.Dir.cwd().readFileAlloc(io, d.file, allocator, .unlimited) catch return;
     defer allocator.free(file_content);
 
-    // Find the sourcemap comment (last occurrence)
-    const prefix_pos = std.mem.lastIndexOf(u8, file_content, SOURCEMAP_PREFIX) orelse return;
-    const b64_start = prefix_pos + SOURCEMAP_PREFIX.len;
-    const b64_end = std.mem.indexOfScalarPos(u8, file_content, b64_start, '\n') orelse file_content.len;
-    const b64_data = file_content[b64_start..b64_end];
+    var map = (try sourcemap.PositionMap.parseEmbed(allocator, file_content)) orelse return;
+    defer map.deinit();
 
-    // Decode base64
-    const decoded_len = base64.Decoder.calcSizeForSlice(b64_data) catch return;
-    const decoded = allocator.alloc(u8, decoded_len) catch return;
-    defer allocator.free(decoded);
-    base64.Decoder.decode(decoded, b64_data) catch return;
-
-    // Parse JSON sourcemap - extract "sources" and "mappings" fields
-    const source_file = extractJsonStringField(decoded, "sources") orelse return;
-    const mappings_str = extractJsonStringField(decoded, "mappings") orelse return;
-
-    // Decode the VLQ mappings
-    const sm = sourcemap.SourceMap{ .mappings = mappings_str };
-    var decoded_map = sm.decode(allocator) catch return;
-    defer decoded_map.deinit();
-
-    // Remap: zig line/col are 1-based, sourcemap is 0-based
+    // Remap: zig line/col are 1-based, position map is 0-based
     const gen_line: i32 = @as(i32, @intCast(d.line)) - 1;
     const gen_col: i32 = @as(i32, @intCast(d.col)) - 1;
-    const mapping = decoded_map.generatedToSource(gen_line, gen_col) orelse return;
+    const mapping = map.generatedToSource(gen_line, gen_col) orelse return;
 
-    // Replace file and line/col
-    const new_file = allocator.dupe(u8, source_file) catch return;
+    if (map.source.len == 0) return;
+    const new_file = try allocator.dupe(u8, map.source);
     allocator.free(d.file);
     d.file = new_file;
     d.line = @intCast(mapping.source_line + 1);
@@ -135,40 +114,6 @@ fn remapSingle(allocator: std.mem.Allocator, d: *Builder.Diagnostic) !void {
         allocator.free(cl);
         d.caret_line = null;
     }
-}
-
-/// Extract a string value from a JSON object for a given key.
-/// Handles the first occurrence of "sources":["value"] or "mappings":"value".
-fn extractJsonStringField(json: []const u8, key: []const u8) ?[]const u8 {
-    // Search for "key":
-    var i: usize = 0;
-    while (i + key.len + 3 < json.len) : (i += 1) {
-        if (json[i] == '"' and i + 1 + key.len < json.len and
-            std.mem.eql(u8, json[i + 1 .. i + 1 + key.len], key) and
-            json[i + 1 + key.len] == '"')
-        {
-            var pos = i + 1 + key.len + 1; // past closing quote
-            // Skip whitespace and colon
-            while (pos < json.len and (json[pos] == ':' or json[pos] == ' ' or json[pos] == '\t')) : (pos += 1) {}
-            if (pos >= json.len) return null;
-
-            if (json[pos] == '[') {
-                // Array: find first string element ["value"]
-                pos += 1;
-                while (pos < json.len and json[pos] != '"') : (pos += 1) {}
-            }
-
-            if (pos < json.len and json[pos] == '"') {
-                pos += 1;
-                const start = pos;
-                while (pos < json.len and json[pos] != '"') : (pos += 1) {
-                    if (json[pos] == '\\') pos += 1; // skip escaped chars
-                }
-                return json[start..pos];
-            }
-        }
-    }
-    return null;
 }
 
 /// Read a few lines of source context around a given line number.

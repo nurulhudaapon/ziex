@@ -286,6 +286,32 @@ test "semantic: known elements are valid" {
     try testing.expectEqual(@as(usize, 0), diags.items.len);
 }
 
+test "semantic: svg elements are valid" {
+    const allocator = std.testing.allocator;
+    var diags = try validateSource(allocator,
+        \\pub fn Page(a: zx.Allocator) zx.Component {
+        \\    return (<svg viewBox="0 0 10 10"><circle cx="5" cy="5" r="4" /><path d="M0 0h10" /><g><rect width="1" height="1" /></g></svg>);
+        \\}
+        \\const zx = @import("zx");
+    );
+    defer diags.deinit();
+
+    try testing.expectEqual(@as(usize, 0), diags.items.len);
+}
+
+test "semantic: svg camelCase elements are valid" {
+    const allocator = std.testing.allocator;
+    var diags = try validateSource(allocator,
+        \\pub fn Page(a: zx.Allocator) zx.Component {
+        \\    return (<svg><clipPath id="c"><circle cx="0" cy="0" r="1" /></clipPath><linearGradient id="g"><stop offset="0" /></linearGradient></svg>);
+        \\}
+        \\const zx = @import("zx");
+    );
+    defer diags.deinit();
+
+    try testing.expectEqual(@as(usize, 0), diags.items.len);
+}
+
 test "semantic: components are not html-validated" {
     const allocator = std.testing.allocator;
     var diags = try validateSource(allocator,

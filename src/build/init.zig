@@ -282,7 +282,7 @@ pub fn initInner(
     if (opts.base_path) |bp| {
         transpile_cmd.addArgs(&.{ "--base-path", bp });
     }
-    // Always generate inlined sourcemaps so dev mode can remap errors to .zx files
+    // Always generate inlined position maps so dev mode can remap errors to .zx files
     transpile_cmd.addArgs(&.{ "--map", "inline" });
     // Persistent transpile cache (mtime + Transpile.shape); survives zig-cache invalidation.
     transpile_cmd.addArgs(&.{"--cache-dir"});

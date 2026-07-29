@@ -142,14 +142,14 @@ pub const RenderResult = struct {
     pub fn deinit(self: *RenderResult, allocator: std.mem.Allocator) void {
         allocator.free(self.source);
         if (self.sourcemap) |*sm| {
-            sm.deinit(allocator);
+            sm.deinit();
         }
-        for (self.client_components.items) |*component| {
+        for (self.client_components) |*component| {
             allocator.free(component.name);
             allocator.free(component.path);
             allocator.free(component.id);
         }
-        self.client_components.deinit(allocator);
+        allocator.free(self.client_components);
     }
 };
 

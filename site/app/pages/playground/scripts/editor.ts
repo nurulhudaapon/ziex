@@ -2,12 +2,13 @@ import { appendTerminalLine, revealOutputWindow, setTerminalCollapsed, clearTerm
 import { EditorState, Prec } from "@codemirror/state"
 import { keymap, ViewPlugin, type ViewUpdate } from "@codemirror/view"
 import { EditorView, basicSetup } from "codemirror"
-import { createZlsClient, workerTransport } from "./lsp";
+import { createZlsClient, setPlaygroundLspUiHooks, workerTransport } from "./lsp";
 import { formatDocument } from "@codemirror/lsp-client";
+import { LSPPlugin } from "@codemirror/lsp-client";
 import { indentWithTab } from "@codemirror/commands";
 import { indentUnit } from "@codemirror/language";
 import { editorTheme, editorHighlightStyle } from "./theme.ts";
-import { isGeneratedPlaygroundPath, CLIENT_WASM_PLACEHOLDER, type PlaygroundBuildArtifacts } from "./csr.ts";
+import { flattenDirectory, isGeneratedPlaygroundPath, CLIENT_WASM_PLACEHOLDER, type PlaygroundBuildArtifacts } from "./csr.ts";
 import {
     type PlaygroundMode,
     defaultTemplateId,
@@ -27,11 +28,17 @@ import { html } from "@codemirror/lang-html";
 import { css } from "@codemirror/lang-css";
 import { javascript } from "@codemirror/lang-javascript";
 import { createPlaygroundShareUrl, decodeFilesFromQuery } from "../../../scripts/playground_share";
+import { getZxArchive } from "./utils";
 
 declare const VERSION: string;
 declare const ZIG_VERSION: string;
 
 let client = createZlsClient(workerTransport(new Worker(`/assets/playground/workers/zls.js?v=${VERSION}`)));
+setPlaygroundLspUiHooks({
+    openLocalFile: (path) => {
+        void openReadonlyLinkedFile(path);
+    },
+});
 const PLAYGROUND_NOTICE_STORAGE_KEY = "playground_feature_notice_dismissed_v1";
 const MODE_STORAGE_KEY = "playground_mode_v1";
 const TEMPLATE_STORAGE_KEY = "playground_template_v1";
@@ -73,12 +80,16 @@ interface EditorFile {
     state: EditorState;
     hidden?: boolean;
     locked?: boolean; // if true, file cannot be renamed or deleted
+    readonly?: boolean;
+    ephemeral?: boolean; // if true, exclude from build/persistence and treat as preview-only
+    sourceName?: string; // original file path for ephemeral/readonly tabs
 }
 
 let files: EditorFile[] = [];
 let activeFileIndex = -1;
 let editorView: EditorView;
 let formatting = false;
+let metaImplementationClickInstalled = false;
 
 function languageLabel(filename: string): string {
     if (filename.endsWith(".zx") || filename.endsWith(".mdzx")) return "ZX";
@@ -115,7 +126,7 @@ function editorStatusPlugin(filename: string) {
     });
 }
 
-function createEditorState(filename: string, content: string) {
+function createEditorState(filename: string, content: string, opts: { readonly?: boolean } = {}) {
     const extensions = [
         basicSetup,
         editorTheme,
@@ -133,7 +144,10 @@ function createEditorState(filename: string, content: string) {
             {
                 key: "Mod-s",
                 run: () => {
-                    void formatActiveFile();
+                    void (async () => {
+                        const formatted = await formatActiveFile({ silentSuccess: true });
+                        if (formatted) await runCurrentFiles({ preservePreview: true });
+                    })();
                     return true;
                 },
             },
@@ -150,8 +164,13 @@ function createEditorState(filename: string, content: string) {
         ]),
     ];
 
+    if (opts.readonly) {
+        extensions.push(EditorState.readOnly.of(true));
+        extensions.push(EditorView.editable.of(false));
+    }
+
     if (filename.endsWith('.zig') || filename.endsWith('.zx') || filename.endsWith('.zon')) {
-    // TODO: zls is not available for Zig 0.17 yet.
+        // ZX wasm LSP + older precompiled ZLS (merged in the zls worker).
         extensions.push(client.plugin(`file:///${filename}`, "zig"));
     }
 
@@ -171,6 +190,15 @@ function createEditorState(filename: string, content: string) {
         doc: content,
         extensions,
     });
+}
+
+function filePath(file: EditorFile): string {
+    return file.sourceName ?? file.name;
+}
+
+function fileTabLabel(file: EditorFile): string {
+    const path = filePath(file);
+    return path.includes("/") ? path.slice(path.lastIndexOf("/") + 1) : path;
 }
 
 function getFileClass(filename: string): string {
@@ -195,9 +223,10 @@ function updateTabs() {
     files.forEach((file, index) => {
         if (file.hidden) return;
         const tab = document.createElement("button");
-        tab.className = `pg-tab${index === activeFileIndex ? " pg-tab--active" : ""}`;
-        tab.setAttribute("data-file", file.name);
+        tab.className = `pg-tab${index === activeFileIndex ? " pg-tab--active" : ""}${file.readonly ? " pg-tab--readonly" : ""}`;
+        tab.setAttribute("data-file", filePath(file));
         tab.id = `pg-tab-${index}`;
+        tab.title = file.readonly ? `${filePath(file)}\nRead-only preview` : filePath(file);
 
         const iconSpan = document.createElement("span");
         iconSpan.className = `pg-tab-icon type-${getFileClass(file.name)}`;
@@ -207,7 +236,7 @@ function updateTabs() {
         }
         tab.appendChild(iconSpan);
 
-        const tabLabel = file.name.includes("/") ? file.name.slice(file.name.lastIndexOf("/") + 1) : file.name;
+        const tabLabel = fileTabLabel(file);
         tab.appendChild(document.createTextNode(tabLabel));
 
         const closeBtn = document.createElement("span");
@@ -227,11 +256,10 @@ function updateTabs() {
         tab.appendChild(closeBtn);
 
         tab.onclick = () => switchFile(index);
-        if (!file.locked) {
+        if (!file.locked && !file.readonly) {
             tab.ondblclick = () => renameFile(index);
         } else {
             tab.ondblclick = null;
-            tab.title = file.name;
         }
 
         tabsContainer.appendChild(tab);
@@ -251,12 +279,72 @@ function updateTabs() {
     }
 }
 
+function getKnownFileContent(path: string): string | null {
+    if (activeFileIndex !== -1 && files[activeFileIndex] && filePath(files[activeFileIndex]) === path && editorView) {
+        return editorView.state.doc.toString();
+    }
+    const existing = files.find((file) => filePath(file) === path && !file.ephemeral);
+    if (existing) return existing.state.doc.toString();
+    const stored = fileManager.getAllFiles().find((file) => file.name === path);
+    return stored?.content ?? null;
+}
+
+let zxArchiveFilesPromise: Promise<Record<string, Uint8Array>> | null = null;
+
+async function getZxArchiveFiles(): Promise<Record<string, Uint8Array>> {
+    if (!zxArchiveFilesPromise) {
+        zxArchiveFilesPromise = getZxArchive().then((dir) => flattenDirectory(dir));
+    }
+    return zxArchiveFilesPromise;
+}
+
+async function resolveReadonlyLinkedFile(path: string): Promise<string | null> {
+    const known = getKnownFileContent(path);
+    if (known != null) return known;
+
+    if (path.startsWith("zx/") || path.startsWith("src/")) {
+        const archiveFiles = await getZxArchiveFiles();
+        const bytes =
+            archiveFiles[path] ??
+            archiveFiles[path.replace(/^zx\//, "")] ??
+            archiveFiles[`zx/${path}`] ??
+            archiveFiles[path.startsWith("src/") ? path : `src/${path.replace(/^zx\//, "")}`];
+        if (bytes) return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+    }
+    return null;
+}
+
+async function openReadonlyLinkedFile(path: string): Promise<boolean> {
+    const existingIndex = files.findIndex((file) => file.readonly && filePath(file) === path);
+    if (existingIndex >= 0) {
+        await switchFile(existingIndex);
+        return true;
+    }
+
+    const content = await resolveReadonlyLinkedFile(path);
+    if (content == null) return false;
+
+    const file: EditorFile = {
+        name: path,
+        sourceName: path,
+        state: createEditorState(path, content, { readonly: true }),
+        readonly: true,
+        ephemeral: true,
+    };
+    files.push(file);
+    updateTabs();
+    await switchFile(files.length - 1);
+    return true;
+}
+
 async function switchFile(index: number) {
     if (index === activeFileIndex) return;
 
     if (activeFileIndex !== -1 && editorView) {
         files[activeFileIndex].state = editorView.state;
-        fileManager.updateContent(files[activeFileIndex].name, editorView.state.doc.toString());
+        if (!files[activeFileIndex].ephemeral) {
+            fileManager.updateContent(files[activeFileIndex].name, editorView.state.doc.toString());
+        }
     }
 
     activeFileIndex = index;
@@ -267,6 +355,73 @@ async function switchFile(index: number) {
             state: file.state,
             parent: document.getElementById("pg-code-area")!,
         });
+
+        if (!metaImplementationClickInstalled) {
+            metaImplementationClickInstalled = true;
+            editorView.dom.addEventListener(
+                "click",
+                (ev) => {
+                    // Cmd/Ctrl-click on a symbol -> request implementations and navigate.
+                    if (!("metaKey" in ev) || !(ev as MouseEvent).metaKey) return;
+                    const e = ev as MouseEvent;
+                    if (e.button != null && e.button !== 0) return;
+
+                    const plugin = LSPPlugin.get(editorView);
+                    if (!plugin) return;
+
+                    const pos = editorView.posAtCoords({ x: e.clientX, y: e.clientY });
+                    if (pos == null) return;
+
+                    void (async () => {
+                        try {
+                            const impl = await plugin.client.request<any, any>("textDocument/implementation", {
+                                textDocument: { uri: plugin.uri },
+                                position: plugin.toPosition(pos),
+                            });
+                            if (!impl) return;
+                            const locations = Array.isArray(impl) ? impl : impl.locations;
+                            const location = locations?.[0];
+                            const start = location?.range?.start;
+                            const uri = location?.uri;
+                            if (!start || !uri) return;
+
+                            let path: string | null = null;
+                            if (typeof uri === "string" && uri.startsWith("file://")) {
+                                try {
+                                    path = decodeURIComponent(new URL(uri).pathname).replace(/^\/+/, "");
+                                } catch {
+                                    path = uri.replace(/^file:\/+/, "").split("#")[0].replace(/^\/+/, "");
+                                }
+                            } else if (typeof uri === "string") {
+                                path = uri.split("#")[0].replace(/^\/+/, "");
+                            }
+                            if (!path) return;
+
+                            // Prefer an existing editable tab.
+                            const editableIndex = files.findIndex(
+                                (f) => !f.ephemeral && !f.readonly && filePath(f) === path,
+                            );
+                            if (editableIndex >= 0) {
+                                await switchFile(editableIndex);
+                            } else {
+                                await openReadonlyLinkedFile(path);
+                            }
+
+                            const cmLine = editorView.state.doc.line(Math.min(start.line + 1, editorView.state.doc.lines));
+                            const cursorPos = cmLine.from + start.character;
+                            editorView.dispatch({
+                                selection: { anchor: cursorPos, head: cursorPos },
+                                scrollIntoView: true,
+                            });
+                            editorView.focus();
+                        } catch {
+                            // ignore
+                        }
+                    })();
+                },
+                true,
+            );
+        }
     } else {
         editorView.setState(file.state);
     }
@@ -308,7 +463,9 @@ function removeFile(index: number) {
     }
 
     const removedFileWasActive = (index === activeFileIndex);
-    fileManager.removeFile(files[index].name);
+    if (!files[index].ephemeral) {
+        fileManager.removeFile(files[index].name);
+    }
     files.splice(index, 1);
 
     if (removedFileWasActive) {
@@ -330,8 +487,8 @@ function removeFile(index: number) {
 
 function renameFile(index: number) {
     const file = files[index];
-    if (file.locked) {
-        alert("This file is locked and cannot be renamed.");
+    if (file.locked || file.readonly) {
+        alert(file.readonly ? "This preview tab is read-only and cannot be renamed." : "This file is locked and cannot be renamed.");
         return;
     }
     const newName = prompt("Rename file:", file.name);
@@ -633,6 +790,7 @@ const PREVIEW_HOST = "playground.local";
 const PREVIEW_ORIGIN = `https://${PREVIEW_HOST}`;
 
 type PreviewLocation = { pathname: string; search: string; url: string; display: string };
+type PreviewResponseMeta = { status?: number; headers?: [string, string][]; streaming?: boolean };
 
 let previewLocation: PreviewLocation = normalizePreviewLocation("/");
 let previewHistory: PreviewLocation[] = [previewLocation];
@@ -1081,6 +1239,20 @@ function hashFiles(map: { [name: string]: string }): string {
     return (h >>> 0).toString(36);
 }
 
+function transpileInputHash(filesMap: { [name: string]: string }): string {
+    if (playgroundMode === "app") {
+        const relevant = Object.fromEntries(
+            Object.entries(filesMap).filter(([name]) => !isGeneratedPlaygroundPath(name)),
+        );
+        return hashFiles(relevant) + `|${playgroundMode}`;
+    }
+
+    const zxOnly = Object.fromEntries(
+        Object.entries(filesMap).filter(([name]) => name.endsWith(".zx")),
+    );
+    return hashFiles(zxOnly) + `|${playgroundMode}`;
+}
+
 // In-memory LRU caches (max 8 entries each)
 const MAX_CACHE = 8;
 function cachePut<V>(cache: Map<string, V>, key: string, value: V) {
@@ -1194,10 +1366,11 @@ function applyFormattedContent(formatted: string) {
     transpileCache.clear();
 }
 
-async function formatActiveFile(): Promise<boolean> {
+async function formatActiveFile(opts: { silentSuccess?: boolean } = {}): Promise<boolean> {
     if (formatting || activeFileIndex < 0 || !editorView) return false;
 
     const file = files[activeFileIndex];
+    if (file.readonly) return false;
     const name = file.name;
     const content = editorView.state.doc.toString();
 
@@ -1207,9 +1380,11 @@ async function formatActiveFile(): Promise<boolean> {
         try {
             const formatted = await formatZxFileAsync(name, content);
             applyFormattedContent(formatted);
-            appendTerminalLine(`Formatted ${name}`, "pg-terminal-success");
-            setTerminalCollapsed(false);
-            revealOutputWindow();
+            if (!opts.silentSuccess) {
+                appendTerminalLine(`Formatted ${name}`, "pg-terminal-success");
+                setTerminalCollapsed(false);
+                revealOutputWindow();
+            }
             return true;
         } catch (err: any) {
             const message = err?.stderr || `Failed to format ${name}`;
@@ -1278,9 +1453,46 @@ function showHtmlPreview(html: string) {
     iframe.contentDocument?.close();
 }
 
+function responseHeader(meta: PreviewResponseMeta | undefined, name: string): string | null {
+    const header = meta?.headers?.find(([key]) => key.toLowerCase() === name.toLowerCase());
+    return header?.[1] ?? null;
+}
+
+function showResponsePreview(body: string, meta?: PreviewResponseMeta) {
+    const vp = document.getElementById("pg-browser-viewport")!;
+    vp.innerHTML = "";
+
+    const wrap = document.createElement("div");
+    wrap.className = "pg-browser-response";
+
+    const head = document.createElement("div");
+    head.className = "pg-browser-response-head";
+    const contentType = responseHeader(meta, "content-type") ?? "";
+    head.textContent = `HTTP ${meta?.status ?? 200}${contentType ? ` • ${contentType}` : ""}`;
+    wrap.appendChild(head);
+
+    const pre = document.createElement("pre");
+    pre.className = "pg-browser-response-body";
+    let displayBody = body;
+    const trimmed = body.trim();
+    const looksJson = contentType.toLowerCase().includes("json") || (trimmed.startsWith("{") || trimmed.startsWith("["));
+    if (looksJson) {
+        try {
+            displayBody = JSON.stringify(JSON.parse(trimmed), null, 2);
+        } catch {
+            // fall back to raw body
+        }
+    }
+    pre.textContent = displayBody;
+    wrap.appendChild(pre);
+
+    vp.appendChild(wrap);
+}
+
 function showHydratedPreview(html: string, clientWasm: Uint8Array) {
     if (lastClientWasmUrl) URL.revokeObjectURL(lastClientWasmUrl);
-    lastClientWasmUrl = URL.createObjectURL(new Blob([clientWasm], { type: "application/wasm" }));
+    const wasmBytes = clientWasm.slice();
+    lastClientWasmUrl = URL.createObjectURL(new Blob([wasmBytes.buffer], { type: "application/wasm" }));
 
     const baseHref = `${location.origin}/`;
     let doc = html;
@@ -1381,13 +1593,13 @@ function showHydratedPreview(html: string, clientWasm: Uint8Array) {
     iframe.srcdoc = doc;
 }
 
-function runCompiled(compiled: PlaygroundBuildArtifacts | Uint8Array) {
+function runCompiled(compiled: PlaygroundBuildArtifacts | Uint8Array, opts: { preservePreview?: boolean } = {}) {
     appendStatusStep("run", "Running\u2026");
     updatePreviewStatus("", "Running\u2026", "run");
 
     if (compiled instanceof Uint8Array) {
         lastAppArtifacts = null;
-        void runPlaygroundWasm(compiled);
+        void runPlaygroundWasm(compiled, opts);
         return;
     }
 
@@ -1395,10 +1607,10 @@ function runCompiled(compiled: PlaygroundBuildArtifacts | Uint8Array) {
     const input = document.getElementById("pg-browser-url-input") as HTMLInputElement | null;
     const loc = normalizePreviewLocation(input?.value || previewLocation.display);
     setPreviewLocation(loc, "replace");
-    void runAppArtifacts(compiled, loc);
+    void runAppArtifacts(compiled, loc, opts);
 }
 
-function runPlaygroundWasm(compiled: Uint8Array): Promise<void> {
+function runPlaygroundWasm(compiled: Uint8Array, opts: { preservePreview?: boolean } = {}): Promise<void> {
     return new Promise((resolve) => {
         const runnerWorker = new Worker(`/assets/playground/workers/runner.js?v=${Date.now()}`);
         runnerWorker.onerror = (ev) => {
@@ -1407,7 +1619,7 @@ function runPlaygroundWasm(compiled: Uint8Array): Promise<void> {
             setTerminalCollapsed(false);
             revealOutputWindow();
             setRunButtonLoading(false);
-            resetPreviewPlaceholder();
+            if (!opts.preservePreview) resetPreviewPlaceholder();
             runnerWorker.terminate();
             resolve();
         };
@@ -1418,7 +1630,7 @@ function runPlaygroundWasm(compiled: Uint8Array): Promise<void> {
                 setTerminalCollapsed(false);
                 revealOutputWindow();
                 setRunButtonLoading(false);
-                resetPreviewPlaceholder();
+                if (!opts.preservePreview) resetPreviewPlaceholder();
                 runnerWorker.terminate();
                 resolve();
                 return;
@@ -1445,7 +1657,7 @@ function runPlaygroundWasm(compiled: Uint8Array): Promise<void> {
     });
 }
 
-function runAppArtifacts(compiled: PlaygroundBuildArtifacts, loc: PreviewLocation): Promise<void> {
+function runAppArtifacts(compiled: PlaygroundBuildArtifacts, loc: PreviewLocation, opts: { preservePreview?: boolean } = {}): Promise<void> {
     return new Promise((resolve) => {
         const runnerWorker = new Worker(`/assets/playground/workers/runner.js?v=${Date.now()}`);
         const clientWasm = compiled.clientWasm;
@@ -1457,7 +1669,7 @@ function runAppArtifacts(compiled: PlaygroundBuildArtifacts, loc: PreviewLocatio
             setTerminalCollapsed(false);
             revealOutputWindow();
             setRunButtonLoading(false);
-            resetPreviewPlaceholder();
+            if (!opts.preservePreview) resetPreviewPlaceholder();
             runnerWorker.terminate();
             resolve();
         };
@@ -1469,13 +1681,19 @@ function runAppArtifacts(compiled: PlaygroundBuildArtifacts, loc: PreviewLocatio
                 setTerminalCollapsed(false);
                 revealOutputWindow();
                 setRunButtonLoading(false);
-                resetPreviewPlaceholder();
+                if (!opts.preservePreview) resetPreviewPlaceholder();
                 runnerWorker.terminate();
                 resolve();
                 return;
             }
             if (rev.data?.preview != null) {
-                if (clientWasm instanceof Uint8Array) {
+                const meta = rev.data?.meta as PreviewResponseMeta | undefined;
+                const contentType = responseHeader(meta, "content-type")?.toLowerCase() ?? "";
+                const isHtml = contentType === "" || contentType.includes("text/html") || contentType.includes("application/xhtml+xml");
+
+                if (!isHtml) {
+                    showResponsePreview(rev.data.preview, meta);
+                } else if (clientWasm instanceof Uint8Array) {
                     showHydratedPreview(rev.data.preview, clientWasm);
                 } else {
                     showHtmlPreview(rev.data.preview);
@@ -1502,7 +1720,7 @@ function runAppArtifacts(compiled: PlaygroundBuildArtifacts, loc: PreviewLocatio
             setTerminalCollapsed(false);
             revealOutputWindow();
             setRunButtonLoading(false);
-            resetPreviewPlaceholder();
+            if (!opts.preservePreview) resetPreviewPlaceholder();
             runnerWorker.terminate();
             resolve();
             return;
@@ -1513,7 +1731,7 @@ function runAppArtifacts(compiled: PlaygroundBuildArtifacts, loc: PreviewLocatio
             setTerminalCollapsed(false);
             revealOutputWindow();
             setRunButtonLoading(false);
-            resetPreviewPlaceholder();
+            if (!opts.preservePreview) resetPreviewPlaceholder();
             runnerWorker.terminate();
             resolve();
             return;
@@ -1534,7 +1752,9 @@ function runAppArtifacts(compiled: PlaygroundBuildArtifacts, loc: PreviewLocatio
 
 function getCurrentFilesMap(): { [filename: string]: string } {
     if (activeFileIndex !== -1 && editorView) {
-        fileManager.updateContent(files[activeFileIndex].name, editorView.state.doc.toString());
+        if (!files[activeFileIndex].ephemeral) {
+            fileManager.updateContent(files[activeFileIndex].name, editorView.state.doc.toString());
+        }
     }
     const map: { [filename: string]: string } = {};
     fileManager.getAllFiles().forEach((f) => {
@@ -1555,10 +1775,13 @@ function getCurrentFilesMap(): { [filename: string]: string } {
     return map;
 }
 
-async function runTranspileAndBuild(visible: boolean): Promise<PlaygroundBuildArtifacts | Uint8Array | null> {
+async function runTranspileAndBuild(
+    visible: boolean,
+    opts: { preservePreview?: boolean } = {},
+): Promise<PlaygroundBuildArtifacts | Uint8Array | null> {
     let filesMap = getCurrentFilesMap();
     const zxEntries = Object.entries(filesMap).filter(([n]) => n.endsWith(".zx"));
-    const zxHash = hashFiles(Object.fromEntries(zxEntries)) + `|${playgroundMode}`;
+    const zxHash = transpileInputHash(filesMap);
     let transpiledFiles: { [name: string]: string } = {};
 
     const emptyZxFiles = zxEntries.filter(([_, content]) => !content.trim());
@@ -1568,7 +1791,7 @@ async function runTranspileAndBuild(visible: boolean): Promise<PlaygroundBuildAr
             appendTerminalLine("One or more .zx files are empty. Please add code or remove the empty file(s).", "pg-terminal-error");
             setTerminalCollapsed(false);
             revealOutputWindow();
-            resetPreviewPlaceholder();
+            if (!opts.preservePreview) resetPreviewPlaceholder();
             setRunButtonLoading(false);
         }
         return null;
@@ -1611,7 +1834,7 @@ async function runTranspileAndBuild(visible: boolean): Promise<PlaygroundBuildAr
                     appendTerminalLine(err.stderr || "Transpile failed", "pg-terminal-error");
                     setTerminalCollapsed(false);
                     revealOutputWindow();
-                    resetPreviewPlaceholder();
+                    if (!opts.preservePreview) resetPreviewPlaceholder();
                     setRunButtonLoading(false);
                 }
                 return null;
@@ -1643,7 +1866,7 @@ async function runTranspileAndBuild(visible: boolean): Promise<PlaygroundBuildAr
             appendTerminalLine("Transpile did not produce app/app.zig", "pg-terminal-error");
             setTerminalCollapsed(false);
             revealOutputWindow();
-            resetPreviewPlaceholder();
+            if (!opts.preservePreview) resetPreviewPlaceholder();
             setRunButtonLoading(false);
         }
         return null;
@@ -1700,7 +1923,7 @@ async function runTranspileAndBuild(visible: boolean): Promise<PlaygroundBuildAr
             }
             setTerminalCollapsed(false);
             revealOutputWindow();
-            resetPreviewPlaceholder();
+            if (!opts.preservePreview) resetPreviewPlaceholder();
             setRunButtonLoading(false);
         }
         return null;
@@ -1709,33 +1932,38 @@ async function runTranspileAndBuild(visible: boolean): Promise<PlaygroundBuildAr
 
 let prefetchPromise: Promise<void> | null = null;
 const outputsRun = document.getElementById('pg-run-btn')! as HTMLButtonElement;
-outputsRun.addEventListener('click', async () => {
+async function runCurrentFiles(opts: { preservePreview?: boolean } = {}) {
     setRunButtonLoading(true);
     clearTerminal();
 
-    // Animated "building" preview placeholder
-    const viewport = document.getElementById('pg-browser-viewport')!;
-    while (viewport.firstChild) viewport.removeChild(viewport.firstChild);
-    const ph = document.createElement('div');
-    ph.className = 'pg-browser-placeholder pg-browser-placeholder--building';
-    const phIcon = document.createElement('div');
-    phIcon.className = 'pg-browser-placeholder-icon';
-    phIcon.id = 'pg-preview-step-icon';
-    phIcon.dataset.step = 'transpile';
-    phIcon.textContent = '';
-    ph.appendChild(phIcon);
-    const phLabel = document.createElement('span');
-    phLabel.id = 'pg-preview-step-label';
-    phLabel.textContent = 'Transpiling\u2026';
-    ph.appendChild(phLabel);
-    viewport.appendChild(ph);
+    if (!opts.preservePreview) {
+        const viewport = document.getElementById('pg-browser-viewport')!;
+        while (viewport.firstChild) viewport.removeChild(viewport.firstChild);
+        const ph = document.createElement('div');
+        ph.className = 'pg-browser-placeholder pg-browser-placeholder--building';
+        const phIcon = document.createElement('div');
+        phIcon.className = 'pg-browser-placeholder-icon';
+        phIcon.id = 'pg-preview-step-icon';
+        phIcon.dataset.step = 'transpile';
+        phIcon.textContent = '';
+        ph.appendChild(phIcon);
+        const phLabel = document.createElement('span');
+        phLabel.id = 'pg-preview-step-label';
+        phLabel.textContent = 'Transpiling\u2026';
+        ph.appendChild(phLabel);
+        viewport.appendChild(ph);
+    }
 
     // If a background prefetch is in flight, wait - result will be in cache
     if (prefetchPromise) await prefetchPromise;
 
-    const compiled = await runTranspileAndBuild(true);
+    const compiled = await runTranspileAndBuild(true, opts);
     if (compiled == null) return;
-    runCompiled(compiled);
+    runCompiled(compiled, opts);
+}
+
+outputsRun.addEventListener('click', async () => {
+    await runCurrentFiles();
 });
 
 function maybePrefetchBuild() {
@@ -1743,7 +1971,7 @@ function maybePrefetchBuild() {
 
     const snap = getCurrentFilesMap();
     const zxEntries = Object.entries(snap).filter(([n]) => n.endsWith('.zx'));
-    const zxHash = hashFiles(Object.fromEntries(zxEntries)) + `|${playgroundMode}`;
+    const zxHash = transpileInputHash(snap);
     const transpiled = transpileCache.get(zxHash) ?? (zxEntries.length === 0 ? { value: {} } : null);
     if (transpiled !== null && buildCache.has(hashFiles({ ...snap, ...transpiled.value }) + `|${playgroundMode}|v5`)) return;
 

@@ -17,10 +17,23 @@ import {
     type LSPClientExtension,
     type Transport,
 } from "@codemirror/lsp-client";
+import { htmlLanguage } from "@codemirror/lang-html";
+import { cssLanguage } from "@codemirror/lang-css";
+import { javascriptLanguage, jsxLanguage, tsxLanguage } from "@codemirror/lang-javascript";
 import type * as LSP from "vscode-languageserver-protocol";
 
 const HOVER_KIND_ONLY = /^\([A-Za-z]+\)$/;
 const ZX_IMPORT_RESOLVED = /@import\("(?:\.\.\/)*zx\/src\/root\.zig"\)/g;
+
+type PlaygroundLspUiHooks = {
+    openLocalFile?: (path: string) => void;
+};
+
+let playgroundLspUiHooks: PlaygroundLspUiHooks = {};
+
+export function setPlaygroundLspUiHooks(hooks: PlaygroundLspUiHooks) {
+    playgroundLspUiHooks = hooks;
+}
 
 function isHoverKindLabel(text: string): boolean {
     return HOVER_KIND_ONLY.test(text.trim());
@@ -47,21 +60,24 @@ function filterHoverContents(contents: LSP.Hover["contents"]): LSP.Hover["conten
         return trimmed && !isHoverKindLabel(trimmed) ? trimmed : null;
     }
     if (Array.isArray(contents)) {
-        const filtered = contents.flatMap((item) => {
+        const filtered: LSP.MarkedString[] = [];
+        for (const item of contents as unknown as LSP.MarkedString[]) {
             if (typeof item === "string") {
                 const trimmed = stripHoverKindLabels(item);
-                return trimmed && !isHoverKindLabel(trimmed) ? [trimmed] : [];
+                if (trimmed && !isHoverKindLabel(trimmed)) filtered.push(trimmed);
+                continue;
             }
             if (item && typeof item === "object" && "value" in item) {
-                const raw = String(item.value);
-                if (isHoverKindLabel(raw)) return [];
+                const raw = String((item as any).value);
+                if (isHoverKindLabel(raw)) continue;
                 const trimmed = stripHoverKindLabels(raw);
-                if (!trimmed || isHoverKindLabel(trimmed)) return [];
-                return [{ ...item, value: trimmed }];
+                if (!trimmed || isHoverKindLabel(trimmed)) continue;
+                filtered.push({ ...(item as any), value: trimmed });
+                continue;
             }
-            return [item];
-        });
-        return filtered.length > 0 ? (filtered as LSP.MarkedString[]) : null;
+            filtered.push(item);
+        }
+        return filtered.length > 0 ? filtered : null;
     }
     if (contents && typeof contents === "object" && "value" in contents) {
         if (isHoverKindLabel(contents.value)) return null;
@@ -107,10 +123,50 @@ function renderHoverHtml(plugin: LSPPlugin, contents: LSP.Hover["contents"]): st
     return cleanupHoverHtml(renderHoverItem(plugin, contents));
 }
 
+function normalizeLocalHoverPath(href: string): string | null {
+    if (!href) return null;
+    if (href.startsWith("file://")) {
+        try {
+            const url = new URL(href);
+            return decodeURIComponent(url.pathname).replace(/^\/+/, "");
+        } catch {
+            return href.replace(/^file:\/+/, "").replace(/^\/+/, "").split("#")[0] ?? null;
+        }
+    }
+    if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(href)) return null;
+    if (href.startsWith("#")) return null;
+    if (/\.(?:zig|zx|zon|mdzx|html|css|js|jsx|ts|tsx|md)$/.test(href)) {
+        return href.replace(/^\/+/, "").split("#")[0] ?? null;
+    }
+    return null;
+}
+
+function decorateHoverLinks(root: HTMLElement) {
+    for (const anchor of root.querySelectorAll("a[href]")) {
+        const href = anchor.getAttribute("href") ?? "";
+        const localPath = normalizeLocalHoverPath(href);
+        if (localPath) {
+            anchor.setAttribute("data-local-path", localPath);
+            anchor.addEventListener(
+                "click",
+                (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    playgroundLspUiHooks.openLocalFile?.(localPath);
+                },
+                true,
+            );
+            continue;
+        }
+        anchor.setAttribute("target", "_blank");
+        anchor.setAttribute("rel", "noopener noreferrer");
+    }
+}
+
 function playgroundHoverTooltips() {
     return hoverTooltip((view, pos) => {
         const plugin = LSPPlugin.get(view);
-        if (!plugin || plugin.client.hasCapability("hoverProvider") === false) {
+        if (!plugin || plugin.client.serverCapabilities?.hoverProvider == null) {
             return null;
         }
         plugin.client.sync();
@@ -119,25 +175,28 @@ function playgroundHoverTooltips() {
                 position: plugin.toPosition(pos),
                 textDocument: { uri: plugin.uri },
             })
-            .then((result: LSP.Hover | null) => {
-                if (!result?.contents) return null;
-                const contents = filterHoverContents(result.contents);
+            .then((result) => {
+                const hover = result as LSP.Hover | null;
+                if (!hover?.contents) return null;
+                const contents = filterHoverContents(hover.contents);
                 if (!contents) return null;
                 const html = renderHoverHtml(plugin, contents);
                 if (!html.trim()) return null;
                 return {
-                    pos: result.range ? plugin.fromPosition(result.range.start) : pos,
-                    end: result.range ? plugin.fromPosition(result.range.end) : pos,
+                    pos: hover.range ? plugin.fromPosition(hover.range.start) : pos,
+                    end: hover.range ? plugin.fromPosition(hover.range.end) : pos,
                     create() {
                         const elt = document.createElement("div");
                         elt.className = "cm-lsp-hover-tooltip cm-lsp-documentation";
                         elt.innerHTML = html;
+                        decorateHoverLinks(elt);
                         return { dom: elt };
                     },
                     above: true,
                 };
             });
     }, {
+        hoverTime: 60,
         hideOn: (tr) => tr.docChanged,
     });
 }
@@ -201,6 +260,9 @@ function zlsDiagnostics(): LSPClientExtension {
         },
     );
 
+    /** Per-URI diagnostics keyed by LSP `source` so ZX + ZLS can coexist. */
+    const byUri = new Map<string, Map<string, LSP.Diagnostic[]>>();
+
     return {
         clientCapabilities: { textDocument: { publishDiagnostics: {} } },
         notificationHandlers: {
@@ -211,13 +273,44 @@ function zlsDiagnostics(): LSPClientExtension {
                 const plugin = view && LSPPlugin.get(view);
                 if (!view || !plugin) return false;
 
-                const diagnostics = params.diagnostics
+                let sources = byUri.get(params.uri);
+                if (!sources) {
+                    sources = new Map();
+                    byUri.set(params.uri, sources);
+                }
+
+                const serverSource =
+                    (params as LSP.PublishDiagnosticsParams & { ziexSource?: string }).ziexSource;
+
+                // Group this publish by diagnostic source (default from worker tag / "zls").
+                const grouped = new Map<string, LSP.Diagnostic[]>();
+                for (const d of params.diagnostics) {
+                    const key = d.source ?? serverSource ?? "zls";
+                    const list = grouped.get(key) ?? [];
+                    list.push(d);
+                    grouped.set(key, list);
+                }
+                // Empty publish clears only that server's contribution.
+                if (params.diagnostics.length === 0) {
+                    if (serverSource) sources.delete(serverSource);
+                    else sources.clear();
+                } else {
+                    for (const [key, list] of grouped) sources.set(key, list);
+                }
+
+                const merged = [...sources.values()].flat();
+                const diagnostics = merged
                     .filter((d) => d.message !== "expected expression, found '<'")
                     .map((item) => ({
                         from: plugin.unsyncedChanges.mapPos(plugin.fromPosition(item.range.start, plugin.syncedDoc)),
                         to: plugin.unsyncedChanges.mapPos(plugin.fromPosition(item.range.end, plugin.syncedDoc)),
                         severity: ({ 1: "error", 2: "warning", 3: "info", 4: "info" } as const)[item.severity ?? 1],
-                        message: item.message,
+                        message:
+                            item.source
+                                ? `[${item.source}] ${typeof item.message === "string" ? item.message : item.message.value}`
+                                : typeof item.message === "string"
+                                  ? item.message
+                                  : item.message.value,
                     }))
                     .sort((a, b) => a.from - b.from);
 
@@ -234,7 +327,7 @@ function zlsLogging(): LSPClientExtension {
         notificationHandlers: {
             "window/logMessage": (_client, params: LSP.LogMessageParams) => {
                 const fns = [undefined, console.error, console.warn, console.info, console.log, console.debug];
-                (fns[params.type] ?? console.log)("ZLS --- ", params.message);
+                (fns[params.type] ?? console.log)("LSP --- ", params.message);
                 return true;
             },
         },
@@ -398,6 +491,27 @@ export function workerTransport(worker: Worker): Transport {
 export function createZlsClient(transport: Transport): LSPClient {
     const client = new LSPClient({
         rootUri: "file:///",
+        highlightLanguage: (name) => {
+            switch (name.toLowerCase()) {
+                case "html":
+                case "xml":
+                    return htmlLanguage;
+                case "css":
+                    return cssLanguage;
+                case "javascript":
+                case "js":
+                    return javascriptLanguage;
+                case "jsx":
+                    return jsxLanguage;
+                case "typescript":
+                case "ts":
+                    return tsxLanguage;
+                case "tsx":
+                    return tsxLanguage;
+                default:
+                    return null;
+            }
+        },
         extensions: [
             workspaceConfiguration(),
             zlsDiagnostics(),

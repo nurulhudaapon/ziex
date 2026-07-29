@@ -7,7 +7,6 @@ const context = @import("shared/context.zig");
 const cli_args = @import("root.zig");
 
 const CommandContext = context.CommandContext;
-const base64 = std.base64.standard;
 pub const command = cli_args.transpile;
 
 pub fn run(ctx: CommandContext, args: anytype) !void {
@@ -91,19 +90,22 @@ fn transpileToStdout(ctx: CommandContext, io: std.Io, path: []const u8, map: lan
 
     try ctx.writer.writeAll(result.zig_source);
 
-    if (result.sourcemap) |sm| switch (map) {
+    if (result.sourcemap) |*sm| switch (map) {
         .none => {},
         .file => |map_path| {
-            const sourcemap_json = try sm.toJSON(allocator, path, path, source, result.zig_source);
-            defer allocator.free(sourcemap_json);
-            try writeFile(io, map_path, sourcemap_json);
+            const human = try sm.formatHuman(allocator, source, result.zig_source);
+            defer allocator.free(human);
+            try writeFile(io, map_path, human);
         },
         .inlined => {
-            const sourcemap_json = try sm.toJSON(allocator, path, path, source, null);
-            defer allocator.free(sourcemap_json);
-            const encoded = try base64Encode(allocator, sourcemap_json);
-            defer allocator.free(encoded);
-            try ctx.writer.print("\n//# sourceMappingURL=data:application/json;base64,{s}\n", .{encoded});
+            // Ensure embed carries the source path for remapping.
+            if (sm.source.len == 0) {
+                sm.source = try allocator.dupe(u8, path);
+            }
+            const embed = try sm.formatEmbed(allocator);
+            defer allocator.free(embed);
+            try ctx.writer.writeAll("\n");
+            try ctx.writer.writeAll(embed);
         },
     };
 }
@@ -319,27 +321,14 @@ fn stripPlaceholders(allocator: std.mem.Allocator, src: []const u8) ![]u8 {
     return s;
 }
 
-fn base64Encode(allocator: std.mem.Allocator, data: []const u8) ![]const u8 {
-    const encoded_len = base64.Encoder.calcSize(data.len);
-    const encoded = try allocator.alloc(u8, encoded_len);
-    _ = base64.Encoder.encode(encoded, data);
-    return encoded;
-}
-
-/// Append an inline `//# sourceMappingURL=...` comment to `output_path`.
-fn writeInlineSourcemap(
+/// Append `//# ziex-map` embed comments to `output_path`.
+fn writeInlinePositionMap(
     io: std.Io,
     allocator: std.mem.Allocator,
     output_path: []const u8,
-    json: []const u8,
+    embed: []const u8,
 ) !void {
-    const encoded = try base64Encode(allocator, json);
-    defer allocator.free(encoded);
-    const comment = try std.fmt.allocPrint(
-        allocator,
-        "\n//# sourceMappingURL=data:application/json;base64,{s}\n",
-        .{encoded},
-    );
+    const comment = try std.fmt.allocPrint(allocator, "\n{s}", .{embed});
     defer allocator.free(comment);
     var file = try std.Io.Dir.cwd().openFile(io, output_path, .{ .mode = .read_write });
     defer file.close(io);
@@ -1372,32 +1361,23 @@ fn transpileFile(
     if (std.fs.path.dirname(output_path)) |dir| try createDirSafe(io, dir);
     try writeFile(io, output_path, result.zig_source);
 
-    // Handle sourcemap based on config
-    if (result.sourcemap) |sm| switch (opts.map) {
+    // Handle position map based on config
+    if (result.sourcemap) |*sm| switch (opts.map) {
         .none => {},
         .file => |map_path| {
-            const sourcemap_json = try sm.toJSON(
-                allocator,
-                output_path,
-                relative_source_path,
-                source,
-                result.zig_source,
-            );
-            defer allocator.free(sourcemap_json);
-            try writeFile(io, map_path, sourcemap_json);
-            if (opts.verbose) std.debug.print("Sourcemap: {s}\n", .{map_path});
+            const human = try sm.formatHuman(allocator, source, result.zig_source);
+            defer allocator.free(human);
+            try writeFile(io, map_path, human);
+            if (opts.verbose) std.debug.print("Position map: {s}\n", .{map_path});
         },
         .inlined => {
-            const sourcemap_json = try sm.toJSON(
-                allocator,
-                output_path,
-                relative_source_path,
-                source,
-                null,
-            );
-            defer allocator.free(sourcemap_json);
-            try writeInlineSourcemap(io, allocator, output_path, sourcemap_json);
-            if (opts.verbose) std.debug.print("Inlined sourcemap in: {s}\n", .{output_path});
+            if (sm.source.len == 0) {
+                sm.source = try allocator.dupe(u8, relative_source_path);
+            }
+            const embed = try sm.formatEmbed(allocator);
+            defer allocator.free(embed);
+            try writeInlinePositionMap(io, allocator, output_path, embed);
+            if (opts.verbose) std.debug.print("Inlined position map in: {s}\n", .{output_path});
         },
     };
 

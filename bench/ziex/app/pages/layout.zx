@@ -1,6 +1,6 @@
 pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     return (
-        <html @allocator={ctx.arena} lang="en">
+        <html @allocator={ctx.arenad} lang="en">
             <head>
                 <meta charset="utf-8" />
                 <meta name="viewport" content="width=device-width, initial-scale=1" />

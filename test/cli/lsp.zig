@@ -21,8 +21,8 @@ test "hover > element tag name" {
     const off = offsetOf(src, "<div", 1);
     const md = (try html_hover.hoverMarkdown(arena, src, off)) orelse return error.NoHover;
     try testing.expect(std.mem.indexOf(u8, md, "<div>") != null);
-    try testing.expect(std.mem.indexOf(u8, md, "generic flow-content") != null);
-    try testing.expect(std.mem.indexOf(u8, md, "specification") != null);
+    try testing.expect(std.mem.indexOf(u8, md, "no special meaning") != null);
+    try testing.expect(std.mem.indexOf(u8, md, "MDN Reference") != null);
 }
 
 test "hover > global attribute name" {
@@ -38,7 +38,7 @@ test "hover > global attribute name" {
     const off = offsetOf(src, "class=", 1);
     const md = (try html_hover.hoverMarkdown(arena, src, off)) orelse return error.NoHover;
     try testing.expect(std.mem.indexOf(u8, md, "class") != null);
-    try testing.expect(std.mem.indexOf(u8, md, "CSS classes") != null);
+    try testing.expect(std.mem.indexOf(u8, md, "space-separated list of the classes") != null);
 }
 
 test "hover > element-specific attribute name" {

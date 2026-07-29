@@ -1,17 +1,5 @@
-
-
-
-fn defaultDbUrl() ?[]const u8 {
-    return if (builtin.os.tag == .wasi or builtin.os.tag == .freestanding)
-        null
-    else
-        "file:zig-out/data/db/site-example-advance.sqlite";
-}
-
-const builtin = @import("builtin");
-
 pub fn Page(ctx: zx.PageContext) !zx.Component {
-    var database = zx.db;
+        var database = zx.db;
 
     try query.init(&database);
     try query.seed(&database);
@@ -90,7 +78,15 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     );
 }
 
+fn defaultDbUrl() ?[]const u8 {
+    return if (builtin.os.tag == .wasi or builtin.os.tag == .freestanding)
+        null
+    else
+        "file:zig-out/data/db/site-example-advance.sqlite";
+}
 
 const zx = @import("zx");
+const builtin = @import("builtin");
+
 const query = @import("query.zig");
 const s = @import("style.zig");

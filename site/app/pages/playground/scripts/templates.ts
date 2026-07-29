@@ -22,6 +22,8 @@ import appLayout from "./template/app/pages/layout.zx" with { type: "text" };
 import appPage from "./template/app/pages/page.zx" with { type: "text" };
 // @ts-ignore
 import appAboutPage from "./template/app/pages/about/page.zx" with { type: "text" };
+// @ts-ignore
+import appApiRoute from "./template/app/routes/api/route.zig" with { type: "text" };
 
 // @ts-ignore
 import eventsLayout from "./template/app-events/pages/layout.zx" with { type: "text" };
@@ -48,6 +50,7 @@ export const TEMPLATES: TemplateDef[] = [
             "app/pages/layout.zx": appLayout,
             "app/pages/page.zx": appPage,
             "app/pages/about/page.zx": appAboutPage,
+            "app/routes/api/route.zig": appApiRoute,
         },
     },
     {

@@ -6,7 +6,11 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
                 <title>Counter</title>
             </head>
             <body>
-                <h1>Counter</h1>
+                <nav>
+                    <a href="/">Home</a>{" · "}
+                    <a href="/about">About</a>{" · "}
+                    <a href="/api">API</a>
+                </nav>
                 {children}
             </body>
         </html>

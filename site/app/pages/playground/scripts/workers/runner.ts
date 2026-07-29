@@ -89,6 +89,26 @@ function stubSysImports() {
     };
 }
 
+type ResponseMeta = {
+    status?: number;
+    headers?: [string, string][];
+    streaming?: boolean;
+};
+
+function parseMeta(meta: string): ResponseMeta | null {
+    const lines = meta.split("\n").map((line) => line.trim()).filter(Boolean);
+    for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i]!;
+        if (!line.startsWith("__ZIEX_META__:")) continue;
+        try {
+            return JSON.parse(line.slice("__ZIEX_META__:".length)) as ResponseMeta;
+        } catch {
+            return null;
+        }
+    }
+    return null;
+}
+
 function createZxImports(getMemory: () => WebAssembly.Memory | null) {
     const decoder = new TextDecoder("utf-8", { fatal: false });
     return {
@@ -219,7 +239,7 @@ async function run(wasmData: unknown, kind: "playground" | "app", opts: {
 
     postMessage({
         preview: html,
-        meta,
+        meta: parseMeta(meta),
         done: true,
     });
 }

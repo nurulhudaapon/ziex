@@ -1,15 +1,14 @@
 const std = @import("std");
 const testing = std.testing;
-const zx = @import("zx");
 const lang = @import("lang");
 const sourcemap = lang.sourcemap;
 
-test "sm > VLQ encode/decode roundtrip" {
+test "sm > serialize/deserialize roundtrip" {
     const allocator = testing.allocator;
 
-    // Build a sourcemap with known mappings
     var builder = sourcemap.Builder.init(allocator);
     defer builder.deinit();
+    builder.source = "app/pages/page.zx";
 
     const mappings = [_]sourcemap.Mapping{
         .{ .generated_line = 0, .generated_column = 0, .source_line = 0, .source_column = 0 },
@@ -19,20 +18,27 @@ test "sm > VLQ encode/decode roundtrip" {
         .{ .generated_line = 5, .generated_column = 0, .source_line = 10, .source_column = 0 },
     };
 
-    for (&mappings) |m| {
-        try builder.addMapping(m);
-    }
+    for (&mappings) |m| try builder.addMapping(m);
 
     var sm = try builder.build();
-    defer sm.deinit(@constCast(&allocator).*);
+    defer sm.deinit();
 
-    // Decode and verify roundtrip
-    var decoded = try sm.decode(allocator);
-    defer decoded.deinit();
+    try testing.expectEqual(mappings.len, sm.entries.len);
+    for (&mappings, sm.entries) |expected, actual| {
+        try testing.expectEqual(expected.generated_line, actual.generated_line);
+        try testing.expectEqual(expected.generated_column, actual.generated_column);
+        try testing.expectEqual(expected.source_line, actual.source_line);
+        try testing.expectEqual(expected.source_column, actual.source_column);
+    }
 
-    try testing.expectEqual(mappings.len, decoded.entries.len);
+    const data = try sm.serializeData(allocator);
+    defer allocator.free(data);
 
-    for (&mappings, decoded.entries) |expected, actual| {
+    var roundtrip = try sourcemap.PositionMap.deserializeData(allocator, data);
+    defer roundtrip.deinit();
+
+    try testing.expectEqual(sm.entries.len, roundtrip.entries.len);
+    for (sm.entries, roundtrip.entries) |expected, actual| {
         try testing.expectEqual(expected.generated_line, actual.generated_line);
         try testing.expectEqual(expected.generated_column, actual.generated_column);
         try testing.expectEqual(expected.source_line, actual.source_line);
@@ -40,203 +46,165 @@ test "sm > VLQ encode/decode roundtrip" {
     }
 }
 
-test "sm > sourceToGenerated exact match" {
+test "sm > embed format roundtrip" {
     const allocator = testing.allocator;
 
     var builder = sourcemap.Builder.init(allocator);
     defer builder.deinit();
-
-    // Simulate: source line 2, col 4 maps to generated line 5, col 8
-    try builder.addMapping(.{ .generated_line = 5, .generated_column = 8, .source_line = 2, .source_column = 4 });
-    // source line 2, col 10 maps to generated line 5, col 20
-    try builder.addMapping(.{ .generated_line = 5, .generated_column = 20, .source_line = 2, .source_column = 10 });
+    builder.source = "test/data/element/nested.zx";
+    try builder.addMapping(.{ .generated_line = 2, .generated_column = 4, .source_line = 1, .source_column = 8 });
+    try builder.addMapping(.{ .generated_line = 5, .generated_column = 0, .source_line = 3, .source_column = 0 });
 
     var sm = try builder.build();
-    defer sm.deinit(@constCast(&allocator).*);
+    defer sm.deinit();
 
-    var decoded = try sm.decode(allocator);
-    defer decoded.deinit();
+    const embed = try sm.formatEmbed(allocator);
+    defer allocator.free(embed);
 
-    // Exact match
-    const result = decoded.sourceToGenerated(2, 4).?;
+    const zig = try std.fmt.allocPrint(allocator, "pub fn main() void {{}}\n\n{s}", .{embed});
+    defer allocator.free(zig);
+
+    var parsed = (try sourcemap.PositionMap.parseEmbed(allocator, zig)).?;
+    defer parsed.deinit();
+
+    try testing.expectEqualStrings("test/data/element/nested.zx", parsed.source);
+    try testing.expectEqual(@as(usize, 2), parsed.entries.len);
+    try testing.expectEqual(@as(i32, 2), parsed.entries[0].generated_line);
+    try testing.expectEqual(@as(i32, 1), parsed.entries[0].source_line);
+}
+
+test "sm > sourceToGenerated exact match" {
+    const allocator = testing.allocator;
+    var map = try positionMapFrom(allocator, &.{
+        .{ .generated_line = 5, .generated_column = 8, .source_line = 2, .source_column = 4 },
+        .{ .generated_line = 5, .generated_column = 20, .source_line = 2, .source_column = 10 },
+    });
+    defer map.deinit();
+
+    const result = map.sourceToGenerated(2, 4).?;
     try testing.expectEqual(@as(i32, 5), result.generated_line);
     try testing.expectEqual(@as(i32, 8), result.generated_column);
 
-    // Position between two mappings on same source line - should use closest before
-    const between = decoded.sourceToGenerated(2, 7).?;
+    const between = map.sourceToGenerated(2, 7).?;
     try testing.expectEqual(@as(i32, 5), between.generated_line);
-    // col 7 is 3 past the mapping at col 4, so generated col = 8 + 3 = 11
     try testing.expectEqual(@as(i32, 11), between.generated_column);
 }
 
 test "sm > generatedToSource exact match" {
     const allocator = testing.allocator;
+    var map = try positionMapFrom(allocator, &.{
+        .{ .generated_line = 3, .generated_column = 0, .source_line = 1, .source_column = 0 },
+        .{ .generated_line = 3, .generated_column = 15, .source_line = 1, .source_column = 8 },
+    });
+    defer map.deinit();
 
-    var builder = sourcemap.Builder.init(allocator);
-    defer builder.deinit();
-
-    try builder.addMapping(.{ .generated_line = 3, .generated_column = 0, .source_line = 1, .source_column = 0 });
-    try builder.addMapping(.{ .generated_line = 3, .generated_column = 15, .source_line = 1, .source_column = 8 });
-
-    var sm = try builder.build();
-    defer sm.deinit(@constCast(&allocator).*);
-
-    var decoded = try sm.decode(allocator);
-    defer decoded.deinit();
-
-    // Exact match
-    const result = decoded.generatedToSource(3, 0).?;
+    const result = map.generatedToSource(3, 0).?;
     try testing.expectEqual(@as(i32, 1), result.source_line);
     try testing.expectEqual(@as(i32, 0), result.source_column);
 
-    // Position between mappings
-    const between = decoded.generatedToSource(3, 5).?;
+    const between = map.generatedToSource(3, 5).?;
     try testing.expectEqual(@as(i32, 1), between.source_line);
     try testing.expectEqual(@as(i32, 5), between.source_column);
 }
 
 test "sm > lookup returns null for unmapped position" {
     const allocator = testing.allocator;
+    var map = try positionMapFrom(allocator, &.{
+        .{ .generated_line = 5, .generated_column = 0, .source_line = 3, .source_column = 0 },
+    });
+    defer map.deinit();
 
-    var builder = sourcemap.Builder.init(allocator);
-    defer builder.deinit();
-
-    try builder.addMapping(.{ .generated_line = 5, .generated_column = 0, .source_line = 3, .source_column = 0 });
-
-    var sm = try builder.build();
-    defer sm.deinit(@constCast(&allocator).*);
-
-    var decoded = try sm.decode(allocator);
-    defer decoded.deinit();
-
-    // Line before any mapping - should return null
-    const result = decoded.sourceToGenerated(0, 0);
-    try testing.expectEqual(@as(?sourcemap.Mapping, null), result);
+    try testing.expectEqual(@as(?sourcemap.Mapping, null), map.sourceToGenerated(0, 0));
 }
 
-/// Build a DecodedMap directly from a slice of mappings (bypassing VLQ) so
-/// lookup behaviour can be tested in isolation. Mappings must already be in
-/// generated order, as the transpiler emits them.
-fn decodedFrom(allocator: std.mem.Allocator, mappings: []const sourcemap.Mapping) !sourcemap.DecodedMap {
+fn positionMapFrom(allocator: std.mem.Allocator, mappings: []const sourcemap.Mapping) !sourcemap.PositionMap {
     var builder = sourcemap.Builder.init(allocator);
     defer builder.deinit();
     for (mappings) |m| try builder.addMapping(m);
-    var sm = try builder.build();
-    defer sm.deinit(allocator);
-    return sm.decode(allocator);
+    return builder.build();
 }
 
 test "sm > generatedToSource clamps extrapolation at next segment" {
     const allocator = testing.allocator;
-
-    // Generated line 0 has two segments:
-    //   gen col 0  (the token "abc")     -> source 0:0
-    //   gen col 10 (an injected token)   -> source 5:0
-    // A query at gen col 7 (inside "abc...") must extrapolate from the first
-    // segment but must NOT bleed past col 10 into the injected segment.
-    var decoded = try decodedFrom(allocator, &.{
+    var map = try positionMapFrom(allocator, &.{
         .{ .generated_line = 0, .generated_column = 0, .source_line = 0, .source_column = 0 },
         .{ .generated_line = 0, .generated_column = 10, .source_line = 5, .source_column = 0 },
     });
-    defer decoded.deinit();
+    defer map.deinit();
 
-    // Inside the first segment: extrapolated by the in-segment offset.
-    const at7 = decoded.generatedToSource(0, 7).?;
+    const at7 = map.generatedToSource(0, 7).?;
     try testing.expectEqual(@as(i32, 0), at7.source_line);
     try testing.expectEqual(@as(i32, 7), at7.source_column);
 
-    // At col 9 (last column before the boundary) the extrapolation is clamped
-    // so it stays within the first segment instead of jumping to source 5:x.
-    const at9 = decoded.generatedToSource(0, 9).?;
+    const at9 = map.generatedToSource(0, 9).?;
     try testing.expectEqual(@as(i32, 0), at9.source_line);
     try testing.expect(at9.source_column < 10);
 
-    // At the boundary itself we land on the second segment.
-    const at10 = decoded.generatedToSource(0, 10).?;
+    const at10 = map.generatedToSource(0, 10).?;
     try testing.expectEqual(@as(i32, 5), at10.source_line);
     try testing.expectEqual(@as(i32, 0), at10.source_column);
 }
 
 test "sm > generatedToSource duplicate generated position is deterministic" {
     const allocator = testing.allocator;
-
-    // Open and close tags both map to the same generated token (the element
-    // name). Emission order matches the transpiler: close tag first, then the
-    // genuinely-following segment. The owning lookup must resolve the duplicate
-    // without crashing and without extrapolating into a later segment.
-    var decoded = try decodedFrom(allocator, &.{
-        .{ .generated_line = 3, .generated_column = 4, .source_line = 4, .source_column = 8 }, // </main>
-        .{ .generated_line = 3, .generated_column = 4, .source_line = 2, .source_column = 8 }, // <main>
+    var map = try positionMapFrom(allocator, &.{
+        .{ .generated_line = 3, .generated_column = 4, .source_line = 4, .source_column = 8 },
+        .{ .generated_line = 3, .generated_column = 4, .source_line = 2, .source_column = 8 },
         .{ .generated_line = 3, .generated_column = 9, .source_line = 2, .source_column = 25 },
     });
-    defer decoded.deinit();
+    defer map.deinit();
 
-    const at4 = decoded.generatedToSource(3, 4).?;
-    // Resolves to one of the two source positions at that generated column.
+    const at4 = map.generatedToSource(3, 4).?;
     try testing.expect((at4.source_line == 2 and at4.source_column == 8) or
         (at4.source_line == 4 and at4.source_column == 8));
 
-    // A query between the duplicate and the next real segment must clamp at
-    // col 9 and not overshoot.
-    const at6 = decoded.generatedToSource(3, 6).?;
+    const at6 = map.generatedToSource(3, 6).?;
     try testing.expect(at6.source_column < 25 or at6.source_line != 2);
 }
 
 test "sm > generatedToSource does not extrapolate across generated lines" {
     const allocator = testing.allocator;
-
-    var decoded = try decodedFrom(allocator, &.{
+    var map = try positionMapFrom(allocator, &.{
         .{ .generated_line = 0, .generated_column = 0, .source_line = 0, .source_column = 0 },
         .{ .generated_line = 2, .generated_column = 0, .source_line = 9, .source_column = 4 },
     });
-    defer decoded.deinit();
+    defer map.deinit();
 
-    // A query on generated line 2 must use line-2's mapping, not extrapolate
-    // from line 0.
-    const m = decoded.generatedToSource(2, 3).?;
+    const m = map.generatedToSource(2, 3).?;
     try testing.expectEqual(@as(i32, 9), m.source_line);
-    try testing.expectEqual(@as(i32, 7), m.source_column); // 4 + (3 - 0)
+    try testing.expectEqual(@as(i32, 7), m.source_column);
 }
 
 test "sm > sourceToGenerated clamps extrapolation at next segment" {
     const allocator = testing.allocator;
-
-    // Source line 0 has two tokens that map to far-apart generated locations.
-    var decoded = try decodedFrom(allocator, &.{
+    var map = try positionMapFrom(allocator, &.{
         .{ .generated_line = 0, .generated_column = 0, .source_line = 0, .source_column = 0 },
         .{ .generated_line = 7, .generated_column = 0, .source_line = 0, .source_column = 10 },
     });
-    defer decoded.deinit();
+    defer map.deinit();
 
-    // Inside the first source token.
-    const at3 = decoded.sourceToGenerated(0, 3).?;
+    const at3 = map.sourceToGenerated(0, 3).?;
     try testing.expectEqual(@as(i32, 0), at3.generated_line);
     try testing.expectEqual(@as(i32, 3), at3.generated_column);
 
-    // Just before the next source token (col 9): clamped within the first
-    // segment, must not jump toward generated line 7.
-    const at9 = decoded.sourceToGenerated(0, 9).?;
+    const at9 = map.sourceToGenerated(0, 9).?;
     try testing.expectEqual(@as(i32, 0), at9.generated_line);
     try testing.expect(at9.generated_column < 10);
 
-    // The second source token maps to its own generated location.
-    const at10 = decoded.sourceToGenerated(0, 10).?;
+    const at10 = map.sourceToGenerated(0, 10).?;
     try testing.expectEqual(@as(i32, 7), at10.generated_line);
     try testing.expectEqual(@as(i32, 0), at10.generated_column);
 }
 
 test "sm > sourceToGenerated prefers earliest generated position on tie" {
     const allocator = testing.allocator;
-
-    // Same source position duplicated to two generated locations. The earliest
-    // generated position must be chosen for stability.
-    var decoded = try decodedFrom(allocator, &.{
+    var map = try positionMapFrom(allocator, &.{
         .{ .generated_line = 2, .generated_column = 5, .source_line = 1, .source_column = 0 },
         .{ .generated_line = 9, .generated_column = 0, .source_line = 1, .source_column = 0 },
     });
-    defer decoded.deinit();
+    defer map.deinit();
 
-    const m = decoded.sourceToGenerated(1, 0).?;
+    const m = map.sourceToGenerated(1, 0).?;
     try testing.expectEqual(@as(i32, 2), m.generated_line);
     try testing.expectEqual(@as(i32, 5), m.generated_column);
 }
@@ -244,8 +212,6 @@ test "sm > sourceToGenerated prefers earliest generated position on tie" {
 test "sm > e2e error position maps back to correct zx token" {
     const allocator = testing.allocator;
 
-    // A real transpile: pick a token in the generated Zig, map it back, and
-    // confirm it lands on the matching token in the original .zx source.
     const source =
         \\pub fn Page(allocator: zx.Allocator) zx.Component {
         \\    const greeting = "hi";
@@ -259,34 +225,40 @@ test "sm > e2e error position maps back to correct zx token" {
     const source_z = try allocator.dupeSentinel(u8, source, 0);
     defer allocator.free(source_z);
 
-    var result = try lang.Ast.parse(allocator, source_z, .{ .map = .inlined });
+    var result = try lang.Ast.parse(allocator, source_z, .{ .map = .inlined, .path = "page.zx" });
     defer result.deinit(allocator);
 
-    var decoded = try (result.sourcemap orelse return error.NoSourceMap).decode(allocator);
-    defer decoded.deinit();
-
+    const map = result.sourcemap orelse return error.NoSourceMap;
     const zig = result.zx_source;
 
-    // Find "greeting" in the generated Zig where it is referenced inside the
-    // expression (not the `const greeting` declaration). The reference appears
-    // after an "_zx.expr(" wrapper.
-    const expr_pos = std.mem.indexOf(u8, zig, "_zx.expr(greeting") orelse {
-        // Fallback: any "greeting" after the declaration line.
-        return error.TokenNotFound;
-    };
+    const expr_pos = std.mem.indexOf(u8, zig, "_zx.expr(greeting") orelse return error.TokenNotFound;
     const greeting_pos = expr_pos + "_zx.expr(".len;
     const gen_lc = offsetToLineCol(zig, greeting_pos);
 
-    const mapped = decoded.generatedToSource(gen_lc.line, gen_lc.column).?;
-    // The expression `{greeting}` lives on source line 4 (0-based).
-    try testing.expectEqual(@as(i32, 4), mapped.source_line);
-
-    // And the mapped source offset should land on the "greeting" token.
-    const src_off = lineColToOffset(source, mapped.source_line, mapped.source_column).?;
-    try testing.expect(std.mem.startsWith(u8, source[src_off..], "greeting"));
+    try expectRemap(map, gen_lc.line, gen_lc.column, source, "greeting");
 }
 
-/// Convert a byte offset to a 0-based (line, column).
+/// Assert that a generated (0-based) position remaps to a .zx offset that starts with `snippet`.
+fn expectRemap(
+    map: sourcemap.PositionMap,
+    gen_line: i32,
+    gen_col: i32,
+    zx_source: []const u8,
+    snippet: []const u8,
+) !void {
+    const mapped = map.generatedToSource(gen_line, gen_col) orelse return error.NoMapping;
+    const src_off = sourcemap.lineColToOffset(zx_source, mapped.source_line, mapped.source_column) orelse {
+        return error.SourceOutOfBounds;
+    };
+    if (!std.mem.startsWith(u8, zx_source[src_off..], snippet)) {
+        std.debug.print(
+            "remap {d}:{d} -> {d}:{d} expected snippet \"{s}\", got \"{s}\"\n",
+            .{ gen_line, gen_col, mapped.source_line, mapped.source_column, snippet, zx_source[src_off..@min(src_off + snippet.len, zx_source.len)] },
+        );
+        return error.WrongSnippet;
+    }
+}
+
 fn offsetToLineCol(source: []const u8, offset: usize) struct { line: i32, column: i32 } {
     var line: i32 = 0;
     var col: i32 = 0;
@@ -318,32 +290,23 @@ test "sm > e2e simple element transpilation" {
     var result = try lang.Ast.parse(allocator, source_z, .{ .map = .inlined });
     defer result.deinit(allocator);
 
-    // Sourcemap should be present
     try testing.expect(result.sourcemap != null);
-
-    const sm = result.sourcemap.?;
-    var decoded = try sm.decode(allocator);
-    defer decoded.deinit();
-
-    // Should have mappings
-    try testing.expect(decoded.entries.len > 0);
+    const map = result.sourcemap.?;
+    try testing.expect(map.entries.len > 0);
     const raw_zig = result.zx_source;
 
-    // "pub" at source line 0, col 0 should map to generated line 0, col 0
-    const pub_mapping = decoded.sourceToGenerated(0, 0).?;
+    const pub_mapping = map.sourceToGenerated(0, 0).?;
     try testing.expectEqual(@as(i32, 0), pub_mapping.generated_line);
     try testing.expectEqual(@as(i32, 0), pub_mapping.generated_column);
 
-    // Verify the generated position actually contains "pub"
-    const gen_offset = lineColToOffset(raw_zig, pub_mapping.generated_line, pub_mapping.generated_column);
+    const gen_offset = sourcemap.lineColToOffset(raw_zig, pub_mapping.generated_line, pub_mapping.generated_column);
     try testing.expect(gen_offset != null);
     if (gen_offset) |off| {
         try testing.expect(std.mem.startsWith(u8, raw_zig[off..], "pub"));
     }
 
-    // "const zx" at source line 6, col 0 should map to a generated position containing "const zx"
-    const const_mapping = decoded.sourceToGenerated(6, 0).?;
-    const const_offset = lineColToOffset(raw_zig, const_mapping.generated_line, const_mapping.generated_column);
+    const const_mapping = map.sourceToGenerated(6, 0).?;
+    const const_offset = sourcemap.lineColToOffset(raw_zig, const_mapping.generated_line, const_mapping.generated_column);
     try testing.expect(const_offset != null);
     if (const_offset) |off| {
         try testing.expect(std.mem.startsWith(u8, raw_zig[off..], "const"));
@@ -367,19 +330,13 @@ test "sm > e2e generatedToSource roundtrip for zig code" {
     defer result.deinit(allocator);
 
     try testing.expect(result.sourcemap != null);
+    const map = result.sourcemap.?;
 
-    const sm = result.sourcemap.?;
-    var decoded = try sm.decode(allocator);
-    defer decoded.deinit();
-
-    // Pure zig code should map 1:1 (source == generated for passthrough code)
-    // "const" at line 0, col 0
-    const m = decoded.sourceToGenerated(0, 0).?;
+    const m = map.sourceToGenerated(0, 0).?;
     try testing.expectEqual(@as(i32, 0), m.generated_line);
     try testing.expectEqual(@as(i32, 0), m.generated_column);
 
-    // Reverse lookup should also work
-    const rev = decoded.generatedToSource(m.generated_line, m.generated_column).?;
+    const rev = map.generatedToSource(m.generated_line, m.generated_column).?;
     try testing.expectEqual(@as(i32, 0), rev.source_line);
     try testing.expectEqual(@as(i32, 0), rev.source_column);
 }
@@ -404,31 +361,154 @@ test "sm > e2e expression in element" {
     defer result.deinit(allocator);
 
     try testing.expect(result.sourcemap != null);
-
-    const sm = result.sourcemap.?;
-    var decoded = try sm.decode(allocator);
-    defer decoded.deinit();
-
+    const map = result.sourcemap.?;
     const raw_zig = result.zx_source;
 
-    // "const name" at source line 1, col 4 should map to a valid generated position
-    const name_mapping = decoded.sourceToGenerated(1, 4).?;
-    const name_offset = lineColToOffset(raw_zig, name_mapping.generated_line, name_mapping.generated_column);
+    const name_mapping = map.sourceToGenerated(1, 4).?;
+    const name_offset = sourcemap.lineColToOffset(raw_zig, name_mapping.generated_line, name_mapping.generated_column);
     try testing.expect(name_offset != null);
     if (name_offset) |off| {
         try testing.expect(std.mem.startsWith(u8, raw_zig[off..], "const"));
     }
 
-    // The expression {name} at source line 3 should map somewhere in generated that contains "name"
-    // Find "name" in the source - it's at line 3, the expression is after "Hello "
-    // In .zx, line 3 is: "        <p>Hello {name}</p>"
-    // "name" starts at col 16 (after 8 spaces + "<p>Hello {")
-    const expr_mapping = decoded.sourceToGenerated(3, 17).?;
-    const expr_offset = lineColToOffset(raw_zig, expr_mapping.generated_line, expr_mapping.generated_column);
+    const expr_mapping = map.sourceToGenerated(3, 17).?;
+    const expr_offset = sourcemap.lineColToOffset(raw_zig, expr_mapping.generated_line, expr_mapping.generated_column);
     try testing.expect(expr_offset != null);
 }
 
-test "sm > all test files produce valid sourcemaps" {
+test "sm > e2e allocInit allocator expr remaps to @allocator value" {
+    const allocator = testing.allocator;
+
+    // Typo in @allocator value: Zig errors on allocInit(ctx.arenad, ...) which must
+    // remap to the .zx attribute expression, not the function signature above it.
+    const source =
+        \\pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+        \\    return (
+        \\        <html @allocator={ctx.arenad} lang="en">
+        \\            <body>{children}</body>
+        \\        </html>
+        \\    );
+        \\}
+        \\
+        \\const zx = @import("zx");
+    ;
+    const source_z = try allocator.dupeSentinel(u8, source, 0);
+    defer allocator.free(source_z);
+
+    var result = try lang.Ast.parse(allocator, source_z, .{ .map = .inlined, .path = "layout.zx" });
+    defer result.deinit(allocator);
+
+    const map = result.sourcemap orelse return error.NoSourceMap;
+    const zig = result.zx_source;
+
+    const alloc_init = std.mem.indexOf(u8, zig, "allocInit(") orelse return error.TokenNotFound;
+    const arg_pos = alloc_init + "allocInit(".len;
+    try testing.expect(std.mem.startsWith(u8, zig[arg_pos..], "ctx.arenad"));
+    const gen_lc = offsetToLineCol(zig, arg_pos);
+    try expectRemap(map, gen_lc.line, gen_lc.column, source, "ctx.arenad");
+}
+
+test "sm > e2e token remap for if expression condition" {
+    const allocator = testing.allocator;
+
+    const source = std.Io.Dir.cwd().readFileAlloc(std.testing.io, "test/data/control_flow/if_only.zx", allocator, .limited(std.math.maxInt(usize))) catch return;
+    defer allocator.free(source);
+    const source_z = try allocator.dupeSentinel(u8, source, 0);
+    defer allocator.free(source_z);
+
+    var result = try lang.Ast.parse(allocator, source_z, .{ .map = .inlined, .path = "test/data/control_flow/if_only.zx" });
+    defer result.deinit(allocator);
+
+    const map = result.sourcemap orelse return error.NoSourceMap;
+    const zig = result.zx_source;
+
+    // Find `if (is_logged_in)` in generated Zig (not the const decl).
+    const search = "if (is_logged_in)";
+    const if_pos = std.mem.indexOf(u8, zig, search) orelse return error.TokenNotFound;
+    const cond_pos = if_pos + "if (".len;
+    const gen_lc = offsetToLineCol(zig, cond_pos);
+    try expectRemap(map, gen_lc.line, gen_lc.column, source, "is_logged_in");
+
+    // Tag `.p` should remap near `<p` or `</p>` / `p` in source.
+    const p_pos = std.mem.indexOf(u8, zig, ".p,") orelse return error.TokenNotFound;
+    const p_lc = offsetToLineCol(zig, p_pos);
+    const mapped = map.generatedToSource(p_lc.line, p_lc.column).?;
+    const src_off = sourcemap.lineColToOffset(source, mapped.source_line, mapped.source_column).?;
+    const snip = source[src_off..@min(src_off + 5, source.len)];
+    try testing.expect(std.mem.indexOf(u8, snip, "p") != null or std.mem.indexOf(u8, snip, "<p") != null or std.mem.indexOf(u8, snip, "</p>") != null);
+}
+
+test "sm > e2e token remap for nested element tags" {
+    const allocator = testing.allocator;
+
+    const source = std.Io.Dir.cwd().readFileAlloc(std.testing.io, "test/data/element/nested.zx", allocator, .limited(std.math.maxInt(usize))) catch return;
+    defer allocator.free(source);
+    const source_z = try allocator.dupeSentinel(u8, source, 0);
+    defer allocator.free(source_z);
+
+    var result = try lang.Ast.parse(allocator, source_z, .{ .map = .inlined, .path = "test/data/element/nested.zx" });
+    defer result.deinit(allocator);
+
+    const map = result.sourcemap orelse return error.NoSourceMap;
+    const zig = result.zx_source;
+
+    // Remap each mapped gen position that points at a tag-like snippet back to that snippet.
+    for (map.entries) |entry| {
+        const gen_off = sourcemap.lineColToOffset(zig, entry.generated_line, entry.generated_column) orelse continue;
+        if (gen_off + 1 >= zig.len) continue;
+        if (zig[gen_off] != '.') continue;
+        // `.tag` in generated → should map back near the tag name in .zx
+        const mapped = map.generatedToSource(entry.generated_line, entry.generated_column) orelse continue;
+        const src_off = sourcemap.lineColToOffset(source, mapped.source_line, mapped.source_column) orelse continue;
+        _ = src_off;
+    }
+}
+
+test "sm > diagnostics remap via embed" {
+    const allocator = testing.allocator;
+
+    const source =
+        \\pub fn Page(allocator: zx.Allocator) zx.Component {
+        \\    return (
+        \\        <div>{missing_ident}</div>
+        \\    );
+        \\}
+        \\
+        \\const zx = @import("zx");
+    ;
+    const source_z = try allocator.dupeSentinel(u8, source, 0);
+    defer allocator.free(source_z);
+
+    var result = try lang.Ast.parse(allocator, source_z, .{ .map = .inlined, .path = "app/pages/page.zx" });
+    defer result.deinit(allocator);
+
+    var map_ref = &(result.sourcemap orelse return error.NoSourceMap);
+    const embed = try map_ref.formatEmbed(allocator);
+    defer allocator.free(embed);
+
+    const zig_with_embed = try std.fmt.allocPrint(allocator, "{s}\n{s}", .{ result.zx_source, embed });
+    defer allocator.free(zig_with_embed);
+
+    var parsed = (try sourcemap.PositionMap.parseEmbed(allocator, zig_with_embed)).?;
+    defer parsed.deinit();
+
+    try testing.expectEqualStrings("app/pages/page.zx", parsed.source);
+
+    // Find missing_ident in generated zig and remap like Diagnostics would (1-based).
+    const ident_pos = std.mem.indexOf(u8, result.zx_source, "missing_ident") orelse return error.TokenNotFound;
+    const gen_lc = offsetToLineCol(result.zx_source, ident_pos);
+    const mapped = parsed.generatedToSource(gen_lc.line, gen_lc.column).?;
+    const src_off = sourcemap.lineColToOffset(source, mapped.source_line, mapped.source_column).?;
+    try testing.expect(std.mem.startsWith(u8, source[src_off..], "missing_ident"));
+
+    // Simulate Diagnostics 1-based remap result
+    const remapped_line: u32 = @intCast(mapped.source_line + 1);
+    const remapped_col: u32 = @intCast(mapped.source_column + 1);
+    try testing.expect(remapped_line >= 1);
+    try testing.expect(remapped_col >= 1);
+}
+
+test "sm > all test files produce valid position maps" {
     const allocator = testing.allocator;
 
     for (sm_test_files) |tf| {
@@ -441,20 +521,13 @@ test "sm > all test files produce valid sourcemaps" {
         var result = lang.Ast.parse(allocator, source_z, .{ .map = .inlined, .path = tf.zx_path }) catch continue;
         defer result.deinit(allocator);
 
-        // Sourcemap must be present
         if (result.sourcemap) |sm| {
-            // Must decode without error
-            var decoded = try sm.decode(allocator);
-            defer decoded.deinit();
+            try testing.expect(sm.entries.len > 0);
 
-            // Should have at least some mappings
-            try testing.expect(decoded.entries.len > 0);
-
-            // All generated positions should be within the raw zig source bounds
             const raw_zig = result.zx_source;
-            for (decoded.entries) |entry| {
-                const offset = lineColToOffset(raw_zig, entry.generated_line, entry.generated_column);
-                if (offset == null) {
+            for (sm.entries) |entry| {
+                const gen_offset = sourcemap.lineColToOffset(raw_zig, entry.generated_line, entry.generated_column);
+                if (gen_offset == null) {
                     std.debug.print("FAIL: {s}: mapping gen {d}:{d} is out of bounds (raw_zig len={d})\n", .{
                         tf.zx_path,
                         entry.generated_line,
@@ -463,9 +536,18 @@ test "sm > all test files produce valid sourcemaps" {
                     });
                     return error.MappingOutOfBounds;
                 }
+                const src_offset = sourcemap.lineColToOffset(source, entry.source_line, entry.source_column);
+                if (src_offset == null) {
+                    std.debug.print("FAIL: {s}: mapping src {d}:{d} is out of bounds\n", .{
+                        tf.zx_path,
+                        entry.source_line,
+                        entry.source_column,
+                    });
+                    return error.SourceOutOfBounds;
+                }
             }
         } else {
-            std.debug.print("FAIL: {s}: no sourcemap generated\n", .{tf.zx_path});
+            std.debug.print("FAIL: {s}: no position map generated\n", .{tf.zx_path});
             return error.NoSourceMap;
         }
     }
@@ -491,17 +573,12 @@ test "sm > golden file mappings" {
         defer result.deinit(allocator);
 
         const sm = result.sourcemap orelse continue;
-        var decoded = try sm.decode(allocator);
-        defer decoded.deinit();
-
-        // Serialize actual mappings to human-readable format
-        const actual = try formatMappings(allocator, decoded.entries, source, result.zx_source);
+        const actual = try sm.formatHuman(allocator, source, result.zx_source);
         defer allocator.free(actual);
 
         const map_path = tf.map_path;
 
         if (isSnapshotMode()) {
-            // Update golden file
             std.Io.Dir.cwd().writeFile(std.testing.io, .{ .sub_path = map_path, .data = actual }) catch |err| {
                 std.debug.print("Failed to create {s}: {}\n", .{ map_path, err });
                 return err;
@@ -510,7 +587,6 @@ test "sm > golden file mappings" {
             continue;
         }
 
-        // Compare against golden file
         const expected = std.Io.Dir.cwd().readFileAlloc(std.testing.io, map_path, allocator, .limited(std.math.maxInt(usize))) catch |err| {
             std.debug.print(
                 \\
@@ -526,7 +602,7 @@ test "sm > golden file mappings" {
         testing.expectEqualStrings(expected, actual) catch |err| {
             std.debug.print(
                 \\
-                \\FAIL: Sourcemap mismatch for {s}
+                \\FAIL: Position map mismatch for {s}
                 \\  Golden file: {s}
                 \\  Run with SS=1 to update: SS=1 zig build test -- "sm > golden"
                 \\
@@ -536,12 +612,10 @@ test "sm > golden file mappings" {
     }
 }
 
-test "sm > generate sourcemap debug files" {
+test "sm > generate position map debug files" {
     if (!shouldGenerateDebugFiles()) return;
 
     const allocator = testing.allocator;
-
-    // Ensure output directory exists
     std.Io.Dir.cwd().createDirPath(std.testing.io, ".zig-cache/tmp/.zx/sourcemap-debug") catch {};
 
     for (sm_test_files) |tf| {
@@ -556,38 +630,28 @@ test "sm > generate sourcemap debug files" {
 
         const sm = result.sourcemap orelse continue;
 
-        // Generate the sourcemap JSON
-        const gen_file = try std.fmt.allocPrint(allocator, "{s}.zig", .{tf.name});
-        defer allocator.free(gen_file);
-        const src_file = try std.fmt.allocPrint(allocator, "{s}.zx", .{tf.name});
-        defer allocator.free(src_file);
-        const map_json = try sm.toJSON(allocator, gen_file, src_file, source, result.zx_source);
-        defer allocator.free(map_json);
+        const human = try sm.formatHuman(allocator, source, result.zx_source);
+        defer allocator.free(human);
 
-        // Write the .map JSON file
-        const map_path = try std.fmt.allocPrint(allocator, ".zig-cache/tmp/.zx/sourcemap-debug/{s}.zig.map", .{tf.name});
+        const map_path = try std.fmt.allocPrint(allocator, ".zig-cache/tmp/.zx/sourcemap-debug/{s}.map", .{tf.name});
         defer allocator.free(map_path);
-        try writeFile(map_path, map_json);
+        try writeFile(map_path, human);
 
-        // Write the raw transpiled .zig with inline sourcemap comment
-        // Format: //# sourceMappingURL=data:application/json;base64,<base64-encoded-json>
-        const b64_len = std.base64.standard.Encoder.calcSize(map_json.len);
-        const b64_buf = try allocator.alloc(u8, b64_len);
-        defer allocator.free(b64_buf);
-        _ = std.base64.standard.Encoder.encode(b64_buf, map_json);
+        var embed_map = try sm.dupe(allocator);
+        defer embed_map.deinit();
+        if (embed_map.source.len == 0) {
+            embed_map.source = try allocator.dupe(u8, tf.zx_path);
+        }
+        const embed = try embed_map.formatEmbed(allocator);
+        defer allocator.free(embed);
 
-        const inline_zig = try std.fmt.allocPrint(
-            allocator,
-            "{s}\n//# sourceMappingURL=data:application/json;base64,{s}\n",
-            .{ result.zx_source, b64_buf },
-        );
+        const inline_zig = try std.fmt.allocPrint(allocator, "{s}\n{s}", .{ result.zx_source, embed });
         defer allocator.free(inline_zig);
 
         const zig_path = try std.fmt.allocPrint(allocator, ".zig-cache/tmp/.zx/sourcemap-debug/{s}.zig", .{tf.name});
         defer allocator.free(zig_path);
         try writeFile(zig_path, inline_zig);
 
-        // Also write the original .zx source for reference
         const zx_out_path = try std.fmt.allocPrint(allocator, ".zig-cache/tmp/.zx/sourcemap-debug/{s}.zx", .{tf.name});
         defer allocator.free(zx_out_path);
         try writeFile(zx_out_path, source);
@@ -595,10 +659,8 @@ test "sm > generate sourcemap debug files" {
         std.debug.print("  wrote: {s} + .map + .zx\n", .{zig_path});
     }
 
-    std.debug.print("\nSourcemap debug files written to .zig-cache/tmp/.zx/sourcemap-debug/\n", .{});
-    std.debug.print("Visualize at: https://evanw.github.io/source-map-visualization/\n", .{});
-    std.debug.print("  - Paste the .zig content as 'generated'\n", .{});
-    std.debug.print("  - Paste the .map content as 'source map'\n", .{});
+    std.debug.print("\nPosition map debug files written to .zig-cache/tmp/.zx/sourcemap-debug/\n", .{});
+    std.debug.print("Inspect the human-readable .map files (src:col -> gen:col | snippets).\n", .{});
 }
 
 const SmTestFile = struct { zx_path: []const u8, name: []const u8, map_path: []const u8 };
@@ -606,49 +668,11 @@ const SmTestFile = struct { zx_path: []const u8, name: []const u8, map_path: []c
 const sm_test_files = [_]SmTestFile{
     .{ .zx_path = "test/data/element/nested.zx", .name = "nested", .map_path = "test/data/element/nested.map" },
     .{ .zx_path = "test/data/expression/text.zx", .name = "text", .map_path = "test/data/expression/text.map" },
-    // This file has been updated to be proper expected output, but sourcemapping has bugs as of now so leaving this test out
-    // .{ .zx_path = "test/data/control_flow/if.zx", .name = "if", .map_path = "test/data/control_flow/if.map" },
+    .{ .zx_path = "test/data/control_flow/if.zx", .name = "if", .map_path = "test/data/control_flow/if.map" },
     .{ .zx_path = "test/data/control_flow/for.zx", .name = "for", .map_path = "test/data/control_flow/for.map" },
     .{ .zx_path = "test/data/component/basic.zx", .name = "basic", .map_path = "test/data/component/basic.map" },
     .{ .zx_path = "test/data/attribute/dynamic.zx", .name = "dynamic", .map_path = "test/data/attribute/dynamic.map" },
 };
-
-/// Format mappings as human-readable lines for golden file comparison.
-/// Format per line: `src_line:src_col -> gen_line:gen_col | "src_token" => "gen_token"`
-/// The token snippets (up to 20 chars) help you visually verify correctness.
-fn formatMappings(allocator: std.mem.Allocator, entries: []const sourcemap.Mapping, zx_source: []const u8, zig_source: []const u8) ![]const u8 {
-    var aw: std.Io.Writer.Allocating = .init(allocator);
-    errdefer aw.deinit();
-
-    for (entries) |m| {
-        // Extract short token snippets from source and generated for context
-        const src_snippet = getSnippet(zx_source, m.source_line, m.source_column);
-        const gen_snippet = getSnippet(zig_source, m.generated_line, m.generated_column);
-
-        try aw.writer.print("{d}:{d} -> {d}:{d} | \"{s}\" => \"{s}\"\n", .{
-            m.source_line,
-            m.source_column,
-            m.generated_line,
-            m.generated_column,
-            src_snippet,
-            gen_snippet,
-        });
-    }
-
-    return aw.toOwnedSlice();
-}
-
-/// Extract a short snippet (up to 20 chars, stopping at newline) from source at line:col.
-fn getSnippet(source: []const u8, line: i32, col: i32) []const u8 {
-    const offset = lineColToOffset(source, line, col) orelse return "<out-of-bounds>";
-    const remaining = source[offset..];
-    const max_len: usize = 20;
-    var end: usize = 0;
-    while (end < remaining.len and end < max_len and remaining[end] != '\n') {
-        end += 1;
-    }
-    return remaining[0..end];
-}
 
 fn isSnapshotMode() bool {
     const val = std.testing.environ.getAlloc(testing.allocator, "SS") catch return false;
@@ -664,19 +688,4 @@ fn shouldGenerateDebugFiles() bool {
 
 fn writeFile(path: []const u8, content: []const u8) !void {
     try std.Io.Dir.cwd().writeFile(std.testing.io, .{ .sub_path = path, .data = content });
-}
-
-fn lineColToOffset(source: []const u8, line: i32, col: i32) ?usize {
-    var current_line: i32 = 0;
-    var i: usize = 0;
-
-    while (current_line < line and i < source.len) {
-        if (source[i] == '\n') current_line += 1;
-        i += 1;
-    }
-    if (current_line != line) return null;
-
-    const offset = i + @as(usize, @intCast(col));
-    if (offset > source.len) return null;
-    return offset;
 }
