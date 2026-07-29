@@ -13,6 +13,7 @@ import {
     type PlaygroundMode,
     defaultTemplateId,
     getTemplate,
+    loadTemplates,
     templatesForMode,
 } from "./templates.ts";
 // @ts-ignore
@@ -53,18 +54,20 @@ try {
 } catch { /* ignore */ }
 
 let playgroundMode: PlaygroundMode = "playground";
-let activeTemplateId = defaultTemplateId("playground");
+let activeTemplateId = "hello";
 
 try {
     const savedMode = localStorage.getItem(MODE_STORAGE_KEY);
     if (savedMode === "app" || savedMode === "playground") playgroundMode = savedMode;
     const savedTemplate = localStorage.getItem(TEMPLATE_STORAGE_KEY);
-    if (savedTemplate && getTemplate(savedTemplate)?.mode === playgroundMode) {
-        activeTemplateId = savedTemplate;
-    } else {
-        activeTemplateId = defaultTemplateId(playgroundMode);
-    }
+    if (savedTemplate) activeTemplateId = savedTemplate;
+    else activeTemplateId = playgroundMode === "app" ? "counter" : "hello";
 } catch { /* ignore */ }
+
+function resolveActiveTemplateId() {
+    if (getTemplate(activeTemplateId)?.mode === playgroundMode) return;
+    activeTemplateId = defaultTemplateId(playgroundMode);
+}
 
 window.addEventListener("message", (ev: MessageEvent) => {
     if (ev.data?.type === "pg-hydrate-error" && typeof ev.data.message === "string") {
@@ -729,6 +732,15 @@ window.addEventListener("DOMContentLoaded", async () => {
     setupFeatureNotice();
     setupModeControls();
     setupSettingsMenu();
+    try {
+        await loadTemplates();
+        resolveActiveTemplateId();
+    } catch (err) {
+        console.error("Failed to load playground templates", err);
+        appendTerminalLine("Failed to load templates. Refresh to retry.", "pg-terminal-error");
+        setTerminalCollapsed(false);
+        revealOutputWindow();
+    }
     await Promise.race([
         client.initializing,
         new Promise<void>((resolve) => setTimeout(resolve, 2500)),
@@ -1766,10 +1778,10 @@ function getCurrentFilesMap(): { [filename: string]: string } {
         map[f.name] = f.content;
     });
     if (playgroundMode === "app") {
-        const appMain = getTemplate("app-counter")?.files["app/main.zig"];
+        const appMain = getTemplate("counter")?.files["app/main.zig"];
         if (!map["app/main.zig"] && appMain) map["app/main.zig"] = appMain;
     } else {
-        const pgMain = getTemplate("pg-hello")?.files["main.zig"];
+        const pgMain = getTemplate("hello")?.files["main.zig"];
         if (!map["main.zig"] && pgMain) map["main.zig"] = pgMain;
     }
     return map;
@@ -1850,13 +1862,27 @@ async function runTranspileAndBuild(
             continue;
         }
         filesMap[zigName] = zigContent;
+        // Only hide generated outputs (e.g. page.zx → page.zig). User-authored
+        // sources like app/routes/api/route.zig may also appear in transpile
+        // output when copied to out/ — keep those tabs visible.
+        const hide = isGeneratedPlaygroundPath(zigName) ||
+            (playgroundMode !== "app" && zigName.endsWith(".zig"));
         if (fileManager.hasFile(zigName)) {
-            fileManager.updateContent(zigName, zigContent);
-            const f = files.find((x) => x.name === zigName);
-            if (f) { f.state = createEditorState(zigName, zigContent); f.hidden = true; }
+            if (hide) {
+                fileManager.updateContent(zigName, zigContent);
+                const f = files.find((x) => x.name === zigName);
+                if (f) {
+                    f.state = createEditorState(zigName, zigContent);
+                    f.hidden = true;
+                }
+            }
         } else {
             fileManager.addFile(zigName, zigContent);
-            files.push({ name: zigName, state: createEditorState(zigName, zigContent), hidden: true });
+            files.push({
+                name: zigName,
+                state: createEditorState(zigName, zigContent),
+                hidden: hide || isHiddenPlaygroundFile(zigName),
+            });
         }
     }
 

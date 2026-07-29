@@ -7,72 +7,74 @@ export type TemplateDef = {
     files: Record<string, string>;
 };
 
-// @ts-ignore
-import playgroundMain from "./template/main.zig" with { type: "text" };
-// @ts-ignore
-import playgroundZx from "./template/Playground.zx" with { type: "text" };
-// @ts-ignore
-import playgroundCss from "./template/style.css" with { type: "text" };
+type ApiFile = { path: string; content: string };
 
-// @ts-ignore
-import appMain from "./template/app/main.zig" with { type: "text" };
-// @ts-ignore
-import appLayout from "./template/app/pages/layout.zx" with { type: "text" };
-// @ts-ignore
-import appPage from "./template/app/pages/page.zx" with { type: "text" };
-// @ts-ignore
-import appAboutPage from "./template/app/pages/about/page.zx" with { type: "text" };
-// @ts-ignore
-import appApiRoute from "./template/app/routes/api/route.zig" with { type: "text" };
+type ApiTemplate = {
+    name: string;
+    description: string;
+    kind: "app" | "none_app";
+    files: ApiFile[];
+};
 
-// @ts-ignore
-import eventsLayout from "./template/app-events/pages/layout.zx" with { type: "text" };
-// @ts-ignore
-import eventsPage from "./template/app-events/pages/page.zx" with { type: "text" };
+type ApiResponse = {
+    shared_files: {
+        none_app: ApiFile[];
+        app: ApiFile[];
+    };
+    templates: ApiTemplate[];
+};
 
-export const TEMPLATES: TemplateDef[] = [
-    {
-        id: "pg-hello",
-        label: "Hello",
-        mode: "playground",
-        files: {
-            "Playground.zx": playgroundZx,
-            "style.css": playgroundCss,
-            "main.zig": playgroundMain,
-        },
-    },
-    {
-        id: "app-counter",
-        label: "Counter",
-        mode: "app",
-        files: {
-            "app/main.zig": appMain,
-            "app/pages/layout.zx": appLayout,
-            "app/pages/page.zx": appPage,
-            "app/pages/about/page.zx": appAboutPage,
-            "app/routes/api/route.zig": appApiRoute,
-        },
-    },
-    {
-        id: "app-events",
-        label: "Events",
-        mode: "app",
-        files: {
-            "app/main.zig": appMain,
-            "app/pages/layout.zx": eventsLayout,
-            "app/pages/page.zx": eventsPage,
-        },
-    },
-];
+const TEMPLATES_URL = "/playground/templates.json";
+
+let templates: TemplateDef[] = [];
+let loadPromise: Promise<TemplateDef[]> | null = null;
+
+function filesToRecord(files: ApiFile[], into: Record<string, string> = {}): Record<string, string> {
+    for (const f of files) into[f.path] = f.content;
+    return into;
+}
+
+function toTemplateDef(t: ApiTemplate, shared: ApiResponse["shared_files"]): TemplateDef {
+    const files: Record<string, string> = {};
+    filesToRecord(t.kind === "app" ? shared.app : shared.none_app, files);
+    filesToRecord(t.files, files);
+    return {
+        id: t.name,
+        label: t.description || t.name,
+        mode: t.kind === "app" ? "app" : "playground",
+        files,
+    };
+}
+
+export function loadTemplates(): Promise<TemplateDef[]> {
+    if (loadPromise) return loadPromise;
+    loadPromise = (async () => {
+        const res = await fetch(TEMPLATES_URL);
+        if (!res.ok) throw new Error(`Failed to load templates (${res.status})`);
+        const data = (await res.json()) as ApiResponse;
+        templates = data.templates.map((t) => toTemplateDef(t, data.shared_files));
+        return templates;
+    })().catch((err) => {
+        loadPromise = null;
+        throw err;
+    });
+    return loadPromise;
+}
+
+export function allTemplates(): TemplateDef[] {
+    return templates;
+}
 
 export function templatesForMode(mode: PlaygroundMode): TemplateDef[] {
-    return TEMPLATES.filter((t) => t.mode === mode);
+    return templates.filter((t) => t.mode === mode);
 }
 
 export function defaultTemplateId(mode: PlaygroundMode): string {
-    return mode === "playground" ? "pg-hello" : "app-counter";
+    const forMode = templatesForMode(mode);
+    if (forMode.length > 0) return forMode[0].id;
+    return mode === "playground" ? "hello" : "counter";
 }
 
 export function getTemplate(id: string): TemplateDef | undefined {
-    return TEMPLATES.find((t) => t.id === id);
+    return templates.find((t) => t.id === id);
 }
