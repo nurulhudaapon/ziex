@@ -51,6 +51,11 @@ fn hoverForNode(arena: std.mem.Allocator, parse: *Parse, node: anytype, source: 
             const md = try attributeMarkdown(arena, tag, attr) orelse return null;
             return .{ .markdown = md, .start_byte = node.startByte(), .end_byte = node.endByte() };
         },
+        .zx_builtin_name => {
+            const raw = nodeText(node, source);
+            const md = try builtinAttributeMarkdown(arena, raw) orelse return null;
+            return .{ .markdown = md, .start_byte = node.startByte(), .end_byte = node.endByte() };
+        },
         else => return null,
     }
 }
@@ -92,6 +97,115 @@ fn attributeMarkdown(arena: std.mem.Allocator, tag: []const u8, attr: []const u8
     }
     if (doc.href.len > 0) {
         try w.print("\n[MDN Reference]({s})\n", .{doc.href});
+    }
+    return out.written();
+}
+
+const BuiltinAttrDoc = struct {
+    /// Full name including `@` prefix, e.g. `"@rendering"`.
+    name: []const u8,
+    description: []const u8,
+    /// Optional code snippet illustrating usage (Zig/ZX syntax).
+    example: []const u8 = "",
+};
+
+const builtin_attrs = std.StaticStringMap(BuiltinAttrDoc).initComptime(.{
+    .{
+        "@rendering",
+        BuiltinAttrDoc{
+            .name = "@rendering",
+            .description =
+            \\Controls where a component is rendered.
+            \\
+            \\**Values**
+            \\- `.server` - server-side rendering (default).
+            \\- `.client` - client-side Zig, hydrated in the browser.
+            \\- `.static` - pre-rendered to static HTML once and cached.
+            ,
+            .example = "<Counter @rendering={.client} />",
+        },
+    },
+    .{
+        "@escaping",
+        BuiltinAttrDoc{
+            .name = "@escaping",
+            .description =
+            \\Controls HTML escaping of text content inside the element.
+            \\
+            \\**Values**
+            \\- `.html` - escape HTML special characters (default).
+            \\- `.none` - output raw HTML as-is. Use only with trusted content.
+            ,
+            .example = "<div @escaping={.none}>{raw_html}</div>",
+        },
+    },
+    .{
+        "@async",
+        BuiltinAttrDoc{
+            .name = "@async",
+            .description =
+            \\Controls asynchronous rendering of a component.
+            \\
+            \\**Values**
+            \\- `.sync` - render synchronously (default).
+            \\- `.stream` - render asynchronously; streams the result with an inline script replacement.
+            ,
+            .example = "<HeavyWidget @async={.stream} />",
+        },
+    },
+    .{
+        "@caching",
+        BuiltinAttrDoc{
+            .name = "@caching",
+            .description =
+            \\Caches the component output for the given duration.
+            \\
+            \\Pass a duration string such as `"10s"`, `"5m"`, `"1h"`, `"1d"`,
+            \\optionally followed by `:key` to vary the cache by a key.
+            \\
+            \\**Examples**: `"10s"`, `"5m:user_id"`, `"1h"`, `"1d:slug"`
+            ,
+            .example = "<Article @caching=\"5m\" />",
+        },
+    },
+    .{
+        "@allocator",
+        BuiltinAttrDoc{
+            .name = "@allocator",
+            .description =
+            \\Passes an allocator to descendant components that allocate memory.
+            \\
+            \\Use the shorthand `@{allocator}` as a convenient alternative to
+            \\`@allocator={allocator}`.
+            ,
+            .example = "<section @allocator={arena}><MyComponent /></section>",
+        },
+    },
+    .{
+        "@fallback",
+        BuiltinAttrDoc{
+            .name = "@fallback",
+            .description =
+            \\Specifies a fallback component to render while an `@async={.stream}`
+            \\component is loading.
+            ,
+            .example = "<HeavyWidget @async={.stream} @fallback={(<Spinner />)} />",
+        },
+    },
+});
+
+/// Build Markdown documentation for a ZX builtin attribute, or null if unknown.
+/// `name` must include the `@` prefix (e.g. `"@rendering"`).
+fn builtinAttributeMarkdown(arena: std.mem.Allocator, name: []const u8) !?[]const u8 {
+    const doc = builtin_attrs.get(name) orelse return null;
+
+    var out: std.Io.Writer.Allocating = .init(arena);
+    const w = &out.writer;
+
+    try w.print("**`{s}`** - ZX builtin attribute\n\n", .{doc.name});
+    try w.print("{s}\n", .{doc.description});
+    if (doc.example.len > 0) {
+        try w.print("\n```zx\n{s}\n```\n", .{doc.example});
     }
     return out.written();
 }
