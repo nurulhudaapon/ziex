@@ -49,6 +49,10 @@ pub const dev: Command = .{
             .short = 'p',
             .help = "Port to listen on (default: PORT env, or 3000). Uses the next free port if busy",
         }),
+        Argument.init(.incremental, bool, .{
+            .default_value = false,
+            .help = "Enable incremental build (-fincremental of zig build)",
+        }),
         Argument.init(.@"tui-progress", bool, .{
             .default_value = true,
             .help = "Show full build progress output from zig build",

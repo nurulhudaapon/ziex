@@ -249,6 +249,7 @@ pub fn initInner(
     const address_opt = b.option([]const u8, "address", "Address to bind the Ziex server to");
     const cli_command_opt = b.option([]const u8, "cli-command", "Ziex CLI command mode for the app");
     const is_dev_build = std.mem.eql(u8, cli_command_opt orelse "--", "dev");
+    const incremental = b.option(bool, "incremental", "Enable incremental build") orelse false;
 
     const app_opts = b.addOptions();
     app_opts.addOption(?[]const u8, "app_base_path", opts.base_path);
@@ -455,6 +456,7 @@ pub fn initInner(
 
     exe.step.dependOn(&transpile_cmd.step);
     exe.step.name = b.fmt("install server exe", .{});
+    if (incremental) exe.incremental = true;
     b.installArtifact(exe);
 
     // --- ZX WASM Main Executable --- //
@@ -473,6 +475,7 @@ pub fn initInner(
         wasm_exe.export_memory = true;
         wasm_exe.rdynamic = true;
         wasm_exe.root_module.strip = !is_dev_build;
+        if (incremental) wasm_exe.incremental = true;
 
         // Create a site-specific wasm module (same approach as server module)
         var wasm_imports = std.array_list.Managed(std.Build.Module.Import).init(b.allocator);

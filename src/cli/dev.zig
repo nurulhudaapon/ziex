@@ -47,6 +47,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
     const build_args_str = args.@"build-args";
     const use_spinner = args.@"tui-spinner";
     const clear_on_restart = args.@"tui-clear";
+    const incremental = args.incremental;
     var build_args = std.mem.splitSequence(u8, build_args_str, " ");
 
     var build_args_array = std.ArrayList([]const u8).empty;
@@ -57,6 +58,10 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
     const zig_path = args.@"zig-path";
     try build_args_array.appendSlice(allocator, &.{ zig_path, "build", "-Dcli-command=dev", "--watch", "--verbose", "--summary", "all", "--color", "off" });
     try initial_build_args_array.appendSlice(allocator, &.{ zig_path, "build", "-Dcli-command=dev" });
+
+    if (incremental) {
+        try build_args_array.appendSlice(allocator, &.{"-Dincremental=true"});
+    }
 
     log.debug("zig path: {s}", .{zig_path});
 
