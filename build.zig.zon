@@ -26,7 +26,10 @@
         //     .hash = "zls-0.17.0-dev-rmm5fhsnJgACAm2dSuoMNDK6QziDk419sy5-ORvIiL0y",
         //     .lazy = true,
         // },
-        .lsp_kit = .{ .path = "../lsp-kit" },
+        .lsp_kit = .{
+            .url = "git+https://github.com/zigtools/lsp-kit.git#d148676ace1eaecf3c703ce7d350d0e94e502ed7",
+            .hash = "lsp_kit-0.1.0-bi_PLwc2DACoR7VTz_qKFXUvtx7veHvWcTQvP9pDFLpk",
+        },
         .db_sqlite = .{ .path = "pkg/db-sqlite", .lazy = true },
         .db_postgres = .{ .path = "pkg/db-postgres", .lazy = true },
         .zig_js = .{ .path = "vendor/jsz" },
