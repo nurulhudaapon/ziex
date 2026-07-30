@@ -1,0 +1,65 @@
+name: devtool.ziex.dev
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ide/devtool/**/*'
+      - '.github/workflows/devtool.yml'
+
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.0-dev.1456+2b1c6633a
+
+      - name: Build
+        run: zig build zx -- export --outdir zig-out/static
+
+      - name: Bundle
+        run: npx wrangler@4.115.0 deploy --dry-run --outdir .wrangler-artifact --assets ./zig-out/static
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifact
+          path: |
+            .wrangler-artifact
+            zig-out/static
+          include-hidden-files: true
+          retention-days: 1
+
+  deploy:
+    environment:
+      name: devtool.ziex.dev
+      url: https://devtool.ziex.dev
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-artifact
+
+      # - name: Adapt wrangler.jsonc
+      #   run: |
+      #     sed -i '/"build": {/,/^\t},$/d' wrangler.jsonc
+
+      - name: Deploy
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          wranglerVersion: 4
+          command: deploy .wrangler-artifact/no-op-worker.js --no-bundle --assets ./zig-out/static

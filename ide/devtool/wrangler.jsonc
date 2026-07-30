@@ -1,0 +1,15 @@
+{
+	"$schema": "https://unpkg.com/wrangler@latest/config-schema.json",
+	"name": "devtool",
+	"compatibility_date": "2026-07-29",
+	"assets": {
+		"directory": "./zig-out/static"
+	},
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": true,
+	"compatibility_flags": [
+		"nodejs_compat"
+	]
+}
