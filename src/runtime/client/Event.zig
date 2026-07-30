@@ -49,8 +49,6 @@ pub fn stopImmediatePropagation(self: Event) void {
 }
 
 /// Get the input/button value for the element that owns the handler.
-/// Prefers `currentTarget` so nested children (e.g. spans inside a button)
-/// still resolve the bound element's `value`.
 pub fn value(self: Event) ?[]const u8 {
     if (platform_role != .client) return null;
     const event = self.getEvent();
@@ -117,11 +115,6 @@ inline fn assertType(comptime T: type, event: client.Event) void {
     }
 }
 
-// const Data = generated_events.Data;
-// pub fn data(self: Event, comptime kind: Kind, allocator: Allocator) Data(kind) {
-//     return self.as(Data(kind), allocator);
-// }
-
 fn readStruct(comptime T: type, allocator: Allocator, obj: js.Object) T {
     const info = @typeInfo(T).@"struct";
     var result: T = std.mem.zeroInit(T, .{});
@@ -172,9 +165,7 @@ fn readField(comptime F: type, allocator: Allocator, obj: js.Object, comptime na
     }
 }
 
-// --- Stateful --- //
-
-/// Stateful client event - provides `state()` access to bound component state.
+/// Stateful client event, provides `state()` access to bound component's state.
 pub const Stateful = struct {
     inner: *Event,
 
@@ -213,8 +204,4 @@ pub const Stateful = struct {
     pub fn as(self: Stateful, comptime T: type, allocator: Allocator) T {
         return self.inner.as(T, allocator);
     }
-
-    // pub fn data(self: Stateful, comptime kind: Kind, allocator: Allocator) Data(kind) {
-    //     return self.inner.data(kind, allocator);
-    // }
 };

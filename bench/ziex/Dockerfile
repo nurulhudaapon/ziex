@@ -11,7 +11,7 @@ RUN wget https://ziglang.org/builds/zig-$(uname -m)-linux-${ZIG_VER}.tar.xz && \
 WORKDIR /build
 
 # Ziex
-COPY build.zig build.zig.zon ./
+COPY build.zig build.zig.zon README.md ./
 COPY src/ src/
 COPY vendor/ vendor/
 COPY pkg/ pkg/
