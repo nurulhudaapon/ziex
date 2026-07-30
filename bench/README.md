@@ -1,6 +1,6 @@
 # Benchmark
 
-Compares SSR performance of Ziex, Leptos, SolidStart, and Next.js in Docker containers limited to 2 CPUs and 2 GB RAM.
+Compares SSR performance of web frameworks inside Docker containers.
 
 ## Prerequisites
 
@@ -20,20 +20,4 @@ bash run.sh
 bash run.sh ziex
 ```
 
-Results are written to `result.csv` and `../site/pages/bench.zon` (used to generate the benchmark chart on ziex.dev).
-
-## Measures:
-- Requests per second (req/s)
-- p50 latency
-- p99 latency
-- Idle memory (MB)
-- Peak memory (MB)
-
-## Frameworks
-
-| Framework  | Port | Stack                    |
-|------------|------|--------------------------|
-| Ziex       | 3003 | Zig, native binary       |
-| Leptos     | 3002 | Rust, Actix-web          |
-| SolidStart | 3001 | Bun, Vinxi               |
-| Next.js    | 3000 | Bun, React 19            |
+Results are written to `result.csv`.

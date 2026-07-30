@@ -6,18 +6,19 @@
 /// ## Usage Example
 /// ```zig
 /// const ziex_options: ziex.InitOptions = .{
-///     .site = .{ .path = "site" },
 ///     .cli = .{
-///         .path = null, // Use Ziex from dependency
 ///         .steps = .{
 ///             .dev = "dev",
 ///             .serve = "serve",
 ///         },
 ///     },
 /// };
-/// try ziex.init(b, exe, ziex_options);
+/// _ = try ziex.init(b, exe, ziex_options);
 /// ```
+const InitOptions = @This();
+
 const std = @import("std");
+
 const LazyPath = std.Build.LazyPath;
 
 /// Configuration for the Ziex CLI executable and build steps.
@@ -143,7 +144,11 @@ pub const ClientOptions = struct {
         pub const default: WasmOptions = .{ .link = true };
         pub const disabled: WasmOptions = .{ .link = false };
 
-        link: bool,
+        /// Optimize mode for the client wasm module and executable.
+        ///
+        /// When `null`, inherits the app executable's optimize mode.
+        optimize: ?std.builtin.Optimize = null,
+        link: bool = true,
     };
     /// Client-side JS bindings (`ziex` / wasm init script).
     pub const BindingsOptions = struct {

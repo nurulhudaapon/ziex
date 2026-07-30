@@ -26,6 +26,9 @@ pub fn build(b: *std.Build) !void {
             .install_subdir = "pkg/ziex",
             .build = .enabled,
         },
+        .wasm = .{
+            .optimize = if (optimize == .debug) null else .small,
+        },
     };
 
     // --- Deps --- //

@@ -872,22 +872,23 @@ fn Deployment(allocator: zx.Allocator) zx.Component {
             <p>This crawls all routes and writes the output to a <code>dist/</code> directory, ready to upload to any static host like Netlify, GitHub Pages, or a CDN.</p>
 
             <h3 id="deployment-edge">Edge</h3>
-            <p>ZX compiles to WebAssembly (WASI), so it runs on edge runtimes close to your users. Edge targets use the <code>KV</code> binding for storage instead of the filesystem.</p>
+            <p>Ziex compiles to WebAssembly (WASI), so it can be deployed to edge runtimes like Cloudflare Workers or Vercel.</p>
 
             <h4 id="deployment-cloudflare">Cloudflare</h4>
             <p>Scaffold a Cloudflare Workers project with the <code>cloudflare</code> template:</p>
             <CodeBlock code="zx init --template cloudflare" />
-            <p>The template includes a <code>wrangler.jsonc</code> that builds your app to WASM and wires up KV and static assets. Deploy with Wrangler:</p>
+            <p>The template includes a <code>wrangler.jsonc</code> that builds your app to WASM with bindings for Cloudflare related services:</p>
             <CodeBlock code="npx wrangler deploy" />
 
             <h4 id="deployment-vercel">Vercel</h4>
             <p>Scaffold a Vercel project with the <code>vercel</code> template:</p>
             <CodeBlock code="zx init --template vercel" />
-            <p>It ships a <code>vercel.json</code> configured for Edge Functions (with an optional Node.js runtime). Deploy with the Vercel CLI:</p>
+            <p>The template includes a <code>vercel.json</code> configured for Edge Functions (with an optional Node.js runtime). You can deploy with the Vercel CLI:</p>
             <CodeBlock code="vercel deploy" />
 
             <div class="callout note">
-                <strong>Others:</strong>{" "}Deployment to other edge platforms is possible with custom build scripts. Guides for Fly.io, AWS Lambda, and more are coming soon.
+                <strong>Others:</strong>{" "}
+                You can deploy to any other platforms as you wish as Ziex output can be standalone binary, static site or WASM.
             </div>
         </section>
     );
