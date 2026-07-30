@@ -1,0 +1,46 @@
+const zx = @import("zx");
+const data = @import("../data.zig");
+const stats = @import("stats.zig");
+
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <div @allocator={ctx.arena} class="prefs-page">
+            <AppStats @rendering={.client} />
+        </div>
+    );
+}
+
+pub fn AppStats(ctx: *zx.ComponentCtx(struct {})) ?zx.Component {
+    if (comptime zx.platform.isServer()) return null;
+
+    stats.ensureCountsFetch(ctx.allocator);
+    _ = data.loadSettings();
+    return (
+        <div @allocator={ctx.allocator} class="app-overview">
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <span class="stat-label">Components</span>
+                    <span class="stat-value">{stats.componentCountLabel(ctx.allocator)}</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Routes</span>
+                    <span class="stat-value">{stats.routeCountLabel(ctx.allocator)}</span>
+                </div>
+            </div>
+            <div class="prefs-list">
+                <div class="prefs-row">
+                    <span class="prefs-label">Version</span>
+                    <code class="version-badge">{zx.info.version}</code>
+                </div>
+                <div class="prefs-row">
+                    <span class="prefs-label">Host</span>
+                    <span class="prefs-mono">{data.host}</span>
+                </div>
+                <div class="prefs-row">
+                    <span class="prefs-label">Path</span>
+                    <span class="prefs-mono">{data.current_path}</span>
+                </div>
+            </div>
+        </div>
+    );
+}

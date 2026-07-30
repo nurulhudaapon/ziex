@@ -1,211 +1,81 @@
-const std = @import("std");
 const zx = @import("zx");
-const icons = @import("../components/icons.zx");
 const data = @import("../data.zig");
-const Pin = icons.Pin;
-
-const TabItem = struct {
-    name: []const u8,
-    icon: []const u8,
-    pinned: bool,
-    checked: bool,
-};
-
-const TabIconProps = struct {
-    name: []const u8,
-};
-
-const SwitchProps = struct {
-    checked: bool,
-};
-
-const NativeElementsSettingProps = struct {};
-const ThemeSettingProps = struct {};
-const theme_storage_key = "zx-devtool-theme-dark";
-
-const tab_items = [_]TabItem{
-    .{ .name = "App", .icon = "App", .pinned = false, .checked = true },
-    .{ .name = "Overview", .icon = "Overview", .pinned = true, .checked = true },
-    .{ .name = "Components", .icon = "Components", .pinned = true, .checked = true },
-    .{ .name = "Pages", .icon = "Pages", .pinned = true, .checked = true },
-    .{ .name = "Timeline", .icon = "Timeline", .pinned = true, .checked = true },
-
-};
-
-
-
-fn TabIcon(allocator: zx.Allocator, props: TabIconProps) zx.Component {
-    const name = props.name;
-    if (std.mem.eql(u8, name, "App")) {
-        return (
-            <svg @allocator={allocator} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg>
-        );
-    }
-    if (std.mem.eql(u8, name, "Overview")) {
-        return (
-             <svg @allocator={allocator} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
-        );
-    }
-    if (std.mem.eql(u8, name, "Components")) {
-        return (
-            <svg @allocator={allocator} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-        );
-    }
-    if (std.mem.eql(u8, name, "Pages")) {
-        return (
-             <svg @allocator={allocator} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><path d="M10 7h4"></path><path d="M17 10v4"></path></svg>
-        );
-    }
-    if (std.mem.eql(u8, name, "Timeline")) {
-        return (
-            <svg @allocator={allocator} width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"></path><path d="M18.7 8l-5.1 5.2-2.8-2.7L7 14.3"></path></svg>
-        );
-    }
-    return (<div />);
-}
-
-fn Switch(allocator: zx.Allocator, props: SwitchProps) zx.Component {
-    const checked = props.checked;
-    return (
-        <label @allocator={allocator} class="switch">
-            <input type="checkbox" checked={checked} class="settings-switch-input" />
-            <div class="settings-switch-track">
-                <div class="settings-switch-knob"></div>
-            </div>
-        </label>
-    );
-}
-
-fn TabRow(allocator: zx.Allocator, props: TabItem) zx.Component {
-    const item = props;
-    return (
-        <div @allocator={allocator} class="settings-tab-row">
-            <div class="settings-row-label">
-                <TabIcon allocator={allocator} name={item.icon} />
-                <span class="settings-row-name">{item.name}</span>
-            </div>
-            <div class="settings-row-actions">
-                {if (item.pinned) (<Pin @allocator={allocator} />)}
-                <Switch allocator={allocator} checked={item.checked} />
-            </div>
-        </div>
-    );
-}
+const theme = @import("theme.zig");
+const icons = @import("../components/icons.zx");
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
-        <div @allocator={ctx.arena} class="settings-page">
-            <div class="page-header settings-header">
-                <h2 class="settings-title">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="M20 7h-9"></path><path d="M14 17H5"></path><circle cx="17" cy="17" r="3"></circle><circle cx="7" cy="7" r="3"></circle>
-                    </svg>
-                    DevTools Settings
-                </h2>
-            </div>
-
-            <div class="settings-grid">
-                // <div>
-                //     <h3 class="settings-section-title">Tabs</h3>
-                //     <div class="settings-tabs-panel">
-                //         {for (tab_items) |item| (<TabRow allocator={ctx.arena} name={item.name} icon={item.icon} pinned={item.pinned} checked={item.checked} />)}
-                //     </div>
-                // </div>
-
-                <div>
-                    <div class="settings-section">
-                        <h3 class="settings-section-title">Appearance</h3>
-                        <div class="settings-panel">
-                            <ThemeSetting @rendering={.client} />
-                        </div>
-                    </div>
-
-                    <div class="settings-section">
-                        <h3 class="settings-section-title">Connection</h3>
-                        <div class="settings-panel">
-                            <HostSetting @rendering={.client} />
-                        </div>
-                    </div>
-
-                    <div class="settings-section">
-                        <h3 class="settings-section-title">Component Tree</h3>
-                        <div class="settings-panel">
-                            <NativeElementsSetting @rendering={.client} />
-                        </div>
-                    </div>
+        <div @allocator={ctx.arena} class="prefs-page">
+            <section class="prefs-group">
+                <h3 class="prefs-group-title">Appearance</h3>
+                <div class="prefs-list">
+                    <ThemeSetting @rendering={.client} />
                 </div>
-            </div>
+            </section>
+
+            <section class="prefs-group">
+                <h3 class="prefs-group-title">Connection</h3>
+                <div class="prefs-list">
+                    <HostSetting @rendering={.client} />
+                </div>
+            </section>
+
+            <section class="prefs-group">
+                <h3 class="prefs-group-title">Component Tree</h3>
+                <div class="prefs-list">
+                    <NativeElementsSetting @rendering={.client} />
+                </div>
+            </section>
+
+            <section class="prefs-group">
+                <h3 class="prefs-group-title">About</h3>
+                <div class="prefs-links">
+                    <a href="https://github.com/nurulhudaapon/zx" target="_blank" class="link-item">
+                        <span>{icons.Star(ctx.arena)} GitHub</span>
+                    </a>
+                    <a href="https://ziex.dev" target="_blank" class="link-item">
+                        <span>{icons.Document(ctx.arena)} Docs</span>
+                    </a>
+                    <a href="https://github.com/nurulhudaapon/zx/issues" target="_blank" class="link-item">
+                        <span>{icons.Bug(ctx.arena)} Issues</span>
+                    </a>
+                </div>
+            </section>
         </div>
     );
 }
 
-fn currentThemeIsDark() bool {
-    _ = theme_storage_key;
-    return data.loadThemeIsDark();
-}
-
-fn applyTheme(dark: bool) void {
-    if (zx.platform.role != .client) return;
-
-    const document = zx.client.Document.init(zx.allocator);
-    defer document.deinit();
-
-    const root = document.querySelector("html") catch return;
-    defer root.deinit();
-
-    const theme = if (dark) "dark" else "light";
-    root.setAttribute("data-theme", theme);
-    root.setAttribute("style", if (dark) "color-scheme: dark;" else "color-scheme: light;");
-
-    const local_storage = zx.client.js.global.get(zx.client.js.Object, "localStorage") catch return;
-    defer local_storage.deinit();
-    local_storage.call(void, "setItem", .{
-        zx.client.js.string(theme_storage_key),
-        zx.client.js.string(if (dark) "1" else "0"),
-    }) catch {};
-}
-
-fn applyThemeFromStorage() void {
-    applyTheme(currentThemeIsDark());
-}
-
-pub fn ThemeSetting(ctx: *zx.ComponentCtx(ThemeSettingProps)) zx.Component {
-    applyThemeFromStorage();
-    const dark = currentThemeIsDark();
+pub fn ThemeSetting(ctx: *zx.ComponentCtx(struct {})) zx.Component {
+    theme.applyFromStorage();
+    const dark = theme.isDark();
+    const icon = if (dark) icons.Moon(ctx.allocator) else icons.Sun(ctx.allocator);
     return (
-        <button @allocator={ctx.allocator} onclick={handleThemeToggle} class="settings-btn settings-btn-theme">
-            {if (dark)
-                (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>)
-            else
-                (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>)}
-            {if (dark) "Dark" else "Light"}
-        </button>
+        <div @allocator={ctx.allocator} class="prefs-row">
+            <span class="prefs-label">Theme</span>
+            <button @allocator={ctx.allocator} onclick={handleThemeToggle} class="prefs-chip">
+                {icon}
+                {if (dark) "Dark" else "Light"}
+            </button>
+        </div>
     );
 }
 
 pub fn handleThemeToggle(_: zx.client.Event) void {
-    const dark = !currentThemeIsDark();
-    data.saveThemeIsDark(dark);
-    applyTheme(dark);
+    _ = theme.toggle();
     zx.client.rerender();
 }
 
-pub fn NativeElementsSetting(
-    ctx: *zx.ComponentCtx(NativeElementsSettingProps),
-) zx.Component {
+pub fn NativeElementsSetting(ctx: *zx.ComponentCtx(struct {})) zx.Component {
     _ = data.loadSettings();
     const checked = data.show_native_elements;
-    const track_class = if (checked) "settings-toggle-track settings-toggle-track-on" else "settings-toggle-track settings-toggle-track-off";
-    const knob_class = if (checked) "settings-toggle-knob settings-toggle-knob-on" else "settings-toggle-knob settings-toggle-knob-off";
+    const track_class = if (checked) "prefs-toggle-track on" else "prefs-toggle-track";
+    const knob_class = if (checked) "prefs-toggle-knob on" else "prefs-toggle-knob";
     return (
-        <button @allocator={ctx.allocator} onclick={handleNativeElementsToggle} class="settings-toggle-row">
-            <div class="settings-toggle-label">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6"></path><path d="M8 6l-6 6 6 6"></path></svg>
-                <span class="settings-row-name">Show Native Elements</span>
-            </div>
-            <div class={track_class}>
-                <div class={knob_class}></div>
-            </div>
+        <button @allocator={ctx.allocator} onclick={handleNativeElementsToggle} class="prefs-row prefs-row-btn">
+            <span class="prefs-label">Show native elements</span>
+            <span class={track_class}>
+                <span class={knob_class}></span>
+            </span>
         </button>
     );
 }
@@ -216,23 +86,25 @@ pub fn handleNativeElementsToggle(_: zx.client.Event) void {
     zx.client.rerender();
 }
 
-const HostSettingProps = struct {};
-
-pub fn HostSetting(ctx: *zx.ComponentCtx(HostSettingProps)) zx.Component {
+pub fn HostSetting(ctx: *zx.ComponentCtx(struct {})) zx.Component {
     _ = data.loadSettings();
     return (
-        <div @allocator={ctx.allocator}>
-            <label class="settings-label">Host</label>
-            <input id="zx-host-input" class="settings-input" type="text" value={data.host} oninput={handleHostInput} placeholder="localhost:3000" />
-            // <p class="settings-host-hint">Restart the devtool after changing the host.</p>
+        <div @allocator={ctx.allocator} class="prefs-row prefs-row-stack">
+            <label class="prefs-label" for="zx-host-input">Host</label>
+            <input
+                id="zx-host-input"
+                class="prefs-input"
+                type="text"
+                value={data.host}
+                oninput={handleHostInput}
+                placeholder="localhost:3000"
+            />
         </div>
     );
 }
 
 pub fn handleHostInput(ctx: zx.client.Event) void {
     if (ctx.value()) |val| {
-        // `val` is already a fresh `zx.allocator` allocation owned by the
-        // slot after this call; `setHost` frees the previous host and persists.
         data.setHost(val);
         zx.client.rerender();
     }

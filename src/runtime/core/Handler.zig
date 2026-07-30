@@ -14,6 +14,10 @@ pub const ServerApp = zx.server.App;
 pub const Route = ServerApp.Route;
 pub const ProxyResult = Router.ProxyResult;
 
+pub const Options = struct {
+    is_dev: bool = false,
+};
+
 /// Result of page handling.
 pub const PageResult = union(enum) {
     /// Successfully rendered page component (with layouts + injections applied).
@@ -92,6 +96,7 @@ fn pageMethodEquals(page_method: zx.PageOptions.Method, method: Request.Method) 
 /// - Dev-mode features (dev script injection, logging)
 /// - Caching
 pub fn handlePage(
+    comptime options: Options,
     route: *const Route,
     request: Request,
     response: Response,
@@ -135,12 +140,29 @@ pub fn handlePage(
         return .{ .page_error = err };
     };
 
-    // -- Apply layout hierarchy --
-    const layoutctx = zx.LayoutContext.init(request, response, allocator, io);
-    page_component = Router.applyLayouts(route, request.pathname, layoutctx, page_component, app_ptr, proxy_state_ptr);
+    if (comptime options.is_dev) {
+        page_component = zx.util.devtool.namedBoundary(arena, "Page", page_component);
+    }
 
-    // -- Inject build-time HTML (scripts, styles, etc.) --
+    const layoutctx = zx.LayoutContext.init(request, response, allocator, io);
+    var used_layout = false;
+    page_component = Router.applyLayouts(
+        route,
+        request.pathname,
+        layoutctx,
+        page_component,
+        app_ptr,
+        proxy_state_ptr,
+        if (comptime options.is_dev) &used_layout else null,
+    );
+
     injectZxInjections(arena, &page_component, request.pathname);
+
+    if (comptime options.is_dev) {
+        if (used_layout) {
+            page_component = zx.util.devtool.namedBoundary(arena, "Layout", page_component);
+        }
+    }
 
     return .{ .component = page_component };
 }

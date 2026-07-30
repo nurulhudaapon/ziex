@@ -1,197 +1,64 @@
-var routes: []const AppRoute = &[_]AppRoute{};
+const zx = @import("zx");
+const std = @import("std");
+const store = @import("store.zig");
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
         <div @allocator={ctx.arena} class="app-container">
             <div class="content">
-                <div style="margin-bottom: 24px;">
-                    <div class="current-route-label">Current route</div>
-                    <div class="route-input-row">
-                        <span class="route-arrow">{icons.CornerDownRight(ctx.arena)}</span>
-                        // <input type="text" value="/" class="route-input" />
-                        <ComponentSearchInput @rendering={.client} />
-                    </div>
-                    <div class="route-hint">
-                        Press <strong>Enter</strong> to navigate <span class="no-match">(no match)</span>
-                    </div>
+                <div class="routes-toolbar">
+                    <RouteSearchInput @rendering={.client} />
                 </div>
-
-                <ComponentRotes @rendering={.client} />
-                
+                <RoutesList @rendering={.client} />
             </div>
         </div>
     );
 }
 
-var fetched = false;
-fn fetch() void {
-    if (fetched) return;
-    if (!data.loadSettings()) return;
-    const host = data.host;
-    const host_has_scheme = std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://");
-    const base = if (host_has_scheme) host else std.fmt.allocPrint(zx.allocator, "http://{s}", .{host}) catch return;
-    defer if (!host_has_scheme) zx.allocator.free(base);
-    const url = std.fmt.allocPrint(zx.allocator, "{s}/.well-known/_zx/devtool?meta=true", .{base}) catch return;
-    defer zx.allocator.free(url);
-    fetched = true;
-    _ = zx.fetch(.wasm(&onFetchText), zx.allocator, url, .{ .method = .GET }) catch {};
-}
+pub fn RoutesList(ctx: *zx.ComponentCtx(struct {})) ?zx.Component {
+    if (comptime zx.platform.isServer()) return null;
 
-    pub const AppRoute = struct {
-        path: []const u8,
-        kind: []const u8 = "Page",
-        methods: []const []const u8 = &.{},
-        has_notfound: bool = false,
-        is_dynamic: bool = false,
-    };
-
-
-fn onFetchText(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
-    if (res) |r| {
-        defer r.deinit();
-        if (r.text()) |p| {
-            routes = zx.util.zxon.parse([]const AppRoute, zx.allocator, p, .{}) catch return;
-        } else |_| {}
-    }
-    zx.client.rerender();
-}
-
-
-fn getMethodTokenClass(method: []const u8) []const u8 {
-    if (std.mem.eql(u8, method, "GET")) return "route-method-token method-get";
-    if (std.mem.eql(u8, method, "POST")) return "route-method-token method-post";
-    if (std.mem.eql(u8, method, "PUT")) return "route-method-token method-put";
-    if (std.mem.eql(u8, method, "DELETE")) return "route-method-token method-delete";
-    if (std.mem.eql(u8, method, "PATCH")) return "route-method-token method-patch";
-    if (std.mem.eql(u8, method, "HEAD")) return "route-method-token method-head";
-    if (std.mem.eql(u8, method, "OPTIONS")) return "route-method-token method-options";
-    if (std.mem.eql(u8, method, "ANY")) return "route-method-token method-any";
-    return "route-method-token";
-}
-
-fn getKindClass(kind: []const u8) []const u8 {
-    if (std.mem.eql(u8, kind, "Route")) return "route-kind route-kind-route";
-    return "route-kind route-kind-page";
-}
-
-const ComponentRoutesProps = struct {  };
-pub fn ComponentRotes(
-    ctx: *zx.ComponentCtx(ComponentRoutesProps),
-) zx.Component {
-    fetch();
+    store.ensureFetched(ctx.allocator);
     return (
-        <div @allocator={ctx.allocator} class="routes-section" >
-            <input type="checkbox" id="routes-toggle" class="routes-toggle" checked />
-            <label for="routes-toggle" class="routes-section-row">
-                {icons.Workflow(ctx.allocator)}
-                <span class="routes-section-title">All Routes</span>
-                <span class="routes-section-arrow">{icons.ChevronRight(ctx.allocator)}</span>
-            </label>
-            <div class="routes-section-desc">
-                <span class="routes-count">{getFilteredRouteCount(ctx.allocator)} routes registered in your application</span>
-                <div class="routes-children">
-                    {for (routes) |route| (
-                        <a
-                            class={getRouteItemClass(route)}
-                            href={getRouteHref(ctx.allocator, route.path)}
-                            data-route-navigate={route.path}
-                        >
-                            <div class="route-head">
-                                <div class="route-main">
-                                    <span class={getKindClass(route.kind)}>{route.kind}</span>
-                                    <span class="route-path">{route.path}</span>
-                                </div>
-                                {if (std.mem.eql(u8, route.kind, "Route")) (
-                                    <div class="route-methods-right">
-                                        <span class="route-methods-separator"></span>
-                                        <span class="route-methods-chip">
-                                            {for (route.methods, 0..) |method, i| (
-                                                <span>
-                                                    {if (i > 0) (<span class="route-method-sep">/</span>) else ""}
-                                                    <span class={getMethodTokenClass(method)}>{method}</span>
-                                                </span>
-                                            )}
-                                        </span>
-                                    </div>
-                                ) else ""}
-                            </div>
-                        </a>
+        <div @allocator={ctx.allocator} class="routes-list">
+            {for (store.routes) |route| (
+                <a
+                    class={store.getRouteItemClass(route)}
+                    href={store.getRouteHref(ctx.allocator, route.path)}
+                    data-route-navigate={route.path}
+                >
+                    <span class="route-path">{route.path}</span>
+                    {if (std.mem.eql(u8, route.kind, "Route")) (
+                        <span class="route-methods">
+                            {for (route.methods, 0..) |method, i| (
+                                <span>
+                                    {if (i > 0) (<span class="route-method-sep"> </span>) else ""}
+                                    <span class={store.getMethodTokenClass(method)}>{method}</span>
+                                </span>
+                            )}
+                        </span>
+                    ) else (
+                        <span class="route-kind-quiet">{route.kind}</span>
                     )}
-                </div>
-            </div>
+                </a>
+            )}
         </div>
     );
 }
 
-
-var inputvalue: []const u8 = "";
-var inputvalue_owned: ?[]const u8 = null;
-const ComponentSearchInputProps = struct {  };
-pub fn ComponentSearchInput(
-    ctx: *zx.ComponentCtx(ComponentSearchInputProps),
-) zx.Component {
+pub fn RouteSearchInput(ctx: *zx.ComponentCtx(struct {})) zx.Component {
     return (
-        <input @allocator={ctx.allocator} oninput={handleComponentSearchInput} type="text" value="/" class="route-input" />
+        <input
+            @allocator={ctx.allocator}
+            oninput={handleRouteSearchInput}
+            type="text"
+            placeholder="Filter routes…"
+            class="route-filter"
+        />
     );
 }
 
-pub fn handleComponentSearchInput(ctx: zx.client.Event) void {
-    data.adopt(&inputvalue_owned, &inputvalue, ctx.value(), "");
+pub fn handleRouteSearchInput(ctx: zx.client.Event) void {
+    store.setSearch(ctx.value());
     zx.client.rerender();
 }
-
-fn routeMatchesSearch(route: AppRoute) bool {
-    if (inputvalue.len == 0) return true;
-    if (containsIgnoreCase(route.path, inputvalue)) return true;
-    if (containsIgnoreCase(route.kind, inputvalue)) return true;
-    for (route.methods) |method| {
-        if (containsIgnoreCase(method, inputvalue)) return true;
-    }
-    return false;
-}
-
-fn getRouteItemClass(route: AppRoute) []const u8 {
-    if (!routeMatchesSearch(route)) return "route-item route-item-hidden";
-    if (std.mem.eql(u8, route.kind, "Route")) return "route-item route-item-route";
-    return "route-item route-item-page";
-}
-
-fn getFilteredRouteCount(allocator: std.mem.Allocator) []const u8 {
-    var count: usize = 0;
-    for (routes) |route| {
-        if (routeMatchesSearch(route)) count += 1;
-    }
-    return std.fmt.allocPrint(allocator, "{d}", .{count}) catch "0";
-}
-
-fn containsIgnoreCase(haystack: []const u8, needle: []const u8) bool {
-    if (needle.len > haystack.len) return false;
-    var i: usize = 0;
-    while (i <= haystack.len - needle.len) : (i += 1) {
-        var match = true;
-        for (0..needle.len) |j| {
-            if (std.ascii.toLower(haystack[i + j]) != std.ascii.toLower(needle[j])) {
-                match = false;
-                break;
-            }
-        }
-        if (match) return true;
-    }
-    return false;
-}
-
-fn getRouteHref(allocator: std.mem.Allocator, path: []const u8) []const u8 {
-    _ = data.loadSettings();
-    const host = data.host;
-    const base = if (std.mem.startsWith(u8, host, "http://") or std.mem.startsWith(u8, host, "https://"))
-        host
-    else
-        std.fmt.allocPrint(allocator, "http://{s}", .{host}) catch return "#";
-
-    return std.fmt.allocPrint(allocator, "{s}{s}", .{ base, path }) catch "#";
-}
-
-const zx = @import("zx");
-const std = @import("std");
-const icons = @import("../components/icons.zx");
-const data = @import("../data.zig");

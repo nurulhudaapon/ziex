@@ -1,3 +1,6 @@
+const zx = @import("zx");
+const nav = @import("nav.zig");
+
 pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
     return (
         <html @allocator={ctx.arena} lang="en-US">
@@ -9,22 +12,17 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
             </head>
 
             <body>
-                <div class="app-layout">
-                    <aside class="sidebar">
-                        <div class="sidebar-header">
-                            <img src="https://ziex.dev/favicon.svg" alt="Ziex" class="sidebar-logo" /><span class="sidebar-title-text">Ziex DevTools</span>
-                        </div>
-                        <nav class="sidebar-nav">
-                            {for (menu) |item| (
-                                <a href={buildUrl(ctx.arena, item.href)} class={if (isActive(ctx.request.url, item.active_match)) "nav-item active" else "nav-item"}>
-                                    <span class="nav-icon">{item.icon_fn(ctx.arena)}</span><span class="nav-text">{item.label}</span>
-                                </a>
-                            )}
-                        </nav>
-                        // <div class="sidebar-footer">
-                        //     {zx.info.version}
-                        // </div>
-                    </aside>
+                <div class="app-shell">
+                    <header class="app-tabs">
+                        {for (nav.menu) |item| (
+                            <a
+                                href={nav.buildUrl(ctx.arena, item.href)}
+                                class={if (nav.isActive(ctx.request.url, item.active_match)) "app-tab active" else "app-tab"}
+                            >
+                                {item.label}
+                            </a>
+                        )}
+                    </header>
                     <main class="main-content">
                         {children}
                     </main>
@@ -34,38 +32,3 @@ pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
         </html>
     );
 }
-
-const menu = [_]MenuItem{
-    .{ .href = "/", .icon_fn = icons.Hive, .label = "Components", .active_match = "/" },
-    .{ .href = "routes", .icon_fn = icons.Workflow, .label = "Routes", .active_match = "routes" },
-    .{ .href = "settings", .icon_fn = icons.Settings, .label = "Settings", .active_match = "settings" },
-    .{ .href = "overview", .icon_fn = icons.Info, .label = "Overview", .active_match = "overview" },
-};
-
-fn isActive(url: []const u8, match: []const u8) bool {
-    if (std.mem.eql(u8, match, "/")) {
-        return std.mem.eql(u8, url, "/") or std.mem.endsWith(u8, url, "index.html");
-    }
-    return std.mem.indexOf(u8, url, match) != null;
-}
-fn buildUrl(allocator: std.mem.Allocator, path: []const u8) []const u8 {
-    if (options.platform == .chromium) {
-        if (std.mem.eql(u8, path, "/")) {
-            return "index.html";
-        }
-        return std.fmt.allocPrint(allocator, "{s}.html", .{path}) catch unreachable;
-    } else {
-        return path;
-    }
-}
-const MenuItem = struct {
-    href: []const u8,
-    icon_fn: *const fn (zx.Allocator) zx.Component,
-    label: []const u8,
-    active_match: []const u8,
-};
-
-const icons = @import("./components/icons.zx");
-const options = @import("build_options");
-const std = @import("std");
-const zx = @import("zx");

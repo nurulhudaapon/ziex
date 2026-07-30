@@ -283,7 +283,7 @@ pub fn Handler(comptime AppCtxType: type) type {
                 break :blk .{};
             };
 
-            const result = try zx.Router.handle(.{
+            const result = try zx.Router.handle(.{ .is_dev = is_dev }, .{
                 .http = http,
                 .request = abstract_req,
                 .response = abstract_res,

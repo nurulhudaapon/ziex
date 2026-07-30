@@ -426,12 +426,14 @@ pub fn applyLayouts(
     page_component: Component,
     app_ptr: ?*const anyopaque,
     state_ptr: ?*const anyopaque,
+    used_layout: ?*bool,
 ) Component {
     var component = page_component;
 
     // Apply this route's own layout first
     if (route.layout) |layout_fn| {
         component = layout_fn(layoutctx, component, app_ptr, state_ptr);
+        if (used_layout) |flag| flag.* = true;
     }
 
     // Collect parent layouts (root to deepest, excluding current route)
@@ -501,6 +503,7 @@ pub fn applyLayouts(
     while (j > 0) {
         j -= 1;
         component = layouts[j](layoutctx, component, app_ptr, state_ptr);
+        if (used_layout) |flag| flag.* = true;
     }
 
     return component;
@@ -685,7 +688,7 @@ pub const HandleResult = struct {
     proxy: ProxyResult = .{},
 };
 
-pub fn handle(opts: HandleOptions) !HandleResult {
+pub fn handle(comptime options: core_handler.Options, opts: HandleOptions) !HandleResult {
     const http = opts.http;
     const request = opts.request;
     const response = opts.response;
@@ -707,6 +710,7 @@ pub fn handle(opts: HandleOptions) !HandleResult {
 
         // -- Page (action/event dispatch + render) --
         const page_result = try core_handler.handlePage(
+            options,
             route,
             request,
             response,

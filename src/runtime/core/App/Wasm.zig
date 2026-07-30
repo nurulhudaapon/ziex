@@ -16,6 +16,7 @@ const Backend = zx.Http.Wasm.Backend;
 const HeaderEntry = zx.Http.Wasm.HeaderEntry;
 const base_path = app_opts.app_base_path;
 const feat_cache = app_opts.feat_cache_server;
+const is_dev = std.mem.eql(u8, app_opts.cli_command, "dev");
 
 var g_inita: zx.Init = undefined;
 
@@ -124,7 +125,7 @@ pub fn run(process_init: std.process.Init) !void {
         .{};
 
     // --- Shared dispatcher --- //
-    const result = try Router.handle(.{
+    const result = try Router.handle(.{ .is_dev = is_dev }, .{
         .http = http,
         .request = request,
         .response = response,

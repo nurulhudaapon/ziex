@@ -23,6 +23,15 @@ pub fn formatWithOptions(component: zx.Component, w: *std.Io.Writer, options: Se
     try serializable.serialize(w);
 }
 
+pub fn namedBoundary(allocator: Allocator, name: []const u8, child: zx.Component) zx.Component {
+    const Boundary = struct {
+        fn render(ctx: *zx.ComponentCtx(struct {})) zx.Component {
+            return ctx.children orelse .none;
+        }
+    };
+    return .{ .component_fn = zx.Component.ComponentFn.init(Boundary.render, name, allocator, .{ .children = child }) };
+}
+
 pub const ComponentSerializable = struct {
     pub const StateItem = struct {
         key: []const u8,

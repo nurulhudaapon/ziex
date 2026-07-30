@@ -11,6 +11,7 @@ const sig = @import("../../util/sig.zig");
 
 const platform = zx.platform;
 const is_dev = std.mem.eql(u8, app_opts.cli_command, "dev");
+const is_export = std.mem.eql(u8, app_opts.cli_command, "export");
 
 pub const Config = @import("AppConfig.zig");
 pub const Server = @import("App/Server.zig");
@@ -90,7 +91,7 @@ var stop_fn: ?*const fn (ctx: *anyopaque) void = null;
 
 fn onSignal() void {
     if (stop_fn) |f| if (stop_ctx) |ctx| {
-        if (!is_dev) std.debug.print("\nShutting down...\n", .{});
+        if (!is_dev and !is_export) std.debug.print("\nShutting down...\n", .{});
         f(ctx);
     };
 }

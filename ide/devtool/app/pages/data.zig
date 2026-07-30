@@ -1,4 +1,3 @@
-/// Centralized data for the devtool.
 pub const ComponentMeta = struct {
     prop_items: []const StateItem = &[_]StateItem{},
     signal_items: []const StateItem = &[_]StateItem{},
@@ -14,15 +13,7 @@ pub const Component = struct {
     badge: []const u8 = "",
     meta: ?ComponentMeta = null,
     is_native: bool = false,
-    /// CSS selector locating this node's root element in the inspected page,
-    /// e.g. `div[class="bench-row"]`. For a component/text node it is the
-    /// selector of its first descendant element (its rendered root). Empty when
-    /// the node maps to no element.
     selector: []const u8 = "",
-    /// Which match of `selector` (in document order) this node is computed by
-    /// counting prior elements with the same selector while walking the
-    /// serialized tree in pre-order, which mirrors the DOM's document order.
-    /// The devtool highlights `document.querySelectorAll(selector)[occurrence]`.
     occurrence: usize = 0,
 };
 
@@ -37,20 +28,13 @@ const storage_key = "zx-devtool-show-native-elements";
 const tree_collapsed_key = "zx-devtool-tree-collapsed";
 pub const host_storage_key = "zx-devtool-host-v2";
 pub const path_storage_key = "zx-devtool-path-v1";
-const settings_namespace = "ide/devtool/settings";
 const theme_storage_key = "zx-devtool-theme-dark";
 
 var _show_native_elements_loaded = false;
 pub var show_native_elements: bool = true;
-// Whether the entire component tree starts COLLAPSED in the tree UI.
-// Controlled by the sidebar expand/collapse toggle button.
 pub var tree_collapsed: bool = false;
 pub var host: []const u8 = "localhost:3000";
 pub var current_path: []const u8 = "/";
-
-/// Heap allocation currently backing `host`, or null while `host` still points
-/// at a static literal. Tracked so reassigning `host` can free the previous
-/// copy without ever calling free() on a literal.
 var host_owned: ?[]const u8 = null;
 
 const js = zx.client.js;
@@ -62,14 +46,10 @@ fn lsSet(key: []const u8, value: []const u8) void {
     ls.call(void, "setItem", .{ js.string(key), js.string(value) }) catch {};
 }
 
-/// Returns a heap-owned copy (caller frees) or null when absent/not on client.
 fn lsGet(allocator: std.mem.Allocator, key: []const u8) ?[]const u8 {
     if (zx.platform.role != .client) return null;
     const ls = js.global.get(js.Object, "localStorage") catch return null;
     defer ls.deinit();
-    // Use `js.String` (jsz's string type; resolves to an allocated []u8), same
-    // as Event.value. getItem returning JS null (absent key) surfaces as an
-    // error, caught here as null.
     return ls.callAlloc(js.String, allocator, "getItem", .{js.string(key)}) catch null;
 }
 
@@ -79,17 +59,6 @@ fn lsGetBool(key: []const u8, default_val: bool) bool {
     return std.mem.eql(u8, v, "1");
 }
 
-/// Store `new` into `slot`, freeing whatever heap allocation the slot
-/// previously owned. `new` must be either null or a heap allocation owned by
-/// `zx.allocator` (e.g. the result of `zx.client.Event.value()`); the slot
-/// takes ownership of it, so do not free `new` afterwards. `owned` tracks the
-/// currently-owned allocation so an initial static-literal value is never
-/// passed to free(); it must start as `null`. When `new` is null the slot is
-/// reset to `fallback` (a literal) and ownership is dropped.
-///
-/// This is the single safe way the devtool mutates the long-lived string
-/// globals it reads back across renders without it, each keystroke/click
-/// leaked the previous value into the persistent WASM allocator.
 pub fn adopt(owned: *?[]const u8, slot: *[]const u8, new: ?[]const u8, fallback: []const u8) void {
     if (owned.*) |old| zx.allocator.free(old);
     if (new) |n| {
@@ -101,9 +70,6 @@ pub fn adopt(owned: *?[]const u8, slot: *[]const u8, new: ?[]const u8, fallback:
     }
 }
 
-/// Update the connection host from a freshly-allocated value (owned by
-/// `zx.allocator`, e.g. an input event value), freeing the previous host copy,
-/// then persist it.
 pub fn setHost(new: []const u8) void {
     adopt(&host_owned, &host, new, host);
     saveSettings();
@@ -114,8 +80,6 @@ pub fn loadSettings() bool {
     show_native_elements = lsGetBool(storage_key, true);
     tree_collapsed = lsGetBool(tree_collapsed_key, false);
     if (lsGet(zx.allocator, host_storage_key)) |loaded| {
-        // Record ownership so the first `setHost` frees this copy rather than
-        // leaking it.
         host = loaded;
         host_owned = loaded;
     }
@@ -332,13 +296,8 @@ pub const routes = [_]Route{
     .{ .method = "GET", .path = "/settings" },
 };
 
-/// Tracks, per CSS selector, how many matching elements have been seen so far
-/// while walking the serialized tree in pre-order (mirrors DOM document order).
 pub const SelectorCounters = std.StringHashMap(usize);
 
-/// Build a CSS selector that locates an element by tag plus its most specific
-/// available attribute (`id`, else `class`). The same string is counted in the
-/// devtool and queried in the page, so it must be derived identically here.
 fn buildSelector(allocator: std.mem.Allocator, tag: zx.ElementTag, attributes: anytype) []const u8 {
     const tag_name = @tagName(tag);
     if (attributes) |attrs| {
@@ -376,13 +335,26 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.util.devtool.Compone
         is_native = false;
     } else if (s.tag) |t| {
         name = @tagName(t);
-    } else if (s.text) |_| {
+    } else if (s.text) |t| {
         name = "text";
         badge = "text";
+        const quoted = try quoteJsonString(allocator, t);
+        return Component{
+            .id = path,
+            .name = name,
+            .children = &.{},
+            .has_children = false,
+            .badge = badge,
+            .meta = ComponentMeta{
+                .prop_items = try allocator.dupe(StateItem, &[_]StateItem{.{
+                    .key = "children",
+                    .value = quoted,
+                }}),
+            },
+            .is_native = true,
+        };
     }
 
-    // Assign this node's own element locator (pre-order, before children) so
-    // the occurrence numbering follows document order.
     var selector: []const u8 = "";
     var occurrence: usize = 0;
     if (s.tag) |t| {
@@ -390,15 +362,23 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.util.devtool.Compone
         occurrence = nextOccurrence(counters, selector);
     }
 
-    var children: []const Component = &[_]Component{};
+    var tree_children = std.ArrayList(Component).empty;
+    var text_parts = std.ArrayList(u8).empty;
+    defer text_parts.deinit(allocator);
+
     if (s.children) |sc| {
-        var children_mut = try allocator.alloc(Component, sc.len);
-        for (sc, 0..) |child_s, i| {
-            const child_path = try std.fmt.allocPrint(allocator, "{s}.{d}", .{ path, i });
-            children_mut[i] = try fromSerializable(allocator, child_s, child_path, counters);
+        var child_idx: usize = 0;
+        for (sc) |child_s| {
+            if (child_s.text) |t| {
+                try text_parts.appendSlice(allocator, t);
+                continue;
+            }
+            const child_path = try std.fmt.allocPrint(allocator, "{s}.{d}", .{ path, child_idx });
+            child_idx += 1;
+            try tree_children.append(allocator, try fromSerializable(allocator, child_s, child_path, counters));
         }
-        children = children_mut;
     }
+    const children = try tree_children.toOwnedSlice(allocator);
 
     if (s.tag == null) {
         for (children) |child| {
@@ -410,11 +390,23 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.util.devtool.Compone
         }
     }
 
-    var meta: ?ComponentMeta = null;
-    if (s.props) |p| {
-        var props_list = std.ArrayList(StateItem).empty;
-        var signals_list = std.ArrayList(StateItem).empty;
+    var props_list = std.ArrayList(StateItem).empty;
+    var signals_list = std.ArrayList(StateItem).empty;
 
+    if (s.attributes) |attrs| {
+        for (attrs) |attr| {
+            const value = if (attr.value) |v|
+                try quoteJsonString(allocator, v)
+            else
+                "true";
+            try props_list.append(allocator, .{
+                .key = attr.name,
+                .value = value,
+            });
+        }
+    }
+
+    if (s.props) |p| {
         for (p) |item| {
             if (std.mem.eql(u8, item.meta, "(Ref)") or std.mem.eql(u8, item.meta, "(Computed)")) {
                 try signals_list.append(allocator, item);
@@ -422,12 +414,22 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.util.devtool.Compone
                 try props_list.append(allocator, item);
             }
         }
+    }
 
-        meta = ComponentMeta{
+    if (text_parts.items.len > 0) {
+        try props_list.append(allocator, .{
+            .key = "children",
+            .value = try quoteJsonString(allocator, text_parts.items),
+        });
+    }
+
+    const meta: ?ComponentMeta = if (props_list.items.len > 0 or signals_list.items.len > 0)
+        ComponentMeta{
             .prop_items = try props_list.toOwnedSlice(allocator),
             .signal_items = try signals_list.toOwnedSlice(allocator),
-        };
-    }
+        }
+    else
+        null;
 
     return Component{
         .id = path,
@@ -442,6 +444,10 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.util.devtool.Compone
     };
 }
 
+fn quoteJsonString(allocator: std.mem.Allocator, value: []const u8) ![]const u8 {
+    return try std.json.Stringify.valueAlloc(allocator, value, .{});
+}
+
 pub fn fromSerializableSlice(allocator: std.mem.Allocator, sc: []const zx.util.devtool.ComponentSerializable) anyerror![]const Component {
     var counters = SelectorCounters.init(allocator);
     defer counters.deinit();
@@ -451,48 +457,16 @@ pub fn fromSerializableSlice(allocator: std.mem.Allocator, sc: []const zx.util.d
         const path = try std.fmt.allocPrint(allocator, "{d}", .{i});
         children[i] = try fromSerializable(allocator, child_s, path, &counters);
     }
+    return children;
+}
 
-    // Synthetic wrapper roots have no element of their own; locate them by the
-    // first descendant element so hovering them still highlights the page.
-    var root_sel: []const u8 = "";
-    var root_occ: usize = 0;
-    for (children) |child| {
-        if (child.selector.len > 0) {
-            root_sel = child.selector;
-            root_occ = child.occurrence;
-            break;
-        }
-    }
-
-    // Note: no synthetic "Page" wrapper. The serialized `children` already are
-    // the page's real content (the framework sends the page's own rendered
-    // tree, which has no "Page" node), so an extra Page level would just wrap
-    // every component redundantly. `Layout` holds the content directly.
-    var root_layout = try allocator.alloc(Component, 1);
-    root_layout[0] = Component{
-        .id = "0.root.layout",
-        .name = "Layout",
-        .children = children,
-        .has_children = children.len > 0,
-        .badge = "",
-        .meta = null,
-        .selector = root_sel,
-        .occurrence = root_occ,
-    };
-
-    var root_component = try allocator.alloc(Component, 1);
-    root_component[0] = Component{
-        .id = "0.root",
-        .name = "App",
-        .children = root_layout,
-        .has_children = root_layout.len > 0,
-        .badge = "fragment",
-        .meta = null,
-        .selector = root_sel,
-        .occurrence = root_occ,
-    };
-
-    return root_component;
+pub fn fromSerializableRoot(allocator: std.mem.Allocator, root: zx.util.devtool.ComponentSerializable) anyerror![]const Component {
+    var counters = SelectorCounters.init(allocator);
+    defer counters.deinit();
+    const mapped = try fromSerializable(allocator, root, "0", &counters);
+    const slice = try allocator.alloc(Component, 1);
+    slice[0] = mapped;
+    return slice;
 }
 
 const zx = @import("zx");
