@@ -1,5 +1,4 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
-
     if (root.config.csr) {
         return csr_page.Page(ctx);
     }
