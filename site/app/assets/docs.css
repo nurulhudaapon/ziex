@@ -300,6 +300,16 @@ body {
     display: inline;
 }
 
+@media (max-width: 430px) {
+    .top-bar-link-short {
+        display: inline;
+    }
+
+    .top-bar-link-full {
+        display: none;
+    }
+}
+
 .top-bar-toggle {
     display: none;
 }
@@ -325,14 +335,6 @@ body {
 }
 
 @media (max-width: 1024px) {
-    .top-bar-link-short {
-        display: inline;
-    }
-
-    .top-bar-link-full {
-        display: none;
-    }
-
     .top-bar-right,
     .top-bar-nav {
         gap: 1rem;

@@ -30,10 +30,10 @@ pub const SidebarProps = struct {
 };
 
 pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
-    const nav_links = [_]struct { href: []const u8, label: []const u8 }{
-        .{ .href = "/learn", .label = "Docs" },
-        .{ .href = "/playground", .label = "Playground" },
-        .{ .href = "/examples", .label = "Examples" },
+    const nav_links = [_]struct { href: []const u8, label: []const u8, short: []const u8 }{
+        .{ .href = "/learn", .label = "Docs", .short = "Docs" },
+        .{ .href = "/playground", .label = "Playground", .short = "PG" },
+        .{ .href = "/examples", .label = "Examples", .short = "Eg" },
     };
 
     return (
@@ -63,7 +63,10 @@ pub fn Sidebar(allocator: zx.Allocator, props: SidebarProps) zx.Component {
                         <nav class="top-bar-nav">
                             {for (nav_links) |nav| (
                                 <a link={nav.href} href={nav.href}
-                                    class={if (std.mem.eql(u8, props.active_path, nav.href)) "top-bar-link top-bar-link-active" else "top-bar-link"}>{nav.label}</a>
+                                    class={if (std.mem.eql(u8, props.active_path, nav.href)) "top-bar-link top-bar-link-active" else "top-bar-link"}>
+                                    <span class="top-bar-link-full">{nav.label}</span>
+                                    <span class="top-bar-link-short">{nav.short}</span>
+                                </a>
                             )}
                         </nav>
                         <div class="top-bar-actions">
