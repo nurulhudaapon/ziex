@@ -32,12 +32,11 @@ jobs:
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
-        working-directory: ide/devtool
         with:
           name: build-artifact
           path: |
-            .wrangler-artifact
-            zig-out/static
+            ./ide/devtool/.wrangler-artifact
+            ./ide/devtool/zig-out/static
           include-hidden-files: true
           retention-days: 1
 
@@ -52,19 +51,15 @@ jobs:
 
       - name: Download artifact
         uses: actions/download-artifact@v4
-        working-directory: ide/devtool
         with:
           name: build-artifact
-
-      # - name: Adapt wrangler.jsonc
-      #   run: |
-      #     sed -i '/"build": {/,/^\t},$/d' wrangler.jsonc
+          path: ./ide/devtool
 
       - name: Deploy
         uses: cloudflare/wrangler-action@v3
-        working-directory: ide/devtool
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: 4
+          workingDirectory: ./ide/devtool
           command: deploy .wrangler-artifact/no-op-worker.js --no-bundle --assets ./zig-out/static
