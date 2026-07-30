@@ -5,10 +5,13 @@ const data = @import("../data.zig");
 const string = @import("../string.zig");
 
 pub const AppRoute = api.AppRoute;
+pub const RouteOpts = api.RouteOpts;
 
 pub var routes: []const AppRoute = &[_]AppRoute{};
 pub var inputvalue: []const u8 = "";
 pub var inputvalue_owned: ?[]const u8 = null;
+pub var selected_path: []const u8 = "";
+pub var selected_path_owned: ?[]const u8 = null;
 
 var fetched = false;
 var data_allocator: ?std.mem.Allocator = null;
@@ -29,6 +32,9 @@ fn onFetchText(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
         defer r.deinit();
         if (r.text()) |p| {
             routes = zx.util.zxon.parse([]const AppRoute, allocator, p, .{}) catch return;
+            if (selected_path.len == 0 and routes.len > 0) {
+                selected_path = routes[0].path;
+            }
         } else |_| {}
     }
     zx.client.rerender();
@@ -36,6 +42,18 @@ fn onFetchText(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
 
 pub fn setSearch(value: ?[]const u8) void {
     data.adopt(&inputvalue_owned, &inputvalue, value, "");
+}
+
+pub fn setSelected(value: ?[]const u8) void {
+    data.adopt(&selected_path_owned, &selected_path, value, "");
+}
+
+pub fn findSelected() ?AppRoute {
+    if (selected_path.len == 0) return null;
+    for (routes) |route| {
+        if (std.mem.eql(u8, route.path, selected_path)) return route;
+    }
+    return null;
 }
 
 pub fn getMethodTokenClass(method: []const u8) []const u8 {
@@ -62,9 +80,14 @@ pub fn routeMatchesSearch(route: AppRoute) bool {
 
 pub fn getRouteItemClass(route: AppRoute) []const u8 {
     if (!routeMatchesSearch(route)) return "route-item route-item-hidden";
+    if (std.mem.eql(u8, route.path, selected_path)) return "route-item route-item-selected";
     return "route-item";
 }
 
 pub fn getRouteHref(allocator: std.mem.Allocator, path: []const u8) []const u8 {
     return api.routeHref(allocator, path);
+}
+
+pub fn boolLabel(value: bool) []const u8 {
+    return if (value) "true" else "false";
 }

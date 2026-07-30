@@ -1,18 +1,55 @@
 const zx = @import("zx");
 const std = @import("std");
 const store = @import("store.zig");
+const icons = @import("../components/icons.zx");
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
-        <div @allocator={ctx.arena} class="app-container">
-            <div class="content">
-                <div class="routes-toolbar">
-                    <RouteSearchInput @rendering={.client} />
+        <div @allocator={ctx.arena} class="devtools-container">
+            <div class="tree-pane">
+                <div class="search-box">
+                    <div class="search-wrapper">
+                        <RouteSearchInput @rendering={.client} />
+                    </div>
                 </div>
                 <RoutesList @rendering={.client} />
             </div>
+
+            <div class="devtools-resize-handle"></div>
+
+            <div class="state-panel">
+                <div class="state-header">
+                    <RoutePanelHeader @rendering={.client} />
+                </div>
+                <RouteDetails @rendering={.client} />
+            </div>
         </div>
     );
+}
+
+pub fn RouteSearchInput(ctx: *zx.ComponentCtx(struct {})) zx.Component {
+    return (
+        <div @allocator={ctx.allocator} class="search-input-wrapper">
+            {icons.Search(ctx.allocator)}
+            <input
+                @allocator={ctx.allocator}
+                oninput={handleRouteSearchInput}
+                type="text"
+                placeholder="Filter routes…"
+                class="search-input"
+            />
+        </div>
+    );
+}
+
+pub fn handleRouteSearchInput(ctx: zx.client.Event) void {
+    store.setSearch(ctx.value());
+    zx.client.rerender();
+}
+
+pub fn handleRouteClick(ctx: zx.client.Event) void {
+    store.setSelected(ctx.value());
+    zx.client.rerender();
 }
 
 pub fn RoutesList(ctx: *zx.ComponentCtx(struct {})) ?zx.Component {
@@ -22,10 +59,10 @@ pub fn RoutesList(ctx: *zx.ComponentCtx(struct {})) ?zx.Component {
     return (
         <div @allocator={ctx.allocator} class="routes-list">
             {for (store.routes) |route| (
-                <a
+                <button
                     class={store.getRouteItemClass(route)}
-                    href={store.getRouteHref(ctx.allocator, route.path)}
-                    data-route-navigate={route.path}
+                    value={route.path}
+                    onclick={handleRouteClick}
                 >
                     <span class="route-path">{route.path}</span>
                     {if (std.mem.eql(u8, route.kind, "Route")) (
@@ -40,25 +77,144 @@ pub fn RoutesList(ctx: *zx.ComponentCtx(struct {})) ?zx.Component {
                     ) else (
                         <span class="route-kind-quiet">{route.kind}</span>
                     )}
-                </a>
+                </button>
             )}
         </div>
     );
 }
 
-pub fn RouteSearchInput(ctx: *zx.ComponentCtx(struct {})) zx.Component {
+pub fn RoutePanelHeader(ctx: *zx.ComponentCtx(struct {})) ?zx.Component {
+    if (comptime zx.platform.isServer()) return null;
+
+    store.ensureFetched(ctx.allocator);
+    const selected = store.findSelected() orelse {
+        return (
+            <div @allocator={ctx.allocator} class="filter-wrapper"></div>
+        );
+    };
+
     return (
-        <input
-            @allocator={ctx.allocator}
-            oninput={handleRouteSearchInput}
-            type="text"
-            placeholder="Filter routes…"
-            class="route-filter"
-        />
+        <div @allocator={ctx.allocator} class="route-panel-header">
+            <span class="route-panel-title">{selected.path}</span>
+            <a
+                class="route-open-link"
+                href={store.getRouteHref(ctx.allocator, selected.path)}
+                data-route-navigate={selected.path}
+                target="_blank"
+            >
+                Open
+            </a>
+        </div>
     );
 }
 
-pub fn handleRouteSearchInput(ctx: zx.client.Event) void {
-    store.setSearch(ctx.value());
-    zx.client.rerender();
+pub fn RouteDetails(ctx: *zx.ComponentCtx(struct {})) ?zx.Component {
+    if (comptime zx.platform.isServer()) return null;
+
+    store.ensureFetched(ctx.allocator);
+    const selected = store.findSelected() orelse {
+        return (
+            <div @allocator={ctx.allocator} class="component-state-wrapper">
+                <div @allocator={ctx.allocator} class="state-content"></div>
+            </div>
+        );
+    };
+
+    return (
+        <div @allocator={ctx.allocator} class="component-state-wrapper">
+            <div @allocator={ctx.allocator} class="state-content">
+                <RouteSection allocator={ctx.allocator} route={selected} />
+                {if (selected.page_opts) |opts| (
+                    <OptsSection allocator={ctx.allocator} title="page_opts" opts={opts} />
+                ) else ""}
+                {if (selected.route_opts) |opts| (
+                    <OptsSection allocator={ctx.allocator} title="route_opts" opts={opts} />
+                ) else ""}
+                {if (selected.layout_opts) |opts| (
+                    <OptsSection allocator={ctx.allocator} title="layout_opts" opts={opts} />
+                ) else ""}
+            </div>
+        </div>
+    );
+}
+
+fn joinMethods(allocator: zx.Allocator, methods: []const []const u8) []const u8 {
+    if (methods.len == 0) return "—";
+    var out = std.ArrayList(u8).empty;
+    for (methods, 0..) |method, i| {
+        if (i > 0) out.appendSlice(allocator, ", ") catch {};
+        out.appendSlice(allocator, method) catch {};
+    }
+    return out.toOwnedSlice(allocator) catch "—";
+}
+
+fn RouteSection(allocator: zx.Allocator, props: struct { route: store.AppRoute }) zx.Component {
+    const route = props.route;
+    const id = "route-section-route";
+    return (
+        <div @allocator={allocator} class="state-section">
+            <input type="checkbox" id={id} class="state-toggle" checked />
+            <label for={id} class="section-header">
+                <span class="section-arrow">{icons.ChevronRight(allocator)}</span>
+                <span class="section-title">route</span>
+            </label>
+            <div class="section-items">
+                <DetailRow allocator={allocator} key="path" value={route.path} />
+                <DetailRow allocator={allocator} key="kind" value={route.kind} />
+                <DetailRow allocator={allocator} key="methods" value={joinMethods(allocator, route.methods)} />
+                <DetailRow allocator={allocator} key="is_dynamic" value={store.boolLabel(route.is_dynamic)} />
+                <DetailRow allocator={allocator} key="has_page" value={store.boolLabel(route.has_page)} />
+                <DetailRow allocator={allocator} key="has_route" value={store.boolLabel(route.has_route)} />
+                <DetailRow allocator={allocator} key="has_layout" value={store.boolLabel(route.has_layout)} />
+                <DetailRow allocator={allocator} key="has_notfound" value={store.boolLabel(route.has_notfound)} />
+                <DetailRow allocator={allocator} key="has_error" value={store.boolLabel(route.has_error)} />
+                <DetailRow allocator={allocator} key="has_proxy" value={store.boolLabel(route.has_proxy)} />
+            </div>
+        </div>
+    );
+}
+
+fn OptsSection(allocator: zx.Allocator, props: struct { title: []const u8, opts: store.RouteOpts }) zx.Component {
+    const opts = props.opts;
+    const id = std.fmt.allocPrint(allocator, "route-section-{s}", .{props.title}) catch "";
+    const rendering = opts.rendering orelse "—";
+    const ttl = if (opts.caching_ttl_s) |t|
+        std.fmt.allocPrint(allocator, "{d}s", .{t}) catch "0s"
+    else
+        "—";
+    const cache_key = opts.caching_key orelse "—";
+    return (
+        <div @allocator={allocator} class="state-section">
+            <input type="checkbox" id={id} class="state-toggle" checked />
+            <label for={id} class="section-header">
+                <span class="section-arrow">{icons.ChevronRight(allocator)}</span>
+                <span class="section-title">{props.title}</span>
+            </label>
+            <div class="section-items">
+                <DetailRow allocator={allocator} key="rendering" value={rendering} />
+                <DetailRow allocator={allocator} key="caching.ttl" value={ttl} />
+                <DetailRow allocator={allocator} key="caching.key" value={cache_key} />
+                <DetailRow allocator={allocator} key="streaming" value={store.boolLabel(opts.streaming)} />
+                <DetailRow allocator={allocator} key="dynamic" value={store.boolLabel(opts.dynamic)} />
+                <DetailRow allocator={allocator} key="static" value={store.boolLabel(opts.has_static)} />
+            </div>
+        </div>
+    );
+}
+
+fn DetailRow(allocator: zx.Allocator, props: struct { key: []const u8, value: []const u8 }) zx.Component {
+    const value_class = if (std.mem.eql(u8, props.value, "true") or std.mem.eql(u8, props.value, "false"))
+        "value-boolean"
+    else
+        "value-default";
+    return (
+        <div @allocator={allocator} class="state-item-group">
+            <div class="state-item">
+                <span class="item-spacer"></span>
+                <span class="key-default">{props.key}</span>
+                <span class="item-colon">:</span>
+                <span class={value_class}>{props.value}</span>
+            </div>
+        </div>
+    );
 }

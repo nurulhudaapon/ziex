@@ -778,64 +778,42 @@ label.state-item {
 
 /* --- Routes ------------------------------------------------------------------- */
 
-.app-container {
-    height: 100%;
-    display: flex;
-    flex-direction: column;
-    background: var(--bg-base);
-    color: var(--text-base);
-    overflow: hidden;
-}
-
-.content {
-    padding: 8px 12px;
-    flex: 1;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-}
-
-.routes-toolbar {
-    margin-bottom: 6px;
-    flex-shrink: 0;
-}
-
-.route-filter {
-    width: 100%;
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid var(--border-color);
-    border-radius: 0;
-    padding: 6px 4px;
-    color: var(--text-base);
-    outline: none;
-    font-family: var(--font-ui);
-    font-size: 12px;
-}
-
-.route-filter::placeholder {
-    color: var(--text-muted);
-}
-
 .routes-list {
     flex: 1;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    padding: 2px 0;
 }
 
 .route-item {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 4px 6px;
+    padding: 3px 8px;
     font-size: 12px;
     cursor: pointer;
     min-height: 22px;
+    width: 100%;
+    background: none;
+    border: none;
+    border-left: 2px solid transparent;
+    color: inherit;
+    text-align: left;
+    font-family: inherit;
+}
+
+.route-item > * {
+    pointer-events: none;
 }
 
 .route-item:hover {
     background: var(--bg-hover);
+}
+
+.route-item-selected {
+    background: var(--bg-selected);
+    border-left-color: var(--zx-primary);
 }
 
 .route-path {
@@ -847,6 +825,10 @@ label.state-item {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+
+.route-item-selected .route-path {
+    color: var(--tree-name-selected);
 }
 
 .route-methods {
@@ -870,6 +852,38 @@ label.state-item {
 
 .route-method-sep {
     color: var(--text-muted);
+}
+
+.route-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+}
+
+.route-panel-title {
+    color: var(--tree-name);
+    font-weight: 600;
+    font-size: 12px;
+    font-family: var(--font-mono);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+}
+
+.route-open-link {
+    color: var(--zx-primary);
+    font-size: 11px;
+    font-family: var(--font-ui);
+    text-decoration: none;
+    flex-shrink: 0;
+}
+
+.route-open-link:hover {
+    text-decoration: underline;
 }
 
 .route-method-token.method-get { color: #61affe; }

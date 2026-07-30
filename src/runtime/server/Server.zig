@@ -244,12 +244,29 @@ pub fn Server(comptime H: type) type {
 }
 
 pub const SerilizableAppMeta = struct {
+    pub const Opts = struct {
+        rendering: ?[]const u8 = null,
+        caching_ttl_s: ?i64 = null,
+        caching_key: ?[]const u8 = null,
+        streaming: bool = false,
+        dynamic: bool = false,
+        has_static: bool = false,
+    };
+
     pub const Route = struct {
         path: []const u8,
         kind: []const u8 = "Page",
         methods: []const []const u8 = &.{},
+        has_page: bool = false,
+        has_route: bool = false,
+        has_layout: bool = false,
         has_notfound: bool = false,
+        has_error: bool = false,
+        has_proxy: bool = false,
         is_dynamic: bool = false,
+        page_opts: ?Opts = null,
+        route_opts: ?Opts = null,
+        layout_opts: ?Opts = null,
     };
     pub const Config = struct {
         server: AppConfig.ServerConfig,
@@ -269,8 +286,16 @@ pub const SerilizableAppMeta = struct {
                 .path = try allocator.dupe(u8, route.path),
                 .kind = kind,
                 .methods = methods,
+                .has_page = route.page != null,
+                .has_route = route.route != null,
+                .has_layout = route.layout != null,
                 .has_notfound = route.notfound != null,
+                .has_error = route.@"error" != null,
+                .has_proxy = route.proxy != null,
                 .is_dynamic = is_dynamic,
+                .page_opts = try serializePageOpts(allocator, route.page_opts),
+                .route_opts = try serializeRouteOpts(allocator, route.route_opts),
+                .layout_opts = try serializeLayoutOpts(allocator, route.layout_opts),
             };
         }
 
@@ -302,6 +327,47 @@ pub const SerilizableAppMeta = struct {
     }
     pub fn serializeRoutes(self: SerilizableAppMeta, writer: anytype) !void {
         try zx.util.zxon.serialize(self.routes, writer, .{});
+    }
+
+    fn serializeCaching(allocator: std.mem.Allocator, caching: ?zx.BuiltinAttribute.Caching) !struct { ?i64, ?[]const u8 } {
+        const c = caching orelse return .{ null, null };
+        const ttl_s: i64 = @intCast(c.ttl.toSeconds());
+        const key = if (c.key) |k| try allocator.dupe(u8, k) else null;
+        return .{ ttl_s, key };
+    }
+
+    fn serializePageOpts(allocator: std.mem.Allocator, opts: ?zx.PageOptions) !?Opts {
+        const o = opts orelse return null;
+        const ttl_s, const key = try serializeCaching(allocator, o.caching);
+        return Opts{
+            .rendering = if (o.rendering) |r| @tagName(r) else null,
+            .caching_ttl_s = ttl_s,
+            .caching_key = key,
+            .streaming = o.streaming,
+            .dynamic = o.dynamic,
+            .has_static = o.static != null,
+        };
+    }
+
+    fn serializeRouteOpts(allocator: std.mem.Allocator, opts: ?zx.RouteOptions) !?Opts {
+        const o = opts orelse return null;
+        const ttl_s, const key = try serializeCaching(allocator, o.caching);
+        return Opts{
+            .caching_ttl_s = ttl_s,
+            .caching_key = key,
+            .dynamic = o.dynamic,
+            .has_static = o.static != null,
+        };
+    }
+
+    fn serializeLayoutOpts(allocator: std.mem.Allocator, opts: ?zx.LayoutOptions) !?Opts {
+        const o = opts orelse return null;
+        const ttl_s, const key = try serializeCaching(allocator, o.caching);
+        return Opts{
+            .rendering = if (o.rendering) |r| @tagName(r) else null,
+            .caching_ttl_s = ttl_s,
+            .caching_key = key,
+        };
     }
 
     fn getRouteKindAndMethods(allocator: std.mem.Allocator, route: ServerApp.Route) !struct { []const u8, []const []const u8 } {

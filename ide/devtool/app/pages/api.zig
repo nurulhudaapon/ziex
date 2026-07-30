@@ -2,12 +2,29 @@ const std = @import("std");
 const zx = @import("zx");
 const data = @import("data.zig");
 
+pub const RouteOpts = struct {
+    rendering: ?[]const u8 = null,
+    caching_ttl_s: ?i64 = null,
+    caching_key: ?[]const u8 = null,
+    streaming: bool = false,
+    dynamic: bool = false,
+    has_static: bool = false,
+};
+
 pub const AppRoute = struct {
     path: []const u8,
     kind: []const u8 = "Page",
     methods: []const []const u8 = &.{},
+    has_page: bool = false,
+    has_route: bool = false,
+    has_layout: bool = false,
     has_notfound: bool = false,
+    has_error: bool = false,
+    has_proxy: bool = false,
     is_dynamic: bool = false,
+    page_opts: ?RouteOpts = null,
+    route_opts: ?RouteOpts = null,
+    layout_opts: ?RouteOpts = null,
 };
 
 pub fn hostBaseUrl(allocator: std.mem.Allocator) ?[]const u8 {
