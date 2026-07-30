@@ -26,7 +26,11 @@ pub fn ensureFetched(allocator: std.mem.Allocator) void {
     if (!data.loadSettings()) return;
     _ = connection.applyUrlConfig(allocator);
     data_allocator = allocator;
-    const url = api.componentsUrl(allocator, true) orelse return;
+    const url = api.componentsUrl(allocator, .{
+        .include_native = data.show_native_elements,
+        .include_props = data.include_props,
+        .include_attributes = data.include_attributes,
+    }) orelse return;
     fetched = true;
     connection.markLoading();
     _ = zx.fetch(.wasm(&onFetchText), allocator, url, .{ .method = .GET }) catch {

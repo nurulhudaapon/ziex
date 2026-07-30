@@ -15,6 +15,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const Manifest = @import("../../build/Manifest.zig");
+const CliConstant = @import("../shared/constant.zig");
 
 const http = std.http;
 const assert = std.debug.assert;
@@ -77,6 +78,7 @@ env_map: *const std.process.Environ.Map,
 address: std.Io.net.IpAddress,
 inner_port: u16,
 install_prefix: []const u8,
+transpile_dir: []const u8,
 tcp_server: ?std.Io.net.Server,
 serve_thread: ?std.Thread,
 
@@ -101,6 +103,7 @@ pub const Options = struct {
     /// Port the app binary will listen on.
     inner_port: u16,
     install_prefix: []const u8 = "",
+    transpile_dir: []const u8 = CliConstant.default_transpile_dir,
 };
 
 pub fn init(opts: Options) DevServer {
@@ -111,6 +114,7 @@ pub fn init(opts: Options) DevServer {
         .address = opts.address,
         .inner_port = opts.inner_port,
         .install_prefix = opts.install_prefix,
+        .transpile_dir = opts.transpile_dir,
         .tcp_server = null,
         .serve_thread = null,
         .update_id = .init(0),
@@ -381,7 +385,7 @@ fn handleConnection(ds: *DevServer, stream: std.Io.net.Stream) void {
 const cors_headers = [_]http.Header{
     .{ .name = "Access-Control-Allow-Origin", .value = "*" },
     .{ .name = "Access-Control-Allow-Methods", .value = "GET, POST, OPTIONS" },
-    .{ .name = "Access-Control-Allow-Headers", .value = "Content-Type, x-zx-devtool, x-zx-devtool-include-native" },
+    .{ .name = "Access-Control-Allow-Headers", .value = "Content-Type, x-zx-devtool, x-zx-devtool-include-native, x-zx-devtool-include-props, x-zx-devtool-include-attributes" },
     .{ .name = "Access-Control-Allow-Private-Network", .value = "true" },
 };
 
@@ -407,13 +411,22 @@ fn serveRequest(ds: *DevServer, req: *http.Server.Request, client_stream: std.Io
 
         if (std.mem.eql(u8, target_path, "/.well-known/_zx/open-in-editor")) {
             log.debug("open-in-editor matched: {s}", .{target});
+            if (req.head.method == .OPTIONS) {
+                try req.respond("", .{
+                    .status = .ok,
+                    .extra_headers = &(cors_headers ++ [_]http.Header{
+                        .{ .name = "Connection", .value = "close" },
+                    }),
+                });
+                return;
+            }
             handleOpenInEditor(ds, target) catch |err| {
                 log.debug("handleOpenInEditor failed: {s}", .{@errorName(err)});
             };
             try req.respond("", .{
-                .extra_headers = &.{
+                .extra_headers = &(cors_headers ++ [_]http.Header{
                     .{ .name = "Connection", .value = "close" },
-                },
+                }),
             });
             return;
         }
@@ -533,9 +546,13 @@ fn buildDevtoolProxyRewrite(allocator: Allocator, query: []const u8) !DevtoolPro
 
     const path = queryParam(query, "path") orelse "/";
     const include_native = queryParam(query, "include_native") orelse "1";
-    const headers = try allocator.alloc(http.Header, 2);
+    const include_props = queryParam(query, "include_props") orelse "1";
+    const include_attributes = queryParam(query, "include_attributes") orelse "1";
+    const headers = try allocator.alloc(http.Header, 4);
     headers[0] = .{ .name = "x-zx-devtool", .value = "components" };
     headers[1] = .{ .name = "x-zx-devtool-include-native", .value = include_native };
+    headers[2] = .{ .name = "x-zx-devtool-include-props", .value = include_props };
+    headers[3] = .{ .name = "x-zx-devtool-include-attributes", .value = include_attributes };
     return .{
         .mode = "components",
         .rewrite_target = try allocator.dupe(u8, path),
@@ -883,13 +900,34 @@ fn handleOpenInEditor(ds: *DevServer, target: []const u8) !void {
         const decoded_file = try urlDecode(ds.gpa, f_enc);
         defer ds.gpa.free(decoded_file);
 
-        const l = line orelse "1";
-        const c = col orelse "1";
+        const l_str = line orelse "1";
+        const c_str = col orelse "1";
+        const l_num = std.fmt.parseInt(u32, l_str, 10) catch 1;
+        const c_num = std.fmt.parseInt(u32, c_str, 10) catch 1;
 
-        const file_arg = try std.fmt.allocPrint(ds.gpa, "{s}:{s}:{s}", .{ decoded_file, l, c });
-        defer ds.gpa.free(file_arg);
+        // Remap generated .zig (+ line/col) back to original .zx when possible.
+        var open_file: []const u8 = decoded_file;
+        var open_line_buf: [16]u8 = undefined;
+        var open_col_buf: [16]u8 = undefined;
+        var open_line: []const u8 = l_str;
+        var open_col: []const u8 = c_str;
+        var remapped_owned: ?[]u8 = null;
+        defer if (remapped_owned) |p| ds.gpa.free(p);
 
-        const args = try IdeScheme.detect(ds.gpa, ds.env_map, decoded_file, l, c);
+        if (Diagnostics.remapLocation(ds.gpa, decoded_file, l_num, c_num, .{
+            .require_mapping = false,
+            .transpile_dir = ds.transpile_dir,
+        })) |maybe| {
+            if (maybe) |remapped| {
+                remapped_owned = remapped.file;
+                open_file = remapped.file;
+                open_line = std.fmt.bufPrint(&open_line_buf, "{d}", .{remapped.line}) catch l_str;
+                open_col = std.fmt.bufPrint(&open_col_buf, "{d}", .{remapped.col}) catch c_str;
+                log.debug("open-in-editor remapped {s}:{d} → {s}:{d}", .{ decoded_file, l_num, open_file, remapped.line });
+            }
+        } else |_| {}
+
+        const args = try IdeScheme.detect(ds.gpa, ds.env_map, open_file, open_line, open_col);
         defer {
             for (args) |arg| ds.gpa.free(arg);
             ds.gpa.free(args);
@@ -934,3 +972,4 @@ fn urlDecode(allocator: std.mem.Allocator, encoded: []const u8) ![]u8 {
 }
 
 const IdeScheme = @import("IdeScheme.zig");
+const Diagnostics = @import("Diagnostics.zig");

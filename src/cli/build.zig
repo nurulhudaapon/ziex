@@ -123,7 +123,7 @@ fn formatBuildErrors(
 
     if (diagnostics.items.len == 0) return null;
 
-    Diagnostics.remap(allocator, diagnostics.items);
+    Diagnostics.remap(allocator, diagnostics.items, .{});
     const deduped = Diagnostics.dedupe(allocator, diagnostics.items);
     diagnostics.shrinkRetainingCapacity(deduped.len);
 

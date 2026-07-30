@@ -2,6 +2,7 @@ const zx = @import("zx");
 const data = @import("../data.zig");
 const theme = @import("theme.zig");
 const ConnectionFallback = @import("../connection_fallback.zx");
+const components_data = @import("../components_data.zig");
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
@@ -24,6 +25,8 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                 <h3 class="prefs-group-title">Component Tree</h3>
                 <div class="prefs-list">
                     <NativeElementsSetting @rendering={.client} />
+                    <IncludePropsSetting @rendering={.client} />
+                    <IncludeAttributesSetting @rendering={.client} />
                 </div>
             </section>
 
@@ -63,6 +66,11 @@ pub fn handleThemeToggle(_: zx.client.Event) void {
     zx.client.rerender();
 }
 
+fn refetchComponents() void {
+    components_data.invalidate();
+    components_data.ensureFetched(zx.allocator);
+}
+
 pub fn NativeElementsSetting(ctx: *zx.ComponentCtx(struct {})) zx.Component {
     _ = data.loadSettings();
     const label = if (data.show_native_elements) "On" else "Off";
@@ -79,6 +87,47 @@ pub fn NativeElementsSetting(ctx: *zx.ComponentCtx(struct {})) zx.Component {
 pub fn handleNativeElementsToggle(_: zx.client.Event) void {
     data.show_native_elements = !data.show_native_elements;
     data.saveSettings();
+    refetchComponents();
+    zx.client.rerender();
+}
+
+pub fn IncludePropsSetting(ctx: *zx.ComponentCtx(struct {})) zx.Component {
+    _ = data.loadSettings();
+    const label = if (data.include_props) "On" else "Off";
+    return (
+        <div @allocator={ctx.allocator} class="prefs-row">
+            <span class="prefs-label">Include props</span>
+            <button @allocator={ctx.allocator} onclick={handleIncludePropsToggle} class="prefs-chip">
+                {label}
+            </button>
+        </div>
+    );
+}
+
+pub fn handleIncludePropsToggle(_: zx.client.Event) void {
+    data.include_props = !data.include_props;
+    data.saveSettings();
+    refetchComponents();
+    zx.client.rerender();
+}
+
+pub fn IncludeAttributesSetting(ctx: *zx.ComponentCtx(struct {})) zx.Component {
+    _ = data.loadSettings();
+    const label = if (data.include_attributes) "On" else "Off";
+    return (
+        <div @allocator={ctx.allocator} class="prefs-row">
+            <span class="prefs-label">Include attributes</span>
+            <button @allocator={ctx.allocator} onclick={handleIncludeAttributesToggle} class="prefs-chip">
+                {label}
+            </button>
+        </div>
+    );
+}
+
+pub fn handleIncludeAttributesToggle(_: zx.client.Event) void {
+    data.include_attributes = !data.include_attributes;
+    data.saveSettings();
+    refetchComponents();
     zx.client.rerender();
 }
 

@@ -157,7 +157,7 @@ test "ComponentFn: dump_props returns JSON" {
     const a = arena.allocator();
 
     const fn_comp = Component.ComponentFn.init(WithCtx, "WithCtx", a, .{ .label = "Hello", .initial = 42 });
-    const json = fn_comp.vtable.dump_props(a, fn_comp.data).?;
+    const json = fn_comp.dev.dump_props(a, fn_comp.data).?;
     try testing.expect(std.mem.indexOf(u8, json, "Hello") != null);
     try testing.expect(std.mem.indexOf(u8, json, "42") != null);
     try testing.expect(std.mem.indexOf(u8, json, "label") != null);

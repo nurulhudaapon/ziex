@@ -114,6 +114,12 @@ pub const ComponentSerializable = struct {
             return item;
         }
 
+        if (comptime T == zx.EventHandler) {
+            item.meta = "(Action)";
+            item.value = "fn()";
+            return item;
+        }
+
         const ti = @typeInfo(T);
         switch (ti) {
             .@"struct" => |s| {
@@ -174,30 +180,166 @@ pub const ComponentSerializable = struct {
         value: ?[]const u8 = null,
     };
 
+    /// Non-default `@escaping` / `@rendering` / `@async` / `@caching` (not `@allocator`).
+    const BuiltinSerializable = struct {
+        name: []const u8,
+        value: []const u8,
+    };
+
     tag: ?zx.ElementTag = null,
     component: ?[]const u8 = null,
     text: ?[]const u8 = null,
     props: ?[]const StateItem = null,
     attributes: ?[]const AttributeSerializable = null,
+    builtins: ?[]const BuiltinSerializable = null,
     children: ?[]ComponentSerializable = null,
+    actions: ?[]const StateItem = null,
+    /// Source file path when known (from `@src()` at the component call site).
+    source: ?[]const u8 = null,
+    line: u32 = 0,
+    /// True when this node is a `@rendering={.client}` island boundary.
+    client: bool = false,
 
-    /// Convert Element.Attribute slice to serializable form (strips handlers)
+    /// Convert Element.Attribute slice to serializable form (strips handlers).
     fn serializeAttributes(allocator: Allocator, attrs: ?[]const zx.Element.Attribute) !?[]const AttributeSerializable {
         const attributes = attrs orelse return null;
-        const serializable = try allocator.alloc(AttributeSerializable, attributes.len);
-        for (attributes, 0..) |attr, i| {
+        var count: usize = 0;
+        for (attributes) |attr| {
+            if (attr.handler == null) count += 1;
+        }
+        if (count == 0) return null;
+        const serializable = try allocator.alloc(AttributeSerializable, count);
+        var i: usize = 0;
+        for (attributes) |attr| {
+            if (attr.handler != null) continue;
             serializable[i] = .{
                 .name = attr.name,
                 .value = attr.value,
-                // handler is intentionally excluded - not serializable
             };
+            i += 1;
         }
         return serializable;
     }
 
+    fn serializeHandlers(allocator: Allocator, attrs: ?[]const zx.Element.Attribute) !?[]const StateItem {
+        const attributes = attrs orelse return null;
+        var count: usize = 0;
+        for (attributes) |attr| {
+            if (attr.handler != null) count += 1;
+        }
+        if (count == 0) return null;
+        const items = try allocator.alloc(StateItem, count);
+        var i: usize = 0;
+        for (attributes) |attr| {
+            if (attr.handler != null) {
+                items[i] = .{
+                    .key = attr.name,
+                    .value = "fn()",
+                };
+                i += 1;
+            }
+        }
+        return items;
+    }
+
+    fn appendBuiltin(allocator: Allocator, list: *std.ArrayList(BuiltinSerializable), name: []const u8, value: []const u8) !void {
+        try list.append(allocator, .{
+            .name = name,
+            .value = try allocator.dupe(u8, value),
+        });
+    }
+
+    fn serializeElementBuiltins(allocator: Allocator, element: zx.Element) !?[]const BuiltinSerializable {
+        var list = std.ArrayList(BuiltinSerializable).empty;
+        errdefer list.deinit(allocator);
+
+        if (element.escaping) |e| {
+            if (e != .html) try appendBuiltin(allocator, &list, "escaping", @tagName(e));
+        }
+        if (element.rendering) |r| {
+            if (r != .server) try appendBuiltin(allocator, &list, "rendering", @tagName(r));
+        }
+        if (element.async) |a| {
+            if (a != .sync) try appendBuiltin(allocator, &list, "async", @tagName(a));
+        }
+        if (element.fallback != null) {
+            try appendBuiltin(allocator, &list, "fallback", "true");
+        }
+
+        if (list.items.len == 0) {
+            list.deinit(allocator);
+            return null;
+        }
+        return try list.toOwnedSlice(allocator);
+    }
+
+    fn formatCachingValue(allocator: Allocator, caching: zx.BuiltinAttribute.Caching) ![]const u8 {
+        const secs = caching.ttl.toSeconds();
+        if (caching.key) |key| {
+            return try std.fmt.allocPrint(allocator, "{d}s:{s}", .{ secs, key });
+        }
+        return try std.fmt.allocPrint(allocator, "{d}s", .{secs});
+    }
+
+    fn serializeComponentBuiltins(allocator: Allocator, comp_fn: zx.Component.ComponentFn) !?[]const BuiltinSerializable {
+        var list = std.ArrayList(BuiltinSerializable).empty;
+        errdefer list.deinit(allocator);
+
+        if (comp_fn.isIsland()) {
+            try appendBuiltin(allocator, &list, "rendering", "client");
+        }
+        if (comp_fn.caching) |caching| {
+            const value = try formatCachingValue(allocator, caching);
+            defer allocator.free(value);
+            try appendBuiltin(allocator, &list, "caching", value);
+        }
+
+        if (list.items.len == 0) {
+            list.deinit(allocator);
+            return null;
+        }
+        return try list.toOwnedSlice(allocator);
+    }
+
+    /// Collect event handlers on this component's root element tree only.
+    /// Nested `component_fn` children are skipped so child components keep their own actions.
+    fn collectDirectHandlersImpl(allocator: Allocator, component: zx.Component, list: *std.ArrayList(StateItem)) anyerror!void {
+        switch (component) {
+            .element => |element| {
+                if (element.attributes) |attrs| {
+                    for (attrs) |attr| {
+                        if (attr.handler != null) {
+                            try list.append(allocator, .{
+                                .key = attr.name,
+                                .value = "fn()",
+                            });
+                        }
+                    }
+                }
+                if (element.children) |kids| {
+                    for (kids) |kid| {
+                        if (kid == .element) try collectDirectHandlersImpl(allocator, kid, list);
+                    }
+                }
+            },
+            else => {},
+        }
+    }
+
+    fn collectDirectHandlersOwned(allocator: Allocator, component: zx.Component) anyerror!?[]const StateItem {
+        var list = std.ArrayList(StateItem).empty;
+        errdefer list.deinit(allocator);
+        try collectDirectHandlersImpl(allocator, component, &list);
+        if (list.items.len == 0) {
+            list.deinit(allocator);
+            return null;
+        }
+        return try list.toOwnedSlice(allocator);
+    }
+
     fn serializeProps(allocator: Allocator, comp_fn: zx.Component.ComponentFn) !?[]const StateItem {
         if (comptime builtin.optimize != .debug) return null;
-        const json = comp_fn.vtable.dump_props(allocator, comp_fn.data) orelse return null;
+        const json = comp_fn.dev.dump_props(allocator, comp_fn.data) orelse return null;
         return try stateItemsFromJson(allocator, json);
     }
 
@@ -249,7 +391,20 @@ pub const ComponentSerializable = struct {
                 };
             },
             .null => .{ .key = key, .value = "null" },
-            .bool, .integer, .float, .number_string, .string => .{
+            .string => |s| blk: {
+                if (std.mem.eql(u8, s, "fn()")) {
+                    break :blk .{
+                        .key = key,
+                        .value = "fn()",
+                        .meta = "(Action)",
+                    };
+                }
+                break :blk .{
+                    .key = key,
+                    .value = try std.json.Stringify.valueAlloc(allocator, value, .{}),
+                };
+            },
+            .bool, .integer, .float, .number_string => .{
                 .key = key,
                 .value = try std.json.Stringify.valueAlloc(allocator, value, .{}),
             },
@@ -267,22 +422,48 @@ pub const ComponentSerializable = struct {
                 break :blk .{
                     .tag = element.tag,
                     .attributes = if (options.include_attributes) try serializeAttributes(allocator, element.attributes) else null,
+                    .builtins = try serializeElementBuiltins(allocator, element),
+                    .actions = try serializeHandlers(allocator, element.attributes),
                     .children = children_serializable,
                 };
             },
             .component_fn => |comp_fn| blk: {
                 const props_items = if (options.include_props) try serializeProps(allocator, comp_fn) else null;
+                const builtins = try serializeComponentBuiltins(allocator, comp_fn);
+                const source: ?[]const u8, const line: u32 = if (comptime builtin.optimize == .debug)
+                    .{ comp_fn.dev.source_file, comp_fn.dev.source_line }
+                else
+                    .{ null, 0 };
+                const is_client = comp_fn.isIsland();
                 if (comp_fn.isIsland()) {
+                    const island_children = comp_fn.island.?.children.*;
                     const children_slice = try allocator.alloc(ComponentSerializable, 1);
-                    children_slice[0] = try ComponentSerializable.init(allocator, comp_fn.island.?.children.*, options);
+                    children_slice[0] = try ComponentSerializable.init(allocator, island_children, options);
                     break :blk .{
                         .component = comp_fn.name,
                         .props = props_items,
+                        .builtins = builtins,
                         .children = children_slice,
+                        .source = source,
+                        .line = line,
+                        .client = is_client,
                     };
                 }
                 // Resolve component_fn by calling it, then serialize the result
                 const resolved = try comp_fn.call();
+                // Optional components that return null normalize to `.none` — do not
+                // emit an empty child (DevTools would show it as "unknown").
+                if (resolved == .none) {
+                    break :blk .{
+                        .component = comp_fn.name,
+                        .props = props_items,
+                        .builtins = builtins,
+                        .children = null,
+                        .source = source,
+                        .line = line,
+                        .client = is_client,
+                    };
+                }
 
                 const resolved_serializable = try ComponentSerializable.init(allocator, resolved, options);
                 const children_slice = try allocator.alloc(ComponentSerializable, 1);
@@ -290,7 +471,11 @@ pub const ComponentSerializable = struct {
                 break :blk .{
                     .component = comp_fn.name,
                     .props = props_items,
+                    .builtins = builtins,
                     .children = children_slice,
+                    .source = source,
+                    .line = line,
+                    .client = is_client,
                 };
             },
         };

@@ -93,6 +93,12 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
         },
     }
 
+    const manifest_path = try util.resolveManifestPath(allocator, install_prefix, args.manifest);
+    defer allocator.free(manifest_path);
+    const transpile_dir = try util.resolveTranspileDir(io, allocator, manifest_path);
+    defer allocator.free(transpile_dir);
+    log.debug("manifest: {s}, transpile_dir: {s}", .{ manifest_path, transpile_dir });
+
     // Spin up the dev proxy first so it owns the user-facing port (and can
     // fall back to the next free port). Then pick an ephemeral inner port.
     log.debug("starting devserver preferred outer: {d}", .{preferred_port});
@@ -102,6 +108,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
         .address = try std.Io.net.IpAddress.parse("0.0.0.0", preferred_port),
         .inner_port = 0,
         .install_prefix = install_prefix,
+        .transpile_dir = transpile_dir,
         .io = io,
     });
     defer dev_server.deinit();
@@ -247,7 +254,9 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
                     var build_result = result_val;
                     defer build_result.deinit();
 
-                    Diagnostics.remap(allocator, build_result.diagnostics);
+                    Diagnostics.remap(allocator, build_result.diagnostics, .{
+                        .transpile_dir = transpile_dir,
+                    });
                     const deduped = Diagnostics.dedupe(allocator, build_result.diagnostics);
                     const identical_check = try Builder.formatDiagnostics(allocator, deduped);
                     defer allocator.free(identical_check);

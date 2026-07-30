@@ -27,6 +27,12 @@ pub const AppRoute = struct {
     layout_opts: ?RouteOpts = null,
 };
 
+pub const ComponentsQuery = struct {
+    include_native: bool = true,
+    include_props: bool = true,
+    include_attributes: bool = true,
+};
+
 pub fn hostBaseUrl(allocator: std.mem.Allocator) ?[]const u8 {
     _ = data.loadSettings();
     const host = data.host;
@@ -36,13 +42,20 @@ pub fn hostBaseUrl(allocator: std.mem.Allocator) ?[]const u8 {
     return std.fmt.allocPrint(allocator, "http://{s}", .{host}) catch null;
 }
 
-pub fn componentsUrl(allocator: std.mem.Allocator, include_native: bool) ?[]const u8 {
+pub fn componentsUrl(allocator: std.mem.Allocator, query: ComponentsQuery) ?[]const u8 {
     const base = hostBaseUrl(allocator) orelse return null;
     const path = data.current_path;
-    if (include_native) {
-        return std.fmt.allocPrint(allocator, "{s}/.well-known/_zx/devtool?path={s}&include_native=1", .{ base, path }) catch null;
-    }
-    return std.fmt.allocPrint(allocator, "{s}/.well-known/_zx/devtool?path={s}", .{ base, path }) catch null;
+    return std.fmt.allocPrint(
+        allocator,
+        "{s}/.well-known/_zx/devtool?path={s}&include_native={d}&include_props={d}&include_attributes={d}",
+        .{
+            base,
+            path,
+            @as(u8, if (query.include_native) 1 else 0),
+            @as(u8, if (query.include_props) 1 else 0),
+            @as(u8, if (query.include_attributes) 1 else 0),
+        },
+    ) catch null;
 }
 
 pub fn routesMetaUrl(allocator: std.mem.Allocator) ?[]const u8 {
@@ -58,6 +71,15 @@ pub fn appInfoUrl(allocator: std.mem.Allocator) ?[]const u8 {
 pub fn runtimeInfoUrl(allocator: std.mem.Allocator) ?[]const u8 {
     const base = hostBaseUrl(allocator) orelse return null;
     return std.fmt.allocPrint(allocator, "{s}/.well-known/_zx/devtool?info=true", .{base}) catch null;
+}
+
+pub fn openInEditorUrl(allocator: std.mem.Allocator, file: []const u8, line: u32) ?[]const u8 {
+    const base = hostBaseUrl(allocator) orelse return null;
+    return std.fmt.allocPrint(
+        allocator,
+        "{s}/.well-known/_zx/open-in-editor?file={s}&line={d}&col=1",
+        .{ base, file, line },
+    ) catch null;
 }
 
 pub fn routeHref(allocator: std.mem.Allocator, path: []const u8) []const u8 {

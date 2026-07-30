@@ -359,6 +359,104 @@ fn writeDepFile(io: std.Io, allocator: std.mem.Allocator, path: []const u8, targ
     try f.writePositionalAll(io, buf.items, 0);
 }
 
+const tree_fingerprint_name = ".zx-tree";
+
+fn collectSourceRelPaths(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    source_root: []const u8,
+) ![][]const u8 {
+    var dir = try std.Io.Dir.cwd().openDir(io, source_root, .{ .iterate = true });
+    defer dir.close(io);
+
+    var walker = try dir.walk(allocator);
+    defer walker.deinit();
+
+    var rels = std.array_list.Managed([]const u8).init(allocator);
+    errdefer {
+        for (rels.items) |r| allocator.free(r);
+        rels.deinit();
+    }
+
+    while (try walker.next(io)) |entry| {
+        var actual_kind = entry.kind;
+        if (entry.kind == .sym_link) {
+            const entry_stat = dir.statFile(io, entry.path, .{}) catch continue;
+            actual_kind = entry_stat.kind;
+        }
+        if (actual_kind != .file) continue;
+        if (zxExtLen(entry.path) == null) continue;
+        try rels.append(try allocator.dupe(u8, entry.path));
+    }
+
+    std.mem.sort([]const u8, rels.items, {}, struct {
+        fn less(_: void, a: []const u8, b: []const u8) bool {
+            return std.mem.order(u8, a, b) == .lt;
+        }
+    }.less);
+    return try rels.toOwnedSlice();
+}
+
+fn formatTreeFingerprint(allocator: std.mem.Allocator, rels: []const []const u8) ![]u8 {
+    var buf = std.ArrayList(u8).empty;
+    errdefer buf.deinit(allocator);
+    for (rels) |rel| {
+        try buf.appendSlice(allocator, rel);
+        try buf.append(allocator, '\n');
+    }
+    return try buf.toOwnedSlice(allocator);
+}
+
+fn writeSourceTreeFingerprint(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    cache_dir: []const u8,
+    rels: []const []const u8,
+) !void {
+    createDirSafe(io, cache_dir) catch {};
+    const body = try formatTreeFingerprint(allocator, rels);
+    defer allocator.free(body);
+    const out_path = try std.fs.path.join(allocator, &.{ cache_dir, tree_fingerprint_name });
+    defer allocator.free(out_path);
+    try writeFile(io, out_path, body);
+}
+
+fn sourceTreeFingerprintChanged(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    cache_dir: []const u8,
+    rels: []const []const u8,
+) !bool {
+    const expected = try formatTreeFingerprint(allocator, rels);
+    defer allocator.free(expected);
+
+    const fp_path = try std.fs.path.join(allocator, &.{ cache_dir, tree_fingerprint_name });
+    defer allocator.free(fp_path);
+    const prev = std.Io.Dir.cwd().readFileAlloc(io, fp_path, allocator, .limited(4 * 1024 * 1024)) catch return true;
+    defer allocator.free(prev);
+    return !std.mem.eql(u8, prev, expected);
+}
+
+fn invalidateZxCaches(io: std.Io, allocator: std.mem.Allocator, cache_dir: []const u8, verbose: bool) !void {
+    var dir = std.Io.Dir.cwd().openDir(io, cache_dir, .{ .iterate = true }) catch |err| switch (err) {
+        error.FileNotFound => return,
+        else => return err,
+    };
+    defer dir.close(io);
+
+    var walker = try dir.walk(allocator);
+    defer walker.deinit();
+
+    while (try walker.next(io)) |entry| {
+        if (entry.kind != .file) continue;
+        if (!std.mem.endsWith(u8, entry.path, ".zxcache")) continue;
+        const full = try std.fs.path.join(allocator, &.{ cache_dir, entry.path });
+        defer allocator.free(full);
+        std.Io.Dir.cwd().deleteFile(io, full) catch continue;
+        if (verbose) std.debug.print("Invalidated cache: {s}\n", .{full});
+    }
+}
+
 /// Walk the transpiled Zig AST and, for each `@embedFile("...")` whose target
 /// exists on disk (relative to `source_dir`), copy it into the output dir at the
 /// same relative spelling (so the emitted `@embedFile` resolves at compile time)
@@ -1396,6 +1494,24 @@ fn transpileDirectory(
     var task = progress.start("Transpiling .zx files", 0);
     defer task.end();
 
+    // Detect added/removed sources before per-file cache hits; invalidate
+    // `.zxcache` when the tree membership changes (renames, new pages, etc.).
+    if (opts.cache_dir) |cache_dir| {
+        const rels = collectSourceRelPaths(io, allocator, opts.path) catch null;
+        if (rels) |owned| {
+            defer {
+                for (owned) |r| allocator.free(r);
+                allocator.free(owned);
+            }
+            if (sourceTreeFingerprintChanged(io, allocator, cache_dir, owned) catch true) {
+                if (opts.verbose) std.debug.print("Source tree changed; invalidating transpile caches\n", .{});
+                invalidateZxCaches(io, allocator, cache_dir, opts.verbose) catch |err| {
+                    std.debug.print("Warning: Failed to invalidate transpile caches: {}\n", .{err});
+                };
+            }
+        }
+    }
+
     var dir = try std.Io.Dir.cwd().openDir(io, opts.path, .{ .iterate = true });
     defer dir.close(io);
 
@@ -1555,6 +1671,10 @@ fn transpileCommand(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOpt
                 return;
             };
         }
+        manifest.?.transpile_dir = allocator.dupe(u8, opts.outdir) catch |err| {
+            std.debug.print("Warning: Failed to set transpile_dir in manifest: {}\n", .{err});
+            return;
+        };
     }
     defer if (manifest) |*m| m.deinit();
 
@@ -1651,7 +1771,21 @@ fn transpileCommand(io: std.Io, allocator: std.mem.Allocator, opts: TranspileOpt
         };
     }
 
-    // Write dep file (Make format) so zig build can track .zx inputs for caching
+    if (stat.kind == .directory) {
+        if (opts.cache_dir) |cache_dir| {
+            const rels = collectSourceRelPaths(io, allocator, opts.path) catch null;
+            if (rels) |owned| {
+                defer {
+                    for (owned) |r| allocator.free(r);
+                    allocator.free(owned);
+                }
+                writeSourceTreeFingerprint(io, allocator, cache_dir, owned) catch |err| {
+                    std.debug.print("Warning: Failed to write source tree fingerprint: {}\n", .{err});
+                };
+            }
+        }
+    }
+
     if (opts.dep_file) |dep_file_path| {
         writeDepFile(io, allocator, dep_file_path, dep_file_path, input_files.items) catch |err| {
             std.debug.print("Warning: Failed to write dep file: {}\n", .{err});

@@ -37,6 +37,43 @@ pub fn spawnZig(io: std.Io, options: std.process.SpawnOptions) std.process.Spawn
 }
 
 const ManifestApp = @import("../../build/Manifest.zig").App;
+const CliConstant = @import("constant.zig");
+
+/// Resolve `manifest/app.zon` under install-prefix, or an explicit `--manifest` path.
+pub fn resolveManifestPath(
+    allocator: std.mem.Allocator,
+    install_prefix: []const u8,
+    manifest_override: []const u8,
+) ![]const u8 {
+    if (manifest_override.len > 0) return try allocator.dupe(u8, manifest_override);
+    return try std.fs.path.join(allocator, &.{ install_prefix, CliConstant.default_manifest_relpath });
+}
+
+/// Read `transpile_dir` from an app manifest, falling back to the CLI default.
+pub fn resolveTranspileDir(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    manifest_path: []const u8,
+) ![]const u8 {
+    const source = std.Io.Dir.cwd().readFileAlloc(io, manifest_path, allocator, .unlimited) catch {
+        return try allocator.dupe(u8, CliConstant.default_transpile_dir);
+    };
+    defer allocator.free(source);
+    if (source.len == 0) return try allocator.dupe(u8, CliConstant.default_transpile_dir);
+
+    const source_z = try allocator.dupeSentinel(u8, source, 0);
+    defer allocator.free(source_z);
+
+    const manifest = std.zon.parse.fromSliceAlloc(ManifestApp, allocator, source_z, null, .{ .ignore_unknown_fields = true }) catch {
+        return try allocator.dupe(u8, CliConstant.default_transpile_dir);
+    };
+    defer std.zon.parse.free(allocator, manifest);
+
+    if (manifest.transpile_dir) |dir| {
+        if (dir.len > 0) return try allocator.dupe(u8, dir);
+    }
+    return try allocator.dupe(u8, CliConstant.default_transpile_dir);
+}
 
 /// Resolve the installed app executable from `manifest/app.zon`, or `--binpath`.
 pub fn resolveExePath(
@@ -50,7 +87,7 @@ pub fn resolveExePath(
         return try allocator.dupe(u8, binpath_override);
     }
 
-    const manifest_path = try std.fs.path.join(allocator, &.{ install_prefix, "manifest", "app.zon" });
+    const manifest_path = try std.fs.path.join(allocator, &.{ install_prefix, CliConstant.default_manifest_relpath });
     defer allocator.free(manifest_path);
 
     const source = try std.Io.Dir.cwd().readFileAlloc(io, manifest_path, allocator, .unlimited);

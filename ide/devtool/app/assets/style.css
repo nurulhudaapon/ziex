@@ -44,8 +44,11 @@
 }
 
 .state-item-group-hidden,
-.component-group-hidden,
-.route-item-hidden {
+.component-group-hidden {
+    display: none;
+}
+
+.route-item.route-item-hidden {
     display: none;
 }
 
@@ -357,6 +360,28 @@ a {
     font-size: 12px;
 }
 
+.route-path-select {
+    max-width: 140px;
+    min-width: 72px;
+    flex-shrink: 0;
+    height: 24px;
+    padding: 0 6px;
+    background: var(--bg-base);
+    border: 1px solid var(--border-color);
+    border-radius: 3px;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    outline: none;
+    cursor: pointer;
+}
+
+.route-path-select:hover,
+.route-path-select:focus {
+    border-color: var(--zx-primary);
+    color: var(--text-base);
+}
+
 .search-input::placeholder {
     color: var(--text-muted);
 }
@@ -539,6 +564,24 @@ a {
     font-weight: 500;
     line-height: 14px;
     text-transform: none;
+    vertical-align: middle;
+}
+
+.component-badges {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 4px;
+    margin-right: auto;
+}
+
+.state-inspector-header .component-badge {
+    margin-left: 0;
+    margin-right: 0;
+}
+
+.state-inspector-header .component-badges {
+    margin-right: auto;
 }
 
 /* --- Components: inspector ---------------------------------------------------- */
@@ -571,8 +614,21 @@ a {
 }
 
 .state-inspector-header {
-    padding: 8px 12px 4px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 0 12px;
+    min-height: 32px;
+    box-sizing: border-box;
     border-bottom: 1px solid var(--border-color);
+}
+
+.state-inspector-header .prefs-chip {
+    flex-shrink: 0;
+    padding: 1px 6px;
+    line-height: 16px;
+    font-size: 10px;
 }
 
 .state-title {
@@ -930,18 +986,6 @@ label.state-item {
 :root[data-theme="light"] .route-method-token.method-options { color: #0284c7; }
 :root[data-theme="light"] .route-method-token.method-any { color: #7c3aed; }
 
-.about-redirect {
-    color: var(--text-muted);
-    font-size: 12px;
-    padding: 16px;
-}
-
-.about-redirect a {
-    color: var(--zx-primary);
-    text-decoration: underline;
-}
-
-/* --- Prefs (App + Settings) --------------------------------------------------- */
 
 .app-page {
     height: 100%;

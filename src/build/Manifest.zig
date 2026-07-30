@@ -17,6 +17,7 @@ pub const RouteEntry = struct {
 };
 pub const App = struct {
     exe_path: ?[]const u8 = null,
+    transpile_dir: ?[]const u8 = null,
     injections: []const AddElementOptions = &.{},
     routes: []const RouteEntry = &.{},
 };
@@ -24,6 +25,7 @@ pub const App = struct {
 path: []const u8,
 allocator: std.mem.Allocator,
 exe_path: ?[]const u8 = null,
+transpile_dir: ?[]const u8 = null,
 injections: []const AddElementOptions = &.{},
 routes: []const RouteEntry = &.{},
 
@@ -46,6 +48,7 @@ pub fn init(io: std.Io, allocator: std.mem.Allocator, path: []const u8) !Manifes
         .path = owned_path,
         .allocator = allocator,
         .exe_path = parsed.exe_path,
+        .transpile_dir = parsed.transpile_dir,
         .injections = parsed.injections,
         .routes = parsed.routes,
     };
@@ -121,6 +124,7 @@ pub fn setRoutes(self: *Manifest, routes: []const RouteEntry) !void {
 fn app(self: *const Manifest) App {
     return .{
         .exe_path = self.exe_path,
+        .transpile_dir = self.transpile_dir,
         .injections = self.injections,
         .routes = self.routes,
     };

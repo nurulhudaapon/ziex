@@ -1,7 +1,9 @@
 const zx = @import("zx");
 const std = @import("std");
+const options = @import("build_options");
 const data = @import("data.zig");
 const store = @import("components_data.zig");
+const routes_store = @import("routes/store.zig");
 const tree = @import("tree.zig");
 const format = @import("format.zig");
 const connection = @import("connection.zig");
@@ -10,6 +12,7 @@ const icons = @import("./components/icons.zx");
 
 const Component = data.Component;
 const StateItem = data.StateItem;
+const is_browser_mode = options.platform == .development;
 
 pub fn ComponentSearchInput(ctx: *zx.ComponentCtx(struct {})) zx.Component {
     return (
@@ -24,6 +27,44 @@ pub fn ComponentSearchInput(ctx: *zx.ComponentCtx(struct {})) zx.Component {
             />
         </div>
     );
+}
+
+/// Route path selector for standalone browser DevTools (not Chrome/Firefox panels).
+pub fn RoutePathSelector(ctx: *zx.ComponentCtx(struct {})) ?zx.Component {
+    if (comptime !is_browser_mode) return null;
+    if (comptime zx.platform.isServer()) return null;
+
+    routes_store.ensureFetched(ctx.allocator);
+    _ = data.loadSettings();
+    const current = data.current_path;
+
+    return (
+        <select
+            @allocator={ctx.allocator}
+            class="route-path-select"
+            onchange={handleRoutePathChange}
+            title="Inspect components for route"
+            aria-label="Select route to inspect"
+        >
+            {for (routes_store.routes) |route| (
+                if (route.has_page) (
+                    <option
+                        value={route.path}
+                        selected={std.mem.eql(u8, route.path, current)}
+                    >{route.path}</option>
+                ) else ""
+            )}
+        </select>
+    );
+}
+
+pub fn handleRoutePathChange(ctx: zx.client.Event) void {
+    if (ctx.value()) |val| {
+        data.setPath(val);
+        store.invalidate();
+        store.ensureFetched(zx.allocator);
+        zx.client.rerender();
+    }
 }
 
 pub fn ComponentTree(ctx: *zx.ComponentCtx(struct {})) ?zx.Component {
@@ -50,7 +91,7 @@ pub fn ComponentTree(ctx: *zx.ComponentCtx(struct {})) ?zx.Component {
                         children={comp.children}
                         depth={0}
                         selected={std.mem.eql(u8, comp.id, sel)}
-                        badge={comp.badge}
+                        badges={comp.badges}
                         is_native={comp.is_native}
                         selector={comp.selector}
                         occurrence={comp.occurrence}
@@ -68,11 +109,24 @@ pub fn ComponentState(ctx: *zx.ComponentCtx(struct {})) ?zx.Component {
     const maybe_component = tree.findComponentById(store.components, store.selected_component);
 
     if (maybe_component) |comp| {
+        const open_btn = if (comp.source.len > 0) (
+            <button
+                @allocator={ctx.allocator}
+                class="prefs-chip"
+                data-open-file={comp.source}
+                data-open-line={std.fmt.allocPrint(ctx.allocator, "{d}", .{comp.line}) catch "1"}
+            >Open</button>
+        ) else (
+            <span @allocator={ctx.allocator}></span>
+        );
+        const client_badge = BuiltinBadges(ctx.allocator, comp.badges);
         if (comp.meta) |metadata| {
             return (
                 <div @allocator={ctx.allocator} class="component-state-wrapper">
                     <div class="state-inspector-header">
                         <span class="state-title">{comp.name}</span>
+                        {client_badge}
+                        {open_btn}
                     </div>
                     <div @allocator={ctx.allocator} class="state-content">
                         <StateSection allocator={ctx.allocator} title="props" items={metadata.prop_items} />
@@ -86,15 +140,17 @@ pub fn ComponentState(ctx: *zx.ComponentCtx(struct {})) ?zx.Component {
             <div @allocator={ctx.allocator} class="component-state-wrapper">
                 <div class="state-inspector-header">
                     <span class="state-title">{comp.name}</span>
+                    {client_badge}
+                    {open_btn}
                 </div>
-                <div @allocator={ctx.allocator} class="state-content"></div>
+                <div class="state-content"></div>
             </div>
         );
     }
 
     return (
         <div @allocator={ctx.allocator} class="component-state-wrapper">
-            <div @allocator={ctx.allocator} class="state-content"></div>
+            <div class="state-content"></div>
         </div>
     );
 }
@@ -166,6 +222,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
                         >
                             {icons.Inspect(ctx.arena)}
                         </button>
+                        <RoutePathSelector @rendering={.client} />
                     </div>
                 </div>
                 <ComponentTree @rendering={.client} />
@@ -190,11 +247,41 @@ const ComponentItemProps = struct {
     children: []const Component,
     depth: usize = 0,
     selected: bool = false,
-    badge: []const u8 = "",
+    badges: []const []const u8 = &.{},
     is_native: bool = false,
     selector: []const u8 = "",
     occurrence: usize = 0,
 };
+
+fn BuiltinBadges(allocator: zx.Allocator, badges: []const []const u8) zx.Component {
+    if (badges.len == 0) {
+        return (
+            <span @allocator={allocator}></span>
+        );
+    }
+    var zx_ctx = zx.x.allocInit(allocator, .{});
+    const children = allocator.alloc(zx.Component, badges.len) catch {
+        return (
+            <span @allocator={allocator}></span>
+        );
+    };
+    for (badges, 0..) |b, i| {
+        children[i] = zx_ctx.ele(.span, .{
+            .attributes = zx_ctx.attrs(.{
+                zx_ctx.attr(@src(), "class", "component-badge"),
+            }),
+            .children = zx_ctx.chs(.{
+                zx_ctx.expr(b),
+            }),
+        });
+    }
+    return zx_ctx.ele(.span, .{
+        .attributes = zx_ctx.attrs(.{
+            zx_ctx.attr(@src(), "class", "component-badges"),
+        }),
+        .children = children,
+    });
+}
 
 fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Component {
     const sel = store.selected_component;
@@ -206,6 +293,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
     const item_class = if (is_selected) "component-root" else "component-item";
     const name_class = if (is_selected) "component-name-root" else "component-name";
     const group_class = tree.getComponentGroupClass(props.name, props.has_children, props.children, store.inputvalue);
+    const badges = BuiltinBadges(allocator, props.badges);
 
     if (!props.has_children) {
         return (
@@ -216,7 +304,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
                         <span class="bracket">{"<"}</span>
                         <span class={name_class}>{props.name}</span>
                         <span class="bracket">{">"}</span>
-                        {if (props.badge.len > 0) (<span class="component-badge">{props.badge}</span>) else ""}
+                        {badges}
                     </button>
                 </div>
             </div>
@@ -235,7 +323,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
                     <span class="bracket">{"<"}</span>
                     <span class={name_class}>{props.name}</span>
                     <span class="bracket">{">"}</span>
-                    {if (props.badge.len > 0) (<span class="component-badge">{props.badge}</span>) else ""}
+                    {badges}
                 </button>
             </div>
             <div class="component-children">
@@ -248,7 +336,7 @@ fn ComponentItem(allocator: zx.Allocator, props: ComponentItemProps) zx.Componen
                         children={child.children}
                         depth={props.depth + 1}
                         selected={std.mem.eql(u8, child.id, sel)}
-                        badge={child.badge}
+                        badges={child.badges}
                         is_native={child.is_native}
                         selector={child.selector}
                         occurrence={child.occurrence}

@@ -1,3 +1,6 @@
+const zx = @import("zx");
+const std = @import("std");
+
 pub const ComponentMeta = struct {
     prop_items: []const StateItem = &[_]StateItem{},
     signal_items: []const StateItem = &[_]StateItem{},
@@ -10,28 +13,29 @@ pub const Component = struct {
     has_children: bool,
     children: []const Component,
     selected: bool = false,
-    badge: []const u8 = "",
+    badges: []const []const u8 = &[_][]const u8{},
     meta: ?ComponentMeta = null,
     is_native: bool = false,
     selector: []const u8 = "",
     occurrence: usize = 0,
-};
-
-pub const Route = struct {
-    method: []const u8,
-    path: []const u8,
+    source: []const u8 = "",
+    line: u32 = 0,
 };
 
 pub const StateItem = zx.util.devtool.ComponentSerializable.StateItem;
 
 const storage_key = "zx-devtool-show-native-elements";
 const tree_collapsed_key = "zx-devtool-tree-collapsed";
+const include_props_key = "zx-devtool-include-props";
+const include_attributes_key = "zx-devtool-include-attributes";
 pub const host_storage_key = "zx-devtool-host-v2";
 pub const path_storage_key = "zx-devtool-path-v1";
 const theme_storage_key = "zx-devtool-theme-dark";
 
 var _show_native_elements_loaded = false;
 pub var show_native_elements: bool = true;
+pub var include_props: bool = true;
+pub var include_attributes: bool = true;
 pub var tree_collapsed: bool = false;
 pub var host: []const u8 = "localhost:3000";
 pub var current_path: []const u8 = "/";
@@ -75,9 +79,18 @@ pub fn setHost(new: []const u8) void {
     saveSettings();
 }
 
+var path_owned: ?[]const u8 = null;
+
+pub fn setPath(new: []const u8) void {
+    adopt(&path_owned, &current_path, new, "/");
+    lsSet(path_storage_key, current_path);
+}
+
 pub fn loadSettings() bool {
     if (_show_native_elements_loaded) return true;
     show_native_elements = lsGetBool(storage_key, true);
+    include_props = lsGetBool(include_props_key, true);
+    include_attributes = lsGetBool(include_attributes_key, true);
     tree_collapsed = lsGetBool(tree_collapsed_key, false);
     if (lsGet(zx.allocator, host_storage_key)) |loaded| {
         host = loaded;
@@ -85,6 +98,7 @@ pub fn loadSettings() bool {
     }
     if (lsGet(zx.allocator, path_storage_key)) |loaded| {
         current_path = loaded;
+        path_owned = loaded;
     }
     _show_native_elements_loaded = true;
     return _show_native_elements_loaded;
@@ -92,6 +106,8 @@ pub fn loadSettings() bool {
 
 pub fn saveSettings() void {
     lsSet(storage_key, if (show_native_elements) "1" else "0");
+    lsSet(include_props_key, if (include_props) "1" else "0");
+    lsSet(include_attributes_key, if (include_attributes) "1" else "0");
     lsSet(tree_collapsed_key, if (tree_collapsed) "1" else "0");
     lsSet(host_storage_key, host);
 }
@@ -103,198 +119,6 @@ pub fn loadThemeIsDark() bool {
 pub fn saveThemeIsDark(dark: bool) void {
     lsSet(theme_storage_key, if (dark) "1" else "0");
 }
-
-pub const components = [_]Component{
-    .{
-        .name = "App",
-        .has_children = true,
-        .selected = true,
-        .badge = "fragment",
-        .meta = ComponentMeta{
-            .prop_items = &.{
-                .{
-                    .key = "replRef",
-                    .value = "Object",
-                    .meta = "(Ref)",
-                    .children = &[_]StateItem{
-                        .{ .key = "value", .value = "null", .meta = "" },
-                        .{ .key = "__v_isRef", .value = "true", .meta = "" },
-                    },
-                },
-                .{ .key = "AUTO_SAVE_STORAGE_KEY", .value = "\"zx-sfc-playground-auto-save\"", .meta = "" },
-                .{ .key = "initAutoSave", .value = "true", .meta = "" },
-                .{ .key = "autoSave", .value = "true", .meta = "(Ref)" },
-                .{ .key = "productionMode", .value = "false", .meta = "(Ref)" },
-                .{ .key = "zxVersion", .value = "null", .meta = "(Ref)" },
-                .{
-                    .key = "importMap",
-                    .value = "Object",
-                    .meta = "(Computed)",
-                    .children = &[_]StateItem{
-                        .{ .key = "imports", .value = "Object", .meta = "", .children = &[_]StateItem{
-                            .{ .key = "zx", .value = "\"https://cdn.jsdelivr.net/npm/zx\"", .meta = "" },
-                        } },
-                    },
-                },
-                .{ .key = "hash", .value = "eNp9UU1LAzEQ/StjLqugXURPZVtQKaBgHFRW85FJ2p9vUBbKS2bWw7H93kqw1Q...", .meta = "" },
-                .{
-                    .key = "sfcOptions",
-                    .value = "Object",
-                    .meta = "(Computed)",
-                    .children = &[_]StateItem{
-                        .{ .key = "script", .value = "Object", .meta = "" },
-                        .{ .key = "template", .value = "Object", .meta = "" },
-                    },
-                },
-                .{
-                    .key = "store",
-                    .value = "Reactive",
-                    .meta = "",
-                    .children = &[_]StateItem{
-                        .{ .key = "theme", .value = "\"dark\"", .meta = "(Ref)" },
-                        .{ .key = "isVaporSupported", .value = "false", .meta = "(Ref)" },
-                    },
-                },
-                .{
-                    .key = "previewOptions",
-                    .value = "Object",
-                    .meta = "(Computed)",
-                    .children = &[_]StateItem{
-                        .{ .key = "headHTML", .value = "\"\"", .meta = "" },
-                    },
-                },
-            },
-            .signal_items = &.{
-                .{ .key = "setVH", .value = "fn i()", .meta = "" },
-                .{ .key = "toggleProdMode", .value = "fn p()", .meta = "" },
-                .{ .key = "toggleSSR", .value = "fn f()", .meta = "" },
-                .{ .key = "toggleAutoSave", .value = "fn m()", .meta = "" },
-                .{ .key = "reloadPage", .value = "fn _()", .meta = "" },
-                .{ .key = "toggleTheme", .value = "fn y(I)", .meta = "" },
-                .{ .key = "Header", .value = "Header", .meta = "" },
-                .{
-                    .key = "Repl",
-                    .value = "Object",
-                    .meta = "",
-                    .children = &[_]StateItem{
-                        .{ .key = "setup", .value = "fn()", .meta = "" },
-                        .{ .key = "render", .value = "fn()", .meta = "" },
-                    },
-                },
-                .{
-                    .key = "Monaco",
-                    .value = "Object",
-                    .meta = "",
-                    .children = &[_]StateItem{
-                        .{ .key = "editor", .value = "null", .meta = "(Ref)" },
-                    },
-                },
-            },
-            .action_items = &.{
-                .{
-                    .key = "replRef",
-                    .value = "Object",
-                    .meta = "",
-                    .children = &[_]StateItem{
-                        .{ .key = "$el", .value = "<div>", .meta = "" },
-                    },
-                },
-            },
-        },
-        .children = &[_]Component{
-            .{
-                .name = "Header",
-                .has_children = true,
-                .meta = ComponentMeta{
-                    .prop_items = &.{
-                        .{ .key = "title", .value = "\"Ziex Playground\"", .meta = "(Ref)" },
-                        .{ .key = "showNav", .value = "true", .meta = "(Ref)" },
-                        .{ .key = "theme", .value = "\"dark\"", .meta = "(Ref)" },
-                        .{
-                            .key = "logo",
-                            .value = "Object",
-                            .meta = "(Ref)",
-                            .children = &[_]StateItem{
-                                .{ .key = "src", .value = "\"/assets/logo.svg\"", .meta = "" },
-                                .{ .key = "alt", .value = "\"Ziex Logo\"", .meta = "" },
-                            },
-                        },
-                        .{
-                            .key = "navItems",
-                            .value = "Object",
-                            .meta = "(Computed)",
-                            .children = &[_]StateItem{
-                                .{ .key = "docs", .value = "\"/docs\"", .meta = "" },
-                                .{ .key = "playground", .value = "\"/playground\"", .meta = "" },
-                                .{ .key = "github", .value = "\"https://github.com\"", .meta = "" },
-                            },
-                        },
-                        .{ .key = "isMenuOpen", .value = "false", .meta = "(Ref)" },
-                    },
-                    .signal_items = &.{
-                        .{ .key = "toggleTheme", .value = "fn y(I)", .meta = "" },
-                        .{ .key = "toggleMenu", .value = "fn m()", .meta = "" },
-                        .{
-                            .key = "VersionSelect",
-                            .value = "Object",
-                            .meta = "",
-                            .children = &[_]StateItem{
-                                .{ .key = "setup", .value = "fn()", .meta = "" },
-                                .{ .key = "render", .value = "fn()", .meta = "" },
-                            },
-                        },
-                    },
-                    .action_items = &.{
-                        .{
-                            .key = "headerRef",
-                            .value = "Object",
-                            .meta = "",
-                            .children = &[_]StateItem{
-                                .{ .key = "$el", .value = "<header>", .meta = "" },
-                            },
-                        },
-                    },
-                },
-                .children = &[_]Component{
-                    .{ .name = "VersionSelect", .has_children = false, .children = &[_]Component{} },
-                    .{ .name = "VersionSelect", .has_children = false, .children = &[_]Component{} },
-                    .{ .name = "Sun", .has_children = false, .children = &[_]Component{} },
-                    .{ .name = "Moon", .has_children = false, .children = &[_]Component{} },
-                    .{ .name = "Share", .has_children = false, .children = &[_]Component{} },
-                    .{ .name = "Reload", .has_children = false, .children = &[_]Component{} },
-                    .{ .name = "Download", .has_children = false, .children = &[_]Component{} },
-                    .{ .name = "GitHub", .has_children = false, .children = &[_]Component{} },
-                },
-            },
-            .{
-                .name = "Repl",
-                .has_children = true,
-                .children = &[_]Component{
-                    .{
-                        .name = "SplitPane",
-                        .has_children = true,
-                        .children = &[_]Component{
-                            .{ .name = "Panes", .has_children = false, .children = &[_]Component{} },
-                            .{ .name = "PanesTwo", .has_children = false, .children = &[_]Component{} },
-                            .{ .name = "PanesThree", .has_children = false, .children = &[_]Component{} },
-                        },
-                    },
-                },
-            },
-        },
-    },
-};
-
-pub const routes = [_]Route{
-    .{ .method = "GET", .path = "/" },
-    .{ .method = "GET", .path = "/about" },
-    .{ .method = "GET", .path = "/contact" },
-    .{ .method = "GET", .path = "/api/users" },
-    .{ .method = "POST", .path = "/api/users" },
-    .{ .method = "GET", .path = "/api/posts" },
-    .{ .method = "GET", .path = "/docs" },
-    .{ .method = "GET", .path = "/settings" },
-};
 
 pub const SelectorCounters = std.StringHashMap(usize);
 
@@ -327,8 +151,9 @@ fn nextOccurrence(counters: *SelectorCounters, selector: []const u8) usize {
 
 pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.util.devtool.ComponentSerializable, path: []const u8, counters: *SelectorCounters) anyerror!Component {
     var name: []const u8 = "unknown";
-    var badge: []const u8 = "";
     var is_native: bool = true;
+    var badges_list = std.ArrayList([]const u8).empty;
+    errdefer badges_list.deinit(allocator);
 
     if (s.component) |c| {
         name = c;
@@ -337,14 +162,13 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.util.devtool.Compone
         name = @tagName(t);
     } else if (s.text) |t| {
         name = "text";
-        badge = "text";
         const quoted = try quoteJsonString(allocator, t);
         return Component{
             .id = path,
             .name = name,
             .children = &.{},
             .has_children = false,
-            .badge = badge,
+            .badges = try allocator.dupe([]const u8, &[_][]const u8{"text"}),
             .meta = ComponentMeta{
                 .prop_items = try allocator.dupe(StateItem, &[_]StateItem{.{
                     .key = "children",
@@ -353,6 +177,19 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.util.devtool.Compone
             },
             .is_native = true,
         };
+    }
+
+    if (s.builtins) |builtins| {
+        for (builtins) |b| {
+            // Prefer short "client" badge for islands; other builtins as name=value.
+            if (std.mem.eql(u8, b.name, "rendering") and std.mem.eql(u8, b.value, "client")) {
+                try badges_list.append(allocator, try allocator.dupe(u8, "client"));
+            } else {
+                try badges_list.append(allocator, try std.fmt.allocPrint(allocator, "{s}={s}", .{ b.name, b.value }));
+            }
+        }
+    } else if (s.client) {
+        try badges_list.append(allocator, try allocator.dupe(u8, "client"));
     }
 
     var selector: []const u8 = "";
@@ -371,6 +208,12 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.util.devtool.Compone
         for (sc) |child_s| {
             if (child_s.text) |t| {
                 try text_parts.appendSlice(allocator, t);
+                continue;
+            }
+            // Skip empty `.none` placeholders (optional components that returned null).
+            if (child_s.tag == null and child_s.component == null and child_s.text == null and
+                (child_s.children == null or child_s.children.?.len == 0))
+            {
                 continue;
             }
             const child_path = try std.fmt.allocPrint(allocator, "{s}.{d}", .{ path, child_idx });
@@ -392,6 +235,22 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.util.devtool.Compone
 
     var props_list = std.ArrayList(StateItem).empty;
     var signals_list = std.ArrayList(StateItem).empty;
+    var actions_list = std.ArrayList(StateItem).empty;
+
+    if (s.builtins) |builtins| {
+        for (builtins) |b| {
+            const prop_value = if (std.mem.eql(u8, b.name, "escaping") or
+                std.mem.eql(u8, b.name, "rendering") or
+                std.mem.eql(u8, b.name, "async"))
+                try std.fmt.allocPrint(allocator, ".{s}", .{b.value})
+            else
+                try allocator.dupe(u8, b.value);
+            try props_list.append(allocator, .{
+                .key = try std.fmt.allocPrint(allocator, "@{s}", .{b.name}),
+                .value = prop_value,
+            });
+        }
+    }
 
     if (s.attributes) |attrs| {
         for (attrs) |attr| {
@@ -410,9 +269,17 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.util.devtool.Compone
         for (p) |item| {
             if (std.mem.eql(u8, item.meta, "(Ref)") or std.mem.eql(u8, item.meta, "(Computed)")) {
                 try signals_list.append(allocator, item);
+            } else if (std.mem.eql(u8, item.value, "fn()")) {
+                try actions_list.append(allocator, item);
             } else {
                 try props_list.append(allocator, item);
             }
+        }
+    }
+
+    if (s.actions) |acts| {
+        for (acts) |item| {
+            try actions_list.append(allocator, item);
         }
     }
 
@@ -423,10 +290,11 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.util.devtool.Compone
         });
     }
 
-    const meta: ?ComponentMeta = if (props_list.items.len > 0 or signals_list.items.len > 0)
+    const meta: ?ComponentMeta = if (props_list.items.len > 0 or signals_list.items.len > 0 or actions_list.items.len > 0)
         ComponentMeta{
             .prop_items = try props_list.toOwnedSlice(allocator),
             .signal_items = try signals_list.toOwnedSlice(allocator),
+            .action_items = try actions_list.toOwnedSlice(allocator),
         }
     else
         null;
@@ -436,11 +304,13 @@ pub fn fromSerializable(allocator: std.mem.Allocator, s: zx.util.devtool.Compone
         .name = name,
         .children = children,
         .has_children = children.len > 0,
-        .badge = badge,
+        .badges = try badges_list.toOwnedSlice(allocator),
         .meta = meta,
         .is_native = is_native,
         .selector = selector,
         .occurrence = occurrence,
+        .source = s.source orelse "",
+        .line = s.line,
     };
 }
 
@@ -468,6 +338,3 @@ pub fn fromSerializableRoot(allocator: std.mem.Allocator, root: zx.util.devtool.
     slice[0] = mapped;
     return slice;
 }
-
-const zx = @import("zx");
-const std = @import("std");

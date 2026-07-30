@@ -3,6 +3,7 @@ const lang = @import("lang");
 
 const Builder = @import("Builder.zig");
 const tui = @import("../../tui/main.zig");
+const CliConstant = @import("../shared/constant.zig");
 
 const Colors = tui.Colors;
 const log = std.log.scoped(.diagnostics);
@@ -58,9 +59,9 @@ pub fn dedupe(allocator: std.mem.Allocator, diagnostics: []Builder.Diagnostic) [
 
 /// Remap diagnostics from generated .zig files back to original .zx source files
 /// using inlined position maps. Modifies diagnostics in-place (replaces file/line/col).
-pub fn remap(allocator: std.mem.Allocator, diagnostics: []Builder.Diagnostic) void {
+pub fn remap(allocator: std.mem.Allocator, diagnostics: []Builder.Diagnostic, options: RemapOptions) void {
     for (diagnostics) |*d| {
-        remapSingle(allocator, d) catch |err| {
+        remapSingle(allocator, d, options) catch |err| {
             log.debug("position map remap failed for {s}: {s}", .{ d.file, @errorName(err) });
         };
 
@@ -84,26 +85,12 @@ fn normalizePath(allocator: std.mem.Allocator, d: *Builder.Diagnostic) !void {
     d.file = new_file;
 }
 
-fn remapSingle(allocator: std.mem.Allocator, d: *Builder.Diagnostic) !void {
-    const io = std.Io.Threaded.global_single_threaded.io();
-    const file_content = std.Io.Dir.cwd().readFileAlloc(io, d.file, allocator, .unlimited) catch return;
-    defer allocator.free(file_content);
-
-    var map = (try sourcemap.PositionMap.parseEmbed(allocator, file_content)) orelse return;
-    defer map.deinit();
-
-    // Remap: zig line/col are 1-based, position map is 0-based
-    const gen_line: i32 = @as(i32, @intCast(d.line)) - 1;
-    const gen_col: i32 = @as(i32, @intCast(d.col)) - 1;
-    const mapping = map.generatedToSource(gen_line, gen_col) orelse return;
-
-    if (map.source.len == 0) return;
-    const new_file = try allocator.dupe(u8, map.source);
+fn remapSingle(allocator: std.mem.Allocator, d: *Builder.Diagnostic, options: RemapOptions) !void {
+    const remapped = (try remapLocation(allocator, d.file, d.line, d.col, options)) orelse return;
     allocator.free(d.file);
-    d.file = new_file;
-    d.line = @intCast(mapping.source_line + 1);
-    const col_val: u32 = if (mapping.source_column >= 0) @intCast(mapping.source_column + 1) else 1;
-    d.col = col_val;
+    d.file = remapped.file;
+    d.line = remapped.line;
+    d.col = remapped.col;
 
     // Clear pinpoint info as they refer to the generated file context
     if (d.source_line) |sl| {
@@ -114,6 +101,97 @@ fn remapSingle(allocator: std.mem.Allocator, d: *Builder.Diagnostic) !void {
         allocator.free(cl);
         d.caret_line = null;
     }
+}
+
+pub const RemappedLocation = struct {
+    file: []u8,
+    line: u32,
+    col: u32,
+};
+
+pub const RemapOptions = struct {
+    require_mapping: bool = true,
+    transpile_dir: []const u8 = CliConstant.default_transpile_dir,
+};
+
+/// Remap a generated `.zig` path/line/col to the original `.zx` using the inlined
+/// position map
+pub fn remapLocation(
+    allocator: std.mem.Allocator,
+    file: []const u8,
+    line: u32,
+    col: u32,
+    options: RemapOptions,
+) !?RemappedLocation {
+    const io = std.Io.Threaded.global_single_threaded.io();
+
+    // Compiler diagnostics already carry a readable cache path; `@src().file`
+    // from DevTools is often a short module path (e.g. `pages/foo.zig`).
+    const candidates = try zigPathCandidates(allocator, file, options.transpile_dir);
+    defer {
+        for (candidates) |c| allocator.free(c);
+        allocator.free(candidates);
+    }
+
+    var file_content: ?[]u8 = null;
+    defer if (file_content) |c| allocator.free(c);
+
+    for (candidates) |candidate| {
+        if (std.Io.Dir.cwd().readFileAlloc(io, candidate, allocator, .unlimited)) |content| {
+            file_content = content;
+            break;
+        } else |_| {}
+    }
+
+    const content = file_content orelse return null;
+
+    var map = (try sourcemap.PositionMap.parseEmbed(allocator, content)) orelse return null;
+    defer map.deinit();
+
+    if (map.source.len == 0) return null;
+
+    const gen_line: i32 = @as(i32, @intCast(line)) - 1;
+    const gen_col: i32 = @as(i32, @intCast(col)) - 1;
+    if (map.generatedToSource(gen_line, gen_col)) |mapping| {
+        const new_file = try allocator.dupe(u8, map.source);
+        const col_val: u32 = if (mapping.source_column >= 0) @intCast(mapping.source_column + 1) else 1;
+        return .{
+            .file = new_file,
+            .line = @intCast(mapping.source_line + 1),
+            .col = col_val,
+        };
+    }
+
+    if (options.require_mapping) return null;
+
+    return .{
+        .file = try allocator.dupe(u8, map.source),
+        .line = line,
+        .col = col,
+    };
+}
+
+/// Resolve `@src()` / diagnostic paths to a readable generated `.zig` on disk.
+fn zigPathCandidates(allocator: std.mem.Allocator, file: []const u8, transpile_dir: []const u8) ![][]u8 {
+    var list: std.ArrayListUnmanaged([]u8) = .empty;
+    errdefer {
+        for (list.items) |c| allocator.free(c);
+        list.deinit(allocator);
+    }
+
+    try list.append(allocator, try allocator.dupe(u8, file));
+
+    const trimmed = std.mem.trimStart(u8, file, "./");
+    if (transpile_dir.len > 0 and
+        std.mem.indexOf(u8, trimmed, ".zig-cache") == null and
+        std.mem.endsWith(u8, trimmed, ".zig"))
+    {
+        try list.append(allocator, try std.fs.path.join(allocator, &.{ transpile_dir, trimmed }));
+        if (std.mem.startsWith(u8, trimmed, "app/")) {
+            try list.append(allocator, try std.fs.path.join(allocator, &.{ transpile_dir, trimmed["app/".len..] }));
+        }
+    }
+    return try list.toOwnedSlice(allocator);
 }
 
 /// Read a few lines of source context around a given line number.

@@ -637,3 +637,105 @@ document.addEventListener('keydown', (e: KeyboardEvent) => {
         void exitPickMode();
     }
 });
+
+function hostHttpBase(): string {
+    const host = localStorage.getItem(HOST_STORAGE_KEY) || 'localhost:3000';
+    if (host.startsWith('http://') || host.startsWith('https://')) return host.replace(/\/$/, '');
+    return `http://${host}`;
+}
+
+function hostWsBase(): string {
+    return hostHttpBase().replace(/^http/, 'ws');
+}
+
+// Open selected component source in the developer's editor via DevServer.
+document.addEventListener('click', (e: MouseEvent) => {
+    const btn = (e.target as Element)?.closest?.('[data-open-file]') as HTMLElement | null;
+    if (!btn) return;
+    const file = btn.getAttribute('data-open-file');
+    if (!file) return;
+    e.preventDefault();
+    const line = btn.getAttribute('data-open-line') || '1';
+    const url = `${hostHttpBase()}/.well-known/_zx/open-in-editor?file=${encodeURIComponent(file)}&line=${encodeURIComponent(line)}&col=1`;
+    void fetch(url, { method: 'GET' }).catch(() => {});
+});
+
+// Live-reload: subscribe to the inspected app's DevServer websocket and refresh
+// the panel when the app rebuilds.
+let devSocket: WebSocket | null = null;
+let devSocketHost = '';
+let devSocketRetry: ReturnType<typeof setTimeout> | null = null;
+
+function disconnectDevSocket() {
+    if (devSocketRetry) {
+        clearTimeout(devSocketRetry);
+        devSocketRetry = null;
+    }
+    if (devSocket) {
+        try {
+            devSocket.onclose = null;
+            devSocket.close();
+        } catch {
+            // ignore
+        }
+        devSocket = null;
+    }
+    devSocketHost = '';
+}
+
+function connectDevSocket() {
+    const host = localStorage.getItem(HOST_STORAGE_KEY) || 'localhost:3000';
+    if (devSocket && devSocketHost === host && (devSocket.readyState === WebSocket.OPEN || devSocket.readyState === WebSocket.CONNECTING)) {
+        return;
+    }
+    disconnectDevSocket();
+    devSocketHost = host;
+    let ws: WebSocket;
+    try {
+        ws = new WebSocket(`${hostWsBase()}/.well-known/_zx/devsocket`);
+    } catch {
+        scheduleDevSocketRetry();
+        return;
+    }
+    devSocket = ws;
+    ws.onmessage = async (ev) => {
+        try {
+            const msg = JSON.parse(String(ev.data));
+            const type = msg?.type;
+            if (type === 'reload' || type === 'clear' || type === 'asset_update') {
+                await window.__zx_dev_reinit?.();
+            }
+        } catch {
+            // ignore malformed frames
+        }
+    };
+    ws.onclose = () => {
+        if (devSocket === ws) devSocket = null;
+        scheduleDevSocketRetry();
+    };
+    ws.onerror = () => {
+        try {
+            ws.close();
+        } catch {
+            // ignore
+        }
+    };
+}
+
+function scheduleDevSocketRetry() {
+    if (devSocketRetry) return;
+    devSocketRetry = setTimeout(() => {
+        devSocketRetry = null;
+        connectDevSocket();
+    }, 2000);
+}
+
+connectDevSocket();
+window.addEventListener('storage', (e) => {
+    if (e.key === HOST_STORAGE_KEY) connectDevSocket();
+});
+// Host changes from the WASM settings UI write localStorage in-page (no storage event).
+setInterval(() => {
+    const host = localStorage.getItem(HOST_STORAGE_KEY) || 'localhost:3000';
+    if (host !== devSocketHost) connectDevSocket();
+}, 3000);

@@ -1,6 +1,7 @@
 const std = @import("std");
 const html_util = @import("../util/html.zig");
 const build_zig = @import("../../build.zig");
+const CliConstant = @import("../cli/shared/constant.zig");
 pub const InitOptions = @import("init/InitOptions.zig");
 
 const LazyPath = std.Build.LazyPath;
@@ -123,7 +124,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     const assetsdir = static_lazypath.path(b, "assets");
 
     // --- ZX Transpilation ---
-    const transpile_store = b.graph.path(.local_cache, "ziex").path(b, "tnsn");
+    const transpile_store = b.graph.path(.local_cache, CliConstant.ziex_cache_dirname).path(b, CliConstant.transpile_store_dirname);
     const transpile_cmd = getZxRun(b, zx_exe, opts);
     transpile_cmd.setName("translate-zx");
     transpile_cmd.addArg("transpile");
@@ -453,6 +454,8 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         const dev_cmd = getZxRun(b, zx_exe, opts);
         dev_cmd.addArg("dev");
         dev_cmd.addArgs(&.{ "--zig-path", opts.zig_path });
+        dev_cmd.addArg("--manifest");
+        dev_cmd.addFileArg(manifest_path);
         const dev_step = b.step(dev_step_name, "Run the Ziex app in development mode");
         dev_step.dependOn(&dev_cmd.step);
         dev_cmd.addPassthruArgs();

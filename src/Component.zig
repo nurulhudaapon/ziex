@@ -20,13 +20,16 @@ pub const Component = union(enum) {
         pub const Caller = *const fn (data: ?*const anyopaque, allocator: Allocator, owner_id: ?[]const u8) anyerror!Component;
         pub const Destroyer = *const fn (data: ?*const anyopaque, allocator: Allocator) void;
 
-        pub const VTable = if (is_debug) struct {
+        pub const VTable = struct {
             call: Caller,
             destroy: Destroyer,
-            dump_props: *const fn (allocator: Allocator, data: ?*const anyopaque) ?[]const u8,
-        } else struct {
-            call: Caller,
-            destroy: Destroyer,
+        };
+
+        /// DevTool related debug information
+        pub const Dev = struct {
+            dump_props: *const fn (allocator: Allocator, data: ?*const anyopaque) ?[]const u8 = undefined,
+            source_file: ?[]const u8 = null,
+            source_line: u32 = 0,
         };
 
         /// Client-island hydration boundary (null = plain server/client component).
@@ -40,6 +43,8 @@ pub const Component = union(enum) {
 
         vtable: *const VTable,
         data: ?*const anyopaque,
+
+        dev: if (is_debug) Dev else void = if (is_debug) .{} else {},
 
         id: zx.x.Id = .undef,
         allocator: Allocator,
@@ -172,24 +177,20 @@ pub const Component = union(enum) {
                     if (first_is_allocator and param_count == 2) {
                         const SecondPropType = FuncInfo.@"fn".param_types[1].?;
                         const typed_p: *const SecondPropType = @ptrCast(@alignCast(ptr));
-                        return prp.json(alloc, typed_p.*);
+                        return prp.jsonDevtool(alloc, typed_p.*);
                     }
                     if (first_is_ctx_ptr) {
                         const CtxType = @typeInfo(FirstPropType).pointer.child;
                         const ctx_ptr: *const CtxType = @ptrCast(@alignCast(ptr));
                         if (@hasField(CtxType, "props")) {
                             const PropsT = @FieldType(CtxType, "props");
-                            if (PropsT != void) return prp.json(alloc, ctx_ptr.props);
+                            if (PropsT != void) return prp.jsonDevtool(alloc, ctx_ptr.props);
                         }
                     }
                     return null;
                 }
 
-                const vtable: VTable = if (is_debug) .{
-                    .call = callImpl,
-                    .destroy = destroyImpl,
-                    .dump_props = dumpPropsImpl,
-                } else .{
+                const vtable: VTable = .{
                     .call = callImpl,
                     .destroy = destroyImpl,
                 };
@@ -201,6 +202,7 @@ pub const Component = union(enum) {
                 .allocator = allocator,
                 .name = name,
                 .key = keyFromProps(allocator, props),
+                .dev = if (comptime is_debug) .{ .dump_props = Wrapper.dumpPropsImpl } else {},
             };
         }
 

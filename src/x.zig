@@ -1,4 +1,5 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 const zx = @import("root.zig");
 const prp = @import("util/props.zig");
@@ -556,6 +557,10 @@ const Context = struct {
         // line + column, so the id is globally unique per instance site.
         if (copts.src) |src| {
             comp_fn.id = comptime Id.extendId(null, src, 0);
+            if (comptime builtin.optimize == .debug) {
+                comp_fn.dev.source_file = src.file;
+                comp_fn.dev.source_line = src.line;
+            }
         }
 
         // If client option is set, return a client component (for @rendering={.client})

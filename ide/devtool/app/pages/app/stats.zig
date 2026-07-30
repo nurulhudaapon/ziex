@@ -84,7 +84,7 @@ pub fn ensureCountsFetch(allocator: std.mem.Allocator) void {
 fn fetchComponentsCount(allocator: std.mem.Allocator) void {
     if (comptime zx.platform.isServer()) return;
     if (components_fetch_started) return;
-    const url = api.componentsUrl(allocator, false) orelse return;
+    const url = api.componentsUrl(allocator, .{ .include_native = false }) orelse return;
     components_fetch_started = true;
     connection.markLoading();
     _ = zx.fetch(.wasm(&onFetchComponentsCount), allocator, url, .{ .method = .GET }) catch {

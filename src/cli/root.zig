@@ -69,6 +69,10 @@ pub const dev: Command = .{
             .default_value = false,
             .help = "Clear the terminal before every restart",
         }),
+        Argument.init(.manifest, []const u8, .{
+            .default_value = "",
+            .help = "App manifest path (contains transpile_dir for `.zx` remap; default: <install-prefix>/manifest/app.zon)",
+        }),
     },
 };
 

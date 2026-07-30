@@ -307,8 +307,14 @@ pub fn Handler(comptime AppCtxType: type) type {
                         if (req.header("x-zx-devtool")) |mode| {
                             if (std.mem.eql(u8, mode, "components")) {
                                 const include_native = !std.mem.eql(u8, req.header("x-zx-devtool-include-native") orelse "1", "0");
+                                const include_props = !std.mem.eql(u8, req.header("x-zx-devtool-include-props") orelse "1", "0");
+                                const include_attributes = !std.mem.eql(u8, req.header("x-zx-devtool-include-attributes") orelse "1", "0");
                                 res.content_type = .JSON;
-                                try zx.util.devtool.formatWithOptions(page_component, res.writer(), .{ .only_components = !include_native });
+                                try zx.util.devtool.formatWithOptions(page_component, res.writer(), .{
+                                    .only_components = !include_native,
+                                    .include_props = include_props,
+                                    .include_attributes = include_attributes,
+                                });
                                 return;
                             }
                         }
@@ -360,7 +366,7 @@ pub fn Handler(comptime AppCtxType: type) type {
             const mode = req.header("x-zx-devtool") orelse return false;
             res.header("Access-Control-Allow-Origin", "*");
             res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-            res.header("Access-Control-Allow-Headers", "Content-Type, x-zx-devtool, x-zx-devtool-include-native");
+            res.header("Access-Control-Allow-Headers", "Content-Type, x-zx-devtool, x-zx-devtool-include-native, x-zx-devtool-include-props, x-zx-devtool-include-attributes");
             res.header("Access-Control-Allow-Private-Network", "true");
 
             if (req.method == .OPTIONS) {

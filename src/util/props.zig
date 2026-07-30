@@ -59,6 +59,48 @@ pub fn json(allocator: std.mem.Allocator, props: anytype) ?[]const u8 {
     return std.json.Stringify.valueAlloc(allocator, props, .{}) catch null;
 }
 
+pub fn jsonDevtool(allocator: std.mem.Allocator, props: anytype) ?[]const u8 {
+    const T = @TypeOf(props);
+    const info = @typeInfo(T);
+    if (info != .@"struct") return null;
+    if (info.@"struct".field_types.len == 0) return null;
+
+    var aw = std.Io.Writer.Allocating.init(allocator);
+    errdefer aw.deinit();
+    aw.writer.writeByte('{') catch return null;
+
+    var first = true;
+    inline for (info.@"struct".field_names, info.@"struct".field_types) |field_name, field_type| {
+        const value = @field(props, field_name);
+        if (comptime isActionType(field_type)) {
+            if (!first) aw.writer.writeByte(',') catch return null;
+            first = false;
+            std.json.Stringify.value(field_name, .{}, &aw.writer) catch return null;
+            aw.writer.writeAll(":\"fn()\"") catch return null;
+        } else if (comptime serializable(field_type)) {
+            if (!first) aw.writer.writeByte(',') catch return null;
+            first = false;
+            std.json.Stringify.value(field_name, .{}, &aw.writer) catch return null;
+            aw.writer.writeByte(':') catch return null;
+            std.json.Stringify.value(value, .{}, &aw.writer) catch return null;
+        }
+    }
+
+    aw.writer.writeByte('}') catch return null;
+    return aw.toOwnedSlice() catch null;
+}
+
+fn isActionType(comptime T: type) bool {
+    const ti = @typeInfo(T);
+    if (ti == .@"fn") return true;
+    if (ti == .pointer and ti.pointer.size == .one and @typeInfo(ti.pointer.child) == .@"fn") return true;
+    if (ti == .@"struct") {
+        // zx.EventHandler shape
+        return @hasField(T, "callback") and @hasField(T, "context") and @hasField(T, "handler_id");
+    }
+    return false;
+}
+
 /// Merged type of two props structs (for spreading). Override fields win.
 pub fn Merged(comptime Base: type, comptime Override: type) type {
     const base_info = @typeInfo(Base);
