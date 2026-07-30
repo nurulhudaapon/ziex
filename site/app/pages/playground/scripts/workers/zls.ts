@@ -252,7 +252,7 @@ function makeFds(libDirectory: PreopenDirectory, zxDirectory: PreopenDirectory):
     const zxDirectory = await getZxArchive();
 
     const results = await Promise.allSettled([
-        instantiateLsp("zx-lsp.wasm", `/assets/playground/zx-lsp-${VERSION}.wasm`, makeFds(libDirectory, zxDirectory)),
+        instantiateLsp("zx.wasm", `/assets/playground/zx-${VERSION}.wasm`, makeFds(libDirectory, zxDirectory)),
         instantiateLsp(`zls-${ZLS_VERSION}.wasm`, `/assets/playground/zls-${ZLS_VERSION}.wasm`, makeFds(libDirectory, zxDirectory)),
     ]);
 

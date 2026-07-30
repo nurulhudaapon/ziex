@@ -8,7 +8,6 @@ const CommandContext = context.CommandContext;
 pub const command = cli_args.lsp;
 
 pub fn run(ctx: CommandContext, args: anytype) !void {
-    _ = args;
     if (comptime !build_options.enable_lsp) {
         try ctx.writer.writeAll(
             \\LSP support is not enabled in this build.
@@ -17,5 +16,5 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
         );
         return;
     }
-    try @import("../lsp/main.zig").run(ctx);
+    try @import("../lsp/main.zig").run(ctx, args.message);
 }

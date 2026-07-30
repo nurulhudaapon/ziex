@@ -57,50 +57,6 @@ pub fn build(b: *std.Build) !void {
 
         const zx_wasm_dep = b.dependency("ziex", .{ .target = wasm_target, .optimize = wasm_optimize });
         const zx_exe = zx_wasm_dep.artifact("zx");
-        const lsp_kit_dep = zx_wasm_dep.builder.dependency("lsp_kit", .{ .target = wasm_target, .optimize = wasm_optimize });
-        const tree_sitter_dep_wasm = zx_wasm_dep.builder.dependency("tree_sitter", .{ .target = wasm_target, .optimize = wasm_optimize });
-        const tree_sitter_zx_dep_wasm = zx_wasm_dep.builder.dependency("tree_sitter_zx", .{ .target = wasm_target, .optimize = wasm_optimize, .@"build-shared" = false });
-        const tree_sitter_mdzx_dep_wasm = zx_wasm_dep.builder.dependency("tree_sitter_mdzx", .{ .target = wasm_target, .optimize = wasm_optimize, .@"build-shared" = false });
-
-        const zx_lsp_info = b.addOptions();
-        zx_lsp_info.addOption([]const u8, "version", ziex.info.version);
-        zx_lsp_info.addOption([]const u8, "description", ziex.info.description);
-        zx_lsp_info.addOption([]const u8, "repository", ziex.info.repository);
-        zx_lsp_info.addOption([]const u8, "homepage", ziex.info.homepage);
-        zx_lsp_info.addOption([]const u8, "minimum_zig_version", ziex.info.minimum_zig_version);
-
-        const zx_lsp_build_options = b.addOptions();
-        zx_lsp_build_options.addOption(bool, "enable_lsp", true);
-        zx_lsp_build_options.addOption(bool, "enable_zls", false);
-        zx_lsp_build_options.addOption(u2, "log_level", @intFromEnum(log_level));
-
-        const lang_wasm_mod = b.createModule(.{
-            .root_source_file = zx_wasm_dep.path("src/lang.zig"),
-            .target = wasm_target,
-            .optimize = wasm_optimize,
-        });
-        lang_wasm_mod.addImport("tree_sitter", tree_sitter_dep_wasm.module("tree_sitter"));
-        lang_wasm_mod.addImport("tree_sitter_zx", tree_sitter_zx_dep_wasm.module("tree_sitter_zx"));
-        lang_wasm_mod.addImport("tree_sitter_mdzx", tree_sitter_mdzx_dep_wasm.module("tree_sitter_mdzx"));
-
-        const zx_lsp_mod = b.createModule(.{
-            .root_source_file = zx_wasm_dep.path("src/lsp/wasm.zig"),
-            .target = wasm_target,
-            .optimize = wasm_optimize,
-        });
-        zx_lsp_mod.addImport("lsp", lsp_kit_dep.module("lsp"));
-        zx_lsp_mod.addImport("lang", lang_wasm_mod);
-        zx_lsp_mod.addImport("zx_info", zx_lsp_info.createModule());
-        zx_lsp_mod.addImport("tree_sitter", tree_sitter_dep_wasm.module("tree_sitter"));
-        zx_lsp_mod.addImport("tree_sitter_zx", tree_sitter_zx_dep_wasm.module("tree_sitter_zx"));
-        zx_lsp_mod.addOptions("build_options", zx_lsp_build_options);
-
-        const zx_lsp_exe = b.addExecutable(.{
-            .name = "zx-lsp",
-            .root_module = zx_lsp_mod,
-        });
-        zx_lsp_exe.entry = .disabled;
-        zx_lsp_exe.rdynamic = true;
 
         // -- zx.tar.gz (only include files needed for playground compilation)
         const run_zx_tar = b.addSystemCommand(&.{ "tar", "-czf" });
@@ -136,7 +92,6 @@ pub fn build(b: *std.Build) !void {
 
         const playground_assets = b.addNamedWriteFiles("playground_assets");
         _ = playground_assets.addCopyFile(zx_exe.getEmittedBin(), b.fmt("zx-{s}-{s}.wasm", .{ ziex.info.version, id }));
-        _ = playground_assets.addCopyFile(zx_lsp_exe.getEmittedBin(), b.fmt("zx-lsp-{s}-{s}.wasm", .{ ziex.info.version, id }));
         _ = playground_assets.addCopyFile(zx_tar_gz, b.fmt("zx-{s}-{s}.tar.gz", .{ ziex.info.version, id }));
         _ = playground_assets.addCopyFile(jsz_tar_gz, "jsz.tar.gz");
         _ = playground_assets.addCopyFile(pg_init_js, "init.js");

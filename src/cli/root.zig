@@ -236,6 +236,21 @@ pub const fmt: Command = .{
 pub const lsp: Command = .{
     .name = .lsp,
     .help_short = "Start the Ziex language server",
+    .help =
+    \\Default: long-running stdio JSON-RPC language server.
+    \\
+    \\Pass --message one or more times to process JSON-RPC payloads and print
+    \\NDJSON responses, then exit.
+    \\
+    ,
+    .named_args = &.{
+        Argument.init(.message, []const []const u8, .{
+            .count = .unlimited,
+            .default_value = &.{},
+            .short = 'm',
+            .help = "JSON-RPC LSP message to process (repeatable; disables stdio mode)",
+        }),
+    },
 };
 
 pub const @"export": Command = .{
@@ -316,7 +331,7 @@ pub const commands: []const Command = &.{
 };
 
 const os_commands: []const Command = switch (builtin.os.tag) {
-    .wasi, .freestanding => &.{ version, transpile, fmt },
+    .wasi, .freestanding => &.{ version, transpile, fmt, lsp },
     else => commands,
 };
 

@@ -112,6 +112,7 @@ pub fn build(b: *std.Build) !void {
     }
 
     const exe = b.addExecutable(.{ .name = "zx", .root_module = cli_mod });
+    if (enable_lsp and target.result.cpu.arch.isWasm()) exe.rdynamic = true;
     if (enable_lsp and enable_zls) {
         const zls_dep = b.lazyDependency("zls", .{ .target = target, .optimize = optimize });
         if (zls_dep) |zls| cli_mod.addImport("zls", zls.module("zls"));

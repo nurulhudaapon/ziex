@@ -33,7 +33,7 @@ const use_debug_allocator = builtin.optimize == .debug and switch (builtin.os.ta
 };
 
 const os_modules = switch (builtin.os.tag) {
-    .wasi, .freestanding => .{ version, transpile, fmt },
+    .wasi, .freestanding => .{ version, transpile, fmt, lsp },
     else => .{ version, init, app_cmd, dev, serve, build_cmd, transpile, fmt, lsp, export_cmd, bundle, update, upgrade },
 };
 
@@ -122,6 +122,12 @@ pub fn run(
                 }
             }
         },
+    }
+}
+
+comptime {
+    if ((builtin.os.tag == .wasi or builtin.os.tag == .freestanding) and build_options.enable_lsp) {
+        _ = @import("../lsp/MessageSession.zig");
     }
 }
 
