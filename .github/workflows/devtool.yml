@@ -23,9 +23,11 @@ jobs:
           version: 0.17.0-dev.1456+2b1c6633a
 
       - name: Build
+        working-directory: ide/devtool
         run: zig build zx -- export --outdir zig-out/static
 
       - name: Bundle
+        working-directory: ide/devtool
         run: npx wrangler@4.115.0 deploy --dry-run --outdir .wrangler-artifact --assets ./zig-out/static
 
       - name: Upload artifact
