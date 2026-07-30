@@ -1,4 +1,4 @@
-name: devtool.ziex.dev
+name: DevTools
 
 on:
   push:
@@ -32,6 +32,7 @@ jobs:
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
+        working-directory: ide/devtool
         with:
           name: build-artifact
           path: |
@@ -51,6 +52,7 @@ jobs:
 
       - name: Download artifact
         uses: actions/download-artifact@v4
+        working-directory: ide/devtool
         with:
           name: build-artifact
 
@@ -60,6 +62,7 @@ jobs:
 
       - name: Deploy
         uses: cloudflare/wrangler-action@v3
+        working-directory: ide/devtool
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
