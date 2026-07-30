@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "zx-injection",
   "scopeName": "source.zx.injection",
-  "injectionSelector": "L:(source.zig, source.zx) - string - comment",
+  "injectionSelector": "L:(source.zig, source.zx) - string - comment - meta.block.zx",
   "patterns": [
     {
       "comment": "SQL injection for db/database query-taking methods (optionally namespaced, e.g. zx.db.run). The first string literal inside the call is the SQL - no preceding argument (allocator, comptime type) is a string, so matching the first string is safe for prepare/run (1st arg), get/all (2nd arg), and row/rows (3rd arg).",
@@ -65,7 +65,8 @@
       ]
     },
     {
-      "include": "source.zx#zx"
+      "comment": "Only parenthesized ZX blocks \u2014 never bare tags or {expr} in ordinary Zig.",
+      "include": "source.zx#zx-block"
     }
   ]
 }

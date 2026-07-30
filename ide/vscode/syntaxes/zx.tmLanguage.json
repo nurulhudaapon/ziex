@@ -2,13 +2,15 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "zx",
   "scopeName": "source.zx",
-  "fileTypes": ["zx", "zx"],
+  "fileTypes": [
+    "zx"
+  ],
   "patterns": [
     {
       "include": "#zig-guards"
     },
     {
-      "include": "#zx"
+      "include": "#zx-block"
     },
     {
       "include": "source.zig"
@@ -16,7 +18,7 @@
   ],
   "repository": {
     "zig-guards": {
-      "comment": "Match Zig comments and string literals before #zx so a '<' inside them is never treated as the start of a zx tag (which would otherwise swallow the rest of the file).",
+      "comment": "Match Zig comments and string literals before ZX so a '<' or '{' inside them is never treated as markup.",
       "patterns": [
         {
           "name": "comment.line.documentation.zig",
@@ -49,67 +51,103 @@
         }
       ]
     },
-    "zx": {
-      "patterns": [
-        {
-          "include": "#zx-tag-self-closing"
-        },
-        {
-          "include": "#zx-tag-open"
-        },
-        {
-          "include": "#zx-tag-close"
-        },
-        {
-          "include": "#zx-text"
-        },
-        {
-          "include": "#zx-expression"
-        }
-      ]
+    "zig-multiline-string": {
+      "comment": "Zig multiline string literal lines (\\\\...) - must match before HTML tags",
+      "name": "string.quoted.other.multiline.zig",
+      "match": "^\\s*\\\\\\\\.*$"
     },
-    "zx-text": {
+    "zx-block": {
+      "comment": "ZX markup only appears as a parenthesized expression: (<tag>...</tag>), (<>...</>), or multiline return (\\n  <tag>...). Bare tags and {expr} never match at Zig top level.",
       "patterns": [
         {
-          "name": "text.html.zx",
-          "begin": "(?<=[^=]>)(?=[^<{)])",
-          "end": "(?=[<{)])",
+          "name": "meta.block.zx",
+          "begin": "(\\()\\s*(?=<)",
+          "end": "(\\))",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.section.block.begin.zx"
+            }
+          },
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.section.block.end.zx"
+            }
+          },
           "patterns": [
             {
-              "name": "text.html.zx",
-              "match": "[^<{)]+"
+              "include": "#zx-block-body"
+            }
+          ]
+        },
+        {
+          "name": "meta.block.zx",
+          "begin": "(\\()\\s*$",
+          "end": "(\\))",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.section.block.begin.zx"
+            }
+          },
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.section.block.end.zx"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#zx-block-body"
             }
           ]
         }
       ]
     },
-    "zx-tag-self-closing": {
-      "name": "meta.tag.self-closing.zx",
-      "begin": "(<)([a-zA-Z_][a-zA-Z0-9_.-]*)(?=[^>]*/>)",
-      "end": "(/>)",
+    "zx-block-body": {
+      "comment": "Root of a zx_block is only an element, self-closing element, or fragment. Fall back to Zig for ordinary multiline call args like foo(\\n  bar\\n).",
+      "patterns": [
+        {
+          "include": "#zx-fragment"
+        },
+        {
+          "include": "#zx-element"
+        },
+        {
+          "include": "#zig-guards"
+        },
+        {
+          "include": "#zx-block"
+        },
+        {
+          "include": "#balanced-paren"
+        },
+        {
+          "include": "source.zig"
+        }
+      ]
+    },
+    "zx-fragment": {
+      "name": "meta.tag.fragment.zx",
+      "begin": "(<>)",
+      "end": "(</>)",
       "beginCaptures": {
         "1": {
-          "name": "punctuation.definition.tag.begin.zx"
-        },
-        "2": {
-          "name": "entity.name.tag.zx"
+          "name": "punctuation.definition.tag.zx"
         }
       },
       "endCaptures": {
         "1": {
-          "name": "punctuation.definition.tag.end.zx"
+          "name": "punctuation.definition.tag.zx"
         }
       },
       "patterns": [
         {
-          "include": "#zx-attribute"
+          "include": "#zx-children"
         }
       ]
     },
-    "zx-tag-open": {
-      "name": "meta.tag.open.zx",
+    "zx-element": {
+      "name": "meta.tag.zx",
       "begin": "(<)([a-zA-Z_][a-zA-Z0-9_.-]*)",
-      "end": "(>)",
+      "end": "(/>)|(</)(\\2)(>)",
       "beginCaptures": {
         "1": {
           "name": "punctuation.definition.tag.begin.zx"
@@ -121,28 +159,58 @@
       "endCaptures": {
         "1": {
           "name": "punctuation.definition.tag.end.zx"
-        }
-      },
-      "patterns": [
-        {
-          "include": "#zx-attribute"
-        }
-      ]
-    },
-    "zx-tag-close": {
-      "name": "meta.tag.close.zx",
-      "match": "(</)([a-zA-Z_][a-zA-Z0-9_.-]*)(>)",
-      "captures": {
-        "1": {
-          "name": "punctuation.definition.tag.begin.zx"
         },
         "2": {
-          "name": "entity.name.tag.zx"
+          "name": "punctuation.definition.tag.begin.zx"
         },
         "3": {
+          "name": "entity.name.tag.zx"
+        },
+        "4": {
           "name": "punctuation.definition.tag.end.zx"
         }
-      }
+      },
+      "patterns": [
+        {
+          "include": "#zx-attribute"
+        },
+        {
+          "begin": "(>)",
+          "end": "(?=</)",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.definition.tag.end.zx"
+            }
+          },
+          "contentName": "meta.tag.children.zx",
+          "patterns": [
+            {
+              "include": "#zx-children"
+            }
+          ]
+        }
+      ]
+    },
+    "zx-children": {
+      "comment": "Children inside an element/fragment: nested tags, {zig expr}, or text. Not valid at Zig top level.",
+      "patterns": [
+        {
+          "include": "#zx-fragment"
+        },
+        {
+          "include": "#zx-element"
+        },
+        {
+          "include": "#zx-expression"
+        },
+        {
+          "include": "#zx-text"
+        }
+      ]
+    },
+    "zx-text": {
+      "name": "text.html.zx",
+      "match": "[^<>{}\\n]+"
     },
     "zx-attribute": {
       "patterns": [
@@ -265,7 +333,7 @@
           },
           "patterns": [
             {
-              "include": "source.zig"
+              "include": "#zx-expression-body"
             }
           ]
         },
@@ -289,55 +357,90 @@
         }
       ]
     },
-    "zx-children": {
+    "zx-expression": {
+      "name": "meta.embedded.expression.zx",
+      "begin": "\\{",
+      "end": "\\}",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.embedded.begin.zx"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.embedded.end.zx"
+        }
+      },
       "patterns": [
         {
-          "include": "#zx-expression"
-        },
-        {
-          "include": "#zx"
-        },
-        {
-          "name": "text.zx.zx",
-          "match": "[^<\\{\\}]+"
+          "include": "#zx-expression-body"
         }
       ]
     },
-    "zig-multiline-string": {
-      "comment": "Zig multiline string literal lines (\\\\...) - must match before HTML tags",
-      "name": "string.quoted.other.multiline.zig",
-      "match": "^\\s*\\\\\\\\.*$"
-    },
-    "zx-expression": {
+    "zx-expression-body": {
+      "comment": "Inside {expr}: Zig code plus nested parenthesized ZX blocks. Do not treat bare <tag> or every { as markup \u2014 nested ZX must be ( <...> ).",
       "patterns": [
         {
-          "name": "meta.embedded.expression.zx",
-          "begin": "\\{",
-          "end": "\\}",
-          "beginCaptures": {
-            "0": {
-              "name": "punctuation.section.embedded.begin.zx"
-            }
-          },
-          "endCaptures": {
-            "0": {
-              "name": "punctuation.section.embedded.end.zx"
-            }
-          },
-          "patterns": [
-            {
-              "include": "#zig-multiline-string"
-            },
-            {
-              "include": "#zig-guards"
-            },
-            {
-              "include": "#zx"
-            },
-            {
-              "include": "source.zig"
-            }
-          ]
+          "include": "#zig-multiline-string"
+        },
+        {
+          "include": "#zig-guards"
+        },
+        {
+          "include": "#zx-block"
+        },
+        {
+          "include": "#balanced-paren"
+        },
+        {
+          "include": "#balanced-brace"
+        },
+        {
+          "include": "source.zig"
+        }
+      ]
+    },
+    "balanced-paren": {
+      "comment": "Consume nested (...) so the zx-block end paren matches correctly inside Zig call args.",
+      "begin": "\\(",
+      "end": "\\)",
+      "patterns": [
+        {
+          "include": "#zig-guards"
+        },
+        {
+          "include": "#zx-block"
+        },
+        {
+          "include": "#balanced-paren"
+        },
+        {
+          "include": "source.zig"
+        }
+      ]
+    },
+    "balanced-brace": {
+      "comment": "Zig anonymous structs / blocks inside a ZX expression: .{ ... } must not reopen zx-expression.",
+      "begin": "\\{",
+      "end": "\\}",
+      "patterns": [
+        {
+          "include": "#zig-multiline-string"
+        },
+        {
+          "include": "#zig-guards"
+        },
+        {
+          "include": "#zx-block"
+        },
+        {
+          "include": "#balanced-paren"
+        },
+        {
+          "include": "#balanced-brace"
+        },
+        {
+          "include": "source.zig"
         }
       ]
     },
@@ -381,16 +484,7 @@
       },
       "patterns": [
         {
-          "include": "#zig-multiline-string"
-        },
-        {
-          "include": "#zig-guards"
-        },
-        {
-          "include": "#zx"
-        },
-        {
-          "include": "source.zig"
+          "include": "#zx-expression-body"
         }
       ]
     }

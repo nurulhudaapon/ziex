@@ -1,4 +1,6 @@
+// @ts-ignore
 import * as childProcess from "child_process";
+// @ts-ignore
 import * as util from "util";
 import { ExtensionContext, window, workspace } from "vscode";
 import {
@@ -105,6 +107,7 @@ async function hasZxBuildStep(cwd: string): Promise<boolean> {
     const steps = parseBuildSteps(stdout);
     return steps.some((step) => step.name === "zx");
   } catch (error: any) {
+    // @ts-ignore
     console.error(error);
     return false;
   }
