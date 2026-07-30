@@ -24,6 +24,7 @@
     "vscode": "^1.99.0"
   },
   "activationEvents": [
+    "onLanguage:zx",
     "onLanguage:zig",
     "onCommand:zx.pasteInMultilineString",
     "onCommand:zx.copyFromMultilineString"
@@ -34,6 +35,9 @@
       "explorer.autoRevealExclude": {
         "**/.zig-cache": true,
         "**/zig-cache": true
+      },
+      "[zx]": {
+        "editor.defaultFormatter": "ziex.ziex"
       }
     },
     "configuration": {
@@ -43,11 +47,6 @@
           "type": "boolean",
           "default": true,
           "description": "Enable autoformatting of Zig expressions (and HTML inside those expressions) that are embedded inside HTML blocks. Default is true. Use the command 'Ziex: Toggle embedded Zig expression formatting' from the Command Palette to toggle this setting."
-        },
-        "zx.autoCloseTags": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically insert closing HTML tags when typing '>' inside HTML fragments in ZX files."
         }
       }
     },
@@ -131,7 +130,6 @@
     "pack": "vsce pack"
   },
   "dependencies": {
-    "vscode-html-languageservice": "^5.6.2",
     "vscode-languageclient": "^10.1.0"
   },
   "devDependencies": {

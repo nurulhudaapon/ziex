@@ -6,12 +6,12 @@ const std = @import("std");
 const build_options = @import("build_options");
 const lsp = @import("lsp");
 const Handler = @import("Handler.zig");
-const MessageSession = @import("MessageSession.zig");
+const Message = @import("transport/Message.zig");
 const CommandContext = @import("../cli/shared/context.zig").CommandContext;
 
 pub fn run(ctx: CommandContext, messages: []const []const u8) !void {
     if (messages.len > 0) {
-        try MessageSession.runMessages(messages, ctx.writer);
+        try Message.runMessages(messages, ctx.writer);
         return;
     }
     try runStdio(ctx);

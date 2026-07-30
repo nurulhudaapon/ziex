@@ -1,14 +1,14 @@
 const std = @import("std");
 const builtin = @import("builtin");
 const lsp = @import("lsp");
-const Handler = @import("Handler.zig");
+const Handler = @import("../Handler.zig");
 
 const gpa = if (builtin.os.tag == .wasi or builtin.os.tag == .freestanding)
     std.heap.wasm_allocator
 else
     std.heap.page_allocator;
 
-const MessageSession = @This();
+const Message = @This();
 
 threaded: std.Io.Threaded = .init_single_threaded,
 transport: lsp.Transport = .{
@@ -26,7 +26,7 @@ input_consumed: bool = false,
 output_message_starts: std.ArrayList(usize) = .empty,
 output_message_bytes: std.ArrayList(u8) = .empty,
 
-var global_session: MessageSession = .{};
+var global_session: Message = .{};
 
 fn readJsonMessage(_: *lsp.Transport, _: std.Io, allocator: std.mem.Allocator) (std.mem.Allocator.Error || lsp.Transport.ReadError)![]u8 {
     const self = &global_session;
@@ -41,18 +41,18 @@ fn writeJsonMessage(_: *lsp.Transport, _: std.Io, json_message: []const u8) lsp.
     self.output_message_bytes.appendSlice(gpa, json_message) catch return error.NoSpaceLeft;
 }
 
-pub fn get() *MessageSession {
+pub fn get() *Message {
     return &global_session;
 }
 
-pub fn ensure(self: *MessageSession) void {
+pub fn ensure(self: *Message) void {
     if (self.handler_alive) return;
     const io = self.threaded.io();
     self.handler = .init(gpa, &self.transport, io);
     self.handler_alive = true;
 }
 
-pub fn reset(self: *MessageSession) void {
+pub fn reset(self: *Message) void {
     if (self.handler_alive) {
         self.handler.deinit();
         self.handler_alive = false;
@@ -63,22 +63,22 @@ pub fn reset(self: *MessageSession) void {
     self.input_consumed = false;
 }
 
-pub fn setInput(self: *MessageSession, message: []const u8) !void {
+pub fn setInput(self: *Message, message: []const u8) !void {
     self.input_bytes.clearRetainingCapacity();
     try self.input_bytes.appendSlice(gpa, message);
     self.input_consumed = false;
 }
 
-pub fn clearOutput(self: *MessageSession) void {
+pub fn clearOutput(self: *Message) void {
     self.output_message_starts.clearRetainingCapacity();
     self.output_message_bytes.clearRetainingCapacity();
 }
 
-pub fn outputCount(self: *const MessageSession) usize {
+pub fn outputCount(self: *const Message) usize {
     return self.output_message_starts.items.len;
 }
 
-pub fn outputSlice(self: *const MessageSession, index: usize) []const u8 {
+pub fn outputSlice(self: *const Message, index: usize) []const u8 {
     const start = self.output_message_starts.items[index];
     const end = if (index + 1 < self.output_message_starts.items.len)
         self.output_message_starts.items[index + 1]
@@ -87,7 +87,7 @@ pub fn outputSlice(self: *const MessageSession, index: usize) []const u8 {
     return self.output_message_bytes.items[start..end];
 }
 
-pub fn dispatch(self: *MessageSession, message: []const u8) !void {
+pub fn dispatch(self: *Message, message: []const u8) !void {
     @setEvalBranchQuota(100_000);
     self.ensure();
     self.clearOutput();

@@ -9,7 +9,6 @@ import {
   ServerOptions
 } from "vscode-languageclient/node";
 
-import { registerHtmlAutoCompletion } from "./util/html";
 import { activateMultilineStringDecorator } from "./util/string";
 
 let client: LanguageClient;
@@ -47,7 +46,6 @@ export async function activate(context: ExtensionContext) {
     clientOptions,
   );
   client.start();
-  registerHtmlAutoCompletion(context, "zx");
   activateMultilineStringDecorator(context);
 }
 
@@ -65,7 +63,7 @@ async function getLspCommand(): Promise<{ command: string; args: string[] }> {
   } catch {
     // Fallback to zig build zx -- lsp if available
     if (cwd && (await hasZxBuildStep(cwd))) {
-      return { command: "zig", args: ["build", "zx", "-Dziex-lsp=true", "--", "lsp"] };
+      return { command: "zig", args: ["build", "zx", "-Dziex-lsp=true", "--release=fast", "--", "lsp"] };
     }
     return { command: "", args: [] };
   }

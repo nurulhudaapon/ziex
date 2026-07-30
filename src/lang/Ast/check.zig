@@ -3,6 +3,7 @@ const ts = @import("tree_sitter");
 const Parse = @import("../Parse.zig");
 const html = @import("elements.zig");
 pub const elements = html;
+pub const builtins = @import("builtins.zig");
 
 const AllocError = std.mem.Allocator.Error;
 
@@ -299,12 +300,20 @@ fn validateAttributes(
         // shorthand/spread/builtin forms are skipped here.
         switch (Parse.NodeKind.fromNode(attr)) {
             .zx_regular_attribute, .zx_builtin_attribute => {},
+            .zx_builtin_shorthand_attribute => {
+                try validateBuiltinShorthand(allocator, attr, source, list);
+                continue;
+            },
             else => continue,
         }
 
         const name_node = attr.childByFieldName("name") orelse continue;
         const name = nodeText(name_node, source);
         if (name.len == 0) continue;
+
+        if (Parse.NodeKind.fromNode(attr) == .zx_builtin_attribute) {
+            try validateBuiltinName(allocator, name_node, name, list);
+        }
 
         const gop = try seen_attrs.getOrPut(allocator, name);
         if (gop.found_existing) {
@@ -333,6 +342,43 @@ fn validateAttributes(
 /// a ZX component (uppercase) or custom element (contains '-').
 fn isHtmlElement(name: []const u8) bool {
     return name.len > 0 and !html.isCustomOrComponent(name);
+}
+
+fn validateBuiltinName(
+    allocator: std.mem.Allocator,
+    name_node: ts.Node,
+    name: []const u8,
+    list: *std.ArrayList(Diagnostic),
+) AllocError!void {
+    if (builtins.isKnown(name)) return;
+    try appendDiagnostic(
+        allocator,
+        name_node,
+        list,
+        .err,
+        "unknown ZX builtin attribute '{s}'",
+        .{name},
+    );
+}
+
+fn validateBuiltinShorthand(
+    allocator: std.mem.Allocator,
+    attr: ts.Node,
+    source: []const u8,
+    list: *std.ArrayList(Diagnostic),
+) AllocError!void {
+    const name_node = attr.childByFieldName("name") orelse return;
+    const name = nodeText(name_node, source);
+    if (name.len == 0) return;
+    if (builtins.isKnownShorthand(name)) return;
+    try appendDiagnostic(
+        allocator,
+        name_node,
+        list,
+        .err,
+        "unknown ZX builtin attribute '@{s}'",
+        .{name},
+    );
 }
 
 fn childOfKind(node: ts.Node, kind: Parse.NodeKind) ?ts.Node {

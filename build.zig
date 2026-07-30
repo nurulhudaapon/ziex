@@ -145,9 +145,13 @@ pub fn build(b: *std.Build) !void {
                 .{ .name = "tree_sitter", .module = tree_sitter_dep.module("tree_sitter") },
                 .{ .name = "tree_sitter_mdzx", .module = tree_sitter_mdzx_dep.module("tree_sitter_mdzx") },
                 .{ .name = "html_hover", .module = b.createModule(.{
-                    .root_source_file = b.path("src/lsp/html_hover.zig"),
+                    .root_source_file = b.path("src/lsp/root.zig"),
                     .imports = &.{
                         .{ .name = "lang", .module = lang_mod },
+                        .{ .name = "lsp", .module = b.dependency("lsp_kit", .{
+                            .target = target,
+                            .optimize = optimize,
+                        }).module("lsp") },
                     },
                 }) },
                 .{ .name = "builder", .module = b.createModule(.{

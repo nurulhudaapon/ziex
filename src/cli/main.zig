@@ -127,7 +127,7 @@ pub fn run(
 
 comptime {
     if ((builtin.os.tag == .wasi or builtin.os.tag == .freestanding) and build_options.enable_lsp) {
-        _ = @import("../lsp/MessageSession.zig");
+        _ = @import("../lsp/transport/Message.zig");
     }
 }
 

@@ -1,4 +1,4 @@
-//! Generates `src/lsp/html_docs.zig` - a registry of HTML element and
+//! Generates `src/lsp/data/elements.zig` - a registry of HTML element and
 //! attribute documentation used by the language server for hover tooltips.
 //!
 //! Downloads Microsoft's VS Code HTML custom data at build/gen time:
@@ -36,10 +36,10 @@ pub fn main(init: std.process.Init) !void {
     const source = try generate(io, allocator);
     defer allocator.free(source);
     try std.Io.Dir.cwd().writeFile(io, .{
-        .sub_path = "src/lsp/html_docs.zig",
+        .sub_path = "src/lsp/data/elements.zig",
         .data = source,
     });
-    std.debug.print("Generated src/lsp/html_docs.zig\n", .{});
+    std.debug.print("Generated src/lsp/data/elements.zig\n", .{});
 }
 
 pub fn generate(io: std.Io, allocator: std.mem.Allocator) ![]const u8 {

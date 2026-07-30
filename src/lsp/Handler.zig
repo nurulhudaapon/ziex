@@ -5,8 +5,8 @@ const builtin = @import("builtin");
 const lsp = @import("lsp");
 const lang = @import("lang");
 const zx_info = @import("zx_info");
-const html_hover = @import("html_hover.zig");
-
+const html_hover = @import("features/hover.zig");
+const html_complete = @import("features/autocomplete.zig");
 pub const Zls = @import("Handler/Zls.zig");
 
 const ByteRange = struct {
@@ -453,6 +453,9 @@ fn zxServerCapabilities(position_encoding: lsp.types.flat.PositionEncodingKind) 
             },
         },
         .hoverProvider = .{ .bool = true },
+        .completionProvider = .{
+            .triggerCharacters = &.{ "<", "/", " ", "@", "\"" },
+        },
         .documentFormattingProvider = .{ .bool = true },
     };
 }
@@ -462,6 +465,7 @@ fn mergeCapabilities(base: lsp.types.flat.ServerCapabilities, zx: lsp.types.flat
     if (zx.positionEncoding) |enc| merged.positionEncoding = enc;
     if (zx.textDocumentSync) |sync| merged.textDocumentSync = sync;
     if (zx.hoverProvider) |hover| merged.hoverProvider = hover;
+    if (zx.completionProvider) |completion| merged.completionProvider = completion;
     if (zx.documentFormattingProvider) |fmt| merged.documentFormattingProvider = fmt;
     return merged;
 }
@@ -767,8 +771,22 @@ pub fn @"textDocument/completion"(
     arena: std.mem.Allocator,
     params: lsp.types.flat.CompletionParams,
 ) error{OutOfMemory}!lsp.ResultType("textDocument/completion") {
+    if (isZxUri(params.textDocument.uri)) {
+        if (handler.htmlComplete(arena, params)) |result| return result;
+    }
+
     const mapped = handler.remapUri(lsp.types.flat.CompletionParams, params);
     return handler.sendRequestSync(arena, "textDocument/completion", mapped) catch null;
+}
+
+fn htmlComplete(
+    handler: *Handler,
+    arena: std.mem.Allocator,
+    params: lsp.types.flat.CompletionParams,
+) ?lsp.types.completion.Result {
+    const state = handler.zx_files.get(params.textDocument.uri) orelse return null;
+    const offset = positionToOffset(state.source, params.position) orelse return null;
+    return html_complete.complete(arena, state.source, @intCast(offset)) catch null;
 }
 
 pub fn @"textDocument/signatureHelp"(
@@ -940,11 +958,12 @@ pub fn @"textDocument/formatting"(
                 return null;
             }
 
+            const end = offsetToPosition(state.source, @intCast(state.source.len));
             const edits = try arena.alloc(lsp.types.flat.TextEdit, 1);
             edits[0] = .{
                 .range = .{
                     .start = .{ .line = 0, .character = 0 },
-                    .end = .{ .line = std.math.maxInt(u32), .character = std.math.maxInt(u32) },
+                    .end = end,
                 },
                 .newText = try arena.dupe(u8, formatted),
             };

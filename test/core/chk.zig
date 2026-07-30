@@ -448,6 +448,60 @@ test "semantic: distinct ids are fine" {
     try testing.expect(!hasMessage(diags, "duplicate id"));
 }
 
+test "semantic: unknown builtin attribute" {
+    const allocator = std.testing.allocator;
+    var diags = try validateSource(allocator,
+        \\pub fn Page(a: zx.Allocator) zx.Component {
+        \\    return (<div @notARealBuiltin={a}>x</div>);
+        \\}
+        \\const zx = @import("zx");
+    );
+    defer diags.deinit();
+
+    try testing.expect(diags.hasErrors());
+    try testing.expect(hasMessage(diags, "unknown ZX builtin attribute"));
+}
+
+test "semantic: known builtin attribute is fine" {
+    const allocator = std.testing.allocator;
+    var diags = try validateSource(allocator,
+        \\pub fn Page(a: zx.Allocator) zx.Component {
+        \\    return (<div @allocator={a} @rendering={.client}>x</div>);
+        \\}
+        \\const zx = @import("zx");
+    );
+    defer diags.deinit();
+
+    try testing.expect(!hasMessage(diags, "unknown ZX builtin attribute"));
+}
+
+test "semantic: unknown builtin shorthand" {
+    const allocator = std.testing.allocator;
+    var diags = try validateSource(allocator,
+        \\pub fn Page(a: zx.Allocator) zx.Component {
+        \\    return (<div @{notARealBuiltin}>x</div>);
+        \\}
+        \\const zx = @import("zx");
+    );
+    defer diags.deinit();
+
+    try testing.expect(diags.hasErrors());
+    try testing.expect(hasMessage(diags, "unknown ZX builtin attribute"));
+}
+
+test "semantic: known builtin shorthand is fine" {
+    const allocator = std.testing.allocator;
+    var diags = try validateSource(allocator,
+        \\pub fn Page(allocator: zx.Allocator) zx.Component {
+        \\    return (<div @{allocator}>x</div>);
+        \\}
+        \\const zx = @import("zx");
+    );
+    defer diags.deinit();
+
+    try testing.expect(!hasMessage(diags, "unknown ZX builtin attribute"));
+}
+
 test "semantic: skipped when syntax errors present" {
     const allocator = std.testing.allocator;
     // Unknown tag <blah> would normally be flagged, but the unclosed tag is a
