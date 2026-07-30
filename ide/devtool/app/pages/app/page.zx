@@ -1,6 +1,8 @@
 const zx = @import("zx");
 const data = @import("../data.zig");
 const stats = @import("stats.zig");
+const connection = @import("../connection.zig");
+const ConnectionFallback = @import("../connection_fallback.zx");
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
@@ -15,6 +17,11 @@ pub fn AppStats(ctx: *zx.ComponentCtx(struct {})) ?zx.Component {
 
     stats.ensureCountsFetch(ctx.allocator);
     _ = data.loadSettings();
+
+    if (connection.isUnavailable()) {
+        return ConnectionFallback.Fallback(ctx.allocator);
+    }
+
     return (
         <div @allocator={ctx.allocator} class="app-overview">
             <div class="stat-grid">

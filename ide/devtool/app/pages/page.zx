@@ -4,6 +4,8 @@ const data = @import("data.zig");
 const store = @import("components_data.zig");
 const tree = @import("tree.zig");
 const format = @import("format.zig");
+const connection = @import("connection.zig");
+const ConnectionFallback = @import("connection_fallback.zx");
 const icons = @import("./components/icons.zx");
 
 const Component = data.Component;
@@ -29,6 +31,11 @@ pub fn ComponentTree(ctx: *zx.ComponentCtx(struct {})) ?zx.Component {
 
     store.ensureFetched(ctx.allocator);
     _ = data.loadSettings();
+
+    if (connection.isUnavailable()) {
+        return ConnectionFallback.Fallback(ctx.allocator);
+    }
+
     const sel = store.selected_component;
     const display_components = tree.filterNativeElements(ctx.allocator, store.components);
     return (

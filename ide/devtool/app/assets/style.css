@@ -772,8 +772,17 @@ label.state-item {
 }
 
 .state-empty p {
-    margin: 0;
+    margin: 0 0 8px;
     font-size: 12px;
+}
+
+.state-empty .prefs-row {
+    margin: 8px 0;
+    gap: 8px;
+}
+
+.state-empty .prefs-input {
+    width: 88px;
 }
 
 /* --- Routes ------------------------------------------------------------------- */
@@ -1038,6 +1047,12 @@ label.state-item {
     text-overflow: ellipsis;
     white-space: nowrap;
     min-width: 0;
+}
+
+.prefs-hint {
+    margin: 0;
+    font-size: 11px;
+    color: var(--text-muted);
 }
 
 .prefs-chip {

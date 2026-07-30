@@ -3,6 +3,7 @@ const zx = @import("zx");
 const api = @import("../api.zig");
 const data = @import("../data.zig");
 const string = @import("../string.zig");
+const connection = @import("../connection.zig");
 
 pub const AppRoute = api.AppRoute;
 pub const RouteOpts = api.RouteOpts;
@@ -16,26 +17,59 @@ pub var selected_path_owned: ?[]const u8 = null;
 var fetched = false;
 var data_allocator: ?std.mem.Allocator = null;
 
+pub fn invalidate() void {
+    fetched = false;
+    routes = &.{};
+    selected_path = "";
+}
+
 pub fn ensureFetched(allocator: std.mem.Allocator) void {
     if (comptime zx.platform.isServer()) return;
     if (fetched) return;
     if (!data.loadSettings()) return;
+    _ = connection.applyUrlConfig(allocator);
     data_allocator = allocator;
     const url = api.routesMetaUrl(allocator) orelse return;
     fetched = true;
-    _ = zx.fetch(.wasm(&onFetchText), allocator, url, .{ .method = .GET }) catch {};
+    connection.markLoading();
+    _ = zx.fetch(.wasm(&onFetchText), allocator, url, .{ .method = .GET }) catch {
+        connection.markUnavailable("Could not start request to the app.");
+        return;
+    };
 }
 
-fn onFetchText(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
+fn onFetchText(res: ?*zx.Fetch.Response, err: ?zx.Fetch.FetchError) void {
     const allocator = data_allocator orelse return;
     if (res) |r| {
         defer r.deinit();
+        if (r.status >= 400) {
+            connection.markUnavailable(if (r.status == 502)
+                "No app is running on this host (dev server returned 502)."
+            else
+                "App returned an error while loading routes.");
+            zx.client.rerender();
+            return;
+        }
         if (r.text()) |p| {
-            routes = zx.util.zxon.parse([]const AppRoute, allocator, p, .{}) catch return;
+            routes = zx.util.zxon.parse([]const AppRoute, allocator, p, .{}) catch {
+                connection.markUnavailable("App responded, but the routes payload was invalid.");
+                zx.client.rerender();
+                return;
+            };
             if (selected_path.len == 0 and routes.len > 0) {
                 selected_path = routes[0].path;
             }
-        } else |_| {}
+            connection.markConnected();
+        } else |_| {
+            connection.markUnavailable("Empty response from the app.");
+        }
+    } else {
+        _ = err;
+        if (connection.mixedContentHint(allocator)) |hint| {
+            connection.markUnavailable(hint);
+        } else {
+            connection.markUnavailable("Cannot reach the app. Check the host/port, or start it with `zx` / `ziex`.");
+        }
     }
     zx.client.rerender();
 }

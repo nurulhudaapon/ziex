@@ -1,0 +1,79 @@
+const zx = @import("zx");
+const std = @import("std");
+const data = @import("data.zig");
+const connection = @import("connection.zig");
+const components_data = @import("components_data.zig");
+const routes_store = @import("routes/store.zig");
+const app_stats = @import("app/stats.zig");
+
+/// Empty state when the configured app cannot be reached.
+pub fn Fallback(allocator: zx.Allocator) zx.Component {
+    _ = data.loadSettings();
+    const host = data.host;
+    const detail = if (connection.detail.len > 0)
+        connection.detail
+    else
+        "Cannot reach the app.";
+
+    return (
+        <div @allocator={allocator} class="state-empty">
+            <h2>No app connected</h2>
+            <p>{detail}</p>
+            <p>
+                Host: <code class="prefs-mono">{host}</code>
+            </p>
+            <div class="prefs-row">
+                <input
+                    class="prefs-input"
+                    type="number"
+                    min="1"
+                    max="65535"
+                    placeholder="port"
+                    value={portValue(allocator, host)}
+                    oninput={handlePortInput}
+                />
+                <button class="prefs-chip" onclick={handleRetry}>Retry</button>
+            </div>
+            <p>
+                Tip: <code>?port=3000</code>
+            </p>
+        </div>
+    );
+}
+
+fn portValue(allocator: std.mem.Allocator, host: []const u8) []const u8 {
+    if (std.mem.lastIndexOfScalar(u8, host, ':')) |idx| {
+        const maybe_port = host[idx + 1 ..];
+        if (maybe_port.len > 0 and std.fmt.parseInt(u16, maybe_port, 10) catch null != null) {
+            return maybe_port;
+        }
+    }
+    return std.fmt.allocPrint(allocator, "3000", .{}) catch "3000";
+}
+
+pub fn handlePortInput(ctx: zx.client.Event) void {
+    if (ctx.value()) |val| {
+        const trimmed = std.mem.trim(u8, val, " \t");
+        if (trimmed.len == 0) return;
+        const port = std.fmt.parseInt(u16, trimmed, 10) catch return;
+        if (port == 0) return;
+        const host = std.fmt.allocPrint(zx.allocator, "localhost:{d}", .{port}) catch return;
+        data.setHost(host);
+        retryFetches(zx.allocator);
+    }
+}
+
+pub fn handleRetry(_: zx.client.Event) void {
+    retryFetches(zx.allocator);
+    zx.client.rerender();
+}
+
+pub fn retryFetches(allocator: std.mem.Allocator) void {
+    connection.reset();
+    components_data.invalidate();
+    routes_store.invalidate();
+    app_stats.invalidate();
+    components_data.ensureFetched(allocator);
+    routes_store.ensureFetched(allocator);
+    app_stats.ensureCountsFetch(allocator);
+}

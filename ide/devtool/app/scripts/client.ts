@@ -525,9 +525,36 @@ async function stopHover(): Promise<void> {
 }
 
 async function main() {
-    await syncInspectedPageLocation();
+    const fromUrl = applyUrlConfig();
+    if (!fromUrl) {
+        await syncInspectedPageLocation();
+    }
     await init({ kv: kvBindings });
 }
+
+/** Apply `?port=` / `?host=` into localStorage before WASM boots. */
+function applyUrlConfig(): boolean {
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const host = params.get("host");
+        if (host && host.trim()) {
+            localStorage.setItem(HOST_STORAGE_KEY, host.trim());
+            return true;
+        }
+        const portRaw = params.get("port");
+        if (portRaw) {
+            const port = Number.parseInt(portRaw, 10);
+            if (Number.isFinite(port) && port > 0 && port < 65536) {
+                localStorage.setItem(HOST_STORAGE_KEY, `localhost:${port}`);
+                return true;
+            }
+        }
+    } catch {
+        // ignore
+    }
+    return false;
+}
+
 main();
 const chromeApi = (globalThis as any).chrome;
 if (chromeApi?.devtools?.network?.onNavigated) {

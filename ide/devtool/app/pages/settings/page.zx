@@ -1,6 +1,7 @@
 const zx = @import("zx");
 const data = @import("../data.zig");
 const theme = @import("theme.zig");
+const ConnectionFallback = @import("../connection_fallback.zx");
 const icons = @import("../components/icons.zx");
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
@@ -99,6 +100,7 @@ pub fn HostSetting(ctx: *zx.ComponentCtx(struct {})) zx.Component {
                 oninput={handleHostInput}
                 placeholder="localhost:3000"
             />
+            <p class="prefs-hint">Tip: <code>?port=3000</code></p>
         </div>
     );
 }
@@ -106,6 +108,7 @@ pub fn HostSetting(ctx: *zx.ComponentCtx(struct {})) zx.Component {
 pub fn handleHostInput(ctx: zx.client.Event) void {
     if (ctx.value()) |val| {
         data.setHost(val);
+        ConnectionFallback.retryFetches(zx.allocator);
         zx.client.rerender();
     }
 }

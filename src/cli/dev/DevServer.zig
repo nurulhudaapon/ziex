@@ -376,6 +376,7 @@ const cors_headers = [_]http.Header{
     .{ .name = "Access-Control-Allow-Origin", .value = "*" },
     .{ .name = "Access-Control-Allow-Methods", .value = "GET, POST, OPTIONS" },
     .{ .name = "Access-Control-Allow-Headers", .value = "Content-Type, x-zx-devtool, x-zx-devtool-include-native" },
+    .{ .name = "Access-Control-Allow-Private-Network", .value = "true" },
 };
 
 fn serveRequest(ds: *DevServer, req: *http.Server.Request, client_stream: std.Io.net.Stream) !void {

@@ -1,6 +1,8 @@
 const zx = @import("zx");
 const std = @import("std");
 const store = @import("store.zig");
+const connection = @import("../connection.zig");
+const ConnectionFallback = @import("../connection_fallback.zx");
 const icons = @import("../components/icons.zx");
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
@@ -56,6 +58,11 @@ pub fn RoutesList(ctx: *zx.ComponentCtx(struct {})) ?zx.Component {
     if (comptime zx.platform.isServer()) return null;
 
     store.ensureFetched(ctx.allocator);
+
+    if (connection.isUnavailable()) {
+        return ConnectionFallback.Fallback(ctx.allocator);
+    }
+
     return (
         <div @allocator={ctx.allocator} class="routes-list">
             {for (store.routes) |route| (

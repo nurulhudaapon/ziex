@@ -361,6 +361,7 @@ pub fn Handler(comptime AppCtxType: type) type {
             res.header("Access-Control-Allow-Origin", "*");
             res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
             res.header("Access-Control-Allow-Headers", "Content-Type, x-zx-devtool, x-zx-devtool-include-native");
+            res.header("Access-Control-Allow-Private-Network", "true");
 
             if (req.method == .OPTIONS) {
                 res.status = 200;
