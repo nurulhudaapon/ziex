@@ -1,32 +1,7 @@
-/// WebSocket API - Client-side WebSocket interface following MDN spec.
-///
-/// The WebSocket object provides the API for creating and managing a WebSocket
-/// connection to a server, as well as for sending and receiving data on the connection.
+/// WebSocket client API for server and wasm.
 ///
 /// https://developer.mozilla.org/en-US/docs/Web/API/WebSocket
-///
-/// **Usage:**
-/// ```zig
-/// // Create a WebSocket connection
-/// var ws = try WebSocket.init(allocator, "ws://localhost:8080", .{});
-/// defer ws.deinit();
-///
-/// // Set event handlers
-/// ws.onopen = &handleOpen;
-/// ws.onmessage = &handleMessage;
-/// ws.onerror = &handleError;
-/// ws.onclose = &handleClose;
-///
-/// // Connect (blocking on server, async on client)
-/// try ws.connect();
-///
-/// // Send data
-/// try ws.send("Hello, Server/");
-///
-/// // Close connection
-/// ws.close(.{ .code = 1000, .reason = "Normal closure" });
-/// ```
-pub const WebSocket = @This();
+const WebSocket = @This();
 
 const std = @import("std");
 const builtin = @import("builtin");

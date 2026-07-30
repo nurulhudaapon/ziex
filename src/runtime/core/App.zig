@@ -1,17 +1,18 @@
+/// Application runtime entrypoint (`zx.App`). Selects server, wasm, or client backend.
 const App = @This();
 
 const std = @import("std");
 const builtin = @import("builtin");
+const app_opts = @import("app_opts");
 
 const zx = @import("../../root.zig");
 const Constant = @import("../../constant.zig");
 const sig = @import("../../util/sig.zig");
-const app_opts = @import("app_opts");
+
 const platform = zx.platform;
 const is_dev = std.mem.eql(u8, app_opts.cli_command, "dev");
 
 pub const Config = @import("AppConfig.zig");
-
 pub const Server = @import("App/Server.zig");
 pub const Wasm = @import("App/Wasm.zig");
 pub const Client = @import("App/Client.zig");

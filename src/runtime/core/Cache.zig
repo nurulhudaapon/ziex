@@ -1,7 +1,8 @@
-pub const Cache = @This();
+const Cache = @This();
 
 const std = @import("std");
 const builtin = @import("builtin");
+
 const zx = @import("../../root.zig");
 const Kv = @import("Kv.zig");
 

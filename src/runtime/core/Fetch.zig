@@ -3,28 +3,22 @@
 /// Uses a custom `Io` interface that allows the same `fetch()` function
 /// to work on both server (blocking) and client (WASM/async).
 ///
-/// **Usage:**
 /// ```zig
-/// // Server-side (blocking)
 /// var response = try zx.fetch(zx.Io.blocking, allocator, url, .{});
 /// defer response.deinit();
-///
-/// // Client-side (WASM) - use with callback
-/// zx.fetch(zx.Io.wasm(&callback), allocator, url, .{});
 /// ```
-pub const Fetch = @This();
+const Fetch = @This();
 
 const std = @import("std");
 const builtin = @import("builtin");
-const common = @import("common.zig");
 
+const common = @import("common.zig");
 const server_impl = if (!is_wasm) @import("../server/fetch.zig") else struct {};
 const client_impl = if (is_wasm) @import("../client/fetch.zig") else struct {};
 const wasm_impl = if (is_wasm) @import("Fetch/Wasm.zig") else struct {};
 
 pub const Method = common.Method;
 pub const ContentType = common.ContentType;
-
 pub const is_wasm = builtin.cpu.arch == .wasm32 or builtin.cpu.arch == .wasm64;
 
 /// Io determines how fetch operations are executed.

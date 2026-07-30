@@ -1,21 +1,16 @@
+const Headers = @This();
+
 const std = @import("std");
+
 const common = @import("common.zig");
 
-pub const Headers = @This();
-
 pub const Header = common.Header;
-
-/// HTTP header iterator for parsing raw header bytes.
-///
-/// This is useful when you have raw HTTP protocol bytes and need to parse headers.
-/// For iterating over headers from a backend, use the `entries()` method which
-/// returns the vtable-based `Iterator`.
+/// Iterator over raw HTTP header bytes (`std.http.HeaderIterator`).
 pub const HeaderIterator = std.http.HeaderIterator;
 
 backend_ctx: ?*anyopaque = null,
 vtable: ?*const VTable = null,
-
-/// Whether this Headers instance is read-only (from request)
+/// Whether this instance is read-only (request headers).
 read_only: bool = true,
 
 pub const VTable = struct {
@@ -26,9 +21,7 @@ pub const VTable = struct {
     iterate: *const fn (ctx: *anyopaque) ?Iterator,
 };
 
-// --- Headers Methods --- //
-
-/// Returns true if this Headers instance is read-only (from request).
+/// Whether this instance is read-only.
 pub fn isReadOnly(self: *const Headers) bool {
     return self.read_only;
 }
