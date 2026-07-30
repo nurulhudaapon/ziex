@@ -32,6 +32,14 @@ pub fn markUnavailable(reason: []const u8) void {
     detail = reason;
 }
 
+pub const unreachable_app =
+    "Cannot reach the app. Check the host/port, or start it with `zx dev` / `zig build dev`.";
+
+pub fn defaultUnavailableReason(allocator: std.mem.Allocator) []const u8 {
+    if (mixedContentHint(allocator)) |hint| return hint;
+    return unreachable_app;
+}
+
 pub fn isUnavailable() bool {
     return status == .unavailable;
 }

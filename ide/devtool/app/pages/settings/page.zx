@@ -2,7 +2,6 @@ const zx = @import("zx");
 const data = @import("../data.zig");
 const theme = @import("theme.zig");
 const ConnectionFallback = @import("../connection_fallback.zx");
-const icons = @import("../components/icons.zx");
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
@@ -30,15 +29,15 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
             <section class="prefs-group">
                 <h3 class="prefs-group-title">About</h3>
-                <div class="prefs-links">
-                    <a href="https://github.com/nurulhudaapon/zx" target="_blank" class="link-item">
-                        <span>{icons.Star(ctx.arena)} GitHub</span>
+                <div class="prefs-list">
+                    <a href="https://github.com/nurulhudaapon/zx" target="_blank" class="prefs-row prefs-link">
+                        GitHub
                     </a>
-                    <a href="https://ziex.dev" target="_blank" class="link-item">
-                        <span>{icons.Document(ctx.arena)} Docs</span>
+                    <a href="https://ziex.dev" target="_blank" class="prefs-row prefs-link">
+                        Docs
                     </a>
-                    <a href="https://github.com/nurulhudaapon/zx/issues" target="_blank" class="link-item">
-                        <span>{icons.Bug(ctx.arena)} Issues</span>
+                    <a href="https://github.com/nurulhudaapon/zx/issues" target="_blank" class="prefs-row prefs-link">
+                        Issues
                     </a>
                 </div>
             </section>
@@ -49,12 +48,10 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 pub fn ThemeSetting(ctx: *zx.ComponentCtx(struct {})) zx.Component {
     theme.applyFromStorage();
     const dark = theme.isDark();
-    const icon = if (dark) icons.Moon(ctx.allocator) else icons.Sun(ctx.allocator);
     return (
         <div @allocator={ctx.allocator} class="prefs-row">
             <span class="prefs-label">Theme</span>
             <button @allocator={ctx.allocator} onclick={handleThemeToggle} class="prefs-chip">
-                {icon}
                 {if (dark) "Dark" else "Light"}
             </button>
         </div>
@@ -68,16 +65,14 @@ pub fn handleThemeToggle(_: zx.client.Event) void {
 
 pub fn NativeElementsSetting(ctx: *zx.ComponentCtx(struct {})) zx.Component {
     _ = data.loadSettings();
-    const checked = data.show_native_elements;
-    const track_class = if (checked) "prefs-toggle-track on" else "prefs-toggle-track";
-    const knob_class = if (checked) "prefs-toggle-knob on" else "prefs-toggle-knob";
+    const label = if (data.show_native_elements) "On" else "Off";
     return (
-        <button @allocator={ctx.allocator} onclick={handleNativeElementsToggle} class="prefs-row prefs-row-btn">
+        <div @allocator={ctx.allocator} class="prefs-row">
             <span class="prefs-label">Show native elements</span>
-            <span class={track_class}>
-                <span class={knob_class}></span>
-            </span>
-        </button>
+            <button @allocator={ctx.allocator} onclick={handleNativeElementsToggle} class="prefs-chip">
+                {label}
+            </button>
+        </div>
     );
 }
 

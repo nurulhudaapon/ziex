@@ -374,6 +374,12 @@ pub fn Handler(comptime AppCtxType: type) type {
                 try meta_data.serializeRoutes(res.writer());
                 return true;
             }
+            if (std.mem.eql(u8, mode, "info")) {
+                const meta_data = try zx.server.SerilizableAppMeta.init(req.arena, self.meta, self.config.server);
+                res.content_type = .JSON;
+                try meta_data.serializeInfo(res.writer());
+                return true;
+            }
             // "components" continues through normal page render.
             return false;
         }

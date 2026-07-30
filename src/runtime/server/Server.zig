@@ -328,6 +328,24 @@ pub const SerilizableAppMeta = struct {
     pub fn serializeRoutes(self: SerilizableAppMeta, writer: anytype) !void {
         try zx.util.zxon.serialize(self.routes, writer, .{});
     }
+    pub fn serializeInfo(self: SerilizableAppMeta, writer: anytype) !void {
+        const Info = struct {
+            version: []const u8,
+            route_count: usize,
+            address: ?[]const u8 = null,
+            port: ?u16 = null,
+            workers: ?u16 = null,
+            thread_pool: ?u16 = null,
+        };
+        try zx.util.zxon.serialize(Info{
+            .version = self.version,
+            .route_count = self.routes.len,
+            .address = self.config.server.address,
+            .port = self.config.server.port,
+            .workers = self.config.server.workers.count,
+            .thread_pool = self.config.server.thread_pool.count,
+        }, writer, .{});
+    }
 
     fn serializeCaching(allocator: std.mem.Allocator, caching: ?zx.BuiltinAttribute.Caching) !struct { ?i64, ?[]const u8 } {
         const c = caching orelse return .{ null, null };

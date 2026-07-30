@@ -101,6 +101,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
         .env_map = env_map,
         .address = try std.Io.net.IpAddress.parse("0.0.0.0", preferred_port),
         .inner_port = 0,
+        .install_prefix = install_prefix,
         .io = io,
     });
     defer dev_server.deinit();

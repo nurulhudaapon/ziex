@@ -776,13 +776,30 @@ label.state-item {
     font-size: 12px;
 }
 
-.state-empty .prefs-row {
+.state-empty-row {
+    display: flex;
+    align-items: stretch;
+    gap: 6px;
     margin: 8px 0;
-    gap: 8px;
 }
 
-.state-empty .prefs-input {
+.state-empty-row .prefs-input,
+.state-empty-row .prefs-chip {
+    height: 28px;
+    box-sizing: border-box;
+    font-size: 12px;
+    line-height: 1;
+    padding: 0 8px;
+}
+
+.state-empty-row .prefs-input {
     width: 88px;
+    flex: none;
+}
+
+.state-empty-row .prefs-chip {
+    display: inline-flex;
+    align-items: center;
 }
 
 /* --- Routes ------------------------------------------------------------------- */
@@ -913,41 +930,6 @@ label.state-item {
 :root[data-theme="light"] .route-method-token.method-options { color: #0284c7; }
 :root[data-theme="light"] .route-method-token.method-any { color: #7c3aed; }
 
-.version-badge {
-    background: transparent;
-    color: var(--text-muted);
-    border: 1px solid var(--border-color);
-    padding: 1px 6px;
-    border-radius: 3px;
-    font-family: var(--font-mono);
-    font-size: 11px;
-}
-
-.link-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    color: var(--text-muted);
-    font-size: 12px;
-    transition: color 0.12s ease;
-}
-
-.link-item:hover {
-    color: var(--zx-primary);
-}
-
-.link-item span {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.link-item svg {
-    flex-shrink: 0;
-    width: 14px;
-    height: 14px;
-}
-
 .about-redirect {
     color: var(--text-muted);
     font-size: 12px;
@@ -960,6 +942,11 @@ label.state-item {
 }
 
 /* --- Prefs (App + Settings) --------------------------------------------------- */
+
+.app-page {
+    height: 100%;
+    overflow-y: auto;
+}
 
 .prefs-page {
     color: var(--text-base);
@@ -1005,26 +992,6 @@ label.state-item {
     border-bottom: none;
 }
 
-.prefs-row-btn {
-    width: 100%;
-    background: none;
-    border: none;
-    border-bottom: 1px solid var(--border-color);
-    border-radius: 0;
-    cursor: pointer;
-    color: inherit;
-    font: inherit;
-    text-align: left;
-}
-
-.prefs-row-btn:last-child {
-    border-bottom: none;
-}
-
-.prefs-row-btn:hover {
-    background: var(--bg-hover);
-}
-
 .prefs-row-stack {
     flex-direction: column;
     align-items: stretch;
@@ -1058,7 +1025,6 @@ label.state-item {
 .prefs-chip {
     display: inline-flex;
     align-items: center;
-    gap: 5px;
     padding: 3px 8px;
     background: var(--bg-base);
     border: 1px solid var(--border-color);
@@ -1072,11 +1038,6 @@ label.state-item {
 .prefs-chip:hover {
     border-color: var(--zx-primary);
     color: var(--zx-primary);
-}
-
-.prefs-chip svg {
-    width: 12px;
-    height: 12px;
 }
 
 .prefs-input {
@@ -1095,82 +1056,13 @@ label.state-item {
     border-color: var(--zx-primary);
 }
 
-.prefs-toggle-track {
-    width: 30px;
-    height: 16px;
-    border-radius: 99px;
-    background: #555;
-    position: relative;
-    flex-shrink: 0;
-    pointer-events: none;
+.prefs-link {
+    color: var(--text-base);
+    text-decoration: none;
+    cursor: pointer;
 }
 
-.prefs-toggle-track.on {
-    background: var(--zx-primary);
-}
-
-:root[data-theme="light"] .prefs-toggle-track:not(.on) {
-    background: #c3cad4;
-}
-
-.prefs-toggle-knob {
-    width: 12px;
-    height: 12px;
-    background: #fff;
-    border-radius: 50%;
-    position: absolute;
-    top: 2px;
-    left: 2px;
-    pointer-events: none;
-    transition: left 0.12s ease;
-}
-
-.prefs-toggle-knob.on {
-    left: 16px;
-}
-
-.prefs-links {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 14px;
-    padding: 4px 2px;
-}
-
-.app-overview {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-}
-
-.stat-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-}
-
-.stat-card {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 12px 12px 10px;
-    border: 1px solid var(--border-color);
-    border-radius: 4px;
-    background: var(--bg-elevated);
-}
-
-.stat-label {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-muted);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-}
-
-.stat-value {
-    font-family: var(--font-mono);
-    font-size: 22px;
-    font-weight: 600;
+.prefs-link:hover {
     color: var(--zx-primary);
-    line-height: 1.1;
-    letter-spacing: -0.02em;
+    background: var(--bg-hover);
 }

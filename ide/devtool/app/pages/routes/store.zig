@@ -65,11 +65,7 @@ fn onFetchText(res: ?*zx.Fetch.Response, err: ?zx.Fetch.FetchError) void {
         }
     } else {
         _ = err;
-        if (connection.mixedContentHint(allocator)) |hint| {
-            connection.markUnavailable(hint);
-        } else {
-            connection.markUnavailable("Cannot reach the app. Check the host/port, or start it with `zx` / `ziex`.");
-        }
+        connection.markUnavailable(connection.defaultUnavailableReason(allocator));
     }
     zx.client.rerender();
 }

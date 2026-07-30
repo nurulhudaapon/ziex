@@ -1862,9 +1862,6 @@ async function runTranspileAndBuild(
             continue;
         }
         filesMap[zigName] = zigContent;
-        // Only hide generated outputs (e.g. page.zx → page.zig). User-authored
-        // sources like app/routes/api/route.zig may also appear in transpile
-        // output when copied to out/ — keep those tabs visible.
         const hide = isGeneratedPlaygroundPath(zigName) ||
             (playgroundMode !== "app" && zigName.endsWith(".zig"));
         if (fileManager.hasFile(zigName)) {

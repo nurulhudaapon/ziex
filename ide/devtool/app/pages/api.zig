@@ -50,6 +50,16 @@ pub fn routesMetaUrl(allocator: std.mem.Allocator) ?[]const u8 {
     return std.fmt.allocPrint(allocator, "{s}/.well-known/_zx/devtool?meta=true", .{base}) catch null;
 }
 
+pub fn appInfoUrl(allocator: std.mem.Allocator) ?[]const u8 {
+    const base = hostBaseUrl(allocator) orelse return null;
+    return std.fmt.allocPrint(allocator, "{s}/.well-known/_zx/app", .{base}) catch null;
+}
+
+pub fn runtimeInfoUrl(allocator: std.mem.Allocator) ?[]const u8 {
+    const base = hostBaseUrl(allocator) orelse return null;
+    return std.fmt.allocPrint(allocator, "{s}/.well-known/_zx/devtool?info=true", .{base}) catch null;
+}
+
 pub fn routeHref(allocator: std.mem.Allocator, path: []const u8) []const u8 {
     const base = hostBaseUrl(allocator) orelse return "#";
     return std.fmt.allocPrint(allocator, "{s}{s}", .{ base, path }) catch "#";

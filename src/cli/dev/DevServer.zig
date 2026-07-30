@@ -4,7 +4,7 @@
 ///
 /// Architecture:
 ///   Browser ──HTTP──► DevServer (outer_port, stays alive)
-///                         ├─ /.well-known/_zx/devsocket|devscript|open-in-editor → served here
+///                         ├─ /.well-known/_zx/devsocket|devscript|open-in-editor|app → served here
 ///                         ├─ /.well-known/_zx/devtool → rewrite + proxy with x-zx-devtool header
 ///                         └─ everything else    → proxy → app binary (inner_port)
 ///
@@ -13,6 +13,9 @@
 /// serializes, queues, and broadcasts them.
 const std = @import("std");
 const builtin = @import("builtin");
+
+const Manifest = @import("../../build/Manifest.zig");
+
 const http = std.http;
 const assert = std.debug.assert;
 const Allocator = std.mem.Allocator;
@@ -73,6 +76,7 @@ gpa: Allocator,
 env_map: *const std.process.Environ.Map,
 address: std.Io.net.IpAddress,
 inner_port: u16,
+install_prefix: []const u8,
 tcp_server: ?std.Io.net.Server,
 serve_thread: ?std.Thread,
 
@@ -96,6 +100,7 @@ pub const Options = struct {
     address: std.Io.net.IpAddress,
     /// Port the app binary will listen on.
     inner_port: u16,
+    install_prefix: []const u8 = "",
 };
 
 pub fn init(opts: Options) DevServer {
@@ -105,6 +110,7 @@ pub fn init(opts: Options) DevServer {
         .env_map = opts.env_map,
         .address = opts.address,
         .inner_port = opts.inner_port,
+        .install_prefix = opts.install_prefix,
         .tcp_server = null,
         .serve_thread = null,
         .update_id = .init(0),
@@ -412,6 +418,28 @@ fn serveRequest(ds: *DevServer, req: *http.Server.Request, client_stream: std.Io
             return;
         }
 
+        if (std.mem.eql(u8, target_path, "/.well-known/_zx/app")) {
+            if (req.head.method == .OPTIONS) {
+                try req.respond("", .{
+                    .status = .ok,
+                    .extra_headers = &(cors_headers ++ [_]http.Header{
+                        .{ .name = "Connection", .value = "close" },
+                    }),
+                });
+                return;
+            }
+            const body = try buildAppInfoJson(ds);
+            defer ds.gpa.free(body);
+            try req.respond(body, .{
+                .extra_headers = &(cors_headers ++ [_]http.Header{
+                    .{ .name = "Content-Type", .value = "application/json" },
+                    .{ .name = "Cache-Control", .value = "no-cache, no-store" },
+                    .{ .name = "Connection", .value = "close" },
+                }),
+            });
+            return;
+        }
+
         // Devtool: rewrite to the inspected app path and ask the app for JSON via header.
         if (std.mem.eql(u8, target_path, "/.well-known/_zx/devtool")) {
             if (req.head.method == .OPTIONS) {
@@ -480,6 +508,17 @@ const DevtoolProxyRewrite = struct {
 };
 
 fn buildDevtoolProxyRewrite(allocator: Allocator, query: []const u8) !DevtoolProxyRewrite {
+    if (queryParam(query, "info") != null) {
+        const headers = try allocator.dupe(http.Header, &.{
+            .{ .name = "x-zx-devtool", .value = "info" },
+        });
+        return .{
+            .mode = "info",
+            .rewrite_target = try allocator.dupe(u8, "/"),
+            .extra_headers = headers,
+        };
+    }
+
     const is_meta = queryParam(query, "meta") != null;
     if (is_meta) {
         const headers = try allocator.dupe(http.Header, &.{
@@ -515,6 +554,64 @@ fn queryParam(query: []const u8, key: []const u8) ?[]const u8 {
         }
     }
     return null;
+}
+
+fn buildAppInfoJson(ds: *DevServer) ![]u8 {
+    var aw = std.Io.Writer.Allocating.init(ds.gpa);
+    errdefer aw.deinit();
+
+    var exe_path_owned: ?[]const u8 = null;
+    defer if (exe_path_owned) |p| ds.gpa.free(p);
+    var route_count: usize = 0;
+    var injection_ids: std.ArrayListUnmanaged([]const u8) = .empty;
+    defer {
+        for (injection_ids.items) |id| ds.gpa.free(id);
+        injection_ids.deinit(ds.gpa);
+    }
+
+    if (ds.install_prefix.len > 0) {
+        const manifest_path = try std.fs.path.join(ds.gpa, &.{ ds.install_prefix, "manifest", "app.zon" });
+        defer ds.gpa.free(manifest_path);
+        if (std.Io.Dir.cwd().readFileAlloc(ds.io, manifest_path, ds.gpa, .unlimited)) |source| {
+            defer ds.gpa.free(source);
+            if (source.len > 0) {
+                const source_z = try ds.gpa.dupeSentinel(u8, source, 0);
+                defer ds.gpa.free(source_z);
+                if (std.zon.parse.fromSliceAlloc(Manifest.App, ds.gpa, source_z, null, .{ .ignore_unknown_fields = true })) |manifest| {
+                    defer std.zon.parse.free(ds.gpa, manifest);
+                    if (manifest.exe_path) |p| {
+                        exe_path_owned = try ds.gpa.dupe(u8, p);
+                    }
+                    route_count = manifest.routes.len;
+                    for (manifest.injections) |inj| {
+                        if (inj.id) |id| try injection_ids.append(ds.gpa, try ds.gpa.dupe(u8, id));
+                    }
+                } else |_| {}
+            }
+        } else |_| {}
+    }
+
+    const Payload = struct {
+        outer_port: u16,
+        inner_port: u16,
+        install_prefix: []const u8,
+        exe_path: ?[]const u8,
+        route_count: usize,
+        injection_count: usize,
+        injections: []const []const u8,
+    };
+
+    try std.json.Stringify.value(Payload{
+        .outer_port = ds.address.getPort(),
+        .inner_port = ds.inner_port,
+        .install_prefix = ds.install_prefix,
+        .exe_path = exe_path_owned,
+        .route_count = route_count,
+        .injection_count = injection_ids.items.len,
+        .injections = injection_ids.items,
+    }, .{ .emit_null_optional_fields = true }, &aw.writer);
+
+    return try aw.toOwnedSlice();
 }
 
 const ProxyOptions = struct {

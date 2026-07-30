@@ -9,7 +9,7 @@ pub var inputvalue: []const u8 = "";
 pub var inputvalue_owned: ?[]const u8 = null;
 pub var stateFilter: []const u8 = "";
 pub var stateFilter_owned: ?[]const u8 = null;
-pub var selected_component: []const u8 = "0";
+pub var selected_component: []const u8 = "";
 pub var selected_component_owned: ?[]const u8 = null;
 
 var fetched = false;
@@ -63,7 +63,7 @@ fn onFetchText(res: ?*zx.Fetch.Response, err: ?zx.Fetch.FetchError) void {
         }
     } else {
         _ = err;
-        connection.markUnavailable(defaultUnavailableReason(allocator));
+        connection.markUnavailable(connection.defaultUnavailableReason(allocator));
     }
     zx.client.rerender();
 }
@@ -76,11 +76,6 @@ fn unavailableReason(allocator: std.mem.Allocator, status_code: u16) []const u8 
     };
 }
 
-fn defaultUnavailableReason(allocator: std.mem.Allocator) []const u8 {
-    if (connection.mixedContentHint(allocator)) |hint| return hint;
-    return "Cannot reach the app. Check the host/port, or start it with `zx` / `ziex`.";
-}
-
 pub fn setSearch(value: ?[]const u8) void {
     data.adopt(&inputvalue_owned, &inputvalue, value, "");
 }
@@ -90,7 +85,7 @@ pub fn setStateFilter(value: ?[]const u8) void {
 }
 
 pub fn setSelected(value: ?[]const u8) void {
-    data.adopt(&selected_component_owned, &selected_component, value, "0");
+    data.adopt(&selected_component_owned, &selected_component, value, "");
 }
 
 pub fn toggleTreeCollapsed() void {

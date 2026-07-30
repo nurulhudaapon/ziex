@@ -6,7 +6,7 @@ const ConnectionFallback = @import("../connection_fallback.zx");
 
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
-        <div @allocator={ctx.arena} class="prefs-page">
+        <div @allocator={ctx.arena} class="app-page">
             <AppStats @rendering={.client} />
         </div>
     );
@@ -22,32 +22,74 @@ pub fn AppStats(ctx: *zx.ComponentCtx(struct {})) ?zx.Component {
         return ConnectionFallback.Fallback(ctx.allocator);
     }
 
+    const version = stats.displayOrDash(stats.app_version);
+    const exe = stats.displayOrDash(stats.exe_path);
+    const prefix = stats.displayOrDash(stats.install_prefix);
+    const injections = stats.displayOrDash(stats.injections_label);
+
     return (
-        <div @allocator={ctx.allocator} class="app-overview">
-            <div class="stat-grid">
-                <div class="stat-card">
-                    <span class="stat-label">Components</span>
-                    <span class="stat-value">{stats.componentCountLabel(ctx.allocator)}</span>
+        <div @allocator={ctx.allocator} class="prefs-page">
+            <section class="prefs-group">
+                <h3 class="prefs-group-title">Overview</h3>
+                <div class="prefs-list">
+                    <div class="prefs-row">
+                        <span class="prefs-label">Version</span>
+                        <span class="prefs-mono">{version}</span>
+                    </div>
+                    <div class="prefs-row">
+                        <span class="prefs-label">Components</span>
+                        <span class="prefs-mono">{stats.componentCountLabel(ctx.allocator)}</span>
+                    </div>
+                    <div class="prefs-row">
+                        <span class="prefs-label">Routes</span>
+                        <span class="prefs-mono">{stats.routeCountLabel(ctx.allocator)}</span>
+                    </div>
+                    <div class="prefs-row">
+                        <span class="prefs-label">Host</span>
+                        <span class="prefs-mono">{data.host}</span>
+                    </div>
+                    <div class="prefs-row">
+                        <span class="prefs-label">Path</span>
+                        <span class="prefs-mono">{data.current_path}</span>
+                    </div>
                 </div>
-                <div class="stat-card">
-                    <span class="stat-label">Routes</span>
-                    <span class="stat-value">{stats.routeCountLabel(ctx.allocator)}</span>
+            </section>
+
+            <section class="prefs-group">
+                <h3 class="prefs-group-title">Manifest</h3>
+                <div class="prefs-list">
+                    <div class="prefs-row">
+                        <span class="prefs-label">Install prefix</span>
+                        <span class="prefs-mono">{prefix}</span>
+                    </div>
+                    <div class="prefs-row">
+                        <span class="prefs-label">Executable</span>
+                        <span class="prefs-mono">{exe}</span>
+                    </div>
+                    <div class="prefs-row">
+                        <span class="prefs-label">Injections</span>
+                        <span class="prefs-mono">{stats.injectionCountLabel(ctx.allocator)}</span>
+                    </div>
+                    <div class="prefs-row">
+                        <span class="prefs-label">Injection ids</span>
+                        <span class="prefs-mono">{injections}</span>
+                    </div>
                 </div>
-            </div>
-            <div class="prefs-list">
-                <div class="prefs-row">
-                    <span class="prefs-label">Version</span>
-                    <code class="version-badge">{zx.info.version}</code>
+            </section>
+
+            <section class="prefs-group">
+                <h3 class="prefs-group-title">Dev server</h3>
+                <div class="prefs-list">
+                    <div class="prefs-row">
+                        <span class="prefs-label">Outer port</span>
+                        <span class="prefs-mono">{stats.portLabel(ctx.allocator, stats.outer_port)}</span>
+                    </div>
+                    <div class="prefs-row">
+                        <span class="prefs-label">Inner port</span>
+                        <span class="prefs-mono">{stats.portLabel(ctx.allocator, stats.inner_port)}</span>
+                    </div>
                 </div>
-                <div class="prefs-row">
-                    <span class="prefs-label">Host</span>
-                    <span class="prefs-mono">{data.host}</span>
-                </div>
-                <div class="prefs-row">
-                    <span class="prefs-label">Path</span>
-                    <span class="prefs-mono">{data.current_path}</span>
-                </div>
-            </div>
+            </section>
         </div>
     );
 }

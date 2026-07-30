@@ -13,7 +13,7 @@ pub fn Fallback(allocator: zx.Allocator) zx.Component {
     const detail = if (connection.detail.len > 0)
         connection.detail
     else
-        "Cannot reach the app.";
+        connection.unreachable_app;
 
     return (
         <div @allocator={allocator} class="state-empty">
@@ -22,7 +22,7 @@ pub fn Fallback(allocator: zx.Allocator) zx.Component {
             <p>
                 Host: <code class="prefs-mono">{host}</code>
             </p>
-            <div class="prefs-row">
+            <div class="state-empty-row">
                 <input
                     class="prefs-input"
                     type="number"
