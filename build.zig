@@ -16,10 +16,7 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // LSP is enabled by default and uses lsp_kit directly. ZLS backing is optional
-    // until ZLS supports the current Zig version.
-    const enable_lsp = b.option(bool, "lsp", "Enable zx lsp") orelse true;
-    const enable_zls = b.option(bool, "zls", "Enable ZLS as backing LSP (requires zls dep)") orelse false;
+    const enable_lsp = b.option(bool, "lsp", "Enable zx lsp (backed by ZLS)") orelse false;
     const enable_sqlite = b.option(bool, "feature-sqlite", "Enabled sqlite support") orelse false;
     const enable_postgres = b.option(bool, "feature-postgres", "Enabled postgres support") orelse false;
     const log_level = b.option(std.log.Level, "cli-log-level", "Log level for the CLI") orelse .info;
@@ -88,8 +85,14 @@ pub fn build(b: *std.Build) !void {
 
     const exe_build_options = b.addOptions();
     exe_build_options.addOption(bool, "enable_lsp", enable_lsp);
-    exe_build_options.addOption(bool, "enable_zls", enable_zls);
-    exe_build_options.addOption(u2, "log_level", @intFromEnum(log_level));
+    exe_build_options.addOption(bool, "enable_zls", enable_lsp);
+    exe_build_options.addOption(u2, "log_level", @backingInt(log_level));
+    // TODO: move this to runtime workspace configuration
+    exe_build_options.addOption(
+        []const u8,
+        "zx_module_path",
+        b.pathJoin(&.{ b.root.root_dir.path orelse ".", "src", "root.zig" }),
+    );
 
     const cli_mod = b.addModule("cli", .{
         .root_source_file = b.path("src/cli.zig"),
@@ -113,7 +116,7 @@ pub fn build(b: *std.Build) !void {
 
     const exe = b.addExecutable(.{ .name = "zx", .root_module = cli_mod });
     if (enable_lsp and target.result.cpu.arch.isWasm()) exe.rdynamic = true;
-    if (enable_lsp and enable_zls) {
+    if (enable_lsp) {
         const zls_dep = b.lazyDependency("zls", .{ .target = target, .optimize = optimize });
         if (zls_dep) |zls| cli_mod.addImport("zls", zls.module("zls"));
     }

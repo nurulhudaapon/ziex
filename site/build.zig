@@ -2,7 +2,7 @@ const std = @import("std");
 const ziex = @import("ziex");
 
 const build_zon = @import("build.zig.zon");
-const ziex_version = 5; // Increment this when site js changes
+const ziex_version = 6; // Increment this when site js changes
 
 pub fn build(b: *std.Build) !void {
     // --- Target and Optimize from `zig build` arguments ---
@@ -10,7 +10,7 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
     const id = assetId(b, optimize);
     const log_level = b.option(std.log.Level, "log-level", "Log level: debug, info, warn, error") orelse .info;
-    const build_zig = b.option(bool, "build-zig", "Build zig/zls/compiler_rt wasm from source") orelse false;
+    const build_zig = b.option(bool, "build-zig", "Build zig/compiler_rt wasm from source") orelse false;
 
     const jsbinding_name = b.fmt("app.{s}.js", .{id});
 
@@ -47,7 +47,6 @@ pub fn build(b: *std.Build) !void {
     });
 
     const pg_step = b.step("pg", "Install playground assets");
-    const zls_version = "0.16.0";
     const playground_zig_version = "0.17.0-dev.1456";
 
     // --- Playground Assets --- //
@@ -55,7 +54,7 @@ pub fn build(b: *std.Build) !void {
         const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .wasi });
         const wasm_optimize: std.builtin.Optimize = .small;
 
-        const zx_wasm_dep = b.dependency("ziex", .{ .target = wasm_target, .optimize = wasm_optimize });
+        const zx_wasm_dep = b.dependency("ziex", .{ .target = wasm_target, .optimize = wasm_optimize, .lsp = true });
         const zx_exe = zx_wasm_dep.artifact("zx");
 
         // -- zx.tar.gz (only include files needed for playground compilation)
@@ -97,7 +96,6 @@ pub fn build(b: *std.Build) !void {
         _ = playground_assets.addCopyFile(pg_init_js, "init.js");
 
         if (build_zig) {
-            const zls_wasm_url = "https://playground.zigtools.org/assets/zls-Cv7Q1mLZ.wasm";
             const zig_dep = b.dependency("zig", .{
                 .target = wasm_target,
                 .optimize = wasm_optimize,
@@ -125,19 +123,11 @@ pub fn build(b: *std.Build) !void {
             run_tar.addDirectoryArg(zig_dep.path("."));
             run_tar.addArg("lib/std");
 
-            const pg_get_zls = b.addSystemCommand(&.{ "curl", "-LSsf", zls_wasm_url, "-o" });
-            pg_get_zls.setName("fetch zls.wasm (playground)");
-            pg_get_zls.expectExitCode(0);
-            _ = playground_assets.addCopyFile(pg_get_zls.addOutputFileArg("zls.wasm"), b.fmt("zls-{s}.wasm", .{zls_version}));
             _ = playground_assets.addCopyFile(zig_exe.getEmittedBin(), b.fmt("zig-{s}.wasm", .{playground_zig_version}));
             _ = playground_assets.addCopyFile(lib_compiler_rt.getEmittedBin(), b.fmt("libcompiler_rt-{s}.a", .{playground_zig_version}));
             _ = playground_assets.addCopyFile(zig_tar_gz, b.fmt("zig-{s}.tar.gz", .{playground_zig_version}));
         } else {
             const assets_dep = try b.dependencyLazy("assets", .{});
-            _ = playground_assets.addCopyFile(
-                assets_dep.path(b.fmt("assets/zls-{s}.wasm", .{zls_version})),
-                b.fmt("zls-{s}.wasm", .{zls_version}),
-            );
             _ = playground_assets.addCopyFile(
                 assets_dep.path(b.fmt("assets/zig-{s}.wasm", .{playground_zig_version})),
                 b.fmt("zig-{s}.wasm", .{playground_zig_version}),
@@ -352,10 +342,6 @@ pub fn build(b: *std.Build) !void {
                     .{
                         .key = "ZIG_VERSION",
                         .value = b.fmt("\"{s}\"", .{playground_zig_version}),
-                    },
-                    .{
-                        .key = "ZLS_VERSION",
-                        .value = b.fmt("\"{s}\"", .{zls_version}),
                     },
                 },
             },

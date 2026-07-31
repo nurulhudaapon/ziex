@@ -23,7 +23,6 @@ import { javascriptLanguage, jsxLanguage, tsxLanguage } from "@codemirror/lang-j
 import type * as LSP from "vscode-languageserver-protocol";
 
 const HOVER_KIND_ONLY = /^\([A-Za-z]+\)$/;
-const ZX_IMPORT_RESOLVED = /@import\("(?:\.\.\/)*zx\/src\/root\.zig"\)/g;
 
 type PlaygroundLspUiHooks = {
     openLocalFile?: (path: string) => void;
@@ -39,13 +38,8 @@ function isHoverKindLabel(text: string): boolean {
     return HOVER_KIND_ONLY.test(text.trim());
 }
 
-/** ZLS sees rewritten `@import("…/zx/src/root.zig")`; show the user-facing `@import("zx")`. */
-function displayZxImport(value: string): string {
-    return value.replace(ZX_IMPORT_RESOLVED, '@import("zx")');
-}
-
 function stripHoverKindLabels(value: string): string {
-    return displayZxImport(value)
+    return value
         // Remove kind-only fenced blocks first (otherwise stripping the label leaves an empty <pre>).
         .replace(/```[^\n]*\r?\n\s*\([A-Za-z]+\)\s*\r?\n```/g, "")
         .replace(/(^|\n)\s*\([A-Za-z]+\)\s*(?=\n|$)/g, "\n")
@@ -209,6 +203,11 @@ function workspaceConfiguration(): LSPClientExtension {
 
 function interceptConfiguration(transport: Transport): Transport {
     const wrappers = new Map<(value: string) => void, (value: string) => void>();
+    const zlsConfig = {
+        prefer_ast_check_as_child_process: false,
+        import_extensions: ["zx"],
+        modules: [{ name: "zx", path: "/zx/src/root.zig" }],
+    };
     return {
         send: (message) => transport.send(message),
         subscribe(handler) {
@@ -221,9 +220,12 @@ function interceptConfiguration(transport: Transport): Transport {
                 }
                 if (msg.method === "workspace/configuration" && msg.id !== undefined) {
                     const items: LSP.ConfigurationItem[] = msg.params?.items ?? [];
-                    const result = items.map((item) =>
-                        item.section === "zls.prefer_ast_check_as_child_process" ? false : null,
-                    );
+                    const result = items.map((item) => {
+                        if (!item.section || item.section === "zls" || item.section.startsWith("zls.")) {
+                            return zlsConfig;
+                        }
+                        return null;
+                    });
                     transport.send(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result }));
                     return;
                 }
@@ -337,13 +339,40 @@ function zlsLogging(): LSPClientExtension {
 const semanticTokens = ViewPlugin.fromClass(
     class {
         decorations: DecorationSet = Decoration.none;
+        private timers: number[] = [];
+        private generation = 0;
 
         constructor(view: EditorView) {
-            void this.requestTokens(view);
+            // Warm-up retries: first paint often races ZLS module resolution.
+            void this.scheduleRefresh(view, [0, 200, 600, 1500]);
         }
 
         update(update: ViewUpdate) {
-            if (update.docChanged) void this.requestTokens(update.view);
+            if (!update.docChanged) return;
+            this.decorations = this.decorations.map(update.changes);
+            // Debounce while typing so decorations below the cursor don't flicker.
+            void this.scheduleRefresh(update.view, [400]);
+        }
+
+        destroy() {
+            this.clearTimers();
+        }
+
+        private clearTimers() {
+            for (const id of this.timers) clearTimeout(id);
+            this.timers = [];
+        }
+
+        private scheduleRefresh(view: EditorView, delays: number[]) {
+            this.clearTimers();
+            const gen = ++this.generation;
+            for (const delay of delays) {
+                const id = window.setTimeout(() => {
+                    if (gen !== this.generation || !view.dom.isConnected) return;
+                    void this.requestTokens(view);
+                }, delay);
+                this.timers.push(id);
+            }
         }
 
         async requestTokens(view: EditorView) {
@@ -352,11 +381,14 @@ const semanticTokens = ViewPlugin.fromClass(
             const { client, uri } = plugin;
             if (client.serverCapabilities && !client.serverCapabilities.semanticTokensProvider) return;
 
+            const gen = this.generation;
             client.sync();
             const tokens = await client.request<LSP.SemanticTokensParams, LSP.SemanticTokens | null>(
                 "textDocument/semanticTokens/full",
                 { textDocument: { uri } },
             );
+            // A newer refresh was scheduled (more typing) — drop this stale result.
+            if (gen !== this.generation || !view.dom.isConnected) return;
             if (!tokens) return;
 
             const provider = client.serverCapabilities?.semanticTokensProvider;

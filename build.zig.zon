@@ -19,13 +19,11 @@
             .url = "git+https://github.com/ziex-dev/httpz.git?ref=dev#49684ddd1fb030f72594cce8370b076dfa922ff9",
             .hash = "httpz-0.0.0-PNVzrATcCADK2AQ3S7KDpH49xF3iMZ6Itih2-uBglAae",
         },
-        // Ziex Language Server utilities (Zig IDE features via ZLS backing).
-        // Re-enable with `-Dzls=true` once ZLS supports the current Zig version.
-        // .zls = .{
-        //     .url = "git+https://github.com/ziex-dev/zls.git#8da87d4f3305a550e7b739bad764e34bf1e46a08",
-        //     .hash = "zls-0.17.0-dev-rmm5fhsnJgACAm2dSuoMNDK6QziDk419sy5-ORvIiL0y",
-        //     .lazy = true,
-        // },
+        .zls = .{
+            .url = "git+https://github.com/ziex-dev/zls.git?ref=patch/zx#2782776cf40c455855dc97f39d15ea60ab34c70b",
+            .hash = "zls-0.17.0-dev-rmm5fkNQJQAK5pfjMZzNxiMUgVYe2aBUZC-xasy_yOlu",
+            .lazy = true,
+        },
         .lsp_kit = .{
             .url = "git+https://github.com/zigtools/lsp-kit.git#d148676ace1eaecf3c703ce7d350d0e94e502ed7",
             .hash = "lsp_kit-0.1.0-bi_PLwc2DACoR7VTz_qKFXUvtx7veHvWcTQvP9pDFLpk",

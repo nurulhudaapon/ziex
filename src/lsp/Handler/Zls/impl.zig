@@ -76,16 +76,25 @@ pub fn create(options: Zls.CreateOptions) Zls.CreateError!Zls.Backing {
     };
     errdefer config_manager.deinit();
 
-    // Matches the previous ZX LSP setup. Requires a ZLS that still exposes
-    // `global_cache_path` on its unresolved frontend config (ziex-dev/zls fork).
+    // TODO: move this to runtime workspace configuration
+    const build_options = @import("build_options");
+    const zx_module_path = if (builtin.os.tag == .wasi)
+        "/zx/src/root.zig"
+    else
+        build_options.zx_module_path;
     try config_manager.setConfiguration(.frontend, &.{
-        .global_cache_path = global_cache_path,
+        .import_extensions = &.{"zx"},
+        .modules = &.{
+            .{
+                .name = "zx",
+                .path = zx_module_path,
+            },
+        },
     });
 
     const server = try zls.Server.create(.{
         .io = options.io,
         .allocator = allocator,
-        // Handler/lsp-kit transport; ZLS expects its own lsp.Transport pointer.
         .transport = @ptrCast(options.transport),
         .config_manager = config_manager,
     });
@@ -124,8 +133,6 @@ fn request(
     const impl: *Impl = @ptrCast(@alignCast(ptr));
     inline for (request_methods) |m| {
         if (std.mem.eql(u8, method, m)) {
-            // Params/results come from Handler's lsp-kit; forward into ZLS which
-            // uses its own lsp module. Layouts must match (same meta model).
             const P = zls.lsp.ParamsType(m);
             const R = zls.lsp.ResultType(m);
             const p: *const P = @ptrCast(@alignCast(params));

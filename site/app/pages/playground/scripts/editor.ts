@@ -173,7 +173,7 @@ function createEditorState(filename: string, content: string, opts: { readonly?:
     }
 
     if (filename.endsWith('.zig') || filename.endsWith('.zx') || filename.endsWith('.zon')) {
-        // ZX wasm LSP + older precompiled ZLS (merged in the zls worker).
+        // ZX wasm LSP (ZLS-backed when built with -Dzls=true).
         extensions.push(client.plugin(`file:///${filename}`, "zig"));
     }
 

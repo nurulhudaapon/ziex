@@ -27,6 +27,16 @@ output_message_starts: std.ArrayList(usize) = .empty,
 output_message_bytes: std.ArrayList(u8) = .empty,
 
 var global_session: Message = .{};
+var wasm_environ_map: std.process.Environ.Map = undefined;
+var wasm_environ_map_ready: bool = false;
+
+fn environMap() *const std.process.Environ.Map {
+    if (!wasm_environ_map_ready) {
+        wasm_environ_map = .init(gpa);
+        wasm_environ_map_ready = true;
+    }
+    return &wasm_environ_map;
+}
 
 fn readJsonMessage(_: *lsp.Transport, _: std.Io, allocator: std.mem.Allocator) (std.mem.Allocator.Error || lsp.Transport.ReadError)![]u8 {
     const self = &global_session;
@@ -49,6 +59,16 @@ pub fn ensure(self: *Message) void {
     if (self.handler_alive) return;
     const io = self.threaded.io();
     self.handler = .init(gpa, &self.transport, io);
+    if (comptime Handler.Zls.enabled) {
+        if (Handler.Zls.create(.{
+            .allocator = gpa,
+            .io = io,
+            .transport = &self.transport,
+            .environ_map = environMap(),
+        })) |backing| {
+            self.handler.setBacking(backing.ptr, backing.vtable);
+        } else |_| {}
+    }
     self.handler_alive = true;
 }
 

@@ -1639,6 +1639,27 @@ body {
     color: #eeffff;
 }
 
+/* Namespaces / modules (`std`, `zx`) */
+.st-namespace,
+.st-module {
+    color: #ffcb6b;
+}
+
+/* Fields / properties (`zx.Component`) */
+.st-property,
+.st-enumMember {
+    color: #eeffff;
+}
+
+/* Macros / modifiers */
+.st-macro {
+    color: #82aaff;
+}
+
+.st-modifier {
+    color: #c792ea;
+}
+
 /* Tags (for ZX / HTML-in-Zig) */
 .st-tag {
     color: #f07178;
