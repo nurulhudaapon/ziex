@@ -72,7 +72,7 @@ export function templatesForMode(mode: PlaygroundMode): TemplateDef[] {
 export function defaultTemplateId(mode: PlaygroundMode): string {
     const forMode = templatesForMode(mode);
     if (forMode.length > 0) return forMode[0].id;
-    return mode === "playground" ? "hello" : "counter";
+    return mode === "playground" ? "playground" : "app";
 }
 
 export function getTemplate(id: string): TemplateDef | undefined {

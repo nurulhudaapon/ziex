@@ -4,6 +4,7 @@ import {
     ViewPlugin,
     Decoration,
     hoverTooltip,
+    tooltips,
     type DecorationSet,
     type ViewUpdate,
     type PluginValue,
@@ -25,7 +26,13 @@ import type * as LSP from "vscode-languageserver-protocol";
 const HOVER_KIND_ONLY = /^\([A-Za-z]+\)$/;
 
 type PlaygroundLspUiHooks = {
-    openLocalFile?: (path: string) => void;
+    openLocalFile?: (target: LocalFileTarget) => void;
+};
+
+export type LocalFileTarget = {
+    path: string;
+    line?: number;
+    character?: number;
 };
 
 let playgroundLspUiHooks: PlaygroundLspUiHooks = {};
@@ -119,34 +126,50 @@ function renderHoverHtml(plugin: LSPPlugin, contents: LSP.Hover["contents"]): st
 
 function normalizeLocalHoverPath(href: string): string | null {
     if (!href) return null;
+    let path: string | null = null;
     if (href.startsWith("file://")) {
         try {
             const url = new URL(href);
-            return decodeURIComponent(url.pathname).replace(/^\/+/, "");
+            path = decodeURIComponent(url.pathname).replace(/^\/+/, "");
         } catch {
-            return href.replace(/^file:\/+/, "").replace(/^\/+/, "").split("#")[0] ?? null;
+            path = href.replace(/^file:\/+/, "").replace(/^\/+/, "").split("#")[0] ?? null;
         }
+    } else if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(href)) {
+        return null;
+    } else if (href.startsWith("#")) {
+        return null;
+    } else if (/\.(?:zig|zx|zon|mdzx|html|css|js|jsx|ts|tsx|md)$/.test(href.split("#")[0] ?? "")) {
+        path = href.replace(/^\/+/, "").split("#")[0] ?? null;
     }
-    if (/^[A-Za-z][A-Za-z0-9+.-]*:/.test(href)) return null;
-    if (href.startsWith("#")) return null;
-    if (/\.(?:zig|zx|zon|mdzx|html|css|js|jsx|ts|tsx|md)$/.test(href)) {
-        return href.replace(/^\/+/, "").split("#")[0] ?? null;
-    }
-    return null;
+    return path;
+}
+
+function parseLocalFileTarget(href: string): LocalFileTarget | null {
+    const path = normalizeLocalHoverPath(href);
+    if (!path) return null;
+    const hash = href.includes("#") ? href.slice(href.indexOf("#") + 1) : "";
+    const match = hash.match(/^L(\d+)(?:C(\d+))?/i) ?? hash.match(/^(\d+)(?::(\d+))?$/);
+    if (!match) return { path };
+    return {
+        path,
+        line: Math.max(0, Number.parseInt(match[1], 10) - 1),
+        character: match[2] != null ? Math.max(0, Number.parseInt(match[2], 10) - 1) : 0,
+    };
 }
 
 function decorateHoverLinks(root: HTMLElement) {
     for (const anchor of root.querySelectorAll("a[href]")) {
         const href = anchor.getAttribute("href") ?? "";
-        const localPath = normalizeLocalHoverPath(href);
-        if (localPath) {
-            anchor.setAttribute("data-local-path", localPath);
+        const target = parseLocalFileTarget(href);
+        if (target) {
+            anchor.setAttribute("data-local-path", target.path);
+            if (target.line != null) anchor.setAttribute("data-local-line", String(target.line));
             anchor.addEventListener(
                 "click",
                 (event) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    playgroundLspUiHooks.openLocalFile?.(localPath);
+                    playgroundLspUiHooks.openLocalFile?.(target);
                 },
                 true,
             );
@@ -350,8 +373,15 @@ const semanticTokens = ViewPlugin.fromClass(
         update(update: ViewUpdate) {
             if (!update.docChanged) return;
             this.decorations = this.decorations.map(update.changes);
-            // Debounce while typing so decorations below the cursor don't flicker.
-            void this.scheduleRefresh(update.view, [400]);
+            let changedFrom = update.state.doc.length;
+            let changedTo = 0;
+            update.changes.iterChanges((fromA, toA) => {
+                changedFrom = Math.min(changedFrom, fromA);
+                changedTo = Math.max(changedTo, toA);
+            });
+            const span = Math.max(0, changedTo - changedFrom);
+            const bulk = span > Math.max(80, update.startState.doc.length * 0.35);
+            void this.scheduleRefresh(update.view, bulk ? [0, 200] : [400]);
         }
 
         destroy() {
@@ -545,6 +575,7 @@ export function createZlsClient(transport: Transport): LSPClient {
             }
         },
         extensions: [
+            tooltips({ parent: document.body }),
             workspaceConfiguration(),
             zlsDiagnostics(),
             zlsLogging(),

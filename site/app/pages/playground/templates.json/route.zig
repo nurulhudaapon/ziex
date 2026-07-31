@@ -17,8 +17,8 @@ fn prepare(allocator: zx.Allocator) !Response {
 
     // ── Hand-crafted defaults ──
     try list.append(allocator, .{
-        .name = "hello",
-        .description = "Hello",
+        .name = "playground",
+        .description = "Playground",
         .kind = .none_app,
         .files = try files(allocator, &.{
             .{ .path = "Playground.zx", .content = pg_hello },
@@ -27,8 +27,8 @@ fn prepare(allocator: zx.Allocator) !Response {
     });
 
     try list.append(allocator, .{
-        .name = "counter",
-        .description = "Counter",
+        .name = "app",
+        .description = "App",
         .kind = .app,
         .files = try files(allocator, &.{
             .{ .path = "app/pages/layout.zx", .content = app_layout },
@@ -39,8 +39,8 @@ fn prepare(allocator: zx.Allocator) !Response {
     });
 
     try list.append(allocator, .{
-        .name = "events",
-        .description = "Events",
+        .name = "app-events",
+        .description = "App events",
         .kind = .app,
         .files = try files(allocator, &.{
             .{ .path = "app/pages/layout.zx", .content = events_layout },

@@ -7,6 +7,7 @@
     max-width: min(500px, calc(100vw - 32px));
     max-height: min(280px, 45vh);
     overflow: auto;
+    z-index: 2000;
 }
 
 .cm-tooltip.cm-tooltip-hover > .cm-tooltip-section,

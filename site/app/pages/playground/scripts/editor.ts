@@ -2,7 +2,7 @@ import { appendTerminalLine, revealOutputWindow, setTerminalCollapsed, clearTerm
 import { EditorState, Prec } from "@codemirror/state"
 import { keymap, ViewPlugin, type ViewUpdate } from "@codemirror/view"
 import { EditorView, basicSetup } from "codemirror"
-import { createZlsClient, setPlaygroundLspUiHooks, workerTransport } from "./lsp";
+import { createZlsClient, setPlaygroundLspUiHooks, workerTransport, type LocalFileTarget } from "./lsp";
 import { formatDocument } from "@codemirror/lsp-client";
 import { LSPPlugin } from "@codemirror/lsp-client";
 import { indentWithTab } from "@codemirror/commands";
@@ -29,20 +29,20 @@ import { html } from "@codemirror/lang-html";
 import { css } from "@codemirror/lang-css";
 import { javascript } from "@codemirror/lang-javascript";
 import { createPlaygroundShareUrl, decodeFilesFromQuery } from "../../../scripts/playground_share";
-import { getZxArchive } from "./utils";
+import { getLatestZigArchive, getZxArchive } from "./utils";
 
 declare const VERSION: string;
 declare const ZIG_VERSION: string;
 
 let client = createZlsClient(workerTransport(new Worker(`/assets/playground/workers/zls.js?v=${VERSION}`)));
 setPlaygroundLspUiHooks({
-    openLocalFile: (path) => {
-        void openReadonlyLinkedFile(path);
+    openLocalFile: (target) => {
+        void openLinkedFile(target);
     },
 });
 const PLAYGROUND_NOTICE_STORAGE_KEY = "playground_feature_notice_dismissed_v1";
 const MODE_STORAGE_KEY = "playground_mode_v1";
-const TEMPLATE_STORAGE_KEY = "playground_template_v1";
+const TEMPLATE_STORAGE_KEY = "playground_template_v2";
 const PERSIST_FILES_KEY = "playground_persist_files_v1";
 const FILES_IDB_NAME = "ziex-playground-files-v1";
 const BUILDS_IDB_NAME = `ziex-playground-builds-${VERSION}`;
@@ -54,14 +54,14 @@ try {
 } catch { /* ignore */ }
 
 let playgroundMode: PlaygroundMode = "playground";
-let activeTemplateId = "hello";
+let activeTemplateId = "playground";
 
 try {
     const savedMode = localStorage.getItem(MODE_STORAGE_KEY);
     if (savedMode === "app" || savedMode === "playground") playgroundMode = savedMode;
     const savedTemplate = localStorage.getItem(TEMPLATE_STORAGE_KEY);
     if (savedTemplate) activeTemplateId = savedTemplate;
-    else activeTemplateId = playgroundMode === "app" ? "counter" : "hello";
+    else activeTemplateId = playgroundMode === "app" ? "app" : "playground";
 } catch { /* ignore */ }
 
 function resolveActiveTemplateId() {
@@ -293,12 +293,42 @@ function getKnownFileContent(path: string): string | null {
 }
 
 let zxArchiveFilesPromise: Promise<Record<string, Uint8Array>> | null = null;
+let zigArchiveFilesPromise: Promise<Record<string, Uint8Array>> | null = null;
 
 async function getZxArchiveFiles(): Promise<Record<string, Uint8Array>> {
     if (!zxArchiveFilesPromise) {
         zxArchiveFilesPromise = getZxArchive().then((dir) => flattenDirectory(dir));
     }
     return zxArchiveFilesPromise;
+}
+
+async function getZigArchiveFiles(): Promise<Record<string, Uint8Array>> {
+    if (!zigArchiveFilesPromise) {
+        zigArchiveFilesPromise = getLatestZigArchive().then((dir) => flattenDirectory(dir));
+    }
+    return zigArchiveFilesPromise;
+}
+
+function pathsEqual(a: string, b: string): boolean {
+    const norm = (p: string) => p.replace(/^\/+/, "");
+    return norm(a) === norm(b);
+}
+
+function findOpenFileIndex(path: string): number {
+    return files.findIndex((file) => pathsEqual(filePath(file), path) || pathsEqual(file.name, path));
+}
+
+function goToLine(line: number, character = 0) {
+    if (!editorView) return;
+    const doc = editorView.state.doc;
+    const cmLine = doc.line(Math.min(Math.max(line, 0) + 1, doc.lines));
+    const cursorPos = Math.min(cmLine.from + Math.max(character, 0), cmLine.to);
+    editorView.dispatch({
+        selection: { anchor: cursorPos, head: cursorPos },
+        scrollIntoView: true,
+        effects: EditorView.scrollIntoView(cursorPos, { y: "center" }),
+    });
+    editorView.focus();
 }
 
 async function resolveReadonlyLinkedFile(path: string): Promise<string | null> {
@@ -314,13 +344,26 @@ async function resolveReadonlyLinkedFile(path: string): Promise<string | null> {
             archiveFiles[path.startsWith("src/") ? path : `src/${path.replace(/^zx\//, "")}`];
         if (bytes) return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
     }
+
+    // WASI / hover links: file:///lib/std/... → zig stdlib tar (lib/ prefix stripped in archive).
+    if (path.startsWith("lib/") || path.startsWith("std/")) {
+        const archiveFiles = await getZigArchiveFiles();
+        const rel = path.replace(/^lib\//, "");
+        const bytes = archiveFiles[rel] ?? archiveFiles[path] ?? archiveFiles[`lib/${rel}`];
+        if (bytes) return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+    }
     return null;
 }
 
-async function openReadonlyLinkedFile(path: string): Promise<boolean> {
-    const existingIndex = files.findIndex((file) => file.readonly && filePath(file) === path);
+async function openLinkedFile(target: LocalFileTarget | string): Promise<boolean> {
+    const path = typeof target === "string" ? target : target.path;
+    const line = typeof target === "string" ? undefined : target.line;
+    const character = typeof target === "string" ? undefined : target.character;
+
+    const existingIndex = findOpenFileIndex(path);
     if (existingIndex >= 0) {
         await switchFile(existingIndex);
+        if (line != null) goToLine(line, character ?? 0);
         return true;
     }
 
@@ -337,99 +380,95 @@ async function openReadonlyLinkedFile(path: string): Promise<boolean> {
     files.push(file);
     updateTabs();
     await switchFile(files.length - 1);
+    if (line != null) goToLine(line, character ?? 0);
     return true;
 }
 
+/** @deprecated Prefer openLinkedFile */
+async function openReadonlyLinkedFile(path: string): Promise<boolean> {
+    return openLinkedFile(path);
+}
+
 async function switchFile(index: number) {
-    if (index === activeFileIndex) return;
+    if (index !== activeFileIndex) {
+        if (activeFileIndex !== -1 && editorView) {
+            files[activeFileIndex].state = editorView.state;
+            if (!files[activeFileIndex].ephemeral) {
+                fileManager.updateContent(files[activeFileIndex].name, editorView.state.doc.toString());
+            }
+        }
 
-    if (activeFileIndex !== -1 && editorView) {
-        files[activeFileIndex].state = editorView.state;
-        if (!files[activeFileIndex].ephemeral) {
-            fileManager.updateContent(files[activeFileIndex].name, editorView.state.doc.toString());
+        activeFileIndex = index;
+        const file = files[index];
+
+        if (!editorView) {
+            editorView = new EditorView({
+                state: file.state,
+                parent: document.getElementById("pg-code-area")!,
+            });
+        } else {
+            editorView.setState(file.state);
         }
     }
 
-    activeFileIndex = index;
-    const file = files[index];
+    if (!editorView) return;
 
-    if (!editorView) {
-        editorView = new EditorView({
-            state: file.state,
-            parent: document.getElementById("pg-code-area")!,
-        });
+    if (!metaImplementationClickInstalled) {
+        metaImplementationClickInstalled = true;
+        editorView.dom.addEventListener(
+            "click",
+            (ev) => {
+                // Cmd/Ctrl-click on a symbol -> request implementations and navigate.
+                if (!("metaKey" in ev) || !(ev as MouseEvent).metaKey) return;
+                const e = ev as MouseEvent;
+                if (e.button != null && e.button !== 0) return;
 
-        if (!metaImplementationClickInstalled) {
-            metaImplementationClickInstalled = true;
-            editorView.dom.addEventListener(
-                "click",
-                (ev) => {
-                    // Cmd/Ctrl-click on a symbol -> request implementations and navigate.
-                    if (!("metaKey" in ev) || !(ev as MouseEvent).metaKey) return;
-                    const e = ev as MouseEvent;
-                    if (e.button != null && e.button !== 0) return;
+                const plugin = LSPPlugin.get(editorView);
+                if (!plugin) return;
 
-                    const plugin = LSPPlugin.get(editorView);
-                    if (!plugin) return;
+                const pos = editorView.posAtCoords({ x: e.clientX, y: e.clientY });
+                if (pos == null) return;
 
-                    const pos = editorView.posAtCoords({ x: e.clientX, y: e.clientY });
-                    if (pos == null) return;
+                void (async () => {
+                    try {
+                        const impl = await plugin.client.request<any, any>("textDocument/implementation", {
+                            textDocument: { uri: plugin.uri },
+                            position: plugin.toPosition(pos),
+                        });
+                        if (!impl) return;
+                        const locations = Array.isArray(impl) ? impl : impl.locations;
+                        const location = locations?.[0];
+                        const start = location?.range?.start;
+                        const uri = location?.uri;
+                        if (!start || !uri) return;
 
-                    void (async () => {
-                        try {
-                            const impl = await plugin.client.request<any, any>("textDocument/implementation", {
-                                textDocument: { uri: plugin.uri },
-                                position: plugin.toPosition(pos),
-                            });
-                            if (!impl) return;
-                            const locations = Array.isArray(impl) ? impl : impl.locations;
-                            const location = locations?.[0];
-                            const start = location?.range?.start;
-                            const uri = location?.uri;
-                            if (!start || !uri) return;
-
-                            let path: string | null = null;
-                            if (typeof uri === "string" && uri.startsWith("file://")) {
-                                try {
-                                    path = decodeURIComponent(new URL(uri).pathname).replace(/^\/+/, "");
-                                } catch {
-                                    path = uri.replace(/^file:\/+/, "").split("#")[0].replace(/^\/+/, "");
-                                }
-                            } else if (typeof uri === "string") {
-                                path = uri.split("#")[0].replace(/^\/+/, "");
+                        let path: string | null = null;
+                        if (typeof uri === "string" && uri.startsWith("file://")) {
+                            try {
+                                path = decodeURIComponent(new URL(uri).pathname).replace(/^\/+/, "");
+                            } catch {
+                                path = uri.replace(/^file:\/+/, "").split("#")[0].replace(/^\/+/, "");
                             }
-                            if (!path) return;
-
-                            // Prefer an existing editable tab.
-                            const editableIndex = files.findIndex(
-                                (f) => !f.ephemeral && !f.readonly && filePath(f) === path,
-                            );
-                            if (editableIndex >= 0) {
-                                await switchFile(editableIndex);
-                            } else {
-                                await openReadonlyLinkedFile(path);
-                            }
-
-                            const cmLine = editorView.state.doc.line(Math.min(start.line + 1, editorView.state.doc.lines));
-                            const cursorPos = cmLine.from + start.character;
-                            editorView.dispatch({
-                                selection: { anchor: cursorPos, head: cursorPos },
-                                scrollIntoView: true,
-                            });
-                            editorView.focus();
-                        } catch {
-                            // ignore
+                        } else if (typeof uri === "string") {
+                            path = uri.split("#")[0].replace(/^\/+/, "");
                         }
-                    })();
-                },
-                true,
-            );
-        }
-    } else {
-        editorView.setState(file.state);
+                        if (!path) return;
+
+                        await openLinkedFile({
+                            path,
+                            line: start.line,
+                            character: start.character,
+                        });
+                    } catch {
+                        // ignore
+                    }
+                })();
+            },
+            true,
+        );
     }
 
-    updateEditorStatus(editorView, file.name);
+    updateEditorStatus(editorView, files[activeFileIndex]?.name ?? "");
     updateTabs();
 }
 
@@ -1778,10 +1817,10 @@ function getCurrentFilesMap(): { [filename: string]: string } {
         map[f.name] = f.content;
     });
     if (playgroundMode === "app") {
-        const appMain = getTemplate("counter")?.files["app/main.zig"];
+        const appMain = getTemplate("app")?.files["app/main.zig"];
         if (!map["app/main.zig"] && appMain) map["app/main.zig"] = appMain;
     } else {
-        const pgMain = getTemplate("hello")?.files["main.zig"];
+        const pgMain = getTemplate("playground")?.files["main.zig"];
         if (!map["main.zig"] && pgMain) map["main.zig"] = pgMain;
     }
     return map;

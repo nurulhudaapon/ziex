@@ -54,6 +54,7 @@ export const editorTheme = EditorView.theme(
       fontSize: "13px",
       lineHeight: "1.45",
       maxWidth: "min(500px, calc(100vw - 32px))",
+      zIndex: "2000",
     },
     ".cm-tooltip.cm-tooltip-autocomplete": {
       backgroundColor: "#252526",
