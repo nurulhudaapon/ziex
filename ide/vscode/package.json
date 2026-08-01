@@ -1,10 +1,10 @@
 {
   "name": "ziex",
   "displayName": "Ziex",
-  "description": "Ziex let's you write HTML within your Zig code.",
+  "description": "Ziex - full-stack web framework for Zig",
   "version": "0.1.1140",
   "publisher": "ziex",
-  "icon": "images/zx-icon.png",
+  "icon": "images/ziex-logo-colored.png",
   "private": true,
   "categories": [
     "Programming Languages"
@@ -21,7 +21,7 @@
     "url": "https://github.com/ziex-dev/ziex"
   },
   "engines": {
-    "vscode": "^1.99.0"
+    "vscode": "^1.125.0"
   },
   "activationEvents": [
     "onLanguage:zx",
@@ -89,15 +89,16 @@
       {
         "id": "zx",
         "extensions": [
-          ".zx"
+          ".zx",
+          ".mdzx"
         ],
         "aliases": [
           "ZX"
         ],
         "configuration": "./language-configuration.json",
         "icon": {
-          "dark": "./images/zx-icon-dark.svg",
-          "light": "./images/zx-icon-light.svg"
+          "dark": "./images/ziex-logo-colored.svg",
+          "light": "./images/ziex-logo-colored.svg"
         }
       }
     ],
@@ -123,24 +124,19 @@
     ]
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "rm -rf out && tsc -b",
-    "watch": "tsc -b -w",
-    "fmt": "prettier . --write",
-    "pack": "vsce pack"
+    "vscode:prepublish": "echo 'extension already built by zig'",
+    "compile": "zig build",
+    "watch": "node esbuild.js --watch",
+    "pack": "zig build pack",
+    "pre-release": "zig build pre-release",
+    "publish": "zig build publish"
   },
   "dependencies": {
     "vscode-languageclient": "^10.1.0"
   },
   "devDependencies": {
-    "@types/bun": "^1.3.14",
     "@types/node": "^26.1.2",
     "@types/vscode": "^1.125.0",
-    "esbuild": "^0.28.1",
-    "prettier": "^3.9.6",
-    "pretty-quick": "^4.2.2",
-    "simple-git-hooks": "^2.13.1",
-    "typescript": "^7.0.2"
-  },
-  "prettier": {}
+    "@vscode/vsce": "^3.9.2"
+  }
 }

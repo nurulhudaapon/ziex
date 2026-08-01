@@ -1,0 +1,159 @@
+name: VS Code Extension
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'ide/vscode/**'
+      - 'pkg/plugin-esbuild/**'
+      - 'pkg/plugin-system/**'
+      - '.github/workflows/vscode.yml'
+
+  release:
+    types: [created]
+
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: "Publish to VS Code Marketplace and Open VSX"
+        required: false
+        type: boolean
+        default: true
+      pre-release:
+        description: "Publish as a pre-release (default). Uncheck for a stable release."
+        required: false
+        type: boolean
+        default: true
+      bump:
+        description: "vsce version bump (patch/minor/major). Ignored for GitHub releases."
+        required: false
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+        default: patch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.0-dev.1465+8b2d0ce21
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ide/vscode/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ide/vscode
+        run: npm ci
+
+      - name: Build
+        working-directory: ide/vscode
+        run: zig build -Doptimize=ReleaseSafe
+
+      - name: Pack pre-release
+        working-directory: ide/vscode
+        run: zig build pre-release -Doptimize=ReleaseSafe
+
+      - name: Upload VSIX
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-extension
+          path: ide/vscode/*.vsix
+          retention-days: 14
+
+  publish:
+    if: >-
+      github.event_name == 'release' ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish)
+    needs: [build]
+    runs-on: ubuntu-latest
+    environment:
+      name: vscode-marketplace
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: 0.17.0-dev.1465+8b2d0ce21
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: ide/vscode/package-lock.json
+
+      - name: Install dependencies
+        working-directory: ide/vscode
+        run: npm ci
+
+      - name: Resolve publish options
+        id: flags
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PRE_RELEASE="${{ inputs.pre-release }}"
+            BUMP="${{ inputs.bump || 'patch' }}"
+          elif [ "${{ github.event_name }}" = "release" ] && [ "${{ github.event.release.prerelease }}" != "true" ]; then
+            # Full GitHub releases publish stable from the stamped tag version.
+            PRE_RELEASE="false"
+            BUMP="none"
+          else
+            PRE_RELEASE="true"
+            BUMP="none"
+          fi
+          echo "pre_release=$PRE_RELEASE" >> "$GITHUB_OUTPUT"
+          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
+          echo "Publishing pre-release=$PRE_RELEASE bump=$BUMP"
+
+      - name: Stamp version from release tag
+        if: github.event_name == 'release'
+        run: bash tools/version "${{ github.event.release.tag_name }}"
+
+      - name: Build
+        working-directory: ide/vscode
+        run: zig build -Doptimize=ReleaseSafe
+
+      - name: Publish to VS Code Marketplace
+        working-directory: ide/vscode
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+          PRE_RELEASE: ${{ steps.flags.outputs.pre_release }}
+          BUMP: ${{ steps.flags.outputs.bump }}
+        run: |
+          if [ -z "$VSCE_PAT" ]; then
+            echo "::error::VSCE_PAT secret is not set"
+            exit 1
+          fi
+          # vsce publish [patch|minor|major] --no-git-tag-version bumps via npm version without committing.
+          zig build publish -Doptimize=ReleaseSafe -Dpre-release="$PRE_RELEASE" -Dbump="$BUMP"
+
+      - name: Publish to Open VSX
+        working-directory: ide/vscode
+        env:
+          OVSX_PAT: ${{ secrets.OPEN_VSX_TOKEN }}
+          PRE_RELEASE: ${{ steps.flags.outputs.pre_release }}
+        run: |
+          if [ -z "$OVSX_PAT" ]; then
+            echo "::warning::OPEN_VSX_TOKEN secret is not set; skipping Open VSX publish"
+            exit 0
+          fi
+          # Uses package.json version already bumped by vsce (when bump != none).
+          ARGS=(--pat "$OVSX_PAT")
+          if [ "$PRE_RELEASE" = "true" ]; then
+            ARGS+=(--pre-release)
+          fi
+          npx --yes ovsx publish "${ARGS[@]}"

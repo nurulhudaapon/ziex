@@ -6,3 +6,9 @@ tsconfig.tsbuildinfo
 *.vsix
 test/logs/*
 .env
+.zig-cache
+zig-out
+images/ziex-logo-colored.png
+images/ziex-logo-colored.svg
+images/ziex-logo-white.svg
+images/ziex-logo-black.svg

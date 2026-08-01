@@ -2,9 +2,7 @@
 !images/**
 !syntaxes/**
 !language-configuration.json
-!out/**/**/*.js
-
-!node_modules/**/**
+!out/extension.js
 
 !package.json
 !LICENSE
