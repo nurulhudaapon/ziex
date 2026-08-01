@@ -12,6 +12,9 @@ async fn main() -> std::io::Result<()> {
     let conf = get_configuration(None).unwrap();
     let addr = conf.leptos_options.site_addr;
 
+    let workers = std::thread::available_parallelism()
+        .map(|n| n.get())
+        .unwrap_or(1);
     HttpServer::new(move || {
         let routes = generate_route_list(App);
         let leptos_options = &conf.leptos_options;
@@ -43,6 +46,7 @@ async fn main() -> std::io::Result<()> {
             })
             .app_data(web::Data::new(leptos_options.to_owned()))
     })
+    .workers(workers)
     .bind(&addr)?
     .run()
     .await

@@ -223,6 +223,11 @@ fn resolveOptions(alloc: std.mem.Allocator, inita: zx.Init, config: Config) !Con
     resolved.datadir = datadir;
     resolved.staticdir = staticdir;
 
+    if (cfg.server.thread_pool.count == null) {
+        const cpus = std.Thread.getCpuCount() catch 1;
+        cfg.server.thread_pool.count = @intCast(@max(cpus, 1));
+    }
+
     return cfg;
 }
 

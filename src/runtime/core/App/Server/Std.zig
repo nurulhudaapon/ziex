@@ -72,7 +72,7 @@ pub fn Server(comptime H: type) type {
             const port: u16 = (if (app_opts.server_port) |p| p else config.server.port) orelse constants.default_port;
             const address_str = app_opts.server_address orelse config.server.address orelse constants.default_address;
 
-            const worker_count: u32 = @max(@as(u32, config.server.thread_pool.count), 1);
+            const worker_count: u32 = @max(@as(u32, config.server.thread_pool.count orelse 1), 1);
             const queue_cap: u32 = @max(config.server.thread_pool.backlog, 1);
 
             self.* = .{

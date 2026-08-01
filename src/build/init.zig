@@ -28,16 +28,10 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         .@"feature-sqlite" = if (options.app != null and options.app.?.features.sqlite != null) true else null,
         .@"feature-postgres" = if (options.app != null and options.app.?.features.postgres != null) true else null,
         .@"enable-httpz" = enable_httpz,
+        .lsp = false,
     });
 
-    // Partial CLI dep - Excludes slow ZLS build
-    const zx_dep_partial = b.dependencyFromBuildZig(build_zig, .{
-        .optimize = options.cli.optimize, // Always in release mode for faster transpilation
-        .@"cli-log-level" = options.cli.log_level,
-    });
-
-    // Full CLI dep - Includes ZLS build
-    const zx_dep_full = b.dependencyFromBuildZig(build_zig, .{
+    const zx_host_dep = b.dependencyFromBuildZig(build_zig, .{
         .optimize = options.cli.optimize,
         .lsp = ziex_lsp,
         .@"cli-log-level" = options.cli.log_level,
@@ -45,8 +39,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
 
     const zx_module = zx_dep.module("zx");
 
-    const zx_cli_partial = zx_dep_partial.artifact("zx");
-    const zx_cli_full = zx_dep_full.artifact("zx");
+    const zx_cli = zx_host_dep.artifact("zx");
 
     const client = if (options.app) |app| app.client else InitOptions.ClientOptions.default;
     const features = if (options.app) |app| app.features else InitOptions.AppOptions.FeatureOptions.default;
@@ -135,7 +128,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
 
     // --- ZX Transpilation ---
     const transpile_store = b.graph.path(.local_cache, CliConstant.ziex_cache_dirname).path(b, CliConstant.transpile_store_dirname);
-    const transpile_cmd = getZxRun(b, zx_cli_partial, opts);
+    const transpile_cmd = cliRun(b, zx_cli, opts);
     transpile_cmd.setName("translate-zx");
     transpile_cmd.addArg("transpile");
     transpile_cmd.addDirectoryArg(opts.site_path);
@@ -386,12 +379,12 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
 
         if (use_stable_assets) {
             if (uses_local_bindings and link_client_bindings) {
-                const js_asset = addStaticAssetCopy(b, zx_cli_partial, opts, zxjs_path, client_asset_stem, ".js", true, true, "script");
+                const js_asset = addStaticAssetCopy(b, zx_cli, opts, zxjs_path, client_asset_stem, ".js", true, true, "script");
                 js_asset.setName("install client bindings");
                 b.getInstallStep().dependOn(&js_asset.step);
             }
 
-            const wasm_asset = addStaticAssetCopy(b, zx_cli_partial, opts, wasm_binpath, client_asset_stem, ".wasm", !uses_local_bindings, true, "wasmlink");
+            const wasm_asset = addStaticAssetCopy(b, zx_cli, opts, wasm_binpath, client_asset_stem, ".wasm", !uses_local_bindings, true, "wasmlink");
             wasm_asset.setName("install client wasm");
             wasm_asset.step.dependOn(&wasm_exe.step);
             b.getInstallStep().dependOn(&wasm_asset.step);
@@ -402,7 +395,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         var wasm_manifest_in = base_manifest_path;
         var js_run: ?*std.Build.Step.Run = null;
         if (uses_local_bindings and link_client_bindings) {
-            const js_asset = addStaticAssetRun(b, zx_cli_partial, opts, base_manifest_path, zxjs_path, client_asset_href_stem, client_asset_stem, ".js", "script", true, false);
+            const js_asset = addStaticAssetRun(b, zx_cli, opts, base_manifest_path, zxjs_path, client_asset_href_stem, client_asset_stem, ".js", "script", true, false);
             js_asset.run.setName("install client bindings");
             b.getInstallStep().dependOn(&js_asset.run.step);
             js_run = js_asset.run;
@@ -411,7 +404,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
 
         const wasm_asset_run = addStaticAssetRun(
             b,
-            zx_cli_partial,
+            zx_cli,
             opts,
             wasm_manifest_in,
             wasm_binpath,
@@ -444,14 +437,14 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
             "zx",
             b.fmt("ZX CLI - \x1b[2m{s}\x1b[0m", .{"zig build zx -- <args>"}),
         );
-        const zx_cmd = getZxRun(b, zx_cli_full, opts);
+        const zx_cmd = cliRun(b, zx_cli, opts);
         zx_step.dependOn(&zx_cmd.step);
         zx_cmd.addPassthruArgs();
     }
 
     // --- Steps: Serve --- //
     if (opts.steps.serve) |serve_step_name| {
-        const serve_cmd = getZxRun(b, zx_cli_partial, opts);
+        const serve_cmd = cliRun(b, zx_cli, opts);
         serve_cmd.addArg("serve");
         serve_cmd.addArgs(&.{ "--zig-path", opts.zig_path });
         const serve_step = b.step(serve_step_name, "Run the Ziex app with production behavior");
@@ -461,7 +454,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
 
     // --- Steps: Dev --- //
     if (opts.steps.dev) |dev_step_name| {
-        const dev_cmd = getZxRun(b, zx_cli_partial, opts);
+        const dev_cmd = cliRun(b, zx_cli, opts);
         dev_cmd.addArg("dev");
         dev_cmd.addArgs(&.{ "--zig-path", opts.zig_path });
         dev_cmd.addArg("--manifest");
@@ -473,7 +466,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
 
     // --- Steps: Export --- //
     if (opts.steps.@"export") |export_step_name| {
-        const export_cmd = getZxRun(b, zx_cli_partial, opts);
+        const export_cmd = cliRun(b, zx_cli, opts);
         export_cmd.addArgs(&.{"export"});
         export_cmd.addArgs(&.{ "--zig-path", opts.zig_path });
         const export_step = b.step(export_step_name, "Export the Ziex app for static hosting");
@@ -483,7 +476,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
 
     // --- Steps: Bundle --- //
     if (opts.steps.bundle) |bundle_step_name| {
-        const bundle_cmd = getZxRun(b, zx_cli_partial, opts);
+        const bundle_cmd = cliRun(b, zx_cli, opts);
         bundle_cmd.addArgs(&.{"bundle"});
         const bundle_step = b.step(bundle_step_name, "Bundle the Ziex app for production deployment");
         bundle_step.dependOn(&bundle_cmd.step);
@@ -500,7 +493,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         .outdir = transpile_store,
         .assetsdir = assetsdir,
         .cli = .{
-            .exe = zx_cli_partial,
+            .exe = zx_cli,
         },
         .transformer = .{ .b = b, .userdata = injections },
     };
@@ -523,7 +516,7 @@ const Resolved = struct {
     zig_path: []const u8,
 };
 
-fn getZxRun(b: *std.Build, zx_exe: *std.Build.Step.Compile, opts: Resolved) *std.Build.Step.Run {
+fn cliRun(b: *std.Build, zx_exe: *std.Build.Step.Compile, opts: Resolved) *std.Build.Step.Run {
     if (opts.cli_path) |cli_path| {
         const run = std.Build.Step.Run.create(b, "run zx");
         run.addFileArg(cli_path);
@@ -651,7 +644,7 @@ fn addStaticAssetCopy(
     no_hash: bool,
     injection_kind: []const u8,
 ) *std.Build.Step.Run {
-    const run = getZxRun(b, zx_exe, opts);
+    const run = cliRun(b, zx_exe, opts);
     run.addArgs(&.{ "app", "asset" });
     run.addFileArg(src);
     run.addArg("--outdir");
@@ -694,7 +687,7 @@ fn addStaticAssetRun(
     run: *std.Build.Step.Run,
     manifest_out: LazyPath,
 } {
-    const run = getZxRun(b, zx_exe, opts);
+    const run = cliRun(b, zx_exe, opts);
     run.addArgs(&.{ "app", "asset" });
     run.addFileArg(src);
     run.addArg("--outdir");

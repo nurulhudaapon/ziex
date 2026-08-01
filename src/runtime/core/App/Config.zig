@@ -23,11 +23,11 @@ pub const ServerConfig = struct {
     websocket: Websocket = .{},
 
     pub const ThreadPool = struct {
-        /// Handler threads. Std: fixed connection workers. Httpz: request pool.
-        count: u16 = 32,
+        /// `null` resolves to `std.Thread.getCpuCount()` at App init
+        count: ?u16 = null,
         /// Pending jobs before accept/enqueue applies backpressure.
         backlog: u32 = 500,
-        buffer_size: usize = 8192,
+        buffer_size: usize = 32_768,
     };
 
     pub const Worker = struct {
@@ -36,7 +36,7 @@ pub const ServerConfig = struct {
         min_conn: u16 = 64,
         large_buffer_count: u16 = 16,
         large_buffer_size: u32 = 65536,
-        retain_allocated_bytes: usize = 4096,
+        retain_allocated_bytes: usize = 8192,
     };
 
     pub const Request = struct {
@@ -46,7 +46,6 @@ pub const ServerConfig = struct {
         max_header_count: usize = 32,
         max_param_count: usize = 10,
         max_query_count: usize = 32,
-        /// Ziex enables form parsing by default (httpz defaults these to 0).
         max_form_count: usize = 20,
         max_multiform_count: usize = 20,
     };

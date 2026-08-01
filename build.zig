@@ -16,7 +16,7 @@ pub fn build(b: *std.Build) !void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const enable_lsp = b.option(bool, "lsp", "Enable zx lsp (backed by ZLS)") orelse false;
+    const enable_lsp = b.option(bool, "lsp", "Enable zx lsp (backed by ZLS)") orelse true;
     const enable_sqlite = b.option(bool, "feature-sqlite", "Enabled sqlite support") orelse false;
     const enable_postgres = b.option(bool, "feature-postgres", "Enabled postgres support") orelse false;
     const log_level = b.option(std.log.Level, "cli-log-level", "Log level for the CLI") orelse .info;
