@@ -1,3 +1,5 @@
+// TODO: legacy design, needs to be refactored
+
 /// Fetch API - A unified HTTP client for ZX using an Io abstraction.
 ///
 /// Uses a custom `Io` interface that allows the same `fetch()` function

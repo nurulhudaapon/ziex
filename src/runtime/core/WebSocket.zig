@@ -1,3 +1,4 @@
+// TODO: legacy design, needs to be refactored
 /// WebSocket client API for server and wasm.
 ///
 /// https://developer.mozilla.org/en-US/docs/Web/API/WebSocket

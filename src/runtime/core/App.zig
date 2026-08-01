@@ -6,7 +6,7 @@ const builtin = @import("builtin");
 const app_opts = @import("app_opts");
 
 const zx = @import("../../root.zig");
-const Constant = @import("../../constant.zig");
+const constants = @import("constants.zig");
 const sig = @import("../../util/sig.zig");
 
 const platform = zx.platform;
@@ -150,9 +150,9 @@ fn resolveOptions(alloc: std.mem.Allocator, inita: zx.Init, config: Config) !Con
     defer if (staticdir_env) |s| alloc.free(s);
     defer if (port_env) |s| alloc.free(s);
 
-    const rootdir = rootdir_env orelse Constant.default_rootdir;
-    const datadir = try std.fs.path.join(alloc, &.{ rootdir, datadir_env orelse Constant.default_datadir });
-    const staticdir = try std.fs.path.join(alloc, &.{ rootdir, staticdir_env orelse Constant.default_staticdir });
+    const rootdir = rootdir_env orelse constants.default_rootdir;
+    const datadir = try std.fs.path.join(alloc, &.{ rootdir, datadir_env orelse constants.default_datadir });
+    const staticdir = try std.fs.path.join(alloc, &.{ rootdir, staticdir_env orelse constants.default_staticdir });
     const port = if (port_env) |pe| std.fmt.parseInt(u16, pe, 10) catch return error.InvalidPort else cfg.server.port;
 
     cfg.datadir = datadir;

@@ -36,36 +36,7 @@ pub const BaseContext = struct {
     }
 };
 
-/// Context passed to page components. Provides access to the current HTTP request and response,
-/// as well as allocators for memory management.
-///
-/// Usage in a page component:
-/// ```zig
-/// pub fn Page(ctx: zx.PageContext) zx.Component {
-///     const allocator = ctx.arena; // Use arena for temporary allocations
-///     // Access request data via MDN-compliant API
-///     const method = ctx.request.method;
-///     const url = ctx.request.url;
-///     // Render component
-///     return <div>Hello</div>;
-/// }
-/// ```
 pub const PageContext = BaseContext;
-
-/// Context passed to layout components. Provides access to the current HTTP request and response,
-/// as well as allocators for memory management. Layouts wrap page components and can be nested.
-///
-/// Usage in a layout component:
-/// ```zig
-/// pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
-///     return (
-///         <html>
-///             <head><title>My App</title></head>
-///             <body>{children}</body>
-///         </html>
-///     );
-/// }
-/// ```
 pub const LayoutContext = BaseContext;
 pub const NotFoundContext = BaseContext;
 
@@ -102,7 +73,6 @@ pub const ErrorContext = struct {
 /// Socket options for configuring WebSocket behavior
 pub const SocketOptions = struct {
     /// When true, publish() will also send the message to the sender.
-    /// Default is false (sender is excluded from publish).
     publish_to_self: bool = false,
 };
 
@@ -124,8 +94,6 @@ pub const Socket = struct {
         }
     }
 
-    /// Write data to the WebSocket connection.
-    /// This should be called from the Socket handler to send messages.
     pub fn write(self: Socket, data: []const u8) !void {
         if (!self._internal.attached) return;
         try self._internal.http.wsWrite(data);
@@ -136,13 +104,11 @@ pub const Socket = struct {
         return self._internal.http.wsRead();
     }
 
-    /// Close the WebSocket connection.
     pub fn close(self: Socket) void {
         if (!self._internal.attached) return;
         self._internal.http.wsClose();
     }
 
-    /// Returns true if this socket has been upgraded to a WebSocket connection.
     pub fn isUpgraded(self: Socket) bool {
         return self._internal.attached;
     }
@@ -219,8 +185,6 @@ pub const Socket = struct {
     }
 };
 
-/// Route context. App context and proxy-set state are injected positionally
-/// by the wrapRoute() wrapper, not exposed as fields here.
 pub const RouteContext = struct {
     const Self = @This();
 
@@ -258,25 +222,22 @@ pub const RouteContext = struct {
     }
 };
 
-/// Message type for WebSocket messages (text vs binary)
 pub const SocketMessageType = enum {
     text,
     binary,
 };
 
-/// Context for WebSocket message handlers (Socket function).
-/// This is the primary handler called for each message received.
+/// Context for WebSocket message handlers
 pub const SocketContext = SocketCtx(void);
 
-/// Context for WebSocket handlers with custom data passed during upgrade.
-/// Use SocketCtx(YourDataType) to access data passed via ctx.socket.upgrade(data).
+/// Context for WebSocket handlers with custom data passed during upgrade
 pub fn SocketCtx(comptime DataType: type) type {
     return struct {
         /// The WebSocket connection for sending messages
         socket: Socket,
-        /// The client message data (received from WebSocket)
+        /// The client message data
         message: []const u8,
-        /// The message type (text or binary)
+        /// The message type
         message_type: SocketMessageType,
         /// Custom data passed from upgrade handler
         data: DataType,
@@ -295,8 +256,7 @@ pub fn SocketCtx(comptime DataType: type) type {
     };
 }
 
-/// Context for SocketOpen handlers (called when connection opens).
-/// Same structure as SocketCtx but without message data.
+/// Context for SocketOpen handlers
 pub const SocketOpenContext = SocketOpenCtx(void);
 
 pub fn SocketOpenCtx(comptime DataType: type) type {
@@ -320,13 +280,13 @@ pub fn SocketOpenCtx(comptime DataType: type) type {
     };
 }
 
-/// Context for SocketClose handlers (called when connection closes).
-/// Same structure as SocketOpenCtx.
+/// Context for SocketClose handlers
 pub const SocketCloseContext = SocketCloseCtx(void);
 
+/// Context for SocketClose handlers with custom data passed during upgrade.
 pub fn SocketCloseCtx(comptime DataType: type) type {
     return struct {
-        /// The WebSocket connection (may not be writable)
+        /// The WebSocket connection
         socket: Socket,
         /// Custom data passed from upgrade handler
         data: DataType,

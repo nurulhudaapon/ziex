@@ -10,7 +10,7 @@ const DevServer = @import("dev/DevServer.zig");
 const Highlight = @import("dev/Highlight.zig");
 const sig = @import("../util/sig.zig");
 const cli_args = @import("root.zig");
-const Constant = @import("../constant.zig");
+const constants = @import("../runtime/core/constants.zig");
 
 const CommandContext = context.CommandContext;
 const Colors = tui.Colors;
@@ -43,7 +43,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
     const allocator = ctx.allocator;
     const binpath = args.binpath;
     const install_prefix = args.@"install-prefix";
-    const preferred_port = DevServer.resolvePreferredPort(args.port, env_map, Constant.default_port);
+    const preferred_port = DevServer.resolvePreferredPort(args.port, env_map, constants.default_port);
     const build_args_str = args.@"build-args";
     const use_spinner = args.@"tui-spinner";
     const clear_on_restart = args.@"tui-clear";

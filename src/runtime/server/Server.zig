@@ -5,7 +5,7 @@ const app = @import("app");
 const app_opts = @import("app_opts");
 
 const zx = @import("../../root.zig");
-const Constant = @import("../../constant.zig");
+const constants = @import("../core/constants.zig");
 const AppConfig = @import("../core/AppConfig.zig");
 const Handler = @import("handler.zig").Handler;
 
@@ -217,13 +217,13 @@ pub fn Server(comptime H: type) type {
         }
 
         fn introspect(self: *Self) !void {
-            const port = (if (app_opts.server_port != null) app_opts.server_port else serverPort(&self.server.config)) orelse Constant.default_port;
-            const address = app_opts.server_address orelse self.config.server.address orelse Constant.default_address;
+            const port = (if (app_opts.server_port != null) app_opts.server_port else serverPort(&self.server.config)) orelse constants.default_port;
+            const address = app_opts.server_address orelse self.config.server.address orelse constants.default_address;
 
             // Overriding or setting default configs
             setServerAddress(&self.server.config, address, port);
-            self.server.config.request.max_form_count = self.server.config.request.max_form_count orelse Constant.default_max_form_count;
-            self.server.config.request.max_multiform_count = self.server.config.request.max_multiform_count orelse Constant.default_max_multiform_count;
+            self.server.config.request.max_form_count = self.server.config.request.max_form_count orelse constants.default_max_form_count;
+            self.server.config.request.max_multiform_count = self.server.config.request.max_multiform_count orelse constants.default_max_multiform_count;
 
             // TODO: remove introspection from app
             const introspect_requested = app_opts.introspect;
@@ -940,8 +940,8 @@ pub fn mapStruct(comptime T: type, src: anytype) T {
 
 fn mapServerAddress(src: AppConfig.ServerConfig) httpz.Config.Address {
     if (src.unix_path) |unix_path| return .{ .unix = unix_path };
-    const port = src.port orelse Constant.default_port;
-    const address = src.address orelse Constant.default_address;
+    const port = src.port orelse constants.default_port;
+    const address = src.address orelse constants.default_address;
 
     if (std.mem.eql(u8, address, "localhost")) return httpz.Config.Address.localhost(port);
     if (std.mem.eql(u8, address, "0.0.0.0")) return httpz.Config.Address.all(port);

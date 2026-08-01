@@ -9,11 +9,11 @@ const core_handler = @import("../core/Handler.zig");
 const pubsub = @import("pubsub.zig");
 const rndr = @import("render.zig");
 const ctxs = @import("../core/contexts.zig");
+const constants = @import("../core/constants.zig");
 const Server = @import("./Server.zig");
 const AppConfig = @import("../core/AppConfig.zig");
 const Request = @import("../core/Request.zig");
 const Response = @import("../core/Response.zig");
-const Constant = @import("../../constant.zig");
 const PageCache = @import("PageCache.zig");
 
 const Allocator = std.mem.Allocator;
@@ -529,7 +529,7 @@ pub fn Handler(comptime AppCtxType: type) type {
         }
 
         pub inline fn static(self: *Self, req: *httpz.Request, res: *httpz.Response) !void {
-            const staticdir = self.config.staticdir orelse Constant.default_staticdir;
+            const staticdir = self.config.staticdir orelse constants.default_staticdir;
             const assets_path = try std.fs.path.join(res.arena, &.{ staticdir, req.url.path });
 
             const body = std.Io.Dir.cwd().readFileAlloc(self.io, assets_path, res.arena, .unlimited) catch |err| {

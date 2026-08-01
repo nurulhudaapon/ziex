@@ -1,6 +1,6 @@
 const description = "A full-stack web framework for Zig. Write declarative UI components using familiar JSX patterns, transpiled to efficient Zig code.";
 const alt_description = "Ziex is a modern web framework for Zig. Build fast, reliable, and scalable web applications with Zig and ziex.";
-const title = "Ziex - Full-stack Web Framework for Zig";
+const title = "Ziex - Full-stack web framework for Zig";
 const site_url = zx.info.homepage;
 const keywords = "zig, zx, ziex, web framework, jsx, full-stack, ssr, ssg, wasm, components, server-side rendering, static site generation, zig web development, zig frameworks, zig tutorials, zig open source, zig web apps, zig SSR, zig SSG, zig WASM, zig cloud, zig hosting, zig deployment, zig frontend, zig backend, zig devtools, zig IDE, zig editor, zig playground, zig comparison, zig performance, zig reliability, zig security, zig async, zig concurrency, zig middleware, zig routing, zig template, zig spa, zig mpa, zig api, zig rest, zig graphql, zig docker, zig CI, zig CD, zig testing, zig lint, zig build, zig compile, zig package, zig module, zig dependency, zig version, zig release, zig changelog, zig community, zig forum, zig discord, zig github, zig git, zig code, zig software, zig examples, zig guide, zig docs, zig project, modern web, fast web, scalable web, open source web, developer tools, cloud hosting, web apps, frontend, backend";
 
