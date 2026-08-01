@@ -2,14 +2,16 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const App = @import("../App.zig");
-const impl = @import("../../server/Server.zig");
+const meta = @import("../../server/Server.zig");
 
-pub const Server = impl.Server;
-pub const SerilizableAppMeta = impl.SerilizableAppMeta;
+pub const Std = @import("Server/Std.zig");
+pub const Wasm = @import("Server/Wasm.zig");
+pub const Httpz = @import("Server/Httpz.zig");
 
-pub fn app(comptime H: type, instance: *Server(H), alloc: std.mem.Allocator) !App {
+/// Wire a transport server instance into the shared App vtable.
+pub fn bind(comptime ServerType: type, instance: *ServerType, alloc: std.mem.Allocator) !App {
     const Holder = struct {
-        instance: *Server(H),
+        instance: *ServerType,
         alloc: std.mem.Allocator,
 
         const Self = @This();
@@ -20,11 +22,10 @@ pub fn app(comptime H: type, instance: *Server(H), alloc: std.mem.Allocator) !Ap
 
         fn vtStart(userdata: ?*anyopaque) anyerror!void {
             const self = from(userdata);
-            // Only wire up graceful shutdown in debug builds.
             if (comptime builtin.optimize == .debug) {
                 const stopFn = struct {
                     fn call(ctx: *anyopaque) void {
-                        const s: *Server(H) = @ptrCast(@alignCast(ctx));
+                        const s: *ServerType = @ptrCast(@alignCast(ctx));
                         s.stop();
                     }
                 }.call;
@@ -44,7 +45,6 @@ pub fn app(comptime H: type, instance: *Server(H), alloc: std.mem.Allocator) !Ap
             self.instance.deinit();
             App.release(alloc_copy);
             alloc_copy.destroy(self);
-            // Leak check must run last, after the holder itself is freed.
             App.assertNoLeaks();
         }
 
@@ -63,7 +63,7 @@ pub fn app(comptime H: type, instance: *Server(H), alloc: std.mem.Allocator) !Ap
     const holder = try alloc.create(Holder);
     holder.* = .{ .instance = instance, .alloc = alloc };
 
-    if (impl.cli_cmd != .@"export") instance.info();
+    if (App.mode != .@"export") instance.info();
 
     return .{ .userdata = @ptrCast(holder), .vtable = &Holder.vtable };
 }

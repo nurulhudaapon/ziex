@@ -45,6 +45,40 @@ function stripWasmStartSection(bytes: Uint8Array): Uint8Array {
     return stripped ? new Uint8Array(out) : bytes;
 }
 
+function stubHttpImports(getMemory: () => WebAssembly.Memory | null, sink: {
+    html: { value: string };
+    meta: { value: ResponseMeta | null };
+}) {
+    const decoder = new TextDecoder("utf-8", { fatal: false });
+    const htmlDec = new TextDecoder("utf-8", { fatal: false });
+    return {
+        commit: (status: number, meta_ptr: number, meta_len: number) => {
+            const mem = getMemory();
+            let streaming = false;
+            let headers: [string, string][] = [];
+            if (mem && meta_len > 0) {
+                try {
+                    const raw = decoder.decode(new Uint8Array(mem.buffer, meta_ptr >>> 0, meta_len >>> 0));
+                    const parsed = JSON.parse(raw) as { streaming?: boolean; headers?: [string, string][] };
+                    streaming = parsed.streaming === true;
+                    if (Array.isArray(parsed.headers)) headers = parsed.headers;
+                } catch {
+                    // ignore
+                }
+            }
+            sink.meta.value = { status, streaming, headers };
+        },
+        write: (ptr: number, len: number) => {
+            const mem = getMemory();
+            if (!mem || len <= 0) return;
+            sink.html.value += htmlDec.decode(new Uint8Array(mem.buffer, ptr >>> 0, len >>> 0), { stream: true });
+        },
+        end: () => {
+            sink.html.value += htmlDec.decode();
+        },
+    };
+}
+
 function noopWsImports() {
     return {
         ws_upgrade: () => {},
@@ -94,20 +128,6 @@ type ResponseMeta = {
     headers?: [string, string][];
     streaming?: boolean;
 };
-
-function parseMeta(meta: string): ResponseMeta | null {
-    const lines = meta.split("\n").map((line) => line.trim()).filter(Boolean);
-    for (let i = lines.length - 1; i >= 0; i--) {
-        const line = lines[i]!;
-        if (!line.startsWith("__ZIEX_META__:")) continue;
-        try {
-            return JSON.parse(line.slice("__ZIEX_META__:".length)) as ResponseMeta;
-        } catch {
-            return null;
-        }
-    }
-    return null;
-}
 
 function createZxImports(getMemory: () => WebAssembly.Memory | null) {
     const decoder = new TextDecoder("utf-8", { fatal: false });
@@ -165,28 +185,21 @@ async function run(wasmData: unknown, kind: "playground" | "app", opts: {
         ]
         : ["main.wasm"];
 
-    let html = "";
-    const htmlDec = new TextDecoder("utf-8", { fatal: false });
-    let meta = "";
-    const metaDec = new TextDecoder("utf-8", { fatal: false });
-    let metaPartial = "";
+    let html = { value: "" };
+    let responseMeta: { value: ResponseMeta | null } = { value: null };
     let wasmMemory: WebAssembly.Memory | null = null;
+    const htmlDec = new TextDecoder("utf-8", { fatal: false });
 
     const fds = [
         new OpenFile(new File([])),
         new ConsoleStdout((buffer) => {
-            html += htmlDec.decode(buffer, { stream: true });
+            // playground (non-app) still prints via stdout
+            if (kind !== "app") html.value += htmlDec.decode(buffer, { stream: true });
         }),
         new ConsoleStdout((buffer) => {
-            const text = metaDec.decode(buffer, { stream: true });
-            const lines = (metaPartial + text).split("\n");
-            metaPartial = lines.pop() ?? "";
-            for (const line of lines) {
-                if (line.startsWith("__ZIEX_META__:")) {
-                    meta += line + "\n";
-                } else if (line.length > 0) {
-                    postMessage({ stderr: line });
-                }
+            const text = new TextDecoder("utf-8", { fatal: false }).decode(buffer, { stream: true });
+            for (const line of text.split("\n")) {
+                if (line.length > 0) postMessage({ stderr: line });
             }
         }),
         new PreopenDirectory(".", new Map([])),
@@ -203,6 +216,7 @@ async function run(wasmData: unknown, kind: "playground" | "app", opts: {
                 __zx: createZxImports(() => wasmMemory),
                 __zx_ws: noopWsImports(),
                 __zx_sys: stubSysImports(),
+                __zx_http: stubHttpImports(() => wasmMemory, { html, meta: responseMeta }),
                 __zx_kv: stubKvImports(),
                 __zx_db: stubDbImports(),
                 __zx_net: stubNetImports(),
@@ -228,8 +242,7 @@ async function run(wasmData: unknown, kind: "playground" | "app", opts: {
             if (!(e instanceof WASIProcExit)) throw e;
         }
 
-        html += htmlDec.decode();
-        if (metaPartial.startsWith("__ZIEX_META__:")) meta += metaPartial + "\n";
+        if (kind !== "app") html.value += htmlDec.decode();
     } catch (err) {
         const base = err instanceof Error ? `${err.name}: ${err.message}` : `${err}`;
         postMessage({ stderr: base });
@@ -238,8 +251,8 @@ async function run(wasmData: unknown, kind: "playground" | "app", opts: {
     }
 
     postMessage({
-        preview: html,
-        meta: parseMeta(meta),
+        preview: html.value,
+        meta: responseMeta.value,
         done: true,
     });
 }

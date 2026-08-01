@@ -4,8 +4,9 @@ const std = @import("std");
 
 const common = @import("Http/common.zig");
 
-pub const Httpz = @import("Http/Httpz.zig");
-pub const Wasm = @import("Http/Wasm.zig");
+pub const Conn = @import("Http/Conn.zig");
+pub const Capture = @import("Http/Capture.zig");
+pub const Host = @import("Http/Host.zig");
 
 pub const Request = @import("Http/Request.zig");
 pub const Response = @import("Http/Response.zig");

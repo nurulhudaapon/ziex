@@ -1,14 +1,15 @@
 const std = @import("std");
-const zx = @import("../../../root.zig");
+const zx = @import("../../../../root.zig");
 
 const Router = zx.Router;
 const Component = zx.Component;
 const Allocator = std.mem.Allocator;
-const Request = @import("../Http/Request.zig");
-const Response = @import("../Http/Response.zig");
-const server_dispatch = @import("../../server/dispatch.zig");
-const render = @import("../../server/render.zig");
+const Request = @import("../../Http/Request.zig");
+const Response = @import("../../Http/Response.zig");
+const server_dispatch = @import("../../../server/dispatch.zig");
+const render = @import("../../../server/render.zig");
 const injections = @import("injections.zig");
+const tree = @import("../../tree.zig");
 
 pub const ServerApp = zx.server.App;
 pub const Route = ServerApp.Route;
@@ -108,7 +109,7 @@ pub fn handlePage(
     base_path: ?[]const u8,
 ) !PageResult {
     const app_ptr: ?*const anyopaque = if (app_ctx) |p| @ptrCast(p) else null;
-    const pagectx = zx.PageContext.init(request, response, allocator, io);
+    const pagectx = zx.PageContext.init(request, response, arena, io);
 
     const page_fn = route.page orelse return .not_found;
 
@@ -144,7 +145,7 @@ pub fn handlePage(
         page_component = zx.util.devtool.namedBoundary(arena, "Page", page_component);
     }
 
-    const layoutctx = zx.LayoutContext.init(request, response, allocator, io);
+    const layoutctx = zx.LayoutContext.init(request, response, arena, io);
     var used_layout = false;
     page_component = Router.applyLayouts(
         route,
@@ -261,6 +262,13 @@ pub fn prepareError(
     io: std.Io,
     err: anyerror,
 ) ?Component {
+    std.log.err("handler error at {s}: {t}", .{ pathname, err });
+    // Wasm/WASI has no @returnAddress, so traces are always empty there.
+    if (comptime std.debug.sys_can_stack_trace) {
+        if (@errorReturnTrace()) |trace| {
+            std.debug.dumpErrorReturnTrace(trace);
+        }
+    }
     http.resSetStatus(500);
     http.resHeaderSet("Content-Type", "text/html");
     if (renderError(pathname, request, response, allocator, io, err)) |cmp| {
@@ -281,6 +289,17 @@ pub fn renderHtmlDocument(writer: *std.Io.Writer, component: *Component, base_pa
 /// Only injections whose `pathname` filter matches are applied.
 pub fn injectZxInjections(allocator: Allocator, page: *Component, pathname: []const u8) void {
     injections.inject(allocator, page, pathname);
+}
+
+/// Inject the DevServer client script (`/.well-known/_zx/devscript.js`) into `<body>`.
+pub fn injectDevScript(allocator: Allocator, page: *Component) void {
+    const body_element = tree.getElementByName(page, allocator, .body) orelse return;
+    const attributes = allocator.alloc(zx.Element.Attribute, 1) catch return;
+    attributes[0] = .{ .name = "src", .value = "/.well-known/_zx/devscript.js" };
+    const script_element = Component{ .element = .{ .tag = .script, .attributes = attributes } };
+    tree.appendChild(body_element, allocator, script_element) catch {
+        allocator.free(attributes);
+    };
 }
 
 /// Check if streaming is enabled for a route.

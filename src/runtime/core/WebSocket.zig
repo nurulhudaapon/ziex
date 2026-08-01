@@ -144,7 +144,8 @@ pub const WebSocketError = error{
     ProtocolError,
 };
 
-const server_impl = if (!is_wasm) @import("../server/websocket.zig") else struct {
+// TODO: remove these stubs
+const server_impl = if (!is_wasm) @import("App/Server/Httpz.zig").websocket else struct {
     pub fn connect(_: *WebSocket) WebSocketError!void {
         return error.UnsupportedPlatform;
     }
@@ -158,6 +159,7 @@ const server_impl = if (!is_wasm) @import("../server/websocket.zig") else struct
     pub fn deinit(_: *WebSocket) void {}
 };
 
+// TODO: remove these stubs
 const client_impl = if (is_wasm) @import("../client/websocket.zig") else struct {
     pub fn connect(_: *WebSocket) WebSocketError!void {
         return error.UnsupportedPlatform;

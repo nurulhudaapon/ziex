@@ -23,33 +23,36 @@ pub const ServerConfig = struct {
     websocket: Websocket = .{},
 
     pub const ThreadPool = struct {
-        count: ?u16 = null,
-        backlog: ?u32 = null,
-        buffer_size: ?usize = null,
+        /// Handler threads. Std: fixed connection workers. Httpz: request pool.
+        count: u16 = 32,
+        /// Pending jobs before accept/enqueue applies backpressure.
+        backlog: u32 = 500,
+        buffer_size: usize = 8192,
     };
 
     pub const Worker = struct {
-        count: ?u16 = null,
-        max_conn: ?u16 = null,
-        min_conn: ?u16 = null,
-        large_buffer_count: ?u16 = null,
-        large_buffer_size: ?u32 = null,
-        retain_allocated_bytes: ?usize = null,
+        count: u16 = 1,
+        max_conn: u16 = 8_192,
+        min_conn: u16 = 64,
+        large_buffer_count: u16 = 16,
+        large_buffer_size: u32 = 65536,
+        retain_allocated_bytes: usize = 4096,
     };
 
     pub const Request = struct {
         lazy_read_size: ?usize = null,
-        max_body_size: ?usize = null,
-        buffer_size: ?usize = null,
-        max_header_count: ?usize = null,
-        max_param_count: ?usize = null,
-        max_query_count: ?usize = null,
-        max_form_count: ?usize = null,
-        max_multiform_count: ?usize = null,
+        max_body_size: usize = 1_048_576,
+        buffer_size: usize = 4_096,
+        max_header_count: usize = 32,
+        max_param_count: usize = 10,
+        max_query_count: usize = 32,
+        /// Ziex enables form parsing by default (httpz defaults these to 0).
+        max_form_count: usize = 20,
+        max_multiform_count: usize = 20,
     };
 
     pub const Response = struct {
-        max_header_count: ?usize = null,
+        max_header_count: usize = 16,
     };
 
     pub const Timeout = struct {

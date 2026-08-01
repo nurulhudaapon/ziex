@@ -417,7 +417,6 @@ const semanticTokens = ViewPlugin.fromClass(
                 "textDocument/semanticTokens/full",
                 { textDocument: { uri } },
             );
-            // A newer refresh was scheduled (more typing) — drop this stale result.
             if (gen !== this.generation || !view.dom.isConnected) return;
             if (!tokens) return;
 

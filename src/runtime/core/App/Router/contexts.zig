@@ -1,14 +1,14 @@
 const std = @import("std");
-const zx = @import("../../../root.zig");
-const reactivity = @import("../../client/reactivity.zig");
+const zx = @import("../../../../root.zig");
+const reactivity = @import("../../../client/reactivity.zig");
 
-const ActionContext = @import("../../server/Action.zig");
-const ClientActionContext = @import("../../client/Action.zig");
-const ClientEvent = @import("../../client/Event.zig");
-const CoreEvent = @import("../Event.zig");
-const Request = @import("../Http/Request.zig");
-const Response = @import("../Http/Response.zig");
-const ServerEvent = @import("../../server/Event.zig");
+const ActionContext = @import("../../../server/Action.zig");
+const ClientActionContext = @import("../../../client/Action.zig");
+const ClientEvent = @import("../../../client/Event.zig");
+const CoreEvent = @import("../../Event.zig");
+const Request = @import("../../Http/Request.zig");
+const Response = @import("../../Http/Response.zig");
+const ServerEvent = @import("../../../server/Event.zig");
 
 const StateContext = CoreEvent.StateContext;
 const Allocator = zx.Allocator;

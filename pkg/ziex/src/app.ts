@@ -1,5 +1,5 @@
 import { run } from "./runtime";
-import type { DurableObjectNamespace } from "./runtime";
+import type { StickyNamespace } from "./runtime";
 import type { KVNamespace } from "./runtime/kv";
 import type { Database } from "./runtime/db";
 import type { WASI } from "./runtime/wasi";
@@ -25,12 +25,12 @@ export type WasmInput =
  * The result is NOT cached here - cache it at the call site if needed.
  */
 export async function resolveModule(input: WasmInput): Promise<WebAssembly.Module> {
-    if (typeof input === 'string') {
-        if (input.startsWith('http://') || input.startsWith('https://')) {
+    if (typeof input === "string") {
+        if (input.startsWith("http://") || input.startsWith("https://")) {
             return (WebAssembly as any).compileStreaming(fetch(input));
         }
-        const url = input.startsWith('/') ? `file://${input}` : input;
-        return (WebAssembly as any).compile(await fetch(url).then(r => r.arrayBuffer()));
+        const url = input.startsWith("/") ? `file://${input}` : input;
+        return (WebAssembly as any).compile(await fetch(url).then((r) => r.arrayBuffer()));
     }
 
     if (input instanceof URL) {
@@ -54,14 +54,27 @@ export async function resolveModule(input: WasmInput): Promise<WebAssembly.Modul
     return input as unknown as WebAssembly.Module;
 }
 
-/** Keys of `Env` whose value extends {@link KVNamespace}. */
-type KVKey<Env> = { [K in keyof Env]: Env[K] extends KVNamespace ? K : never }[keyof Env];
+/** Keys of `Env` with a KV-like binding (host KV types rarely `extends` our interface). */
+type KVKey<Env> = {
+    [K in keyof Env]-?: Env[K] extends { get(...args: any[]): any; put(...args: any[]): any } ? K : never;
+}[keyof Env];
 
-/** Keys of `Env` whose value extends {@link DurableObjectNamespace}. */
-type DOKey<Env> = { [K in keyof Env]: Env[K] extends DurableObjectNamespace ? K : never }[keyof Env];
-type DBKey<Env> = { [K in keyof Env]: Env[K] extends Database ? K : never }[keyof Env];
+/** Keys of `Env` whose value is a sticky long-lived fetch namespace. */
+export type StickyKey<Env> = {
+    [K in keyof Env]-?: Env[K] extends {
+        idFromName(name: string): any;
+        get(id: any, ...args: any[]): any;
+    }
+        ? K
+        : never;
+}[keyof Env];
 
-type ZiexOptions<Env> = {
+/** Keys of `Env` with a SQL prepare() binding (e.g. D1). */
+type DBKey<Env> = {
+    [K in keyof Env]-?: Env[K] extends { prepare(query: string): any } ? K : never;
+}[keyof Env];
+
+export type ZiexOptions<Env = Record<string, unknown>> = {
     /** WASM module - accepts any {@link WasmInput}. Resolved and cached on first request. */
     module: WasmInput;
     /** Optional pre-configured WASI instance. */
@@ -92,15 +105,10 @@ type ZiexOptions<Env> = {
      */
     db?: DBKey<Env> | Record<string, DBKey<Env>>;
     /**
-     * Env key whose value is a `DurableObjectNamespace` for WebSocket pub/sub.
-     * Requires `createWebSocketDO` export on the worker.
-     *
-     * @example
-     * ```ts
-     * websocket: "ChatRoom"
-     * ```
+     * Env binding for sticky long-lived fetch (WebSocket upgrades, etc.).
+     * Prefer platform helpers (e.g. `stateful(app, binding)` on Cloudflare) over setting this directly.
      */
-    websocket?: DOKey<Env>;
+    sticky?: StickyKey<Env>;
 };
 
 /**
@@ -112,12 +120,11 @@ type ZiexOptions<Env> = {
  * @example Cloudflare Workers / wrangler
  * ```ts
  * import { Ziex } from "ziex";
+ * import { stateful } from "ziex/cloudflare";
  * import module from "./app.wasm";
  *
- * const app = new Ziex<Env>({
- *   module,
- *   kv: (env) => ({ default: env.KV }),
- * });
+ * const app = new Ziex<Env>({ module, kv: "KV", db: "DB" });
+ * export const ChatRoom = stateful(app, { binding: "CHAT_ROOM" });
  * export default app;
  * ```
  *
@@ -140,30 +147,57 @@ type ZiexOptions<Env> = {
  * ```
  */
 export class Ziex<Env = Record<string, unknown>> {
-    private readonly options: ZiexOptions<Env>;
+    /** @internal Platform adapters read shared config from here. */
+    protected readonly options: ZiexOptions<Env>;
     private resolved: WebAssembly.Module | null = null;
 
     constructor(options: ZiexOptions<Env>) {
         this.options = options;
     }
 
-    private async getModule(): Promise<WebAssembly.Module> {
+    protected async getModule(): Promise<WebAssembly.Module> {
         if (!this.resolved) this.resolved = await resolveModule(this.options.module);
         return this.resolved;
+    }
+
+    /**
+     * Enable sticky upgrade forwarding and return host config for platform adapters
+     * (e.g. Cloudflare {@linkcode stateful}).
+     *
+     * Requires `options.module` to already be a compiled `WebAssembly.Module`.
+     */
+    stickyHost(binding: StickyKey<Env>) {
+        this.options.sticky = binding;
+        const mod = this.options.module;
+        if (
+            mod instanceof ArrayBuffer ||
+            ArrayBuffer.isView(mod) ||
+            mod instanceof Response ||
+            mod instanceof URL ||
+            typeof mod === "string"
+        ) {
+            throw new Error(
+                "sticky handlers require a compiled WebAssembly.Module (e.g. `import module from \"./app.wasm\"` under wrangler)",
+            );
+        }
+        return {
+            module: mod as unknown as WebAssembly.Module,
+            imports: this.options.imports,
+            kv: (env: Env) => this.resolveKV(env),
+            db: (env: Env) => this.resolveDB(env),
+        };
     }
 
     private resolveKV(env: Env): Record<string, KVNamespace> | undefined {
         const { kv } = this.options;
         if (kv === undefined) return undefined;
-        if (typeof kv === 'object' && kv !== null) {
-            // { [name]: envKey } - map of namespace names to env keys
+        if (typeof kv === "object" && kv !== null) {
             const result: Record<string, KVNamespace> = {};
             for (const [name, key] of Object.entries(kv)) {
                 result[name] = env[key as keyof Env] as unknown as KVNamespace;
             }
             return result;
         }
-        // Single env key - becomes the "default" binding
         return { default: env[kv as keyof Env] as unknown as KVNamespace };
     }
 
@@ -192,7 +226,7 @@ export class Ziex<Env = Record<string, unknown>> {
         ctx?: { waitUntil(p: Promise<unknown>): void },
     ): Promise<Response> => {
         const module = await this.getModule();
-        const { wasi, imports, websocket } = this.options;
+        const { wasi, imports, sticky } = this.options;
         return run({
             request,
             env,
@@ -202,7 +236,10 @@ export class Ziex<Env = Record<string, unknown>> {
             imports,
             kv: this.resolveKV(env),
             db: this.resolveDB(env),
-            websocket: websocket !== undefined ? env[websocket as keyof Env] as unknown as DurableObjectNamespace : undefined,
+            sticky:
+                sticky !== undefined
+                    ? (env[sticky as keyof Env] as unknown as StickyNamespace)
+                    : undefined,
         });
     };
 }

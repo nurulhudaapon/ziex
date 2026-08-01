@@ -9,6 +9,7 @@ declare namespace Cloudflare {
 		KV: KVNamespace;
 		DB: D1Database;
 		ASSETS: Fetcher;
+		CHAT_ROOM: DurableObjectNamespace /* ChatRoom */;
 	}
 }
 interface Env extends Cloudflare.Env {}

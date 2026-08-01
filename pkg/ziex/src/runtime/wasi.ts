@@ -14,15 +14,13 @@ export type WASI = {
     }): void;
 };
 
+/** WASI imports for request argv/stdin. Response body uses `__zx_http`, not stdout. */
 export function createWasiImports({
     request,
     stdinData,
-    onStdout,
 }: {
     request: Request;
     stdinData?: Uint8Array;
-    /** Called for each stdout chunk. When provided, chunks are NOT buffered internally. */
-    onStdout?: (chunk: Uint8Array) => void;
 }) {
     const encoder = new TextEncoder();
 
@@ -48,22 +46,15 @@ export function createWasiImports({
     let wasmMemory: WebAssembly.Memory = null!;
     const setMemory = (m: WebAssembly.Memory) => { wasmMemory = m; };
 
-    const stdoutChunks: Uint8Array[] = [];
-    // Stderr is processed line-by-line:
-    //   __ZIEX_META__: lines are stored for response metadata parsing.
-    //   All other lines are forwarded to console.error in real-time.
-    let stderrMeta = '';
     let stderrPartial = '';
-    const stderrDecoder = new TextDecoder('utf-8', { fatal: false,ignoreBOM: true });
+    const stderrDecoder = new TextDecoder('utf-8', { fatal: false, ignoreBOM: true });
 
     function processStderrChunk(chunk: Uint8Array): void {
         const text = stderrDecoder.decode(chunk, { stream: true });
         const lines = (stderrPartial + text).split('\n');
         stderrPartial = lines.pop() ?? '';
         for (const line of lines) {
-            if (line.startsWith('__ZIEX_META__:')) {
-                stderrMeta += line + '\n';
-            } else if (line.length > 0) {
+            if (line.length > 0) {
                 console.error('[ziex]', line);
             }
         }
@@ -106,10 +97,8 @@ export function createWasiImports({
                 const buf_ptr = dv.getUint32(iovs_ptr + i * 8, true);
                 const buf_len = dv.getUint32(iovs_ptr + i * 8 + 4, true);
                 const chunk = mem.slice(buf_ptr, buf_ptr + buf_len);
-                if (fd === 1) {
-                    if (onStdout) onStdout(chunk);
-                    else stdoutChunks.push(chunk);
-                } else if (fd === 2) processStderrChunk(chunk);
+                // fd 2 (stderr) for logs only.
+                if (fd === 2) processStderrChunk(chunk);
                 written += buf_len;
             }
             dv.setUint32(nwritten_ptr, written, true);
@@ -158,7 +147,6 @@ export function createWasiImports({
             return 0;
         },
         fd_filestat_get(_fd: number, filestat_ptr: number): number {
-            // filestat: dev(8) ino(8) filetype(1) pad(7) nlink(8) size(8) atim(8) mtim(8) ctim(8) = 64 bytes
             const dv = v();
             dv.setBigUint64(filestat_ptr, 0n, true);       // dev
             dv.setBigUint64(filestat_ptr + 8, 0n, true);   // ino
@@ -237,29 +225,13 @@ export function createWasiImports({
             v().setUint32(bufused_ptr, 0, true);
             return 76;
         },
-        // Stub for poll_oneoff - no blocking I/O in edge runtimes.
         poll_oneoff(_in: number, _out: number, _nsubscriptions: number, nevents_ptr: number): number {
             v().setUint32(nevents_ptr, 0, true);
             return 0;
         },
     };
 
-    function collectOutput(): { stdout: Uint8Array; stderrText: string } {
-        // Flush any partial line that didn't end with a newline (e.g. WASM exited mid-line)
-        const remaining = stderrDecoder.decode(undefined, { stream: false });
-        const tail = stderrPartial + remaining;
-        if (tail.length > 0) {
-            if (tail.startsWith('__ZIEX_META__:')) stderrMeta += tail;
-            else console.error('[ziex]', tail);
-            stderrPartial = '';
-        }
-        return {
-            stdout: mergeUint8Arrays(stdoutChunks),
-            stderrText: stderrMeta,
-        };
-    }
-
-    return { wasiImport, setMemory, collectOutput };
+    return { wasiImport, setMemory };
 }
 
 export function mergeUint8Arrays(arrays: Uint8Array[]): Uint8Array {

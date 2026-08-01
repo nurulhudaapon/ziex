@@ -9,10 +9,11 @@ import type { KVNamespace } from "./kv";
 import { get, put, del, list } from "./kv/memory";
 import type { Database } from "./db";
 
-/** Minimal Durable Object namespace shape needed for WebSocket routing. */
-export type DurableObjectNamespace = {
+/** Minimal sticky long-lived fetch namespace shape (e.g. Cloudflare Durable Object binding). */
+export type StickyNamespace = {
     idFromName(name: string): unknown;
-    get(id: unknown): { fetch(req: Request): Promise<Response> };
+    // Host stubs take a concrete id type; `any` keeps Env key inference workable.
+    get(id: any): { fetch(request: Request): Promise<Response> };
 };
 
 export type WsState = {
@@ -23,12 +24,67 @@ export type WsState = {
     recvResolve: ((bytes: Uint8Array | null) => void) | null;
     /** Resolved when ws_recv is called for the first time (WASM has entered the message loop). */
     _resolveFirstSuspend?: () => void;
-    // Optional pub/sub callbacks (used by DO)
+    // Optional pub/sub callbacks (used by sticky handlers)
     subscribe?: (topic: string) => void;
     unsubscribe?: (topic: string) => void;
     publish?: (topic: string, data: Uint8Array) => number;
     isSubscribed?: (topic: string) => boolean;
 };
+
+type HttpState = {
+    committed: boolean;
+    ended: boolean;
+    status: number;
+    streaming: boolean;
+    headers: Headers;
+    bodyChunks: Uint8Array[];
+    streamWriter: WritableStreamDefaultWriter<Uint8Array> | null;
+};
+
+export function buildHttpImports(
+    mem: () => WebAssembly.Memory,
+    http: HttpState,
+): WebAssembly.ModuleImports {
+    const decoder = new TextDecoder();
+    return {
+        commit: (status: number, meta_ptr: number, meta_len: number): void => {
+            http.status = status >>> 0;
+            http.committed = true;
+            http.headers = new Headers();
+            http.streaming = false;
+            if (meta_len > 0) {
+                try {
+                    const raw = decoder.decode(new Uint8Array(mem().buffer, meta_ptr >>> 0, meta_len >>> 0));
+                    const parsed = JSON.parse(raw) as {
+                        streaming?: boolean;
+                        headers?: [string, string][];
+                    };
+                    if (parsed.streaming === true) http.streaming = true;
+                    if (Array.isArray(parsed.headers)) {
+                        for (const [name, value] of parsed.headers) {
+                            http.headers.append(name, value);
+                        }
+                    }
+                } catch {
+                    // keep defaults
+                }
+            }
+        },
+        write: (ptr: number, len: number): void => {
+            if (len <= 0) return;
+            const chunk = new Uint8Array(mem().buffer, ptr >>> 0, len >>> 0).slice();
+            if (http.streamWriter) void http.streamWriter.write(chunk);
+            else http.bodyChunks.push(chunk);
+        },
+        end: (): void => {
+            http.ended = true;
+            if (http.streamWriter) {
+                void http.streamWriter.close();
+                http.streamWriter = null;
+            }
+        },
+    };
+}
 
 /** Build the __zx_ws import object for a given connection state. */
 export function buildWsImports(
@@ -119,7 +175,7 @@ export function attachWebSocket(ws: WsState): { client: WebSocket } {
 
 /**
  * Build the `__zx_sys` import object.
- * `sleep_ms` pauses WASM under JSPI so buffered stdout chunks reach the client
+ * `sleep_ms` pauses WASM under JSPI so body chunks reach the client
  * incrementally; falls back to a sync no-op when JSPI is unavailable.
  */
 function buildSysImports(jspi: boolean, Suspending: any): WebAssembly.ModuleImports {
@@ -132,7 +188,7 @@ function buildSysImports(jspi: boolean, Suspending: any): WebAssembly.ModuleImpo
 
 /**
  * Start the WASM module and return a promise that resolves when it exits.
- * Under JSPI the module runs asynchronously with streaming stdout; without
+ * Under JSPI the module runs asynchronously with streaming body writes; without
  * JSPI it runs synchronously and buffers all output.
  */
 function executeWasm(
@@ -151,8 +207,8 @@ function executeWasm(
     }
 
     // NOTE: no await - start() runs synchronously until the first Suspending
-    // call, writing __ZIEX_META__ to stderr and the HTML shell to stdout.
-    // The runtime streams stdout to the client while WASM is suspended.
+    // call (typically sleep_ms mid-stream or ws_recv). By then Zig has usually
+    // called __zx_http.commit for streaming pages.
     const start = (WebAssembly as any).promising(instance.exports._start as Function);
     return (start() as Promise<void>)
         .catch((e: unknown) => {
@@ -167,28 +223,6 @@ function executeWasm(
                 res(null);
             }
         });
-}
-
-/** Parse edge response metadata from stderr output. */
-function parseZiexMeta(stderrText: string): { status: number; headers: Headers; streaming: boolean } {
-    const meta = { status: 200, headers: new Headers(), streaming: false };
-    const metaPrefix = "__ZIEX_META__:";
-    const metaLine = stderrText
-        .split("\n")
-        .find((line) => line.startsWith(metaPrefix));
-    if (metaLine) {
-        try {
-            const parsed = JSON.parse(metaLine.slice(metaPrefix.length));
-            if (parsed.status) meta.status = parsed.status;
-            if (parsed.streaming === true) meta.streaming = true;
-            if (Array.isArray(parsed.headers)) {
-                for (const [name, value] of parsed.headers) {
-                    meta.headers.append(name, value);
-                }
-            }
-        } catch { }
-    }
-    return meta;
 }
 
 /**
@@ -215,7 +249,7 @@ export async function run({
     db: dbBindings,
     imports,
     wasi,
-    websocket: doNamespace,
+    sticky,
 }: {
     request: Request;
     env?: unknown;
@@ -228,37 +262,35 @@ export async function run({
     imports?: (mem: () => WebAssembly.Memory) => WebAssembly.Imports;
     wasi?: WASI;
     /**
-     * Durable Object namespace to use for WebSocket connections.
-     * When provided, WebSocket upgrade requests are automatically forwarded to
-     * the DO so that pub/sub works across multiple connected clients.
+     * Sticky namespace for long-lived fetch (WebSocket upgrades).
+     * When provided, upgrade requests are forwarded so pub/sub works across clients.
      */
-    websocket?: DurableObjectNamespace;
+    sticky?: StickyNamespace;
 }): Promise<Response> {
-    // Route WebSocket upgrades to the Durable Object so that pub/sub works
-    // across all connected clients sharing the same DO instance.
-    if (doNamespace && request.headers.get("upgrade")?.toLowerCase() === "websocket") {
-        const id = doNamespace.idFromName(new URL(request.url).pathname);
-        return doNamespace.get(id).fetch(request);
+    // Route WebSocket upgrades to the sticky handler so pub/sub works
+    // across all connected clients sharing the same instance.
+    if (sticky && request.headers.get("upgrade")?.toLowerCase() === "websocket") {
+        const id = sticky.idFromName(new URL(request.url).pathname);
+        return sticky.get(id).fetch(request);
     }
 
     const stdinData = request.body
         ? new Uint8Array(await request.arrayBuffer())
         : undefined;
 
-    // Stdout chunks are buffered here initially. For streaming responses they
-    // are flushed into a TransformStream once we know streaming is requested;
-    // for non-streaming responses the array is used directly as the body,
-    // avoiding a TransformStream and allowing content-length framing.
-    const stdoutChunks: Uint8Array[] = [];
-    let streamWriter: WritableStreamDefaultWriter<Uint8Array> | null = null;
+    const httpState: HttpState = {
+        committed: false,
+        ended: false,
+        status: 200,
+        streaming: false,
+        headers: new Headers(),
+        bodyChunks: [],
+        streamWriter: null,
+    };
 
-    const { wasiImport, setMemory, collectOutput } = createWasiImports({
+    const { wasiImport, setMemory } = createWasiImports({
         request,
         stdinData,
-        onStdout: (chunk) => {
-            if (streamWriter) void streamWriter.write(chunk);
-            else stdoutChunks.push(chunk);
-        },
     });
 
     let wasmMemory: WebAssembly.Memory = null!;
@@ -282,6 +314,7 @@ export async function run({
         wasi_snapshot_preview1: { ...wasi?.wasiImport, ...wasiImport },
         __zx_sys: buildSysImports(jspi, Suspending),
         __zx_ws: buildWsImports(jspi ? Suspending : null, mem, new TextDecoder(), wsState),
+        __zx_http: buildHttpImports(mem, httpState),
         __zx_net: createFetchImports(mem),
         ...(imports ? imports(mem) : {}),
         ...ZxWasiBridge.createImportObject(bridgeRef),
@@ -320,34 +353,34 @@ export async function run({
         return new Response(null, { status: 101, webSocket: server.client } as ResponseInit);
     }
 
-    const { stderrText: earlyStderrText } = collectOutput();
-    const earlyMeta = parseZiexMeta(earlyStderrText);
-
-    if (earlyMeta.streaming) {
-        // Page opted into streaming (zx.PageOptions{ .streaming = true }) -
-        // pipe stdout incrementally to the client as WASM yields via sleep_ms.
+    if (httpState.committed && httpState.streaming) {
         const { readable, writable } = new TransformStream<Uint8Array, Uint8Array>();
-        streamWriter = writable.getWriter();
-        // Flush any chunks written during the synchronous startup phase.
-        for (const chunk of stdoutChunks) void streamWriter.write(chunk);
-        stdoutChunks.length = 0;
-        void wasmPromise.finally(() => streamWriter?.close());
-        return new Response(readable, { status: earlyMeta.status, headers: earlyMeta.headers });
+        httpState.streamWriter = writable.getWriter();
+        for (const chunk of httpState.bodyChunks) void httpState.streamWriter.write(chunk);
+        httpState.bodyChunks.length = 0;
+        void wasmPromise.finally(() => {
+            if (httpState.streamWriter) {
+                void httpState.streamWriter.close();
+                httpState.streamWriter = null;
+            }
+        });
+        return new Response(readable, { status: httpState.status, headers: httpState.headers });
     }
 
     await wasmPromise;
-    const { stderrText } = collectOutput();
-    const meta = parseZiexMeta(stderrText);
-    const body = mergeUint8Arrays(stdoutChunks);
-    meta.headers.delete('transfer-encoding');
+
+    const status = httpState.status;
+    const headers = httpState.headers;
+    headers.delete('transfer-encoding');
 
     // 101/204/205/304 must use a null body (Workers warns on empty ArrayBuffer).
-    const nullBody = meta.status === 101 || meta.status === 204 || meta.status === 205 || meta.status === 304;
+    const nullBody = status === 101 || status === 204 || status === 205 || status === 304;
     if (nullBody) {
-        meta.headers.delete('content-length');
-        return new Response(null, { status: meta.status, headers: meta.headers });
+        headers.delete('content-length');
+        return new Response(null, { status, headers });
     }
 
-    if (!meta.headers.has('content-length')) meta.headers.set('content-length', String(body.byteLength));
-    return new Response(body.buffer as ArrayBuffer, { status: meta.status, headers: meta.headers });
+    const body = mergeUint8Arrays(httpState.bodyChunks);
+    if (!headers.has('content-length')) headers.set('content-length', String(body.byteLength));
+    return new Response(body.buffer as ArrayBuffer, { status, headers });
 }

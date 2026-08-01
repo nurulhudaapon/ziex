@@ -86,7 +86,7 @@ _internal: Http.Facade = .{},
 
 /// Sets the HTTP status code using an HttpStatus enum.
 pub fn setStatus(self: *const Response, stat: HttpStatus) void {
-    self._internal.http.resSetStatus(@intFromEnum(stat));
+    self._internal.http.resSetStatus(@backingInt(stat));
 }
 
 /// Sets the response body directly.
@@ -101,11 +101,15 @@ pub fn text(self: *const Response, content: []const u8) void {
 /// - `options`: Optional JSON stringify options (whitespace, etc.).
 pub fn json(self: *const Response, value: anytype, options: std.json.Stringify.Options) !void {
     self.setContentType(.@"application/json");
-
     if (self.writer()) |w| {
-        const json_formatter = std.json.fmt(value, options);
-        try json_formatter.format(w);
+        try std.json.fmt(value, options).format(w);
+        return;
     }
+    // Stub / no-transport Response (e.g. docs RenderTest): buffer then text().
+    var aw = std.Io.Writer.Allocating.init(self.arena);
+    defer aw.deinit();
+    try std.json.fmt(value, options).format(&aw.writer);
+    self.text(try self.arena.dupe(u8, aw.written()));
 }
 
 /// Sets a header on the response.
@@ -129,7 +133,7 @@ pub fn setContentType(self: *const Response, content_type: ContentType) void {
 /// MDN: [Response.redirect()](https://developer.mozilla.org/en-US/docs/Web/API/Response/redirect_static)
 pub fn redirect(self: *const Response, location: []const u8, redirect_status: ?u16) void {
     const code = redirect_status orelse 302;
-    self.setStatus(@enumFromInt(code));
+    self.setStatus(@fromBackingInt(@intCast(code)));
     self.setHeader("Location", location);
 }
 
@@ -198,28 +202,26 @@ pub const ResponseCookies = struct {
     }
 };
 
-pub const Builder = struct {
+pub const Init = struct {
     status: u16 = 200,
     redirected: bool = false,
     url: []const u8 = "",
     response_type: ResponseType = .default,
     arena: std.mem.Allocator,
     http: Http = .{},
-
-    pub fn build(self: Builder) Response {
-        return .{
-            .body = "",
-            .bodyUsed = false,
-            .ok = self.status >= 200 and self.status <= 299,
-            .redirected = self.redirected,
-            .status = self.status,
-            .statusText = common.statusCodeToText(self.status),
-            .type = self.response_type,
-            .url = self.url,
-            .arena = self.arena,
-            ._internal = .{ .http = self.http },
-            .headers = .{ ._internal = .{ .http = self.http } },
-            .cookies = .{ ._internal = .{ .http = self.http } },
-        };
-    }
 };
+
+pub fn init(opts: Init) Response {
+    return .{
+        .ok = opts.status >= 200 and opts.status <= 299,
+        .redirected = opts.redirected,
+        .status = opts.status,
+        .statusText = common.statusCodeToText(opts.status),
+        .type = opts.response_type,
+        .url = opts.url,
+        .arena = opts.arena,
+        ._internal = .{ .http = opts.http },
+        .headers = .{ ._internal = .{ .http = opts.http } },
+        .cookies = .{ ._internal = .{ .http = opts.http } },
+    };
+}

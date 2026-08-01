@@ -10,7 +10,7 @@ fn trigger() void {
     if (g_on_shutdown) |f| f();
 }
 
-fn posixSignalHandler(_: std.c.SIG) callconv(.c) void {
+fn posixSignalHandler(_: std.posix.SIG) callconv(.c) void {
     trigger();
 }
 

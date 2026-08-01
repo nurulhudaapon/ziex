@@ -5,7 +5,7 @@
  *
  * @example API Gateway v2 (HTTP API)
  * ```ts
- * import { Ziex } from "ziex/cloudflare";
+ * import { Ziex } from "ziex";
  * import { handle } from "ziex/aws-lambda";
  * import module from "./app.wasm";
  *

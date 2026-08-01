@@ -1,4 +1,3 @@
-/// Application runtime entrypoint (`zx.App`). Selects server, wasm, or client backend.
 const App = @This();
 
 const std = @import("std");
@@ -10,13 +9,14 @@ const constants = @import("constants.zig");
 const sig = @import("../../util/sig.zig");
 
 const platform = zx.platform;
-const is_dev = std.mem.eql(u8, app_opts.cli_command, "dev");
-const is_export = std.mem.eql(u8, app_opts.cli_command, "export");
+
+pub const mode = std.meta.stringToEnum(Mode, app_opts.cli_command) orelse .@"--";
 
 pub const Config = @import("App/Config.zig");
+pub const Router = @import("App/Router.zig");
 pub const Server = @import("App/Server.zig");
-pub const Wasm = @import("App/Wasm.zig");
 pub const Client = @import("App/Client.zig");
+pub const Wasm = Server.Wasm;
 
 userdata: ?*anyopaque = null,
 vtable: *const VTable = &failing_vtable,
@@ -38,8 +38,13 @@ pub fn init(inita: zx.Init, process_io: anytype, alloc: std.mem.Allocator, confi
             .wasi => return Wasm.app(inita),
             else => {
                 const io_value = if (@TypeOf(process_io) == std.Io) process_io else return error.InvalidIo;
-                const instance = try Server.Server(H).init(io_value, alloc, cfg, app_ctx);
-                return Server.app(H, instance, alloc);
+                const Transport = switch (app_opts.server_backend) {
+                    .std => Server.Std,
+                    .httpz => Server.Httpz,
+                    .auto => if (comptime builtin.optimize == .debug) Server.Std else Server.Httpz,
+                };
+                const instance = try Transport.Server(H).init(io_value, alloc, cfg, app_ctx, inita);
+                return Server.bind(@TypeOf(instance.*), instance, alloc);
             },
         },
     }
@@ -91,7 +96,7 @@ var stop_fn: ?*const fn (ctx: *anyopaque) void = null;
 
 fn onSignal() void {
     if (stop_fn) |f| if (stop_ctx) |ctx| {
-        if (!is_dev and !is_export) std.debug.print("\nShutting down...\n", .{});
+        if (App.mode != .dev and App.mode != .@"export") std.debug.print("\nShutting down...\n", .{});
         f(ctx);
     };
 }
@@ -124,8 +129,8 @@ var kv: zx.Kv = undefined;
 var cache: zx.Cache = undefined;
 var db: zx.Db = undefined;
 
-var kv_fs: if (app_opts.feat_kv_server) zx.Kv.Fs else void = undefined;
-var cache_fs: if (app_opts.feat_cache_server) zx.Kv.Fs else void = undefined;
+var kv_fs: zx.Kv.Fs = undefined;
+var cache_fs: zx.Kv.Fs = undefined;
 
 const Resolved = struct {
     datadir: ?[]const u8 = null,
@@ -283,3 +288,5 @@ pub const Route = struct {
     route: ?type = null,
     proxy: ?type = null,
 };
+
+pub const Mode = enum { dev, serve, @"export", @"--" };

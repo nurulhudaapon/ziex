@@ -2,7 +2,6 @@ pub const app_base_path: ?[]const u8 = null;
 pub const server_port: ?u16 = null;
 pub const server_address: ?[]const u8 = null;
 pub const cli_command: []const u8 = "--";
-pub const introspect: bool = false;
 pub const feat_sqlite_server: bool = false;
 pub const feat_pg_server: bool = false;
 pub const feat_kv_server: bool = false;

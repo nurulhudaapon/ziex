@@ -88,7 +88,7 @@ pub const serve: Command = .{
         flags.binpath,
         flags.zig_path,
         Argument.init(.@"build-args", []const u8, .{
-            .default_value = "-Doptimize=ReleaseFast",
+            .default_value = "--release=fast",
             .short = 'a',
             .help = "Additional build arguments to pass to zig build",
         }),

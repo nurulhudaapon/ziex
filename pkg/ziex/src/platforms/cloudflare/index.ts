@@ -9,5 +9,5 @@ export type {
     BrowserKVOptions,
 } from "../../runtime/kv";
 export { get, put, del, list } from "../../runtime/kv/memory";
-export { Ziex } from "../../app";
-export { createWebSocketDO } from "./do";
+export { Ziex, resolveModule, stateful } from "./app";
+export type { WasmInput, ZiexOptions, StickyKey, StatefulOptions } from "./app";

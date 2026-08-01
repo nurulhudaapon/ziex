@@ -1,247 +1,13 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const httpz = @import("httpz");
 const app = @import("app");
-const app_opts = @import("app_opts");
 
 const zx = @import("../../root.zig");
 const constants = @import("../core/constants.zig");
 const AppConfig = @import("../core/App/Config.zig");
-const Handler = @import("handler.zig").Handler;
 
 const Allocator = std.mem.Allocator;
 const Component = zx.Component;
-
-pub const cli_cmd = std.meta.stringToEnum(ServerApp.CliCommand, app_opts.cli_command) orelse .@"--";
-
-pub fn Server(comptime H: type) type {
-    const AppCtxType = switch (@typeInfo(H)) {
-        .@"struct" => H,
-        .pointer => |ptr| ptr.child,
-        .void => void,
-        else => @compileError("Server app context must be a struct, pointer to struct, or void, got: " ++ @tagName(@typeInfo(H))),
-    };
-
-    return struct {
-        const Self = @This();
-
-        allocator: std.mem.Allocator,
-        meta: ServerApp,
-        handler: HandlerType,
-        server: httpz.Server(*HandlerType),
-        config: AppConfig,
-        app_ctx: H,
-        io: std.Io,
-
-        _is_listening: bool = false,
-
-        const HandlerType = Handler(AppCtxType);
-
-        pub fn init(io: std.Io, allocator: std.mem.Allocator, config: AppConfig, app_ctx: H) !*Self {
-            const self = try allocator.create(Self);
-            errdefer allocator.destroy(self);
-
-            self.allocator = allocator;
-            self.meta = server_app;
-            self.app_ctx = app_ctx;
-            self.io = io;
-            self._is_listening = false;
-
-            // Get pointer to app context for handler initialization
-            // When H is void, pass undefined; when H is pointer, use directly; when H is value, get pointer from self
-            const app_ctx_ptr: *AppCtxType = if (H == void)
-                undefined
-            else if (@typeInfo(H) == .pointer)
-                app_ctx
-            else
-                &self.app_ctx;
-
-            self.config = config;
-            self.handler = try HandlerType.init(self.io, allocator, &self.meta, config, app_ctx_ptr);
-            errdefer self.handler.deinit();
-            self.server = try httpz.Server(*HandlerType).init(self.io, allocator, mapStruct(httpz.Config, config.server), &self.handler);
-
-            // -- Routing -- //
-            var router = try self.server.router(.{});
-
-            // Static assets
-            router.get("/assets/*", HandlerType.assets, .{});
-            router.get("/*", HandlerType.public, .{});
-
-            // Routes
-            inline for (server_app.routes) |*route| {
-                // Check if this is an API-only route (no page)
-                const is_api_only = route.page == null;
-
-                if (!is_api_only) {
-                    // Page routes
-                    var method_found = false;
-                    var get_method_found = false;
-                    if (route.page_opts) |pg_opts| {
-                        inline for (pg_opts.methods) |method| {
-                            method_found = true;
-                            switch (method) {
-                                .GET => {
-                                    get_method_found = true;
-                                    router.get(route.path, HandlerType.page, .{ .data = route });
-                                },
-                                .POST => router.post(route.path, HandlerType.page, .{ .data = route }),
-                                .PUT => router.put(route.path, HandlerType.page, .{ .data = route }),
-                                .DELETE => router.delete(route.path, HandlerType.page, .{ .data = route }),
-                                .PATCH => router.patch(route.path, HandlerType.page, .{ .data = route }),
-                                .OPTIONS => router.options(route.path, HandlerType.page, .{ .data = route }),
-                                .HEAD => router.head(route.path, HandlerType.page, .{ .data = route }),
-                                .CONNECT => router.connect(route.path, HandlerType.page, .{ .data = route }),
-                                .TRACE => router.trace(route.path, HandlerType.page, .{ .data = route }),
-                                .ALL => router.all(route.path, HandlerType.page, .{ .data = route }),
-                            }
-                        }
-                    }
-
-                    if (!method_found or !get_method_found) {
-                        router.get(route.path, HandlerType.page, .{ .data = route });
-                    }
-                }
-
-                // API routes
-                if (route.route) |handlers| {
-                    if (handlers.get) |_| router.get(route.path, HandlerType.api, .{ .data = route });
-                    if (handlers.post) |_| router.post(route.path, HandlerType.api, .{ .data = route });
-                    if (handlers.put) |_| router.put(route.path, HandlerType.api, .{ .data = route });
-                    if (handlers.delete) |_| router.delete(route.path, HandlerType.api, .{ .data = route });
-                    if (handlers.patch) |_| router.patch(route.path, HandlerType.api, .{ .data = route });
-                    if (handlers.head) |_| router.head(route.path, HandlerType.api, .{ .data = route });
-                    if (handlers.options) |_| router.options(route.path, HandlerType.api, .{ .data = route });
-
-                    if (handlers.handler) |_| {
-                        if (handlers.get == null and is_api_only) router.get(route.path, HandlerType.api, .{ .data = route });
-                        if (handlers.post == null) router.post(route.path, HandlerType.api, .{ .data = route });
-                        if (handlers.put == null) router.put(route.path, HandlerType.api, .{ .data = route });
-                        if (handlers.delete == null) router.delete(route.path, HandlerType.api, .{ .data = route });
-                        if (handlers.patch == null) router.patch(route.path, HandlerType.api, .{ .data = route });
-                        if (handlers.head == null) router.head(route.path, HandlerType.api, .{ .data = route });
-                        if (handlers.options == null) router.options(route.path, HandlerType.api, .{ .data = route });
-                    }
-
-                    if (handlers.custom_methods) |custom_methods| {
-                        inline for (custom_methods) |custom| {
-                            router.method(custom.method, route.path, HandlerType.api, .{ .data = route });
-                        }
-                    }
-                }
-            }
-
-            // Introspect the app, this will exit the program in some cases like --introspect flag
-            try self.introspect();
-
-            return self;
-        }
-
-        pub fn deinit(self: *Self) void {
-            const allocator = self.allocator;
-
-            if (self._is_listening) {
-                self.server.stop();
-                self._is_listening = false;
-            }
-            self.server.deinit();
-            self.handler.deinit();
-            allocator.destroy(self);
-        }
-
-        pub fn stop(self: *Self) void {
-            if (self._is_listening) {
-                self.server.stop();
-                self._is_listening = false;
-            }
-        }
-
-        pub fn start(self: *Self) !void {
-            if (self._is_listening) return;
-            self._is_listening = true;
-
-            // When running under the dev proxy, bind to the inner port on
-            // loopback only - the proxy owns the user-facing port.
-            if (envVar("ZIEX_INNER_PORT")) |port_str| {
-                if (std.fmt.parseInt(u16, port_str, 10)) |inner_port| {
-                    setServerAddress(&self.server.config, "127.0.0.1", inner_port);
-                } else |_| {}
-            }
-
-            self.server.listen() catch |err| {
-                self._is_listening = false;
-
-                switch (err) {
-                    error.AddressInUse => {
-                        // Dev port fallback lives in DevServer (outer proxy).
-                        // The app binary must stay on ZIEX_INNER_PORT when proxied.
-                        const port = serverPort(&self.server.config).?;
-                        self.infoWithCrossedOutPort(port);
-                        std.debug.print("{s}Port {d} is already in use{s}\n", .{ colors.red, port, colors.reset_all });
-                        std.debug.print("\nTo kill the port, run:\n  {s}kill -9 $(lsof -t -i:{d}){s}\n\n", .{ colors.dim, port, colors.reset_all });
-                        return err;
-                    },
-                    else => return err,
-                }
-            };
-        }
-
-        /// Print the server info to the console
-        /// ZX - v{version} | http://localhost:{port}
-        pub fn info(self: *Self) void {
-            const display_port: u16 = if (envVar("ZIEX_OUTER_PORT")) |s|
-                std.fmt.parseInt(u16, s, 10) catch serverPort(&self.server.config).?
-            else
-                serverPort(&self.server.config).?;
-            std.debug.print("{s}ZX{s} {s}- v{s}{s} | http://localhost:{d}\n", .{ colors.bold, colors.reset_all, colors.dim, zx.info.version, colors.reset_all, display_port });
-        }
-
-        /// Print the info line with the address/port part crossed out
-        fn infoWithCrossedOutPort(_: *Self, port: u16) void {
-            std.debug.print(
-                "{s}{s}{s}ZX{s} {s}- v{s}{s} {s} | {s}http://localhost:{d}{s}\n",
-                .{
-                    colors.move_up,
-                    colors.reset,
-                    colors.bold,
-                    colors.reset_all,
-                    colors.dim,
-                    zx.info.version,
-                    colors.reset_all,
-                    colors.dim,
-                    colors.strikethrough,
-                    port,
-                    colors.reset_all,
-                },
-            );
-        }
-
-        fn introspect(self: *Self) !void {
-            const port = (if (app_opts.server_port != null) app_opts.server_port else serverPort(&self.server.config)) orelse constants.default_port;
-            const address = app_opts.server_address orelse self.config.server.address orelse constants.default_address;
-
-            // Overriding or setting default configs
-            setServerAddress(&self.server.config, address, port);
-            self.server.config.request.max_form_count = self.server.config.request.max_form_count orelse constants.default_max_form_count;
-            self.server.config.request.max_multiform_count = self.server.config.request.max_multiform_count orelse constants.default_max_multiform_count;
-
-            // TODO: remove introspection from app
-            const introspect_requested = app_opts.introspect;
-            if (introspect_requested) {
-                var aw = std.Io.Writer.Allocating.init(self.allocator);
-                defer aw.deinit();
-
-                var serilizable_meta = try SerilizableAppMeta.init(self.allocator, &self.meta, self.config.server);
-                defer serilizable_meta.deinit(self.allocator);
-                try serilizable_meta.serialize(&aw.writer);
-
-                try std.Io.File.stdout().writeStreamingAll(self.io, aw.written());
-                try std.Io.File.stdout().writeStreamingAll(self.io, "\n");
-                std.process.exit(0);
-            }
-        }
-    };
-}
 
 pub const SerilizableAppMeta = struct {
     pub const Opts = struct {
@@ -319,12 +85,6 @@ pub const SerilizableAppMeta = struct {
         allocator.free(self.version);
     }
 
-    pub fn serialize(self: *const SerilizableAppMeta, writer: anytype) !void {
-        try std.zon.stringify.serialize(self, .{
-            .whitespace = true,
-            .emit_default_optional_fields = true,
-        }, writer);
-    }
     pub fn serializeRoutes(self: SerilizableAppMeta, writer: anytype) !void {
         try zx.util.zxon.serialize(self.routes, writer, .{});
     }
@@ -602,10 +362,14 @@ pub const ServerApp = struct {
 
         return struct {
             fn wrapper(socket: zx.Socket, message: []const u8, message_type: zx.SocketMessageType, upgrade_data: ?[]const u8, allocator: std.mem.Allocator, arena: std.mem.Allocator, io: std.Io) anyerror!void {
+                _ = arena;
                 const data: DataType = if (upgrade_data) |bytes|
                     std.mem.bytesToValue(DataType, bytes[0..@sizeOf(DataType)])
                 else
                     std.mem.zeroes(DataType);
+
+                var arena_instance = std.heap.ArenaAllocator.init(allocator);
+                defer arena_instance.deinit();
 
                 const ctx = CtxType{
                     .socket = socket,
@@ -613,7 +377,7 @@ pub const ServerApp = struct {
                     .message_type = message_type,
                     .data = data,
                     .allocator = allocator,
-                    .arena = arena,
+                    .arena = arena_instance.allocator(),
                     .io = io,
                 };
                 if (R == void) {
@@ -634,16 +398,20 @@ pub const ServerApp = struct {
 
         return struct {
             fn wrapper(socket: zx.Socket, upgrade_data: ?[]const u8, allocator: std.mem.Allocator, arena: std.mem.Allocator, io: std.Io) anyerror!void {
+                _ = arena;
                 const data: DataType = if (upgrade_data) |bytes|
                     std.mem.bytesToValue(DataType, bytes[0..@sizeOf(DataType)])
                 else
                     std.mem.zeroes(DataType);
 
+                var arena_instance = std.heap.ArenaAllocator.init(allocator);
+                defer arena_instance.deinit();
+
                 const ctx = CtxType{
                     .socket = socket,
                     .data = data,
                     .allocator = allocator,
-                    .arena = arena,
+                    .arena = arena_instance.allocator(),
                     .io = io,
                 };
                 if (R == void) {
@@ -667,11 +435,14 @@ pub const ServerApp = struct {
                 else
                     std.mem.zeroes(DataType);
 
+                var arena_instance = std.heap.ArenaAllocator.init(allocator);
+                defer arena_instance.deinit();
+
                 const ctx = CtxType{
                     .socket = socket,
                     .data = data,
                     .allocator = allocator,
-                    .arena = allocator,
+                    .arena = arena_instance.allocator(),
                     .io = io,
                 };
                 socketCloseFn(ctx);
@@ -879,7 +650,6 @@ pub const ServerApp = struct {
         page_proxy: ?ProxyHandler = null,
         route_proxy: ?ProxyHandler = null,
     };
-    pub const CliCommand = enum { dev, serve, @"export", @"--" };
 
     routes: []const Route,
 };
@@ -913,72 +683,4 @@ const server_routes = blk: {
 
 pub const server_app = ServerApp{
     .routes = &server_routes,
-};
-
-/// Comptime-map any struct into a target struct type by matching field names.
-/// Used to convert our AppConfig.ServerConfig into httpz.Config without manually
-/// listing each field. Only fields present in both are copied; nested structs
-/// recurse. This keeps AppConfig decoupled from httpz (so wasm/wasi builds work).
-pub fn mapStruct(comptime T: type, src: anytype) T {
-    var out: T = .{};
-    const S = @TypeOf(src);
-    inline for (@typeInfo(T).@"struct".field_names, @typeInfo(T).@"struct".field_types) |field_name, field_type| {
-        if (comptime T == httpz.Config and std.mem.eql(u8, field_name, "address")) {
-            // handled after the loop because our app config stores host/port
-            // separately while httpz expects a tagged union
-        } else if (@hasField(S, field_name)) {
-            const sv = @field(src, field_name);
-            switch (@typeInfo(field_type)) {
-                .@"struct" => @field(out, field_name) = mapStruct(field_type, sv),
-                else => @field(out, field_name) = sv,
-            }
-        }
-    }
-    if (comptime T == httpz.Config) out.address = mapServerAddress(src);
-    return out;
-}
-
-fn mapServerAddress(src: AppConfig.ServerConfig) httpz.Config.Address {
-    if (src.unix_path) |unix_path| return .{ .unix = unix_path };
-    const port = src.port orelse constants.default_port;
-    const address = src.address orelse constants.default_address;
-
-    if (std.mem.eql(u8, address, "localhost")) return httpz.Config.Address.localhost(port);
-    if (std.mem.eql(u8, address, "0.0.0.0")) return httpz.Config.Address.all(port);
-
-    return .{ .ip = std.Io.net.IpAddress.parse(address, port) catch .{ .ip4 = .{ .bytes = .{ 127, 0, 0, 1 }, .port = port } } };
-}
-
-fn serverPort(config: *const httpz.Config) ?u16 {
-    return switch (config.address) {
-        .ip => |ip| ip.getPort(),
-        .unix => null,
-    };
-}
-
-fn setServerAddress(config: *httpz.Config, address: []const u8, port: u16) void {
-    config.address = if (std.mem.eql(u8, address, "localhost"))
-        httpz.Config.Address.localhost(port)
-    else if (std.mem.eql(u8, address, "0.0.0.0"))
-        httpz.Config.Address.all(port)
-    else
-        .{ .ip = std.Io.net.IpAddress.parse(address, port) catch .{ .ip4 = .{ .bytes = .{ 127, 0, 0, 1 }, .port = port } } };
-}
-
-// TODO: read from passed through env from root init
-fn envVar(name_z: [*:0]const u8) ?[]const u8 {
-    const value = std.c.getenv(name_z) orelse return null;
-    return std.mem.span(value);
-}
-
-const colors = struct {
-    const move_up = "\x1b[1A";
-    const reset = "\r";
-    const bold = "\x1b[1m";
-    const dim = "\x1b[2m";
-    const strikethrough = "\x1b[9m";
-    const reset_all = "\x1b[0m";
-    const yellow = "\x1b[33m";
-    const red = "\x1b[31m";
-    const blink = "\x1b[5m";
 };

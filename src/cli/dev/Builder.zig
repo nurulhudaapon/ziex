@@ -280,7 +280,17 @@ pub const BuildState = struct {
         // The summary may include ANSI dim codes for the install role even
         // when colour is "off" - e.g. "install \x1b[2mserver\x1b[0m ziex_app
         // success" or its escape-stripped variant "install [2mserver[0m ...".
-        const cleaned = stripAnsiInPlace(content);
+        var stack_buf: [512]u8 = undefined;
+        var heap_buf: ?[]u8 = null;
+        defer if (heap_buf) |h| self.allocator.free(h);
+        const mutable: []u8 = if (content.len <= stack_buf.len) blk: {
+            @memcpy(stack_buf[0..content.len], content);
+            break :blk stack_buf[0..content.len];
+        } else blk: {
+            heap_buf = self.allocator.dupe(u8, content) catch return;
+            break :blk heap_buf.?;
+        };
+        const cleaned = stripAnsiInPlace(mutable);
 
         if (parseInstallStatus(cleaned, "server")) |status| {
             self.server_status = mergeStatus(self.server_status, status);
@@ -370,12 +380,9 @@ pub fn stripTreePrefix(line: []const u8) []const u8 {
     return std.mem.trim(u8, line[i..], " \t");
 }
 
-/// Remove inline ANSI escape sequences and "bare" CSI fragments like "[2m" /
-/// "[0m" left behind when the escape byte was stripped upstream. The result
-/// reuses the input buffer (returning a sub-slice up to the new length).
-pub fn stripAnsiInPlace(line: []const u8) []const u8 {
-    // ANSI cleanup is rare; do it lazily with a scratch trick: rewrite into a
-    // small stack buffer only when needed.
+/// Remove inline ANSI escape sequences and bare CSI fragments like "[2m" /
+/// "[0m". Compacts `line` in place and returns the cleaned prefix.
+pub fn stripAnsiInPlace(line: []u8) []u8 {
     var has_ansi = false;
     for (line) |b| {
         if (b == 0x1B or b == '[') {
@@ -385,15 +392,11 @@ pub fn stripAnsiInPlace(line: []const u8) []const u8 {
     }
     if (!has_ansi) return line;
 
-    // Single-pass strip. Output is at most input length, so it's safe to
-    // operate on a local static buffer for the typical tree-line length.
-    var buf: [512]u8 = undefined;
     var out_len: usize = 0;
     var i: usize = 0;
-    while (i < line.len and out_len < buf.len) {
+    while (i < line.len) {
         const c = line[i];
         if (c == 0x1B) {
-            // Skip ESC + '[' + ... + final byte in 0x40..0x7E.
             i += 1;
             if (i < line.len and line[i] == '[') i += 1;
             while (i < line.len) : (i += 1) {
@@ -406,7 +409,6 @@ pub fn stripAnsiInPlace(line: []const u8) []const u8 {
             continue;
         }
         if (c == '[') {
-            // Bare CSI-like fragment? Only strip if it looks like "[<digits>m".
             var j = i + 1;
             while (j < line.len and std.ascii.isDigit(line[j])) : (j += 1) {}
             if (j > i + 1 and j < line.len and line[j] == 'm') {
@@ -414,11 +416,11 @@ pub fn stripAnsiInPlace(line: []const u8) []const u8 {
                 continue;
             }
         }
-        buf[out_len] = c;
+        line[out_len] = c;
         out_len += 1;
         i += 1;
     }
-    return buf[0..out_len];
+    return line[0..out_len];
 }
 
 /// Match `install <role> <name> <status>` (status is the final word, possibly

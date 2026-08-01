@@ -50,8 +50,8 @@ const OptionalPageModule = struct {
 };
 
 fn makeReqRes(alloc: std.mem.Allocator) struct { req: Request, res: Response } {
-    const req = (Request.Builder{ .url = "/", .arena = alloc }).build();
-    const res = (Response.Builder{ .arena = alloc }).build();
+    const req = Request.init(.{ .url = "/", .arena = alloc });
+    const res = Response.init(.{ .arena = alloc });
     return .{ .req = req, .res = res };
 }
 
@@ -72,16 +72,16 @@ test "PageContext: has request field" {
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
 
-    const req = (Request.Builder{
+    const req = Request.init(.{
         .url = "/test",
         .method = .POST,
         .arena = alloc,
-    }).build();
+    });
 
-    const res = (Response.Builder{
+    const res = Response.init(.{
         .status = 200,
         .arena = alloc,
-    }).build();
+    });
 
     const ctx = PageContext.init(req, res, alloc, std.testing.io);
 
@@ -94,11 +94,11 @@ test "PageContext: has response field" {
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
 
-    const req = (Request.Builder{ .arena = alloc }).build();
-    const res = (Response.Builder{
+    const req = Request.init(.{ .arena = alloc });
+    const res = Response.init(.{
         .status = 201,
         .arena = alloc,
-    }).build();
+    });
 
     const ctx = PageContext.init(req, res, alloc, std.testing.io);
 
@@ -112,8 +112,8 @@ test "PageContext: has allocator and arena fields" {
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
 
-    const req = (Request.Builder{ .arena = alloc }).build();
-    const res = (Response.Builder{ .arena = alloc }).build();
+    const req = Request.init(.{ .arena = alloc });
+    const res = Response.init(.{ .arena = alloc });
     const ctx = PageContext.init(req, res, alloc, std.testing.io);
 
     // Verify fields are accessible
@@ -129,8 +129,8 @@ test "ErrorContext: has error field" {
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
 
-    const req = (Request.Builder{ .arena = alloc }).build();
-    const res = (Response.Builder{ .arena = alloc }).build();
+    const req = Request.init(.{ .arena = alloc });
+    const res = Response.init(.{ .arena = alloc });
     const err = error.OutOfMemory;
 
     const ctx = ErrorContext.init(req, res, alloc, std.testing.io, err);
@@ -143,15 +143,15 @@ test "ErrorContext: has request and response fields" {
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
 
-    const req = (Request.Builder{
+    const req = Request.init(.{
         .url = "/error-page",
         .arena = alloc,
-    }).build();
+    });
 
-    const res = (Response.Builder{
+    const res = Response.init(.{
         .status = 500,
         .arena = alloc,
-    }).build();
+    });
 
     const ctx = ErrorContext.init(req, res, alloc, std.testing.io, error.Unexpected);
 
@@ -164,8 +164,8 @@ test "ErrorContext: has allocator and arena fields" {
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
     const alloc = fba.allocator();
 
-    const req = (Request.Builder{ .arena = alloc }).build();
-    const res = (Response.Builder{ .arena = alloc }).build();
+    const req = Request.init(.{ .arena = alloc });
+    const res = Response.init(.{ .arena = alloc });
     const ctx = ErrorContext.init(req, res, alloc, std.testing.io, error.Unexpected);
 
     _ = ctx.allocator;

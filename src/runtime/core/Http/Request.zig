@@ -165,7 +165,7 @@ pub const Headers = struct {
     }
 };
 
-pub const Builder = struct {
+pub const Init = struct {
     url: []const u8 = "",
     method: Method = .GET,
     method_str: []const u8 = "GET",
@@ -176,23 +176,22 @@ pub const Builder = struct {
     arena: std.mem.Allocator,
     cookie_header: []const u8 = "",
     http: Http = .{},
-
-    /// Builds the Request object with all configured values.
-    pub fn build(self: Builder) Request {
-        return .{
-            .url = self.url,
-            .method = self.method,
-            .method_str = self.method_str,
-            .pathname = self.pathname,
-            .referrer = self.referrer,
-            .search = self.search,
-            .protocol = self.protocol,
-            .arena = self.arena,
-            ._internal = .{ .http = self.http },
-            .headers = .{ ._internal = .{ .http = self.http } },
-            .cookies = .{ .header_value = self.cookie_header },
-            .queries = .{ ._internal = .{ .http = self.http } },
-            .params = .{ ._internal = .{ .http = self.http } },
-        };
-    }
 };
+
+pub fn init(opts: Init) Request {
+    return .{
+        .url = opts.url,
+        .method = opts.method,
+        .method_str = opts.method_str,
+        .pathname = opts.pathname,
+        .referrer = opts.referrer,
+        .search = opts.search,
+        .protocol = opts.protocol,
+        .arena = opts.arena,
+        ._internal = .{ .http = opts.http },
+        .headers = .{ ._internal = .{ .http = opts.http } },
+        .cookies = .{ .header_value = opts.cookie_header },
+        .queries = .{ ._internal = .{ .http = opts.http } },
+        .params = .{ ._internal = .{ .http = opts.http } },
+    };
+}

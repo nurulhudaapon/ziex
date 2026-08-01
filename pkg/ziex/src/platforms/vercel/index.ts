@@ -3,7 +3,7 @@
  *
  * @example
  * ```ts
- * import { Ziex } from "ziex/cloudflare";
+ * import { Ziex } from "ziex";
  * import { handle } from "ziex/vercel";
  * import module from "./app.wasm"; // or fetch at runtime
  *

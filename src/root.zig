@@ -8,10 +8,10 @@ const builtin = @import("builtin");
 const element = @import("element.zig");
 const plfm = @import("platform.zig");
 
-const routing = @import("runtime/core/Router/routing.zig");
+const routing = @import("runtime/core/App/Router/routing.zig");
 const event = @import("runtime/core/Event.zig");
-const opts = @import("runtime/core/Router/options.zig");
-const ctxs = @import("runtime/core/Router/contexts.zig");
+const opts = @import("runtime/core/App/Router/options.zig");
+const ctxs = @import("runtime/core/App/Router/contexts.zig");
 const reactivity = @import("runtime/client/reactivity.zig");
 const app_mod = @import("runtime/core/App.zig");
 
@@ -84,7 +84,7 @@ pub const BuiltinAttribute = @import("attributes.zig").builtin;
 pub const Platform = plfm.Platform;
 
 // --- Routing --- //
-pub const Router = @import("runtime/core/Router.zig");
+pub const Router = app_mod.Router;
 
 // --- Storage --- //
 pub const Db = @import("runtime/core/Db.zig");

@@ -112,8 +112,8 @@ pub fn tryServe(self: *PageCache, req: Request, res: Response) Status {
 
     if (self.vtable.get(self.userdata, req.arena, path) catch null) |entry| {
         if (entry.content_type) |ct| res.setHeader("Content-Type", ct);
-        res.text(entry.body);
         setCacheHeaders(res, entry.etag, req.arena, ttl, .hit);
+        res.text(entry.body);
         return .hit;
     }
 

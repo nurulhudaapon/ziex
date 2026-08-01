@@ -89,9 +89,18 @@ pub fn registerEvent(route_path: []const u8, handler_id: u32, event_fn: ServerEv
     // Composite key: "route_path:handler_id"
     var buf: [1024]u8 = undefined;
     const key = std.fmt.bufPrint(&buf, "{s}:{d}", .{ route_path, handler_id }) catch return;
-    const key_dupe = allocator.dupe(u8, key) catch return;
 
-    event_map.put(key_dupe, event_fn);
+    for (event_map.entries.items) |*e| {
+        if (std.mem.eql(u8, e.key, key)) {
+            e.val = event_fn;
+            return;
+        }
+    }
+
+    const key_dupe = allocator.dupe(u8, key) catch return;
+    event_map.entries.append(allocator, .{ .key = key_dupe, .val = event_fn }) catch {
+        allocator.free(key_dupe);
+    };
 }
 
 pub fn getEvent(route_path: []const u8, handler_id: u32) ?ServerEventFn {

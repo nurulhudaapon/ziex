@@ -1,4 +1,8 @@
-import { Ziex } from "../../pkg/ziex";
+import { Ziex } from "../../pkg/ziex/src";
+import { stateful } from "../../pkg/ziex/src/platforms/cloudflare";
 import module from "../zig-out/bin/ziex_dev.wasm";
 
-export default new Ziex<Env>({ module, kv: 'KV', db:  'DB' });
+const app = new Ziex<Env>({ module, kv: "KV", db: "DB" });
+
+export const ChatRoom = stateful(app, { binding: "CHAT_ROOM" });
+export default app;

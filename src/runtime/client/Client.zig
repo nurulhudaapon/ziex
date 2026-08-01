@@ -7,6 +7,7 @@ const zx = @import("../../root.zig");
 const zx_info = @import("zx_info");
 const app = @import("app");
 const app_opts = @import("app_opts");
+const App = @import("../core/App.zig");
 
 const window = @import("window.zig");
 const vtree_mod = @import("render.zig");
@@ -15,7 +16,7 @@ const core_vdom = @import("../core/vdom.zig");
 const reactivity = @import("reactivity.zig");
 
 const is_wasm = window.is_wasm;
-const is_dev = std.mem.eql(u8, app_opts.cli_command, "dev");
+const is_dev = App.mode == .dev;
 
 const VDOMTree = vtree_mod.VDOMTree;
 const Document = window.Document;
@@ -303,11 +304,11 @@ pub fn registerVElement(self: *Client, velement: *vtree_mod.VElement) void {
 pub fn registerHandler(self: *Client, velement_id: u64, event_type: EventType, handler: zx.EventHandler) void {
     const key = HandlerKey{ .velement_id = velement_id, .event_type = event_type };
     self.handler_registry.put(key, handler) catch {};
-    const bit = @as(u32, 1) << @as(u5, @intCast(@intFromEnum(event_type)));
+    const bit = @as(u32, 1) << @as(u5, @intCast(@backingInt(event_type)));
     const cur = self.handler_bits.get(velement_id) orelse 0;
     self.handler_bits.put(velement_id, cur | bit) catch {};
     if (zx.platform.role == .client) {
-        window.ext._setEventHandlerMode(velement_id, @intFromEnum(event_type), if (handler.may_suspend) 1 else 0);
+        window.ext._setEventHandlerMode(velement_id, @backingInt(event_type), if (handler.may_suspend) 1 else 0);
     }
 }
 
@@ -364,7 +365,7 @@ pub fn dispatchEventByName(self: *Client, velement_id: u64, event_type_name: []c
 export fn __zx_eventbridge(velement_id: u64, event_type_id: u8, event_ref: u64) void {
     if (zx.platform.role != .client) return;
     if (global_client) |client| {
-        const event_type: EventType = @enumFromInt(event_type_id);
+        const event_type: EventType = @fromBackingInt(@intCast(event_type_id));
         _ = client.dispatchEvent(velement_id, event_type, event_ref);
     }
 }

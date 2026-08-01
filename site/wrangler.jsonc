@@ -16,7 +16,8 @@
 	],
 	"build": {
 		"watch_dir": "./app",
-		"command": "zig build -Dtarget=wasm32-wasi --release=small"
+		// "command": "zig build -Dtarget=wasm32-wasi --release=small"
+		"command": "zig build -Dtarget=wasm32-wasi"
 	},
 	"assets": {
 		"directory": "./zig-out/static",
@@ -28,19 +29,18 @@
 			"database_id": "0bec4fab-1cfe-4db7-b774-8feb0b2d44c3", // available in your Worker on env.DB
 		}
 	],
-	// 	"durable_objects": {
-	//     "bindings": [
-	//       {
-	//         "name": "CHAT_ROOM",
-	//         "class_name": "ChatRoom"
-	//       }
-	//     ]
-	//   },
-	//   "migrations": [
-	//     {
-	//       "tag": "v1",
-	//     //   "new_classes": ["ChatRoom"],
-	// 	  "new_sqlite_classes": ["ChatRoom"]
-	//     }
-	//   ]
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "CHAT_ROOM",
+				"class_name": "ChatRoom"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["ChatRoom"]
+		}
+	]
 }

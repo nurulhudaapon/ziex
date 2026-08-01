@@ -950,25 +950,8 @@ fn handleOpenInEditor(ds: *DevServer, target: []const u8) !void {
 }
 
 fn urlDecode(allocator: std.mem.Allocator, encoded: []const u8) ![]u8 {
-    var out = std.ArrayList(u8).empty;
-    errdefer out.deinit(allocator);
-    var i: usize = 0;
-    while (i < encoded.len) {
-        if (encoded[i] == '%' and i + 2 < encoded.len) {
-            const hex = encoded[i + 1 .. i + 3];
-            const byte = std.fmt.parseInt(u8, hex, 16) catch {
-                try out.append(allocator, encoded[i]);
-                i += 1;
-                continue;
-            };
-            try out.append(allocator, byte);
-            i += 3;
-        } else {
-            try out.append(allocator, encoded[i]);
-            i += 1;
-        }
-    }
-    return out.toOwnedSlice(allocator);
+    const buf = try allocator.dupe(u8, encoded);
+    return std.Uri.percentDecodeInPlace(buf);
 }
 
 const IdeScheme = @import("IdeScheme.zig");

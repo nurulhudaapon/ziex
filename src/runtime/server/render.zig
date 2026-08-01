@@ -3,7 +3,7 @@ const zx = @import("../../root.zig");
 const registry = @import("registry.zig");
 const html_util = zx.util.html;
 
-/// Set by handler.zig before calling render/stream so that any ActionContext
+/// Set by the server request handler before calling render/stream so that any ActionContext
 /// handlers encountered during the render pass are registered for this route.
 pub var current_route_path: ?[]const u8 = null;
 

@@ -19,11 +19,11 @@ test "Request.Header" {
 
 // --- Request Instance (without backend) --- //
 
-test "Request.Builder default" {
+test "Request.init default" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const req = (Request.Builder{ .arena = fba.allocator() }).build();
+    const req = Request.init(.{ .arena = fba.allocator() });
 
     try std.testing.expectEqualStrings("", req.url);
     try std.testing.expectEqualStrings("/", req.pathname);
@@ -37,7 +37,7 @@ test "Request.text no backend" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const req = (Request.Builder{ .arena = fba.allocator() }).build();
+    const req = Request.init(.{ .arena = fba.allocator() });
     try std.testing.expect(req.text() == null);
 }
 
@@ -45,7 +45,7 @@ test "Request.params.get no backend" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const req = (Request.Builder{ .arena = fba.allocator() }).build();
+    const req = Request.init(.{ .arena = fba.allocator() });
     try std.testing.expect(req.params.get("id") == null);
 }
 
@@ -53,10 +53,10 @@ test "Request.cookies accessor" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const req = (Request.Builder{
+    const req = Request.init(.{
         .arena = fba.allocator(),
         .cookie_header = "session=abc123; count=42",
-    }).build();
+    });
 
     try std.testing.expectEqualStrings("abc123", req.cookies.get("session").?);
     try std.testing.expectEqual(@as(i32, 42), req.cookies.as("count", i32).?);
@@ -68,7 +68,7 @@ test "Request.headers.get no backend" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const req = (Request.Builder{ .arena = fba.allocator() }).build();
+    const req = Request.init(.{ .arena = fba.allocator() });
     try std.testing.expect(req.headers.get("Content-Type") == null);
 }
 
@@ -76,7 +76,7 @@ test "Request.headers.has no backend" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const req = (Request.Builder{ .arena = fba.allocator() }).build();
+    const req = Request.init(.{ .arena = fba.allocator() });
     try std.testing.expect(!req.headers.has("Content-Type"));
 }
 
@@ -86,7 +86,7 @@ test "Request.queries.get no backend" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const req = (Request.Builder{ .arena = fba.allocator() }).build();
+    const req = Request.init(.{ .arena = fba.allocator() });
     try std.testing.expect(req.queries.get("q") == null);
 }
 
@@ -94,17 +94,17 @@ test "Request.queries.has no backend" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const req = (Request.Builder{ .arena = fba.allocator() }).build();
+    const req = Request.init(.{ .arena = fba.allocator() });
     try std.testing.expect(!req.queries.has("q"));
 }
 
-// --- Builder --- //
+// --- Init --- //
 
-test "Request.Builder custom" {
+test "Request.init custom" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const req = (Request.Builder{
+    const req = Request.init(.{
         .url = "/api/users",
         .method = .POST,
         .pathname = "/api/users",
@@ -113,7 +113,7 @@ test "Request.Builder custom" {
         .protocol = .@"HTTP/1.0",
         .cookie_header = "session=xyz",
         .arena = fba.allocator(),
-    }).build();
+    });
 
     try std.testing.expectEqualStrings("/api/users", req.url);
     try std.testing.expectEqual(Request.Method.POST, req.method);
@@ -168,9 +168,9 @@ test "Response.ok 2xx" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const res200 = (Response.Builder{ .status = 200, .arena = fba.allocator() }).build();
-    const res201 = (Response.Builder{ .status = 201, .arena = fba.allocator() }).build();
-    const res299 = (Response.Builder{ .status = 299, .arena = fba.allocator() }).build();
+    const res200 = Response.init(.{ .status = 200, .arena = fba.allocator() });
+    const res201 = Response.init(.{ .status = 201, .arena = fba.allocator() });
+    const res299 = Response.init(.{ .status = 299, .arena = fba.allocator() });
 
     try std.testing.expect(res200.ok);
     try std.testing.expect(res201.ok);
@@ -181,10 +181,10 @@ test "Response.ok non-2xx" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const res199 = (Response.Builder{ .status = 199, .arena = fba.allocator() }).build();
-    const res300 = (Response.Builder{ .status = 300, .arena = fba.allocator() }).build();
-    const res404 = (Response.Builder{ .status = 404, .arena = fba.allocator() }).build();
-    const res500 = (Response.Builder{ .status = 500, .arena = fba.allocator() }).build();
+    const res199 = Response.init(.{ .status = 199, .arena = fba.allocator() });
+    const res300 = Response.init(.{ .status = 300, .arena = fba.allocator() });
+    const res404 = Response.init(.{ .status = 404, .arena = fba.allocator() });
+    const res500 = Response.init(.{ .status = 500, .arena = fba.allocator() });
 
     try std.testing.expect(!res199.ok);
     try std.testing.expect(!res300.ok);
@@ -196,9 +196,9 @@ test "Response.statusText" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const res200 = (Response.Builder{ .status = 200, .arena = fba.allocator() }).build();
-    const res404 = (Response.Builder{ .status = 404, .arena = fba.allocator() }).build();
-    const res500 = (Response.Builder{ .status = 500, .arena = fba.allocator() }).build();
+    const res200 = Response.init(.{ .status = 200, .arena = fba.allocator() });
+    const res404 = Response.init(.{ .status = 404, .arena = fba.allocator() });
+    const res500 = Response.init(.{ .status = 500, .arena = fba.allocator() });
 
     try std.testing.expectEqualStrings("OK", res200.statusText);
     try std.testing.expectEqualStrings("Not Found", res404.statusText);
@@ -214,18 +214,18 @@ test "Response.ResponseType" {
     try std.testing.expectEqual(6, types.len);
 }
 
-// --- Builder --- //
+// --- Init --- //
 
-test "Response.Builder custom" {
+test "Response.init custom" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const res = (Response.Builder{
+    const res = Response.init(.{
         .status = 201,
         .url = "https://example.com/api",
         .response_type = .cors,
         .arena = fba.allocator(),
-    }).build();
+    });
 
     try std.testing.expectEqual(@as(u16, 201), res.status);
     try std.testing.expect(res.ok);
@@ -240,7 +240,7 @@ test "Response.setStatus no backend" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const res = (Response.Builder{ .arena = fba.allocator() }).build();
+    const res = Response.init(.{ .arena = fba.allocator() });
 
     // Should not crash, but local fields remain unchanged
     res.setStatus(.not_found);
@@ -251,7 +251,7 @@ test "Response.text no backend" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const res = (Response.Builder{ .arena = fba.allocator() }).build();
+    const res = Response.init(.{ .arena = fba.allocator() });
 
     res.text("Hello");
     try std.testing.expectEqualStrings("", res.body);
@@ -261,7 +261,7 @@ test "Response.redirect no backend" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const res = (Response.Builder{ .arena = fba.allocator() }).build();
+    const res = Response.init(.{ .arena = fba.allocator() });
 
     res.redirect("/new", null);
     res.redirect("/permanent", 301);
@@ -360,7 +360,7 @@ test "Headers.write read-only" {
     headers.set("X-Test", "value");
 }
 
-// --- Builder --- //
+// --- Init --- //
 
 test "Headers.Builder default" {
     const headers = (Headers.Builder{}).build();
@@ -382,10 +382,10 @@ test "Cookies.get value" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const req = (Request.Builder{
+    const req = Request.init(.{
         .arena = fba.allocator(),
         .cookie_header = "session=abc123; user=john",
-    }).build();
+    });
 
     try std.testing.expectEqualStrings("abc123", req.cookies.get("session").?);
     try std.testing.expectEqualStrings("john", req.cookies.get("user").?);
@@ -395,10 +395,10 @@ test "Cookies.get missing" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const req = (Request.Builder{
+    const req = Request.init(.{
         .arena = fba.allocator(),
         .cookie_header = "session=abc123",
-    }).build();
+    });
 
     try std.testing.expectEqual(null, req.cookies.get("missing"));
 }
@@ -407,10 +407,10 @@ test "Cookies empty header" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const req = (Request.Builder{
+    const req = Request.init(.{
         .arena = fba.allocator(),
         .cookie_header = "",
-    }).build();
+    });
 
     try std.testing.expectEqual(null, req.cookies.get("session"));
 }
@@ -419,10 +419,10 @@ test "Cookies spaces" {
     var buffer: [1024]u8 = undefined;
     var fba = std.heap.FixedBufferAllocator.init(&buffer);
 
-    const req = (Request.Builder{
+    const req = Request.init(.{
         .arena = fba.allocator(),
         .cookie_header = "a=1; b=2;  c=3",
-    }).build();
+    });
 
     try std.testing.expectEqualStrings("1", req.cookies.get("a").?);
     try std.testing.expectEqualStrings("2", req.cookies.get("b").?);

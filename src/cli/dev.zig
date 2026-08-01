@@ -24,12 +24,93 @@ var g_dev_shutting_down: bool = false;
 fn onDevShutdown() void {
     if (g_dev_shutting_down) return;
     g_dev_shutting_down = true;
-    std.debug.print("\n{s}Stopping dev server...{s}", .{ Colors.gray, Colors.reset });
+    std.debug.print("\n{s}Stopping dev server...{s}\n", .{ Colors.gray, Colors.reset });
     if (comptime builtin.os.tag != .windows) {
-        if (runner) |r| if (r.id) |pid| std.posix.kill(pid, std.posix.SIG.KILL) catch {};
-        if (builder) |b| if (b.id) |pid| std.posix.kill(pid, std.posix.SIG.KILL) catch {};
+        // Signal the app first so it can flush DebugAllocator / shutdown logs.
+        // Builder is stopped in `run` teardown *after* the runner has exited.
+        if (runner) |r| if (r.id) |pid| std.posix.kill(pid, std.posix.SIG.TERM) catch {};
+        // Unblock the main loop's builder-stderr read.
+        if (builder) |b| if (b.id) |pid| std.posix.kill(pid, std.posix.SIG.TERM) catch {};
     }
-    std.c._exit(0);
+}
+
+/// Force-kill the app runner and reap it. Used when graceful stop times out.
+fn killRunnerHard(r: *std.process.Child, io: std.Io) void {
+    if (comptime builtin.os.tag != .windows) {
+        if (r.id) |pid| std.posix.kill(pid, std.posix.SIG.KILL) catch {};
+    }
+    // Reap + close pipes. Process is dead or dying; ignore failures.
+    r.kill(io);
+}
+
+/// SIGTERM the runner (via Child.kill), wake its accept loop from the parent,
+/// and wait for a clean exit so DebugAllocator / shutdown logs can flush.
+/// Falls back to SIGKILL if the process does not exit within `timeout_ms`.
+fn stopRunnerGraceful(r: *std.process.Child, io: std.Io, inner_port: u16, timeout_ms: u64) void {
+    if (r.id == null) {
+        r.kill(io);
+        return;
+    }
+
+    if (std.Io.net.IpAddress.parse("127.0.0.1", inner_port)) |addr| {
+        if (addr.connect(io, .{ .mode = .stream })) |s| {
+            s.close(io);
+        } else |_| {}
+    } else |_| {}
+
+    const Done = struct {
+        flag: std.atomic.Value(bool) = .init(false),
+    };
+    var done = Done{};
+    const WaitCtx = struct {
+        child: *std.process.Child,
+        io: std.Io,
+        done: *Done,
+        fn run(ctx: @This()) void {
+            // Child.kill = SIGTERM + wait + fd cleanup.
+            ctx.child.kill(ctx.io);
+            ctx.done.flag.store(true, .release);
+        }
+    };
+    const waiter = std.Thread.spawn(.{}, WaitCtx.run, .{WaitCtx{ .child = r, .io = io, .done = &done }}) catch {
+        killRunnerHard(r, io);
+        return;
+    };
+
+    // Also wake after the waiter has signaled TERM, in case accept raced.
+    if (std.Io.net.IpAddress.parse("127.0.0.1", inner_port)) |addr| {
+        if (addr.connect(io, .{ .mode = .stream })) |s| {
+            s.close(io);
+        } else |_| {}
+    } else |_| {}
+
+    const begin = std.Io.Timestamp.now(io, .awake);
+    while (!done.flag.load(.acquire)) {
+        const elapsed: u64 = @intCast(begin.durationTo(std.Io.Timestamp.now(io, .awake)).toMilliseconds());
+        if (elapsed >= timeout_ms) {
+            if (comptime builtin.os.tag != .windows) {
+                if (r.id) |pid| std.posix.kill(pid, std.posix.SIG.KILL) catch {};
+            }
+            break;
+        }
+        std.Io.sleep(io, .fromMilliseconds(20), .awake) catch {};
+    }
+    waiter.join();
+}
+
+fn waitUntilPortFree(io: std.Io, port: u16, timeout_ms: u64) bool {
+    const addr = std.Io.net.IpAddress.parse("127.0.0.1", port) catch return false;
+    const begin = std.Io.Timestamp.now(io, .awake);
+    while (true) {
+        if (addr.connect(io, .{ .mode = .stream })) |s| {
+            s.close(io);
+        } else |_| {
+            return true;
+        }
+        const elapsed: u64 = @intCast(begin.durationTo(std.Io.Timestamp.now(io, .awake)).toMilliseconds());
+        if (elapsed >= timeout_ms) return false;
+        std.Io.sleep(io, .fromMilliseconds(10), .awake) catch {};
+    }
 }
 
 pub fn run(ctx: CommandContext, args: anytype) !void {
@@ -37,8 +118,8 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
     const io = app.io;
     const env_map = app.environ_map;
 
-    if (comptime builtin.optimize == .debug) sig.register(onDevShutdown);
-    defer if (comptime builtin.optimize == .debug) sig.unregister();
+    sig.register(onDevShutdown);
+    defer sig.unregister();
 
     const allocator = ctx.allocator;
     const binpath = args.binpath;
@@ -142,7 +223,6 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
         .stderr = .pipe,
         .stdout = .ignore,
     });
-    defer if (builder) |*b| b.kill(io);
 
     var build_state = Builder.BuildState.init(allocator);
     defer build_state.deinit();
@@ -150,11 +230,22 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
     var runner_output: ?util.ChildOutput = null;
     var program_path: ?[]const u8 = null;
 
+    // Teardown order matters: wait for the app to finish (and flush stderr) before
+    // killing the builder / returning to the shell.
     defer {
         if (runner) |*r| {
-            r.kill(io);
+            stopRunnerGraceful(r, io, inner_port, 15_000);
+            runner = null;
         }
-        if (runner_output) |*o| o.deinit();
+        if (runner_output) |*o| {
+            o.wait();
+            o.deinit();
+            runner_output = null;
+        }
+        if (builder) |*b| {
+            b.kill(io);
+            builder = null;
+        }
         if (program_path) |p| allocator.free(p);
     }
 
@@ -177,7 +268,10 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
     var pending_no_change = false;
 
     while (true) {
-        const line: []const u8 = if (pending_no_change) blk: {
+        if (g_dev_shutting_down) break;
+
+        // Populate `line_writer`, then strip ANSI in place (no per-line alloc).
+        _ = if (pending_no_change) blk: {
             const LineResult = error{ Eof, ReadFailed }![]const u8;
             const Branch = union(enum) { line: LineResult, tick: void };
             var sel_buf: [2]Branch = undefined;
@@ -219,7 +313,8 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
             break :blk l;
         };
 
-        if (try build_state.processLine(cleanLine(allocator, line))) |event| {
+        const line = cleanLineInPlace(line_writer.written());
+        if (try build_state.processLine(line)) |event| {
             if (pending_no_change) {
                 pending_no_change = false;
                 rebuild_timer = null;
@@ -333,14 +428,18 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
 
                     var start_time = std.Io.Timestamp.now(io, .awake);
 
+                    // Graceful SIGTERM so DebugAllocator can print leaks on
+                    // restart; SIGKILL only if stop hangs past the timeout.
                     if (runner) |*r| {
-                        r.kill(io);
+                        stopRunnerGraceful(r, io, inner_port, 3000);
+                        runner = null;
                     }
                     if (runner_output) |*o| {
                         o.wait();
                         o.deinit();
                         runner_output = null;
                     }
+                    _ = waitUntilPortFree(io, inner_port, 2000);
 
                     if (program_path == null) {
                         program_path = util.resolveExePath(io, allocator, install_prefix, binpath) catch |err| {
@@ -489,9 +588,9 @@ fn notifyBuildError(
         }
     }
 
-    const stripped = stripAnsi(allocator, formatted_oxlint) catch
-        allocator.dupe(u8, formatted_oxlint) catch return;
-    defer allocator.free(stripped);
+    const stripped_owned = allocator.dupe(u8, formatted_oxlint) catch return;
+    defer allocator.free(stripped_owned);
+    const stripped = Builder.stripAnsiInPlace(stripped_owned);
 
     dev_server.notify(.{
         .type = .@"error",
@@ -540,48 +639,9 @@ fn freeNotificationDiagnostics(
     allocator.free(diagnostics);
 }
 
-fn stripAnsi(allocator: std.mem.Allocator, input: []const u8) ![]u8 {
-    var out = std.ArrayList(u8).empty;
-    var i: usize = 0;
-    while (i < input.len) {
-        if (input[i] == 0x1B) {
-            i += 1;
-            if (i >= input.len) break;
-            switch (input[i]) {
-                '[' => {
-                    i += 1;
-                    while (i < input.len and (input[i] < 0x40 or input[i] > 0x7E)) : (i += 1) {}
-                    if (i < input.len) i += 1;
-                },
-                ']' => {
-                    i += 1;
-                    while (i < input.len) : (i += 1) {
-                        if (input[i] == 0x07) {
-                            i += 1;
-                            break;
-                        }
-                        if (input[i] == 0x1B and i + 1 < input.len and input[i + 1] == '\\') {
-                            i += 2;
-                            break;
-                        }
-                    }
-                },
-                else => {},
-            }
-        } else {
-            try out.append(allocator, input[i]);
-            i += 1;
-        }
-    }
-    return out.toOwnedSlice(allocator);
-}
-
-fn cleanLine(allocator: std.mem.Allocator, line: []const u8) []const u8 {
+fn cleanLineInPlace(line: []u8) []const u8 {
     const prefix = "info(verbose): ";
-    const ansi_clean = stripAnsi(allocator, line) catch line;
-    const has_prefix = std.mem.startsWith(u8, ansi_clean, prefix);
-
-    // log.debug("\ncleanLine: {s} -> {}\n", .{ ansi_clean, has_prefix });
-    if (!has_prefix) return ansi_clean;
-    return ansi_clean[prefix.len..];
+    const ansi_clean = Builder.stripAnsiInPlace(line);
+    if (std.mem.startsWith(u8, ansi_clean, prefix)) return ansi_clean[prefix.len..];
+    return ansi_clean;
 }

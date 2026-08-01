@@ -449,10 +449,8 @@ pub const ComponentSerializable = struct {
                         .client = is_client,
                     };
                 }
-                // Resolve component_fn by calling it, then serialize the result
+
                 const resolved = try comp_fn.call();
-                // Optional components that return null normalize to `.none` — do not
-                // emit an empty child (DevTools would show it as "unknown").
                 if (resolved == .none) {
                     break :blk .{
                         .component = comp_fn.name,

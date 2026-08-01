@@ -1,10 +1,10 @@
 const std = @import("std");
 
-const zx = @import("../../root.zig");
+const zx = @import("../../../root.zig");
 const core_handler = @import("Router/Handler.zig");
-const render = @import("../server/render.zig");
-const Http = @import("Http.zig");
-const server = @import("../server/Server.zig");
+const render = @import("../../server/render.zig");
+const Http = @import("../Http.zig");
+const server = @import("../../server/Server.zig");
 
 const Component = zx.Component;
 const ServerApp = zx.server.App;
@@ -136,7 +136,7 @@ pub const ActionRegistry = struct {
 /// Streaming support for server actions and async components
 pub fn renderStreaming() void {
     // ...implementation placeholder...
-    // Add streaming logic for async components, similar to server/handler.zig
+    // Add streaming logic for async components
 }
 
 /// Flexible handler resolution (custom HTTP methods, event handlers)
@@ -746,7 +746,7 @@ pub fn handle(comptime options: core_handler.Options, opts: HandleOptions) !Hand
                 return .{ .outcome = .response_ready, .proxy = proxy_result };
             },
             .page_error => |err| {
-                if (core_handler.prepareError(http, pathname, request, response, allocator, io, err)) |cmp| {
+                if (core_handler.prepareError(http, pathname, request, response, arena, io, err)) |cmp| {
                     return .{ .outcome = .{ .component = .{ .component = cmp, .streaming = false } }, .proxy = proxy_result };
                 }
                 return .{ .outcome = .response_ready, .proxy = proxy_result };
@@ -782,7 +782,7 @@ pub fn handle(comptime options: core_handler.Options, opts: HandleOptions) !Hand
                 switch (api_result) {
                     .handler_error => |err| {
                         if (!opts.socket.isUpgraded()) {
-                            if (core_handler.prepareError(http, pathname, request, response, allocator, io, err)) |cmp| {
+                            if (core_handler.prepareError(http, pathname, request, response, arena, io, err)) |cmp| {
                                 return .{ .outcome = .{ .component = .{ .component = cmp, .streaming = false } }, .proxy = proxy_result };
                             }
                             return .{ .outcome = .response_ready, .proxy = proxy_result };
@@ -805,7 +805,7 @@ pub fn handle(comptime options: core_handler.Options, opts: HandleOptions) !Hand
     }
     if (nf_proxy.state_ptr != null) proxy_result = nf_proxy;
 
-    const nf_component = core_handler.prepareNotFound(http, pathname, request, response, allocator, io, matched_route);
+    const nf_component = core_handler.prepareNotFound(http, pathname, request, response, arena, io, matched_route);
     return .{ .outcome = .{ .not_found = .{ .component = nf_component } }, .proxy = proxy_result };
 }
 
