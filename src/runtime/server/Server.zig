@@ -6,7 +6,7 @@ const app_opts = @import("app_opts");
 
 const zx = @import("../../root.zig");
 const constants = @import("../core/constants.zig");
-const AppConfig = @import("../core/AppConfig.zig");
+const AppConfig = @import("../core/App/Config.zig");
 const Handler = @import("handler.zig").Handler;
 
 const Allocator = std.mem.Allocator;

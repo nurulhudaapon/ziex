@@ -1,10 +1,10 @@
 const std = @import("std");
 const httpz = @import("httpz");
 const Http = @import("../Http.zig");
-const Request = @import("../Request.zig");
-const Response = @import("../Response.zig");
-const common = @import("../common.zig");
-const MultiFormData = @import("../MultiFormData.zig");
+const Request = @import("Request.zig");
+const Response = @import("Response.zig");
+const common = @import("common.zig");
+const MultiFormData = @import("MultiFormData.zig");
 
 // --- Method / protocol conversion --- //
 fn convertMethod(method: httpz.Method) std.http.Method {
@@ -225,7 +225,7 @@ pub fn createResponse(ctx: *HttpzCtx, arena: std.mem.Allocator) Response {
 
 // --- WebSocket: pre-upgrade --- //
 
-const routing = @import("../routing.zig");
+const routing = @import("../Router/routing.zig");
 const Socket = routing.Socket;
 
 pub const UpgradeBackend = struct {

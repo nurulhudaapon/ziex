@@ -1,7 +1,7 @@
 pub const MultiFormData = @This();
 
 const std = @import("std");
-const Http = @import("Http.zig");
+const Http = @import("../Http.zig");
 
 pub const File = @import("File.zig");
 

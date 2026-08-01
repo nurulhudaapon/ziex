@@ -2,7 +2,7 @@ const Request = @This();
 
 const std = @import("std");
 const common = @import("common.zig");
-const Http = @import("Http.zig");
+const Http = @import("../Http.zig");
 const FormDataModule = @import("FormData.zig");
 const MultiFormDataModule = @import("MultiFormData.zig");
 

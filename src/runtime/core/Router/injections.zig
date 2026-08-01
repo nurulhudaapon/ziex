@@ -1,7 +1,7 @@
 const std = @import("std");
-const zx = @import("../../root.zig");
-const Build = @import("../../Build.zig");
-const tree = @import("tree.zig");
+const zx = @import("../../../root.zig");
+const Build = @import("../../../Build.zig");
+const tree = @import("../tree.zig");
 
 const Allocator = std.mem.Allocator;
 const Component = zx.Component;

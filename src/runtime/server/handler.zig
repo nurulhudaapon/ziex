@@ -5,15 +5,15 @@ const builtin = @import("builtin");
 
 const zx = @import("../../root.zig");
 const tree = @import("../core/tree.zig");
-const core_handler = @import("../core/Handler.zig");
+const core_handler = @import("../core/Router/Handler.zig");
 const pubsub = @import("pubsub.zig");
 const rndr = @import("render.zig");
-const ctxs = @import("../core/contexts.zig");
+const ctxs = @import("../core/Router/contexts.zig");
 const constants = @import("../core/constants.zig");
 const Server = @import("./Server.zig");
-const AppConfig = @import("../core/AppConfig.zig");
-const Request = @import("../core/Request.zig");
-const Response = @import("../core/Response.zig");
+const AppConfig = @import("../core/App/Config.zig");
+const Request = @import("../core/Http/Request.zig");
+const Response = @import("../core/Http/Response.zig");
 const PageCache = @import("PageCache.zig");
 
 const Allocator = std.mem.Allocator;

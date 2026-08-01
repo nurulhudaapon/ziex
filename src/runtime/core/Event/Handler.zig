@@ -1,7 +1,7 @@
 const std = @import("std");
 const builtin = @import("builtin");
-const zx = @import("../../root.zig");
-const reactivity = @import("../client/reactivity.zig");
+const zx = @import("../../../root.zig");
+const reactivity = @import("../../client/reactivity.zig");
 
 const is_wasm = zx.platform.role == .client;
 const Allocator = std.mem.Allocator;
@@ -487,8 +487,8 @@ pub fn init(
 pub fn actionHandler(ctx: *anyopaque, event: zx.client.Event) void {
     if (!is_wasm) return;
     event.preventDefault();
-    const client_fetch = @import("../client/fetch.zig");
-    const CoreFetch = @import("Fetch.zig");
+    const client_fetch = @import("../../client/fetch.zig");
+    const CoreFetch = @import("../Fetch.zig");
 
     var handler_id: u32 = 0;
     const bound_states: []const Bound = if (@intFromPtr(ctx) == 1)
@@ -544,8 +544,8 @@ fn eventHandler(ctx: *anyopaque, event: zx.client.Event) void {
     if (comptime (!is_wasm)) return;
     event.preventDefault();
 
-    const client_fetch = @import("../client/fetch.zig");
-    const CoreFetch = @import("Fetch.zig");
+    const client_fetch = @import("../../client/fetch.zig");
+    const CoreFetch = @import("../Fetch.zig");
 
     var handler_id: u32 = 0;
     const bound_states: []const Bound = if (@intFromPtr(ctx) == 1)
@@ -604,9 +604,9 @@ fn eventHandler(ctx: *anyopaque, event: zx.client.Event) void {
     }
 }
 
-fn onActionResponse(_: ?*@import("Fetch.zig").Response, _: ?@import("Fetch.zig").FetchError) void {}
+fn onActionResponse(_: ?*@import("../Fetch.zig").Response, _: ?@import("../Fetch.zig").FetchError) void {}
 
-fn onEventResponse(ctx_ptr: *anyopaque, response: ?*@import("Fetch.zig").Response, _: ?@import("Fetch.zig").FetchError) void {
+fn onEventResponse(ctx_ptr: *anyopaque, response: ?*@import("../Fetch.zig").Response, _: ?@import("../Fetch.zig").FetchError) void {
     const cb_ctx: *Context = @ptrCast(@alignCast(ctx_ptr));
     defer getGlobalAllocator().destroy(cb_ctx);
 

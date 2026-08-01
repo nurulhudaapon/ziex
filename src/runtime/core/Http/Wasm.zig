@@ -1,9 +1,9 @@
 const std = @import("std");
 const Http = @import("../Http.zig");
-const Request = @import("../Request.zig");
-const Response = @import("../Response.zig");
-const common = @import("../common.zig");
-const MultiFormData = @import("../MultiFormData.zig");
+const Request = @import("Request.zig");
+const Response = @import("Response.zig");
+const common = @import("common.zig");
+const MultiFormData = @import("MultiFormData.zig");
 const ext = @import("../../server/wasm/extern.zig");
 
 pub const HeaderEntry = struct { name: []const u8, value: []const u8 };

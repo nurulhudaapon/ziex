@@ -1,13 +1,13 @@
 const std = @import("std");
-const zx = @import("../../root.zig");
+const zx = @import("../../../root.zig");
 
 const Router = zx.Router;
 const Component = zx.Component;
 const Allocator = std.mem.Allocator;
-const Request = @import("Request.zig");
-const Response = @import("Response.zig");
-const server_dispatch = @import("../server/dispatch.zig");
-const render = @import("../server/render.zig");
+const Request = @import("../Http/Request.zig");
+const Response = @import("../Http/Response.zig");
+const server_dispatch = @import("../../server/dispatch.zig");
+const render = @import("../../server/render.zig");
 const injections = @import("injections.zig");
 
 pub const ServerApp = zx.server.App;

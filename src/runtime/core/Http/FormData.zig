@@ -1,7 +1,7 @@
 pub const FormData = @This();
 
 const std = @import("std");
-const Http = @import("Http.zig");
+const Http = @import("../Http.zig");
 
 /// Entry type for iteration
 pub const Entry = struct {

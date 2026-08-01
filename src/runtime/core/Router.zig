@@ -1,7 +1,7 @@
 const std = @import("std");
 
 const zx = @import("../../root.zig");
-const core_handler = @import("Handler.zig");
+const core_handler = @import("Router/Handler.zig");
 const render = @import("../server/render.zig");
 const Http = @import("Http.zig");
 const server = @import("../server/Server.zig");

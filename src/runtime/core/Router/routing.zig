@@ -1,7 +1,7 @@
 const std = @import("std");
-const Request = @import("Request.zig");
-const Response = @import("Response.zig");
-const Http = @import("Http.zig");
+const Request = @import("../Http/Request.zig");
+const Response = @import("../Http/Response.zig");
+const Http = @import("../Http.zig");
 
 pub const BaseContext = struct {
     const Self = @This();

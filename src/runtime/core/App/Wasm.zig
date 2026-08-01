@@ -5,9 +5,9 @@ const app_opts = @import("app_opts");
 
 const zx = @import("../../../root.zig");
 const App = @import("../App.zig");
-const AppConfig = @import("../AppConfig.zig");
+const AppConfig = @import("Config.zig");
 const ext = @import("../../server/wasm/extern.zig");
-const core_handler = @import("../Handler.zig");
+const core_handler = @import("../Router/Handler.zig");
 const render = @import("../../server/render.zig");
 const PageCache = @import("../../server/PageCache.zig");
 

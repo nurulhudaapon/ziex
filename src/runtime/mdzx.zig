@@ -3,7 +3,7 @@ const mdzx = @This();
 const std = @import("std");
 
 const Component = @import("../Component.zig").Component;
-const PageContext = @import("core/routing.zig").PageContext;
+const PageContext = @import("core/Router/routing.zig").PageContext;
 
 /// Render this MDZX page module's compiled markdown body.
 ///

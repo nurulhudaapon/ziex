@@ -13,7 +13,7 @@ const platform = zx.platform;
 const is_dev = std.mem.eql(u8, app_opts.cli_command, "dev");
 const is_export = std.mem.eql(u8, app_opts.cli_command, "export");
 
-pub const Config = @import("AppConfig.zig");
+pub const Config = @import("App/Config.zig");
 pub const Server = @import("App/Server.zig");
 pub const Wasm = @import("App/Wasm.zig");
 pub const Client = @import("App/Client.zig");

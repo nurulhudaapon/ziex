@@ -8,10 +8,10 @@ const builtin = @import("builtin");
 const element = @import("element.zig");
 const plfm = @import("platform.zig");
 
-const routing = @import("runtime/core/routing.zig");
+const routing = @import("runtime/core/Router/routing.zig");
 const event = @import("runtime/core/Event.zig");
-const opts = @import("runtime/core/options.zig");
-const ctxs = @import("runtime/core/contexts.zig");
+const opts = @import("runtime/core/Router/options.zig");
+const ctxs = @import("runtime/core/Router/contexts.zig");
 const reactivity = @import("runtime/client/reactivity.zig");
 const app_mod = @import("runtime/core/App.zig");
 
@@ -45,7 +45,7 @@ pub const util = @import("util.zig");
 pub const mdzx = @import("runtime/mdzx.zig");
 
 // --- Reactivity --- //
-pub const EventHandler = @import("runtime/core/EventHandler.zig");
+pub const EventHandler = @import("runtime/core/Event/Handler.zig");
 pub const State = reactivity.State;
 
 // --- Options --- //
@@ -97,7 +97,7 @@ pub var cache: Cache = .failing;
 
 // --- Net --- //
 pub const Http = @import("runtime/core/Http.zig");
-pub const Headers = @import("runtime/core/Headers.zig");
+pub const Headers = @import("runtime/core/Http/Headers.zig");
 pub const Fetch = @import("runtime/core/Fetch.zig");
 pub const WebSocket = @import("runtime/core/WebSocket.zig");
 pub const Io = Fetch.Io;

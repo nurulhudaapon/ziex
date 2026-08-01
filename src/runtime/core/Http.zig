@@ -2,13 +2,20 @@ const Http = @This();
 
 const std = @import("std");
 
-const common = @import("common.zig");
+const common = @import("Http/common.zig");
 
 pub const Httpz = @import("Http/Httpz.zig");
 pub const Wasm = @import("Http/Wasm.zig");
 
+pub const Request = @import("Http/Request.zig");
+pub const Response = @import("Http/Response.zig");
+pub const Headers = @import("Http/Headers.zig");
+pub const FormData = @import("Http/FormData.zig");
+pub const MultiFormData = @import("Http/MultiFormData.zig");
+pub const File = @import("Http/File.zig");
+
 pub const CookieOptions = common.CookieOptions;
-pub const MultiFormValue = @import("MultiFormData.zig").Value;
+pub const MultiFormValue = MultiFormData.Value;
 
 userdata: ?*anyopaque = null,
 vtable: *const VTable = &failing_vtable,

@@ -2,7 +2,7 @@ const Response = @This();
 
 const std = @import("std");
 const common = @import("common.zig");
-const Http = @import("Http.zig");
+const Http = @import("../Http.zig");
 
 pub const Cookies = common.Cookies;
 pub const CookieOptions = common.CookieOptions;

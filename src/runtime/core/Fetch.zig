@@ -14,7 +14,7 @@ const Fetch = @This();
 const std = @import("std");
 const builtin = @import("builtin");
 
-const common = @import("common.zig");
+const common = @import("Http/common.zig");
 const server_impl = if (!is_wasm) @import("../server/fetch.zig") else struct {};
 const client_impl = if (is_wasm) @import("../client/fetch.zig") else struct {};
 const wasm_impl = if (is_wasm) @import("Fetch/Wasm.zig") else struct {};

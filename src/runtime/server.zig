@@ -8,5 +8,5 @@ pub const SerilizableAppMeta = server.SerilizableAppMeta;
 pub const App = server.ServerApp;
 
 // Legacy -- may be kept
-pub const Request = @import("core/Request.zig");
-pub const Response = @import("core/Response.zig");
+pub const Request = @import("core/Http/Request.zig");
+pub const Response = @import("core/Http/Response.zig");
