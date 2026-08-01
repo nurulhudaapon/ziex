@@ -5,7 +5,7 @@ test.describe('Progress Bar Example (expanded)', () => {
   test('start, stop, and reset progress controls', async ({ page }) => {
     test.skip(skipOnRemoteStatic, 'Wasm progress controls are not fully available on static deploy');
     await page.goto('/examples/wasm/progress');
-    await page.waitForLoadState('networkidle');
+   
     
     const start = page.getByRole('button', { name: /Start/i }).first();
     const stop = page.getByRole('button', { name: /Stop/i }).first();

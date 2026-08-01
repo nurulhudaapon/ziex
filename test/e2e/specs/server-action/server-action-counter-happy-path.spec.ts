@@ -6,7 +6,7 @@ test.describe('Counter and Age Actions', () => {
   test('Increment and update actions (happy path)', async ({ page }) => {
     test.skip(skipOnRemoteStatic, 'Static deploy has no live server actions');
     // Navigate to the Server Action example page to begin test execution for Counter and Age Actions suite.
-    await page.goto('/examples/server-action', { waitUntil: 'networkidle' });
+    await page.goto('/examples/server-action');
 
     // Click '+ (Server)' button in first counter section. Expect: Count increases by 1. Server log: 'increment: <new count>'
     await page.getByRole('button', { name: '+ (Server)' }).first().click();

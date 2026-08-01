@@ -4,7 +4,7 @@ import { skipOnRemoteStatic } from '../../helpers/env';
 test.describe('Server Form Example', () => {
   test('login form submit updates greeting message', async ({ page }) => {
     test.skip(skipOnRemoteStatic, 'Static deploy has no live server form handlers');
-    await page.goto('/examples/server-form', { waitUntil: 'networkidle' });
+    await page.goto('/examples/server-form');
 
     await expect(page.getByText('Please log in')).toBeVisible();
     await page.getByPlaceholder('Enter name').fill('Ada Lovelace');
@@ -16,7 +16,7 @@ test.describe('Server Form Example', () => {
 
   test('server event click increments counter button', async ({ page }) => {
     test.skip(skipOnRemoteStatic, 'Static deploy has no live server event handlers');
-    await page.goto('/examples/server-form', { waitUntil: 'networkidle' });
+    await page.goto('/examples/server-form');
     
     const button = page.getByRole('button', { name: /Click Me \d+/ });
     await expect(button).toHaveText(/Click Me 1/);
