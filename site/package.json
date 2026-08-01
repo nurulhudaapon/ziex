@@ -6,35 +6,34 @@
     "purgecss": "npx purgecss --css ./app/assets/docs.css --content dist/learn.html dist/reference.html  app/assets/clipboard.js app/assets/runner.js app/assets/home.js --output ./app/assets/docs.css"
   },
   "devDependencies": {
-    "@tailwindcss/cli": "4.1.18",
-    "@tailwindcss/node": "^4.2.2",
-    "@types/node": "^25.5.0",
-    "@types/react": "19.2.7",
-    "@types/react-dom": "19.2.3",
-    "@ziex/cli": "0.1.0-dev.1252",
-    "typescript": "^5.5.2",
-    "wrangler": "^4.95.0"
+    "@tailwindcss/cli": "4.3.3",
+    "@tailwindcss/node": "^4.3.3",
+    "@types/node": "^26.1.2",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4"
   },
   "dependencies": {
     "@andrewbranch/untar.js": "^1.0.3",
     "@bjorn3/browser_wasi_shim": "^0.4.2",
-    "@cloudflare/workers-wasi": "^0.0.5",
-    "@codemirror/autocomplete": "^6.20.0",
-    "@codemirror/commands": "^6.10.2",
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/commands": "^6.10.4",
     "@codemirror/lang-css": "^6.3.1",
     "@codemirror/lang-html": "^6.4.11",
-    "@codemirror/lang-javascript": "^6.2.4",
-    "@codemirror/language": "^6.12.1",
-    "@codemirror/lint": "^6.9.4",
-    "@codemirror/lsp-client": "^6.2.4",
-    "@codemirror/matchbrackets": "^0.19.4",
-    "@codemirror/state": "^6.5.4",
-    "@codemirror/view": "^6.39.14",
+    "@codemirror/lang-javascript": "^6.2.5",
+    "@codemirror/language": "^6.12.4",
+    "@codemirror/lint": "^6.9.7",
+    "@codemirror/lsp-client": "^6.2.5",
+    "@codemirror/state": "6.7.1",
+    "@codemirror/view": "6.43.7",
     "codemirror": "^6.0.2",
-    "prettier": "3.7.4",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
-    "tailwindcss": "4.1.18",
-    "vscode-languageserver-protocol": "^3.17.5"
+    "prettier": "3.9.6",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "tailwindcss": "4.3.3",
+    "vscode-languageserver-protocol": "^3.18.2"
+  },
+  "overrides": {
+    "@codemirror/state": "6.7.1",
+    "@codemirror/view": "6.43.7"
   }
 }
