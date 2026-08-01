@@ -1,4 +1,4 @@
-name: IDE/VSCode
+name: IDE - VSCode
 
 on:
   push:

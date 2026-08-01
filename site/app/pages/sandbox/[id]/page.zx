@@ -1,4 +1,4 @@
-pub fn Page(ctx: zx.PageContext, app: root.AppCtx, state: UserState) zx.Component {
+pub fn Page(ctx: zx.PageContext, app: Context, state: UserState) zx.Component {
     const allocator = ctx.arena;
 
     return (
@@ -13,6 +13,7 @@ pub const options = zx.PageOptions{
     .methods = &.{.GET},
 };
 
+const Context = @import("../../../Context.zig");
+
 const zx = @import("zx");
-const root = @import("root");
 const UserState = @import("../proxy.zig").UserState;

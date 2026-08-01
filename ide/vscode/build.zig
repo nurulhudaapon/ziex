@@ -24,10 +24,8 @@ pub fn build(b: *std.Build) void {
     // --- Branding (shared logo assets) --- //
     const branding = b.dependency("branding", .{});
     const branding_files = [_]struct { src: []const u8, dest: []const u8 }{
-        .{ .src = "compressed/ziex-logo-colored-128x128.png", .dest = "images/ziex-logo-colored.png" },
-        .{ .src = "ziex-logo-colored.svg", .dest = "images/ziex-logo-colored.svg" },
-        .{ .src = "ziex-logo-white.svg", .dest = "images/ziex-logo-white.svg" },
-        .{ .src = "ziex-logo-black.svg", .dest = "images/ziex-logo-black.svg" },
+        .{ .src = "compressed/ziex-logo-black-liquid-glass-128x128.png", .dest = "images/logo.png" },
+        .{ .src = "ziex-logo-colored.svg", .dest = "images/icon.svg" },
     };
     const pkg_root: std.Build.InstallDir = .{ .custom = ".." };
 

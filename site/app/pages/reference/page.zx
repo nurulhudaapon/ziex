@@ -421,7 +421,6 @@ fn FeatureButtonDemo(allocator: zx.Allocator) zx.Component {
 
 const zx = @import("zx");
 const std = @import("std");
-const root = @import("root");
 const util = @import("util.zig");
 
 const Introduction = @import("../components/introduction.zig").Introduction;

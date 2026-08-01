@@ -6,8 +6,8 @@
     .dependencies = .{
         .esbuild = .{ .path = "../../pkg/plugin-esbuild" },
         .branding = .{
-            .url = "git+https://github.com/ziex-dev/branding.git#d1eea8cd70e9433741d61bc05eaa99d540ff0c60",
-            .hash = "N-V-__8AADnLNgC84IXVbPpDCnj1vEM2QL_WL-km7toIF199",
+            .url = "git+https://github.com/ziex-dev/branding.git#a940a9f36bc82208c7bab5688091e556539b2a1b",
+            .hash = "N-V-__8AAHgDPgBdmw5mK5DMc9rGo73-GZAQwXCUWxbTDb24",
         },
     },
     .paths = .{""},

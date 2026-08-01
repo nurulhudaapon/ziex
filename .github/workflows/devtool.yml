@@ -1,4 +1,4 @@
-name: IDE/DevTool
+name: IDE - DevTool
 
 on:
   push:

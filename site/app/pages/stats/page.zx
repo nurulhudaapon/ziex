@@ -237,6 +237,5 @@ const GitHubIcon = icons.GitHub;
 const stats_gen = @import("stats.zig");
 const icons = @import("../components/icons.zx");
 
-const root = @import("root");
 const std = @import("std");
 const zx = @import("zx");

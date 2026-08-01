@@ -58,4 +58,3 @@ const Sidebar = @import("../components/sidebar.zx").Sidebar;
 const SidebarProps = @import("../components/sidebar.zx").SidebarProps;
 
 const zx = @import("zx");
-const root = @import("root");

@@ -4,7 +4,7 @@
   "description": "Ziex - full-stack web framework for Zig",
   "version": "0.1.1140",
   "publisher": "ziex",
-  "icon": "images/ziex-logo-colored.png",
+  "icon": "images/logo.png",
   "private": true,
   "categories": [
     "Programming Languages"
@@ -96,10 +96,7 @@
           "ZX"
         ],
         "configuration": "./language-configuration.json",
-        "icon": {
-          "dark": "./images/ziex-logo-colored.svg",
-          "light": "./images/ziex-logo-colored.svg"
-        }
+        "icon": "images/icon.svg"
       }
     ],
     "grammars": [

@@ -782,6 +782,5 @@ const Examples = @import("./examples/feature_examples.zx");
 const icons = @import("./components/icons.zx");
 const util = @import("./reference/util.zig");
 
-const root = @import("root");
 const std = @import("std");
 const zx = @import("zx");

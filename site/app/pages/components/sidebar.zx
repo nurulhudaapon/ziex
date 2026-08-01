@@ -208,4 +208,3 @@ const DiscordIcon = icons.Discord;
 const icons = @import("../components/icons.zx");
 const zx = @import("zx");
 const std = @import("std");
-const root = @import("root");
