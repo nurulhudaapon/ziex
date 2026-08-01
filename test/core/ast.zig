@@ -651,7 +651,7 @@ fn expectLessThan(expected: f64, actual: f64) !void {
 }
 
 fn isSnapshotMode() bool {
-    return std.c.getenv("SS") != null;
+    return testing.environ.contains(testing.allocator, "SS") catch false;
 }
 
 var test_file_cache: ?TestFileCache = null;

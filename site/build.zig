@@ -182,6 +182,9 @@ pub fn build(b: *std.Build) !void {
             // .base_path = "/test",
             .features = app_features,
             .client = app_client,
+            .server = .{
+                .backend = .std,
+            },
         },
         .cli = .{ .optimize = optimize, .log_level = log_level, .zig_path = "zig" },
     });

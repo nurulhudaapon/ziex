@@ -1189,17 +1189,11 @@ pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
 
     const allocator = ctx.arena;
 
-    const request = zx.server.Request{
-        .url = ctx.request.url,
-        .method = ctx.request.method,
-        .pathname = ctx.request.pathname,
-        .headers = ctx.request.headers,
-        .arena = allocator,
-    };
-
-    const response = zx.server.Response{
-        .arena = allocator,
-    };
+    var conn = zx.Http.Conn.init(allocator);
+    defer conn.deinit();
+    conn.search = ctx.request.search;
+    const request = conn.request(ctx.request.method, ctx.request.pathname, ctx.request.url);
+    const response = conn.response();
 
     const layout_ctx = zx.LayoutContext{
         .request = request,
@@ -1245,7 +1239,10 @@ pub fn RenderTest(ctx: zx.PageContext) !zx.Component {
     _ = try Learn__KvScoped(page_ctx);
     _ = try Learn__DbBasic(page_ctx);
     _ = try Learn__DbTyped(page_ctx);
-    _ = try Learn__DbTransaction(page_ctx);
+    
+    if (!builtin.target.cpu.arch.isWasm()) 
+        _ = try Learn__DbTransaction(page_ctx);
+    
 
     // TODO: inject proper "ziex" build module to test these
     _ = try Learn__enableKvInit(undefined, undefined);

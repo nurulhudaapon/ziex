@@ -67,6 +67,21 @@ pub const CliOptions = struct {
 
 /// Configuration for the ZX app directory.
 pub const AppOptions = struct {
+    /// Native HTTP server settings (ignored on WASI / client builds).
+    pub const Server = struct {
+        pub const Backend = enum {
+            /// Debug builds use `std`; release builds use `httpz`.
+            auto,
+            /// `std.http.Server` + fixed worker pool (better DebugAllocator / leak reports).
+            std,
+            /// httpz (production throughput).
+            httpz,
+        };
+
+        /// HTTP server transport backend. Defaults to `.auto`.
+        backend: Backend = .auto,
+    };
+
     pub const FeatureOptions = struct {
         /// Embedded SQLite database, exposed at runtime as `zx.db`.
         pub const SqliteOptions = struct {
@@ -132,6 +147,9 @@ pub const AppOptions = struct {
     /// This will be used to prefix all route URLs and asset paths in your app.
     /// If `null`, defaults to root path ("/").
     base_path: ?[]const u8 = null,
+
+    /// HTTP server backend configuration.
+    server: Server = .{},
 
     /// Features that can be optionally enabled
     features: FeatureOptions = .default,

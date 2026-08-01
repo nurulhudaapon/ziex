@@ -18,6 +18,7 @@
         .httpz = .{
             .url = "git+https://github.com/ziex-dev/httpz.git?ref=dev#49684ddd1fb030f72594cce8370b076dfa922ff9",
             .hash = "httpz-0.0.0-PNVzrATcCADK2AQ3S7KDpH49xF3iMZ6Itih2-uBglAae",
+            .lazy = true,
         },
         .zls = .{
             .url = "git+https://github.com/ziex-dev/zls.git?ref=patch/zx#2782776cf40c455855dc97f39d15ea60ab34c70b",

@@ -21,6 +21,7 @@ pub fn build(b: *std.Build) !void {
     const enable_postgres = b.option(bool, "feature-postgres", "Enabled postgres support") orelse false;
     const log_level = b.option(std.log.Level, "cli-log-level", "Log level for the CLI") orelse .info;
     const is_client = b.option(bool, "is-client", "Building for the browser (client)") orelse false;
+    const enable_httpz = b.option(bool, "enable-httpz", "Enable httpz backend for server") orelse false;
     const version = util.getVersion(b);
 
     // Options
@@ -32,7 +33,6 @@ pub fn build(b: *std.Build) !void {
     options.addOption([]const u8, "minimum_zig_version", build_zon.minimum_zig_version);
 
     // Dependencies
-    const httpz_dep = b.dependency("httpz", .{ .target = target, .optimize = optimize });
     const tree_sitter_dep = b.dependency("tree_sitter", .{ .target = target, .optimize = optimize });
     const tree_sitter_zx_dep = b.dependency("tree_sitter_zx", .{ .target = target, .optimize = optimize, .@"build-shared" = false });
     const tree_sitter_mdzx_dep = b.dependency("tree_sitter_mdzx", .{ .target = target, .optimize = optimize, .@"build-shared" = false });
@@ -58,7 +58,11 @@ pub fn build(b: *std.Build) !void {
                 if (db_postgres_dp) |a| mod.addImport("db_postgres", a.module("postgres"));
             }
 
-            mod.addImport("httpz", httpz_dep.module("httpz"));
+            if (enable_httpz) {
+                if (b.lazyDependency("httpz", .{ .target = target, .optimize = optimize })) |httpz_dep| {
+                    mod.addImport("httpz", httpz_dep.module("httpz"));
+                }
+            }
         }
 
         if (is_client) {

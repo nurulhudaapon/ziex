@@ -14,29 +14,39 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
 
     const ziex_lsp = b.option(bool, "ziex-lsp", "Enable `zig build zx -- lsp`, used by code editors whenz `zx` cli is not in PATH") orelse false;
     const zig_path = options.cli.zig_path orelse b.graph.zig_exe;
+
+    const server_backend = if (options.app) |app| app.server.backend else InitOptions.AppOptions.Server.Backend.auto;
+    const enable_httpz = switch (server_backend) {
+        .httpz => true,
+        .auto => optimize != .debug,
+        else => false,
+    };
+
     const zx_dep = b.dependencyFromBuildZig(build_zig, .{
         .optimize = optimize,
         .target = target,
         .@"feature-sqlite" = if (options.app != null and options.app.?.features.sqlite != null) true else null,
         .@"feature-postgres" = if (options.app != null and options.app.?.features.postgres != null) true else null,
+        .@"enable-httpz" = enable_httpz,
     });
 
-    const zx_host_dep = b.dependencyFromBuildZig(build_zig, .{
+    // Partial CLI dep - Excludes slow ZLS build
+    const zx_dep_partial = b.dependencyFromBuildZig(build_zig, .{
         .optimize = options.cli.optimize, // Always in release mode for faster transpilation
-        // No target = host target, so zx CLI can execute during build
         .@"cli-log-level" = options.cli.log_level,
     });
 
-    // Full CLI dep
-    const zx_full_dep = b.dependencyFromBuildZig(build_zig, .{
+    // Full CLI dep - Includes ZLS build
+    const zx_dep_full = b.dependencyFromBuildZig(build_zig, .{
         .optimize = options.cli.optimize,
         .lsp = ziex_lsp,
         .@"cli-log-level" = options.cli.log_level,
     });
 
     const zx_module = zx_dep.module("zx");
-    const zx_exe = zx_host_dep.artifact("zx");
-    const zx_full_exe = zx_full_dep.artifact("zx");
+
+    const zx_cli_partial = zx_dep_partial.artifact("zx");
+    const zx_cli_full = zx_dep_full.artifact("zx");
 
     const client = if (options.app) |app| app.client else InitOptions.ClientOptions.default;
     const features = if (options.app) |app| app.features else InitOptions.AppOptions.FeatureOptions.default;
@@ -110,7 +120,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     app_opts.addOption(?u16, "server_port", port_opt);
     app_opts.addOption(?[]const u8, "server_address", address_opt);
     app_opts.addOption([]const u8, "cli_command", cli_command_opt orelse "--");
-    app_opts.addOption(bool, "introspect", b.option(bool, "introspect", "Print Ziex app metadata and exit") orelse false);
+    app_opts.addOption(InitOptions.AppOptions.Server.Backend, "server_backend", server_backend);
     app_opts.addOption(bool, "feat_sqlite_server", if (opts.features.sqlite) |s| s.server != null else false);
     app_opts.addOption(bool, "feat_pg_server", if (opts.features.postgres) |s| s.server != null else false);
     app_opts.addOption(bool, "feat_kv_server", if (opts.features.kv) |k| k.server != null else false);
@@ -125,7 +135,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
 
     // --- ZX Transpilation ---
     const transpile_store = b.graph.path(.local_cache, CliConstant.ziex_cache_dirname).path(b, CliConstant.transpile_store_dirname);
-    const transpile_cmd = getZxRun(b, zx_exe, opts);
+    const transpile_cmd = getZxRun(b, zx_cli_partial, opts);
     transpile_cmd.setName("translate-zx");
     transpile_cmd.addArg("transpile");
     transpile_cmd.addDirectoryArg(opts.site_path);
@@ -376,12 +386,12 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
 
         if (use_stable_assets) {
             if (uses_local_bindings and link_client_bindings) {
-                const js_asset = addStaticAssetCopy(b, zx_exe, opts, zxjs_path, client_asset_stem, ".js", true, true, "script");
+                const js_asset = addStaticAssetCopy(b, zx_cli_partial, opts, zxjs_path, client_asset_stem, ".js", true, true, "script");
                 js_asset.setName("install client bindings");
                 b.getInstallStep().dependOn(&js_asset.step);
             }
 
-            const wasm_asset = addStaticAssetCopy(b, zx_exe, opts, wasm_binpath, client_asset_stem, ".wasm", !uses_local_bindings, true, "wasmlink");
+            const wasm_asset = addStaticAssetCopy(b, zx_cli_partial, opts, wasm_binpath, client_asset_stem, ".wasm", !uses_local_bindings, true, "wasmlink");
             wasm_asset.setName("install client wasm");
             wasm_asset.step.dependOn(&wasm_exe.step);
             b.getInstallStep().dependOn(&wasm_asset.step);
@@ -392,7 +402,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         var wasm_manifest_in = base_manifest_path;
         var js_run: ?*std.Build.Step.Run = null;
         if (uses_local_bindings and link_client_bindings) {
-            const js_asset = addStaticAssetRun(b, zx_exe, opts, base_manifest_path, zxjs_path, client_asset_href_stem, client_asset_stem, ".js", "script", true, false);
+            const js_asset = addStaticAssetRun(b, zx_cli_partial, opts, base_manifest_path, zxjs_path, client_asset_href_stem, client_asset_stem, ".js", "script", true, false);
             js_asset.run.setName("install client bindings");
             b.getInstallStep().dependOn(&js_asset.run.step);
             js_run = js_asset.run;
@@ -401,7 +411,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
 
         const wasm_asset_run = addStaticAssetRun(
             b,
-            zx_exe,
+            zx_cli_partial,
             opts,
             wasm_manifest_in,
             wasm_binpath,
@@ -434,14 +444,14 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
             "zx",
             b.fmt("ZX CLI - \x1b[2m{s}\x1b[0m", .{"zig build zx -- <args>"}),
         );
-        const zx_cmd = getZxRun(b, zx_full_exe, opts);
+        const zx_cmd = getZxRun(b, zx_cli_full, opts);
         zx_step.dependOn(&zx_cmd.step);
         zx_cmd.addPassthruArgs();
     }
 
     // --- Steps: Serve --- //
     if (opts.steps.serve) |serve_step_name| {
-        const serve_cmd = getZxRun(b, zx_exe, opts);
+        const serve_cmd = getZxRun(b, zx_cli_partial, opts);
         serve_cmd.addArg("serve");
         serve_cmd.addArgs(&.{ "--zig-path", opts.zig_path });
         const serve_step = b.step(serve_step_name, "Run the Ziex app with production behavior");
@@ -451,7 +461,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
 
     // --- Steps: Dev --- //
     if (opts.steps.dev) |dev_step_name| {
-        const dev_cmd = getZxRun(b, zx_exe, opts);
+        const dev_cmd = getZxRun(b, zx_cli_partial, opts);
         dev_cmd.addArg("dev");
         dev_cmd.addArgs(&.{ "--zig-path", opts.zig_path });
         dev_cmd.addArg("--manifest");
@@ -463,7 +473,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
 
     // --- Steps: Export --- //
     if (opts.steps.@"export") |export_step_name| {
-        const export_cmd = getZxRun(b, zx_exe, opts);
+        const export_cmd = getZxRun(b, zx_cli_partial, opts);
         export_cmd.addArgs(&.{"export"});
         export_cmd.addArgs(&.{ "--zig-path", opts.zig_path });
         const export_step = b.step(export_step_name, "Export the Ziex app for static hosting");
@@ -473,7 +483,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
 
     // --- Steps: Bundle --- //
     if (opts.steps.bundle) |bundle_step_name| {
-        const bundle_cmd = getZxRun(b, zx_exe, opts);
+        const bundle_cmd = getZxRun(b, zx_cli_partial, opts);
         bundle_cmd.addArgs(&.{"bundle"});
         const bundle_step = b.step(bundle_step_name, "Bundle the Ziex app for production deployment");
         bundle_step.dependOn(&bundle_cmd.step);
@@ -490,7 +500,7 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         .outdir = transpile_store,
         .assetsdir = assetsdir,
         .cli = .{
-            .exe = zx_exe,
+            .exe = zx_cli_partial,
         },
         .transformer = .{ .b = b, .userdata = injections },
     };
