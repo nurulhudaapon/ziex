@@ -3,6 +3,7 @@ import { test, expect } from '@playwright/test';
 test.describe('Client Action Example', () => {
   test('click increments stateful counter', async ({ page }) => {
     await page.goto('/examples/client-action');
+    await page.waitForLoadState('networkidle');
 
     const button = page.getByRole('button', { name: /Click Me \d+/ });
     await expect(button).toBeVisible();
@@ -17,7 +18,8 @@ test.describe('Client Action Example', () => {
 
   test('client form action increments counter from shared state', async ({ page }) => {
     await page.goto('/examples/client-action');
-
+    await page.waitForLoadState('networkidle');
+    
     const button = page.getByRole('button', { name: /Click Me \d+/ });
     await expect(button).toHaveText(/Click Me 1/);
 

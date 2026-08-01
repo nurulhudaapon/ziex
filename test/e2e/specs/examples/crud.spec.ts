@@ -18,6 +18,8 @@ test.describe('CRUD Task Manager Example', () => {
 
   test('empty title is blocked by required validation', async ({ page }) => {
     await page.goto('/examples/crud');
+    await page.waitForLoadState('networkidle');
+    
     const before = await page.locator('tbody tr').count();
 
     await page.getByRole('button', { name: 'Add Task' }).click();

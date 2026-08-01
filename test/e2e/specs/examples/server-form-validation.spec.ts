@@ -4,7 +4,7 @@ import { skipOnRemoteStatic } from '../../helpers/env';
 test.describe('Server Form Validation Example', () => {
   test('rejects invalid id and accepts valid id', async ({ page }) => {
     test.skip(skipOnRemoteStatic, 'Static deploy has no live server form handlers');
-    await page.goto('/examples/server-form-validation');
+    await page.goto('/examples/server-form-validation', { waitUntil: 'networkidle' });
 
     await expect(page.getByText('Please log in')).toBeVisible();
 

@@ -6,7 +6,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Todo App Example - Edge Cases', () => {
   test('Add multiple todos and verify all are present', async ({ page }) => {
-    await page.goto('/examples/wasm');
+    await page.goto('/examples/wasm', { waitUntil: 'networkidle' });
     const todos = ['First todo', 'Second todo', 'Third todo', 'Fourth todo'];
     for (const todo of todos) {
       await page.getByRole('textbox', { name: /Add a new todo/ }).fill(todo);
@@ -19,7 +19,7 @@ test.describe('Todo App Example - Edge Cases', () => {
   });
 
   test('Delete todo from the start', async ({ page }) => {
-    await page.goto('/examples/wasm');
+    await page.goto('/examples/wasm', { waitUntil: 'networkidle' });
     // Add a unique todo
     const todoText = `Delete me first ${Date.now()}`;
     await page.getByRole('textbox', { name: /Add a new todo/ }).fill(todoText);
@@ -33,6 +33,8 @@ test.describe('Todo App Example - Edge Cases', () => {
 
   test('Delete todo from the middle', async ({ page }) => {
     await page.goto('/examples/wasm');
+    await page.waitForLoadState('networkidle');
+    
     const todos = [`A${Date.now()}`, `B${Date.now()}`, `C${Date.now()}`];
     for (const todo of todos) {
       await page.getByRole('textbox', { name: /Add a new todo/ }).fill(todo);
@@ -49,6 +51,8 @@ test.describe('Todo App Example - Edge Cases', () => {
 
   test('Update a todo (skip if not supported)', async ({ page }) => {
     await page.goto('/examples/wasm');
+    await page.waitForLoadState('networkidle');
+    
     const todoText = `To update ${Date.now()}`;
     await page.getByRole('textbox', { name: /Add a new todo/ }).fill(todoText);
     await page.getByRole('button', { name: 'Add' }).click();
@@ -66,6 +70,8 @@ test.describe('Todo App Example - Edge Cases', () => {
 
   test('Add empty todo should not add', async ({ page }) => {
     await page.goto('/examples/wasm');
+    await page.waitForLoadState('networkidle');
+    
     const initialCount = await page.locator('li').count();
     await page.getByRole('textbox', { name: /Add a new todo/ }).fill('');
     await page.getByRole('button', { name: 'Add' }).click();
@@ -75,6 +81,8 @@ test.describe('Todo App Example - Edge Cases', () => {
 
   test('Clear all todos (only those added in this test)', async ({ page }) => {
     await page.goto('/examples/wasm');
+    await page.waitForLoadState('networkidle');
+    
     const todos = [`Clear me ${Date.now()}`, `Clear me too ${Date.now()}`];
     for (const todo of todos) {
       await page.getByRole('textbox', { name: /Add a new todo/ }).fill(todo);
