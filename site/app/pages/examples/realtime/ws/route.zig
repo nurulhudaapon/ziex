@@ -43,10 +43,22 @@ pub fn Socket(ctx: zx.SocketCtx(SocketData)) !void {
 
     _ = ctx.socket.publish(CHAT_TOPIC, formatted);
 
-    messages.append(ctx.allocator, .{
-        .text = ctx.allocator.dupe(u8, ctx.message) catch return,
-        .username = ctx.allocator.dupe(u8, ctx.data.username()) catch return,
-    }) catch return;
+    const gpa = std.heap.page_allocator;
+    const text = gpa.dupe(u8, ctx.message) catch return;
+    const username = gpa.dupe(u8, ctx.data.username()) catch {
+        gpa.free(text);
+        return;
+    };
+    messages.append(gpa, .{ .text = text, .username = username }) catch {
+        gpa.free(text);
+        gpa.free(username);
+        return;
+    };
+    while (messages.items.len > MAX_MESSAGES) {
+        const old = messages.orderedRemove(0);
+        gpa.free(old.text);
+        gpa.free(old.username);
+    }
 }
 
 pub fn SocketClose(ctx: zx.SocketCloseCtx(SocketData)) void {
