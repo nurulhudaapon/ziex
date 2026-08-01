@@ -4,6 +4,7 @@ import {
     ViewPlugin,
     Decoration,
     hoverTooltip,
+    keymap,
     tooltips,
     type DecorationSet,
     type ViewUpdate,
@@ -14,7 +15,11 @@ import { setDiagnostics } from "@codemirror/lint";
 import {
     LSPClient,
     LSPPlugin,
+    findReferencesKeymap,
+    jumpToDefinitionKeymap,
+    renameKeymap,
     serverCompletion,
+    signatureHelp,
     type LSPClientExtension,
     type Transport,
 } from "@codemirror/lsp-client";
@@ -26,7 +31,9 @@ import type * as LSP from "vscode-languageserver-protocol";
 const HOVER_KIND_ONLY = /^\([A-Za-z]+\)$/;
 
 type PlaygroundLspUiHooks = {
-    openLocalFile?: (target: LocalFileTarget) => void;
+    openLocalFile?: (target: LocalFileTarget) => void | Promise<void>;
+    /** Open an LSP URI in the playground editor (for F12 / cross-file jumps). */
+    displayFile?: (uri: string) => Promise<EditorView | null>;
 };
 
 export type LocalFileTarget = {
@@ -578,7 +585,11 @@ export function createZlsClient(transport: Transport): LSPClient {
             workspaceConfiguration(),
             zlsDiagnostics(),
             zlsLogging(),
+            // Pieces from languageServerExtensions(), minus hoverTooltips/serverDiagnostics
+            // (we keep custom hover + ZX/ZLS diagnostic merging instead).
             serverCompletion(),
+            signatureHelp(),
+            keymap.of([...renameKeymap, ...jumpToDefinitionKeymap, ...findReferencesKeymap]),
             playgroundHoverTooltips(),
             semanticTokens,
             foldRanges,
@@ -588,6 +599,17 @@ export function createZlsClient(transport: Transport): LSPClient {
     });
 
     client.connect(interceptConfiguration(transport));
+
+    // Default workspace only returns the currently active editor file. Route
+    // cross-file jumps (F12) through the playground tab/archive opener.
+    const workspace = client.workspace;
+    const defaultDisplayFile = workspace.displayFile.bind(workspace);
+    workspace.displayFile = async (uri: string) => {
+        const open = await defaultDisplayFile(uri);
+        if (open) return open;
+        return playgroundLspUiHooks.displayFile?.(uri) ?? null;
+    };
+
     return client;
 }
 

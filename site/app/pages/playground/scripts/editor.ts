@@ -36,8 +36,21 @@ declare const ZIG_VERSION: string;
 
 let client = createZlsClient(workerTransport(new Worker(`/assets/playground/workers/zls.js?v=${VERSION}`)));
 setPlaygroundLspUiHooks({
-    openLocalFile: (target) => {
-        void openLinkedFile(target);
+    openLocalFile: (target) => openLinkedFile(target),
+    displayFile: async (uri) => {
+        let path: string | null = null;
+        if (uri.startsWith("file://")) {
+            try {
+                path = decodeURIComponent(new URL(uri).pathname).replace(/^\/+/, "");
+            } catch {
+                path = uri.replace(/^file:\/+/, "").split("#")[0]?.replace(/^\/+/, "") ?? null;
+            }
+        } else {
+            path = uri.split("#")[0]?.replace(/^\/+/, "") ?? null;
+        }
+        if (!path) return null;
+        const opened = await openLinkedFile({ path });
+        return opened ? editorView ?? null : null;
     },
 });
 const PLAYGROUND_NOTICE_STORAGE_KEY = "playground_feature_notice_dismissed_v1";

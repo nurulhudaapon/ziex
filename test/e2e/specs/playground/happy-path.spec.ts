@@ -117,7 +117,7 @@ test.describe('Ziex Playground', () => {
   });
 
   test('Keyboard Navigation', async ({ page }) => {
-    await page.goto(`/playground`, { waitUntil: 'networkidle' });
+    await page.goto(`/playground`);
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
