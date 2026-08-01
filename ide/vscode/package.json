@@ -96,7 +96,10 @@
           "ZX"
         ],
         "configuration": "./language-configuration.json",
-        "icon": "images/icon.svg"
+        "icon": {
+          "dark": "images/icon.svg",
+          "light": "images/icon.svg"
+        }
       }
     ],
     "grammars": [
