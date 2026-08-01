@@ -2,7 +2,7 @@
   "name": "ziex",
   "displayName": "Ziex",
   "description": "Ziex - full-stack web framework for Zig",
-  "version": "0.1.1140",
+  "version": "0.1.1259",
   "publisher": "ziex",
   "icon": "images/logo.png",
   "private": true,
@@ -133,7 +133,6 @@
   },
   "devDependencies": {
     "@types/node": "^26.1.2",
-    "@types/vscode": "^1.125.0",
-    "@vscode/vsce": "^3.9.2"
+    "@types/vscode": "^1.125.0"
   }
 }

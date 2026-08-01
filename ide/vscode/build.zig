@@ -38,35 +38,34 @@ pub fn build(b: *std.Build) void {
         b.getInstallStep().dependOn(&b.addInstallFileWithDir(src, pkg_root, file.dest).step);
     }
 
-    // --- Pack (.vsix via local vsce) --- //
-    const pack_cmd = addVsce(b, .pack, pre_release, "none");
+    // --- Pack (.vsix via npx @vscode/vsce) --- //
+    const pack_cmd = addVsce(b, .pack, pre_release, null);
     pack_cmd.step.dependOn(b.getInstallStep());
     const pack_step = b.step("pack", "Package the VS Code extension as a .vsix (pre-release by default)");
     pack_step.dependOn(&pack_cmd.step);
 
-    // Always packs with --pre-release, regardless of -Dpre-release.
-    const pre_release_cmd = addVsce(b, .pack, true, "none");
+    const pre_release_cmd = addVsce(b, .pack, true, null);
     pre_release_cmd.step.dependOn(b.getInstallStep());
     const pre_release_step = b.step("pre-release", "Package a pre-release .vsix");
     pre_release_step.dependOn(&pre_release_cmd.step);
 
-    // --- Publish (marketplace via local vsce) --- //
-    const bump = b.option([]const u8, "bump", "Semver bump for publish: patch, minor, major, or none") orelse "patch";
-    const publish_cmd = addVsce(b, .publish, pre_release, bump);
+    // --- Publish (marketplace via npx @vscode/vsce) --- //
+    const version = b.option([]const u8, "version", "Extension version to publish (e.g. 0.1.1234)");
+    const publish_cmd = addVsce(b, .publish, pre_release, version);
     publish_cmd.step.dependOn(b.getInstallStep());
-    const publish_step = b.step("publish", "Publish to the VS Code Marketplace (pre-release + patch bump by default)");
+    const publish_step = b.step("publish", "Publish to the VS Code Marketplace (pre-release by default)");
     publish_step.dependOn(&publish_cmd.step);
 }
 
 const VsceAction = enum { pack, publish };
 
-fn addVsce(b: *std.Build, action: VsceAction, pre_release: bool, bump: []const u8) *std.Build.Step.Run {
-    const cmd = b.addSystemCommand(&.{"node_modules/.bin/vsce"});
+fn addVsce(b: *std.Build, action: VsceAction, pre_release: bool, version: ?[]const u8) *std.Build.Step.Run {
+    const cmd = b.addSystemCommand(&.{ "npx", "--yes", "@vscode/vsce" });
     cmd.addArg(@tagName(action));
     if (action == .publish) {
         cmd.addArg("--skip-duplicate");
-        if (!std.mem.eql(u8, bump, "none")) {
-            cmd.addArg(bump);
+        if (version) |v| {
+            cmd.addArg(v);
             cmd.addArg("--no-git-tag-version");
         }
     }

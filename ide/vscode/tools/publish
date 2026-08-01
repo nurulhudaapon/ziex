@@ -1,11 +1,10 @@
 #!/bin/bash
 set -euo pipefail
 
-# Get the directory where this script is located
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$PROJECT_ROOT/../.." && pwd)"
 
-# Source .env from project root
 if [ -f "$PROJECT_ROOT/.env" ]; then
   # shellcheck disable=SC1091
   source "$PROJECT_ROOT/.env"
@@ -16,40 +15,70 @@ fi
 
 cd "$PROJECT_ROOT"
 
-if [ ! -x "$PROJECT_ROOT/node_modules/.bin/vsce" ]; then
-  echo "Error: vsce not found. Run npm install in ide/vscode first."
-  exit 1
-fi
-
 # Pre-release by default. Set STABLE=1 for a stable marketplace release.
 PRE_RELEASE=true
 if [ "${STABLE:-}" = "1" ]; then
   PRE_RELEASE=false
 fi
 
-# Version bump via vsce builtin (patch|minor|major|none). Default patch.
-BUMP="${BUMP:-patch}"
+to_vscode_version() {
+  local raw="${1#v}"
+  if echo "$raw" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+    echo "$raw"
+    return
+  fi
+  local n
+  n=$(echo "${raw%%+*}" | grep -oE '[a-zA-Z]+\.([0-9]+)$' | grep -oE '[0-9]+$' || true)
+  if [ -n "$n" ]; then
+    echo "0.1.$n"
+    return
+  fi
+  echo "Error: cannot map version '$1' to VS Code format 0.1.N" >&2
+  exit 1
+}
 
-echo "Building extension..."
-zig build -Doptimize=ReleaseSafe
+if [ -n "${VERSION:-}" ]; then
+  RAW="$VERSION"
+else
+  RAW=$(bash "$REPO_ROOT/tools/version" --resolve --from=commits)
+fi
+VSCODE_VERSION=$(to_vscode_version "$RAW")
+sed -i.bak -E "s/\"version\": \"[0-9]+\.[0-9]+\.[0-9]+\"/\"version\": \"$VSCODE_VERSION\"/" package.json
+rm -f package.json.bak
+echo "Stamped package.json -> $VSCODE_VERSION"
+
+echo "Packing extension..."
+if [ "$PRE_RELEASE" = "true" ]; then
+  zig build pre-release -Doptimize=ReleaseSafe
+else
+  zig build pack -Doptimize=ReleaseSafe -Dpre-release=false
+fi
+
+VSIX="ziex-$VSCODE_VERSION.vsix"
+if [ ! -f "$VSIX" ]; then
+  echo "Error: expected $VSIX after pack" >&2
+  exit 1
+fi
 
 if [ -z "${VSCE_PAT:-}" ]; then
   echo "Error: VSCE_PAT is not set in .env file"
   exit 1
 fi
 
-echo "Publishing to VS Code Marketplace (pre-release=$PRE_RELEASE bump=$BUMP)..."
-# vsce publish [patch|minor|major] --no-git-tag-version bumps without committing.
-zig build publish -Doptimize=ReleaseSafe -Dpre-release="$PRE_RELEASE" -Dbump="$BUMP"
+echo "Publishing to VS Code Marketplace (pre-release=$PRE_RELEASE)..."
+VSCE_ARGS=(publish --packagePath "$VSIX" --skip-duplicate -p "$VSCE_PAT")
+if [ "$PRE_RELEASE" = "true" ]; then
+  VSCE_ARGS+=(--pre-release)
+fi
+npx --yes @vscode/vsce "${VSCE_ARGS[@]}"
 
 if [ -n "${OPEN_VSX_TOKEN:-}" ]; then
   echo "Publishing to Open VSX (pre-release=$PRE_RELEASE)..."
-  # Uses package.json version already bumped by vsce (when bump != none).
+  OVSX_ARGS=(publish "$VSIX" --pat "$OPEN_VSX_TOKEN" --skip-duplicate)
   if [ "$PRE_RELEASE" = "true" ]; then
-    npx --yes ovsx publish --pat "$OPEN_VSX_TOKEN" --pre-release
-  else
-    npx --yes ovsx publish --pat "$OPEN_VSX_TOKEN"
+    OVSX_ARGS+=(--pre-release)
   fi
+  npx --yes ovsx "${OVSX_ARGS[@]}"
 else
   echo "Warning: OPEN_VSX_TOKEN is not set; skipping Open VSX publish"
 fi

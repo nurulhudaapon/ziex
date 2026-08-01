@@ -15,32 +15,41 @@ on:
 
   workflow_dispatch:
     inputs:
+      version:
+        description: "Version"
+        required: false
+        type: string
       publish:
-        description: "Publish to VS Code Marketplace and Open VSX"
+        description: "Publish"
         required: false
         type: boolean
         default: true
       pre-release:
-        description: "Publish as a pre-release (default). Uncheck for a stable release."
+        description: "Pre-release"
         required: false
         type: boolean
         default: true
-      bump:
-        description: "vsce version bump (patch/minor/major). Ignored for GitHub releases."
+      from:
+        description: "Version from"
         required: false
         type: choice
+        default: commits
         options:
-          - patch
-          - minor
-          - major
-        default: patch
+          - commits
+          - tag
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      pre_release: ${{ steps.version.outputs.pre_release }}
+      vsix: ${{ steps.version.outputs.vsix }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Zig
         uses: mlugg/setup-zig@v2
@@ -58,23 +67,82 @@ jobs:
         working-directory: ide/vscode
         run: npm ci
 
-      - name: Build
-        working-directory: ide/vscode
-        run: zig build -Doptimize=ReleaseSafe
+      - name: Resolve version
+        id: version
+        run: |
+          set -euo pipefail
 
-      - name: Pack pre-release
+          to_vscode_version() {
+            local raw="${1#v}"
+            # Already marketplace-safe X.Y.Z (e.g. 0.1.1234)
+            if echo "$raw" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+              echo "$raw"
+              return
+            fi
+            # Map 0.1.0-dev.N (+meta) -> 0.1.N (VS Code rejects prerelease tags)
+            local n
+            n=$(echo "${raw%%+*}" | grep -oE '[a-zA-Z]+\.([0-9]+)$' | grep -oE '[0-9]+$' || true)
+            if [ -n "$n" ]; then
+              echo "0.1.$n"
+              return
+            fi
+            echo "::error::Cannot map version '$1' to VS Code format 0.1.N" >&2
+            exit 1
+          }
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ inputs.version }}" ]; then
+            RAW="${{ inputs.version }}"
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            RAW="${{ github.event.release.tag_name }}"
+          else
+            FROM="commits"
+            if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+              FROM="${{ inputs.from || 'commits' }}"
+            fi
+            RAW=$(bash tools/version --resolve --from="$FROM")
+            echo "Resolved monorepo version from --from=$FROM: $RAW"
+          fi
+
+          VERSION=$(to_vscode_version "$RAW")
+          echo "VS Code extension version: $VERSION"
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PRE_RELEASE="${{ inputs.pre-release }}"
+          elif [ "${{ github.event_name }}" = "release" ] && [ "${{ github.event.release.prerelease }}" != "true" ]; then
+            PRE_RELEASE="false"
+          else
+            # push to main and prerelease GitHub releases → marketplace pre-release
+            PRE_RELEASE="true"
+          fi
+
+          sed -i -E "s/\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+\"/\"version\": \"$VERSION\"/" ide/vscode/package.json
+          echo "Stamped ide/vscode/package.json -> $VERSION"
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "pre_release=$PRE_RELEASE" >> "$GITHUB_OUTPUT"
+          echo "vsix=ziex-$VERSION.vsix" >> "$GITHUB_OUTPUT"
+
+      - name: Pack
         working-directory: ide/vscode
-        run: zig build pre-release -Doptimize=ReleaseSafe
+        env:
+          PRE_RELEASE: ${{ steps.version.outputs.pre_release }}
+        run: |
+          if [ "$PRE_RELEASE" = "true" ]; then
+            zig build pre-release -Doptimize=ReleaseSafe
+          else
+            zig build pack -Doptimize=ReleaseSafe -Dpre-release=false
+          fi
 
       - name: Upload VSIX
         uses: actions/upload-artifact@v4
         with:
           name: vscode-extension
-          path: ide/vscode/*.vsix
+          path: ide/vscode/${{ steps.version.outputs.vsix }}
           retention-days: 14
 
   publish:
     if: >-
+      github.event_name == 'push' ||
       github.event_name == 'release' ||
       (github.event_name == 'workflow_dispatch' && inputs.publish)
     needs: [build]
@@ -82,78 +150,46 @@ jobs:
     environment:
       name: vscode-marketplace
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Zig
-        uses: mlugg/setup-zig@v2
-        with:
-          version: 0.17.0-dev.1465+8b2d0ce21
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "22"
-          cache: npm
-          cache-dependency-path: ide/vscode/package-lock.json
 
-      - name: Install dependencies
-        working-directory: ide/vscode
-        run: npm ci
-
-      - name: Resolve publish options
-        id: flags
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            PRE_RELEASE="${{ inputs.pre-release }}"
-            BUMP="${{ inputs.bump || 'patch' }}"
-          elif [ "${{ github.event_name }}" = "release" ] && [ "${{ github.event.release.prerelease }}" != "true" ]; then
-            # Full GitHub releases publish stable from the stamped tag version.
-            PRE_RELEASE="false"
-            BUMP="none"
-          else
-            PRE_RELEASE="true"
-            BUMP="none"
-          fi
-          echo "pre_release=$PRE_RELEASE" >> "$GITHUB_OUTPUT"
-          echo "bump=$BUMP" >> "$GITHUB_OUTPUT"
-          echo "Publishing pre-release=$PRE_RELEASE bump=$BUMP"
-
-      - name: Stamp version from release tag
-        if: github.event_name == 'release'
-        run: bash tools/version "${{ github.event.release.tag_name }}"
-
-      - name: Build
-        working-directory: ide/vscode
-        run: zig build -Doptimize=ReleaseSafe
+      - name: Download VSIX
+        uses: actions/download-artifact@v4
+        with:
+          name: vscode-extension
+          path: .
 
       - name: Publish to VS Code Marketplace
-        working-directory: ide/vscode
         env:
           VSCE_PAT: ${{ secrets.VSCE_PAT }}
-          PRE_RELEASE: ${{ steps.flags.outputs.pre_release }}
-          BUMP: ${{ steps.flags.outputs.bump }}
+          PRE_RELEASE: ${{ needs.build.outputs.pre_release }}
+          VSIX: ${{ needs.build.outputs.vsix }}
         run: |
           if [ -z "$VSCE_PAT" ]; then
             echo "::error::VSCE_PAT secret is not set"
             exit 1
           fi
-          # vsce publish [patch|minor|major] --no-git-tag-version bumps via npm version without committing.
-          zig build publish -Doptimize=ReleaseSafe -Dpre-release="$PRE_RELEASE" -Dbump="$BUMP"
+          ls -la "$VSIX"
+          ARGS=(publish --packagePath "$VSIX" --skip-duplicate -p "$VSCE_PAT")
+          if [ "$PRE_RELEASE" = "true" ]; then
+            ARGS+=(--pre-release)
+          fi
+          npx --yes @vscode/vsce "${ARGS[@]}"
 
       - name: Publish to Open VSX
-        working-directory: ide/vscode
         env:
           OVSX_PAT: ${{ secrets.OPEN_VSX_TOKEN }}
-          PRE_RELEASE: ${{ steps.flags.outputs.pre_release }}
+          PRE_RELEASE: ${{ needs.build.outputs.pre_release }}
+          VSIX: ${{ needs.build.outputs.vsix }}
         run: |
           if [ -z "$OVSX_PAT" ]; then
             echo "::warning::OPEN_VSX_TOKEN secret is not set; skipping Open VSX publish"
             exit 0
           fi
-          # Uses package.json version already bumped by vsce (when bump != none).
-          ARGS=(--pat "$OVSX_PAT")
+          ARGS=(publish "$VSIX" --pat "$OVSX_PAT" --skip-duplicate)
           if [ "$PRE_RELEASE" = "true" ]; then
             ARGS+=(--pre-release)
           fi
-          npx --yes ovsx publish "${ARGS[@]}"
+          npx --yes ovsx "${ARGS[@]}"
