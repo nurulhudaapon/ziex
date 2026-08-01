@@ -18,7 +18,8 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     const server_backend = if (options.app) |app| app.server.backend else InitOptions.AppOptions.Server.Backend.auto;
     const enable_httpz = switch (server_backend) {
         .httpz => true,
-        .auto => optimize != .debug,
+        // .auto => optimize != .debug,
+        .auto => true, // default to httpz for now
         else => false,
     };
 

@@ -18,6 +18,7 @@ const routing = @import("../Router/routing.zig");
 const rndr = @import("../../../server/render.zig");
 const PageCache = @import("../../../server/PageCache.zig");
 const AccessLog = @import("AccessLog.zig");
+const Devtool = @import("Devtool.zig");
 const PubSub = @import("PubSub.zig");
 
 fn httpzWsWrite(ctx: *anyopaque, message: []const u8) anyerror!void {
@@ -1041,19 +1042,10 @@ fn Handler(comptime AppCtxType: type) type {
                     var page_component = c.component;
 
                     if (comptime is_dev) {
-                        if (req.header("x-zx-devtool")) |mode| {
-                            if (std.mem.eql(u8, mode, "components")) {
-                                const include_native = !std.mem.eql(u8, req.header("x-zx-devtool-include-native") orelse "1", "0");
-                                const include_props = !std.mem.eql(u8, req.header("x-zx-devtool-include-props") orelse "1", "0");
-                                const include_attributes = !std.mem.eql(u8, req.header("x-zx-devtool-include-attributes") orelse "1", "0");
-                                res.content_type = .JSON;
-                                try zx.util.devtool.formatWithOptions(page_component, res.writer(), .{
-                                    .only_components = !include_native,
-                                    .include_props = include_props,
-                                    .include_attributes = include_attributes,
-                                });
-                                return;
-                            }
+                        if (Devtool.isComponentsMode(req.header(Devtool.header_mode))) {
+                            res.content_type = .JSON;
+                            try Devtool.writeComponents(page_component, Devtool.componentOptions(http), res.writer());
+                            return;
                         }
                         injectDevScript(req.arena, &page_component);
                     }
@@ -1100,31 +1092,30 @@ fn Handler(comptime AppCtxType: type) type {
 
         /// Returns true when the request was fully handled.
         fn devtool(self: *Self, req: *httpz.Request, res: *httpz.Response) !bool {
-            const mode = req.header("x-zx-devtool") orelse return false;
-            res.header("Access-Control-Allow-Origin", "*");
-            res.header("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
-            res.header("Access-Control-Allow-Headers", "Content-Type, x-zx-devtool, x-zx-devtool-include-native, x-zx-devtool-include-props, x-zx-devtool-include-attributes");
-            res.header("Access-Control-Allow-Private-Network", "true");
-
-            if (req.method == .OPTIONS) {
-                res.status = 200;
-                return true;
+            const action = Devtool.early(req.header(Devtool.header_mode), req.method == .OPTIONS);
+            if (action == .none) return false;
+            inline for (Devtool.cors) |pair| {
+                res.header(pair[0], pair[1]);
             }
 
-            if (std.mem.eql(u8, mode, "meta")) {
-                const meta_data = try zx.server.SerilizableAppMeta.init(req.arena, self.meta, self.config.server);
-                res.content_type = .JSON;
-                try meta_data.serializeRoutes(res.writer());
-                return true;
+            switch (action) {
+                .none => unreachable,
+                .empty => {
+                    res.status = 200;
+                    return true;
+                },
+                .meta => {
+                    res.content_type = .JSON;
+                    try Devtool.writeMeta(req.arena, self.meta, self.config.server, res.writer());
+                    return true;
+                },
+                .info => {
+                    res.content_type = .JSON;
+                    try Devtool.writeInfo(req.arena, self.meta, self.config.server, res.writer());
+                    return true;
+                },
+                .continue_render => return false,
             }
-            if (std.mem.eql(u8, mode, "info")) {
-                const meta_data = try zx.server.SerilizableAppMeta.init(req.arena, self.meta, self.config.server);
-                res.content_type = .JSON;
-                try meta_data.serializeInfo(res.writer());
-                return true;
-            }
-            // "components" continues through normal page render.
-            return false;
         }
 
         fn resolveStaticParams(self: *Self, allocator_arg: Allocator, static_fn: zx.StaticFn) ![]const []const zx.StaticParam {

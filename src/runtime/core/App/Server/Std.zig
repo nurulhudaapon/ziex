@@ -13,6 +13,7 @@ const server_meta = @import("../../../server/Server.zig");
 const core_handler = @import("../Router/Handler.zig");
 const render = @import("../../../server/render.zig");
 const AccessLog = @import("AccessLog.zig");
+const Devtool = @import("Devtool.zig");
 const PubSub = @import("PubSub.zig");
 
 const Router = zx.Router;
@@ -355,6 +356,10 @@ pub fn Server(comptime H: type) type {
             const http = backend.http();
             http.resHeaderSet("Server", server_token);
 
+            if (comptime is_dev) {
+                if (try self.handleDevtool(request, arena, &backend, http, method)) return true;
+            }
+
             const matched = if (backend.route_match) |m| m.route else null;
             const handlers = if (matched) |r| r.route else null;
             const socket: zx.Socket = if (handlers != null and handlers.?.socket != null)
@@ -383,7 +388,13 @@ pub fn Server(comptime H: type) type {
 
                     .component => |c| {
                         var component = c.component;
-                        if (comptime is_dev) core_handler.injectDevScript(arena, &component);
+                        if (comptime is_dev) {
+                            if (Devtool.isComponentsMode(http.reqHeaderGet(Devtool.header_mode))) {
+                                try self.respondDevtoolComponents(arena, request, &backend, http, &component);
+                                break :blk true;
+                            }
+                            core_handler.injectDevScript(arena, &component);
+                        }
                         if (http.resHeaderGet("Content-Type") == null) backend.setContentTypeStr("text/html");
                         if (c.streaming) {
                             try self.streamHtmlSsr(arena, request, &backend, component, http, pathname, req_obj, res_obj, matched);
@@ -435,6 +446,64 @@ pub fn Server(comptime H: type) type {
             } else if (proxy.state_ptr != null) {
                 AccessLog.ProxyStatus.markExecuted();
             }
+        }
+
+        /// Devtool probe via `x-zx-devtool` (proxied from `/.well-known/_zx/devtool`).
+        /// Returns true when the request is fully handled (OPTIONS / meta / info).
+        fn handleDevtool(
+            self: *Self,
+            request: *std.http.Server.Request,
+            arena: std.mem.Allocator,
+            backend: *Conn,
+            http: zx.Http,
+            method: std.http.Method,
+        ) !bool {
+            const action = Devtool.early(http.reqHeaderGet(Devtool.header_mode), method == .OPTIONS);
+            if (action == .none) return false;
+            Devtool.applyCors(http);
+
+            switch (action) {
+                .none => unreachable,
+                .empty => {
+                    try self.flushRespond(arena, request, backend);
+                    return true;
+                },
+                .meta, .info => {
+                    var aw: std.Io.Writer.Allocating = .init(arena);
+                    if (action == .meta)
+                        try Devtool.writeMeta(arena, &self.meta, self.config.server, &aw.writer)
+                    else
+                        try Devtool.writeInfo(arena, &self.meta, self.config.server, &aw.writer);
+                    backend.setContentTypeStr("application/json");
+                    try self.respondBody(arena, request, backend, aw.written());
+                    return true;
+                },
+                .continue_render => return false,
+            }
+        }
+
+        fn respondDevtoolComponents(
+            self: *Self,
+            arena: std.mem.Allocator,
+            request: *std.http.Server.Request,
+            backend: *Conn,
+            http: zx.Http,
+            component: *Component,
+        ) !void {
+            Devtool.applyCors(http);
+            var aw: std.Io.Writer.Allocating = .init(arena);
+            try Devtool.writeComponents(component.*, Devtool.componentOptions(http), &aw.writer);
+            backend.setContentTypeStr("application/json");
+            try self.respondBody(arena, request, backend, aw.written());
+        }
+
+        fn respondBody(self: *Self, arena: std.mem.Allocator, request: *std.http.Server.Request, backend: *Conn, body: []const u8) !void {
+            _ = self;
+            const headers = try collectHeaders(arena, backend);
+            try request.respond(body, .{
+                .status = statusFrom(backend.status),
+                .extra_headers = headers,
+            });
         }
 
         /// Write-through HTML: `Component.render` → `BodyWriter` (chunked).
@@ -564,12 +633,7 @@ pub fn Server(comptime H: type) type {
         }
 
         fn flushRespond(self: *Self, arena: std.mem.Allocator, request: *std.http.Server.Request, backend: *Conn) !void {
-            _ = self;
-            const headers = try collectHeaders(arena, backend);
-            try request.respond(backend.bodySlice(), .{
-                .status = statusFrom(backend.status),
-                .extra_headers = headers,
-            });
+            try self.respondBody(arena, request, backend, backend.bodySlice());
         }
 
         /// Serve a static file from the staticdir.

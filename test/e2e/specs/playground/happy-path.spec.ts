@@ -57,7 +57,7 @@ test.describe('Ziex Playground', () => {
   });
 
   test('Switch Between Files', async ({ page }) => {
-    await page.goto(`/playground`);
+    await page.goto(`/playground`, { waitUntil: 'networkidle' });
     await page.getByRole('button', { name: /style\.css/ }).click();
     await expect(page.getByRole('button', { name: /style\.css/ })).toBeVisible();
     await page.getByRole('button', { name: /Playground\.zx/ }).click();
@@ -65,13 +65,13 @@ test.describe('Ziex Playground', () => {
   });
 
   test('Close File Tab', async ({ page }) => {
-    await page.goto(`/playground`);
+    await page.goto(`/playground`, { waitUntil: 'networkidle' });
     const closeBtn = page.getByRole('button', { name: 'style.css Close tab' });
     await closeBtn.click();
   });
 
   test('Share Button', async ({ page }) => {
-    await page.goto(`/playground`);
+    await page.goto(`/playground`, { waitUntil: 'networkidle' });
     const shareButton = page.getByRole('button', { name: /Share/ });
     await shareButton.waitFor({ state: 'visible' });
     await page.waitForFunction(() => {
@@ -83,7 +83,7 @@ test.describe('Ziex Playground', () => {
 
   test('Format Button', async ({ page }) => {
     test.skip(skipOnRemoteStatic, 'Format status-bar control may not be on static deploy yet');
-    await page.goto('/playground');
+    await page.goto('/playground', { waitUntil: 'networkidle' });
     const formatButton = page.getByRole('button', { name: 'Format file' });
     await formatButton.waitFor({ state: 'visible' });
     await page.waitForFunction(() => {
@@ -96,13 +96,13 @@ test.describe('Ziex Playground', () => {
 
   test('Console Panel', async ({ page }) => {
     test.skip(skipOnRemoteStatic, 'Console panel controls may not match static deploy UI yet');
-    await page.goto(`/playground`);
+    await page.goto(`/playground`, { waitUntil: 'networkidle' });
     await page.getByRole('button', { name: /Toggle console/ }).click();
     await page.getByRole('button', { name: /Clear console/ }).click();
   });
 
   test('Error Handling', async ({ page }) => {
-    await page.goto(`/playground`);
+    await page.goto(`/playground`, { waitUntil: 'networkidle' });
     const editor = page.getByRole('textbox').first();
     await editor.click();
     await editor.type('\nthis is invalid code');
@@ -117,14 +117,14 @@ test.describe('Ziex Playground', () => {
   });
 
   test('Keyboard Navigation', async ({ page }) => {
-    await page.goto(`/playground`);
+    await page.goto(`/playground`, { waitUntil: 'networkidle' });
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
     await page.keyboard.press('Tab');
   });
 
   test('File Persistence (should reset to initial template)', async ({ page }) => {
-    await page.goto(`/playground`);
+    await page.goto(`/playground`, { waitUntil: 'networkidle' });
     const editor = page.getByRole('textbox').first();
     await editor.click();
     await editor.type('\n// persist test');
