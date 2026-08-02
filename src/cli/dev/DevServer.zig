@@ -132,12 +132,14 @@ pub fn deinit(ds: *DevServer) void {
 
     if (ds.serve_thread) |t| {
         if (ds.tcp_server) |*s| {
-            s.socket.close(ds.io);
-            ds.tcp_server = null;
+            wakeLocalhostPort(ds.io, s.socket.address.getPort());
         }
         t.join();
     }
-    if (ds.tcp_server) |*s| s.deinit(ds.io);
+    if (ds.tcp_server) |*s| {
+        s.deinit(ds.io);
+        ds.tcp_server = null;
+    }
 
     var spins: u32 = 0;
     while (ds.active_workers.load(.acquire) != 0 and spins < 2000) : (spins += 1) {
@@ -157,6 +159,42 @@ pub fn deinit(ds: *DevServer) void {
 /// Max times to try the next port when the preferred one is busy.
 pub const max_port_retries: u8 = 50;
 
+fn isPortAccepting(io: std.Io, port: u16) bool {
+    const addr = std.Io.net.IpAddress.parse("127.0.0.1", port) catch return false;
+    if (addr.connect(io, .{ .mode = .stream })) |s| {
+        s.close(io);
+        return true;
+    } else |_| return false;
+}
+
+fn wakeLocalhostPort(io: std.Io, port: u16) void {
+    const addr = std.Io.net.IpAddress.parse("127.0.0.1", port) catch return;
+    if (addr.connect(io, .{ .mode = .stream })) |s| {
+        s.close(io);
+    } else |_| {}
+}
+
+fn advancePort(port: u16, preferred: u16, attempts: *u8) error{AlreadyReported}!u16 {
+    if (attempts.* >= max_port_retries) {
+        log.err("failed to find an available port after {d} retries (started at {d})", .{ max_port_retries, preferred });
+        std.debug.print("Port {d} is in use\n", .{preferred});
+        if (comptime builtin.os.tag == .windows) {
+            std.debug.print("To free it, run:\n  netstat -ano | findstr :{d}\n\n", .{preferred});
+        } else {
+            std.debug.print("To free it, run:\n  kill -9 $(lsof -t -i:{d})\n\n", .{preferred});
+        }
+        return error.AlreadyReported;
+    }
+    const next = port +% 1;
+    if (next == 0) {
+        log.err("port overflow while searching for a free port", .{});
+        return error.AlreadyReported;
+    }
+    log.debug("port {d} in use, trying {d}", .{ port, next });
+    attempts.* += 1;
+    return next;
+}
+
 pub fn start(ds: *DevServer) error{AlreadyReported}!void {
     assert(ds.tcp_server == null);
     assert(ds.serve_thread == null);
@@ -169,25 +207,20 @@ pub fn start(ds: *DevServer) error{AlreadyReported}!void {
 
     while (true) {
         ds.address.setPort(port);
+
+        if (comptime builtin.os.tag == .windows) {
+            if (isPortAccepting(ds.io, port)) {
+                port = try advancePort(port, preferred, &attempts);
+                continue;
+            }
+        }
+
         // Do not set reuse_address: Zig maps that to SO_REUSEADDR|SO_REUSEPORT,
         // which lets multiple processes bind the same port (only one gets traffic).
         ds.tcp_server = ds.address.listen(ds.io, .{}) catch |err| {
             switch (err) {
                 error.AddressInUse => {
-                    if (attempts >= max_port_retries) {
-                        log.err("failed to find an available port after {d} retries (started at {d})", .{ max_port_retries, preferred });
-                        std.debug.print("Port {d} is in use\n", .{preferred});
-                        std.debug.print("To free it, run:\n  kill -9 $(lsof -t -i:{d})\n\n", .{preferred});
-                        return error.AlreadyReported;
-                    }
-                    const next = port +% 1;
-                    if (next == 0) {
-                        log.err("port overflow while searching for a free port", .{});
-                        return error.AlreadyReported;
-                    }
-                    log.debug("port {d} in use, trying {d}", .{ port, next });
-                    port = next;
-                    attempts += 1;
+                    port = try advancePort(port, preferred, &attempts);
                     continue;
                 },
                 else => {
@@ -299,7 +332,7 @@ fn serve(ds: *DevServer) void {
         const connection = server.accept(ds.io) catch |err| {
             if (ds.shutting_down.load(.acquire)) return;
             switch (err) {
-                error.Unexpected => {
+                error.Canceled, error.Unexpected => {
                     retry_count += 1;
                     if (retry_count > 5) {
                         log.err("accept() failed {d} times, giving up: {s}", .{ retry_count - 1, @errorName(err) });
@@ -316,6 +349,10 @@ fn serve(ds: *DevServer) void {
             }
         };
         retry_count = 0;
+        if (ds.shutting_down.load(.acquire)) {
+            connection.close(ds.io);
+            return;
+        }
         const thread = std.Thread.spawn(.{}, handleConnection, .{ ds, connection }) catch |err| {
             log.err("unable to spawn connection thread: {s}", .{@errorName(err)});
             connection.close(ds.io);

@@ -29,6 +29,10 @@ pub fn main(init: std.process.Init) !void {
     const allocator = init.arena.allocator();
     const io = std.testing.io;
 
+    if (comptime builtin.os.tag == .windows) {
+        _ = SetConsoleOutputCP(65001);
+    }
+
     const env = Env.init(allocator, init.minimal.environ);
     defer env.deinit(allocator);
 
@@ -410,3 +414,5 @@ fn isTeardown(t: std.builtin.TestFn) bool {
 fn isFlaky(name: []const u8) bool {
     return std.mem.startsWith(u8, name, "flaky:");
 }
+
+extern "kernel32" fn SetConsoleOutputCP(wCodePageID: std.os.windows.UINT) callconv(.winapi) std.os.windows.BOOL;

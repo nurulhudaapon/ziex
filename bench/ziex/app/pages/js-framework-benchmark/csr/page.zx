@@ -16,12 +16,12 @@ pub fn JsFrameworkBench(allocator: zx.Allocator) zx.Component {
                     </div>
                     <div class="col-md-6">
                         <div class="row">
-                            <Button onclick={create_rows} id="run" title="Create 1,000 rows" />
-                            <Button onclick={create_large_rows} id="runlots" title="Create 10,000 rows" />
-                            <Button onclick={append_rows} id="add" title="Append 1,000 rows" />
-                            <Button onclick={updateRows} id="update" title="Update every 10th row" />
-                            <Button onclick={clearRows} id="clear" title="Clear" />
-                            <Button onclick={swapRows} id="swaprows" title="Swap Rows" />
+                            <Button onclick={&create_rows} id="run" title="Create 1,000 rows" />
+                            <Button onclick={&create_large_rows} id="runlots" title="Create 10,000 rows" />
+                            <Button onclick={&append_rows} id="add" title="Append 1,000 rows" />
+                            <Button onclick={&updateRows} id="update" title="Update every 10th row" />
+                            <Button onclick={&clearRows} id="clear" title="Clear" />
+                            <Button onclick={&swapRows} id="swaprows" title="Swap Rows" />
                         </div>
                     </div>
                 </div>

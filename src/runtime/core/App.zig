@@ -69,11 +69,12 @@ pub fn info(self: App) void {
 pub fn armSignal(instance: *anyopaque, on_stop: *const fn (ctx: *anyopaque) void) void {
     stop_ctx = instance;
     stop_fn = on_stop;
-    sig.register(onSignal);
+    sig.install() catch {};
+    sig.addListener(onSignal);
 }
 
 pub fn disarmSignal() void {
-    sig.unregister();
+    sig.removeListener(onSignal);
     stop_ctx = null;
     stop_fn = null;
 }

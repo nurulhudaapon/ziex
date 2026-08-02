@@ -188,26 +188,24 @@ pub fn copydirs(
     }
 }
 
-pub fn getRunnablePath(io: std.Io, allocator: std.mem.Allocator, program_path: []const u8) ![]const u8 {
+pub fn getRunnablePath(
+    io: std.Io,
+    allocator: std.mem.Allocator,
+    program_path: []const u8,
+    temp_dir: TempDir,
+) ![]const u8 {
     if (builtin.os.tag == .windows) {
-        // Create .zig-cache/tmp/.zx directory if it doesn't exist
-        const cache_dir = ".zig-cache/tmp/.zx";
-        try std.Io.Dir.cwd().createDirPath(io, cache_dir);
-
-        const dest_dir = try std.Io.Dir.cwd().openDir(io, cache_dir, .{});
+        try std.Io.Dir.cwd().createDirPath(io, temp_dir.path);
+        const dest_dir = try std.Io.Dir.cwd().openDir(io, temp_dir.path, .{});
         defer dest_dir.close(io);
+
         const bin_name = std.fs.path.basename(program_path);
-
-        // Copy the executable to the cache directory
         try std.Io.Dir.cwd().copyFile(program_path, dest_dir, bin_name, io, .{});
-
-        const copied_program_path = try std.fs.path.join(allocator, &.{ cache_dir, bin_name });
-        return copied_program_path;
+        return try std.fs.path.join(allocator, &.{ temp_dir.path, bin_name });
     } else {
         return program_path;
     }
 }
-
 pub fn randInt(io: std.Io, comptime T: type) T {
     var x: T = undefined;
     io.random(@ptrCast(&x));

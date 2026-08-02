@@ -109,7 +109,7 @@ pub fn handlePage(
     base_path: ?[]const u8,
 ) !PageResult {
     const app_ptr: ?*const anyopaque = if (app_ctx) |p| @ptrCast(p) else null;
-    const pagectx = zx.PageContext.init(request, response, arena, io);
+    const pagectx = zx.PageContext.init(request, response, allocator, io);
 
     const page_fn = route.page orelse return .not_found;
 
@@ -145,7 +145,7 @@ pub fn handlePage(
         page_component = zx.util.devtool.namedBoundary(arena, "Page", page_component);
     }
 
-    const layoutctx = zx.LayoutContext.init(request, response, arena, io);
+    const layoutctx = zx.LayoutContext.init(request, response, allocator, io);
     var used_layout = false;
     page_component = Router.applyLayouts(
         route,

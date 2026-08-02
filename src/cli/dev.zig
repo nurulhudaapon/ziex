@@ -20,82 +20,113 @@ pub const command = cli_args.dev;
 var runner: ?std.process.Child = null;
 var builder: ?std.process.Child = null;
 var g_dev_shutting_down: bool = false;
+var g_inner_port: std.atomic.Value(u16) = .init(0);
+var g_dev_io: ?std.Io = null;
 
 fn onDevShutdown() void {
-    if (g_dev_shutting_down) return;
+    if (g_dev_shutting_down) {
+        if (builder) |b| {
+            if (b.id) |pid| sig.killProcessGroup(pid, sig.force_kill);
+        }
+        if (runner) |r| {
+            if (r.id) |pid| sig.killProcessGroup(pid, sig.force_kill);
+        }
+        sig.raiseDefault(sig.received() orelse std.posix.SIG.INT);
+    }
     g_dev_shutting_down = true;
     std.debug.print("\n{s}Stopping dev server...{s}\n", .{ Colors.gray, Colors.reset });
-    if (comptime builtin.os.tag != .windows) {
-        // Signal the app first so it can flush DebugAllocator / shutdown logs.
-        // Builder is stopped in `run` teardown *after* the runner has exited.
-        if (runner) |r| if (r.id) |pid| std.posix.kill(pid, std.posix.SIG.TERM) catch {};
-        // Unblock the main loop's builder-stderr read.
-        if (builder) |b| if (b.id) |pid| std.posix.kill(pid, std.posix.SIG.TERM) catch {};
+
+    if (builder) |b| {
+        if (b.id) |pid| {
+            sig.unwatchGroup(pid);
+            sig.killProcessGroup(pid, sig.force_kill);
+        }
     }
+
+    if (runner) |r| {
+        if (r.id) |pid| {
+            sig.unwatchGroup(pid);
+            const port = g_inner_port.load(.acquire);
+            if (port != 0) wakeLocalhostPort(port);
+
+            if (comptime builtin.os.tag == .windows) {
+                return;
+            }
+
+            sig.killProcessGroup(pid, std.posix.SIG.TERM);
+            if (port != 0) wakeLocalhostPort(port);
+            if (!sig.waitPidExit(pid, 15_000)) {
+                sig.killProcessGroup(pid, sig.force_kill);
+            }
+        }
+    }
+
+    if (comptime builtin.os.tag == .windows) return;
+    sig.raiseDefault(sig.received() orelse std.posix.SIG.INT);
 }
 
-/// Force-kill the app runner and reap it. Used when graceful stop times out.
+fn wakeLocalhostPort(port: u16) void {
+    if (g_dev_io) |io| {
+        wakeLocalhostIo(io, port);
+        return;
+    }
+    if (comptime builtin.os.tag == .windows or builtin.os.tag == .wasi) return;
+    const sock_rc = std.posix.system.socket(std.posix.AF.INET, std.posix.SOCK.STREAM, 0);
+    if (std.posix.errno(sock_rc) != .SUCCESS) return;
+    const sock: std.posix.fd_t = @intCast(sock_rc);
+    defer _ = std.posix.system.close(sock);
+    var addr = std.posix.sockaddr.in{
+        .port = std.mem.nativeToBig(u16, port),
+        .addr = std.mem.nativeToBig(u32, 0x7f000001),
+    };
+    _ = std.posix.system.connect(sock, @ptrCast(&addr), @sizeOf(@TypeOf(addr)));
+}
+
+fn ownProcessGroup() ?std.posix.pid_t {
+    return if (comptime builtin.os.tag == .windows) null else 0;
+}
+
+fn trackChildGroup(child: *const std.process.Child) void {
+    if (comptime builtin.os.tag == .windows) return;
+    if (child.id) |pid| sig.watchGroup(pid);
+}
+
+fn untrackChildGroup(child: *const std.process.Child) void {
+    if (comptime builtin.os.tag == .windows) return;
+    if (child.id) |pid| sig.unwatchGroup(pid);
+}
+
 fn killRunnerHard(r: *std.process.Child, io: std.Io) void {
     if (comptime builtin.os.tag != .windows) {
-        if (r.id) |pid| std.posix.kill(pid, std.posix.SIG.KILL) catch {};
+        if (r.id) |pid| std.posix.kill(pid, sig.force_kill) catch {};
     }
-    // Reap + close pipes. Process is dead or dying; ignore failures.
     r.kill(io);
 }
 
-/// SIGTERM the runner (via Child.kill), wake its accept loop from the parent,
-/// and wait for a clean exit so DebugAllocator / shutdown logs can flush.
-/// Falls back to SIGKILL if the process does not exit within `timeout_ms`.
+fn wakeLocalhostIo(io: std.Io, port: u16) void {
+    if (std.Io.net.IpAddress.parse("127.0.0.1", port)) |addr| {
+        if (addr.connect(io, .{ .mode = .stream })) |s| {
+            s.close(io);
+        } else |_| {}
+    } else |_| {}
+}
+
 fn stopRunnerGraceful(r: *std.process.Child, io: std.Io, inner_port: u16, timeout_ms: u64) void {
     if (r.id == null) {
         r.kill(io);
         return;
     }
 
-    if (std.Io.net.IpAddress.parse("127.0.0.1", inner_port)) |addr| {
-        if (addr.connect(io, .{ .mode = .stream })) |s| {
-            s.close(io);
-        } else |_| {}
-    } else |_| {}
+    wakeLocalhostIo(io, inner_port);
 
-    const Done = struct {
-        flag: std.atomic.Value(bool) = .init(false),
-    };
-    var done = Done{};
-    const WaitCtx = struct {
-        child: *std.process.Child,
-        io: std.Io,
-        done: *Done,
-        fn run(ctx: @This()) void {
-            // Child.kill = SIGTERM + wait + fd cleanup.
-            ctx.child.kill(ctx.io);
-            ctx.done.flag.store(true, .release);
+    if (r.id) |pid| {
+        if (sig.waitPidExit(pid, timeout_ms)) {
+            _ = r.wait(io) catch {};
+            return;
         }
-    };
-    const waiter = std.Thread.spawn(.{}, WaitCtx.run, .{WaitCtx{ .child = r, .io = io, .done = &done }}) catch {
-        killRunnerHard(r, io);
-        return;
-    };
-
-    // Also wake after the waiter has signaled TERM, in case accept raced.
-    if (std.Io.net.IpAddress.parse("127.0.0.1", inner_port)) |addr| {
-        if (addr.connect(io, .{ .mode = .stream })) |s| {
-            s.close(io);
-        } else |_| {}
-    } else |_| {}
-
-    const begin = std.Io.Timestamp.now(io, .awake);
-    while (!done.flag.load(.acquire)) {
-        const elapsed: u64 = @intCast(begin.durationTo(std.Io.Timestamp.now(io, .awake)).toMilliseconds());
-        if (elapsed >= timeout_ms) {
-            if (comptime builtin.os.tag != .windows) {
-                if (r.id) |pid| std.posix.kill(pid, std.posix.SIG.KILL) catch {};
-            }
-            break;
-        }
-        std.Io.sleep(io, .fromMilliseconds(20), .awake) catch {};
     }
-    waiter.join();
+
+    killRunnerHard(r, io);
 }
 
 fn waitUntilPortFree(io: std.Io, port: u16, timeout_ms: u64) bool {
@@ -114,12 +145,20 @@ fn waitUntilPortFree(io: std.Io, port: u16, timeout_ms: u64) bool {
 }
 
 pub fn run(ctx: CommandContext, args: anytype) !void {
+    var fatal_sig: ?std.posix.SIG = null;
+    defer if (fatal_sig) |s| sig.raiseDefault(s);
+    try runSupervised(ctx, args, &fatal_sig);
+}
+
+fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG) !void {
     const app = ctx.app;
     const io = app.io;
+    g_dev_io = io;
     const env_map = app.environ_map;
 
-    sig.register(onDevShutdown);
-    defer sig.unregister();
+    try sig.install();
+    defer sig.uninstall();
+    sig.addListener(onDevShutdown);
 
     const allocator = ctx.allocator;
     const binpath = args.binpath;
@@ -205,6 +244,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
         return;
     }
     dev_server.inner_port = inner_port;
+    g_inner_port.store(inner_port, .release);
 
     const inner_port_str = try std.fmt.allocPrint(allocator, "{d}", .{inner_port});
     defer allocator.free(inner_port_str);
@@ -222,18 +262,22 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
         .argv = build_args_array.items,
         .stderr = .pipe,
         .stdout = .ignore,
+        .pgid = ownProcessGroup(),
     });
+    trackChildGroup(&builder.?);
 
     var build_state = Builder.BuildState.init(allocator);
     defer build_state.deinit();
 
     var runner_output: ?util.ChildOutput = null;
     var program_path: ?[]const u8 = null;
+    var runner_temp: ?util.TempDir = null;
+    var runnable_path_owned: ?[]const u8 = null;
 
-    // Teardown order matters: wait for the app to finish (and flush stderr) before
-    // killing the builder / returning to the shell.
+    // Wait for the app (stderr flush) before killing the builder.
     defer {
         if (runner) |*r| {
+            untrackChildGroup(r);
             stopRunnerGraceful(r, io, inner_port, 15_000);
             runner = null;
         }
@@ -243,9 +287,12 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
             runner_output = null;
         }
         if (builder) |*b| {
+            untrackChildGroup(b);
             b.kill(io);
             builder = null;
         }
+        if (runnable_path_owned) |p| allocator.free(p);
+        if (runner_temp) |*t| t.deinit(io, allocator);
         if (program_path) |p| allocator.free(p);
     }
 
@@ -268,7 +315,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
     var pending_no_change = false;
 
     while (true) {
-        if (g_dev_shutting_down) break;
+        if (g_dev_shutting_down or sig.interrupted()) break;
 
         // Populate `line_writer`, then strip ANSI in place (no per-line alloc).
         _ = if (pending_no_change) blk: {
@@ -431,6 +478,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
                     // Graceful SIGTERM so DebugAllocator can print leaks on
                     // restart; SIGKILL only if stop hangs past the timeout.
                     if (runner) |*r| {
+                        untrackChildGroup(r);
                         stopRunnerGraceful(r, io, inner_port, 3000);
                         runner = null;
                     }
@@ -448,7 +496,25 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
                         };
                     }
 
-                    const runnable_path = try util.getRunnablePath(io, allocator, program_path.?);
+                    if (runnable_path_owned) |p| {
+                        allocator.free(p);
+                        runnable_path_owned = null;
+                    }
+                    if (runner_temp) |*t| {
+                        t.deinit(io, allocator);
+                        runner_temp = null;
+                    }
+
+                    const runnable_path = if (comptime builtin.os.tag == .windows) blk: {
+                        runner_temp = try util.TempDir.init(io, allocator);
+                        errdefer {
+                            runner_temp.?.deinit(io, allocator);
+                            runner_temp = null;
+                        }
+                        const path = try util.getRunnablePath(io, allocator, program_path.?, runner_temp.?);
+                        runnable_path_owned = path;
+                        break :blk path;
+                    } else program_path.?;
 
                     if (clear_on_restart) {
                         try ctx.writer.print("\x1b[2J\x1b[H", .{});
@@ -475,7 +541,9 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
                         .environ_map = env_map,
                         .stderr = .pipe,
                         .stdout = .pipe,
+                        .pgid = ownProcessGroup(),
                     });
+                    trackChildGroup(&runner.?);
 
                     runner_output = try util.captureChildOutput(io, allocator, &runner.?, .{
                         .stderr = .{ .mode = .transparent, .target = .stderr },
@@ -516,6 +584,8 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
     if (pending_no_change) {
         try emitNoChange(&ctx, &dev_server, use_spinner, rebuilding_shown, last_was_no_change);
     }
+
+    fatal_sig.* = sig.received();
 }
 
 fn readOneLine(

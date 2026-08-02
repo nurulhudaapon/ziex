@@ -101,31 +101,36 @@ pub fn Server(comptime H: type) type {
 
         pub fn stop(self: *Self) void {
             if (self.shutting_down.swap(true, .acq_rel)) return;
-            wakeAcceptRaw(self.inner_port orelse self.port);
+            wakeAccept(self.io, self.inner_port orelse self.port);
             shutdownLiveFds(self);
         }
 
         fn trackLiveFd(self: *Self, fd: std.posix.fd_t) void {
-            const as_i: i32 = @intCast(fd);
-            for (&self.live_fds) |*slot| {
-                if (slot.cmpxchgStrong(-1, as_i, .acq_rel, .acquire) == null) return;
+            if (comptime builtin.os.tag != .windows and builtin.os.tag != .wasi) {
+                const as_i: i32 = @intCast(fd);
+                for (&self.live_fds) |*slot| {
+                    if (slot.cmpxchgStrong(-1, as_i, .acq_rel, .acquire) == null) return;
+                }
             }
         }
 
         fn untrackLiveFd(self: *Self, fd: std.posix.fd_t) void {
-            const as_i: i32 = @intCast(fd);
-            for (&self.live_fds) |*slot| {
-                _ = slot.cmpxchgStrong(as_i, -1, .acq_rel, .acquire);
+            if (comptime builtin.os.tag != .windows and builtin.os.tag != .wasi) {
+                const as_i: i32 = @intCast(fd);
+                for (&self.live_fds) |*slot| {
+                    _ = slot.cmpxchgStrong(as_i, -1, .acq_rel, .acquire);
+                }
             }
         }
 
         fn shutdownLiveFds(self: *Self) void {
-            if (comptime builtin.os.tag == .windows or builtin.os.tag == .wasi) return;
-            for (&self.live_fds) |*slot| {
-                const fd_i = slot.swap(-1, .acq_rel);
-                if (fd_i < 0) continue;
-                const fd: std.posix.fd_t = @intCast(fd_i);
-                _ = std.posix.system.shutdown(fd, std.posix.SHUT.RDWR);
+            if (comptime builtin.os.tag != .windows and builtin.os.tag != .wasi) {
+                for (&self.live_fds) |*slot| {
+                    const fd_i = slot.swap(-1, .acq_rel);
+                    if (fd_i < 0) continue;
+                    const fd: std.posix.fd_t = @intCast(fd_i);
+                    _ = std.posix.system.shutdown(fd, std.posix.SHUT.RDWR);
+                }
             }
         }
 
@@ -292,8 +297,9 @@ pub fn Server(comptime H: type) type {
             while (true) {
                 if (self.shutting_down.load(.acquire)) return;
                 var request = http_server.receiveHead() catch return;
+                const persistent = request.head.keep_alive;
                 const keep_going = self.serveRequest(&request) catch return;
-                if (!keep_going) return;
+                if (!keep_going or !persistent) return;
             }
         }
 
@@ -749,19 +755,12 @@ fn resolveAddress(address_str: []const u8, port: u16) std.Io.net.IpAddress {
     return std.Io.net.IpAddress.parse(addr, port) catch (std.Io.net.IpAddress.parse("0.0.0.0", port) catch unreachable);
 }
 
-fn wakeAcceptRaw(port: u16) void {
-    if (comptime builtin.os.tag == .windows or builtin.os.tag == .wasi) return;
-
-    const sock_rc = std.posix.system.socket(std.posix.AF.INET, std.posix.SOCK.STREAM, 0);
-    if (std.posix.errno(sock_rc) != .SUCCESS) return;
-    const sock: std.posix.fd_t = @intCast(sock_rc);
-    defer _ = std.posix.system.close(sock);
-
-    var addr = std.posix.sockaddr.in{
-        .port = std.mem.nativeToBig(u16, port),
-        .addr = std.mem.nativeToBig(u32, 0x7f000001),
-    };
-    _ = std.posix.system.connect(sock, @ptrCast(&addr), @sizeOf(@TypeOf(addr)));
+fn wakeAccept(io: std.Io, port: u16) void {
+    if (comptime builtin.os.tag == .wasi) return;
+    const addr = std.Io.net.IpAddress.parse("127.0.0.1", port) catch return;
+    if (addr.connect(io, .{ .mode = .stream })) |s| {
+        s.close(io);
+    } else |_| {}
 }
 
 fn parseEnvPort(alloc: std.mem.Allocator, inita: zx.Init, name: []const u8) ?u16 {
