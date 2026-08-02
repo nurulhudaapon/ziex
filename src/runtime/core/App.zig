@@ -41,7 +41,8 @@ pub fn init(inita: zx.Init, process_io: anytype, alloc: std.mem.Allocator, confi
                 const Transport = switch (app_opts.server_backend) {
                     .std => Server.Std,
                     .httpz => Server.Httpz,
-                    .auto => if (comptime builtin.optimize == .debug) Server.Std else Server.Httpz,
+                    // .auto => if (comptime builtin.optimize == .debug) Server.Std else Server.Httpz,
+                    .auto => Server.Httpz, // default to httpz for now
                 };
                 const instance = try Transport.Server(H).init(io_value, alloc, cfg, app_ctx, inita);
                 return Server.bind(@TypeOf(instance.*), instance, alloc);
