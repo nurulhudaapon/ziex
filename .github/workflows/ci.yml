@@ -25,6 +25,8 @@ on:
       - 'vendor/**'
       - 'build.zig'
       - 'build.zig.zon'
+  workflow_dispatch:
+
 
 jobs:
   build:
