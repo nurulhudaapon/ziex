@@ -12,6 +12,7 @@
             // TODO: publish to github packages and use from there instead
             .url = "https://registry.npmjs.org/ziex/-/ziex-0.1.0-dev.1466.tgz",
             .hash = "ziex_js-0.1.0-dev-v1W0GeM6BQDWWxchSELbciRwuCD2-05tUVccbHY9MlCc",
+            .lazy = true,
         },
         .ziex_jsbindings = .{ .path = "pkg/ziex", .lazy = true }, // source of JS Bindings to be built with esbuild
         // httpz - HTTP server for Ziex
@@ -28,6 +29,7 @@
         .lsp_kit = .{
             .url = "git+https://github.com/zigtools/lsp-kit.git#d148676ace1eaecf3c703ce7d350d0e94e502ed7",
             .hash = "lsp_kit-0.1.0-bi_PLwc2DACoR7VTz_qKFXUvtx7veHvWcTQvP9pDFLpk",
+            .lazy = true,
         },
         .db_sqlite = .{ .path = "pkg/db-sqlite", .lazy = true },
         .db_postgres = .{ .path = "pkg/db-postgres", .lazy = true },

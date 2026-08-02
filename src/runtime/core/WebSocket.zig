@@ -145,7 +145,7 @@ pub const WebSocketError = error{
 };
 
 // TODO: remove these stubs
-const server_impl = if (!is_wasm) @import("App/Server/Httpz.zig").websocket else struct {
+const server_impl = if (!is_wasm and @import("app_opts").enable_httpz) @import("App/Server/Httpz.zig").websocket else struct {
     pub fn connect(_: *WebSocket) WebSocketError!void {
         return error.UnsupportedPlatform;
     }

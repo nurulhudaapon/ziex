@@ -111,19 +111,18 @@ pub fn build(b: *std.Build) !void {
     cli_mod.addOptions("build_options", exe_build_options);
     cli_mod.addAnonymousImport("app_template", .{ .root_source_file = b.path("templates/Template.zig") });
 
-    var lsp_kit_mod: ?*std.Build.Module = null;
     if (enable_lsp) {
-        const lsp_kit_dep = b.dependency("lsp_kit", .{ .target = target, .optimize = optimize });
-        lsp_kit_mod = lsp_kit_dep.module("lsp");
-        cli_mod.addImport("lsp", lsp_kit_mod.?);
+        if (b.lazyDependency("lsp_kit", .{ .target = target, .optimize = optimize })) |lsp_kit| {
+            cli_mod.addImport("lsp", lsp_kit.module("lsp"));
+        }
+
+        if (b.lazyDependency("zls", .{ .target = target, .optimize = optimize })) |zls| {
+            cli_mod.addImport("zls", zls.module("zls"));
+        }
     }
 
     const exe = b.addExecutable(.{ .name = "zx", .root_module = cli_mod });
     if (enable_lsp and target.result.cpu.arch.isWasm()) exe.rdynamic = true;
-    if (enable_lsp) {
-        const zls_dep = b.lazyDependency("zls", .{ .target = target, .optimize = optimize });
-        if (zls_dep) |zls| cli_mod.addImport("zls", zls.module("zls"));
-    }
     b.installArtifact(exe);
 
     // --- Steps: Run --- //
@@ -155,10 +154,6 @@ pub fn build(b: *std.Build) !void {
                     .root_source_file = b.path("src/lsp/root.zig"),
                     .imports = &.{
                         .{ .name = "lang", .module = lang_mod },
-                        .{ .name = "lsp", .module = b.dependency("lsp_kit", .{
-                            .target = target,
-                            .optimize = optimize,
-                        }).module("lsp") },
                     },
                 }) },
                 .{ .name = "builder", .module = b.createModule(.{
@@ -166,6 +161,18 @@ pub fn build(b: *std.Build) !void {
                 }) },
             },
         });
+        const html_hover_mod = b.createModule(.{
+            .root_source_file = b.path("src/lsp/root.zig"),
+            .imports = &.{
+                .{ .name = "lang", .module = lang_mod },
+            },
+        });
+
+        if (enable_lsp)
+            if (b.lazyDependency("lsp_kit", .{ .target = target, .optimize = optimize })) |lsp_kit| {
+                html_hover_mod.addImport("lsp", lsp_kit.module("lsp"));
+            };
+
         const testing_mod_tests = b.addTest(.{
             .root_module = testing_mod,
             .test_runner = .{ .path = b.path("test/runner.zig"), .mode = .simple },

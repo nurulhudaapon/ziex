@@ -26,8 +26,10 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     const zx_dep = b.dependencyFromBuildZig(build_zig, .{
         .optimize = optimize,
         .target = target,
+
         .@"feature-sqlite" = if (options.app != null and options.app.?.features.sqlite != null) true else null,
         .@"feature-postgres" = if (options.app != null and options.app.?.features.postgres != null) true else null,
+
         .@"enable-httpz" = enable_httpz,
         .lsp = false,
     });
@@ -38,24 +40,28 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         .@"cli-log-level" = options.cli.log_level,
     });
 
-    const zx_module = zx_dep.module("zx");
-
     const zx_cli = zx_host_dep.artifact("zx");
 
     const client = if (options.app) |app| app.client else InitOptions.ClientOptions.default;
     const features = if (options.app) |app| app.features else InitOptions.AppOptions.FeatureOptions.default;
+
     const build_client_wasm = client.wasm.link;
     const wasm_optimize = client.wasm.optimize orelse optimize;
+
+    const zx_module = zx_dep.module("zx");
     const zx_wasm_module: ?*std.Build.Module = if (build_client_wasm) blk: {
         const zx_wasm_dep = b.dependencyFromBuildZig(build_zig, .{
             .optimize = wasm_optimize,
             .target = wasm_target,
+
+            .lsp = false,
             .@"is-client" = true,
         });
         break :blk zx_wasm_dep.module("zx");
     } else null;
+
     const ziex_js_root: LazyPath = if (client.bindings.build != null) blk: {
-        const jsbindings_dep = zx_dep.builder.dependency("ziex_jsbindings", .{
+        const jsbindings_dep = zx_dep.builder.lazyDependency("ziex_jsbindings", .{
             .optimize = optimize,
             .target = target,
             .@"type-decl" = false,
@@ -63,9 +69,12 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
             .@"feature-kv-server" = if (features.kv) |k| k.server != null else false,
             .@"feature-sqlite" = if (features.sqlite) |s| s.server != null else false,
             .@"feature-wasm-client" = build_client_wasm,
-        });
+        }) orelse break :blk b.path(".");
         break :blk jsbindings_dep.namedWriteFiles("ziex_js").getDirectory();
-    } else zx_dep.builder.dependency("ziex_js", .{}).path(".");
+    } else blk: {
+        const ziex_js_dep = zx_dep.builder.lazyDependency("ziex_js", .{}) orelse break :blk b.path(".");
+        break :blk ziex_js_dep.path(".");
+    };
 
     var opts: Resolved = .{
         .base_path = null,
@@ -109,18 +118,14 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
     const is_dev_build = std.mem.eql(u8, cli_command_opt orelse "--", "dev");
     const incremental = b.option(bool, "incremental", "Enable incremental build") orelse false;
 
-    const app_opts = b.addOptions();
-    app_opts.addOption(?[]const u8, "app_base_path", opts.base_path);
-    app_opts.addOption(?u16, "server_port", port_opt);
-    app_opts.addOption(?[]const u8, "server_address", address_opt);
-    app_opts.addOption([]const u8, "cli_command", cli_command_opt orelse "--");
-    app_opts.addOption(InitOptions.AppOptions.Server.Backend, "server_backend", server_backend);
-    app_opts.addOption(bool, "feat_sqlite_server", if (opts.features.sqlite) |s| s.server != null else false);
-    app_opts.addOption(bool, "feat_pg_server", if (opts.features.postgres) |s| s.server != null else false);
-    app_opts.addOption(bool, "feat_kv_server", if (opts.features.kv) |k| k.server != null else false);
-    app_opts.addOption(bool, "feat_kv_client", if (opts.features.kv) |k| k.client != null else false);
-    app_opts.addOption(bool, "feat_cache_server", if (opts.features.cache) |c| c.server != null else false);
-
+    const app_opts = addAppOpts(b, .{
+        .base_path = opts.base_path,
+        .server_port = port_opt,
+        .server_address = address_opt,
+        .cli_command = cli_command_opt orelse "--",
+        .enable_httpz = enable_httpz,
+        .features = opts.features,
+    });
     zx_module.addOptions("app_opts", app_opts);
 
     // --- Dirs Setup --- //
@@ -371,7 +376,16 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
             .root_source_file = transpile_store.path(b, "app.zig"),
             .imports = wasm_app_imports.items,
         });
-        wasm_app_module.addOptions("app_opts", app_opts);
+        // Client/wasm builds must not analyze Httpz (no httpz module on that dep).
+        wasm_app_module.addOptions("app_opts", addAppOpts(b, .{
+            .base_path = opts.base_path,
+            .server_port = port_opt,
+            .server_address = address_opt,
+            .cli_command = cli_command_opt orelse "--",
+            .enable_httpz = false,
+            .features = opts.features,
+        }));
+
         wasm_exe.root_module.addImport("zx", wasm_app_module);
         wasm_exe.step.dependOn(&transpile_cmd.step);
 
@@ -516,6 +530,30 @@ const Resolved = struct {
     server_only_stub_mode: ServerOnlyStubMode = .strict,
     zig_path: []const u8,
 };
+
+const AppOptsParams = struct {
+    base_path: ?[]const u8,
+    server_port: ?u16,
+    server_address: ?[]const u8,
+    cli_command: []const u8,
+    enable_httpz: bool,
+    features: InitOptions.AppOptions.FeatureOptions,
+};
+
+fn addAppOpts(b: *std.Build, params: AppOptsParams) *std.Build.Step.Options {
+    const app_opts = b.addOptions();
+    app_opts.addOption(?[]const u8, "app_base_path", params.base_path);
+    app_opts.addOption(?u16, "server_port", params.server_port);
+    app_opts.addOption(?[]const u8, "server_address", params.server_address);
+    app_opts.addOption([]const u8, "cli_command", params.cli_command);
+    app_opts.addOption(bool, "enable_httpz", params.enable_httpz);
+    app_opts.addOption(bool, "feat_sqlite_server", if (params.features.sqlite) |s| s.server != null else false);
+    app_opts.addOption(bool, "feat_pg_server", if (params.features.postgres) |s| s.server != null else false);
+    app_opts.addOption(bool, "feat_kv_server", if (params.features.kv) |k| k.server != null else false);
+    app_opts.addOption(bool, "feat_kv_client", if (params.features.kv) |k| k.client != null else false);
+    app_opts.addOption(bool, "feat_cache_server", if (params.features.cache) |c| c.server != null else false);
+    return app_opts;
+}
 
 fn cliRun(b: *std.Build, zx_exe: *std.Build.Step.Compile, opts: Resolved) *std.Build.Step.Run {
     if (opts.cli_path) |cli_path| {

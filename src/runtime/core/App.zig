@@ -38,12 +38,7 @@ pub fn init(inita: zx.Init, process_io: anytype, alloc: std.mem.Allocator, confi
             .wasi => return Wasm.app(inita),
             else => {
                 const io_value = if (@TypeOf(process_io) == std.Io) process_io else return error.InvalidIo;
-                const Transport = switch (app_opts.server_backend) {
-                    .std => Server.Std,
-                    .httpz => Server.Httpz,
-                    // .auto => if (comptime builtin.optimize == .debug) Server.Std else Server.Httpz,
-                    .auto => Server.Httpz, // default to httpz for now
-                };
+                const Transport = if (comptime app_opts.enable_httpz) Server.Httpz else Server.Std;
                 const instance = try Transport.Server(H).init(io_value, alloc, cfg, app_ctx, inita);
                 return Server.bind(@TypeOf(instance.*), instance, alloc);
             },
