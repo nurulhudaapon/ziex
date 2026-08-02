@@ -50,13 +50,13 @@ fn onDevShutdown() void {
             if (port != 0) wakeLocalhostPort(port);
 
             if (comptime builtin.os.tag == .windows) {
-                return;
-            }
-
-            sig.killProcessGroup(pid, std.posix.SIG.TERM);
-            if (port != 0) wakeLocalhostPort(port);
-            if (!sig.waitPidExit(pid, 15_000)) {
                 sig.killProcessGroup(pid, sig.force_kill);
+            } else {
+                sig.killProcessGroup(pid, std.posix.SIG.TERM);
+                if (port != 0) wakeLocalhostPort(port);
+                if (!sig.waitPidExit(pid, 15_000)) {
+                    sig.killProcessGroup(pid, sig.force_kill);
+                }
             }
         }
     }

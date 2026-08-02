@@ -441,7 +441,7 @@ fn test_cmd_blocking(options: TestCmdBlockingOptions) !void {
         .stdout = .ignore,
         .stderr = .pipe,
     });
-    defer child.kill(io);
+    defer killChildTree(&child, io);
 
     const Reader = struct {
         fn run(
@@ -579,20 +579,43 @@ fn getTestDirPath() ![]const u8 {
     return try std.fs.path.join(allocator, &.{ cwd, "test/tmp" });
 }
 
+/// Terminate `child` and, on Windows, its descendants (`taskkill /T`).
+fn killChildTree(child: *std.process.Child, io: std.Io) void {
+    if (comptime builtin.os.tag == .windows) {
+        if (child.id) |handle| {
+            const pid = win32.GetProcessId(handle);
+            if (pid != 0) {
+                var pid_buf: [16]u8 = undefined;
+                if (std.fmt.bufPrint(&pid_buf, "{d}", .{pid})) |pid_str| {
+                    const result = std.process.run(allocator, io, .{
+                        .argv = &.{ "taskkill", "/T", "/F", "/PID", pid_str },
+                        .stdout_limit = .limited(4096),
+                        .stderr_limit = .limited(4096),
+                    }) catch null;
+                    if (result) |r| {
+                        allocator.free(r.stdout);
+                        allocator.free(r.stderr);
+                    }
+                } else |_| {}
+            }
+        }
+    }
+    child.kill(io);
+}
+
 fn killPort(port: []const u8) !void {
     const target_os = builtin.target.os.tag;
 
     if (target_os == .windows) {
-        // Windows: Use PowerShell to find and kill process on port
-        const ps_command = try std.fmt.allocPrint(
+        const cmd = try std.fmt.allocPrint(
             allocator,
-            "Get-NetTCPConnection -LocalPort {s} -ErrorAction SilentlyContinue | ForEach-Object {{ Stop-Process -Id $_.OwningProcess -Force }}",
+            "for /f \"tokens=5\" %a in ('netstat -ano ^| findstr \":{s}\"') do @taskkill /F /PID %a >nul 2>&1",
             .{port},
         );
-        defer allocator.free(ps_command);
+        defer allocator.free(cmd);
 
         const result = std.process.run(allocator, std.testing.io, .{
-            .argv = &.{ "powershell", "-Command", ps_command },
+            .argv = &.{ "cmd", "/C", cmd },
             .stdout_limit = .limited(8192),
             .stderr_limit = .limited(8192),
         }) catch return;
@@ -612,6 +635,10 @@ fn killPort(port: []const u8) !void {
         defer allocator.free(result.stderr);
     }
 }
+
+const win32 = if (builtin.os.tag == .windows) struct {
+    pub extern "kernel32" fn GetProcessId(hProcess: std.os.windows.HANDLE) callconv(.winapi) std.os.windows.DWORD;
+} else struct {};
 
 const allocator = std.testing.allocator;
 const test_util = @import("./../util.zig");

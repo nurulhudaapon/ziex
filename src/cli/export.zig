@@ -233,12 +233,18 @@ fn waitForServerRetry(
 }
 
 fn tryReapChild(child: *std.process.Child) ?std.process.Child.Term {
-    if (builtin.os.tag == .windows) return null;
-    const pid = child.id orelse return null;
+    const id = child.id orelse return null;
+
+    if (comptime builtin.os.tag == .windows) {
+        var exit_code: std.os.windows.DWORD = undefined;
+        if (win32.GetExitCodeProcess(id, &exit_code) == .FALSE) return null;
+        if (exit_code == win32.STILL_ACTIVE) return null;
+        return .{ .exited = @truncate(exit_code) };
+    }
 
     var status: if (builtin.link_libc) c_int else i32 = undefined;
     while (true) {
-        const rc = std.posix.system.waitpid(pid, &status, std.posix.W.NOHANG);
+        const rc = std.posix.system.waitpid(id, &status, std.posix.W.NOHANG);
         switch (std.posix.errno(rc)) {
             .SUCCESS => {
                 if (rc == 0) return null; // still running
@@ -254,6 +260,14 @@ fn tryReapChild(child: *std.process.Child) ?std.process.Child.Term {
         }
     }
 }
+
+const win32 = if (builtin.os.tag == .windows) struct {
+    pub extern "kernel32" fn GetExitCodeProcess(
+        hProcess: std.os.windows.HANDLE,
+        lpExitCode: *std.os.windows.DWORD,
+    ) callconv(.winapi) std.os.windows.BOOL;
+    pub const STILL_ACTIVE: std.os.windows.DWORD = 259;
+} else struct {};
 
 fn termFromWaitStatus(status: u32) std.process.Child.Term {
     if (std.posix.W.IFEXITED(status)) return .{ .exited = std.posix.W.EXITSTATUS(status) };
