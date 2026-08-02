@@ -468,7 +468,7 @@ fn test_transpile_inner(comptime file_path: []const u8, comptime no_expect: bool
     defer result.deinit(allocator);
 
     // Check for SS=1 environment variable
-    if (isSnapshotMode()) {
+    if (test_util.isSnapshotMode()) {
         // Save the transpiled output to .zig file
         std.Io.Dir.cwd().writeFile(std.testing.io, .{ .sub_path = output_zig_path, .data = result.zig_source }) catch |err| {
             std.debug.print("Failed to create snapshot file {s}: {}\n", .{ output_zig_path, err });
@@ -624,7 +624,7 @@ fn test_render_inner_with_cmp(comptime file_path: []const u8, comptime cmp: fn (
     const html_path = "test/data/" ++ file_path ++ ".html";
 
     // Check for SS=1 environment variable
-    if (isSnapshotMode()) {
+    if (test_util.isSnapshotMode()) {
         // Save the rendered output to .html file
         std.Io.Dir.cwd().writeFile(std.testing.io, .{ .sub_path = html_path, .data = rendered }) catch |err| {
             std.log.err("Failed to create snapshot file {s}: {}\n", .{ html_path, err });
@@ -648,10 +648,6 @@ fn expectLessThan(expected: f64, actual: f64) !void {
         std.debug.print("\x1b[31m✗\x1b[0m Expected < {d:.2}ms, got {d:.2}ms\n", .{ expected, actual });
         return error.TestExpectedLessThan;
     }
-}
-
-fn isSnapshotMode() bool {
-    return testing.environ.contains(testing.allocator, "SS") catch false;
 }
 
 var test_file_cache: ?TestFileCache = null;

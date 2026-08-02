@@ -2,6 +2,11 @@ const std = @import("std");
 const testing = std.testing;
 const lang = @import("lang");
 const sourcemap = lang.sourcemap;
+const test_util = @import("./../util.zig");
+
+test "tests:beforeAll" {
+    test_util.loadEnvFlags();
+}
 
 test "sm > serialize/deserialize roundtrip" {
     const allocator = testing.allocator;
@@ -578,7 +583,7 @@ test "sm > golden file mappings" {
 
         const map_path = tf.map_path;
 
-        if (isSnapshotMode()) {
+        if (test_util.isSnapshotMode()) {
             std.Io.Dir.cwd().writeFile(std.testing.io, .{ .sub_path = map_path, .data = actual }) catch |err| {
                 std.debug.print("Failed to create {s}: {}\n", .{ map_path, err });
                 return err;
@@ -613,7 +618,7 @@ test "sm > golden file mappings" {
 }
 
 test "sm > generate position map debug files" {
-    if (!shouldGenerateDebugFiles()) return;
+    if (!test_util.shouldGenerateDebugFiles()) return;
 
     const allocator = testing.allocator;
     std.Io.Dir.cwd().createDirPath(std.testing.io, ".zig-cache/tmp/.zx/sourcemap-debug") catch {};
@@ -673,18 +678,6 @@ const sm_test_files = [_]SmTestFile{
     .{ .zx_path = "test/data/component/basic.zx", .name = "basic", .map_path = "test/data/component/basic.map" },
     .{ .zx_path = "test/data/attribute/dynamic.zx", .name = "dynamic", .map_path = "test/data/attribute/dynamic.map" },
 };
-
-fn isSnapshotMode() bool {
-    const val = std.testing.environ.getAlloc(testing.allocator, "SS") catch return false;
-    testing.allocator.free(val);
-    return true;
-}
-
-fn shouldGenerateDebugFiles() bool {
-    const val = std.testing.environ.getAlloc(testing.allocator, "SM_DEBUG") catch return false;
-    testing.allocator.free(val);
-    return true;
-}
 
 fn writeFile(path: []const u8, content: []const u8) !void {
     try std.Io.Dir.cwd().writeFile(std.testing.io, .{ .sub_path = path, .data = content });

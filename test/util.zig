@@ -102,6 +102,8 @@ pub const TestFileCache = struct {
         "escaping/quotes",
     };
     pub fn init(allocator: std.mem.Allocator) !TestFileCache {
+        loadEnvFlags();
+
         var cache = TestFileCache{
             .files = std.StringHashMap([]const u8).init(allocator),
             .allocator = allocator,
@@ -170,12 +172,39 @@ pub const TestFileCache = struct {
     }
 };
 
+const EnvFlags = struct {
+    slow: bool = false,
+    network: bool = false,
+    snapshot: bool = false,
+    sm_debug: bool = false,
+    loaded: bool = false,
+};
+
+var env_flags: EnvFlags = .{};
+
+pub fn loadEnvFlags() void {
+    if (env_flags.loaded) return;
+    env_flags.slow = testing.environ.containsConstant("E2E");
+    env_flags.network = testing.environ.containsConstant("E2E_NET");
+    env_flags.snapshot = testing.environ.containsConstant("SS");
+    env_flags.sm_debug = testing.environ.containsConstant("SM_DEBUG");
+    env_flags.loaded = true;
+}
+
 pub fn shouldRunSlowTest() bool {
-    return testing.environ.contains(testing.allocator, "E2E") catch false;
+    return env_flags.slow;
 }
 
 pub fn shouldRunNetworkTest() bool {
-    return testing.environ.contains(testing.allocator, "E2E_NET") catch false;
+    return env_flags.network;
+}
+
+pub fn isSnapshotMode() bool {
+    return env_flags.snapshot;
+}
+
+pub fn shouldGenerateDebugFiles() bool {
+    return env_flags.sm_debug;
 }
 
 /// Throughput for perf prints. Formats as MB/s when ≥ 1 MB/s, otherwise KB/s (SI units).
