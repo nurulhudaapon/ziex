@@ -95,12 +95,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
         .stdout = .inherit,
         .stderr = .inherit,
     });
-    defer {
-        app_child.kill(io);
-    }
-    errdefer {
-        app_child.kill(io);
-    }
+    defer killExportApp(&app_child, io);
 
     var printer = tui.Printer.init(ctx.allocator, .{ .file_path_mode = .flat, .file_tree_max_depth = 1 });
     defer printer.deinit();
@@ -279,7 +274,7 @@ fn termFromWaitStatus(status: u32) std.process.Child.Term {
 fn logChildTermination(term: std.process.Child.Term) void {
     switch (term) {
         .exited => |code| log.err("Export server exited unexpectedly (exit {d})", .{code}),
-        .signal => |sig| log.err("Export server terminated by signal {d} (likely panic/abort)", .{@intFromEnum(sig)}),
+        .signal => |sig| log.err("Export server terminated by signal {d} (likely panic/abort)", .{@backingInt(sig)}),
         else => |v| log.err("Export server terminated unexpectedly: {any}", .{v}),
     }
 }
@@ -327,6 +322,7 @@ fn processRoute(
     log.debug("Fetching {s} kind={s} url={s}", .{ route.path, @tagName(export_type), url });
 
     var req = try client.request(.GET, uri, .{
+        .keep_alive = false,
         .extra_headers = if (export_type == .notfound) &extra_headers else &.{},
     });
     defer req.deinit();
@@ -522,6 +518,7 @@ fn fetchStaticParams(io: std.Io, allocator: std.mem.Allocator, host: []const u8,
     const result = try client.fetch(.{
         .method = .GET,
         .location = .{ .url = url },
+        .keep_alive = false,
         .extra_headers = &extra_headers,
         .response_writer = &aw.writer,
     });
@@ -601,6 +598,25 @@ fn expandDynamicPath(allocator: std.mem.Allocator, route_path: []const u8, param
     }
 
     return out.toOwnedSlice();
+}
+
+fn killExportApp(child: *std.process.Child, io: std.Io) void {
+    const id = child.id orelse return;
+
+    if (comptime builtin.os.tag == .windows) {
+        _ = std.os.windows.ntdll.NtTerminateProcess(id, @fromBackingInt(1));
+
+        const timeout: std.os.windows.LARGE_INTEGER = -2 * std.time.ns_per_s / 100;
+        _ = std.os.windows.ntdll.NtWaitForSingleObject(id, .FALSE, &timeout);
+
+        std.os.windows.CloseHandle(id);
+        child.id = null;
+        std.os.windows.CloseHandle(child.thread_handle);
+        child.thread_handle = undefined;
+        return;
+    }
+
+    child.kill(io);
 }
 
 fn findStaticParamValue(params: []const options_mod.StaticParam, key: []const u8) ?[]const u8 {

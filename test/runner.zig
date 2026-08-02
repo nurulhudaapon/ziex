@@ -38,6 +38,8 @@ pub fn main(init: std.process.Init) !void {
 
     var slowest = SlowTracker.init(allocator, io, 15);
     defer slowest.deinit(allocator);
+    var failures = FailureTracker.init();
+    defer failures.deinit(allocator);
 
     var pass: usize = 0;
     var fail: usize = 0;
@@ -152,6 +154,7 @@ pub fn main(init: std.process.Init) !void {
             else => {
                 status = .fail;
                 fail += 1;
+                failures.add(allocator, scope_name, friendly_name, err, if (retried) attempt else 0);
                 if (retried) {
                     Printer.status(.fail, "\n{s}\n\"{s}\" - {s} (after {d} retries)\n{s}\n", .{ BORDER, friendly_name, @errorName(err), attempt, BORDER });
                 } else {
@@ -228,6 +231,7 @@ pub fn main(init: std.process.Init) !void {
     }
     Printer.fmt("\n", .{});
     try slowest.display();
+    failures.display();
     Printer.fmt("\n", .{});
     std.process.exit(if (fail == 0) 0 else 1);
 }
@@ -255,6 +259,60 @@ const Status = enum {
     skip,
     todo,
     text,
+};
+
+const FailureTracker = struct {
+    failures: std.ArrayList(FailureInfo),
+
+    const FailureInfo = struct {
+        scope: []const u8,
+        name: []const u8,
+        err: anyerror,
+        retries: u32,
+    };
+
+    fn init() FailureTracker {
+        return .{ .failures = .empty };
+    }
+
+    fn deinit(self: *FailureTracker, allocator: Allocator) void {
+        self.failures.deinit(allocator);
+    }
+
+    fn add(
+        self: *FailureTracker,
+        allocator: Allocator,
+        scope: []const u8,
+        name: []const u8,
+        err: anyerror,
+        retries: u32,
+    ) void {
+        self.failures.append(allocator, .{
+            .scope = scope,
+            .name = name,
+            .err = err,
+            .retries = retries,
+        }) catch @panic("failed to track failing test");
+    }
+
+    fn display(self: *const FailureTracker) void {
+        if (self.failures.items.len == 0) return;
+
+        Printer.fmt("\n\x1b[1mFailed\x1b[0m \x1b[90m({d})\x1b[0m:\n", .{self.failures.items.len});
+        for (self.failures.items) |failure| {
+            Printer.status(.fail, "  ✗ ", .{});
+            if (failure.scope.len > 0) {
+                Printer.fmt("{s} > {s}", .{ failure.scope, failure.name });
+            } else {
+                Printer.fmt("{s}", .{failure.name});
+            }
+            Printer.fmt(" \x1b[90m({s}", .{@errorName(failure.err)});
+            if (failure.retries > 0) {
+                Printer.fmt(", after {d} retries", .{failure.retries});
+            }
+            Printer.fmt(")\x1b[0m\n", .{});
+        }
+    }
 };
 
 const SlowTracker = struct {
