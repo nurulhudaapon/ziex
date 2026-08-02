@@ -150,12 +150,6 @@ pub fn build(b: *std.Build) !void {
                 .{ .name = "lang", .module = lang_mod },
                 .{ .name = "tree_sitter", .module = tree_sitter_dep.module("tree_sitter") },
                 .{ .name = "tree_sitter_mdzx", .module = tree_sitter_mdzx_dep.module("tree_sitter_mdzx") },
-                .{ .name = "html_hover", .module = b.createModule(.{
-                    .root_source_file = b.path("src/lsp/root.zig"),
-                    .imports = &.{
-                        .{ .name = "lang", .module = lang_mod },
-                    },
-                }) },
                 .{ .name = "builder", .module = b.createModule(.{
                     .root_source_file = b.path("src/cli/dev/Builder.zig"),
                 }) },
@@ -172,6 +166,8 @@ pub fn build(b: *std.Build) !void {
             if (b.lazyDependency("lsp_kit", .{ .target = target, .optimize = optimize })) |lsp_kit| {
                 html_hover_mod.addImport("lsp", lsp_kit.module("lsp"));
             };
+
+        testing_mod.addImport("html_hover", html_hover_mod);
 
         const testing_mod_tests = b.addTest(.{
             .root_module = testing_mod,
