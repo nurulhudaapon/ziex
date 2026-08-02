@@ -394,12 +394,13 @@ fn emitHtmlOrPlain(
 }
 
 fn storePageCache(
-    page_cache: *PageCache,
+    page_cache: anytype,
     request: zx.server.Request,
     response: zx.server.Response,
     conn: *const Conn,
     body: []const u8,
 ) void {
+    if (comptime !feat_cache) return;
     page_cache.store(request, response, .{
         .status = conn.status,
         .body = body,

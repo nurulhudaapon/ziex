@@ -2,7 +2,7 @@ const std = @import("std");
 const ziex = @import("ziex");
 
 const build_zon = @import("build.zig.zon");
-const ziex_version = 6; // Increment this when site js changes
+const ziex_version = 7; // Increment this when site js changes
 
 pub fn build(b: *std.Build) !void {
     // --- Target and Optimize from `zig build` arguments ---
