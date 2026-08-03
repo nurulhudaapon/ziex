@@ -324,12 +324,16 @@ fn writeStreamingBody(
 ) !void {
     try out.writeAll("<!DOCTYPE html>\n");
     try out.writeAll(shell);
-    if (async_components.len > 0) {
-        try out.writeAll(render.streaming_bootstrap_script);
-        for (async_components) |async_comp| {
-            const script = async_comp.renderScript(allocator) catch continue;
-            try out.writeAll(script);
-        }
+    try out.flush();
+    if (async_components.len == 0) return;
+
+    try out.writeAll(render.streaming_bootstrap_script);
+    try out.flush();
+
+    for (async_components) |async_comp| {
+        const script = async_comp.renderScript(allocator) catch continue;
+        try out.writeAll(script);
+        try out.flush();
     }
 }
 
