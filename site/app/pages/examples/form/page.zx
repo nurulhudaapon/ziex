@@ -4,7 +4,7 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
 
     return (
         <div @allocator={allocator}>
-            <FormExample />
+            <Form />
 
             {if (request_info.is_reset) (<p>Reset successful</p>) else (<p> </p>)}
             {if (request_info.is_delete) (<p>User deleted</p>) else (<p> </p>)}
@@ -23,7 +23,22 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     );
 }
 
+pub fn Form(allocator: zx.Allocator) zx.Component {
+    return (
+        <main @allocator={allocator}>
+            <form method="get">
+                <input type="text" name="search" placeholder="Search users..." />
+                <button>Search</button>
+            </form>
+
+            <form method="get">
+                <input type="text" name="name" placeholder="Name" />
+                <button>Add User</button>
+            </form>
+        </main>
+    );
+}
+
 const zx = @import("zx");
-const FormExample = @import("../form.zx").FormExample;
 const std = @import("std");
 const handler = @import("handler.zig");

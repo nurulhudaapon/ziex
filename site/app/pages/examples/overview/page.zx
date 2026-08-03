@@ -10,5 +10,5 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     );
 }
 
-const QuickExample = @import("./../overview.zx").QuickExample;
+const QuickExample = @import("../../overview/overview.zx").QuickExample;
 const zx = @import("zx");

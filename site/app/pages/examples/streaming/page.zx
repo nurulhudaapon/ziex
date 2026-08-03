@@ -1,24 +1,32 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
-        <main lang="en" @allocator={ctx.arena}>
+        <main @allocator={ctx.arena}>
             <h1>Streaming SSR</h1>
             <p>This shell is rendered immediately, and then more content is streamed in over time.</p>
 
-            <section class="card user" @async={.stream} @fallback={(<UserProfile user_id={0} />)}>
+            <section
+                @async={.stream}
+                @fallback={(<UserProfile user_id={0} />)}
+                class="card user"
+            >
                 <UserProfile user_id={42} />
             </section>
 
-            <section class="card posts" @async={.stream} @fallback={(<RecentPosts count={0} />)}>
+            <section
+                @async={.stream}
+                @fallback={(<RecentPosts count={0} />)}
+                class="card posts"
+            >
                 <RecentPosts count={3} />
             </section>
 
-            <section class="card stats" @async={.stream} @fallback={(<SiteStats loading={true} />)}>
+            <section
+                @async={.stream}
+                @fallback={(<SiteStats loading={true} />)}
+                class="card stats"
+            >
                 <SiteStats loading={false} />
             </section>
-
-            <footer>
-                <p>Powered by ZX Framework</p>
-            </footer>
         </main>
     );
 }
@@ -31,17 +39,10 @@ fn UserProfile(allocator: zx.Allocator, props: struct { user_id: u32 }) zx.Compo
     if (props.user_id != 0) wait(700);
 
     const name = if (props.user_id == 0) "....." else "Ziguana";
-    const role = if (props.user_id == 0) "....." else "Zig Engineer";
-    const status = if (props.user_id == 0) "....." else "Marsline";
-    const id_text = if (props.user_id == 0) "....." else "740";
-
     return (
-        <div @allocator={allocator}>
+        <div @{allocator}>
             <h2>User Profile</h2>
-            <p><strong>User ID: </strong> {id_text}</p>
-            <p><strong>Name: </strong> {name}</p>
-            <p><strong>Role: </strong> {role}</p>
-            <p><strong>Status: </strong> {status}</p>
+            <p>Name: {name}</p>
         </div>
     );
 }
@@ -51,17 +52,11 @@ fn RecentPosts(allocator: zx.Allocator, props: struct { count: u32 }) zx.Compone
 
     const title = if (props.count == 0) "Recent Posts (.....)" else "Recent Posts (3)";
     const post1 = if (props.count == 0) "....." else "Getting Started with Ziex Framework";
-    const post2 = if (props.count == 0) "....." else "Streaming SSR: The Future of Web";
-    const post3 = if (props.count == 0) "....." else "Why Zig for Web Development?";
 
     return (
-        <div @allocator={allocator}>
+        <div @{allocator}>
             <h2>{title}</h2>
-            <ul>
-                <li>{post1}</li>
-                <li>{post2}</li>
-                <li>{post3}</li>
-            </ul>
+            <p>{post1}</p>
         </div>
     );
 }
@@ -70,29 +65,21 @@ fn SiteStats(allocator: zx.Allocator, props: struct { loading: bool }) zx.Compon
     if (!props.loading) wait(500);
 
     const users = if (props.loading) "....." else "12,847";
-    const active = if (props.loading) "....." else "1,234";
-    const posts = if (props.loading) "....." else "89";
-    const response = if (props.loading) "....." else "42ms";
 
     return (
-        <div @allocator={allocator}>
+        <div @{allocator}>
             <h2>Site Statistics</h2>
-            <ul>
-                <li><strong>Total Users: </strong> {users}</li>
-                <li><strong>Active Today: </strong> {active}</li>
-                <li><strong>Posts This Week: </strong> {posts}</li>
-                <li><strong>Avg Response Time: </strong> {response}</li>
-            </ul>
+            <p>Total Users: {users}</p>
         </div>
     );
 }
 
-extern "__zx_sys" fn sleep_ms(ms: u32) void;
 fn wait(duration_ms: u64) void {
     if (zx.platform.isWasm()) return sleep_ms(@intCast(duration_ms));
 
     std.Io.sleep(zx.io(), .fromMilliseconds(@intCast(duration_ms)), .awake) catch {};
 }
+extern "__zx_sys" fn sleep_ms(ms: u32) void;
 
 const std = @import("std");
 const zx = @import("zx");

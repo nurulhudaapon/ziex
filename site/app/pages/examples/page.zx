@@ -28,7 +28,7 @@ fn ExamplesDirectory(allocator: zx.Allocator) zx.Component {
                                 <strong>{item.title}</strong>
                                 <div class="example-route-tags">
                                     {for (item.tags) |tag| (
-                                        <span class="example-tag">{tag}</span>
+                                        <code>{tag}</code>
                                     )}
                                 </div>
                             </a>

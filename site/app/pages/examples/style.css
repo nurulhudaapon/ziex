@@ -228,17 +228,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: .3rem;
-}
-
-.example-tag {
-    background: color-mix(in srgb, var(--link-color) 10%, var(--bg-color));
-    border: 1px solid color-mix(in srgb, var(--link-color) 22%, var(--border-color));
-    border-radius: 999px;
-    color: var(--subtitle-color);
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: .68rem;
-    line-height: 1.2;
-    padding: .18rem .45rem;
+    font-size: smaller;
 }
 
 .demo-page {

@@ -8,6 +8,6 @@ pub fn Page(ctx: zx.PageContext, app: Context) zx.Component {
 }
 
 const Context = @import("../../Context.zig");
+const QuickExample = @import("overview.zx").QuickExample;
 
-const QuickExample = @import("./../examples/overview.zx").QuickExample;
 const zx = @import("zx");

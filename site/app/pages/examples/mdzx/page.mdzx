@@ -1,6 +1,6 @@
 ---
 const zx = @import("zx");
-const QuickExample = @import("../overview.zx").QuickExample;
+const QuickExample = @import("../../overview/overview.zx").QuickExample;
 const Greeting = @import("./greeting.mdzx").render;
 
 pub const meta = .{
