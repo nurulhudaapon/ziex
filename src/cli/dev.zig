@@ -192,7 +192,10 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
         try initial_build_args_array.appendSlice(allocator, &.{trimmed_arg});
     }
 
-    var initial_build = try util.spawnZig(io, .{ .argv = initial_build_args_array.items });
+    var initial_build = try util.spawnZig(io, .{
+        .argv = initial_build_args_array.items,
+        .environ_map = env_map,
+    });
     const initial_term = initial_build.wait(io) catch |err| {
         log.err("Failed to run initial build: {any}", .{err});
         std.process.exit(1);
@@ -260,6 +263,7 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
 
     builder = try util.spawnZig(io, .{
         .argv = build_args_array.items,
+        .environ_map = env_map,
         .stderr = .pipe,
         .stdout = .ignore,
         .pgid = ownProcessGroup(),

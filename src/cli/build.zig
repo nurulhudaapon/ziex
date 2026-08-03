@@ -30,6 +30,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
 
     var system = try util.spawnZig(io, .{
         .argv = build_args.items,
+        .environ_map = app.environ_map,
         .stderr = .pipe,
         .stdout = .ignore,
     });

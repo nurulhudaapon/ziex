@@ -247,7 +247,7 @@ pub const env: Command = .{
     \\(same style as `zig env` when --fmt=zon).
     \\
     \\When run via `zig build zx -- env`, the build step injects project-local
-    \\paths (such as ZX_MODULE_PATH) into the process environment.
+    \\paths (such as ZX_MODULE_PATH and ZIEX_ZIG_PATH) into the process environment.
     \\
     ,
     .named_args = &.{

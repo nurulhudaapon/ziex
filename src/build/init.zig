@@ -578,6 +578,7 @@ fn cliRun(b: *std.Build, zx_exe: *std.Build.Step.Compile, opts: Resolved) *std.B
     } else b.addRunArtifact(zx_exe);
 
     run.setEnvironmentVariable("ZX_MODULE_PATH", opts.zx_module_path);
+    run.setEnvironmentVariable("ZIEX_ZIG_PATH", opts.zig_path);
     return run;
 }
 

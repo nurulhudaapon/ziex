@@ -12,6 +12,7 @@ const Format = cli_args.EnvFormat;
 
 const EnvVars = struct {
     ZX_MODULE_PATH: ?[]const u8 = null,
+    ZIEX_ZIG_PATH: ?[]const u8 = null,
     ZIEX_ROOT_DIR: ?[]const u8 = null,
     ZIEX_DATA_DIR: ?[]const u8 = null,
     ZIEX_STATIC_DIR: ?[]const u8 = null,
@@ -40,6 +41,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
         .zx_module_path = environ_map.get("ZX_MODULE_PATH"),
         .env = .{
             .ZX_MODULE_PATH = environ_map.get("ZX_MODULE_PATH"),
+            .ZIEX_ZIG_PATH = environ_map.get("ZIEX_ZIG_PATH"),
             .ZIEX_ROOT_DIR = environ_map.get("ZIEX_ROOT_DIR"),
             .ZIEX_DATA_DIR = environ_map.get("ZIEX_DATA_DIR"),
             .ZIEX_STATIC_DIR = environ_map.get("ZIEX_STATIC_DIR"),

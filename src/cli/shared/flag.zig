@@ -14,7 +14,7 @@ pub const build_args = cli.Argument.init(.@"build-args", []const u8, .{
 
 pub const zig_path = cli.Argument.init(.@"zig-path", []const u8, .{
     .default_value = "zig",
-    .help = "Path to the zig executable",
+    .help = "Path to the zig executable (falls back to ZIEX_ZIG_PATH, then PATH)",
 });
 
 pub const verbose = cli.Argument.init(.verbose, bool, .{

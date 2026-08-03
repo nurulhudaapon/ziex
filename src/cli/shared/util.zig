@@ -19,21 +19,83 @@ fn fileExists(io: std.Io, path: []const u8) bool {
     return true;
 }
 
+/// Resolve the zig executable for nested `zig build` / `zig fetch` calls.
+///
+/// Preference order:
+/// 1. Explicit `--zig-path` (anything other than the default `"zig"`)
+/// 2. `ZIEX_ZIG_PATH` (absolute path injected by `zig build zx`)
+/// 3. `_` when it names a `zig` binary
+/// 4. The original `zig_path` (usually `"zig"`, resolved via PATH)
+pub fn resolveZigExe(environ_map: ?*const std.process.Environ.Map, zig_path: []const u8) []const u8 {
+    if (zig_path.len > 0 and !std.mem.eql(u8, zig_path, "zig")) return zig_path;
+
+    if (environ_map) |m| {
+        if (m.get("ZIEX_ZIG_PATH")) |p| {
+            if (p.len > 0) return p;
+        }
+        if (m.get("_")) |p| {
+            const base = std.fs.path.basename(p);
+            if (std.mem.eql(u8, base, "zig") or std.mem.eql(u8, base, "zig.exe")) return p;
+        }
+    }
+
+    return if (zig_path.len > 0) zig_path else "zig";
+}
+
 pub fn spawnZig(io: std.Io, options: std.process.SpawnOptions) std.process.SpawnError!std.process.Child {
-    return std.process.spawn(io, options) catch |err| switch (err) {
-        error.FileNotFound => {
-            if (options.argv.len == 0 or std.mem.eql(u8, options.argv[0], "zig")) return err;
-            log.debug("zig not found at {s}, falling back to PATH", .{options.argv[0]});
-            var argv_buf: [64][]const u8 = undefined;
-            if (options.argv.len > argv_buf.len) return err;
+    var argv_buf: [64][]const u8 = undefined;
+    var spawn_opts = options;
+
+    if (options.argv.len > 0 and options.argv.len <= argv_buf.len) {
+        const resolved = resolveZigExe(options.environ_map, options.argv[0]);
+        if (!std.mem.eql(u8, resolved, options.argv[0])) {
+            log.debug("resolved zig exe {s} -> {s}", .{ options.argv[0], resolved });
             @memcpy(argv_buf[0..options.argv.len], options.argv);
-            argv_buf[0] = "zig";
-            var retry = options;
-            retry.argv = argv_buf[0..options.argv.len];
-            return std.process.spawn(io, retry);
+            argv_buf[0] = resolved;
+            spawn_opts.argv = argv_buf[0..options.argv.len];
+        }
+    }
+
+    return std.process.spawn(io, spawn_opts) catch |err| switch (err) {
+        error.FileNotFound => {
+            if (spawn_opts.argv.len == 0 or spawn_opts.argv.len > argv_buf.len) return err;
+
+            // First fallback: absolute/custom path -> bare "zig" on PATH.
+            if (!std.mem.eql(u8, spawn_opts.argv[0], "zig")) {
+                log.debug("zig not found at {s}, falling back to PATH", .{spawn_opts.argv[0]});
+                @memcpy(argv_buf[0..spawn_opts.argv.len], spawn_opts.argv);
+                argv_buf[0] = "zig";
+                var retry = spawn_opts;
+                retry.argv = argv_buf[0..spawn_opts.argv.len];
+                return std.process.spawn(io, retry) catch |retry_err| switch (retry_err) {
+                    error.FileNotFound => trySpawnZigFromUnderscore(io, spawn_opts, &argv_buf),
+                    else => return retry_err,
+                };
+            }
+
+            return trySpawnZigFromUnderscore(io, spawn_opts, &argv_buf);
         },
         else => return err,
     };
+}
+
+fn trySpawnZigFromUnderscore(
+    io: std.Io,
+    options: std.process.SpawnOptions,
+    argv_buf: *[64][]const u8,
+) std.process.SpawnError!std.process.Child {
+    const environ_map = options.environ_map orelse return error.FileNotFound;
+    const underscore = environ_map.get("_") orelse return error.FileNotFound;
+    const base = std.fs.path.basename(underscore);
+    if (!std.mem.eql(u8, base, "zig") and !std.mem.eql(u8, base, "zig.exe")) return error.FileNotFound;
+    if (std.mem.eql(u8, options.argv[0], underscore)) return error.FileNotFound;
+
+    log.debug("zig not on PATH, falling back to _={s}", .{underscore});
+    @memcpy(argv_buf[0..options.argv.len], options.argv);
+    argv_buf[0] = underscore;
+    var retry = options;
+    retry.argv = argv_buf[0..options.argv.len];
+    return std.process.spawn(io, retry);
 }
 
 const ManifestApp = @import("../../build/Manifest.zig").App;
