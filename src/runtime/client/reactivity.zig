@@ -74,6 +74,19 @@ var state_store = std.HashMapUnmanaged(
     std.hash_map.default_max_load_percentage,
 ){};
 
+/// Slot base for `ctx.action` pending flags. Kept out of the normal
+/// `(1 << 20) + state_idx` range so pending is never round-tripped to the server.
+pub const action_pending_slot_base: u32 = 3 << 20;
+
+pub fn actionPendingState(
+    alloc: std.mem.Allocator,
+    component_id: []const u8,
+    action_idx: u32,
+) *State(bool) {
+    return State(bool).getOrCreate(alloc, component_id, action_pending_slot_base + action_idx, false) catch
+        @panic("actionPendingState");
+}
+
 pub fn State(comptime T: type) type {
     return struct {
         const Self = @This();

@@ -11,6 +11,7 @@ pub const VNode = struct {
     children: std.ArrayListUnmanaged(*VNode),
     key: ?[]const u8 = null,
     owner_component_id: []const u8 = "",
+    owns_owner_component_id: bool = false,
 
     pub const Id = u64;
 
@@ -39,9 +40,23 @@ pub const VNode = struct {
         return null;
     }
 
+    /// Key for list identity: prefer unresolved `component_fn.key` (or host
+    /// `key` attr) over the resolved host, which usually has no key.
+    fn listKey(unresolved: zx.Component, resolved: zx.Component) ?[]const u8 {
+        return extractKey(unresolved) orelse extractKey(resolved);
+    }
+
     fn keysMatch(self: *const VElement, component: zx.Component) bool {
         const key1 = self.key;
         const key2 = extractKey(component);
+        if (key1 == null and key2 == null) return true;
+        if (key1 == null or key2 == null) return false;
+        return std.mem.eql(u8, key1.?, key2.?);
+    }
+
+    fn keysMatchChild(self: *const VElement, unresolved: zx.Component, resolved: zx.Component) bool {
+        const key1 = self.key;
+        const key2 = listKey(unresolved, resolved);
         if (key1 == null and key2 == null) return true;
         if (key1 == null or key2 == null) return false;
         return std.mem.eql(u8, key1.?, key2.?);
@@ -62,6 +77,7 @@ pub const VNode = struct {
             .children = .empty,
             .key = null,
             .owner_component_id = owner_component_id,
+            .owns_owner_component_id = false,
         };
 
         switch (component) {
@@ -89,11 +105,28 @@ pub const VNode = struct {
             },
             .component_fn => |comp_fn| {
                 // Client islands stay as leaves (SSR/hydration boundary).
-                if (comp_fn.isIsland()) return self;
+                if (comp_fn.isIsland()) {
+                    self.key = comp_fn.key;
+                    return self;
+                }
                 const next_owner_component_id = componentOwnerId(allocator, component, owner_component_id, sibling_index);
+                errdefer allocator.free(next_owner_component_id);
+                const instance_key = comp_fn.key;
                 const resolved = try resolveComponent(allocator, component, owner_component_id, sibling_index);
+                // Build the resolved tree before freeing the placeholder so errdefer
+                // can still destroy `self` if createFromComponent fails.
+                const vnode = try createFromComponent(allocator, resolved, next_owner_component_id, 0);
                 allocator.destroy(self);
-                return try createFromComponent(allocator, resolved, next_owner_component_id, 0);
+                // Keep list identity on the host vnode so reconcile can match by key.
+                if (instance_key) |k| vnode.key = k;
+                // Nested expansions allocate their own id (copying our prefix); free ours.
+                // Otherwise this host vnode borrows `next_owner_component_id` and owns it.
+                if (vnode.owner_component_id.ptr == next_owner_component_id.ptr) {
+                    vnode.owns_owner_component_id = true;
+                } else {
+                    allocator.free(next_owner_component_id);
+                }
+                return vnode;
             },
         }
         return self;
@@ -104,6 +137,9 @@ pub const VNode = struct {
             child.deinit(allocator);
         }
         self.children.deinit(allocator);
+        if (self.owns_owner_component_id) {
+            allocator.free(self.owner_component_id);
+        }
         allocator.destroy(self);
     }
 };
@@ -277,7 +313,7 @@ pub fn diff(
                         const old_html = try concatRawText(allocator, old_element.children);
                         const new_html = try concatRawText(allocator, new_element.children orelse &.{});
                         old_vnode.component = resolved_component;
-                        old_vnode.key = VNode.extractKey(resolved_component);
+                        assignVNodeKey(old_vnode, resolved_component);
                         if (!std.mem.eql(u8, old_html, new_html)) {
                             try patches.append(allocator, Patch{
                                 .type = .RAW_HTML,
@@ -292,13 +328,13 @@ pub fn diff(
 
                     if (new_element.tag == .fragment) {
                         old_vnode.component = resolved_component;
-                        old_vnode.key = VNode.extractKey(resolved_component);
+                        assignVNodeKey(old_vnode, resolved_component);
                         try reconcileChildren(allocator, old_vnode, resolved_component, old_vnode, patches);
                         return;
                     }
 
                     old_vnode.component = resolved_component;
-                    old_vnode.key = VNode.extractKey(resolved_component);
+                    assignVNodeKey(old_vnode, resolved_component);
 
                     try reconcileChildren(allocator, old_vnode, resolved_component, old_vnode, patches);
                 },
@@ -376,6 +412,7 @@ pub fn resolveComponent(allocator: zx.Allocator, component: zx.Component, owner_
                 // Client islands are hydration boundaries, do not call through.
                 if (comp_fn.isIsland()) return curr;
                 const component_id = componentOwnerId(allocator, curr, owner_component_id, sibling_index);
+                defer allocator.free(component_id);
                 curr = try comp_fn.callOwned(component_id);
             },
             else => return curr,
@@ -385,6 +422,12 @@ pub fn resolveComponent(allocator: zx.Allocator, component: zx.Component, owner_
 
 fn createVNodeFromComponent(allocator: zx.Allocator, component: zx.Component, owner_component_id: []const u8) anyerror!*VNode {
     return try VNode.createFromComponent(allocator, component, owner_component_id, 0);
+}
+
+/// Update vnode list key from a resolved host when it has one; otherwise keep
+/// any identity key that was copied from `component_fn.key`.
+fn assignVNodeKey(vnode: *VNode, resolved: zx.Component) void {
+    if (VNode.extractKey(resolved)) |k| vnode.key = k;
 }
 
 fn concatRawText(allocator: zx.Allocator, children: ?[]const zx.Component) ![]const u8 {
@@ -442,12 +485,15 @@ fn reconcileChildren(
     // Pass 1: sync prefix while keys match
     while (old_idx < old_children.len and new_idx < new_children_slice.len) {
         const old_child = old_children[old_idx];
-        const resolved = try resolveComponent(allocator, new_children_slice[new_idx], old_velement.owner_component_id, new_idx);
+        const unresolved = new_children_slice[new_idx];
+        const resolved = try resolveComponent(allocator, unresolved, old_velement.owner_component_id, new_idx);
 
-        if (!old_child.keysMatch(resolved)) break;
+        if (!old_child.keysMatchChild(unresolved, resolved)) break;
 
         if (areComponentsSameType(old_child.component, resolved)) {
             try diff(allocator, old_child, resolved, parent, patches);
+            // Keep list identity: resolved hosts often have no key attr.
+            if (VNode.listKey(unresolved, resolved)) |k| old_child.key = k;
             last_placed_index = old_idx;
         } else if (componentIsFragment(old_child.component) or componentIsFragment(resolved)) {
             // Fragment↔element mismatches must not REPLACE - fragments have no DOM node.
@@ -458,10 +504,11 @@ fn reconcileChildren(
                     .parent_id = parent.id,
                 } },
             });
-            const new_vnode = try createVNodeFromComponent(
+            const new_vnode = try VNode.createFromComponent(
                 allocator,
-                resolved,
-                componentOwnerId(allocator, new_children_slice[new_idx], old_velement.owner_component_id, new_idx),
+                unresolved,
+                old_velement.owner_component_id,
+                new_idx,
             );
             try patches.append(allocator, Patch{
                 .type = .PLACEMENT,
@@ -477,7 +524,7 @@ fn reconcileChildren(
                 .type = .REPLACE,
                 .data = .{ .REPLACE = .{
                     .old_vnode_id = old_child.id,
-                    .new_vnode = try createVNodeFromComponent(allocator, resolved, componentOwnerId(allocator, new_children_slice[new_idx], old_velement.owner_component_id, new_idx)),
+                    .new_vnode = try VNode.createFromComponent(allocator, unresolved, old_velement.owner_component_id, new_idx),
                     .parent_id = parent.id,
                 } },
             });
@@ -504,8 +551,8 @@ fn reconcileChildren(
     // Old children exhausted → insert remaining new
     if (old_idx >= old_children.len) {
         while (new_idx < new_children_slice.len) : (new_idx += 1) {
-            const resolved = try resolveComponent(allocator, new_children_slice[new_idx], old_velement.owner_component_id, new_idx);
-            const new_vnode = try createVNodeFromComponent(allocator, resolved, componentOwnerId(allocator, new_children_slice[new_idx], old_velement.owner_component_id, new_idx));
+            const unresolved = new_children_slice[new_idx];
+            const new_vnode = try VNode.createFromComponent(allocator, unresolved, old_velement.owner_component_id, new_idx);
             try patches.append(allocator, Patch{
                 .type = .PLACEMENT,
                 .data = .{ .PLACEMENT = .{
@@ -557,7 +604,7 @@ fn reconcileChildren(
     for (remaining_new, 0..) |nc, ni| {
         const abs_new_idx = new_idx + ni;
         const resolved = try resolveComponent(allocator, nc, old_velement.owner_component_id, abs_new_idx);
-        const new_key = VElement.extractKey(resolved);
+        const new_key = VElement.listKey(nc, resolved);
 
         const found_oi: ?usize = if (new_key) |k| key_map.get(k) else index_map.get(abs_new_idx);
 
@@ -565,6 +612,7 @@ fn reconcileChildren(
             const old_child = old_children[oi];
             if (areComponentsSameType(old_child.component, resolved)) {
                 try diff(allocator, old_child, resolved, parent, patches);
+                if (new_key) |k| old_child.key = k;
                 source[ni] = @intCast(oi);
                 used_old[oi - old_idx] = true;
                 if (oi < last_placed_index) {
@@ -578,10 +626,10 @@ fn reconcileChildren(
                     .type = .DELETION,
                     .data = .{ .DELETION = .{ .vnode_id = old_child.id, .parent_id = parent.id } },
                 });
-                new_vnodes[ni] = try createVNodeFromComponent(allocator, resolved, componentOwnerId(allocator, nc, old_velement.owner_component_id, abs_new_idx));
+                new_vnodes[ni] = try VNode.createFromComponent(allocator, nc, old_velement.owner_component_id, abs_new_idx);
             }
         } else {
-            new_vnodes[ni] = try createVNodeFromComponent(allocator, resolved, componentOwnerId(allocator, nc, old_velement.owner_component_id, abs_new_idx));
+            new_vnodes[ni] = try VNode.createFromComponent(allocator, nc, old_velement.owner_component_id, abs_new_idx);
         }
     }
 
@@ -634,10 +682,23 @@ fn reconcileChildren(
     }
 }
 
+/// Stable instance id for nested `ComponentCtx` / `ctx.state` / `ctx.bind`.
+/// Prefer `key={…}` when present; otherwise fall back to sibling index
 fn componentOwnerId(allocator: zx.Allocator, component: zx.Component, owner_component_id: []const u8, sibling_index: usize) []const u8 {
-    _ = sibling_index;
     return switch (component) {
-        .component_fn => |comp_fn| comp_fn.id.fmtShort(allocator, "c"),
+        .component_fn => |comp_fn| blk: {
+            const short = comp_fn.id.short();
+            if (comp_fn.key) |key| {
+                if (owner_component_id.len > 0) {
+                    break :blk std.fmt.allocPrint(allocator, "{s}/c{x:0>8}:{s}", .{ owner_component_id, short, key }) catch @panic("OOM");
+                }
+                break :blk std.fmt.allocPrint(allocator, "c{x:0>8}:{s}", .{ short, key }) catch @panic("OOM");
+            }
+            if (owner_component_id.len > 0) {
+                break :blk std.fmt.allocPrint(allocator, "{s}/c{x:0>8}:{d}", .{ owner_component_id, short, sibling_index }) catch @panic("OOM");
+            }
+            break :blk std.fmt.allocPrint(allocator, "c{x:0>8}:{d}", .{ short, sibling_index }) catch @panic("OOM");
+        },
         else => owner_component_id,
     };
 }

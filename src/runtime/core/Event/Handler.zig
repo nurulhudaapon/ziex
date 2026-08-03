@@ -10,6 +10,16 @@ fn getGlobalAllocator() std.mem.Allocator {
     return zx.allocator;
 }
 
+pub const ActionOutcome = enum { ok, err };
+
+pub const ActionReset = enum {
+    none,
+    /// `HTMLFormElement.reset()` after a successful response.
+    on_success,
+    /// Reset after any settle (ok or err).
+    on_complete,
+};
+
 pub const Constants = struct {
     pub const action_form_name = "__$action";
     pub const states_form_name = "__$states";
@@ -57,6 +67,12 @@ may_suspend: bool = false,
 /// component block's id and the handler's attribute name. `.undef` until set
 /// by the creating `Context` (see `x.Context.attr`).
 id: zx.x.Id = .undef,
+/// Client-only: `*reactivity.State(bool)` for `ctx.action` pending mirror.
+pending_state: ?*anyopaque = null,
+/// Client settle hook from `ctx.action(..., .{ .on_settle })`.
+on_settle: ?*const fn (ActionOutcome) void = null,
+/// Client form reset policy from `ctx.action(..., .{ .reset })`.
+reset_policy: ActionReset = .none,
 
 const Self = @This();
 
@@ -190,11 +206,14 @@ pub fn action(comptime func: anytype) Self {
             arg_type != zx.server.Event)
         {
             if (comptime zx.platform.role == .client) {
-                return actionClient(struct {
-                    fn w(ctx: *zx.client.Action) void {
-                        func(ctx.data(arg_type));
-                    }
-                }.w);
+                // TODO: decide what will be the default behavior for fn(struct { ... }) void handlers
+                // currently we are treating as server fn
+                return .{
+                    .callback = &actionHandler,
+                    .context = @as(*anyopaque, @ptrFromInt(1)),
+                    .action_fn = &noopServerAction,
+                    .may_suspend = false,
+                };
             }
             const DirectTyped = struct {
                 fn w(ctx: *zx.server.Action) void {

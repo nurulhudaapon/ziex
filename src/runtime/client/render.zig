@@ -8,6 +8,8 @@ const dom_cmd = @import("dom_cmd.zig");
 const ext = @import("window/extern.zig");
 const window = @import("window.zig");
 
+const reactivity = @import("reactivity.zig");
+
 const is_wasm = window.is_wasm;
 const Document = zx.client.Document;
 
@@ -190,46 +192,95 @@ const FormActionCtx = struct {
     vnode_id: u64,
     action_id: u32 = 1,
     bound_states: []const zx.EventHandler.Bound = &.{},
+    pending_state: ?*anyopaque = null,
+    on_settle: ?*const fn (zx.ActionHandle.Outcome) void = null,
+    reset_policy: zx.ActionHandle.Reset = .none,
 };
 
-/// Callback context for stateful form action responses.
+/// Callback context for form action responses (state round-trip and/or settle).
 const FormActionCallbackCtx = struct {
+    vnode_id: u64,
     bound_states: []const zx.EventHandler.Bound,
+    pending_state: ?*anyopaque = null,
+    on_settle: ?*const fn (zx.ActionHandle.Outcome) void = null,
+    reset_policy: zx.ActionHandle.Reset = .none,
 };
 
-/// Called when a stateful form action response arrives; applies state updates.
+fn pendingFromOpaque(ptr: *anyopaque) *reactivity.State(bool) {
+    return @ptrCast(@alignCast(ptr));
+}
+
+/// Called when a form action response arrives; applies state updates and settle UX.
 fn onFormActionResponse(
     ctx_ptr: *anyopaque,
     response: ?*@import("../core/Fetch.zig").Response,
-    _: ?@import("../core/Fetch.zig").FetchError,
+    err: ?@import("../core/Fetch.zig").FetchError,
 ) void {
     const cb_ctx: *FormActionCallbackCtx = @ptrCast(@alignCast(ctx_ptr));
     defer zx.allocator.destroy(cb_ctx);
 
-    const resp = response orelse return;
-    if (resp._body.len == 0) return;
+    const outcome: zx.ActionHandle.Outcome = blk: {
+        if (err != null) break :blk .err;
+        const resp = response orelse break :blk .err;
+        if (!resp.ok()) break :blk .err;
 
-    const states = zx.util.zxon.parse([]const []const u8, zx.allocator, resp._body, .{}) catch return;
-    for (states, 0..) |state_json, i| {
-        if (i >= cb_ctx.bound_states.len) break;
-        const bs = cb_ctx.bound_states[i];
-        bs.applyJson(bs.state_ptr, state_json);
+        if (cb_ctx.bound_states.len > 0 and resp._body.len > 0) {
+            const states = zx.util.zxon.parse([]const []const u8, zx.allocator, resp._body, .{}) catch break :blk .err;
+            for (states, 0..) |state_json, i| {
+                if (i >= cb_ctx.bound_states.len) break;
+                const bs = cb_ctx.bound_states[i];
+                bs.applyJson(bs.state_ptr, state_json);
+            }
+        }
+        break :blk .ok;
+    };
+
+    if (cb_ctx.pending_state) |ps| {
+        pendingFromOpaque(ps).set(false);
+    }
+
+    const should_reset = switch (cb_ctx.reset_policy) {
+        .none => false,
+        .on_success => outcome == .ok,
+        .on_complete => true,
+    };
+    if (should_reset) {
+        ext._formReset(cb_ctx.vnode_id);
+    }
+
+    if (cb_ctx.on_settle) |settle| {
+        settle(outcome);
     }
 }
 
 /// onsubmit handler for form elements that carry an action handler.
-/// Fire-and-forget when no states are bound; stateful round-trip otherwise.
+/// Fire-and-forget when no states are bound and no settle UX is needed;
+/// async round-trip otherwise (so pending / reset / on_settle can complete).
+///
+/// Important: do not re-render (disable controls) until after JS builds
+/// `FormData` — disabled fields are omitted from multipart bodies.
 fn formActionCallback(ctx: *anyopaque, event: zx.client.Event) void {
     if (!is_wasm) return;
     const form_ctx: *FormActionCtx = @ptrCast(@alignCast(ctx));
     event.preventDefault();
 
-    if (form_ctx.bound_states.len == 0) {
+    if (form_ctx.pending_state) |ps| {
+        const pending = pendingFromOpaque(ps);
+        if (pending.get()) return;
+        // Mark in-flight without scheduleRender so inputs stay enabled for FormData.
+        pending.value = true;
+    }
+
+    const needs_settle = form_ctx.pending_state != null or
+        form_ctx.on_settle != null or
+        form_ctx.reset_policy != .none;
+
+    if (form_ctx.bound_states.len == 0 and !needs_settle) {
         ext._submitFormAction(form_ctx.vnode_id, form_ctx.action_id);
         return;
     }
 
-    // Stateful: serialise bound-state values → JSON array → __$states field.
+    // Serialise bound-state values → JSON array → __$states field (may be `[]`).
     const alloc = zx.allocator;
     var states_list = std.ArrayList([]const u8).empty;
     for (form_ctx.bound_states) |bs| {
@@ -239,15 +290,32 @@ fn formActionCallback(ctx: *anyopaque, event: zx.client.Event) void {
     zx.util.zxon.serialize(states_list.items, &aw.writer, .{}) catch {};
     const states_json = aw.written();
 
-    const cb_ctx = alloc.create(FormActionCallbackCtx) catch return;
-    cb_ctx.* = .{ .bound_states = form_ctx.bound_states };
+    const cb_ctx = alloc.create(FormActionCallbackCtx) catch {
+        if (form_ctx.pending_state) |ps| pendingFromOpaque(ps).set(false);
+        return;
+    };
+    cb_ctx.* = .{
+        .vnode_id = form_ctx.vnode_id,
+        .bound_states = form_ctx.bound_states,
+        .pending_state = form_ctx.pending_state,
+        .on_settle = form_ctx.on_settle,
+        .reset_policy = form_ctx.reset_policy,
+    };
 
     const client_fetch = @import("fetch.zig");
     const fetch_id = client_fetch.allocFetchId(alloc, @ptrCast(cb_ctx), onFormActionResponse) orelse {
         alloc.destroy(cb_ctx);
+        if (form_ctx.pending_state) |ps| pendingFromOpaque(ps).set(false);
         return;
     };
+    // FormData is built synchronously inside this extern while inputs are still enabled.
     ext._submitFormActionAsync(form_ctx.vnode_id, form_ctx.action_id, states_json.ptr, states_json.len, fetch_id);
+
+    // Now flip pending UI (disabled / "Adding…").
+    if (form_ctx.pending_state) |ps| {
+        const pending = pendingFromOpaque(ps);
+        reactivity.scheduleRender(pending.component_id);
+    }
 }
 
 /// Build DOM nodes for a VNode subtree and register every node in the JS registry.
@@ -296,6 +364,9 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                 var has_method = false;
                 var form_bound_states: []const zx.EventHandler.Bound = &.{};
                 var form_action_id: u32 = 1;
+                var form_pending_state: ?*anyopaque = null;
+                var form_on_settle: ?*const fn (zx.ActionHandle.Outcome) void = null;
+                var form_reset_policy: zx.ActionHandle.Reset = .none;
                 var client_action_handler: ?zx.EventHandler = null;
 
                 for (attrs) |attr| {
@@ -305,6 +376,9 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                             has_action_handler = true;
                             form_bound_states = handler.bound_states;
                             form_action_id = handler.handler_id;
+                            form_pending_state = handler.pending_state;
+                            form_on_settle = handler.on_settle;
+                            form_reset_policy = handler.reset_policy;
                         } else if (std.mem.eql(u8, attr.name, "action")) {
                             client_action_handler = handler;
                         }
@@ -312,8 +386,13 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                     }
                     if (std.mem.eql(u8, attr.name, "method")) has_method = true;
                     const val = attr.value orelse "";
-                    // defaultValue is a DOM property; the HTML attribute equivalent is "value"
-                    const attr_name = if (std.mem.eql(u8, attr.name, "defaultValue")) "value" else attr.name;
+                    // JSX `defaultValue`/`defaultChecked` → IDL props (form.reset() needs defaults).
+                    const attr_name = if (std.mem.eql(u8, attr.name, "defaultValue"))
+                        "defaultValue"
+                    else if (std.mem.eql(u8, attr.name, "defaultChecked"))
+                        "defaultChecked"
+                    else
+                        attr.name;
 
                     // Prefix href/src/action attributes with base_path when applicable
                     var final_val = val;
@@ -350,6 +429,9 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
                                 .vnode_id = vnode.id,
                                 .action_id = form_action_id,
                                 .bound_states = form_bound_states,
+                                .pending_state = form_pending_state,
+                                .on_settle = form_on_settle,
+                                .reset_policy = form_reset_policy,
                             };
                             client.registerHandler(vnode.id, Client.EventType.submit, zx.EventHandler{
                                 .callback = &formActionCallback,
@@ -422,10 +504,14 @@ pub fn createPlatformNodes(allocator: zx.Allocator, vnode: *VNode, client: anyty
 }
 
 fn isDomProperty(name: []const u8) bool {
+    // IDL live state: setAttribute alone is wrong or incomplete for these.
     return std.mem.eql(u8, name, "checked") or
         std.mem.eql(u8, name, "value") or
         std.mem.eql(u8, name, "selected") or
-        std.mem.eql(u8, name, "muted");
+        std.mem.eql(u8, name, "muted") or
+        std.mem.eql(u8, name, "defaultValue") or
+        std.mem.eql(u8, name, "defaultChecked") or
+        std.mem.eql(u8, name, "indeterminate");
 }
 
 fn setAttrOrProp(vnode_id: u64, name: []const u8, val: []const u8) void {

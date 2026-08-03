@@ -345,6 +345,10 @@ export class ZxBridge extends ZxBridgeCore {
                     const statesJson = statesLen > 0 ? readString(statesPtr, statesLen) : '[]';
                     bridgeRef[0]?.submitFormActionAsync(form, actionId, statesJson, fetchId);
                 },
+                _formReset: (vnodeId: bigint): void => {
+                    const form = domNodes.get(Number(vnodeId));
+                    if (form instanceof HTMLFormElement) form.reset();
+                },
             },
         };
     }

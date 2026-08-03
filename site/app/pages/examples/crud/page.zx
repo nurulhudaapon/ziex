@@ -31,7 +31,7 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
         try tasks.append(ctx.arena, .{
             .id = row.get("id").?.integer,
             .title = row.get("title").?.text,
-            .status = @enumFromInt(row.get("status").?.integer),
+            .status = @fromBackingInt(@intCast(row.get("status").?.integer)),
         });
     }
 
@@ -42,8 +42,29 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                 <p>Full-stack CRUD demonstration with Ziex</p>
             </header>
 
+            <TaskBoard tasks={tasks.items} @rendering={.client} />
+        </main>
+    );
+}
+
+pub fn TaskBoard(ctx: *zx.ComponentCtx(struct { tasks: []const Task })) zx.Component {
+    const tasks = ctx.state([]const Task, ctx.props.tasks);
+    const create = ctx.action(handleCreate, .{ .reset = .on_success });
+    return (
+        <div @allocator={ctx.allocator}>
             <section class="example-section">
-                <TaskForm @rendering={.client} />
+                <form class="example-form" action={create}>
+                    <input
+                        name="title"
+                        placeholder="What needs to be done?"
+                        required
+                        autofocus
+                        disabled={create.pending}
+                    />
+                    <button disabled={create.pending}>
+                        {if (create.pending) "Adding…" else "Add Task"}
+                    </button>
+                </form>
             </section>
 
             <section class="example-section">
@@ -55,38 +76,14 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
                             <th></th>
                         </tr>
                     </thead>
-                    <TaskList tasks={tasks.items} @rendering={.client} />
+                    <tbody>
+                        {for (tasks.get()) |task| (
+                            <TaskRow key={task.id} task={task} />
+                        )}
+                    </tbody>
                 </table>
             </section>
-        </main>
-    );
-}
-
-var tasks_state: *zx.State([]const Task) = undefined;
-pub fn TaskList(ctx: *zx.ComponentCtx(struct { tasks: []const Task })) zx.Component {
-    tasks_state = ctx.state([]const Task, ctx.props.tasks);
-    return (
-        <tbody @allocator={ctx.allocator}>
-            {for (tasks_state.get()) |task| (
-                <TaskRow key={task.id} task={task} />
-            )}
-        </tbody>
-    );
-}
-
-pub fn TaskForm(ctx: *zx.ComponentContext) zx.Component {
-    return (
-        <form @allocator={ctx.allocator} class="example-form" action={handleCreate}>
-            <input
-                name="title"
-                placeholder="What needs to be done?"
-                required
-                autofocus
-            />
-            <button>
-                Add Task
-            </button>
-        </form>
+        </div>
     );
 }
 
@@ -94,9 +91,6 @@ pub fn TaskRow(ctx: *zx.ComponentCtx(struct { task: Task })) ?zx.Component {
     const task = ctx.props.task;
     const task_state = ctx.state(Task, task);
     const completed = task_state.get().status == .completed;
-
-    zx.log.info("Task props: {any}\n", .{ctx.props.task});
-    zx.log.info("Task state: {any}\n", .{task_state.get()});
 
     if (task_state.get().status == .deleted) return null;
 
@@ -129,22 +123,34 @@ pub fn TaskRow(ctx: *zx.ComponentCtx(struct { task: Task })) ?zx.Component {
     );
 }
 
-fn handleCreate(data: struct { title: []const u8 }) void {
-    if (zx.platform.isClient()) return;
+const CreateInput = struct { title: []const u8 };
+
+fn handleCreate(data: CreateInput, sc: *zx.StateContext) void {
+    if (data.title.len == 0) return;
 
     zx.log.info("create: title: {s}", .{data.title});
 
-    if (data.title.len == 0) return;
-    _ = zx.db.run("INSERT INTO tasks (title, status) VALUES (?, 0)", .{data.title}) catch |err| {
+    const result = zx.db.run("INSERT INTO tasks (title, status) VALUES (?, 0)", .{data.title}) catch |err| {
         zx.log.err("Failed to create task: {any}", .{err});
+        return;
     };
+
+    const title = sc.arena.dupe(u8, data.title) catch return;
+    const tasks = sc.state([]const Task);
+    const prev = tasks.get();
+    const next = sc.arena.alloc(Task, prev.len + 1) catch return;
+    next[0] = .{
+        .id = result.last_insert_id,
+        .title = title,
+        .status = .pending,
+    };
+    @memcpy(next[1..], prev);
+    tasks.set(next);
 }
 
 fn handleToggle(e: *zx.server.Event.Stateful) void {
     const task_state = e.state(Task);
     var task = task_state.get();
-
-    zx.log.info("Task: ID: {d}\nStatus: {s}\n", .{ task.id, @tagName(task.status) });
 
     task.status = switch (task.status) {
         .pending => .completed,
@@ -152,28 +158,19 @@ fn handleToggle(e: *zx.server.Event.Stateful) void {
         .deleted => .pending,
     };
 
-    if (zx.platform.isClient()) return;
-
-    _ = zx.db.run("UPDATE tasks SET status = ? WHERE id = ?", .{ @intFromEnum(task.status), task.id }) catch |err| {
+    _ = zx.db.run("UPDATE tasks SET status = ? WHERE id = ?", .{ @backingInt(task.status), task.id }) catch |err| {
         zx.log.err("Failed to toggle task: {any}", .{err});
     };
-
-    zx.log.info("Task: ID: {d}\nStatus: {s}\n", .{ task.id, @tagName(task.status) });
 
     task_state.set(task);
 }
 
 fn handleRename(e: *zx.server.Event.Stateful) void {
-    // Init
     const task_state = e.state(Task);
     var task = task_state.get();
 
-    // Modify
     task.title = e.value() orelse return;
 
-    if (zx.platform.isClient()) return;
-
-    // Commit
     _ = zx.db.run("UPDATE tasks SET title = ? WHERE id = ?", .{ task.title, task.id }) catch |err| {
         zx.log.err("Failed to rename task: {any}", .{err});
     };
@@ -182,16 +179,12 @@ fn handleRename(e: *zx.server.Event.Stateful) void {
 }
 
 fn handleDelete(e: *zx.server.Event.Stateful) void {
-    // Init
     const task_state = e.state(Task);
     var task = task_state.get();
 
-    // Modify
     task.status = .deleted;
 
-    if (zx.platform.isClient()) return;
-
-    _ = zx.db.run("UPDATE tasks SET status = ? WHERE id = ?", .{ @intFromEnum(task.status), task.id }) catch |err| {
+    _ = zx.db.run("UPDATE tasks SET status = ? WHERE id = ?", .{ @backingInt(task.status), task.id }) catch |err| {
         zx.log.err("Failed to delete task: {any}", .{err});
     };
 

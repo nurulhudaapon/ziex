@@ -84,12 +84,42 @@ pub fn ComponentCtx(comptime PropsType: type) type {
         pub const Internal = struct {
             component_id: []const u8 = "",
             state_idx: u32 = 0,
+            action_idx: u32 = 0,
         };
 
         pub fn state(self: *Self, comptime T: type, initial: T) reactivity.StateInstance(T) {
             const slot = (1 << 20) + self._internal.state_idx;
             self._internal.state_idx += 1;
             return reactivity.State(T).getOrCreate(self.allocator, self._internal.component_id, slot, initial) catch @panic("State(T).getOrCreate");
+        }
+
+        /// Bind a server/client form action with a pending mirror and settle options.
+        ///
+        /// ```zig
+        /// const create = ctx.action(handleCreate, .{ .reset = .on_success });
+        /// <form action={create}>
+        ///   <input disabled={create.pending} name="title" />
+        /// </form>
+        /// ```
+        pub fn action(self: *Self, comptime handler: anytype, opts: anytype) zx.ActionHandle {
+            const options = zx.ActionHandle.normalizeOptions(opts);
+            const alloc = if (zx.platform.role == .client) zx.allocator else self.allocator;
+
+            const action_idx = self._internal.action_idx;
+            self._internal.action_idx += 1;
+            const pending_state = reactivity.actionPendingState(alloc, self._internal.component_id, action_idx);
+
+            var eh = self.bind(handler);
+            if (comptime zx.platform.role == .client) {
+                eh.pending_state = @ptrCast(pending_state);
+                eh.on_settle = options.on_settle;
+                eh.reset_policy = options.reset;
+            }
+
+            return .{
+                .handler = eh,
+                .pending = pending_state.get(),
+            };
         }
 
         pub fn sbind(self: *Self, comptime handler: anytype, states: anytype) zx.EventHandler {

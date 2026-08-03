@@ -30,6 +30,9 @@ pub extern "__zx" fn _submitFormActionAsync(
     fetch_id: u64,
 ) void;
 
+/// Call `HTMLFormElement.reset()` on the form registered for `vnode_id`.
+pub extern "__zx" fn _formReset(vnode_id: u64) void;
+
 // Logging
 /// Forward a log message to the JS console. level: 0=error, 1=warn, 2=info, 3=debug
 pub extern "__zx" fn _log(level: u8, ptr: [*]const u8, len: usize) void;

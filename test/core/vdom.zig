@@ -327,3 +327,116 @@ test "if-without-else fragment to element uses placement not replace" {
     try testing.expect(saw_placement);
     try testing.expectEqual(msg_p_id, tree.vtree.children.items[1].id);
 }
+
+test "keyed list prepend places new item without index-shifting reuse" {
+    const allocator = testing.allocator;
+
+    const a = zx.Component{ .element = .{ .tag = .li, .attributes = &[_]zx.Element.Attribute{.{ .name = "key", .value = "a" }}, .children = &[_]zx.Component{.{ .text = "A" }} } };
+    const b = zx.Component{ .element = .{ .tag = .li, .attributes = &[_]zx.Element.Attribute{.{ .name = "key", .value = "b" }}, .children = &[_]zx.Component{.{ .text = "B" }} } };
+    const d = zx.Component{ .element = .{ .tag = .li, .attributes = &[_]zx.Element.Attribute{.{ .name = "key", .value = "d" }}, .children = &[_]zx.Component{.{ .text = "D" }} } };
+
+    const list1 = zx.Component{ .element = .{ .tag = .ul, .children = &[_]zx.Component{ a, b } } };
+    const list2 = zx.Component{ .element = .{ .tag = .ul, .children = &[_]zx.Component{ d, a, b } } };
+
+    var tree = VDOMTree.init(allocator, list1);
+    defer tree.deinit(allocator);
+
+    const a_id = tree.vtree.children.items[0].id;
+    const b_id = tree.vtree.children.items[1].id;
+
+    var patches = try tree.diffWithComponent(allocator, list2);
+    defer {
+        for (patches.items) |patch| {
+            if (patch.type == .PLACEMENT) patch.data.PLACEMENT.vnode.deinit(allocator);
+        }
+        patches.deinit(allocator);
+    }
+
+    var placements: usize = 0;
+    var placed_key: ?[]const u8 = null;
+    for (patches.items) |patch| {
+        try testing.expect(patch.type != .REPLACE);
+        try testing.expect(patch.type != .DELETION);
+        if (patch.type == .PLACEMENT) {
+            placements += 1;
+            placed_key = patch.data.PLACEMENT.vnode.key;
+            try testing.expectEqual(@as(usize, 0), patch.data.PLACEMENT.index);
+        }
+    }
+    try testing.expectEqual(@as(usize, 1), placements);
+    try testing.expectEqualStrings("d", placed_key.?);
+    // Existing keyed nodes keep their DOM identity; patches only place `d`.
+    try testing.expectEqual(a_id, tree.vtree.children.items[0].id);
+    try testing.expectEqual(b_id, tree.vtree.children.items[1].id);
+}
+
+test "keyed component_fn children preserve keys through resolve" {
+    const allocator = testing.allocator;
+
+    const Row = struct {
+        fn call(_: ?*const anyopaque, _: std.mem.Allocator, _: ?[]const u8) anyerror!zx.Component {
+            return .{ .element = .{ .tag = .tr, .children = &[_]zx.Component{.{ .text = "row" }} } };
+        }
+        fn destroy(_: ?*const anyopaque, _: std.mem.Allocator) void {}
+        const vtable: zx.Component.ComponentFn.VTable = .{ .call = call, .destroy = destroy };
+    };
+
+    const row_a = zx.Component{ .component_fn = .{
+        .vtable = &Row.vtable,
+        .data = null,
+        .allocator = allocator,
+        .name = "Row",
+        .key = "a",
+        .id = .undef,
+    } };
+    const row_b = zx.Component{ .component_fn = .{
+        .vtable = &Row.vtable,
+        .data = null,
+        .allocator = allocator,
+        .name = "Row",
+        .key = "b",
+        .id = .undef,
+    } };
+    const row_d = zx.Component{ .component_fn = .{
+        .vtable = &Row.vtable,
+        .data = null,
+        .allocator = allocator,
+        .name = "Row",
+        .key = "d",
+        .id = .undef,
+    } };
+
+    const tbody1 = zx.Component{ .element = .{ .tag = .tbody, .children = &[_]zx.Component{ row_a, row_b } } };
+    const tbody2 = zx.Component{ .element = .{ .tag = .tbody, .children = &[_]zx.Component{ row_d, row_a, row_b } } };
+
+    var tree = VDOMTree.init(allocator, tbody1);
+    defer tree.deinit(allocator);
+
+    try testing.expectEqualStrings("a", tree.vtree.children.items[0].key.?);
+    try testing.expectEqualStrings("b", tree.vtree.children.items[1].key.?);
+    const a_id = tree.vtree.children.items[0].id;
+    const b_id = tree.vtree.children.items[1].id;
+
+    var patches = try tree.diffWithComponent(allocator, tbody2);
+    defer {
+        for (patches.items) |patch| {
+            if (patch.type == .PLACEMENT) patch.data.PLACEMENT.vnode.deinit(allocator);
+        }
+        patches.deinit(allocator);
+    }
+
+    var placements: usize = 0;
+    for (patches.items) |patch| {
+        try testing.expect(patch.type != .REPLACE);
+        try testing.expect(patch.type != .DELETION);
+        if (patch.type == .PLACEMENT) {
+            placements += 1;
+            try testing.expectEqualStrings("d", patch.data.PLACEMENT.vnode.key.?);
+            try testing.expectEqual(@as(usize, 0), patch.data.PLACEMENT.index);
+        }
+    }
+    try testing.expectEqual(@as(usize, 1), placements);
+    // Reused component rows keep the same vnode ids (handlers stay on the right rows).
+    try testing.expectEqual(a_id, tree.vtree.children.items[0].id);
+    try testing.expectEqual(b_id, tree.vtree.children.items[1].id);
+}

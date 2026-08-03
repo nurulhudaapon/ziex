@@ -276,9 +276,15 @@ const Context = struct {
                 }
                 break :blk .{ .name = name, .handler = handler };
             },
-            // Pre-built event handlers (e.g. from ctx.bind(...))
+            // Pre-built event handlers (e.g. from ctx.bind(...)) and ctx.action handles
             .@"struct" => if (T == zx.EventHandler) blk: {
                 var handler = val;
+                if (src) |s| {
+                    handler.stampId(self.getAlloc(), comptime Id.extendId(null, s, 0));
+                }
+                break :blk .{ .name = name, .handler = handler };
+            } else if (T == zx.ActionHandle) blk: {
+                var handler = val.handler;
                 if (src) |s| {
                     handler.stampId(self.getAlloc(), comptime Id.extendId(null, s, 0));
                 }

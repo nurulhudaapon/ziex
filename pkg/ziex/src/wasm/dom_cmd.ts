@@ -23,6 +23,75 @@ export type DomFlushContext = {
     cleanupDomNodes: (node: Node) => void;
 };
 
+/** IDL boolean properties assigned via DomOp_SetProp. */
+const BOOL_PROPS = new Set([
+    "checked",
+    "selected",
+    "muted",
+    "defaultChecked",
+    "indeterminate",
+]);
+
+/**
+ * Work that must run only after the element is in the document.
+ * Attrs are applied before AppendChild/HydrateInsert in the same flush, so we
+ * queue during the op loop and run once at the end (sync — no microtask tax).
+ */
+type AfterConnectKind = "focus";
+type AfterConnectJob = {
+    el: HTMLElement;
+    kind: AfterConnectKind;
+};
+
+function enqueueAfterConnect(queue: AfterConnectJob[], el: HTMLElement, kind: AfterConnectKind): void {
+    // Dedupe per element+kind within one flush
+    for (let i = 0; i < queue.length; i++) {
+        const job = queue[i]!;
+        if (job.el === el && job.kind === kind) return;
+    }
+    queue.push({ el, kind });
+}
+
+function runAfterConnect(queue: AfterConnectJob[]): void {
+    for (let i = 0; i < queue.length; i++) {
+        const job = queue[i]!;
+        if (!job.el.isConnected) continue;
+        switch (job.kind) {
+            case "focus": {
+                if (typeof job.el.focus !== "function") break;
+                try {
+                    job.el.focus({ preventScroll: true });
+                } catch {
+                    job.el.focus();
+                }
+                break;
+            }
+        }
+    }
+}
+
+function assignProp(el: any, name: string, val: string): void {
+    if (BOOL_PROPS.has(name)) {
+        const on = val !== "false";
+        el[name] = on;
+        // Fresh checkbox/radio: mirror parse-time checked so UI + reset() agree.
+        if (name === "defaultChecked" && "checked" in el) {
+            el.checked = on;
+        }
+        return;
+    }
+    if (name === "defaultValue") {
+        el.defaultValue = val;
+        // Fresh controls: mirror parse-time `value="…"` so the field shows text
+        // and form.reset() still restores this default.
+        if (typeof el.value === "string" && (el.value === "" || el.value === el.defaultValue)) {
+            el.value = val;
+        }
+        return;
+    }
+    el[name] = val;
+}
+
 /** Apply a DomCmd buffer written at `ptr` with byte length `len`. */
 export function flushDomCmds(ptr: number, len: number, ctx: DomFlushContext): void {
     const start = ptr >>> 0;
@@ -39,6 +108,7 @@ export function flushDomCmds(ptr: number, len: number, ctx: DomFlushContext): vo
     if (DOM_CMD_HEADER_SIZE + recordsBytes > length) return;
 
     const { domNodes, cleanupDomNodes } = ctx;
+    const afterConnect: AfterConnectJob[] = [];
 
     for (let i = 0; i < count; i++) {
         const off = DOM_CMD_HEADER_SIZE + i * DOM_CMD_RECORD_SIZE;
@@ -75,21 +145,20 @@ export function flushDomCmds(ptr: number, len: number, ctx: DomFlushContext): vo
                 break;
             }
             case DomOp_SetAttr: {
-                (domNodes.get(p0) as Element | undefined)
-                    ?.setAttribute(readString(p1, p2), readString(p3, p4));
+                const el = domNodes.get(p0) as HTMLElement | undefined;
+                if (!el) break;
+                const name = readString(p1, p2);
+                const val = readString(p3, p4);
+                el.setAttribute(name, val);
+                // Parse-time-only activation: queue until node is connected.
+                if (name === "autofocus") {
+                    enqueueAfterConnect(afterConnect, el, "focus");
+                }
                 break;
             }
             case DomOp_SetProp: {
                 const el = domNodes.get(p0) as any;
-                if (el) {
-                    const name = readString(p1, p2);
-                    const val = readString(p3, p4);
-                    if (name === "checked" || name === "selected" || name === "muted") {
-                        el[name] = val !== "false";
-                    } else {
-                        el[name] = val;
-                    }
-                }
+                if (el) assignProp(el, readString(p1, p2), readString(p3, p4));
                 break;
             }
             case DomOp_RemoveAttr: {
@@ -143,4 +212,6 @@ export function flushDomCmds(ptr: number, len: number, ctx: DomFlushContext): vo
                 break;
         }
     }
+
+    runAfterConnect(afterConnect);
 }
