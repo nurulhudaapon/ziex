@@ -20,6 +20,7 @@ pub const CreateOptions = struct {
     io: std.Io,
     transport: *lsp.Transport,
     environ_map: *const std.process.Environ.Map,
+    zx_module: ?[]const u8 = null,
 };
 
 pub const Backing = struct {

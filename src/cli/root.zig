@@ -237,6 +237,27 @@ pub const fmt: Command = .{
     },
 };
 
+pub const EnvFormat = enum { zon, json };
+
+pub const env: Command = .{
+    .name = .env,
+    .help_short = "Print Ziex environment information",
+    .help =
+    \\Prints resolved Ziex paths and environment values for the current process
+    \\(same style as `zig env` when --fmt=zon).
+    \\
+    \\When run via `zig build zx -- env`, the build step injects project-local
+    \\paths (such as ZX_MODULE_PATH) into the process environment.
+    \\
+    ,
+    .named_args = &.{
+        Argument.init(.fmt, EnvFormat, .{
+            .default_value = .zon,
+            .help = "Output format: zon (default) or json",
+        }),
+    },
+};
+
 pub const lsp: Command = .{
     .name = .lsp,
     .help_short = "Start the Ziex language server",
@@ -246,6 +267,9 @@ pub const lsp: Command = .{
     \\Pass --message one or more times to process JSON-RPC payloads and print
     \\NDJSON responses, then exit.
     \\
+    \\The zx module path for `@import("zx")` is resolved from `--zx-module`,
+    \\falling back to the ZX_MODULE_PATH environment variable.
+    \\
     ,
     .named_args = &.{
         Argument.init(.message, []const []const u8, .{
@@ -253,6 +277,10 @@ pub const lsp: Command = .{
             .default_value = &.{},
             .short = 'm',
             .help = "JSON-RPC LSP message to process (repeatable; disables stdio mode)",
+        }),
+        Argument.init(.@"zx-module", []const u8, .{
+            .default_value = "",
+            .help = "Path to the zx module root (src/root.zig); overrides ZX_MODULE_PATH",
         }),
     },
 };
@@ -327,6 +355,7 @@ pub const commands: []const Command = &.{
     build,
     transpile,
     fmt,
+    env,
     lsp,
     @"export",
     bundle,

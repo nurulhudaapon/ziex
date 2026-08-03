@@ -13,6 +13,7 @@ const build_cmd = @import("build.zig");
 const transpile = @import("transpile.zig");
 const app_cmd = @import("app.zig");
 const fmt = @import("fmt.zig");
+const env = @import("env.zig");
 const lsp = @import("lsp.zig");
 const export_cmd = @import("export.zig");
 const bundle = @import("bundle.zig");
@@ -34,10 +35,14 @@ const use_debug_allocator = builtin.optimize == .debug and switch (builtin.os.ta
 
 const os_modules = switch (builtin.os.tag) {
     .wasi, .freestanding => .{ version, transpile, fmt, lsp },
-    else => .{ version, init, app_cmd, dev, serve, build_cmd, transpile, fmt, lsp, export_cmd, bundle, update, upgrade },
+    else => .{ version, init, app_cmd, dev, serve, build_cmd, transpile, fmt, env, lsp, export_cmd, bundle, update, upgrade },
 };
 
 pub fn main(init_process: std.process.Init) !void {
+    if (comptime build_options.enable_lsp) {
+        @import("../lsp/transport/Message.zig").setEnvironMap(init_process.environ_map);
+    }
+
     var dbg: if (use_debug_allocator) std.heap.DebugAllocator(.{}) else void =
         if (use_debug_allocator) .init else {};
     defer if (comptime use_debug_allocator) std.debug.assert(dbg.deinit() == .ok);

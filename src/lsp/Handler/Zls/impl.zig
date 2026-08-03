@@ -76,20 +76,19 @@ pub fn create(options: Zls.CreateOptions) Zls.CreateError!Zls.Backing {
     };
     errdefer config_manager.deinit();
 
-    // TODO: move this to runtime workspace configuration
-    const build_options = @import("build_options");
-    const zx_module_path = if (builtin.os.tag == .wasi)
-        "/zx/src/root.zig"
-    else
-        build_options.zx_module_path;
+    const zx_module_path: ?[]const u8 = blk: {
+        if (options.zx_module) |p| if (p.len > 0) break :blk p;
+        if (options.environ_map.get("ZX_MODULE_PATH")) |p| if (p.len > 0) break :blk p;
+        break :blk null;
+    };
     try config_manager.setConfiguration(.frontend, &.{
         .import_extensions = &.{"zx"},
-        .modules = &.{
+        .modules = if (zx_module_path) |path| &.{
             .{
                 .name = "zx",
-                .path = zx_module_path,
+                .path = path,
             },
-        },
+        } else &.{},
     });
 
     const server = try zls.Server.create(.{

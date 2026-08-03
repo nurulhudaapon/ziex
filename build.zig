@@ -91,12 +91,6 @@ pub fn build(b: *std.Build) !void {
     exe_build_options.addOption(bool, "enable_lsp", enable_lsp);
     exe_build_options.addOption(bool, "enable_zls", enable_lsp);
     exe_build_options.addOption(u2, "log_level", @backingInt(log_level));
-    // TODO: move this to runtime workspace configuration
-    exe_build_options.addOption(
-        []const u8,
-        "zx_module_path",
-        b.pathJoin(&.{ b.root.root_dir.path orelse ".", "src", "root.zig" }),
-    );
 
     const cli_mod = b.addModule("cli", .{
         .root_source_file = b.path("src/cli.zig"),

@@ -87,6 +87,19 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         .version = options.version,
         .server_only_stub_mode = .strict,
         .zig_path = zig_path,
+        .zx_module_path = blk: {
+            const dep_root = zx_host_dep.builder.root.root_dir.path orelse ".";
+            const joined = if (std.fs.path.isAbsolute(dep_root))
+                b.pathJoin(&.{ dep_root, "src", "root.zig" })
+            else
+                std.fs.path.resolve(b.allocator, &.{
+                    b.root.root_dir.path orelse ".",
+                    dep_root,
+                    "src",
+                    "root.zig",
+                }) catch b.pathJoin(&.{ dep_root, "src", "root.zig" });
+            break :blk std.fs.path.resolve(b.allocator, &.{joined}) catch joined;
+        },
     };
 
     if (options.app) |site_opts| {
@@ -529,6 +542,8 @@ const Resolved = struct {
     version: ?[]const u8 = null,
     server_only_stub_mode: ServerOnlyStubMode = .strict,
     zig_path: []const u8,
+    /// Absolute/cwd-relative path to the ziex `src/root.zig` module for LSP.
+    zx_module_path: []const u8,
 };
 
 const AppOptsParams = struct {
@@ -556,13 +571,14 @@ fn addAppOpts(b: *std.Build, params: AppOptsParams) *std.Build.Step.Options {
 }
 
 fn cliRun(b: *std.Build, zx_exe: *std.Build.Step.Compile, opts: Resolved) *std.Build.Step.Run {
-    if (opts.cli_path) |cli_path| {
-        const run = std.Build.Step.Run.create(b, "run zx");
-        run.addFileArg(cli_path);
-        return run;
-    }
+    const run = if (opts.cli_path) |cli_path| blk: {
+        const r = std.Build.Step.Run.create(b, "run zx");
+        r.addFileArg(cli_path);
+        break :blk r;
+    } else b.addRunArtifact(zx_exe);
 
-    return b.addRunArtifact(zx_exe);
+    run.setEnvironmentVariable("ZX_MODULE_PATH", opts.zx_module_path);
+    return run;
 }
 
 fn moduleRequiresLibCRec(module: *std.Build.Module, visited: *std.AutoHashMap(*std.Build.Module, void)) !bool {

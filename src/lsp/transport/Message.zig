@@ -27,15 +27,21 @@ output_message_starts: std.ArrayList(usize) = .empty,
 output_message_bytes: std.ArrayList(u8) = .empty,
 
 var global_session: Message = .{};
-var wasm_environ_map: std.process.Environ.Map = undefined;
-var wasm_environ_map_ready: bool = false;
+var environ_map_ref: ?*const std.process.Environ.Map = null;
+var empty_environ_map: std.process.Environ.Map = undefined;
+var empty_environ_map_ready: bool = false;
+
+pub fn setEnvironMap(map: *const std.process.Environ.Map) void {
+    environ_map_ref = map;
+}
 
 fn environMap() *const std.process.Environ.Map {
-    if (!wasm_environ_map_ready) {
-        wasm_environ_map = .init(gpa);
-        wasm_environ_map_ready = true;
+    if (environ_map_ref) |m| return m;
+    if (!empty_environ_map_ready) {
+        empty_environ_map = .init(gpa);
+        empty_environ_map_ready = true;
     }
-    return &wasm_environ_map;
+    return &empty_environ_map;
 }
 
 fn readJsonMessage(_: *lsp.Transport, _: std.Io, allocator: std.mem.Allocator) (std.mem.Allocator.Error || lsp.Transport.ReadError)![]u8 {
@@ -126,7 +132,12 @@ pub fn dispatch(self: *Message, message: []const u8) !void {
     };
 }
 
-pub fn runMessages(messages: []const []const u8, writer: *std.Io.Writer) !void {
+pub fn runMessages(
+    messages: []const []const u8,
+    writer: *std.Io.Writer,
+    environ_map: *const std.process.Environ.Map,
+) !void {
+    setEnvironMap(environ_map);
     const self = get();
     self.reset();
     defer self.reset();

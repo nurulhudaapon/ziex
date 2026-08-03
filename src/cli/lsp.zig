@@ -16,5 +16,9 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
         );
         return;
     }
-    try @import("../lsp/main.zig").run(ctx, args.message);
+    const zx_module = if (args.@"zx-module".len > 0) args.@"zx-module" else null;
+    try @import("../lsp/main.zig").run(ctx, .{
+        .messages = args.message,
+        .zx_module = zx_module,
+    });
 }

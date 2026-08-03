@@ -9,15 +9,20 @@ const Handler = @import("Handler.zig");
 const Message = @import("transport/Message.zig");
 const CommandContext = @import("../cli/shared/context.zig").CommandContext;
 
-pub fn run(ctx: CommandContext, messages: []const []const u8) !void {
-    if (messages.len > 0) {
-        try Message.runMessages(messages, ctx.writer);
+pub const RunOptions = struct {
+    messages: []const []const u8 = &.{},
+    zx_module: ?[]const u8 = null,
+};
+
+pub fn run(ctx: CommandContext, options: RunOptions) !void {
+    if (options.messages.len > 0) {
+        try Message.runMessages(options.messages, ctx.writer, ctx.app.environ_map);
         return;
     }
-    try runStdio(ctx);
+    try runStdio(ctx, options.zx_module);
 }
 
-fn runStdio(ctx: CommandContext) !void {
+fn runStdio(ctx: CommandContext, zx_module: ?[]const u8) !void {
     const gpa = ctx.allocator;
     const io = ctx.app.io;
     const environ_map = ctx.app.environ_map;
@@ -37,6 +42,7 @@ fn runStdio(ctx: CommandContext) !void {
             .io = io,
             .transport = transport,
             .environ_map = environ_map,
+            .zx_module = zx_module,
         });
         handler.setBacking(backing.ptr, backing.vtable);
     }

@@ -18,6 +18,7 @@ export async function activate(context: ExtensionContext) {
   const lspCmd = await getLspCommand();
   const serverCommand = lspCmd.command;
   const serverArgs = lspCmd.args;
+  const serverEnv = lspCmd.env;
 
   if (!serverCommand) {
     window.showErrorMessage(
@@ -26,7 +27,11 @@ export async function activate(context: ExtensionContext) {
     return;
   }
 
-  const serverOptions: ServerOptions = { command: serverCommand, args: serverArgs };
+  const serverOptions: ServerOptions = {
+    command: serverCommand,
+    args: serverArgs,
+    options: serverEnv ? { env: { ...process.env, ...serverEnv } } : undefined,
+  };
   const outputChannel = window.createOutputChannel("Ziex Language Server", {
     log: true,
   });
@@ -49,23 +54,69 @@ export async function activate(context: ExtensionContext) {
   activateMultilineStringDecorator(context);
 }
 
-async function getLspCommand(): Promise<{ command: string; args: string[] }> {
+type LspCommand = {
+  command: string;
+  args: string[];
+  env?: Record<string, string>;
+};
+
+async function getLspCommand(): Promise<LspCommand> {
   const cwd = workspace.workspaceFolders?.[0]?.uri.fsPath;
 
-  // Try zx lsp first
+  // Prefer installed `zx lsp`. Only then resolve ZX_MODULE_PATH via
+  // `zig build zx -- env` so we can pass --zx-module.
   try {
     await execFile("zx", ["version"], {
       cwd,
       maxBuffer: 1024 * 1024,
       timeout: 5000,
     });
-    return { command: "zx", args: ["lsp"] };
+    const zxModulePath = cwd
+      ? (await readZxModulePath(cwd)) ?? undefined
+      : undefined;
+    const args = ["lsp"];
+    if (zxModulePath) {
+      args.push("--zx-module", zxModulePath);
+    }
+    return {
+      command: "zx",
+      args,
+      env: zxModulePath ? { ZX_MODULE_PATH: zxModulePath } : undefined,
+    };
   } catch {
-    // Fallback to zig build zx -- lsp if available
     if (cwd && (await hasZxBuildStep(cwd))) {
-      return { command: "zig", args: ["build", "zx", "-Dziex-lsp=true", "--release=fast", "--", "lsp"] };
+      return {
+        command: "zig",
+        args: ["build", "zx", "-Dziex-lsp=true", "--release=fast", "--", "lsp"],
+      };
     }
     return { command: "", args: [] };
+  }
+}
+
+async function readZxModulePath(cwd: string): Promise<string | undefined> {
+  if (!(await hasZxBuildStep(cwd))) return undefined;
+  try {
+    const { stdout } = await execFile(
+      "zig",
+      ["build", "zx", "--", "env", "--fmt=json"],
+      {
+        cwd,
+        maxBuffer: 1024 * 1024,
+        timeout: 60_000,
+      },
+    );
+    const jsonStart = stdout.indexOf("{");
+    const jsonEnd = stdout.lastIndexOf("}");
+    if (jsonStart < 0 || jsonEnd < jsonStart) return undefined;
+    const parsed = JSON.parse(stdout.slice(jsonStart, jsonEnd + 1)) as {
+      zx_module_path?: string | null;
+    };
+    return parsed.zx_module_path ?? undefined;
+  } catch (error: any) {
+    // @ts-ignore
+    console.error("failed to read zx env", error);
+    return undefined;
   }
 }
 

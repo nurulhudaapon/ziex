@@ -140,7 +140,7 @@ jobs:
           path: ide/vscode/${{ steps.version.outputs.vsix }}
           retention-days: 14
 
-  publish:
+  publish-vscode:
     if: >-
       github.event_name == 'push' ||
       github.event_name == 'release' ||
@@ -177,6 +177,27 @@ jobs:
             ARGS+=(--pre-release)
           fi
           npx --yes @vscode/vsce "${ARGS[@]}"
+
+  publish-open-vsx:
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'release' ||
+      (github.event_name == 'workflow_dispatch' && inputs.publish)
+    needs: [build]
+    runs-on: ubuntu-latest
+    environment:
+      name: vscode-marketplace
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Download VSIX
+        uses: actions/download-artifact@v4
+        with:
+          name: vscode-extension
+          path: .
 
       - name: Publish to Open VSX
         env:
