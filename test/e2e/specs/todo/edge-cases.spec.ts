@@ -6,7 +6,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Todo App Example - Edge Cases', () => {
   test('Add multiple todos and verify all are present', async ({ page }) => {
-    await page.goto('/examples/wasm');
+    await page.goto('/examples/todo');
     const todos = ['First todo', 'Second todo', 'Third todo', 'Fourth todo'];
     for (const todo of todos) {
       await page.getByRole('textbox', { name: /Add a new todo/ }).fill(todo);
@@ -19,7 +19,7 @@ test.describe('Todo App Example - Edge Cases', () => {
   });
 
   test('Delete todo from the start', async ({ page }) => {
-    await page.goto('/examples/wasm');
+    await page.goto('/examples/todo');
     // Add a unique todo
     const todoText = `Delete me first ${Date.now()}`;
     await page.getByRole('textbox', { name: /Add a new todo/ }).fill(todoText);
@@ -32,7 +32,7 @@ test.describe('Todo App Example - Edge Cases', () => {
   });
 
   test('Delete todo from the middle', async ({ page }) => {
-    await page.goto('/examples/wasm');
+    await page.goto('/examples/todo');
    
     
     const todos = [`A${Date.now()}`, `B${Date.now()}`, `C${Date.now()}`];
@@ -50,7 +50,7 @@ test.describe('Todo App Example - Edge Cases', () => {
   });
 
   test('Update a todo (skip if not supported)', async ({ page }) => {
-    await page.goto('/examples/wasm');
+    await page.goto('/examples/todo');
    
     
     const todoText = `To update ${Date.now()}`;
@@ -69,7 +69,7 @@ test.describe('Todo App Example - Edge Cases', () => {
   });
 
   test('Add empty todo should not add', async ({ page }) => {
-    await page.goto('/examples/wasm');
+    await page.goto('/examples/todo');
    
     
     const initialCount = await page.locator('li').count();
@@ -80,7 +80,7 @@ test.describe('Todo App Example - Edge Cases', () => {
   });
 
   test('Clear all todos (only those added in this test)', async ({ page }) => {
-    await page.goto('/examples/wasm');
+    await page.goto('/examples/todo');
    
     
     const todos = [`Clear me ${Date.now()}`, `Clear me too ${Date.now()}`];

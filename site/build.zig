@@ -2,7 +2,7 @@ const std = @import("std");
 const ziex = @import("ziex");
 
 const build_zon = @import("build.zig.zon");
-const ziex_version = 7; // Increment this when site js changes
+const ziex_version = 8; // Increment this when site js changes
 
 pub fn build(b: *std.Build) !void {
     // --- Target and Optimize from `zig build` arguments ---
@@ -10,6 +10,7 @@ pub fn build(b: *std.Build) !void {
     const optimize = b.standardOptimizeOption(.{});
     const id = assetId(b, optimize);
     const log_level = b.option(std.log.Level, "log-level", "Log level: debug, info, warn, error") orelse .info;
+    const std_server = b.option(bool, "std-server", "Use std server backend") orelse false;
     const build_zig = b.option(bool, "build-zig", "Build zig/compiler_rt wasm from source") orelse false;
 
     const jsbinding_name = b.fmt("app.{s}.js", .{id});
@@ -183,7 +184,7 @@ pub fn build(b: *std.Build) !void {
             .features = app_features,
             .client = app_client,
             .server = .{
-                .backend = .std,
+                .backend = if (std_server) .std else .httpz,
             },
         },
         .cli = .{ .optimize = optimize, .log_level = log_level, .zig_path = "zig" },

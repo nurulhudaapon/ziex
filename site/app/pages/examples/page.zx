@@ -1,69 +1,8 @@
-var count: i32 = 0;
-pub fn Page(ctx: zx.PageContext) !zx.Component {
-    count += 1;
-    ctx.response.cookies.set("count", try ctx.fmt("{d}", .{count}), .{});
-    if (count == 4) {
-        ctx.response.cookies.delete("count", .{});
-        count = 0;
-    }
-
-    const count_cookie = ctx.request.cookies.get("count");
-    if (count_cookie) |cookie| {
-        ctx.response.cookies.set("count-old", cookie, .{});
-    }
-    const allocator = ctx.arena;
-
-    // For Loop example
-    var aw_for: std.Io.Writer.Allocating = .init(allocator);
-    const zx_for = @embedFile("./sandbox/for_loop.zx");
-    const zig_for = @embedFile("./sandbox/for_loop.zig");
-    const html_page_for = @import("./sandbox/for_loop.zig").Page(allocator);
-    try html_page_for.render(&aw_for.writer, .{});
-    const html_for = try allocator.dupe(u8, aw_for.written());
-
-    // If/Else example
-    var aw_if: std.Io.Writer.Allocating = .init(allocator);
-    const zx_if = @embedFile("./sandbox/if_else.zx");
-    const zig_if = @embedFile("./sandbox/if_else.zig");
-    const html_page_if = @import("./sandbox/if_else.zig").Page(allocator);
-    try html_page_if.render(&aw_if.writer, .{});
-    const html_if = try allocator.dupe(u8, aw_if.written());
-
-    // Switch example
-    var aw_switch: std.Io.Writer.Allocating = .init(allocator);
-    const zx_switch = @embedFile("./sandbox/switch_expr.zx");
-    const zig_switch = @embedFile("./sandbox/switch_expr.zig");
-    const html_page_switch = @import("./sandbox/switch_expr.zig").Page(allocator);
-    try html_page_switch.render(&aw_switch.writer, .{});
-    const html_switch = try allocator.dupe(u8, aw_switch.written());
-
-    // Components example
-    var aw_components: std.Io.Writer.Allocating = .init(allocator);
-    const zx_components = @embedFile("./sandbox/components.zx");
-    const zig_components = @embedFile("./sandbox/components.zig");
-    const html_page_components = @import("./sandbox/components.zig").Page(allocator);
-    try html_page_components.render(&aw_components.writer, .{});
-    const html_components = try allocator.dupe(u8, aw_components.written());
-
-    // Dynamic attributes example
-    var aw_dynattr: std.Io.Writer.Allocating = .init(allocator);
-    const zx_dynattr = @embedFile("./sandbox/dynamic_attr.zx");
-    const zig_dynattr = @embedFile("./sandbox/dynamic_attr.zig");
-    const html_page_dynattr = @import("./sandbox/dynamic_attr.zig").Page(allocator);
-    try html_page_dynattr.render(&aw_dynattr.writer, .{});
-    const html_dynattr = try allocator.dupe(u8, aw_dynattr.written());
-
-    const RenderedTest = try feature_examples.RenderTest(ctx);
+pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
-        <fragment @allocator={allocator}>
+        <fragment @allocator={ctx.arena}>
             <ExamplesHeader />
-            <IfElseSection zx_code={zx_if} zig_code={zig_if} html_code={html_if} />
-            <SwitchSection zx_code={zx_switch} zig_code={zig_switch} html_code={html_switch} />
-            <ForLoopSection zx_code={zx_for} zig_code={zig_for} html_code={html_for} />
-            <ComponentsSection zx_code={zx_components} zig_code={zig_components} html_code={html_components} />
-            <DynamicAttrSection zx_code={zx_dynattr} zig_code={zig_dynattr} html_code={html_dynattr} />
-
-            {RenderedTest}
+            <ExamplesDirectory />
         </fragment>
     );
 }
@@ -71,77 +10,35 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
 fn ExamplesHeader(allocator: zx.Allocator) zx.Component {
     return (
         <section class="section learn-header" @allocator={allocator}>
-            <p class="section-category">ZX Framework</p>
             <h1>Examples</h1>
-            <p class="lead">Explore the examples showcasing use of ZX in different scenarios. Each example includes the codes and it's preview.</p>
+            <p class="lead">Explore examples of Ziex features, with live previews and source code.</p>
         </section>
     );
 }
 
-const ExampleSectionProps = struct {
-    zx_code: []const u8,
-    zig_code: []const u8,
-    html_code: []const u8,
-};
-
-fn IfElseSection(allocator: zx.Allocator, props: ExampleSectionProps) zx.Component {
+fn ExamplesDirectory(allocator: zx.Allocator) zx.Component {
     return (
-        <section id="if-else" class="section" @allocator={allocator}>
-            <h2>If/Else Statements</h2>
-            <p>Use if/else expressions to conditionally render content based on state. ZX supports inline conditional expressions that return components or text.</p>
-            <ExampleBlock id="if-else-example" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="if_else.zx" />
-            <div class="callout tip">
-                <strong>Tip:</strong> You can nest if/else expressions for more complex conditional logic.
-            </div>
+        <section class="section examples-directory" @allocator={allocator}>
+            {for (catalog.categories) |category| (
+                <div class="examples-directory-group">
+                    <h3>{category.title}</h3>
+                    <div class="examples-directory-grid">
+                        {for (category.sections) |item| (
+                            <a class="example-route-link" href={item.href}>
+                                <strong>{item.title}</strong>
+                                <div class="example-route-tags">
+                                    {for (item.tags) |tag| (
+                                        <span class="example-tag">{tag}</span>
+                                    )}
+                                </div>
+                            </a>
+                        )}
+                    </div>
+                </div>
+            )}
         </section>
     );
 }
 
-fn SwitchSection(allocator: zx.Allocator, props: ExampleSectionProps) zx.Component {
-    return (
-        <section id="switch" class="section" @allocator={allocator}>
-            <h2>Switch Expressions</h2>
-            <p>Switch expressions provide pattern matching for enums and other types. Each branch can return a component or text.</p>
-            <ExampleBlock id="switch-example" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="switch_expr.zx" />
-        </section>
-    );
-}
-
-fn ForLoopSection(allocator: zx.Allocator, props: ExampleSectionProps) zx.Component {
-    return (
-        <section id="for-loop" class="section" @allocator={allocator}>
-            <h2>For Loop</h2>
-            <p>Iterate over arrays and slices to render lists of components. Each iteration receives the current item which you can use in your template.</p>
-            <ExampleBlock id="for-loop-example" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="for_loop.zx" />
-        </section>
-    );
-}
-
-fn ComponentsSection(allocator: zx.Allocator, props: ExampleSectionProps) zx.Component {
-    return (
-        <section id="components" class="section" @allocator={allocator}>
-            <h2>Component Props</h2>
-            <p>Create reusable components by defining props structs. Components can accept any Zig type as props, including booleans, strings, and custom structs.</p>
-            <ExampleBlock id="components-example" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="components.zx" />
-        </section>
-    );
-}
-
-fn DynamicAttrSection(allocator: zx.Allocator, props: ExampleSectionProps) zx.Component {
-    return (
-        <section id="dynamic-attributes" class="section" @allocator={allocator}>
-            <h2>Dynamic Attributes</h2>
-            <p>Set HTML attributes dynamically using Zig expressions. Boolean attributes like <code>disabled</code> and <code>readonly</code> are handled automatically.</p>
-            <ExampleBlock id="dynamic-attr-example" zx_code={props.zx_code} zig_code={props.zig_code} html_code={props.html_code} filename="dynamic_attr.zx" />
-        </section>
-    );
-}
-
-
-const std = @import("std");
-const CodeBlock = @import("../components/code_block.zx").CodeBlock;
 const zx = @import("zx");
-const Sidebar = @import("../components/sidebar.zx").Sidebar;
-const SidebarProps = @import("../components/sidebar.zx").SidebarProps;
-const ExampleBlock = @import("../components/example_block.zx").ExampleBlock;
-const feature_examples = @import("feature_examples.zx");
+const catalog = @import("catalog.zx");

@@ -6,8 +6,8 @@ import { test, expect } from '@playwright/test';
 
 test.skip('React Integration Example', () => {
   test('Increment and Decrement Visit Count', async ({ page }) => {
-    // 1. Navigate to /examples/wasm/react
-    await page.goto('/examples/wasm/react');
+    // 1. Navigate to /examples/react
+    await page.goto('/examples/react');
     // expect: Page loads with Increment and Decrement buttons and visit count.
     await expect(page.getByRole('button', { name: 'Increment' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Decrement' })).toBeVisible();

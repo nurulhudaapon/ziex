@@ -5,17 +5,22 @@ import { test, expect } from '@playwright/test';
 
 
 test.describe('Counter Example', () => {
-  test('Increment and Decrement State', async ({ page }) => {
-    // 1. Navigate to /examples/wasm/simple
-    await page.goto('/examples/wasm/simple');
-    await expect(page.getByRole('heading', { name: /State \(re-render\):/ })).toHaveCount(3);
-    // 2. Click first 'State + <Number>' button
-    const stateButtons = await page.getByRole('button', { name: /State \+ \d+/ }).all();
-    await stateButtons[0].click();
-    // 3. Click second 'State + <Number>' button
-    await stateButtons[1].click();
-    // 4. Click third 'State + <Number>' button
-    await stateButtons[2].click();
-    // Optionally, add assertions for updated state values if needed
+  test('increments, decrements, resets, and updates derived output', async ({ page }) => {
+    await page.goto('/examples/counter');
+
+    await expect(page.getByRole('heading', { name: 'Count: 0' })).toBeVisible();
+    await expect(page.getByText('Doubled: 0')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Increment' }).click();
+    await expect(page.getByRole('heading', { name: 'Count: 1' })).toBeVisible();
+    await expect(page.getByText('Doubled: 2')).toBeVisible();
+    await expect(page.getByText('Sign: positive')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Decrement' }).click();
+    await page.getByRole('button', { name: 'Decrement' }).click();
+    await expect(page.getByText('Sign: negative')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Reset' }).click();
+    await expect(page.getByRole('heading', { name: 'Count: 0' })).toBeVisible();
   });
 });

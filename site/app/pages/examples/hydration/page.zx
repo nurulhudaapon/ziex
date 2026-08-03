@@ -1,0 +1,52 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    const meta: Meta = .{ .source = "server", .version = 1 };
+
+    return (
+        <main @allocator={ctx.arena} class="example-page">
+            <header class="example-header">
+                <h1>Hydration</h1>
+                <p>A server-rendered component keeps its typed props and becomes interactive in the browser.</p>
+            </header>
+
+            <Counter
+                @rendering={.client}
+                initial={42}
+                label="Hydrated counter"
+                enabled={true}
+                meta={meta}
+            />
+        </main>
+    );
+}
+
+pub const Meta = struct {
+    source: []const u8,
+    version: u8,
+};
+
+pub const CounterProps = struct {
+    initial: i32,
+    label: []const u8,
+    enabled: bool,
+    meta: Meta,
+};
+
+pub fn Counter(ctx: *zx.ComponentCtx(CounterProps)) zx.Component {
+    const count = ctx.state(i32, ctx.props.initial);
+
+    return (
+        <section @allocator={ctx.allocator} class="example-test">
+            <h2>{ctx.props.label}</h2>
+            <p>Initial prop: {ctx.props.initial}</p>
+            <p>Enabled: {ctx.props.enabled}</p>
+            <p>Metadata: {ctx.props.meta.source} v{ctx.props.meta.version}</p>
+            <button disabled={!ctx.props.enabled} onclick={count.bind(increment)}>Count: {count}</button>
+        </section>
+    );
+}
+
+fn increment(value: i32) i32 {
+    return value + 1;
+}
+
+const zx = @import("zx");

@@ -3,25 +3,25 @@ pub fn QuickExample(allocator: zx.Allocator) zx.Component {
     const chars = "Hello, ZX Dev!";
     var i: usize = 0;
     return (
-        <main @allocator={allocator}>
-            <section>
+        <div @allocator={allocator} class="example-test-list">
+            <section class="example-test">
                 {if (is_loading) (<h1>Loading...</h1>) else (<h1>Loaded</h1>)}
             </section>
 
-            <section>
+            <section class="example-test">
                 {for (chars) |char| (<span>{char}</span>)}
             </section>
 
-            <section>
+            <section class="example-test">
                 {for (users) |user| (
                     <Profile name={user.name} age={user.age} role={user.role} />
                 )}
             </section>
 
-            <section>
+            <section class="example-test">
                 {while (i < 10) : (i += 1) (<p>{i}</p>)}
             </section>
-        </main>
+        </div>
     );
 }
 

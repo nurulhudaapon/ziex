@@ -24,15 +24,48 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
         \\WHERE page = '/examples/db'
     , .{})).?;
     const latest_visit = stats.latest_visit orelse "n/a";
+    var database = zx.db;
+    try query.init(&database);
+    try query.seed(&database);
+
+    const dashboard = try query.dashboard(&database, ctx.arena);
+    const revenue = @divTrunc(dashboard.total_revenue_cents, 100);
+    const cents = @mod(dashboard.total_revenue_cents, 100);
+    const revenue_text = if (cents < 10)
+        try ctx.fmt("${d}.0{d}", .{ revenue, cents })
+    else
+        try ctx.fmt("${d}.{d}", .{ revenue, cents });
 
     return (
-        <main @allocator={ctx.arena} lang="en">
-            <h1>Database Example</h1>
-            <p>This page writesdd a row into the implicit default database on every request.</p>
-            <p>Total visits recorded: {stats.total_visits}</p>
-            <p>Latest visit: {latest_visit}</p>
-            <p><a href="/examples/db/advance">Open the advance DB example</a></p>
+        <main @allocator={ctx.arena} class="example-page" lang="en">
+            <header class="example-header">
+                <h1>Database Example</h1>
+                <p>One query API for native SQLite and Cloudflare D1 bindings today, with room for more database drivers in the future.</p>
+            </header>
+
+            <section class="example-section">
+                <h2>Visit counter</h2>
+                <p>A row is added through the active database adapter on every request.</p>
+                <dl class="example-values">
+                    <div><dt>Total visits recorded:</dt><dd>{stats.total_visits}</dd></div>
+                    <div><dt>Latest visit:</dt><dd>{latest_visit}</dd></div>
+                </dl>
+            </section>
+
+            <section class="example-section">
+                <h2>Aggregate query</h2>
+                <p>The SQL lives in <code>query.zig</code>; this page only initializes, seeds, and renders its result.</p>
+                <dl class="example-values">
+                    <div><dt>Customers</dt><dd>{dashboard.total_customers}</dd></div>
+                    <div><dt>Orders</dt><dd>{dashboard.total_orders}</dd></div>
+                    <div><dt>Paid orders</dt><dd>{dashboard.paid_orders}</dd></div>
+                    <div><dt>Revenue</dt><dd>{revenue_text}</dd></div>
+                    <div><dt>Latest order</dt><dd>{dashboard.latest_order_at}</dd></div>
+                </dl>
+            </section>
         </main>
     );
 }
+
 const zx = @import("zx");
+const query = @import("query.zig");

@@ -7,8 +7,8 @@ import { test, expect } from '@playwright/test';
 test.describe('Progress Bar Example', () => {
   test('Progress Bar Controls', async ({ page }) => {
     return;
-    // 1. Navigate to /examples/wasm/progress
-    await page.goto('/examples/wasm/progress');
+    // 1. Navigate to /examples/progress
+    await page.goto('/examples/progress');
     // expect: Progress bar and control buttons are visible.
     await expect(page.getByRole('button', { name: 'Start' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible();

@@ -6,9 +6,9 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Hydration Example', () => {
   test('Hydration Loads', async ({ page }) => {
-    // 1. Navigate to /examples/wasm/hydration
-    await page.goto('/examples/wasm/hydration');
+    // 1. Navigate to /examples/hydration
+    await page.goto('/examples/hydration');
     // expect: Hydration demo loads successfully.
-    await expect(page).toHaveURL(/\/examples\/wasm\/hydration/);
+    await expect(page).toHaveURL(/\/examples\/hydration/);
   });
 });

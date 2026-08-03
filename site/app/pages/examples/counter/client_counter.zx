@@ -1,0 +1,29 @@
+pub fn Counter(ctx: *zx.ComponentCtx(struct { initial: i32 })) ?zx.Component {
+    const state_count = ctx.state(i32, ctx.props.initial);
+
+    return (
+        <section @allocator={ctx.allocator} class="example-test" data-count={state_count}>
+            <h2>Count: {state_count}</h2>
+            <p>Initial prop: {ctx.props.initial}</p>
+            <p>Doubled: {state_count.get() * 2}</p>
+            <p>Sign: {if (state_count.get() < 0) "negative" else if (state_count.get() > 0) "positive" else "zero"}</p>
+            <div class="example-actions">
+                <button onclick={state_count.bind(decrement)}>Decrement</button>
+                <button onclick={state_count.bind(zero)}>Reset</button>
+                <button onclick={state_count.bind(increment)}>Increment</button>
+            </div>
+        </section>
+    );
+}
+
+fn zero(_: i32) i32 {
+    return 0;
+}
+fn increment(x: i32) i32 {
+    return x + 1;
+}
+fn decrement(x: i32) i32 {
+    return x - 1;
+}
+
+const zx = @import("zx");

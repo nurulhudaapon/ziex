@@ -1,8 +1,8 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
-        <div @allocator={ctx.arena} class="todo-container">
+        <main @allocator={ctx.arena} class="demo-page">
             <TodoApp @rendering={.client} />
-        </div>
+        </main>
     );
 }
 
@@ -21,28 +21,22 @@ pub fn TodoApp(ctx: *zx.ComponentCtx(void)) !zx.Component {
 
     return (
         <div @allocator={ctx.allocator} class="todo-app">
-            <div class="todo-header">
-                <h1 class="todo-title">ZX + WASM</h1>
-                <Counter />
-                // <CounterCmp initial={0} />
-                <p class="todo-subtitle">A demo todo app built with ZX Client Side Rendering</p>
-            </div>
+            <header class="demo-header">
+                <h1>Todo app</h1>
+                <p>A small interactive list using zx.State, zx.client.Event and zx.client.js.</p>
+            </header>
 
-            <form class="todo-input-section" onsubmit={ctx.bind(&addTodo)}>
-                <input type="text" class="todo-input" id="todo-input" placeholder="Add a new todo..." required />
-                <button class="todo-add-btn" type="submit">Add</button>
+            <form class="demo-row demo-row-mobile-stack todo-form" onsubmit={ctx.bind(&addTodo)}>
+                <input type="text" class="demo-input" id="todo-input" placeholder="Add a new todo" required />
+                <button class="demo-button demo-button-primary" type="submit">Add</button>
             </form>
 
-            <div class="todo-stats">
-                <span class="todo-stat"><strong>{todos_list.items.len}</strong> total</span>
-                <span class="todo-stat-divider">•</span>
-                <span class="todo-stat"><strong>{countCompleted(todos_list)}</strong> done</span>
-                <span class="todo-stat-divider">•</span>
-                <span class="todo-stat"><strong>{todos_list.items.len - countCompleted(todos_list)}</strong> left</span>
-                <button class="todo-clear-btn" onclick={ctx.bind(&clearTodos)}>Clear All</button>
+            <div class="demo-row todo-stats">
+                <span>{todos_list.items.len} total · {countCompleted(todos_list)} done · {todos_list.items.len - countCompleted(todos_list)} left</span>
+                <button class="demo-button" onclick={ctx.bind(&clearTodos)}>Clear All</button>
             </div>
 
-            <ul class="todo-list">
+            <ul class="todo-list" style="max-width: 100%;">
                 {for (todos_list.items) |todo| (
                     <TodoItem 
                         id={todo.id} 
@@ -70,9 +64,11 @@ fn TodoItem(ctx: *zx.ComponentCtx(struct {
 
     return (
         <li @allocator={ctx.allocator} {class} {key}>
-            <input type="button" class="todo-checkbox" {value} onclick={ctx.props.onToggle} />
+            <button class="todo-checkbox" aria-label="Toggle todo" {value} onclick={ctx.props.onToggle}>
+                {if (ctx.props.completed) "✓" else ""}
+            </button>
             <span> {ctx.props.text} </span>
-            <button class="todo-delete-btn" {value} onclick={ctx.props.onDelete}>×</button>
+            <button class="demo-icon-button todo-delete-btn" {value} onclick={ctx.props.onDelete}>×</button>
         </li>
     );
 }
@@ -170,34 +166,7 @@ fn countCompleted(list: TodoList) u32 {
     return count;
 }
 
-// This is temporarily here to validated pagecontext is buildable for wasm target
-fn Counter(allocator: zx.Allocator) zx.Component {
-    const ctx = zx.PageContext{
-        .request = .{
-            .url = "",
-            .method = .GET,
-            .pathname = "",
-            .headers = .{},
-            .arena = allocator,
-        },
-        .response = .{ .arena = allocator },
-        .allocator = allocator,
-        .arena = allocator,
-        .io = std.Io.failing,
-    };
-    const counter_page = CounterPage(ctx);
-    return (
-        <div @allocator={allocator} style="display: none;">
-            {counter_page}
-        </div>
-    );
-}
-
-pub const CounterPage = @import("./simple/page.zx").Page;
-pub const CounterCmp = @import("./simple/page.zx").Counter;
+const js = zx.client.js;
 
 const zx = @import("zx");
 const std = @import("std");
-const builtin = @import("builtin");
-const client = zx.client;
-const js = zx.client.js;

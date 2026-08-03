@@ -4,7 +4,7 @@ import { skipOnRemoteStatic } from '../../helpers/env';
 test.describe('Progress Bar Example (expanded)', () => {
   test('start, stop, and reset progress controls', async ({ page }) => {
     test.skip(skipOnRemoteStatic, 'Wasm progress controls are not fully available on static deploy');
-    await page.goto('/examples/wasm/progress');
+    await page.goto('/examples/progress');
    
     
     const start = page.getByRole('button', { name: /Start/i }).first();

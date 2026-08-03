@@ -5,9 +5,9 @@ var action_id: u64 = 0;
 
 pub fn Page(ctx: zx.PageContext) !zx.Component {
     return (
-        <div @allocator={ctx.arena} class="todo-container">
+        <main @allocator={ctx.arena} class="demo-page">
             <ProgressDemo @rendering={.client} />
-        </div>
+        </main>
     );
 }
 
@@ -16,26 +16,28 @@ pub fn ProgressDemo(ctx: *zx.ComponentContext) zx.Component {
     running = ctx.state(bool, false);
 
     return (
-        <div @allocator={ctx.allocator} class="timer-demo">
-            <h3 class="timer-title">Progress Demo</h3>
-            <p class="timer-subtitle">Fetch progress from server via WASM</p>
+        <div @allocator={ctx.allocator}>
+            <header class="demo-header">
+                <h1>Progress Demo</h1>
+                <p>Fetch progress from the server via WebAssembly.</p>
+            </header>
 
-            <div class="timer-output">
+            <div class="demo-panel timer-output">
                 <div class="progress-track">
                     <div class="progress-fill" style=`width:{progress}%`></div>
                 </div>
                 <span class="timer-count">{progress}%</span>
             </div>
 
-            <div class="timer-buttons">
-                <button class="timer-btn" onclick={start} disabled={interval_id != null}>
+            <div class="demo-row demo-row-wrap">
+                <button class="demo-button" onclick={start} disabled={interval_id != null}>
                     {if (interval_id != null) ("Running...") else ("Start")}
                 </button>
-                <button class="timer-btn" onclick={stop} disabled={interval_id == null}>Stop</button>
-                <button class="timer-btn" onclick={reset}>Reset</button>
+                <button class="demo-button" onclick={stop} disabled={interval_id == null}>Stop</button>
+                <button class="demo-button" onclick={reset}>Reset</button>
             </div>
 
-            <p class="timer-hint">
+            <p class="demo-muted">
                 {if (progress.get() >= 100) ("Complete!") else if (running.get()) ("Loading...") else ("Random +5-25% per request")}
             </p>
 
@@ -72,7 +74,7 @@ fn reset(_: zx.client.Event) void {
 
 fn fetch() void {
     running.set(true);
-    _ = zx.fetch(.wasm(&onFetch), zx.allocator, zx.allocator.print("/examples/wasm/progress?actionId={d}", .{action_id}) catch "/examples/wasm/progress", .{ .method = .POST }) catch {};
+    _ = zx.fetch(.wasm(&onFetch), zx.allocator, zx.allocator.print("/examples/progress?actionId={d}", .{action_id}) catch "/examples/progress", .{ .method = .POST }) catch {};
 }
 
 fn onFetch(res: ?*zx.Fetch.Response, _: ?zx.Fetch.FetchError) void {
@@ -93,12 +95,14 @@ const css =
     \\.progress-track {
     \\   flex: 1;
     \\   height: 8px;
-    \\   background: var(--border);
+    \\   background: var(--border-color);
+    \\   border-radius: 999px;
     \\   overflow: hidden;
     \\}
     \\.progress-fill {
     \\  height: 100%;
-    \\  background: var(--primary);
+    \\  background: var(--link-color);
+    \\  border-radius: inherit;
     \\  transition: width 0.2s;
     \\}
     \\.timer-output {

@@ -1,60 +1,30 @@
 pub fn Layout(ctx: zx.LayoutContext, children: zx.Component) zx.Component {
+    const source_url = trySourceUrl(ctx);
+
     return (
         <div @allocator={ctx.arena}>
-            <Sidebar allocator={ctx.arena} categories={&categories} toc={&toc_links} active_path="/examples" children={children} />
+            <Sidebar allocator={ctx.arena} categories={&catalog.categories} active_path="/examples" children={(
+                <fragment>
+                    <div class="example-source-bar">
+                        <a class="example-source-link" href={source_url} target="_blank" rel="noopener noreferrer">
+                            View source on GitHub ↗
+                        </a>
+                    </div>
+                    {children}
+                </fragment>
+            )} />
             <script src=`/assets/docs.js?v={zx.info.version}` defer="true"></script>
+            <style @escaping={.none}>{@embedFile("style.css")}</style>
         </div>
     );
 }
-const categories = [_]SidebarProps.Category{
-    .{
-        .title = "Examples",
-        .sections = &[_]SidebarProps.Section{
-            .{ .title = "Overview", .href = "/examples" },
-            .{
-                .title = "Control Flow",
-                .items = &[_]SidebarProps.Link{
-                    .{ .href = "/examples#if-else", .text = "If/Else" },
-                    .{ .href = "/examples#switch", .text = "Switch" },
-                    .{ .href = "/examples#for-loop", .text = "For Loop" },
-                },
-            },
-            .{
-                .title = "Components",
-                .items = &[_]SidebarProps.Link{
-                    .{ .href = "/examples#components", .text = "Props" },
-                    .{ .href = "/examples#dynamic-attributes", .text = "Dynamic Attributes" },
-                },
-            },
-           
-        },
-    },
-    .{
-        .title = "Example Applications",
-        .sections = &[_]SidebarProps.Section{
-            .{ .title = "Counter", .href = "/examples/wasm/simple" },
-            .{ .title = "Streaming", .href = "/examples/streaming" },
-            .{ .title = "Todo App", .href = "/examples/wasm" },
-            .{ .title = "Async Timer", .href =  "/examples/wasm/async" },
-            .{ .title = "Hydration", .href = "/examples/wasm/hydration" },
-            // .{ .title = "Progress Bar", .href = "/examples/wasm/progress" },
-            // .{ .title = "Realtime Chat", .href = "/examples/realtime" },
-            .{ .title = "Auth", .href = "/examples/auth" },
-            .{ .title = "Form", .href = "/examples/form" },
-            .{ .title = "File Form", .href = "/examples/form/file" },
-        },
-    },
-};
 
-const toc_links = [_]SidebarProps.Link{
-    .{ .href = "/examples#if-else", .text = "If/Else" },
-    .{ .href = "/examples#switch", .text = "Switch" },
-    .{ .href = "/examples#for-loop", .text = "For Loop" },
-    .{ .href = "/examples#components", .text = "Props" },
-    .{ .href = "/examples#dynamic-attributes", .text = "Dynamic Attributes" },
-};
-
+fn trySourceUrl(ctx: zx.LayoutContext) []const u8 {
+    return ctx.fmt("{s}/tree/main/site/app/pages{s}", .{
+        zx.info.repository,
+        ctx.request.pathname,
+    }) catch zx.info.repository;
+}
 const Sidebar = @import("../components/sidebar.zx").Sidebar;
-const SidebarProps = @import("../components/sidebar.zx").SidebarProps;
-
+const catalog = @import("catalog.zx");
 const zx = @import("zx");

@@ -1,7 +1,7 @@
 pub fn Page(ctx: zx.PageContext) zx.Component {
     var chat_username = ctx.request.cookies.get("username") orelse "";
     const set_username = ctx.request.queries.get("username") orelse "";
-    var leave_username = ctx.request.queries.get("leave") orelse "";
+    const leave_username = ctx.request.queries.get("leave") orelse "";
     if (set_username.len > 0) {
         ctx.response.cookies.set("username", set_username, .{});
         chat_username = set_username;
@@ -9,28 +9,27 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     }
     if (leave_username.len > 0) {
         ctx.response.cookies.delete("username", .{});
-        leave_username = leave_username;
         chat_username = "";
     }
 
     return (
-        <div @allocator={ctx.arena} class="todo-container">
+        <main @allocator={ctx.arena} class="demo-page">
             {if (chat_username.len > 0) (<ChatRoom username={chat_username} @rendering={.client} />) else (<JoinScreen />)}
-            <style @escaping={.none}>{@embedFile("../wasm/style.css")}</style>
             <style @escaping={.none}>{@embedFile("style.css")}</style>
-        </div>
+        </main>
     );
 }
 
 fn JoinScreen(allocator: zx.Allocator) zx.Component {
     return (
-        <div @allocator={allocator} class="timer-demo chat-join">
-            <h3 class="timer-title">ZX Chat</h3>
-            <p class="timer-subtitle">Real-time chat powered by WebSockets</p>
-
-            <form class="todo-input-section">
-                <input type="text" class="todo-input" name="username" placeholder="Enter your name..." />
-                <button type="submit" class="todo-add-btn">Join Chat</button>
+        <div @allocator={allocator}>
+            <header class="demo-header">
+                <h1>Realtime chat</h1>
+                <p>Choose a name and join a small room powered by ZX WebSockets.</p>
+            </header>
+            <form class="demo-row demo-row-mobile-stack">
+                <input type="text" class="demo-input" name="username" placeholder="Enter your name" required />
+                <button type="submit" class="demo-button demo-button-primary">Join Chat</button>
             </form>
         </div>
     );
@@ -49,14 +48,16 @@ pub fn ChatRoom(ctx: *zx.ComponentCtx(struct { username: []const u8 })) zx.Compo
     }
 
     return (
-        <div @allocator={ctx.allocator} class="timer-demo chat-room">
+        <section @allocator={ctx.allocator} class="demo-panel chat-room">
             <div class="chat-header">
-                <h3 class="timer-title">Chat Room</h3>
+                <div>
+                    <h1>Chat room</h1>
+                </div>
                 <div class="chat-user-info">
                     <span class={status_class}></span>
                     <span class="chat-username">{ctx.props.username}</span>
                     <form class="chat-leave-form">
-                        <button name="leave" class="timer-btn chat-leave-btn" value={ctx.props.username}>Leave</button>
+                        <button name="leave" class="demo-button chat-leave-btn" value={ctx.props.username}>Leave</button>
                     </form>
                 </div>
             </div>
@@ -65,11 +66,11 @@ pub fn ChatRoom(ctx: *zx.ComponentCtx(struct { username: []const u8 })) zx.Compo
                 {for (msgs.items) |msg| (<MessageItem key={msg.text} username={msg.username} text={msg.text} is_system={msg.is_system} />)}
             </div>
 
-            <form class="todo-input-section chat-input" onsubmit={sendMessage}>
-                <input type="text" class="todo-input" id="message-input" placeholder="Type a message..." />
-                <button class="todo-add-btn" onclick={sendMessage}>Send</button>
+            <form class="demo-row chat-input" onsubmit={sendMessage}>
+                <input type="text" class="demo-input" id="message-input" placeholder="Write a message" />
+                <button class="demo-button demo-button-primary" onclick={sendMessage}>Send</button>
             </form>
-        </div>
+        </section>
     );
 }
 
@@ -112,32 +113,9 @@ fn joinChat(username: []const u8) void {
         w.connect() catch {};
     }
 
-    // Trigger initial re-render to update connected status
     if (messages) |msgs_state| {
         msgs_state.set(msgs_state.get());
     }
-}
-
-fn leaveChat(_: zx.client.Event) void {
-    if (zx.platform.role != .client) return;
-
-    if (ws) |*w| {
-        w.close(.{ .code = 1000, .reason = "User left" });
-        w.deinit();
-    }
-    ws = null;
-
-    if (messages) |msgs_state| {
-        var msgs = msgs_state.get();
-        msgs.deinit(zx.allocator);
-        msgs_state.set(.empty);
-    }
-
-    // Clear input via DOM
-    const document = zx.client.Document.init(zx.allocator);
-    if (document.getElementById("message-input")) |input| {
-        input.ref.set("value", zx.client.js.string("")) catch {};
-    } else |_| {}
 }
 
 fn sendMessage(e: zx.client.Event) void {

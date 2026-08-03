@@ -5,15 +5,14 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Counter Example', () => {
   test('Multiple Rapid Clicks', async ({ page }) => {
-    // 1. Navigate to /examples/wasm/simple
-    await page.goto('/examples/wasm/simple');
-    await page.getByRole('button').first().waitFor({ state: 'visible' });
+    await page.goto('/examples/counter');
 
-    // 2. Click 'State + 4' button rapidly 10 times
-    const stateButtons = await page.getByRole('button', { name: /State \+ \d+/ }).all();
+    const increment = page.getByRole('button', { name: 'Increment' });
     for (let i = 0; i < 10; i++) {
-      await stateButtons[0].click();
+      await increment.click();
     }
-    // Optionally, assert the state value increased by 40
+
+    await expect(page.getByRole('heading', { name: 'Count: 10' })).toBeVisible();
+    await expect(page.getByText('Doubled: 20')).toBeVisible();
   });
 });

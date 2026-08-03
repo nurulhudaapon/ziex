@@ -2,13 +2,14 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     return (
         <main @allocator={ctx.arena} class="example-page">
             <header class="example-header">
-                <h1>Template rendering</h1>
-                <p>Raw output from conditionals, loops, components, and switch expressions.</p>
+                <h1>Counter</h1>
+                <p>A minimal state example with bound updates and derived output.</p>
             </header>
-            <QuickExample />
+            <Counter @rendering={.client} initial={0} />
         </main>
     );
 }
 
-const QuickExample = @import("./../overview.zx").QuickExample;
+pub const Counter = @import("./client_counter.zx").Counter;
+
 const zx = @import("zx");

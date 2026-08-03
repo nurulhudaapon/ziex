@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test';
 
 test.describe('React Integration Example', () => {
   test('page loads and mounts react counter when available', async ({ page }) => {
-    await page.goto('/examples/wasm/react');
-    await expect(page).toHaveURL(/\/examples\/wasm\/react/);
+    await page.goto('/examples/react');
+    await expect(page).toHaveURL(/\/examples\/react/);
 
     // React island may take a moment; if the example is temporarily empty,
     // still assert the route shell loaded.
@@ -17,7 +17,7 @@ test.describe('React Integration Example', () => {
       await increment.click();
       await decrement.click();
     } catch {
-      await expect(page.getByRole('heading', { name: 'Example Applications' })).toBeVisible();
+      await expect(page.getByRole('heading', { name: 'Rendering' })).toBeVisible();
     }
   });
 });

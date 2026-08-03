@@ -5,17 +5,20 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Async Timer Example', () => {
   test('Timer and Interval Functionality', async ({ page }) => {
-    // 1. Navigate to /examples/wasm/async
-    await page.goto('/examples/wasm/async');
-    // expect: Timer demo loads with timer and interval buttons.
+    await page.goto('/examples/async');
+
     await expect(page.getByRole('button', { name: 'setTimeout (2s)' })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Start Interval (1s)' })).toBeVisible();
-    // 2. Click 'setTimeout (2s)' and wait 2 seconds
+
     await page.getByRole('button', { name: 'setTimeout (2s)' }).click();
-    await page.waitForTimeout(2100);
-    // 3. Click 'Start Interval (1s)' and wait 3 seconds
+    await expect(page.getByText('Status: Waiting for timeout')).toBeVisible();
+    await expect(page.getByText('Status: Timeout complete')).toBeVisible({ timeout: 3_000 });
+
     await page.getByRole('button', { name: 'Start Interval (1s)' }).click();
-    await page.waitForTimeout(3100);
-    // Optionally, assert interval ticks increased
+    await expect(page.getByText('Interval ticks: 2')).toBeVisible({ timeout: 3_500 });
+
+    await page.getByRole('button', { name: 'Reset' }).click();
+    await expect(page.getByText('Status: Ready')).toBeVisible();
+    await expect(page.getByText('Interval ticks: 0')).toBeVisible();
   });
 });

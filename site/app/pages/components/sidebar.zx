@@ -2,12 +2,14 @@ pub const SidebarProps = struct {
     pub const Link = struct {
         href: []const u8,
         text: []const u8,
+        tags: []const []const u8 = &.{},
     };
 
     pub const Section = struct {
         title: []const u8,
         href: []const u8 = "", // Empty string means no link
         items: []const Link = &.{},
+        tags: []const []const u8 = &.{},
     };
 
     pub const Category = struct {

@@ -36,30 +36,28 @@ pub fn Page(ctx: zx.PageContext) !zx.Component {
     }
 
     return (
-        <main @allocator={ctx.arena} style={s.page}>
-            <div style={s.container}>
-                <header style={s.header}>
-                    <h1>Task manager</h1>
-                    <p>Full-stack CRUD demonstration with Ziex</p>
-                </header>
+        <main @allocator={ctx.arena} class="example-page">
+            <header class="example-header">
+                <h1>Task manager</h1>
+                <p>Full-stack CRUD demonstration with Ziex</p>
+            </header>
 
-                <section style={s.section}>
-                    <TaskForm @rendering={.client} />
-                </section>
+            <section class="example-section">
+                <TaskForm @rendering={.client} />
+            </section>
 
-                <section>
-                    <table style={s.table}>
-                        <thead style={s.thead}>
-                            <tr>
-                                <th>Done</th>
-                                <th>Task</th>
-                                <th></th>
-                            </tr>
-                        </thead>
-                        <TaskList tasks={tasks.items} @rendering={.client} />
-                    </table>
-                </section>
-            </div>
+            <section class="example-section">
+                <table class="example-table">
+                    <thead>
+                        <tr>
+                            <th>Done</th>
+                            <th>Task</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <TaskList tasks={tasks.items} @rendering={.client} />
+                </table>
+            </section>
         </main>
     );
 }
@@ -78,7 +76,7 @@ pub fn TaskList(ctx: *zx.ComponentCtx(struct { tasks: []const Task })) zx.Compon
 
 pub fn TaskForm(ctx: *zx.ComponentContext) zx.Component {
     return (
-        <form @allocator={ctx.allocator} action={handleCreate}>
+        <form @allocator={ctx.allocator} class="example-form" action={handleCreate}>
             <input
                 name="title"
                 placeholder="What needs to be done?"
@@ -112,13 +110,13 @@ pub fn TaskRow(ctx: *zx.ComponentCtx(struct { task: Task })) ?zx.Component {
                     onclick={ctx.bind(handleToggle)}
                 />
             </td>
-            <td style={if (completed) s.tdTaskDone else s.none}>
+            <td class={if (completed) "example-task-done" else ""}>
                 <input
                     value={task.title}
                     onchange={ctx.bind(handleRename)}
                 />
             </td>
-            <td style={s.tdActions}>
+            <td class="example-table-actions">
                 <button
                     onclick={ctx.bind(handleDelete)}
                     value={task.id}
@@ -199,29 +197,6 @@ fn handleDelete(e: *zx.server.Event.Stateful) void {
 
     task_state.set(task);
 }
-
-
-const S = zx.Style;
-const s = struct {
-    const none = S{};
-
-    const page = S{
-        .padding = .rem2(2, 1),
-    };
-    const container = S{
-        .max_width = .px(760),
-        .margin_left = .auto,
-        .margin_right = .auto,
-    };
-    const header = S{ .margin_bottom = .rem(1) };
-    const section = S{ .margin_bottom = .rem(1) };
-
-    const table = S{ .width = .percent(100) };
-    const thead = S{ .text_align = .left };
-    const tdActions = S{ .text_align = .right };
-
-    const tdTaskDone = S{ .text_decoration_line = .line_through };
-};
 
 pub const options: zx.PageOptions = .{
     .methods = &.{ .GET, .POST },
