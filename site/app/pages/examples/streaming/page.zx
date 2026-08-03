@@ -1,17 +1,8 @@
-pub const options = zx.PageOptions{
-    .streaming = true,
-};
-
 pub fn Page(ctx: zx.PageContext) zx.Component {
-    const allocator = ctx.arena;
-
     return (
-        <main lang="en" @allocator={allocator}>
-            <h1>Streaming SSR Demo</h1>
-            <div class="card">
-                <h2>Instant Content</h2>
-                <p>This section renders immediately.</p>
-            </div>
+        <main lang="en" @allocator={ctx.arena}>
+            <h1>Streaming SSR</h1>
+            <p>This shell is rendered immediately, and then more content is streamed in over time.</p>
 
             <section class="card user" @async={.stream} @fallback={(<UserProfile user_id={0} />)}>
                 <UserProfile user_id={42} />
@@ -32,15 +23,17 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     );
 }
 
-fn UserProfile(allocator: zx.Allocator, props: struct { user_id: u32 }) zx.Component {
-    if (props.user_id != 0) {
-        wait(700);
-    }
+pub const options = zx.PageOptions{
+    .streaming = true,
+};
 
-    const name = if (props.user_id == 0) "....." else "Jane Developer";
-    const role = if (props.user_id == 0) "....." else "Full-Stack Engineer";
-    const status = if (props.user_id == 0) "....." else "Online";
-    const id_text = if (props.user_id == 0) "....." else "42";
+fn UserProfile(allocator: zx.Allocator, props: struct { user_id: u32 }) zx.Component {
+    if (props.user_id != 0) wait(700);
+
+    const name = if (props.user_id == 0) "....." else "Ziguana";
+    const role = if (props.user_id == 0) "....." else "Zig Engineer";
+    const status = if (props.user_id == 0) "....." else "Marsline";
+    const id_text = if (props.user_id == 0) "....." else "740";
 
     return (
         <div @allocator={allocator}>
@@ -54,12 +47,10 @@ fn UserProfile(allocator: zx.Allocator, props: struct { user_id: u32 }) zx.Compo
 }
 
 fn RecentPosts(allocator: zx.Allocator, props: struct { count: u32 }) zx.Component {
-    if (props.count != 0) {
-        wait(1600);
-    }
+    if (props.count != 0) wait(1600);
 
     const title = if (props.count == 0) "Recent Posts (.....)" else "Recent Posts (3)";
-    const post1 = if (props.count == 0) "....." else "Getting Started with ZX Framework";
+    const post1 = if (props.count == 0) "....." else "Getting Started with Ziex Framework";
     const post2 = if (props.count == 0) "....." else "Streaming SSR: The Future of Web";
     const post3 = if (props.count == 0) "....." else "Why Zig for Web Development?";
 
@@ -76,9 +67,7 @@ fn RecentPosts(allocator: zx.Allocator, props: struct { count: u32 }) zx.Compone
 }
 
 fn SiteStats(allocator: zx.Allocator, props: struct { loading: bool }) zx.Component {
-    if (!props.loading) {
-        wait(500);
-    }
+    if (!props.loading) wait(500);
 
     const users = if (props.loading) "....." else "12,847";
     const active = if (props.loading) "....." else "1,234";
@@ -98,23 +87,12 @@ fn SiteStats(allocator: zx.Allocator, props: struct { loading: bool }) zx.Compon
     );
 }
 
-/// Pause execution for `duration_ms` milliseconds.
-/// On native (dev server): uses std.Thread.sleep.
-/// On WASM (edge/Cloudflare): calls a Suspending JS import so the Worker can
-/// flush partial response chunks to the client before resuming - enabling
-/// true streaming with JSPI.
+extern "__zx_sys" fn sleep_ms(ms: u32) void;
 fn wait(duration_ms: u64) void {
-    if (comptime builtin.cpu.arch == .wasm32) {
-        sleep_ms(@intCast(duration_ms));
-    } else {
-        std.Io.sleep(zx.io(), .fromMilliseconds(@intCast(duration_ms)), .awake) catch {};
-    }
+    if (zx.platform.isWasm()) return sleep_ms(@intCast(duration_ms));
+
+    std.Io.sleep(zx.io(), .fromMilliseconds(@intCast(duration_ms)), .awake) catch {};
 }
 
-/// Suspending WASM import - implemented as `setTimeout` on the JS side.
-/// Only linked in WASM builds; dead-code-eliminated in native builds.
-extern "__zx_sys" fn sleep_ms(ms: u32) void;
-
-const builtin = @import("builtin");
 const std = @import("std");
 const zx = @import("zx");
