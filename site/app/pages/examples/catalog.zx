@@ -10,8 +10,8 @@ pub const rendering = [_]SidebarProps.Section{
     .{ .title = "Streaming SSR", .href = "/examples/streaming", .tags = &.{ "@async={.stream}", "@fallback" } },
     // .{ .title = "React Integration", .href = "/examples/react" },
     .{ .title = "Typed Events", .href = "/examples/event", .tags = &.{ "zx.client.Event.as", "zx.client.events" } },
-    // .{ .title = "MDZX", .href = "/examples/md" },
-    // .{ .title = "Markdown", .href = "/examples/markdown" },
+    // .{ .title = "MDZX", .href = "/examples/mdzx" },
+    // .{ .title = "Markdown", .href = "/examples/md" },
 };
 
 pub const data_and_apis = [_]SidebarProps.Section{

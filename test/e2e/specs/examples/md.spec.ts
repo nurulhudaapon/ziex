@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Markdown (MDZX) Example', () => {
   test('renders markdown, zx embed, props component, and page context path', async ({ page }) => {
-    await page.goto('/examples/md');
+    await page.goto('/examples/mdzx');
 
     await expect(page.getByRole('heading', { name: 'MDZX', exact: true })).toBeVisible({
       timeout: 15_000,
@@ -23,7 +23,7 @@ test.describe('Markdown (MDZX) Example', () => {
 
 test.describe('Pure Markdown Example', () => {
   test('renders page.md without ZX embeds', async ({ page }) => {
-    await page.goto('/examples/markdown');
+    await page.goto('/examples/md');
 
     await expect(page.getByRole('heading', { name: 'Pure Markdown', exact: true })).toBeVisible({
       timeout: 15_000,

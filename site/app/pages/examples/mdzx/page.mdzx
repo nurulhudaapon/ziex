@@ -27,7 +27,7 @@ You are on:
 
 {ctx.request.pathname}
 
-Also see the pure markdown sibling: [Pure Markdown](/examples/markdown).
+Also see the pure markdown sibling: [Pure Markdown](/examples/md).
 
 <QuickExample />
 

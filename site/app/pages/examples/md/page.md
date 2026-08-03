@@ -24,4 +24,4 @@ Use it when the page is documentation-only and you do not need components or `{e
 const pure = true;
 ```
 
-[Back to MDZX example](/examples/md)
+[Back to MDZX example](/examples/mdzx)
