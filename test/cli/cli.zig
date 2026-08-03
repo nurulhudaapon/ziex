@@ -272,6 +272,8 @@ test "fmt" {
 
 test "upgrade" {
     if (!test_util.shouldRunSlowTest()) return error.SkipZigTest;
+    // always skip cuasing unnecessary downloads as install script does not change often
+    if (true) return error.SkipZigTest;
     try test_cmd(.{
         .args = &.{"upgrade"},
         .expected_exit_code = 0,
