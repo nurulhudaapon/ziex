@@ -187,7 +187,7 @@ pub fn build(b: *std.Build) !void {
                 .backend = if (std_server) .std else .httpz,
             },
         },
-        .cli = .{ .optimize = optimize, .log_level = log_level, .zig_path = "zig" },
+        .cli = .{ .optimize = optimize, .log_level = log_level },
     });
     zx.addImport("cli_args", ziex_dep.module("cli_args"));
 
