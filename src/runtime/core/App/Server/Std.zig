@@ -419,7 +419,10 @@ pub fn Server(comptime H: type) type {
                     },
 
                     .not_found => |nf| {
-                        if (try self.respondStatic(arena, request, pathname)) break :blk true;
+                        if (try self.respondStatic(arena, request, pathname)) {
+                            backend.status = 200;
+                            break :blk true;
+                        }
                         if (nf.component) |cmp| {
                             var page = cmp;
                             if (comptime is_dev) core_handler.injectDevScript(arena, &page);
@@ -576,14 +579,11 @@ pub fn Server(comptime H: type) type {
                     .extra_headers = headers,
                 },
             });
-            try body.writer.writeAll("<!DOCTYPE html>\n");
-            try body.writer.writeAll(shell_writer.written());
+            try writeAndFlushChunk(&body, "<!DOCTYPE html>\n");
+            try writeAndFlushChunk(&body, shell_writer.written());
             if (async_components.len > 0) {
-                try body.writer.writeAll(render.streaming_bootstrap_script);
-                for (async_components) |async_comp| {
-                    const script = async_comp.renderScript(arena) catch continue;
-                    try body.writer.writeAll(script);
-                }
+                try writeAndFlushChunk(&body, render.streaming_bootstrap_script);
+                try streamAsyncComponents(self.io, &body, async_components);
             }
             try body.end();
         }
@@ -731,6 +731,97 @@ fn collectHeaders(arena: std.mem.Allocator, backend: *Conn) ![]const std.http.He
     const headers = try arena.alloc(std.http.Header, backend.resp_headers.items.len);
     for (backend.resp_headers.items, 0..) |h, i| headers[i] = .{ .name = h.name, .value = h.value };
     return headers;
+}
+
+fn writeAndFlushChunk(body: *std.http.BodyWriter, data: []const u8) !void {
+    if (data.len == 0) return;
+    try body.writer.writeAll(data);
+    try body.writer.flush();
+    try body.flush();
+}
+
+/// Render async stream components in parallel and flush each script as it finishes.
+fn streamAsyncComponents(io: std.Io, body: *std.http.BodyWriter, async_components: []render.AsyncComponent) !void {
+    const AsyncResult = struct {
+        script: []const u8 = &.{},
+        done: std.atomic.Value(bool) = .init(false),
+    };
+
+    const results = try std.heap.page_allocator.alloc(AsyncResult, async_components.len);
+    defer std.heap.page_allocator.free(results);
+    for (results) |*result_entry| result_entry.* = .{};
+
+    var remaining = std.atomic.Value(usize).init(async_components.len);
+
+    const TaskContext = struct {
+        async_comp: render.AsyncComponent,
+        result: *AsyncResult,
+        remaining_ref: *std.atomic.Value(usize),
+
+        fn work(ctx: *@This()) void {
+            defer {
+                _ = ctx.remaining_ref.fetchSub(1, .seq_cst);
+                std.heap.page_allocator.destroy(ctx);
+            }
+
+            const script = ctx.async_comp.renderScript(std.heap.page_allocator) catch {
+                ctx.result.done.store(true, .seq_cst);
+                return;
+            };
+            ctx.result.script = script;
+            ctx.result.done.store(true, .seq_cst);
+        }
+    };
+
+    const threads = try std.heap.page_allocator.alloc(?std.Thread, async_components.len);
+    defer std.heap.page_allocator.free(threads);
+
+    for (async_components, 0..) |async_comp, i| {
+        const ctx = std.heap.page_allocator.create(TaskContext) catch {
+            threads[i] = null;
+            continue;
+        };
+        ctx.* = .{
+            .async_comp = async_comp,
+            .result = &results[i],
+            .remaining_ref = &remaining,
+        };
+        threads[i] = std.Thread.spawn(.{}, TaskContext.work, .{ctx}) catch blk: {
+            std.heap.page_allocator.destroy(ctx);
+            _ = remaining.fetchSub(1, .seq_cst);
+            results[i].done.store(true, .seq_cst);
+            break :blk null;
+        };
+    }
+
+    const streamed = try std.heap.page_allocator.alloc(bool, async_components.len);
+    defer std.heap.page_allocator.free(streamed);
+    @memset(streamed, false);
+
+    var completed: usize = 0;
+    var connection_closed = false;
+    while (completed < async_components.len and !connection_closed) {
+        for (results, 0..) |*result_entry, i| {
+            if (streamed[i]) continue;
+            if (!result_entry.done.load(.seq_cst)) continue;
+
+            if (result_entry.script.len > 0) {
+                writeAndFlushChunk(body, result_entry.script) catch {
+                    connection_closed = true;
+                    break;
+                };
+            }
+            streamed[i] = true;
+            completed += 1;
+        }
+        if (completed < async_components.len and !connection_closed) {
+            _ = try std.Io.sleep(io, std.Io.Duration.fromMilliseconds(5), .awake);
+        }
+    }
+
+    for (threads) |maybe_thread| {
+        if (maybe_thread) |thread| thread.join();
+    }
 }
 
 fn statusFrom(code: u16) std.http.Status {

@@ -245,7 +245,9 @@ pub fn createRequest(ctx: *HttpzCtx) Request {
 
 /// Build an abstract `Response` backed by the given httpz request/response pair.
 pub fn createResponse(ctx: *HttpzCtx, arena: std.mem.Allocator) Response {
-    ctx.res.header("Server", server_token);
+    if (!ctx.res.headers.has("Server")) {
+        ctx.res.header("Server", server_token);
+    }
     return .init(.{
         .status = ctx.res.status,
         .arena = arena,
