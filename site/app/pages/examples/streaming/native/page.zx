@@ -1,0 +1,49 @@
+pub fn Page(ctx: zx.PageContext) zx.Component {
+    return (
+        <main @allocator={ctx.arena}>
+            <template shadowrootmode="open">
+                <ul>
+                    <li> <slot name="item-1"> Loading... </slot> </li>
+                    <li> <slot name="item-2"> Loading... </slot> </li>
+                    <li> <slot name="item-3"> Loading... </slot> </li>
+                    <li> <slot name="item-4"> Loading... </slot> </li>
+                    <li> <slot name="item-5"> Loading... </slot> </li>
+                    <li> <slot name="item-6"> Loading... </slot> </li>
+                    <li> <slot name="item-7"> Loading... </slot> </li>
+                    <li> <slot name="item-8"> Loading... </slot> </li>
+                    <li> <slot name="item-9"> Loading... </slot> </li>
+                    <li> <slot name="item-10"> Loading... </slot> </li>
+                </ul>
+            </template>
+            <span slot="item-1" @async={.stream}> <AsyncScore index={1} label="Score" /> </span>
+            <span slot="item-2" @async={.stream}> <AsyncScore index={2} label="Points" /> </span>
+            <span slot="item-3" @async={.stream}> <AsyncScore index={3} label="Rating" /> </span>
+            <span slot="item-4" @async={.stream}> <AsyncScore index={4} label="Score" /> </span>
+            <span slot="item-5" @async={.stream}> <AsyncScore index={5} label="Points" /> </span>
+            <span slot="item-6" @async={.stream}> <AsyncScore index={6} label="Rating" /> </span>
+            <span slot="item-7" @async={.stream}> <AsyncScore index={7} label="Score" /> </span>
+            <span slot="item-8" @async={.stream}> <AsyncScore index={8} label="Points" /> </span>
+            <span slot="item-9" @async={.stream}> <AsyncScore index={9} label="Rating" /> </span>
+            <span slot="item-10" @async={.stream}> <AsyncScore index={10} label="Score" /> </span>
+        </main>
+    );
+}
+
+const AsyncScoreProps = struct { index: u64 = 0, label: []const u8 = "Item" };
+fn AsyncScore(allocator: zx.Allocator, props: AsyncScoreProps) zx.Component {
+    const ms: i64 = @intCast(100 * props.index);
+    std.Io.sleep(zx.io(), .fromMilliseconds(ms), .awake) catch {};
+
+    return (
+        <span @allocator={allocator}>
+            {props.label} #{props.index} - {ms}ms
+        </span>
+    );
+}
+
+pub const options = zx.PageOptions{
+    .streaming = true,
+};
+
+const std = @import("std");
+const zx = @import("zx");

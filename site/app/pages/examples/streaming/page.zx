@@ -31,9 +31,6 @@ pub fn Page(ctx: zx.PageContext) zx.Component {
     );
 }
 
-pub const options = zx.PageOptions{
-    .streaming = true,
-};
 
 fn UserProfile(allocator: zx.Allocator, props: struct { user_id: u32 }) zx.Component {
     if (props.user_id != 0) wait(700);
@@ -80,6 +77,11 @@ fn wait(duration_ms: u64) void {
     std.Io.sleep(zx.io(), .fromMilliseconds(@intCast(duration_ms)), .awake) catch {};
 }
 extern "__zx_sys" fn sleep_ms(ms: u32) void;
+
+
+pub const options = zx.PageOptions{
+    .streaming = true,
+};
 
 const std = @import("std");
 const zx = @import("zx");
