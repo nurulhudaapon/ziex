@@ -562,6 +562,7 @@ fn serveRequest(ds: *DevServer, req: *http.Server.Request, client_stream: std.Io
         // browser can connect to the WebSocket and display error overlays.
         log.debug("proxyToInner failed ({s}), serving error shell", .{@errorName(err)});
         try req.respond(ERROR_SHELL_HTML, .{
+            .status = .service_unavailable,
             .extra_headers = &.{
                 .{ .name = "Content-Type", .value = "text/html; charset=utf-8" },
                 .{ .name = "Cache-Control", .value = "no-cache, no-store" },
