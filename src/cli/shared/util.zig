@@ -50,7 +50,7 @@ pub fn spawnZig(io: std.Io, options: std.process.SpawnOptions) std.process.Spawn
         const resolved = resolveZigExe(options.environ_map, options.argv[0]);
         if (!std.mem.eql(u8, resolved, options.argv[0])) {
             log.debug("resolved zig exe {s} -> {s}", .{ options.argv[0], resolved });
-            @memcpy(argv_buf[0..options.argv.len], options.argv);
+            copyArgv(&argv_buf, options.argv);
             argv_buf[0] = resolved;
             spawn_opts.argv = argv_buf[0..options.argv.len];
         }
@@ -87,7 +87,7 @@ fn trySpawnZigFromPath(
         const separator = if (std.mem.endsWith(u8, entry, "/") or std.mem.endsWith(u8, entry, "\\")) "" else std.fs.path.sep_str;
         const candidate = std.fmt.bufPrint(&candidate_buf, "{s}{s}{s}", .{ entry, separator, exe_name }) catch continue;
 
-        @memcpy(argv_buf[0..options.argv.len], options.argv);
+        copyArgv(argv_buf, options.argv);
         argv_buf[0] = candidate;
         var retry = options;
         retry.argv = argv_buf[0..options.argv.len];
@@ -112,11 +112,15 @@ fn trySpawnZigFromUnderscore(
     if (std.mem.eql(u8, options.argv[0], underscore)) return error.FileNotFound;
 
     log.debug("zig not on PATH, falling back to _={s}", .{underscore});
-    @memcpy(argv_buf[0..options.argv.len], options.argv);
+    copyArgv(argv_buf, options.argv);
     argv_buf[0] = underscore;
     var retry = options;
     retry.argv = argv_buf[0..options.argv.len];
     return std.process.spawn(io, retry);
+}
+
+fn copyArgv(dst: *[64][]const u8, src: []const []const u8) void {
+    for (src, 0..) |arg, index| dst[index] = arg;
 }
 
 const ManifestApp = @import("../../build/Manifest.zig").App;
