@@ -109,6 +109,7 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
     const preferred_port = DevServer.resolvePreferredPort(args.port, env_map, constants.default_port);
     const build_args_str = args.@"build-args";
     const use_spinner = args.@"tui-spinner";
+    const report_initial_build_time = args.@"tui-init-time-report";
     const clear_on_restart = args.@"tui-clear";
     const incremental = args.incremental;
     var build_args = std.mem.splitSequence(u8, build_args_str, " ");
@@ -117,7 +118,7 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
     defer build_args_array.deinit(allocator);
 
     const zig_path = args.@"zig-path";
-    try build_args_array.appendSlice(allocator, &.{ zig_path, "build", "-Dcli-command=dev", "--watch", "--verbose", "--summary", "all", "--color", "off" });
+    try build_args_array.appendSlice(allocator, &.{ zig_path, "build", "-Dcli-command=dev" });
 
     if (incremental) {
         try build_args_array.appendSlice(allocator, &.{"-Dincremental=true"});
@@ -130,6 +131,7 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
         if (std.mem.eql(u8, trimmed_arg, "")) continue;
         try build_args_array.appendSlice(allocator, &.{trimmed_arg});
     }
+    try build_args_array.appendSlice(allocator, &.{ "--watch", "--verbose", "--summary", "all", "--color", "off" });
 
     const manifest_path = try util.resolveManifestPath(allocator, install_prefix, args.manifest);
     defer allocator.free(manifest_path);
@@ -222,12 +224,21 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
     }
 
     // Tracks wall-clock time from "change detected" to runner restart complete.
-    var rebuild_timer: ?std.Io.Timestamp = null;
-    var rebuilding_shown = false;
+    var rebuild_timer: ?std.Io.Timestamp = std.Io.Timestamp.now(io, .awake);
+    var rebuilding_shown = true;
+    var rebuild_output_epoch: usize = 0;
     var is_first_run = true;
     var last_was_no_change = false;
     var last_error_formatted: ?[]const u8 = null;
     defer if (last_error_formatted) |prev| allocator.free(prev);
+
+    if (use_spinner) {
+        var spinner = ctx.spinner;
+        spinner.updateStyle(.{ .frames = tui.Spinner.SpinnerStyles.dots2, .refresh_rate_ms = 80 });
+        try spinner.start("{s}Building...{s}", .{ Colors.cyan, Colors.reset });
+    } else {
+        try ctx.writer.print("{s}↺ {s}Building...{s}\x1b[K\n", .{ Colors.cyan, Colors.bold, Colors.reset });
+    }
 
     var stderr_file = builder.?.stderr.?;
     var raw_buf: [8192]u8 = undefined;
@@ -268,7 +279,11 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                     .line => |r| line_result = r,
                     .tick => {
                         pending_no_change = false;
-                        try settleNoChange(&ctx, &dev_server, use_spinner, rebuilding_shown);
+                        const replace_status = if (runner_output) |*output|
+                            output.outputEpoch() == rebuild_output_epoch
+                        else
+                            true;
+                        try settleNoChange(&ctx, &dev_server, use_spinner, rebuilding_shown, replace_status);
                         rebuild_timer = null;
                         rebuilding_shown = false;
                         last_was_no_change = true;
@@ -292,13 +307,15 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                 rebuild_timer = null;
             }
             switch (event) {
-                .change_detected => {
+                .change_detected => change: {
+                    if (rebuilding_shown) break :change;
                     last_was_no_change = false;
                     if (last_error_formatted) |prev| {
                         allocator.free(prev);
                         last_error_formatted = null;
                     }
                     rebuild_timer = std.Io.Timestamp.now(io, .awake);
+                    rebuild_output_epoch = if (runner_output) |*output| output.outputEpoch() else 0;
                     dev_server.notify(.{ .type = .building });
                     if (use_spinner) {
                         if (rebuilding_shown) {
@@ -312,7 +329,7 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                         }
                     } else {
                         const prefix = if (rebuilding_shown) "\r" else "\n";
-                        try ctx.writer.print("{s}{s}↺ {s}Rebuilding...{s}\x1b[K", .{ prefix, Colors.cyan, Colors.bold, Colors.reset });
+                        try ctx.writer.print("{s}{s}↺ {s}Rebuilding...{s}\x1b[K\n", .{ prefix, Colors.cyan, Colors.bold, Colors.reset });
                     }
                     rebuilding_shown = true;
                 },
@@ -348,7 +365,12 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                         }
                         rebuild_timer = null;
                     } else if (rebuild_timer) |_| {
-                        try ctx.writer.print("\r{s}✖ {s}Error building{s}\x1b[K\n", .{ Colors.red, Colors.bold, Colors.reset });
+                        const replace_status = if (runner_output) |*output|
+                            output.outputEpoch() == rebuild_output_epoch
+                        else
+                            true;
+                        const prefix = if (replace_status) "\x1b[1A\r" else "\r";
+                        try ctx.writer.print("{s}{s}✖ {s}Error building{s}\x1b[K\n", .{ prefix, Colors.red, Colors.bold, Colors.reset });
                         rebuild_timer = null;
                     }
 
@@ -375,7 +397,16 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                         ctx.spinner.stop();
                     }
 
-                    const prefix: []const u8 = if (last_was_no_change) "\x1b[1A\r" else if (rebuilding_shown) "\r" else "";
+                    const replace_status = if (runner_output) |*output|
+                        output.outputEpoch() == rebuild_output_epoch
+                    else
+                        true;
+                    const prefix: []const u8 = if (last_was_no_change or (rebuilding_shown and replace_status))
+                        "\x1b[1A\r"
+                    else if (rebuilding_shown)
+                        "\r"
+                    else
+                        "";
                     if (result.files.len == 1) {
                         try ctx.writer.print("{s}{s}✓ {s}Asset updated{s} {s}{s}{s}\x1b[K\n", .{
                             prefix, Colors.cyan, Colors.bold, Colors.reset, Colors.gray, result.files[0], Colors.reset,
@@ -397,6 +428,10 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
 
                     const wall_build_ms: u64 = if (rebuild_timer) |t| @intCast(t.durationTo(std.Io.Timestamp.now(io, .awake)).toMilliseconds()) else build_duration_ms;
                     rebuild_timer = null;
+                    const replace_status = is_first_run or if (runner_output) |*output|
+                        output.outputEpoch() == rebuild_output_epoch
+                    else
+                        true;
 
                     var start_time = std.Io.Timestamp.now(io, .awake);
 
@@ -445,16 +480,10 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                         try ctx.writer.print("\x1b[2J\x1b[H", .{});
                     }
 
-                    if (rebuilding_shown) {
-                        const restart_prefix: []const u8 = if (rebuilding_shown) "\r" else "\n";
-                        if (use_spinner) {
-                            var spinner = ctx.spinner;
-                            if (!rebuilding_shown) try ctx.writer.print("\n", .{});
-                            spinner.updateStyle(.{ .frames = tui.Spinner.SpinnerStyles.dots2, .refresh_rate_ms = 80 });
-                            try spinner.start("{s}Restarting...{s}", .{ Colors.purple, Colors.reset });
-                        } else {
-                            try ctx.writer.print("{s}{s}↻ {s}Restarting...{s}", .{ restart_prefix, Colors.purple, Colors.bold, Colors.reset });
-                        }
+                    if (rebuilding_shown and !is_first_run and use_spinner) {
+                        var spinner = ctx.spinner;
+                        spinner.updateStyle(.{ .frames = tui.Spinner.SpinnerStyles.dots2, .refresh_rate_ms = 80 });
+                        try spinner.start("{s}Restarting...{s}", .{ Colors.purple, Colors.reset });
                     }
 
                     var runner_args = std.ArrayList([]const u8).empty;
@@ -472,25 +501,39 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
 
                     runner_output = try RunnerOutput.init(io, allocator, &runner.?);
 
-                    _ = runner_output.?.waitForFirstLine(250);
-
                     const restart_time_ms: u64 = @intCast(start_time.durationTo(std.Io.Timestamp.now(io, .awake)).toMilliseconds());
 
-                    if (rebuilding_shown) {
+                    if (rebuilding_shown and (!is_first_run or report_initial_build_time)) {
                         const total_ms = wall_build_ms + restart_time_ms;
                         const total_s: f64 = @as(f64, @floatFromInt(total_ms)) / 1000.0;
                         if (use_spinner) {
                             var spinner = ctx.spinner;
-                            try spinner.succeed("{s}Restarted {s}({d:.2}s){s}", .{ Colors.green, Colors.gray, total_s, Colors.reset });
+                            if (is_first_run) {
+                                try spinner.succeed("{s}Built {s}({d:.2}s){s}", .{ Colors.green, Colors.gray, total_s, Colors.reset });
+                            } else {
+                                try spinner.succeed("{s}Restarted {s}({d:.2}s){s}", .{ Colors.green, Colors.gray, total_s, Colors.reset });
+                            }
                         } else {
-                            try ctx.writer.print("\r{s}✓ {s}Restarted {s}({d:.2}s){s}\x1b[K\n", .{ Colors.green, Colors.bold, Colors.gray, total_s, Colors.reset });
+                            const action = if (is_first_run) "Built" else "Restarted";
+                            const prefix = if (replace_status) "\x1b[1A\r" else "\r";
+                            try ctx.writer.print("{s}{s}✓ {s}{s} {s}({d:.2}s){s}\x1b[K\n", .{ prefix, Colors.green, Colors.bold, action, Colors.gray, total_s, Colors.reset });
                         }
                     }
 
                     if (!is_first_run) {
                         try ctx.writer.print("\n", .{});
+                        printApplicationLogsBanner();
+                    } else if (report_initial_build_time) {
+                        try ctx.writer.print("\n", .{});
+                    } else if (use_spinner) {
+                        var spinner = ctx.spinner;
+                        spinner.stop();
+                        try ctx.writer.print("\r\x1b[2K", .{});
+                    } else {
+                        try ctx.writer.print("\x1b[1A\r\x1b[2K", .{});
                     }
-                    printFirstLine(&runner_output.?, is_first_run);
+                    _ = runner_output.?.waitForFirstLine(250);
+                    printFirstLine(&runner_output.?);
                     is_first_run = false;
 
                     _ = dev_server.waitUntilInnerReady(5000);
@@ -504,7 +547,11 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
     }
 
     if (pending_no_change) {
-        try settleNoChange(&ctx, &dev_server, use_spinner, rebuilding_shown);
+        const replace_status = if (runner_output) |*output|
+            output.outputEpoch() == rebuild_output_epoch
+        else
+            true;
+        try settleNoChange(&ctx, &dev_server, use_spinner, rebuilding_shown, replace_status);
     }
 
     fatal_sig.* = sig.received();
@@ -530,6 +577,7 @@ fn settleNoChange(
     dev_server: *DevServer,
     use_spinner: bool,
     rebuilding_shown: bool,
+    replace_status: bool,
 ) !void {
     if (rebuilding_shown) {
         const dim = "\x1b[2m";
@@ -537,7 +585,8 @@ fn settleNoChange(
             var spinner = ctx.spinner;
             try spinner.succeed("{s}No changes{s}", .{ dim, Colors.reset });
         } else {
-            try ctx.writer.print("\r{s}✓ No changes{s}\x1b[K\n", .{ dim, Colors.reset });
+            const prefix = if (replace_status) "\x1b[1A\r" else "\r";
+            try ctx.writer.print("{s}{s}✓ No changes{s}\x1b[K\n", .{ prefix, dim, Colors.reset });
         }
     }
     log.debug("cached watch cycle completed without output changes", .{});
@@ -545,15 +594,16 @@ fn settleNoChange(
 }
 
 /// Print the first captured line (prefer stderr, fallback to stdout)
-fn printFirstLine(output: *RunnerOutput, is_first_run: bool) void {
+fn printFirstLine(output: *RunnerOutput) void {
     if (output.consumeFirstLine()) |first_line| {
         if (first_line.len > 0) {
-            if (!is_first_run) {
-                std.debug.print("{s}╭─{s}[{s}Application Logs{s}]\n", .{ Colors.gray, Colors.reset, Colors.purple, Colors.reset });
-            }
             std.debug.print("{s}\n", .{first_line});
         }
     }
+}
+
+fn printApplicationLogsBanner() void {
+    std.debug.print("{s}╭─{s}[{s}Application Logs{s}]\n", .{ Colors.gray, Colors.reset, Colors.purple, Colors.reset });
 }
 
 fn notifyBuildError(

@@ -57,6 +57,10 @@ pub const dev: Command = .{
             .default_value = true,
             .help = "Show full build progress output from zig build",
         }),
+        Argument.init(.@"tui-init-time-report", bool, .{
+            .default_value = false,
+            .help = "Show initial build duration before the server address",
+        }),
         Argument.init(.@"tui-underline", bool, .{
             .default_value = true,
             .help = "Show underlined status messages",

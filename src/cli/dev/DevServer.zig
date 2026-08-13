@@ -16,7 +16,7 @@ const builtin = @import("builtin");
 
 const Manifest = @import("../../build/Manifest.zig");
 const CliConstant = @import("../shared/constant.zig");
-const con = @import("../../util/con.zig");
+const con = @import("../../util/conn.zig");
 
 const http = std.http;
 const assert = std.debug.assert;

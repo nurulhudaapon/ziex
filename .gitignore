@@ -3,21 +3,10 @@
 zig-out
 zig-pkg/
 
-# Ziex
-dist
-/bundle
-
-# Node.js
-node_modules
-
 # Project Specific
-# pkg/transformjs
 tmp
 test/data/assets/
 test/data/**/*.zxcache
-/package.json
-/bun.lock
-/src/cli/init/template/bun.lock
 bench/result.csv
 
 # macOS

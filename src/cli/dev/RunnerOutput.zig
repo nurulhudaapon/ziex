@@ -18,6 +18,7 @@ const State = struct {
     main_done_waiting: bool = false,
     main_claimed_first_line: bool = false,
     first_line_forwarded: bool = false,
+    output_epoch: std.atomic.Value(usize) = .init(0),
     done: std.atomic.Value(bool) = .init(false),
 };
 
@@ -64,6 +65,10 @@ pub fn consumeFirstLine(self: *RunnerOutput) ?[]const u8 {
     if (!self.state.main_claimed_first_line or self.state.first_line_forwarded) return null;
     self.state.first_line_forwarded = true;
     return self.state.first_line;
+}
+
+pub fn outputEpoch(self: *const RunnerOutput) usize {
+    return self.state.output_epoch.load(.acquire);
 }
 
 pub fn wait(self: *const RunnerOutput) void {
@@ -117,6 +122,7 @@ fn run(state: *State) void {
 fn drainStdout(state: *State, reader: *Io.Reader) void {
     const bytes = reader.buffered();
     if (bytes.len == 0) return;
+    _ = state.output_epoch.fetchAdd(1, .release);
     Io.File.stdout().writeStreamingAll(state.io, bytes) catch {};
     reader.toss(bytes.len);
 }
@@ -143,6 +149,7 @@ fn drainStderr(state: *State, reader: *Io.Reader, final: bool) void {
             state.mutex.lockUncancelable(state.io);
             const done_waiting = state.main_done_waiting;
             if (done_waiting and !state.main_claimed_first_line and !state.first_line_forwarded) {
+                _ = state.output_epoch.fetchAdd(1, .release);
                 Io.File.stderr().writeStreamingAll(state.io, owned) catch {};
                 Io.File.stderr().writeStreamingAll(state.io, "\n") catch {};
                 state.first_line_forwarded = true;
@@ -155,6 +162,7 @@ fn drainStderr(state: *State, reader: *Io.Reader, final: bool) void {
 
     const bytes = reader.buffered();
     if (bytes.len == 0) return;
+    _ = state.output_epoch.fetchAdd(1, .release);
     Io.File.stderr().writeStreamingAll(state.io, bytes) catch {};
     reader.toss(bytes.len);
 }

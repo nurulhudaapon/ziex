@@ -15,7 +15,7 @@ const render = @import("../../../server/render.zig");
 const AccessLog = @import("AccessLog.zig");
 const Devtool = @import("Devtool.zig");
 const PubSub = @import("PubSub.zig");
-const con = @import("../../../../util/con.zig");
+const con = @import("../../../../util/conn.zig");
 
 const Router = zx.Router;
 const Component = zx.Component;

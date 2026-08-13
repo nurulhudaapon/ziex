@@ -485,8 +485,6 @@ pub fn init(b: *std.Build, exe: *std.Build.Step.Compile, options: InitOptions) !
         const dev_cmd = cliRun(b, zx_cli, opts);
         dev_cmd.addArg("dev");
         dev_cmd.addArgs(&.{ "--zig-path", opts.zig_path });
-        dev_cmd.addArg("--manifest");
-        dev_cmd.addFileArg(manifest_path);
         const dev_step = b.step(dev_step_name, "Run the Ziex app in development mode");
         dev_step.dependOn(&dev_cmd.step);
         dev_cmd.addPassthruArgs();
