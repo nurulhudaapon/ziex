@@ -25,7 +25,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
 
     var build_argv = std.ArrayList([]const u8).empty;
     defer build_argv.deinit(ctx.allocator);
-    try build_argv.appendSlice(ctx.allocator, &.{ args.@"zig-path", "build" });
+    try build_argv.appendSlice(ctx.allocator, &.{ args.@"zig-path", "build", "-Dcli-command=export" });
 
     var i_build_args = std.mem.splitSequence(u8, args.@"build-args", " ");
     while (i_build_args.next()) |arg| {
