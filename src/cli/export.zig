@@ -26,7 +26,6 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
     var build_argv = std.ArrayList([]const u8).empty;
     defer build_argv.deinit(ctx.allocator);
     try build_argv.appendSlice(ctx.allocator, &.{ args.@"zig-path", "build" });
-    try build_argv.appendSlice(ctx.allocator, &.{"-Dcli-command=export"});
 
     var i_build_args = std.mem.splitSequence(u8, args.@"build-args", " ");
     while (i_build_args.next()) |arg| {
@@ -90,7 +89,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
     log.debug("Spawning export server exe={s} port={d} rootdir={s}", .{ exe_path, port, install_prefix });
 
     var app_child = try std.process.spawn(io, .{
-        .argv = &.{ exe_path, "--cli-command", "export" },
+        .argv = &.{exe_path},
         .environ_map = environ_map,
         .stdout = .inherit,
         .stderr = .inherit,

@@ -296,14 +296,6 @@ pub const TempDir = struct {
     }
 };
 
-pub const stdio = @import("stdio.zig");
-pub const OutputMode = stdio.OutputMode;
-pub const OutputTarget = stdio.OutputTarget;
-pub const StreamOptions = stdio.StreamOptions;
-pub const ChildOutputOptions = stdio.ChildOutputOptions;
-pub const ChildOutput = stdio.ChildOutput;
-pub const captureChildOutput = stdio.captureChildOutput;
-
 const std = @import("std");
 const builtin = @import("builtin");
 const tui = @import("../../tui/main.zig");

@@ -8,6 +8,7 @@ const tui = @import("../tui/main.zig");
 const Diagnostics = @import("dev/Diagnostics.zig");
 const DevServer = @import("dev/DevServer.zig");
 const Highlight = @import("dev/Highlight.zig");
+const RunnerOutput = @import("dev/RunnerOutput.zig");
 const sig = @import("../util/sig.zig");
 const cli_args = @import("root.zig");
 const constants = @import("../runtime/core/constants.zig");
@@ -16,71 +17,6 @@ const CommandContext = context.CommandContext;
 const Colors = tui.Colors;
 const log = std.log.scoped(.cli);
 pub const command = cli_args.dev;
-
-var runner: ?std.process.Child = null;
-var builder: ?std.process.Child = null;
-var g_dev_shutting_down: bool = false;
-var g_inner_port: std.atomic.Value(u16) = .init(0);
-var g_dev_io: ?std.Io = null;
-
-fn onDevShutdown() void {
-    if (g_dev_shutting_down) {
-        if (builder) |b| {
-            if (b.id) |pid| sig.killProcessGroup(pid, sig.force_kill);
-        }
-        if (runner) |r| {
-            if (r.id) |pid| sig.killProcessGroup(pid, sig.force_kill);
-        }
-        sig.raiseDefault(sig.received() orelse std.posix.SIG.INT);
-    }
-    g_dev_shutting_down = true;
-    std.debug.print("\n{s}Stopping dev server...{s}\n", .{ Colors.gray, Colors.reset });
-
-    if (builder) |b| {
-        if (b.id) |pid| {
-            sig.unwatchGroup(pid);
-            sig.killProcessGroup(pid, sig.force_kill);
-        }
-    }
-
-    if (runner) |r| {
-        if (r.id) |pid| {
-            sig.unwatchGroup(pid);
-            const port = g_inner_port.load(.acquire);
-            if (port != 0) wakeLocalhostPort(port);
-
-            if (comptime builtin.os.tag == .windows) {
-                sig.killProcessGroup(pid, sig.force_kill);
-            } else {
-                sig.killProcessGroup(pid, std.posix.SIG.TERM);
-                if (port != 0) wakeLocalhostPort(port);
-                if (!sig.waitPidExit(pid, 15_000)) {
-                    sig.killProcessGroup(pid, sig.force_kill);
-                }
-            }
-        }
-    }
-
-    if (comptime builtin.os.tag == .windows) return;
-    sig.raiseDefault(sig.received() orelse std.posix.SIG.INT);
-}
-
-fn wakeLocalhostPort(port: u16) void {
-    if (g_dev_io) |io| {
-        wakeLocalhostIo(io, port);
-        return;
-    }
-    if (comptime builtin.os.tag == .windows or builtin.os.tag == .wasi) return;
-    const sock_rc = std.posix.system.socket(std.posix.AF.INET, std.posix.SOCK.STREAM, 0);
-    if (std.posix.errno(sock_rc) != .SUCCESS) return;
-    const sock: std.posix.fd_t = @intCast(sock_rc);
-    defer _ = std.posix.system.close(sock);
-    var addr = std.posix.sockaddr.in{
-        .port = std.mem.nativeToBig(u16, port),
-        .addr = std.mem.nativeToBig(u32, 0x7f000001),
-    };
-    _ = std.posix.system.connect(sock, @ptrCast(&addr), @sizeOf(@TypeOf(addr)));
-}
 
 fn ownProcessGroup() ?std.posix.pid_t {
     return if (comptime builtin.os.tag == .windows) null else 0;
@@ -117,6 +53,13 @@ fn stopRunnerGraceful(r: *std.process.Child, io: std.Io, inner_port: u16, timeou
         return;
     }
 
+    if (r.id) |pid| {
+        if (comptime builtin.os.tag == .windows) {
+            sig.killProcessGroup(pid, sig.force_kill);
+        } else {
+            sig.killProcessGroup(pid, std.posix.SIG.TERM);
+        }
+    }
     wakeLocalhostIo(io, inner_port);
 
     if (r.id) |pid| {
@@ -153,12 +96,12 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
 fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG) !void {
     const app = ctx.app;
     const io = app.io;
-    g_dev_io = io;
     const env_map = app.environ_map;
+    var runner: ?std.process.Child = null;
+    var builder: ?std.process.Child = null;
 
     try sig.install();
     defer sig.uninstall();
-    sig.addListener(onDevShutdown);
 
     const allocator = ctx.allocator;
     const binpath = args.binpath;
@@ -171,13 +114,10 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
     var build_args = std.mem.splitSequence(u8, build_args_str, " ");
 
     var build_args_array = std.ArrayList([]const u8).empty;
-    var initial_build_args_array = std.ArrayList([]const u8).empty;
     defer build_args_array.deinit(allocator);
-    defer initial_build_args_array.deinit(allocator);
 
     const zig_path = args.@"zig-path";
     try build_args_array.appendSlice(allocator, &.{ zig_path, "build", "-Dcli-command=dev", "--watch", "--verbose", "--summary", "all", "--color", "off" });
-    try initial_build_args_array.appendSlice(allocator, &.{ zig_path, "build", "-Dcli-command=dev" });
 
     if (incremental) {
         try build_args_array.appendSlice(allocator, &.{"-Dincremental=true"});
@@ -189,31 +129,6 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
         const trimmed_arg = std.mem.trim(u8, arg, " ");
         if (std.mem.eql(u8, trimmed_arg, "")) continue;
         try build_args_array.appendSlice(allocator, &.{trimmed_arg});
-        try initial_build_args_array.appendSlice(allocator, &.{trimmed_arg});
-    }
-
-    var initial_build = try util.spawnZig(io, .{
-        .argv = initial_build_args_array.items,
-        .environ_map = env_map,
-    });
-    const initial_term = initial_build.wait(io) catch |err| {
-        log.err("Failed to run initial build: {any}", .{err});
-        std.process.exit(1);
-    };
-
-    switch (initial_term) {
-        .exited => |code| {
-            if (code != 0) {
-                if (env_map.get("CI") != null) {
-                    std.process.exit(code);
-                }
-            }
-        },
-        else => {
-            if (env_map.get("CI") != null) {
-                std.process.exit(1);
-            }
-        },
     }
 
     const manifest_path = try util.resolveManifestPath(allocator, install_prefix, args.manifest);
@@ -234,7 +149,8 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
         .transpile_dir = transpile_dir,
         .io = io,
     });
-    defer dev_server.deinit();
+    var dev_server_active = true;
+    defer if (dev_server_active) dev_server.deinit();
     dev_server.start() catch |err| {
         try ctx.writer.print("Failed to start dev proxy: {any}\n", .{err});
         return;
@@ -247,7 +163,6 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
         return;
     }
     dev_server.inner_port = inner_port;
-    g_inner_port.store(inner_port, .release);
 
     const inner_port_str = try std.fmt.allocPrint(allocator, "{d}", .{inner_port});
     defer allocator.free(inner_port_str);
@@ -273,16 +188,22 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
     var build_state = Builder.BuildState.init(allocator);
     defer build_state.deinit();
 
-    var runner_output: ?util.ChildOutput = null;
+    var runner_output: ?RunnerOutput = null;
     var program_path: ?[]const u8 = null;
     var runner_temp: ?util.TempDir = null;
     var runnable_path_owned: ?[]const u8 = null;
 
-    // Wait for the app (stderr flush) before killing the builder.
+    // Release the user-facing port first, then stop child processes.
     defer {
+        if (sig.interrupted()) {
+            std.debug.print("\n{s}Stopping dev server...{s}\n", .{ Colors.gray, Colors.reset });
+        }
+        dev_server.deinit();
+        dev_server_active = false;
+
         if (runner) |*r| {
             untrackChildGroup(r);
-            stopRunnerGraceful(r, io, inner_port, 15_000);
+            stopRunnerGraceful(r, io, inner_port, 3000);
             runner = null;
         }
         if (runner_output) |*o| {
@@ -319,7 +240,7 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
     var pending_no_change = false;
 
     while (true) {
-        if (g_dev_shutting_down or sig.interrupted()) break;
+        if (sig.interrupted()) break;
 
         // Populate `line_writer`, then strip ANSI in place (no per-line alloc).
         _ = if (pending_no_change) blk: {
@@ -347,7 +268,7 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                     .line => |r| line_result = r,
                     .tick => {
                         pending_no_change = false;
-                        try emitNoChange(&ctx, &dev_server, use_spinner, rebuilding_shown, last_was_no_change);
+                        try settleNoChange(&ctx, &dev_server, use_spinner, rebuilding_shown);
                         rebuild_timer = null;
                         rebuilding_shown = false;
                         last_was_no_change = true;
@@ -538,7 +459,7 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
 
                     var runner_args = std.ArrayList([]const u8).empty;
                     defer runner_args.deinit(allocator);
-                    try runner_args.appendSlice(allocator, &.{ runnable_path, "--cli-command", "dev" });
+                    try runner_args.appendSlice(allocator, &.{runnable_path});
 
                     runner = try std.process.spawn(io, .{
                         .argv = runner_args.items,
@@ -549,10 +470,7 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
                     });
                     trackChildGroup(&runner.?);
 
-                    runner_output = try util.captureChildOutput(io, allocator, &runner.?, .{
-                        .stderr = .{ .mode = .transparent, .target = .stderr },
-                        .stdout = .{ .mode = .transparent, .target = .stdout },
-                    });
+                    runner_output = try RunnerOutput.init(io, allocator, &runner.?);
 
                     _ = runner_output.?.waitForFirstLine(250);
 
@@ -586,7 +504,7 @@ fn runSupervised(ctx: CommandContext, args: anytype, fatal_sig: *?std.posix.SIG)
     }
 
     if (pending_no_change) {
-        try emitNoChange(&ctx, &dev_server, use_spinner, rebuilding_shown, last_was_no_change);
+        try settleNoChange(&ctx, &dev_server, use_spinner, rebuilding_shown);
     }
 
     fatal_sig.* = sig.received();
@@ -607,38 +525,32 @@ fn sleepMs(lio: std.Io, ms: i64) void {
     lio.sleep(.fromMilliseconds(ms), .awake) catch {};
 }
 
-fn emitNoChange(
+fn settleNoChange(
     ctx: *const CommandContext,
     dev_server: *DevServer,
     use_spinner: bool,
     rebuilding_shown: bool,
-    last_was_no_change: bool,
 ) !void {
     if (rebuilding_shown) {
         const dim = "\x1b[2m";
         if (use_spinner) {
-            ctx.spinner.stop();
-        }
-        if (last_was_no_change) {
-            try ctx.writer.print("\x1b[1A\r{s}✓ No changes{s}\x1b[K\n", .{ dim, Colors.reset });
+            var spinner = ctx.spinner;
+            try spinner.succeed("{s}No changes{s}", .{ dim, Colors.reset });
         } else {
             try ctx.writer.print("\r{s}✓ No changes{s}\x1b[K\n", .{ dim, Colors.reset });
         }
     }
+    log.debug("cached watch cycle completed without output changes", .{});
     dev_server.notify(.{ .type = .clear });
 }
 
 /// Print the first captured line (prefer stderr, fallback to stdout)
-fn printFirstLine(output: *util.ChildOutput, is_first_run: bool) void {
-    if (output.consumeFirstStderrLine()) |first_line| {
+fn printFirstLine(output: *RunnerOutput, is_first_run: bool) void {
+    if (output.consumeFirstLine()) |first_line| {
         if (first_line.len > 0) {
             if (!is_first_run) {
                 std.debug.print("{s}╭─{s}[{s}Application Logs{s}]\n", .{ Colors.gray, Colors.reset, Colors.purple, Colors.reset });
             }
-            std.debug.print("{s}\n", .{first_line});
-        }
-    } else if (output.consumeFirstStdoutLine()) |first_line| {
-        if (first_line.len > 0) {
             std.debug.print("{s}\n", .{first_line});
         }
     }

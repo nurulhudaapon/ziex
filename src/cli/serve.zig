@@ -59,7 +59,7 @@ pub fn run(ctx: CommandContext, args: anytype) !void {
     log.debug("Spawning serve exe={s} rootdir={s}", .{ exe_path, DEFAULT_INSTALL_PREFIX });
 
     var app_child = try std.process.spawn(io, .{
-        .argv = &.{ exe_path, "--cli-command", "serve" },
+        .argv = &.{exe_path},
         .environ_map = environ_map,
         .stdout = .inherit,
         .stderr = .inherit,

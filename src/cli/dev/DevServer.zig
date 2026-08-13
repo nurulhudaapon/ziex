@@ -16,6 +16,7 @@ const builtin = @import("builtin");
 
 const Manifest = @import("../../build/Manifest.zig");
 const CliConstant = @import("../shared/constant.zig");
+const con = @import("../../util/con.zig");
 
 const http = std.http;
 const assert = std.debug.assert;
@@ -86,6 +87,7 @@ serve_thread: ?std.Thread,
 update_id: std.atomic.Value(u32),
 shutting_down: std.atomic.Value(bool),
 active_workers: std.atomic.Value(u32),
+live_connections: con,
 
 /// Bounded event queue so rapid transitions (building → reload) don't drop events.
 event_mutex: std.Io.Mutex,
@@ -120,6 +122,7 @@ pub fn init(opts: Options) DevServer {
         .update_id = .init(0),
         .shutting_down = .init(false),
         .active_workers = .init(0),
+        .live_connections = .{},
         .event_mutex = .init,
         .io = opts.io,
     };
@@ -130,9 +133,13 @@ pub fn deinit(ds: *DevServer) void {
     ds.update_id.store(std.math.maxInt(u32), .release);
     ds.io.futexWake(u32, &ds.update_id.raw, std.math.maxInt(u32));
 
+    ds.live_connections.shutdownAll(ds.io);
     if (ds.serve_thread) |t| {
         if (ds.tcp_server) |*s| {
-            wakeLocalhostPort(ds.io, s.socket.address.getPort());
+            const listener: std.Io.net.Stream = .{ .socket = s.socket };
+            listener.shutdown(ds.io, .both) catch {
+                wakeLocalhostPort(ds.io, s.socket.address.getPort());
+            };
         }
         t.join();
     }
@@ -158,6 +165,9 @@ pub fn deinit(ds: *DevServer) void {
 
 /// Max times to try the next port when the preferred one is busy.
 pub const max_port_retries: u8 = 50;
+/// Give a previous dev process a moment to release the preferred port.
+const preferred_port_grace_ms: u16 = 500;
+const preferred_port_retry_ms: u16 = 10;
 
 fn isPortAccepting(io: std.Io, port: u16) bool {
     const addr = std.Io.net.IpAddress.parse("127.0.0.1", port) catch return false;
@@ -172,6 +182,13 @@ fn wakeLocalhostPort(io: std.Io, port: u16) void {
     if (addr.connect(io, .{ .mode = .stream })) |s| {
         s.close(io);
     } else |_| {}
+}
+
+fn retryPreferredPort(io: std.Io, port: u16, preferred: u16, waited_ms: *u16) bool {
+    if (port != preferred or waited_ms.* >= preferred_port_grace_ms) return false;
+    std.Io.sleep(io, .fromMilliseconds(preferred_port_retry_ms), .awake) catch {};
+    waited_ms.* += preferred_port_retry_ms;
+    return true;
 }
 
 fn advancePort(port: u16, preferred: u16, attempts: *u8) error{AlreadyReported}!u16 {
@@ -204,22 +221,21 @@ pub fn start(ds: *DevServer) error{AlreadyReported}!void {
     const preferred = ds.address.getPort();
     var port = preferred;
     var attempts: u8 = 0;
+    var preferred_waited_ms: u16 = 0;
 
     while (true) {
         ds.address.setPort(port);
 
-        if (comptime builtin.os.tag == .windows) {
-            if (isPortAccepting(ds.io, port)) {
-                port = try advancePort(port, preferred, &attempts);
-                continue;
-            }
+        if (isPortAccepting(ds.io, port)) {
+            if (retryPreferredPort(ds.io, port, preferred, &preferred_waited_ms)) continue;
+            port = try advancePort(port, preferred, &attempts);
+            continue;
         }
 
-        // Do not set reuse_address: Zig maps that to SO_REUSEADDR|SO_REUSEPORT,
-        // which lets multiple processes bind the same port (only one gets traffic).
-        ds.tcp_server = ds.address.listen(ds.io, .{}) catch |err| {
+        ds.tcp_server = ds.address.listen(ds.io, .{ .reuse_address = true }) catch |err| {
             switch (err) {
                 error.AddressInUse => {
+                    if (retryPreferredPort(ds.io, port, preferred, &preferred_waited_ms)) continue;
                     port = try advancePort(port, preferred, &attempts);
                     continue;
                 },
@@ -365,7 +381,15 @@ fn serve(ds: *DevServer) void {
 fn handleConnection(ds: *DevServer, stream: std.Io.net.Stream) void {
     _ = ds.active_workers.rmw(.Add, 1, .acq_rel);
     defer _ = ds.active_workers.rmw(.Sub, 1, .acq_rel);
-    defer stream.close(ds.io);
+    const live_token = ds.live_connections.track(stream) orelse {
+        stream.close(ds.io);
+        return;
+    };
+    defer {
+        ds.live_connections.untrack(live_token);
+        stream.close(ds.io);
+    }
+    if (ds.shutting_down.load(.acquire)) return;
 
     // Connection accepted
     log.debug("connection accepted", .{});

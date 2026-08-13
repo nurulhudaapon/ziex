@@ -15,6 +15,7 @@ const render = @import("../../../server/render.zig");
 const AccessLog = @import("AccessLog.zig");
 const Devtool = @import("Devtool.zig");
 const PubSub = @import("PubSub.zig");
+const con = @import("../../../../util/con.zig");
 
 const Router = zx.Router;
 const Component = zx.Component;
@@ -62,9 +63,7 @@ pub fn Server(comptime H: type) type {
         queue_not_full: std.Io.Condition = .init,
         workers: []std.Thread = &.{},
 
-        /// Live connection fds for signal-safe shutdown of blocking WS/HTTP reads.
-        /// `-1` = empty. Workers register/unregister around `handleConnection`.
-        live_fds: [128]std.atomic.Value(i32) = @splat(.init(-1)),
+        live_connections: con = .{},
 
         pub fn init(io: std.Io, allocator: std.mem.Allocator, config: AppConfig, app_ctx: H, inita: zx.Init) !*Self {
             const self = try allocator.create(Self);
@@ -101,37 +100,14 @@ pub fn Server(comptime H: type) type {
 
         pub fn stop(self: *Self) void {
             if (self.shutting_down.swap(true, .acq_rel)) return;
-            wakeAccept(self.io, self.inner_port orelse self.port);
-            shutdownLiveFds(self);
-        }
-
-        fn trackLiveFd(self: *Self, fd: std.posix.fd_t) void {
-            if (comptime builtin.os.tag != .windows and builtin.os.tag != .wasi) {
-                const as_i: i32 = @intCast(fd);
-                for (&self.live_fds) |*slot| {
-                    if (slot.cmpxchgStrong(-1, as_i, .acq_rel, .acquire) == null) return;
-                }
+            if (self.tcp) |*server| {
+                const listener: std.Io.net.Stream = .{ .socket = server.socket };
+                listener.shutdown(self.io, .both) catch {
+                    wakeAccept(self.io, self.inner_port orelse self.port);
+                };
             }
-        }
-
-        fn untrackLiveFd(self: *Self, fd: std.posix.fd_t) void {
-            if (comptime builtin.os.tag != .windows and builtin.os.tag != .wasi) {
-                const as_i: i32 = @intCast(fd);
-                for (&self.live_fds) |*slot| {
-                    _ = slot.cmpxchgStrong(as_i, -1, .acq_rel, .acquire);
-                }
-            }
-        }
-
-        fn shutdownLiveFds(self: *Self) void {
-            if (comptime builtin.os.tag != .windows and builtin.os.tag != .wasi) {
-                for (&self.live_fds) |*slot| {
-                    const fd_i = slot.swap(-1, .acq_rel);
-                    if (fd_i < 0) continue;
-                    const fd: std.posix.fd_t = @intCast(fd_i);
-                    _ = std.posix.system.shutdown(fd, std.posix.SHUT.RDWR);
-                }
-            }
+            self.live_connections.shutdownAll(self.io);
+            self.wakeQueueWaiters();
         }
 
         pub fn start(self: *Self) !void {
@@ -141,7 +117,9 @@ pub fn Server(comptime H: type) type {
                 bind_address = std.Io.net.IpAddress.parse("127.0.0.1", inner_port) catch bind_address;
             }
 
-            self.tcp = bind_address.listen(self.io, .{}) catch |err| switch (err) {
+            self.tcp = bind_address.listen(self.io, .{
+                .reuse_address = self.inner_port != null,
+            }) catch |err| switch (err) {
                 error.AddressInUse => {
                     std.debug.print("{s}Port {d} is already in use{s}\n", .{ colors.red, bind_address.getPort(), colors.reset_all });
                     std.debug.print("\nTo kill the port, run:\n  {s}kill -9 $(lsof -t -i:{d}){s}\n\n", .{ colors.dim, bind_address.getPort(), colors.reset_all });
@@ -201,7 +179,7 @@ pub fn Server(comptime H: type) type {
 
         fn shutdownWorkers(self: *Self) void {
             self.shutting_down.store(true, .release);
-            shutdownLiveFds(self);
+            self.live_connections.shutdownAll(self.io);
             self.wakeQueueWaiters();
             for (self.workers) |*t| t.join();
             if (self.workers.len != 0) {
@@ -282,9 +260,12 @@ pub fn Server(comptime H: type) type {
         }
 
         fn handleConnection(self: *Self, stream: std.Io.net.Stream) void {
-            self.trackLiveFd(stream.socket.handle);
+            const live_token = self.live_connections.track(stream) orelse {
+                stream.close(self.io);
+                return;
+            };
             defer {
-                self.untrackLiveFd(stream.socket.handle);
+                self.live_connections.untrack(live_token);
                 stream.close(self.io);
             }
 
