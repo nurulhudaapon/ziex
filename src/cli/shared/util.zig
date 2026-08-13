@@ -60,23 +60,44 @@ pub fn spawnZig(io: std.Io, options: std.process.SpawnOptions) std.process.Spawn
         error.FileNotFound => {
             if (spawn_opts.argv.len == 0 or spawn_opts.argv.len > argv_buf.len) return err;
 
-            // First fallback: absolute/custom path -> bare "zig" on PATH.
-            if (!std.mem.eql(u8, spawn_opts.argv[0], "zig")) {
-                log.debug("zig not found at {s}, falling back to PATH", .{spawn_opts.argv[0]});
-                @memcpy(argv_buf[0..spawn_opts.argv.len], spawn_opts.argv);
-                argv_buf[0] = "zig";
-                var retry = spawn_opts;
-                retry.argv = argv_buf[0..spawn_opts.argv.len];
-                return std.process.spawn(io, retry) catch |retry_err| switch (retry_err) {
-                    error.FileNotFound => trySpawnZigFromUnderscore(io, spawn_opts, &argv_buf),
-                    else => return retry_err,
-                };
-            }
-
-            return trySpawnZigFromUnderscore(io, spawn_opts, &argv_buf);
+            log.debug("zig not found at {s}, resolving from PATH", .{spawn_opts.argv[0]});
+            return trySpawnZigFromPath(io, spawn_opts, &argv_buf) catch |path_err| switch (path_err) {
+                error.FileNotFound => trySpawnZigFromUnderscore(io, spawn_opts, &argv_buf),
+                else => return path_err,
+            };
         },
         else => return err,
     };
+}
+
+fn trySpawnZigFromPath(
+    io: std.Io,
+    options: std.process.SpawnOptions,
+    argv_buf: *[64][]const u8,
+) std.process.SpawnError!std.process.Child {
+    const environ_map = options.environ_map orelse return error.FileNotFound;
+    const path = environ_map.get("PATH") orelse return error.FileNotFound;
+    const delimiter: u8 = if (builtin.os.tag == .windows) ';' else ':';
+    const exe_name = if (builtin.os.tag == .windows) "zig.exe" else "zig";
+    var entries = std.mem.splitScalar(u8, path, delimiter);
+    var candidate_buf: [std.fs.max_path_bytes]u8 = undefined;
+
+    while (entries.next()) |entry| {
+        if (entry.len == 0) continue;
+        const separator = if (std.mem.endsWith(u8, entry, "/") or std.mem.endsWith(u8, entry, "\\")) "" else std.fs.path.sep_str;
+        const candidate = std.fmt.bufPrint(&candidate_buf, "{s}{s}{s}", .{ entry, separator, exe_name }) catch continue;
+
+        @memcpy(argv_buf[0..options.argv.len], options.argv);
+        argv_buf[0] = candidate;
+        var retry = options;
+        retry.argv = argv_buf[0..options.argv.len];
+        return std.process.spawn(io, retry) catch |err| switch (err) {
+            error.FileNotFound => continue,
+            else => return err,
+        };
+    }
+
+    return error.FileNotFound;
 }
 
 fn trySpawnZigFromUnderscore(
