@@ -33,6 +33,7 @@ jobs:
         with:
           version: 0.17.0-dev.1465+8b2d0ce21
           cache-size-limit: 0
+          use-tool-cache: true
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -171,6 +172,7 @@ jobs:
         with:
           version: 0.17.0-dev.1465+8b2d0ce21
           cache-size-limit: 0
+          use-tool-cache: true
 
       - name: Install Node Dependencies
         run: cd site && npm ci
