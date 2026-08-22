@@ -9,7 +9,7 @@ PROJECT_ROOT="$(pwd)"
 SOURCE_DIR="$PROJECT_ROOT/pkg/tree-sitter-zx/queries"
 ZED_DIR="$PROJECT_ROOT/ide/zed/languages/zx"
 NEOVIM_DIR="$PROJECT_ROOT/ide/neovim/queries/zx"
-SITE_PAGES_DIR="$PROJECT_ROOT/site/pages/docs"
+SITE_PAGES_DIR="$PROJECT_ROOT/site/app/pages/reference"
 
 # Ensure destination directories exist
 mkdir -p "$ZED_DIR"
@@ -42,8 +42,8 @@ copy_files() {
 copy_files "$ZED_DIR" "Zed"
 copy_files "$NEOVIM_DIR" "Neovim"
 
-# Copy highlights.scm to site/pages
-echo "Copying highlights.scm to site/pages..."
+# Copy highlights.scm to the docs site
+echo "Copying highlights.scm to the docs site..."
 rm -f "$SITE_PAGES_DIR/highlights.scm"
 cp "$SOURCE_DIR/highlights.scm" "$SITE_PAGES_DIR/highlights.scm"
 echo "  Copied: highlights.scm"
