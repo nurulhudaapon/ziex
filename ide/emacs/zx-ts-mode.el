@@ -27,7 +27,10 @@
 
 (require 'treesit)
 
+(declare-function treesit-node-child "treesit.c")
 (declare-function treesit-node-child-by-field-name "treesit.c")
+(declare-function treesit-node-next-sibling "treesit.c")
+(declare-function treesit-node-type "treesit.c")
 (declare-function treesit-parser-create "treesit.c")
 
 (defgroup zx nil
@@ -237,10 +240,19 @@
 ;;; Navigation
 
 (defun zx-ts-mode--defun-name (node)
-  "Return the name of NODE for imenu and `which-function-mode'."
-  (treesit-node-text
-   (treesit-node-child-by-field-name node "name")
-   t))
+  "Return the name of NODE for imenu and `which-function-mode'.
+`function_declaration' exposes a `name' field.  `test_declaration'
+does not; its title is a `string' or `identifier' child."
+  (let ((name-node (treesit-node-child-by-field-name node "name")))
+    (when (and (null name-node)
+               (equal (treesit-node-type node) "test_declaration"))
+      (let ((child (treesit-node-child node 0 t)))
+        (while (and child
+                    (not (member (treesit-node-type child)
+                                 '("string" "identifier"))))
+          (setq child (treesit-node-next-sibling child t)))
+        (setq name-node child)))
+    (and name-node (treesit-node-text name-node t))))
 
 ;;; Eglot
 
