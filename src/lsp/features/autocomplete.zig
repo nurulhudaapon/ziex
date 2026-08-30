@@ -52,7 +52,7 @@ pub fn complete(
 
 fn detectContext(arena: std.mem.Allocator, source: []const u8, offset: u32) ?Context {
     if (detectFromParse(arena, source, offset)) |ctx| return ctx;
-    return detectFromText(source, offset);
+    return detectFromText(source, offset, false);
 }
 
 fn detectFromParse(arena: std.mem.Allocator, source: []const u8, offset: u32) ?Context {
@@ -60,11 +60,12 @@ fn detectFromParse(arena: std.mem.Allocator, source: []const u8, offset: u32) ?C
     defer parse.deinit(arena);
 
     const root = parse.tree.rootNode();
+    const in_markup = parseSaysMarkupLt(root, source, offset);
     const node = root.descendantForByteRange(offset, offset) orelse {
-        return detectFromText(source, offset);
+        return detectFromText(source, offset, in_markup);
     };
 
-    if (!inZxMarkup(node)) return detectFromText(source, offset);
+    if (!inZxMarkup(node)) return detectFromText(source, offset, in_markup);
 
     var current: ?@TypeOf(node) = node;
     while (current) |n| : (current = n.parent()) {
@@ -108,16 +109,28 @@ fn detectFromParse(arena: std.mem.Allocator, source: []const u8, offset: u32) ?C
         }
     }
 
-    return detectFromText(source, offset);
+    return detectFromText(source, offset, in_markup);
 }
 
-fn detectFromText(source: []const u8, offset: u32) ?Context {
+/// True when the parser places the `<` nearest before `offset` inside ZX
+/// markup. A tag that is still being typed lands under an `ERROR` node, so the
+/// tag itself carries no context, but the token *before* the `<` is still
+/// classified - and that is enough to tell markup apart from a Zig `<`.
+fn parseSaysMarkupLt(root: anytype, source: []const u8, offset: u32) bool {
+    if (offset == 0 or offset > source.len) return false;
+    const lt = std.mem.lastIndexOfScalar(u8, source[0..offset], '<') orelse return false;
+    if (lt == 0) return false;
+    const prev = root.descendantForByteRange(@intCast(lt - 1), @intCast(lt)) orelse return false;
+    return inZxMarkup(prev);
+}
+
+fn detectFromText(source: []const u8, offset: u32, in_markup: bool) ?Context {
     if (offset == 0) return null;
     const before = source[0..offset];
 
     const lt = std.mem.lastIndexOfScalar(u8, before, '<') orelse return null;
     const after_lt = before[lt + 1 ..];
-    if (!looksLikeMarkupLt(source, lt)) return null;
+    if (!in_markup and !looksLikeMarkupLt(source, lt)) return null;
     if (std.mem.indexOfScalar(u8, after_lt, '>') != null) return null;
 
     const closing = after_lt.len > 0 and after_lt[0] == '/';
@@ -142,6 +155,8 @@ fn detectFromText(source: []const u8, offset: u32) ?Context {
     };
 }
 
+/// Text-only fallback for when the parse tree cannot classify the `<`:
+/// markup children always start right after `(` or a preceding `>`.
 fn looksLikeMarkupLt(source: []const u8, lt: usize) bool {
     var i = lt;
     while (i > 0) {
@@ -391,6 +406,7 @@ fn inZxMarkup(node: anytype) bool {
             .zx_start_tag,
             .zx_end_tag,
             .zx_child,
+            .zx_text,
             => return true,
             else => {},
         }
