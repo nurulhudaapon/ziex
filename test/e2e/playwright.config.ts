@@ -75,8 +75,10 @@ export default defineConfig({
       cwd: '../../',
       url: 'http://localhost:3000',
       reuseExistingServer: process.env.TEMPLATE_TESTS || !process.env.CI,
-      // Wait for 5 mins for the server to start, since zig build can be slow on the first run
-      timeout: 1000 * 60 * 5,
+      // First `zig build dev` compiles the site, playground wasm, and lazy
+      // deps (zls, lunasvg, …). That regularly exceeds 5 minutes on a cold
+      // GitHub runner, so wait 15 minutes before treating startup as failed.
+      timeout: 1000 * 60 * 15,
     },
   }),
 });
